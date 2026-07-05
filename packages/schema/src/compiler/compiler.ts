@@ -236,10 +236,12 @@ export type ValidationResult =
       /** The flat list of leaf errors. Always non-empty when `!valid`. */
       errors: ValidationError[];
       /**
-       * `true` when at least one error was dropped because the configured
-       * `maxErrors` cap was hit. The v3 default is `maxErrors: 1`, so a
-       * payload with more than one problem reports `truncated: true`;
-       * `false` when the list is complete.
+       * `true` when the configured `maxErrors` cap was reached, meaning
+       * the list may be incomplete: validation returns as soon as the
+       * budget drains, without checking the remaining keywords. Under
+       * the v3 default (`maxErrors: 1`) every failing result therefore
+       * reports `truncated: true`. `false` means the cap was never hit
+       * and the list is complete.
        */
       truncated: boolean;
     };
@@ -511,11 +513,13 @@ export interface CompileOptions {
    * `Number.POSITIVE_INFINITY` to collect everything.
    *
    * When set to a finite value:
-   * - Once the cap is reached, further errors are dropped and
-   *   `truncated: true` is set on the returned result.
-   * - Hot loops (array items, object properties, `allOf`/`anyOf`
-   *   branches) short-circuit as soon as the budget is exhausted, so
-   *   the CPU and memory cost of validating a huge payload is bounded.
+   * - Once the cap is reached, `truncated: true` is set on the returned
+   *   result and no further errors are reported.
+   * - In flat mode (the default output), reaching the cap returns from
+   *   the validator immediately, skipping the remaining keyword checks
+   *   entirely; `maxErrors: 1` behaves like ajv's `allErrors: false`
+   *   fast-fail. Tree mode keeps walking (to preserve the tree shape)
+   *   but stops collecting.
    *
    * `maxErrors: 1` is the default (classic fast-fail). To collect every
    * error, pass `Number.POSITIVE_INFINITY`.
@@ -1185,7 +1189,7 @@ function buildFunctionBody(
       gen.line("return false;");
     } else {
       const falseErr = `${NAMES.DEPS}.createLeafError("false", ${NAMES.PATH}, "schema is false, nothing is valid")`;
-      gen.line(emitPushStatement(NAMES.ERRORS, falseErr, state.gated));
+      gen.line(emitPushStatement(NAMES.ERRORS, falseErr, state.gated, flat));
     }
   } else {
     const trackProps = needsPropTracking(schema, state);

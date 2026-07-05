@@ -258,13 +258,33 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
       void errExpr;
       return "return false;";
     }
-    if (kind === "leaf") return emitPushStatement(inputs.errors, errExpr, gated);
+    if (kind === "leaf") return emitPushStatement(inputs.errors, errExpr, gated, flat);
     // kind === "lift": already-counted sub-validator result being
     // propagated. Never interacts with the budget. In flat mode the
     // callee returns a `ValidationError[]` (its leaves), so the lift
     // appends that list onto the accumulator; in tree mode it returns a
     // single node, pushed as one child.
-    if (flat) return appendErrorsStatement(inputs.errors, errExpr);
+    if (flat) {
+      const append = appendErrorsStatement(inputs.errors, errExpr);
+      if (!gated) return append;
+      // Gated flat mode: a callee that drained the budget already
+      // returned early from its own frame; bail from this frame too so
+      // the unwind reaches the top instead of running the remaining
+      // keywords one frame up. Braced so the compound stays a single
+      // block statement at unbraced `if (e !== null) ...` call sites.
+      //
+      // The bail can fire between a validateSubschema push/pop pair,
+      // leaving the shared path array one segment long. Unobservable
+      // today: every frame on the unwind bails before touching the
+      // path again, error paths were copied at creation, and the
+      // top-level validate() hands each call a fresh array. Keep that
+      // invariant in mind before adding code that reads the mutable
+      // path after a lifted fast-return.
+      return (
+        `{ ${append} if (${NAMES.DEPS}.errorsRemaining <= 0) { ` +
+        `${NAMES.DEPS}.truncated = true; return ${inputs.errors}; } }`
+      );
+    }
     return `(${inputs.errors} ??= []).push(${errExpr});`;
   };
   // Append a flat `ValidationError[]` expression onto an accumulator
@@ -279,8 +299,12 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
   const budgetBreakStatement = (): string =>
     // Predicate mode never fills an error budget; its loops short-
     // circuit with `return false;` directly. Returning `""` keeps
-    // existing `emitBudgetBreak()` callers a no-op.
-    predicate || !gated
+    // existing `emitBudgetBreak()` callers a no-op. Gated flat mode
+    // needs no loop breaks either: every push and lift site returns
+    // from the function the moment the budget drains, so a loop head
+    // can never observe an exhausted budget; skipping the check saves
+    // a deps load + compare per iteration on the valid path.
+    predicate || !gated || flat
       ? ""
       : `if (${NAMES.DEPS}.errorsRemaining <= 0) { ${NAMES.DEPS}.truncated = true; break; }`;
   const emitBudgetBreak = (): void => {
@@ -637,12 +661,34 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
  * `maxErrors` budget when `gated` is `true`. Callers of this helper
  * pass it to {@link CodeGen.line} or embed it into a generated block.
  *
+ * With `flatReturn` (gated flat mode), draining the budget returns the
+ * accumulator from the enclosing function immediately: `truncated`
+ * means "the cap was reached; the list may be incomplete", so there is
+ * nothing left to do once the cap is hit, and skipping the remaining
+ * keyword checks is what makes `maxErrors: 1` a true fast-fail
+ * (matching ajv's `allErrors: false`). Tree mode keeps the
+ * keep-walking form: its early return would have to route through
+ * `wrapErrors` and would change the tree shape of pending inline
+ * wraps, so it stays drop-and-continue.
+ *
  * @internal
  */
-export function emitPushStatement(errorsVar: string, errExpr: string, gated: boolean): string {
+export function emitPushStatement(
+  errorsVar: string,
+  errExpr: string,
+  gated: boolean,
+  flatReturn = false,
+): string {
   if (!gated) return `(${errorsVar} ??= []).push(${errExpr});`;
+  if (!flatReturn) {
+    return (
+      `if (${NAMES.DEPS}.errorsRemaining > 0) { (${errorsVar} ??= []).push(${errExpr}); ${NAMES.DEPS}.errorsRemaining -= 1; }` +
+      ` else { ${NAMES.DEPS}.truncated = true; }`
+    );
+  }
   return (
-    `if (${NAMES.DEPS}.errorsRemaining > 0) { (${errorsVar} ??= []).push(${errExpr}); ${NAMES.DEPS}.errorsRemaining -= 1; }` +
-    ` else { ${NAMES.DEPS}.truncated = true; }`
+    `if (${NAMES.DEPS}.errorsRemaining > 0) { (${errorsVar} ??= []).push(${errExpr}); ` +
+    `if ((${NAMES.DEPS}.errorsRemaining -= 1) === 0) { ${NAMES.DEPS}.truncated = true; return ${errorsVar}; } }` +
+    ` else { ${NAMES.DEPS}.truncated = true; return ${errorsVar}; }`
   );
 }
