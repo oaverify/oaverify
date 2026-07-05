@@ -306,8 +306,8 @@ if you are migrating from `express-openapi-validator`.
 On raw speed, oav and Ajv trade wins: oav compiles schemas one to two
 orders of magnitude faster, validates competitively on typical bodies,
 and runs a touch lighter on memory than `express-openapi-validator`;
-Ajv leads on fast-fail rejection of some plain object shapes. At normal
-request volumes these gaps are nanoseconds per call.
+Ajv leads narrowly on fast-fail rejection of some plain object shapes.
+At normal request volumes these gaps are nanoseconds per call.
 
 For the host-stamped per-shape numbers, the memory comparison, and the
 methodology, see [docs/comparison.md](https://github.com/aahoughton/oav/blob/main/docs/comparison.md).
