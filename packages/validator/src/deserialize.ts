@@ -131,30 +131,77 @@ export function matchMediaType(
   contentType: string | undefined,
   patterns: Iterable<string>,
 ): string | undefined {
-  if (contentType === undefined) return undefined;
-  const concrete = parseMediaType(contentType);
-  if (concrete === undefined) return undefined;
-  let best: { pattern: string; specificity: number } | undefined;
+  return matchParsedMediaType(contentType, compileMediaTypePatterns(patterns));
+}
+
+/**
+ * Parsed, spec-derived media-type pattern. Callers that match the same
+ * OpenAPI `content` keys repeatedly can precompute these once and avoid
+ * reparsing declarations on every request.
+ *
+ * @internal
+ */
+export interface ParsedMediaTypePattern {
+  pattern: string;
+  type: string;
+  subtype: string;
+  params: Record<string, string>;
+  paramEntries: Array<[string, string]>;
+  specificity: number;
+}
+
+/**
+ * Parse OpenAPI media-type patterns once for repeated matching.
+ *
+ * @internal
+ */
+export function compileMediaTypePatterns(patterns: Iterable<string>): ParsedMediaTypePattern[] {
+  const out: ParsedMediaTypePattern[] = [];
   for (const pattern of patterns) {
     const parsed = parseMediaType(pattern);
     if (parsed === undefined) continue;
+    const paramEntries = Object.entries(parsed.params);
+    out.push({
+      pattern,
+      type: parsed.type,
+      subtype: parsed.subtype,
+      params: parsed.params,
+      paramEntries,
+      specificity:
+        (parsed.type === "*" ? 0 : 2) + (parsed.subtype === "*" ? 0 : 1) + paramEntries.length,
+    });
+  }
+  return out;
+}
+
+/**
+ * Match a concrete Content-Type against pre-parsed OpenAPI media-type
+ * patterns. Ties preserve declaration order, matching {@link matchMediaType}.
+ *
+ * @internal
+ */
+export function matchParsedMediaType(
+  contentType: string | undefined,
+  patterns: readonly ParsedMediaTypePattern[],
+): string | undefined {
+  if (contentType === undefined) return undefined;
+  const concrete = parseMediaType(contentType);
+  if (concrete === undefined) return undefined;
+  let best: ParsedMediaTypePattern | undefined;
+  for (const parsed of patterns) {
     const typeMatch = parsed.type === "*" || parsed.type === concrete.type;
     const subtypeMatch = parsed.subtype === "*" || parsed.subtype === concrete.subtype;
     if (!typeMatch || !subtypeMatch) continue;
     let paramsMatch = true;
-    for (const [k, v] of Object.entries(parsed.params)) {
+    for (const [k, v] of parsed.paramEntries) {
       if (concrete.params[k] !== v) {
         paramsMatch = false;
         break;
       }
     }
     if (!paramsMatch) continue;
-    const spec =
-      (parsed.type === "*" ? 0 : 2) +
-      (parsed.subtype === "*" ? 0 : 1) +
-      Object.keys(parsed.params).length;
-    if (!best || spec > best.specificity) {
-      best = { pattern, specificity: spec };
+    if (!best || parsed.specificity > best.specificity) {
+      best = parsed;
     }
   }
   return best?.pattern;

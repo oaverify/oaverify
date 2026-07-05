@@ -6,7 +6,7 @@ import {
 } from "@oav/core";
 import type { RouteMatch } from "@oav/router";
 import type { CompiledTreeSchema } from "@oav/schema";
-import { deserialize, matchMediaType } from "./deserialize.js";
+import { deserialize, matchParsedMediaType } from "./deserialize.js";
 import type { OperationCache } from "./operation-cache.js";
 import { assembleObjectQueryParam } from "./query-assembly.js";
 
@@ -179,6 +179,20 @@ export function checkBodyContentType(
   req: HttpRequest,
   cache: OperationCache,
 ): ValidationError | null {
+  const match = matchRequestBodyMediaType(req, cache);
+  return typeof match === "string" ? null : match;
+}
+
+/**
+ * Return the matched request-body media type, a content-type error, or
+ * `null` when no body media-type gate applies.
+ *
+ * @internal
+ */
+export function matchRequestBodyMediaType(
+  req: HttpRequest,
+  cache: OperationCache,
+): string | ValidationError | null {
   if (cache.requestBody === undefined) return null;
   if (cache.bodyValidators.size === 0) return null;
   const hasBody = req.body !== undefined && req.body !== null;
@@ -186,8 +200,8 @@ export function checkBodyContentType(
   // payload, so the actionable signal is the missing body, not a 415
   // for an unsent header. Defer to validateBody.
   if (!hasBody && req.contentType === undefined) return null;
-  const mt = matchMediaType(req.contentType, cache.bodyValidators.keys());
-  if (mt !== undefined) return null;
+  const mt = matchParsedMediaType(req.contentType, cache.bodyMediaTypes);
+  if (mt !== undefined) return mt;
   return createLeafError(
     "content-type",
     ["body"],
@@ -206,7 +220,11 @@ export function checkBodyContentType(
  *
  * @internal
  */
-export function validateBody(req: HttpRequest, cache: OperationCache): ValidationError | null {
+export function validateBody(
+  req: HttpRequest,
+  cache: OperationCache,
+  matchedMediaType?: string,
+): ValidationError | null {
   const body = cache.requestBody;
   if (body === undefined) return null;
   const hasBody = req.body !== undefined && req.body !== null;
@@ -217,7 +235,7 @@ export function validateBody(req: HttpRequest, cache: OperationCache): Validatio
     return null;
   }
   if (cache.bodyValidators.size === 0) return null;
-  const mt = matchMediaType(req.contentType, cache.bodyValidators.keys());
+  const mt = matchedMediaType ?? matchParsedMediaType(req.contentType, cache.bodyMediaTypes);
   if (mt === undefined) return null; // content-type gate ran upstream; defensive no-op.
   const validator = cache.bodyValidators.get(mt);
   if (validator === undefined) return null;

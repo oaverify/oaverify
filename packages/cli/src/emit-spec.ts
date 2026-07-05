@@ -22,6 +22,7 @@
  */
 
 import { builtInFormats } from "@oav/formats";
+import { compileMediaTypePatterns } from "@oav/validator/internals";
 import {
   compileSchema,
   createRefResolver,
@@ -235,7 +236,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     `import { createLeafError, createBranchError, createError } from "${importPrefix}/core";`,
     `import { createDeps, deepEqual, typeOf, wrapErrors } from "${importPrefix}/schema/internals";`,
     `import { builtInFormats } from "${importPrefix}/formats";`,
-    `import { deserialize, matchMediaType, matchResponseKey, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult } from "${importPrefix}/validator/internals";`,
+    `import { deserialize, matchParsedMediaType, matchResponseKey, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult } from "${importPrefix}/validator/internals";`,
     "",
     "void createBranchError; void createError; void deepEqual; void typeOf; void wrapErrors;",
     "void resolveOperationRef;",
@@ -419,6 +420,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
         requestBodyRequired,
         hasRequestBody: requestBody !== undefined,
         bodyValidators: toPlaceholderMap(bodyValidators),
+        bodyMediaTypes: compileMediaTypePatterns(Object.keys(bodyValidators)),
         responses: mapResponsesToPlaceholders(responses),
         __security: security,
       },
@@ -483,7 +485,11 @@ function mapResponsesToPlaceholders(
         __validator: h.validator === null ? "__NULL__" : `__REF:${h.validator}__`,
       };
     }
-    out[status] = { bodyValidators: toPlaceholderMap(r.bodyValidators), headers: headerOut };
+    out[status] = {
+      bodyValidators: toPlaceholderMap(r.bodyValidators),
+      bodyMediaTypes: compileMediaTypePatterns(Object.keys(r.bodyValidators)),
+      headers: headerOut,
+    };
   }
   return out;
 }
@@ -624,17 +630,18 @@ function renderValidateRequestTree(): string {
 
   // Content-type gate (only if there's a request body).
   const hasBody = req.body !== undefined && req.body !== null;
-  const bodyMediaTypes = Object.keys(op.bodyValidators);
+  const bodyMediaTypes = op.bodyMediaTypes;
+  let requestBodyMediaType;
   if (op.hasRequestBody && hasBody && bodyMediaTypes.length > 0) {
-    const mt = matchMediaType(req.contentType, bodyMediaTypes);
-    if (mt === undefined) {
+    requestBodyMediaType = matchParsedMediaType(req.contentType, bodyMediaTypes);
+    if (requestBodyMediaType === undefined) {
       return createBranchError(
         "request", [],
         \`\${method} \${match.pathPattern}: request validation failed\`,
         [createLeafError(
           "content-type", ["body"],
           \`request Content-Type "\${req.contentType ?? "<missing>"}" is not accepted\`,
-          { contentType: req.contentType, accepted: bodyMediaTypes },
+          { contentType: req.contentType, accepted: bodyMediaTypes.map((mt) => mt.pattern) },
         )],
         { method, pathPattern: match.pathPattern },
       );
@@ -656,7 +663,7 @@ function renderValidateRequestTree(): string {
         children.push(createLeafError("body", ["body"], "missing required request body", {}));
       }
     } else {
-      const mt = matchMediaType(req.contentType, bodyMediaTypes);
+      const mt = requestBodyMediaType ?? matchParsedMediaType(req.contentType, bodyMediaTypes);
       if (mt !== undefined) {
         const v = op.bodyValidators[mt];
         const r = v.validate(req.body, ["body"]);
@@ -738,8 +745,7 @@ function renderValidateResponseTree(): string {
     return createLeafError("route", [], \`no route matches \${method} \${req.path}\`, { method, path: req.path });
   }
   const children = [];
-  const statusKeys = Object.keys(op.responses);
-  const statusKey = matchResponseKey(res.status, Object.fromEntries(statusKeys.map((k) => [k, null])));
+  const statusKey = matchResponseKey(res.status, op.responses);
   if (statusKey === undefined) {
     children.push(createLeafError("status", [], \`no response defined for status \${res.status}\`, { status: res.status }));
   } else {
@@ -762,11 +768,11 @@ function renderValidateResponseTree(): string {
         }
       }
       // Body validation.
-      const bodyMediaTypes = Object.keys(resp.bodyValidators);
+      const bodyMediaTypes = resp.bodyMediaTypes;
       if (bodyMediaTypes.length > 0 && res.body !== undefined) {
-        const mt = matchMediaType(res.contentType, bodyMediaTypes);
+        const mt = matchParsedMediaType(res.contentType, bodyMediaTypes);
         if (mt === undefined) {
-          children.push(createLeafError("content-type", ["body"], \`response Content-Type "\${res.contentType ?? "<missing>"}" is not accepted\`, { contentType: res.contentType, accepted: bodyMediaTypes }));
+          children.push(createLeafError("content-type", ["body"], \`response Content-Type "\${res.contentType ?? "<missing>"}" is not accepted\`, { contentType: res.contentType, accepted: bodyMediaTypes.map((m) => m.pattern) }));
         } else {
           const v = resp.bodyValidators[mt];
           const r = v.validate(res.body, ["body"]);

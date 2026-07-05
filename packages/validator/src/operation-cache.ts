@@ -10,6 +10,7 @@ import { resolveJsonPointer } from "@oav/core";
 import type { RouteMatch } from "@oav/router";
 import type { CompiledTreeSchema } from "@oav/schema";
 import type { BodyDirection } from "./body-schema-transform.js";
+import { compileMediaTypePatterns, type ParsedMediaTypePattern } from "./deserialize.js";
 import type { CompiledSecurity } from "./security.js";
 
 /**
@@ -33,6 +34,7 @@ export interface OperationCache {
   knownQueryParameters: Set<string>;
   requestBody: RequestBodyObject | undefined;
   bodyValidators: Map<string, CompiledTreeSchema>;
+  bodyMediaTypes: ParsedMediaTypePattern[];
   responses: Map<string, ResponseCompiled>;
   /**
    * Pre-compiled shape-only security check, or `undefined` when the
@@ -60,6 +62,7 @@ export interface ResponseCompiled {
    * are only ever asked about a single status/media-type pairing.
    */
   bodySchemas: Map<string, SchemaOrBoolean>;
+  bodyMediaTypes: ParsedMediaTypePattern[];
   /** Header schemas keyed by lowercased name; compiled lazily. */
   headerSchemas: Map<string, SchemaOrBoolean>;
   /** Memoization caches for the lazy compiles. */
@@ -179,6 +182,7 @@ export function buildOperationCache(
       object: response,
       headers: headersResolved,
       bodySchemas,
+      bodyMediaTypes: compileMediaTypePatterns(bodySchemas.keys()),
       headerSchemas,
       bodyValidators: new Map(),
       headerValidators: new Map(),
@@ -194,6 +198,7 @@ export function buildOperationCache(
     cookieParamValidators,
     requestBody,
     bodyValidators,
+    bodyMediaTypes: compileMediaTypePatterns(bodyValidators.keys()),
     responses,
     // Security is populated by `createValidator` after this call
     // returns; `buildOperationCache` deliberately doesn't see the full

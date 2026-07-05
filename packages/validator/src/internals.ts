@@ -18,7 +18,14 @@
 // Parameter deserialisation primitives: `style` + `explode`
 // interpretation, Content-Type negotiation, response-status key
 // matching (exact → NXX class → default).
-export { deserialize, matchMediaType, matchResponseKey } from "./deserialize.js";
+export {
+  compileMediaTypePatterns,
+  deserialize,
+  matchMediaType,
+  matchParsedMediaType,
+  matchResponseKey,
+  type ParsedMediaTypePattern,
+} from "./deserialize.js";
 
 // Query-object assembly helpers. Handle the two OAS query shapes that
 // spread an object across multiple top-level keys: `style: form +
