@@ -115,8 +115,13 @@ export const formatAssertionKeyword: KeywordDefinition = {
   compile(ctx: KeywordCompileContext): void {
     const formatName = ctx.schema as string;
     const formatLit = quoteString(formatName);
-    const fnVar = ctx.gen.scope.name("fmt");
-    ctx.gen.const(fnVar, `${NAMES.DEPS}.formats.get(${formatLit})`);
+    // Hoisted to module scope: the Map lookup runs once when the
+    // factory binds deps, not per validate() call (or per element when
+    // inlined in an items loop). Consequence: formats must be
+    // registered before compileSchema returns, which the `formats`
+    // option guarantees; mutating deps.formats afterwards is not
+    // observed. Same lifecycle as the hoisted deps.compilePattern.
+    const fnVar = ctx.hoistConstant(`${NAMES.DEPS}.formats.get(${formatLit})`, "fmt");
     ctx.gen.if(
       `typeof ${ctx.data} === "string" && ${fnVar} !== undefined && !${fnVar}(${ctx.data})`,
       () => {
