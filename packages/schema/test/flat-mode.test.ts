@@ -129,12 +129,18 @@ describe("flat mode: leaf-set parity with the tree (non-composition schemas)", (
 });
 
 describe("flat mode: finite-maxErrors leaf-set parity with the tree (non-composition)", () => {
-  // The budget short-circuit drops errors mid-evaluation. Flat codegen and
+  // The budget short-circuit stops collection mid-evaluation. Flat codegen and
   // tree codegen run the identical keyword dispatch under the identical gated
-  // counter, so a finite cap must drop the SAME leaves in both modes: the flat
-  // list and collectLeaves(tree) stay equal, and truncated agrees. Nothing else
-  // forces these two flat-list producers equal under a budget (the Infinity
-  // block above only exercises the un-gated path).
+  // counter, so a finite cap must keep the SAME leading leaves in both modes:
+  // the flat list and collectLeaves(tree) stay equal. Nothing else forces
+  // these two flat-list producers equal under a budget (the Infinity block
+  // above only exercises the un-gated path).
+  //
+  // `truncated` semantics differ by mode: flat returns the moment the cap is
+  // reached (truncated means "cap reached; list may be incomplete", so it is
+  // exactly `errors.length === maxErrors`), while tree keeps walking and
+  // reports truncated only when it observably dropped or skipped something.
+  // Tree truncation therefore implies flat truncation, never the reverse.
   for (const { name, schema, data } of LEAF_CASES) {
     for (const maxErrors of [1, 2, 3]) {
       it(`${name} @ maxErrors=${maxErrors}`, () => {
@@ -144,7 +150,8 @@ describe("flat mode: finite-maxErrors leaf-set parity with the tree (non-composi
         expect(f.valid).toBe(false);
         expect(bag(f.errors!)).toEqual(bag(collectLeaves(t.error!)));
         expect(f.errors!.length).toBeLessThanOrEqual(maxErrors);
-        expect(f.truncated).toBe(t.truncated);
+        expect(f.truncated).toBe(f.errors!.length === maxErrors);
+        if (t.truncated) expect(f.truncated).toBe(true);
         for (const e of f.errors!) expect(e.children).toEqual([]);
       });
     }

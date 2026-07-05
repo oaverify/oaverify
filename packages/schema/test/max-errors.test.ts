@@ -116,3 +116,96 @@ describe("maxErrors option", () => {
     expect(() => compile({ type: "number" }, 1.5)).toThrow(/must be a positive integer/);
   });
 });
+
+describe("flat-mode fast-fail (budget exhaustion returns immediately)", () => {
+  // Flat is the mode where `truncated` means "the cap was reached; the
+  // list may be incomplete": the validator returns the moment the
+  // budget drains instead of walking the remaining keywords. Matches
+  // the migration guide ("under the default maxErrors: 1, every
+  // rejection reports truncated: true") and ajv's allErrors: false.
+  function flatCompile(schema: unknown, options?: Record<string, unknown>) {
+    return compileSchema(schema as never, { dialect: jsonSchemaDialect, ...options });
+  }
+
+  it("default maxErrors: 1 reports truncated: true on every rejection", () => {
+    const v = flatCompile({ type: "integer" });
+    const r = v.validate("nope");
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.errors).toHaveLength(1);
+    expect(r.truncated).toBe(true);
+  });
+
+  it("stops evaluating keywords once the budget is exhausted", () => {
+    // The custom keyword runs after the built-ins on the same schema
+    // object. With the budget already drained by the `const` failure,
+    // fast-fail must return before ever invoking it.
+    let calls = 0;
+    const v = flatCompile(
+      { const: "expected", tracer: true },
+      {
+        keywords: {
+          tracer: () => {
+            calls += 1;
+            return true;
+          },
+        },
+      },
+    );
+    const r = v.validate("something-else");
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.errors.map((e) => e.code)).toEqual(["const"]);
+    expect(r.truncated).toBe(true);
+    expect(calls).toBe(0);
+
+    // Valid data still reaches the custom keyword.
+    expect(v.validate("expected").valid).toBe(true);
+    expect(calls).toBe(1);
+  });
+
+  it("stops descending into later subschemas once the budget is exhausted", () => {
+    let calls = 0;
+    const v = flatCompile(
+      {
+        type: "object",
+        properties: {
+          a: { type: "integer" },
+          b: { tracer: true },
+        },
+      },
+      {
+        keywords: {
+          tracer: () => {
+            calls += 1;
+            return true;
+          },
+        },
+      },
+    );
+    const r = v.validate({ a: "bad", b: 1 });
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.errors.map((e) => e.code)).toEqual(["type"]);
+    expect(r.truncated).toBe(true);
+    expect(calls).toBe(0);
+  });
+
+  it("a cap larger than the error count completes with truncated: false", () => {
+    const v = flatCompile({ required: ["a", "b"] }, { maxErrors: 5 });
+    const r = v.validate({});
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.errors).toHaveLength(2);
+    expect(r.truncated).toBe(false);
+  });
+
+  it("landing exactly on the cap reports truncated: true", () => {
+    const v = flatCompile({ required: ["a", "b"] }, { maxErrors: 2 });
+    const r = v.validate({});
+    expect(r.valid).toBe(false);
+    if (r.valid) return;
+    expect(r.errors).toHaveLength(2);
+    expect(r.truncated).toBe(true);
+  });
+});
