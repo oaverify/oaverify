@@ -89,6 +89,19 @@ more specs and reports:
 Use it to sanity-check a new spec loads end-to-end through oav, or to
 regression-check when you touch `@oav/spec` / `@oav/validator`.
 
+### `bench-http-validator.ts`: HTTP request/response hot paths
+
+```bash
+pnpm bench:http                         # default 500ms per task
+pnpm bench:http -- --time=1500          # longer per-task budget
+```
+
+Runs `createValidator` once for a small OpenAPI document with multiple
+declared request and response body media types, then times the hot
+`validateRequest` and `validateResponse` calls. It includes valid body
+matches and wrong-Content-Type failures, so changes to HTTP
+orchestration and media-type negotiation have a direct benchmark.
+
 ### `mem.ts`: steady-state memory under HTTP load
 
 ```bash
@@ -122,6 +135,7 @@ retention.
 | How does library choice scale across a real spec's schemas?            | `run.ts --spec=<path>`                                                    |
 | Does this real spec load cleanly through oav's pipeline?               | `bench-real-world.mjs`                                                    |
 | How long does oav take from spec-on-disk to "first validated request"? | `bench-real-world.mjs`                                                    |
+| Did HTTP validator request/response orchestration get faster?          | `bench-http-validator.ts`                                                 |
 | What's the steady-state memory cost of each library in an HTTP server? | `mem.ts`                                                                  |
 
 ## Reading the results

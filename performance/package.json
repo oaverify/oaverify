@@ -14,6 +14,7 @@
     "bench:stream": "tsx bench-stream.ts",
     "bench:stream-profile": "tsx profile-stream.ts",
     "bench:endpoint": "tsx bench-endpoint.ts",
+    "bench:http": "tsx bench-http-validator.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

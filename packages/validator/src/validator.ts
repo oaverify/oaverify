@@ -31,7 +31,7 @@ import {
   type TreeValidationResult,
   type ValidationResult,
 } from "@oav/schema";
-import { deserialize, matchMediaType, matchResponseKey } from "./deserialize.js";
+import { deserialize, matchParsedMediaType, matchResponseKey } from "./deserialize.js";
 import { reshapeResult, toFetchResult } from "./reshape.js";
 import {
   createDirectionResolver,
@@ -49,7 +49,7 @@ import {
   type OperationCache,
 } from "./operation-cache.js";
 import { checkSecurity, compileOperationSecurity, type SecurityMode } from "./security.js";
-import { checkBodyContentType, validateBody, validateParameter } from "./validate-step.js";
+import { matchRequestBodyMediaType, validateBody, validateParameter } from "./validate-step.js";
 
 /**
  * Coerce {@link ValidatorOptions.validateSecurity} (enum string |
@@ -1001,13 +1001,13 @@ export function createValidator(
     // Content-Type doesn't match any declared media type, short-circuit
     // with a single leaf. Parameter / body schema diagnostics against a
     // request the server can't parse in the first place are noise.
-    const ctErr = checkBodyContentType(req, cache);
-    if (ctErr !== null) {
+    const bodyMediaTypeOrErr = matchRequestBodyMediaType(req, cache);
+    if (bodyMediaTypeOrErr !== null && typeof bodyMediaTypeOrErr !== "string") {
       return createBranchError(
         "request",
         [],
         `${req.method.toUpperCase()} ${match.pathPattern}: request validation failed`,
-        [ctErr],
+        [bodyMediaTypeOrErr],
         { method: req.method, pathPattern: match.pathPattern },
       );
     }
@@ -1018,7 +1018,11 @@ export function createValidator(
     }
 
     if (cache.requestBody !== undefined) {
-      const err = validateBody(req, cache);
+      const err = validateBody(
+        req,
+        cache,
+        typeof bodyMediaTypeOrErr === "string" ? bodyMediaTypeOrErr : undefined,
+      );
       if (err !== null) children.push(err);
     }
 
@@ -1144,7 +1148,7 @@ export function createValidator(
         }
 
         if (responseCompiled.bodySchemas.size > 0 && res.body !== undefined) {
-          const mt = matchMediaType(res.contentType, responseCompiled.bodySchemas.keys());
+          const mt = matchParsedMediaType(res.contentType, responseCompiled.bodyMediaTypes);
           if (mt === undefined) {
             children.push(
               createLeafError(
