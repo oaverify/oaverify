@@ -11,6 +11,9 @@ import type { HttpMethod, OperationObject, PathItem } from "@oav/core";
  * (yielding the normal 404) instead of crashing.
  */
 function decodePathToken(token: string): string {
+  // No "%" means nothing to decode; skip the decodeURIComponent call
+  // (and its per-token try frame) on the overwhelmingly common case.
+  if (!token.includes("%")) return token;
   try {
     return decodeURIComponent(token);
   } catch {
@@ -359,7 +362,12 @@ export function createRouter(paths: Record<string, PathItem>): Router {
       const normMethod = method.toLowerCase() as HttpMethod;
       const stripped = path.split("?")[0] ?? path;
       const trimmed = stripped.replace(/^\/+/, "").replace(/\/+$/, "");
-      const tokens = trimmed === "" ? [] : trimmed.split("/").map(decodePathToken);
+      // Decode in place instead of mapping: split already allocated the
+      // array, and most tokens carry no escapes to decode.
+      const tokens = trimmed === "" ? [] : trimmed.split("/");
+      for (let i = 0; i < tokens.length; i += 1) {
+        tokens[i] = decodePathToken(tokens[i]!);
+      }
 
       // If we scan every matching path without finding the method, we
       // still want to report a 405 (not 404) and carry the union of
@@ -367,11 +375,16 @@ export function createRouter(paths: Record<string, PathItem>): Router {
       // `/items/42` and `/items/{id}` can both match `POST /items/42`
       // even though neither declares POST.
       let firstMatchedPattern: string | undefined;
-      const allowed = new Set<string>();
+      // Allocated on the first structural match without the method; the
+      // common outcomes (match or plain 404) never build the Set.
+      let allowed: Set<string> | undefined;
 
       for (const route of routes) {
         if (route.segments.length !== tokens.length) continue;
-        const params: Record<string, string> = {};
+        // Allocated at the first template/compound segment, after the
+        // preceding literals matched; a candidate rejected on a literal
+        // (the common miss) costs no allocation.
+        let params: Record<string, string> | undefined;
         let matched = true;
         for (let i = 0; i < tokens.length; i += 1) {
           const seg = route.segments[i];
@@ -386,13 +399,14 @@ export function createRouter(paths: Record<string, PathItem>): Router {
               break;
             }
           } else if (seg.kind === "template") {
-            params[seg.name] = tok;
+            (params ??= {})[seg.name] = tok;
           } else {
             const m = seg.regex.exec(tok);
             if (m === null) {
               matched = false;
               break;
             }
+            params ??= {};
             for (let j = 0; j < seg.names.length; j += 1) {
               params[seg.names[j]!] = m[j + 1]!;
             }
@@ -412,7 +426,7 @@ export function createRouter(paths: Record<string, PathItem>): Router {
             operation,
             pathItem: route.pathItem,
             pathPattern: route.pathPattern,
-            pathParams: params,
+            pathParams: params ?? {},
           };
         }
 
@@ -420,6 +434,7 @@ export function createRouter(paths: Record<string, PathItem>): Router {
         // request's verb. Remember the first (most-specific) matched
         // pattern, union the declared methods, and keep scanning.
         if (firstMatchedPattern === undefined) firstMatchedPattern = route.pathPattern;
+        allowed ??= new Set<string>();
         for (const m of ALL_METHODS) {
           if (route.pathItem[m] !== undefined) allowed.add(m.toUpperCase());
         }
@@ -431,7 +446,7 @@ export function createRouter(paths: Record<string, PathItem>): Router {
         return {
           kind: "method-not-allowed",
           pathPattern: firstMatchedPattern,
-          allowed: [...allowed].sort(),
+          allowed: allowed === undefined ? [] : [...allowed].sort(),
         };
       }
       return undefined;
