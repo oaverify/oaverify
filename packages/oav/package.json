@@ -1,6 +1,6 @@
 {
   "name": "@aahoughton/oav",
-  "version": "3.7.0",
+  "version": "3.8.0",
   "description": "OpenAPI request/response validator (3.0/3.1/3.2) for TypeScript and Node, with structured errors, spec overlays, YAML loading, and a CLI.",
   "keywords": [
     "api-validation",
