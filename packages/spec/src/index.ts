@@ -13,6 +13,8 @@ export {
 } from "./resolver.js";
 export {
   applyOverlays,
+  isSpecOverlay,
+  specOverlayVerbs,
   type ModifyOperationsEntry,
   type ModifyParametersEntry,
   type OperationOverride,

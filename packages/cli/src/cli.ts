@@ -57,7 +57,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command("resolve <spec>")
     .description("Resolve a (possibly multi-file) OpenAPI document and print the stitched result.")
-    .option("--overlay <file...>", "apply one or more overlays in order", collectOverlays, [])
+    .option(
+      "--overlay <file...>",
+      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      collectOverlays,
+      [],
+    )
     .option(
       "--lint",
       "run spec-hygiene checks; findings go to stderr (or the json envelope when --envelope json)",
@@ -120,7 +125,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command("validate <spec>")
     .description("Validate a request/response/body against an OpenAPI document.")
-    .option("--overlay <file...>", "apply one or more overlays in order", collectOverlays, [])
+    .option(
+      "--overlay <file...>",
+      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      collectOverlays,
+      [],
+    )
     .option("--request <file>", "path to a .http file (use '-' for stdin)")
     .option("--path <method-path>", 'e.g. "POST /pets"')
     .option("--body <file>", "body file (use '-' for stdin)")
@@ -173,7 +183,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .description(
       "Report the streaming-buffer budget per operation (which request/response bodies stream vs buffer, and where).",
     )
-    .option("--overlay <file...>", "apply one or more overlays in order", collectOverlays, [])
+    .option(
+      "--overlay <file...>",
+      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      collectOverlays,
+      [],
+    )
     .option(
       "--envelope <shape>",
       "'text' (default; per-operation table) or 'json' (the SpecBudget payload)",
@@ -255,7 +270,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .description(
       "AOT-compile an OpenAPI document to a standalone HTTP validator module (zero imports).",
     )
-    .option("--overlay <file...>", "apply one or more overlays in order", collectOverlays, [])
+    .option(
+      "--overlay <file...>",
+      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      collectOverlays,
+      [],
+    )
     .option(
       "--dialect <dialect>",
       STANDALONE_DIALECTS.join(" | "),

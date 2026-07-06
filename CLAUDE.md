@@ -265,6 +265,7 @@ cli           → validator → router
                          → schema → core
                          → core
               → spec → core
+              → overlay-spec → spec → core
               → core
               → stream-validator (the published @aahoughton/oav-stream-validator)
 overlay-spec  → spec → core

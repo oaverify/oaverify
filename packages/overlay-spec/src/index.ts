@@ -54,6 +54,28 @@ export interface OverlayDocument {
 }
 
 /**
+ * Whether `value` carries the OpenAPI Overlay 1.0 envelope
+ * ({@link OverlayDocument}): an object with an `overlay` version
+ * string, an `info` object, and an `actions` array. Envelope-level
+ * only; per-action validation happens in {@link translateOverlay},
+ * which throws a locating error on malformed actions. Pairs with
+ * `@oav/spec`'s `isSpecOverlay` for callers discriminating an overlay
+ * file of unknown format.
+ *
+ * @public
+ */
+export function isOverlayDocument(value: unknown): value is OverlayDocument {
+  if (typeof value !== "object" || value === null) return false;
+  const d = value as Record<string, unknown>;
+  return (
+    typeof d["overlay"] === "string" &&
+    typeof d["info"] === "object" &&
+    d["info"] !== null &&
+    Array.isArray(d["actions"])
+  );
+}
+
+/**
  * Translate one OpenAPI Overlay document into a typed
  * {@link @oav/spec!SpecOverlay}. Pure: returns a fresh overlay; the
  * input document is not mutated.

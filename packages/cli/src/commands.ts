@@ -10,10 +10,13 @@ import {
   composeReaders,
   createFileReader,
   createHttpReader,
+  isSpecOverlay,
   loadSpec,
+  specOverlayVerbs,
   type DocumentReader,
   type SpecOverlay,
 } from "@oav/spec";
+import { isOverlayDocument, translateOverlay, type OverlayDocument } from "@oav/overlay-spec";
 import { createValidator } from "@oav/validator";
 import type * as Esbuild from "esbuild";
 import type { OpenAPIDocument } from "@oav/core";
@@ -97,6 +100,50 @@ export function defaultCommandIo(): CommandIo {
 }
 
 /**
+ * Read and shape-check one `--overlay` file. Accepts a standard
+ * OpenAPI Overlay 1.0 document (routed through
+ * {@link @oav/overlay-spec!translateOverlay}) or a typed
+ * {@link SpecOverlay} (every key a recognised verb). Anything else
+ * throws with the offending path and keys instead of being cast and
+ * silently mis-applied (#448).
+ */
+async function readOverlay(io: CommandIo, path: string): Promise<SpecOverlay> {
+  const doc = await io.reader.read(path);
+  if (isOverlayDocument(doc)) {
+    try {
+      return translateOverlay(doc);
+    } catch (err) {
+      throw new Error(`${path}: ${(err as Error).message}`, { cause: err });
+    }
+  }
+  if (isSpecOverlay(doc)) return doc;
+  if (typeof doc !== "object" || doc === null) {
+    throw new Error(`${path}: overlay file must contain an object`);
+  }
+  const keys = Object.keys(doc);
+  if (keys.includes("overlay") || keys.includes("actions")) {
+    // Meant to be an Overlay 1.0 document but the envelope is
+    // incomplete; the translator's field-level complaint beats a
+    // generic shape error.
+    try {
+      translateOverlay(doc as OverlayDocument);
+    } catch (err) {
+      throw new Error(`${path}: ${(err as Error).message}`, { cause: err });
+    }
+  }
+  const unknown = keys.filter((key) => !specOverlayVerbs.has(key));
+  throw new Error(
+    `${path}: unrecognised overlay shape; expected an OpenAPI Overlay 1.0 document ` +
+      `(\`overlay\`/\`info\`/\`actions\`) or a typed SpecOverlay ` +
+      `(unrecognised keys: ${unknown.join(", ")})`,
+  );
+}
+
+function readOverlays(io: CommandIo, paths: string[]): Promise<SpecOverlay[]> {
+  return Promise.all(paths.map((path) => readOverlay(io, path)));
+}
+
+/**
  * Pick the primary output sink for a command:
  * - `--output FILE` → write to file (unconditional; `--quiet` doesn't
  *   suppress a deliberate file write).
@@ -126,7 +173,7 @@ function primarySink(
  *   base CLI options.
  * @returns Exit code 0 on success, 1 when `--lint --fail-on warning`
  *   surfaces any findings, 3 on usage errors (`--fail-on` without
- *   `--lint`).
+ *   `--lint`, or an `--overlay` file of unrecognised shape).
  *
  * @public
  */
@@ -149,9 +196,13 @@ export async function resolveCommand(
     return { exitCode: 3 };
   }
 
-  const overlayDocs = await Promise.all(
-    args.overlays.map(async (path) => (await io.reader.read(path)) as SpecOverlay),
-  );
+  let overlayDocs: SpecOverlay[];
+  try {
+    overlayDocs = await readOverlays(io, args.overlays);
+  } catch (err) {
+    io.stderr(`resolve: ${(err as Error).message}\n`);
+    return { exitCode: 3 };
+  }
   const { document, specHygieneIssues } = await loadSpec({
     reader: io.reader,
     entry: args.spec,
@@ -205,9 +256,13 @@ export async function streamCheckCommand(
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
-  const overlayDocs = await Promise.all(
-    args.overlays.map(async (path) => (await io.reader.read(path)) as SpecOverlay),
-  );
+  let overlayDocs: SpecOverlay[];
+  try {
+    overlayDocs = await readOverlays(io, args.overlays);
+  } catch (err) {
+    io.stderr(`stream-check: ${(err as Error).message}\n`);
+    return { exitCode: 3 };
+  }
   const { document } = await loadSpec({
     reader: io.reader,
     entry: args.spec,
@@ -248,9 +303,13 @@ export async function validateCommand(
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
-  const overlayDocs = await Promise.all(
-    args.overlays.map(async (path) => (await io.reader.read(path)) as SpecOverlay),
-  );
+  let overlayDocs: SpecOverlay[];
+  try {
+    overlayDocs = await readOverlays(io, args.overlays);
+  } catch (err) {
+    io.stderr(`validate: ${(err as Error).message}\n`);
+    return { exitCode: 3 };
+  }
   const { document } = await loadSpec({
     reader: io.reader,
     entry: args.spec,
@@ -453,9 +512,13 @@ export async function compileSpecCommand(
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
-  const overlayDocs = await Promise.all(
-    args.overlays.map(async (path) => (await io.reader.read(path)) as SpecOverlay),
-  );
+  let overlayDocs: SpecOverlay[];
+  try {
+    overlayDocs = await readOverlays(io, args.overlays);
+  } catch (err) {
+    io.stderr(`compile-spec: ${(err as Error).message}\n`);
+    return { exitCode: 3 };
+  }
   let document: OpenAPIDocument;
   try {
     const loaded = await loadSpec({

@@ -16,6 +16,7 @@
     "@aahoughton/oav-stream-validator": "workspace:*",
     "@oav/core": "workspace:*",
     "@oav/formats": "workspace:*",
+    "@oav/overlay-spec": "workspace:*",
     "@oav/schema": "workspace:*",
     "@oav/spec": "workspace:*",
     "@oav/validator": "workspace:*",

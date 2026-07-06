@@ -62,6 +62,92 @@ describe("resolveCommand", () => {
     expect(doc.paths["/health"]).toBeDefined();
   });
 
+  it("applies a standard OpenAPI Overlay 1.0 document without clobbering info (#448)", async () => {
+    const { io, stdout } = memoryIo([
+      [
+        "spec.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "Pets", version: "2.0.0" },
+          servers: [{ url: "https://api.example.com" }],
+          paths: {},
+        },
+      ],
+      [
+        "overlay.json",
+        {
+          overlay: "1.0.0",
+          info: { title: "Add EU server", version: "1.0.0" },
+          actions: [{ target: "$.servers", update: [{ url: "https://eu.api.example.com" }] }],
+        },
+      ],
+    ]);
+    const result = await resolveCommand(
+      { spec: "spec.json", overlays: ["overlay.json"], options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(0);
+    const doc = JSON.parse(stdout.value);
+    // The action applied...
+    expect(doc.servers).toEqual([
+      { url: "https://api.example.com" },
+      { url: "https://eu.api.example.com" },
+    ]);
+    // ...and the overlay's own envelope metadata did not leak into the
+    // document (the pre-#448 behavior overwrote info.title / version).
+    expect(doc.info).toEqual({ title: "Pets", version: "2.0.0" });
+  });
+
+  it("exits 3 with the translator's message when an Overlay 1.0 action is malformed", async () => {
+    const { io, stderr } = memoryIo([
+      ["spec.json", { openapi: "3.1.0", info: { title: "X", version: "1" }, paths: {} }],
+      [
+        "overlay.json",
+        {
+          overlay: "1.0.0",
+          info: { title: "Bad", version: "1" },
+          actions: [{ target: "$.nonsense[?(@ === 1)]", update: {} }],
+        },
+      ],
+    ]);
+    const result = await resolveCommand(
+      { spec: "spec.json", overlays: ["overlay.json"], options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(3);
+    expect(stderr.value).toContain("resolve: overlay.json:");
+  });
+
+  it("exits 3 naming the missing field when an Overlay 1.0 envelope is incomplete", async () => {
+    const { io, stderr } = memoryIo([
+      ["spec.json", { openapi: "3.1.0", info: { title: "X", version: "1" }, paths: {} }],
+      // `overlay` marks the standard format, but `actions` is missing.
+      ["overlay.json", { overlay: "1.0.0", info: { title: "Y", version: "1" } }],
+    ]);
+    const result = await resolveCommand(
+      { spec: "spec.json", overlays: ["overlay.json"], options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(3);
+    expect(stderr.value).toContain("actions");
+  });
+
+  it("exits 3 listing unrecognised keys for a file that is neither format", async () => {
+    const { io, stderr } = memoryIo([
+      ["spec.json", { openapi: "3.1.0", info: { title: "X", version: "1" }, paths: {} }],
+      ["overlay.json", { addPaths: {}, patches: [], stuff: true }],
+    ]);
+    const result = await resolveCommand(
+      { spec: "spec.json", overlays: ["overlay.json"], options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(3);
+    expect(stderr.value).toContain("unrecognised overlay shape");
+    expect(stderr.value).toContain("patches, stuff");
+    // Recognised verbs are not blamed.
+    expect(stderr.value).not.toContain("addPaths");
+  });
+
   it("writes the resolved spec to the output path when given and stays silent on stdout", async () => {
     const { io, writes, stdout } = memoryIo([
       [
@@ -218,6 +304,27 @@ describe("validateCommand", () => {
       },
     };
   }
+
+  it("exits 3 on an unrecognised overlay shape (shared readOverlay path)", async () => {
+    const { io, stderr } = memoryIo(
+      [
+        ["spec.json", specWithRequiredBody()],
+        ["overlay.json", { patches: [] }],
+      ],
+      [["body.json", '{"name":"a"}']],
+    );
+    const result = await validateCommand(
+      {
+        spec: "spec.json",
+        overlays: ["overlay.json"],
+        mode: { kind: "bodyForPath", method: "POST", path: "/pets", body: "body.json" },
+        options: textOpts,
+      },
+      io,
+    );
+    expect(result.exitCode).toBe(3);
+    expect(stderr.value).toContain("validate: overlay.json:");
+  });
 
   it("exits 0 when the body satisfies the schema, with nothing on stdout", async () => {
     const { io, stdout } = memoryIo(

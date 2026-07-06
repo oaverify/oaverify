@@ -53,6 +53,9 @@ importers:
       '@oav/formats':
         specifier: workspace:*
         version: link:../formats
+      '@oav/overlay-spec':
+        specifier: workspace:*
+        version: link:../overlay-spec
       '@oav/schema':
         specifier: workspace:*
         version: link:../schema

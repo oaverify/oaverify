@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { OpenAPIDocument } from "@oav/core";
-import { UnrecognisedTargetError, applySpecOverlay, translateOverlay } from "../src/index.js";
+import {
+  UnrecognisedTargetError,
+  applySpecOverlay,
+  isOverlayDocument,
+  translateOverlay,
+} from "../src/index.js";
 import type { OverlayDocument } from "../src/index.js";
 
 function doc(actions: OverlayDocument["actions"]): OverlayDocument {
@@ -522,5 +527,26 @@ describe("applySpecOverlay", () => {
     if (r && "$ref" in r) throw new Error("unexpected ref");
     expect(r?.description).toBe("merged");
     expect(r?.headers?.["Existing"]).toBeDefined();
+  });
+});
+
+describe("isOverlayDocument", () => {
+  it("accepts the standard envelope", () => {
+    expect(isOverlayDocument(doc([]))).toBe(true);
+  });
+
+  it("requires the overlay version string, info object, and actions array", () => {
+    expect(isOverlayDocument({ info: { title: "T", version: "1" }, actions: [] })).toBe(false);
+    expect(isOverlayDocument({ overlay: "1.0.0", actions: [] })).toBe(false);
+    expect(isOverlayDocument({ overlay: "1.0.0", info: { title: "T", version: "1" } })).toBe(false);
+    expect(isOverlayDocument({ overlay: 1, info: { title: "T", version: "1" }, actions: [] })).toBe(
+      false,
+    );
+  });
+
+  it("rejects non-objects and typed SpecOverlay shapes", () => {
+    expect(isOverlayDocument(null)).toBe(false);
+    expect(isOverlayDocument("overlay")).toBe(false);
+    expect(isOverlayDocument({ addServers: [{ url: "https://a.example" }] })).toBe(false);
   });
 });

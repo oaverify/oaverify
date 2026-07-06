@@ -370,6 +370,81 @@ export interface SpecOverlay {
   removeExamples?: string[];
 }
 
+// Record (not array) so the compiler enforces exact sync with the
+// interface: a verb added to SpecOverlay without a row here (or vice
+// versa) is a type error.
+const SPEC_OVERLAY_VERB_RECORD: Record<keyof SpecOverlay, true> = {
+  info: true,
+  servers: true,
+  addServers: true,
+  tags: true,
+  extendTags: true,
+  replaceTags: true,
+  removeTags: true,
+  security: true,
+  addSecurity: true,
+  addWebhooks: true,
+  removeWebhooks: true,
+  setExtensions: true,
+  addPaths: true,
+  removePaths: true,
+  overrides: true,
+  modifyOperations: true,
+  modifyParameters: true,
+  extendSchemas: true,
+  replaceSchemas: true,
+  removeSchemas: true,
+  extendParameters: true,
+  replaceParameters: true,
+  removeComponentParameters: true,
+  extendComponentResponses: true,
+  replaceComponentResponses: true,
+  removeComponentResponses: true,
+  extendRequestBodies: true,
+  replaceRequestBodies: true,
+  removeRequestBodies: true,
+  extendHeaders: true,
+  replaceHeaders: true,
+  removeHeaders: true,
+  extendSecuritySchemes: true,
+  replaceSecuritySchemes: true,
+  removeSecuritySchemes: true,
+  extendLinks: true,
+  replaceLinks: true,
+  removeLinks: true,
+  extendCallbacks: true,
+  replaceCallbacks: true,
+  removeCallbacks: true,
+  extendExamples: true,
+  replaceExamples: true,
+  removeExamples: true,
+};
+
+/**
+ * Every verb recognised by {@link applyOverlays}; the canonical key
+ * list for {@link SpecOverlay}, kept in sync with the interface by the
+ * type system. Useful for callers that want to report which keys of a
+ * would-be overlay are unrecognised.
+ *
+ * @public
+ */
+export const specOverlayVerbs: ReadonlySet<string> = new Set(Object.keys(SPEC_OVERLAY_VERB_RECORD));
+
+/**
+ * Whether `value` is shaped like a {@link SpecOverlay}: a non-array
+ * object whose every key is a recognised overlay verb. Key-level only;
+ * the values are validated when {@link applyOverlays} applies them. An
+ * empty object passes (a no-op overlay). A standard OpenAPI Overlay
+ * 1.0 envelope (`overlay` / `actions`) fails; translate it first with
+ * `oav/overlay-spec`'s `translateOverlay`.
+ *
+ * @public
+ */
+export function isSpecOverlay(value: unknown): value is SpecOverlay {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  return Object.keys(value).every((key) => specOverlayVerbs.has(key));
+}
+
 const METHODS: HttpMethod[] = [
   "get",
   "put",

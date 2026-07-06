@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OpenAPIDocument } from "@oav/core";
-import { applyOverlays } from "../src/overlay.js";
+import { applyOverlays, isSpecOverlay, specOverlayVerbs } from "../src/overlay.js";
 
 function base(): OpenAPIDocument {
   return {
@@ -937,5 +937,34 @@ describe("applyOverlays: predicate iterators", () => {
     ]);
     const params = patched.paths?.["/refs"]?.get?.parameters;
     expect(params?.[0]).toEqual({ $ref: "#/components/parameters/X" });
+  });
+});
+
+describe("isSpecOverlay", () => {
+  it("accepts an object whose keys are all recognised verbs", () => {
+    expect(isSpecOverlay({ info: { title: "T" }, addServers: [], removePaths: [] })).toBe(true);
+  });
+
+  it("accepts the empty (no-op) overlay", () => {
+    expect(isSpecOverlay({})).toBe(true);
+  });
+
+  it("rejects non-objects, arrays, and null", () => {
+    expect(isSpecOverlay(null)).toBe(false);
+    expect(isSpecOverlay("overlay")).toBe(false);
+    expect(isSpecOverlay([{ info: {} }])).toBe(false);
+  });
+
+  it("rejects any unrecognised key, including the Overlay 1.0 envelope", () => {
+    expect(isSpecOverlay({ info: {}, unknownVerb: 1 })).toBe(false);
+    expect(isSpecOverlay({ overlay: "1.0.0", info: {}, actions: [] })).toBe(false);
+  });
+
+  it("exposes the verb set, in sync with the guard", () => {
+    for (const verb of specOverlayVerbs) {
+      expect(isSpecOverlay({ [verb]: undefined })).toBe(true);
+    }
+    expect(specOverlayVerbs.has("overlay")).toBe(false);
+    expect(specOverlayVerbs.has("actions")).toBe(false);
   });
 });
