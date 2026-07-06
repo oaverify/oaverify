@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.8.0](https://github.com/aahoughton/oav/compare/oav-core-v3.7.0...oav-core-v3.8.0) (2026-07-06)
+
+
+### Features
+
+* **schema:** return at the maxErrors cap in flat mode (fast-fail) ([#451](https://github.com/aahoughton/oav/issues/451)) ([8908404](https://github.com/aahoughton/oav/commit/8908404dd22b2ca66557be211384047297db1119))
+
+
+### Bug Fixes
+
+* **cli:** accept OpenAPI Overlay 1.0 files and reject unknown overlay shapes ([#460](https://github.com/aahoughton/oav/issues/460)) ([deb2cf1](https://github.com/aahoughton/oav/commit/deb2cf16ccd4b7cb9741dfd18594633ec6143486)), closes [#448](https://github.com/aahoughton/oav/issues/448)
+
+
+### Performance
+
+* **router:** defer match() allocations until structurally needed ([#457](https://github.com/aahoughton/oav/issues/457)) ([100ca57](https://github.com/aahoughton/oav/commit/100ca571ebb9ad2520ad508d4871fb13aa4fab84))
+* **schema:** hoist format-assertion lookups to module scope ([#458](https://github.com/aahoughton/oav/issues/458)) ([78bac7c](https://github.com/aahoughton/oav/commit/78bac7cc3c6b9ce9dd5633bad2b80e44e9ef2c45))
+* **validator:** cache media type matching ([#452](https://github.com/aahoughton/oav/issues/452)) ([9ae079e](https://github.com/aahoughton/oav/commit/9ae079e4bf13b7ef07149308fb2969bbeb96e9d9))
+
+
+### Documentation
+
+* reframe README around streaming validation and buffer budgets ([#449](https://github.com/aahoughton/oav/issues/449)) ([f2eded7](https://github.com/aahoughton/oav/commit/f2eded7fcb51e61173e465239fc67d21eb004614))
+
 ## [3.7.0](https://github.com/aahoughton/oav/compare/oav-core-v3.6.0...oav-core-v3.7.0) (2026-06-25)
 
 
