@@ -16,7 +16,7 @@ corpora:
 Reports verdict parity and flags any mismatches.
 
 This is a **standalone package** inside the monorepo. Its deps aren't
-pulled by the main `pnpm install` — bootstrap it on its own:
+pulled by the main `pnpm install`; bootstrap it on its own:
 
 ```bash
 cd conformance
@@ -41,7 +41,7 @@ pnpm overlay                        # OpenAPI Overlay 1.0 envelope + translator
 pnpm openapi                        # CLI-driven OpenAPI scenarios
 ```
 
-The `parse` suite drives the `@oav/stream-validator` SAX tokenizer over
+The `parse` suite drives the stream-validator package's SAX tokenizer over
 the [JSONTestSuite](https://github.com/nst/JSONTestSuite) `y_`/`n_`/`i_`
 parser corpus. The tokenizer's contract is to match `JSON.parse`, so the
 oracle for every case is `JSON.parse` (not the filename label); the suite
@@ -61,7 +61,7 @@ gitignored as moving targets.
 
 ## Where to add new cases
 
-- **Schema-level**: upstream — the harness reads
+- **Schema-level**: upstream. The harness reads
   `JSON-Schema-Test-Suite/tests/draft2020-12/*.json` as-is. Add schemas
   there only if you're upstreaming; prefer to express schema corners in
   `packages/schema/test/`.
@@ -69,7 +69,7 @@ gitignored as moving targets.
   `cases.json`. Each case is
   `{name, kind: "request"|"response", method, path, ..., expect: "valid"|"invalid", expectCodes?: string[]}`.
   The runner spawns the CLI, diffs exit code + leaf error `code`s.
-- **Overlay-level**: upstream — the harness reads
+- **Overlay-level**: upstream. The harness reads
   `Overlay-Specification/tests/v1.0/{pass,fail}/*.yaml` as-is. Add
   fixtures there only if you're upstreaming. Translator coverage for
   specific JSONPath shapes belongs in
@@ -77,6 +77,6 @@ gitignored as moving targets.
 
 ## Latest results
 
-See [`REPORT.md`](./REPORT.md) for a current analysis — what passes, what
+See [`REPORT.md`](./REPORT.md) for a current analysis: what passes, what
 fails, and whether each divergence is design, documented limitation, or
 a bug worth fixing.

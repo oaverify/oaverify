@@ -21,7 +21,7 @@ custom `onError`.
 | Mode selection                         | `flat: true` / `predicate: true` | `output: "flat" \| "tree" \| "predicate"` |
 | `validateRequest` / `validateResponse` | `ValidationError \| null`        | `{ valid, errors?, error?, truncated }`   |
 | Validator `maxErrors` default          | uncapped                         | `1`, as a per-call total                  |
-| Adapter `onError(err, ctx)`            | one `ValidationError`            | `onError(errors, ctx)` — a leaf list      |
+| Adapter `onError(err, ctx)`            | one `ValidationError`            | `onError(errors, ctx)`, a leaf list       |
 | `{ key: undefined }` presence          | counted as present               | treated as absent                         |
 
 ## 1. The compiler's default result is flat
@@ -34,7 +34,7 @@ const v = compileSchema(schema, { dialect });
 const r = v.validate(data);
 if (!r.valid) console.log(r.error); // nested ValidationError tree
 
-// v3 — same call, flat result
+// v3: same call, flat result
 const v = compileSchema(schema, { dialect });
 const r = v.validate(data);
 if (!r.valid) console.log(r.errors); // flat ValidationError[]
