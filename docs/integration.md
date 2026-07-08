@@ -404,8 +404,11 @@ clones between them, but the per-route handler can't know what the
 middleware validated).
 
 **Fully bespoke body handling.** If the built-in body parsing doesn't
-fit (e.g. you want to stream-process a large JSON payload or handle
-an unusual content type), use the lower-level primitive:
+fit (e.g. an unusual content type, or a decode step of your own), use
+the lower-level primitive below. To validate a large JSON body
+without buffering it, reach for
+[`@aahoughton/oav-stream-validator`](../packages/stream-validator/README.md)
+instead; it checks the bytes as they stream.
 
 ```ts
 import { httpRequestFromFetch } from "@aahoughton/oav";
@@ -1014,12 +1017,17 @@ const result = validator.validateRequest({
 });
 ```
 
-**Structural constraints require the whole value.** A schema that
+**Structural constraints need the whole value here.** A schema that
 declares object shape, required fields, array bounds, or `oneOf`
-needs the full payload to validate. `validateRequest` accepts an
-already-buffered 10 GB document; the memory cost is the caller's.
-For spec-level opt-out, declare the body as `format: binary` and
-let the opaque-body bypass accept whatever the HTTP layer decoded.
+needs the full payload before `validateRequest` can check it.
+`validateRequest` accepts an already-buffered 10 GB document; the
+memory cost is the caller's. For a body too large to buffer, the
+separate [`@aahoughton/oav-stream-validator`](../packages/stream-validator/README.md)
+package validates it as it streams, with bounded memory, and
+`oav stream-check spec.yaml` reports which of a spec's bodies can
+stream at all. For spec-level opt-out, declare the body as
+`format: binary` and let the opaque-body bypass accept whatever the
+HTTP layer decoded.
 
 **No bundled multipart parser.** `busboy`, `formidable`, and
 `@mjackson/multipart-parser` each make different tradeoffs, and

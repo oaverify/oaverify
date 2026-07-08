@@ -323,3 +323,4 @@ For per-route inline multer (validator called from inside the route handler) and
 - [`oav`](https://www.npmjs.com/package/@aahoughton/oav): oav-core plus YAML readers and the `oav` CLI.
 - The repo-root [`docs/integration.md`](https://github.com/aahoughton/oav/blob/main/docs/integration.md): broader recipes (security, file uploads, response validation, status mapping, type coercion, ignoring paths).
 - The repo-root [`docs/migration-from-eov.md`](https://github.com/aahoughton/oav/blob/main/docs/migration-from-eov.md): porting from `express-openapi-validator`.
+- [`oav-stream-validator`](https://www.npmjs.com/package/@aahoughton/oav-stream-validator): for JSON bodies too large to buffer through `express.json()`, validates the bytes as they stream; `oav stream-check spec.yaml` reports which of a spec's bodies can stream.

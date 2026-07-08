@@ -29,7 +29,7 @@ const ok = v.validateRequest({
   contentType: "application/json",
   body: { phone: "+14155550123" },
 });
-console.log("+14155550123 →", ok.valid ? "ok" : "FAIL");
+console.log("+14155550123 ->", ok.valid ? "ok" : "FAIL");
 
 const bad = v.validateRequest({
   method: "POST",

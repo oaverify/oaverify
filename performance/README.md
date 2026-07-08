@@ -143,7 +143,7 @@ retention.
 ### Synthetic mode
 
 ```
-=== petstore — object with required + scalar properties; realistic small API payload ===
+=== petstore: object with required + scalar properties; realistic small API payload ===
 compile:
   ajv compile                  356 ops/s       2.85ms / op
   oav compile                17.1K ops/s      67.49µs / op
@@ -200,11 +200,12 @@ batch throughput (avg ms per 500-req batch): oav 75ms, eov 80ms
 What to look at:
 
 - **`baseline RSS`**: the library + validator-set footprint at rest,
-  right after `app.listen`. Stable across runs; typically eov+ajv is
-  ~30 MB higher than oav on the bench spec.
+  right after `app.listen`. Stable across runs on one host; eov+ajv
+  sits above oav on the bench spec, by a margin that moves with the
+  Node version. The current reference numbers are in
+  [docs/comparison.md](../docs/comparison.md#memory).
 - **`steady heapUsed`**: V8 heap after 50k requests with GC forced
-  before each sample. Stable; typically eov+ajv is ~2.5–3 MB higher
-  (~15–20%).
+  before each sample. Stable; eov+ajv typically carries ~15% more.
 - **`growth` rows**: delta from post-warmup to end-of-run. Both
   libraries plateau; if either grows without bound the value here
   diverges and the steady rows keep rising across runs.
@@ -269,29 +270,28 @@ fast path.
   by one to two orders of magnitude against ajv.
 - **Steady-state validate on the same payload shape.** Call
   `compile` once at boot, validate many times. Comparing matched
-  defaults (`oav` vs `ajv-fast`, both fail-fast):
-  - **Within ~25%** on scalar, flat-object, recursive `$ref`, and
-    large-array shapes. ajv is a little ahead on the rejection path.
-  - **Behind ajv** on `oneOf` / `allOf` rejection (~2.5×, larger when
-    collecting all errors): oav materialises the composition error
-    where ajv stops at the first failure. `output: "predicate"` reaches
-    parity (see the structural note below).
-  - **Ahead of ajv** on `uniqueItems` arrays (~1.6–3×; oav's primitive
+  defaults (`oav` vs `ajv-fast`, both fail-fast), per the 2026-07-05
+  reference run in [docs/comparison.md](../docs/comparison.md#performance):
+  - **At or above parity on valid input** across the shape suite.
+    Plain-object rejection (`tiny` / `petstore` / `tree`) trails ajv
+    modestly (84–87%).
+  - **Composition (`oneOf` / `allOf`) rejection**: fast-fail edges out
+    ajv; collecting every error trails (~75%), since oav materialises
+    the full composition error tree. `output: "predicate"` is well
+    ahead (see the structural note below).
+  - **Ahead of ajv** on `uniqueItems` arrays (~3×; oav's primitive
     fast path vs ajv's pairwise scan). `minLength` / `maxLength` also
     decide from the string's `.length` before walking code points, so a
     large valid body costs O(1).
 
 - **Predicate mode (`output: "predicate"`).** When consumers only need a
   yes/no answer (routing, gating, hot-path filtering), `oav-predicate`
-  brings oav to parity with ajv's fail-fast mode on invalid paths and
-  typically edges it out on valid paths. The compiler drops error-tree
+  runs at or above ajv's fail-fast mode on both valid and invalid
+  paths, well ahead on composition and array shapes. The compiler drops error-tree
   construction entirely: no leaf-allocation, no path snapshot, no params
   object, no message string, no wrapper. Every failure short-circuits to
   `return false;`. The mode cannot be combined with a finite `maxErrors`
   (the two are semantically incompatible; the compiler throws).
-- **Hyperjump**'s validate throughput sits roughly two orders of
-  magnitude below ajv / oav. It's the 2020-12 reference
-  implementation, not a speed target.
 - **`@oav/schema`**'s remaining validate overhead vs ajv comes from
   two structural choices: schemas that contain applicators
   (`properties` / `items` / `allOf` / ...) compile to a function call

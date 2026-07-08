@@ -26,7 +26,7 @@ const specUrl = (name: string): string =>
 const { document: spec30 } = await loadSpec({ reader, entry: specUrl("pets-3.0.yaml") });
 const v30 = createValidator(spec30);
 console.log(
-  "3.0.3  tag=null        →",
+  "3.0.3  tag=null        ->",
   v30.validateRequest({
     method: "POST",
     path: "/pets",
@@ -37,7 +37,7 @@ console.log(
     : "FAIL",
 );
 console.log(
-  "3.0.3  priority=10     →",
+  "3.0.3  priority=10     ->",
   (() => {
     const e = v30.validateRequest({
       method: "POST",
@@ -53,7 +53,7 @@ console.log(
 const { document: spec31 } = await loadSpec({ reader, entry: specUrl("pets-3.1.yaml") });
 const v31 = createValidator(spec31);
 console.log(
-  "3.1.0  tag=null        →",
+  "3.1.0  tag=null        ->",
   v31.validateRequest({
     method: "POST",
     path: "/pets",
@@ -73,4 +73,4 @@ const r = v32.validateRequest({
   contentType: "application/json",
   body: { filter: "cats" },
 });
-console.log("3.2.0  QUERY /search  →", r.valid ? "ok" : "FAIL:\n" + formatText(r.errors));
+console.log("3.2.0  QUERY /search  ->", r.valid ? "ok" : "FAIL:\n" + formatText(r.errors));

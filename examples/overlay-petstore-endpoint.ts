@@ -64,4 +64,4 @@ const ok = v.validateRequest({
   headers: { "x-tenant": "acme" },
   body: { name: "Fido" },
 });
-console.log("\nPOST /pets with X-Tenant →", ok.valid ? "ok" : "FAIL");
+console.log("\nPOST /pets with X-Tenant ->", ok.valid ? "ok" : "FAIL");

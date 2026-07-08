@@ -47,15 +47,15 @@ const drain = async (src: AsyncIterable<Buffer>): Promise<void> => {
   const open: SchemaOrBoolean = { type: "array", uniqueItems: true };
   try {
     createStreamValidator(open, { enforceBounds: true });
-    console.log("enforceBounds (no maxItems) → constructed (unexpected!)");
+    console.log("enforceBounds (no maxItems) -> constructed (unexpected!)");
   } catch (err) {
-    console.log("enforceBounds (no maxItems) → rejected: " + (err as Error).message);
+    console.log("enforceBounds (no maxItems) -> rejected: " + (err as Error).message);
   }
 
   // A structural bound clears the warning: now it constructs.
   const bounded: SchemaOrBoolean = { type: "array", uniqueItems: true, maxItems: 1000 };
   createStreamValidator(bounded, { enforceBounds: true });
-  console.log("enforceBounds (maxItems: 1000) → constructed");
+  console.log("enforceBounds (maxItems: 1000) -> constructed");
 }
 
 // --- maxTotalBytes refuses oversize input mid-stream -----------------------
@@ -63,13 +63,13 @@ const drain = async (src: AsyncIterable<Buffer>): Promise<void> => {
   const validator = createStreamValidator(true, { maxTotalBytes: 16 });
   try {
     await pipeline(Readable.from('{"data":"' + "x".repeat(64) + '"}'), validator, drain);
-    console.log("\nmaxTotalBytes: 16 → accepted (unexpected!)");
+    console.log("\nmaxTotalBytes: 16 -> accepted (unexpected!)");
   } catch (err) {
     // A size-limit overflow is a fatal error (not a schema violation), so
     // `pipeline` rejects with a MaxTotalBytesError, not ValidationFailedError.
     // `instanceof` tells "too big" from "invalid" without matching the message.
     if (err instanceof MaxTotalBytesError) {
-      console.log(`\nmaxTotalBytes: 16 → rejected: over the ${err.limit}-byte cap`);
+      console.log(`\nmaxTotalBytes: 16 -> rejected: over the ${err.limit}-byte cap`);
     } else {
       throw err;
     }
@@ -84,11 +84,11 @@ const drain = async (src: AsyncIterable<Buffer>): Promise<void> => {
   const validator = createStreamValidator(schema);
   try {
     await pipeline(Readable.from("[1,2,3,4,5]"), validator, drain);
-    console.log("\nmaxItems: 3 on [1..5] → accepted (unexpected!)");
+    console.log("\nmaxItems: 3 on [1..5] -> accepted (unexpected!)");
   } catch (err) {
     if (err instanceof ValidationFailedError) {
       const v = err.verdict.violations[0];
-      console.log(`\nmaxItems: 3 on [1..5] → rejected: ${v?.code} @byte ${v?.byteOffset}`);
+      console.log(`\nmaxItems: 3 on [1..5] -> rejected: ${v?.code} @byte ${v?.byteOffset}`);
     } else {
       throw err;
     }

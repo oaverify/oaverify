@@ -101,7 +101,7 @@ function validityOf(taskName: string): "valid" | "invalid" | undefined {
 }
 
 async function benchSchema(s: PerfSchema): Promise<void> {
-  console.log(`\n=== ${s.name} — ${s.description} ===`);
+  console.log(`\n=== ${s.name}: ${s.description} ===`);
 
   // Compile options for oav / ajv are identical each iteration, so hoist
   // them; the hot loop reduces to the library's work.
@@ -427,7 +427,7 @@ if (specPath !== undefined) {
     const oavAll = row["oav-all"] ?? 0;
     const oavPred = row["oav-predicate"] ?? 0;
     const base = ajv || 1;
-    const fmt = (n: number) => (n === 0 ? "—" : (n / base).toFixed(2));
+    const fmt = (n: number) => (n === 0 ? "-" : (n / base).toFixed(2));
     console.log(
       (schema ?? "").padEnd(14) +
         (task ?? "").padEnd(22) +

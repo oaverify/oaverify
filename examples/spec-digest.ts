@@ -112,7 +112,7 @@ function declaredMaxBytes(schema: SchemaObject | boolean | undefined): number | 
   return undefined;
 }
 
-// ──── Demo: load spec, digest, print ──────────────────────────────
+// ---- Demo: load spec, digest, print ------------------------------
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const specPath = fileURLToPath(new URL("./specs/uploads.yaml", import.meta.url));

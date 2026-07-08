@@ -8,6 +8,13 @@ side channel. Memory is bounded for forward-decidable schemas with
 structural bounds (or configured caps), so multi-GB request bodies
 validate without materializing in heap.
 
+The trade-off is throughput: on a body that turns out valid,
+streaming validation is slower than buffering the whole document and
+validating it in memory. What it buys is the bounded footprint and
+early rejection: memory stays flat regardless of body size, and an
+invalid body can be refused before its tail arrives. If your bodies
+fit comfortably in heap, the in-memory validator is the faster tool.
+
 This is a second engine, not a mode of the in-memory validator.
 `oav-core`'s compiler is pull-based over a fully-parsed value; this engine
 is push-based over a token stream. It reuses `oav-core`'s in-memory
@@ -23,6 +30,11 @@ validator pulls the engine it delegates to along with it.
 ```bash
 npm install @aahoughton/oav-stream-validator
 ```
+
+Runnable examples (echo-through, spec bridging, input bounds, scalar
+recovery, and the buffer-budget analyzer) live in the repo's
+[`examples/` directory](https://github.com/aahoughton/oav/blob/main/examples/README.md#streaming)
+as `stream-*.ts`.
 
 > **Versioned independently of the `oav-core` family.** This package tracks
 > its own version line rather than the lockstep `oav-core` version, and

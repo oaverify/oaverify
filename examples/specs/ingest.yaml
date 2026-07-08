@@ -1,0 +1,53 @@
+openapi: "3.1.0"
+info:
+  title: Ingest
+  version: "1"
+paths:
+  /events:
+    post:
+      summary: Bulk-append events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required: [type, payload]
+                properties:
+                  type:
+                    type: string
+                    maxLength: 32
+                  payload:
+                    type: string
+                    maxLength: 4096
+      responses:
+        "202":
+          description: accepted
+  /batches:
+    post:
+      summary: Register a batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [checksums]
+              properties:
+                checksums:
+                  type: array
+                  uniqueItems: true
+                  maxItems: 64
+                  items:
+                    type: string
+                    maxLength: 64
+                tags:
+                  type: array
+                  uniqueItems: true
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: created

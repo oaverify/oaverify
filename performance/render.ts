@@ -123,7 +123,7 @@ function invalidStats(
 // <100% slower. Large compile speedups render as an `N×` multiplier
 // rather than an unwieldy four-digit percentage.
 function rel(baseline: number | null, value: number | null): string {
-  if (baseline === null || value === null || value === 0) return "—";
+  if (baseline === null || value === null || value === 0) return "-";
   const r = baseline / value;
   if (r >= 10) return `${r.toFixed(0)}×`;
   const pct = r * 100;
@@ -176,8 +176,8 @@ const compileRows = shapes
     const oav = pickMean(s, "oav", "compile");
     return [
       `\`${s}\``,
-      ajv === null ? "—" : fmtUs(ajv),
-      oav === null ? "—" : `${fmtUs(oav)} / ${rel(ajv, oav)}`,
+      ajv === null ? "-" : fmtUs(ajv),
+      oav === null ? "-" : `${fmtUs(oav)} / ${rel(ajv, oav)}`,
     ];
   });
 console.log(`\n#### Compile (ajv vs oav)\n`);
@@ -195,7 +195,7 @@ if (results.some((r) => r.metric === "validate" && r.validity === "valid")) {
     `\`${s}\``,
     ...COLS.map((c) => {
       const v = pickMean(s, c.lib, "validate", "valid");
-      return v === null ? "—" : fmtUs(v);
+      return v === null ? "-" : fmtUs(v);
     }),
   ]);
   const relRows = validShapes.map((s) => [
@@ -205,11 +205,11 @@ if (results.some((r) => r.metric === "validate" && r.validity === "valid")) {
     ),
   ]);
 
-  console.log(`\n#### Validate — valid input · absolute\n`);
+  console.log(`\n#### Validate: valid input · absolute\n`);
   console.log(`_Mean latency per op. Lower is faster._\n`);
   console.log(table(["shape", ...COL_LABELS], absRows));
 
-  console.log(`\n#### Validate — valid input · oav vs matched ajv mode\n`);
+  console.log(`\n#### Validate: valid input · oav vs matched ajv mode\n`);
   console.log(`${MATCHED_NOTE}\n`);
   console.log(table(["shape", ...MATCHED_LABELS], relRows));
 }
@@ -223,7 +223,7 @@ if (results.some((r) => r.metric === "validate" && r.validity === "invalid")) {
     `\`${s}\``,
     ...COLS.map((c) => {
       const st = invalidStats(s, c.lib);
-      if (st === null) return "—";
+      if (st === null) return "-";
       return st.min === st.max
         ? fmtUs(st.avg)
         : `${fmtUs(st.avg)} (${fmtUs(st.min)}–${fmtUs(st.max)})`;
@@ -236,13 +236,13 @@ if (results.some((r) => r.metric === "validate" && r.validity === "invalid")) {
     ),
   ]);
 
-  console.log(`\n#### Validate — invalid input · absolute\n`);
+  console.log(`\n#### Validate: invalid input · absolute\n`);
   console.log(
     `_Average per op with the min–max range across the failure-position fixtures. Lower is faster._\n`,
   );
   console.log(table(["shape", ...COL_LABELS], absRows));
 
-  console.log(`\n#### Validate — invalid input · oav vs matched ajv mode\n`);
+  console.log(`\n#### Validate: invalid input · oav vs matched ajv mode\n`);
   console.log(`${MATCHED_NOTE}\n`);
   console.log(table(["shape", ...MATCHED_LABELS], relRows));
 }

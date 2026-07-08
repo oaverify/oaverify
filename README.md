@@ -45,6 +45,11 @@ thrown exception, and `oav` never mutates your `req` / `res`.
   multi-GB payload in heap. A separate streaming engine
   (`@aahoughton/oav-stream-validator`) checks the body against its
   operation schema while echoing the bytes through.
+- Validator construction cheap enough to run per tenant, per test, or on
+  a cold start. Compiling a spec's schemas runs one to two orders of
+  magnitude faster than Ajv on the benchmark shapes, and steady-state
+  validation is competitive; numbers and method in
+  [docs/comparison.md](https://github.com/aahoughton/oav/blob/main/docs/comparison.md#performance).
 - Structured errors with stable codes and paths, ready for
   `application/problem+json`, logs, or your own client messages.
 - A spec compiled to a single zero-dependency module that runs where
@@ -63,6 +68,7 @@ thrown exception, and `oav` never mutates your `req` / `res`.
 | Streaming validation of large JSON bodies           | oav                       |
 | A pre-deploy report of which bodies can stream      | oav                       |
 | Per-tenant or per-deployment spec overlays          | oav                       |
+| Per-tenant or per-request validator construction    | oav                       |
 | A standalone validator for edge / serverless        | oav                       |
 
 See [docs/comparison.md](https://github.com/aahoughton/oav/blob/main/docs/comparison.md)
@@ -185,8 +191,8 @@ and the `ValidatorOptions` TSDoc for the full contract.
 
 Runnable end-to-end demos in [`examples/`](https://github.com/aahoughton/oav/blob/main/examples/README.md):
 custom formats, custom keywords, cross-field constraints, error
-budgets, version differences, overlays, and spec-derived middleware
-config.
+budgets, version differences, overlays, spec-derived middleware
+config, streaming validation, and pre-deploy buffer budgets.
 
 ### Streaming large bodies
 

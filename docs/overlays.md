@@ -331,3 +331,10 @@ const overlay: SpecOverlay = {
   and
   [`examples/overlay-petstore-endpoint.ts`](../examples/overlay-petstore-endpoint.ts):
   runnable end-to-end demos.
+- Handed a standard [OpenAPI Overlay 1.0](https://spec.openapis.org/overlay/1.0.0)
+  document (JSONPath-targeted actions) rather than a typed
+  `SpecOverlay`? `@aahoughton/oav/overlay-spec` translates it onto
+  the verbs in this doc; see
+  ["Consuming spec-format overlays"](./integration.md#consuming-spec-format-overlays)
+  and [`packages/overlay-spec/README.md`](../packages/overlay-spec/README.md).
+  The CLI's `--overlay` flag accepts both formats directly.
