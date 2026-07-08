@@ -191,8 +191,8 @@ and the `ValidatorOptions` TSDoc for the full contract.
 
 Runnable end-to-end demos in [`examples/`](https://github.com/aahoughton/oav/blob/main/examples/README.md):
 custom formats, custom keywords, cross-field constraints, error
-budgets, version differences, overlays, and spec-derived middleware
-config.
+budgets, version differences, overlays, spec-derived middleware
+config, streaming validation, and pre-deploy buffer budgets.
 
 ### Streaming large bodies
 

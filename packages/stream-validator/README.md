@@ -31,6 +31,11 @@ validator pulls the engine it delegates to along with it.
 npm install @aahoughton/oav-stream-validator
 ```
 
+Runnable examples (echo-through, spec bridging, input bounds, scalar
+recovery, and the buffer-budget analyzer) live in the repo's
+[`examples/` directory](https://github.com/aahoughton/oav/blob/main/examples/README.md#streaming)
+as `stream-*.ts`.
+
 > **Versioned independently of the `oav-core` family.** This package tracks
 > its own version line rather than the lockstep `oav-core` version, and
 > follows semver from `1.0` (a breaking change bumps the major). The public
