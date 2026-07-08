@@ -68,5 +68,5 @@ const drain = async (src: AsyncIterable<Buffer>): Promise<void> => {
 await pipeline(Readable.from(docBody(50_000)), validator, drain);
 const verdict = await validator.result;
 
-console.log(`validated 50k items → ${verdict.valid ? "ok" : "FAIL"}`);
-console.log("recovered scalars   →", Object.fromEntries(captured));
+console.log(`validated 50k items -> ${verdict.valid ? "ok" : "FAIL"}`);
+console.log("recovered scalars   ->", Object.fromEntries(captured));

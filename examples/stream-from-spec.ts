@@ -56,12 +56,12 @@ async function streamPet(label: string, pet: unknown): Promise<void> {
   const validator = streamValidatorForOperation(document, { method: "post", path: "/pets" });
   try {
     await pipeline(Readable.from(JSON.stringify(pet)), validator, drain);
-    console.log(`${label} → ok`);
+    console.log(`${label} -> ok`);
   } catch (err) {
     if (err instanceof ValidationFailedError) {
       // Bridge to @oav/core's error model and reuse its one-line summary.
       const summary = formatSummary(toValidationError(err.verdict.violations));
-      console.log(`${label} → rejected: ${summary}`);
+      console.log(`${label} -> rejected: ${summary}`);
     } else {
       throw err;
     }

@@ -36,7 +36,7 @@ const ok = v.validateRequest({
   contentType: "application/json",
   body: { tenantId: "t_acme", name: "Widget A" },
 });
-console.log("t_acme (active) →", ok.valid ? "ok" : "FAIL");
+console.log("t_acme (active) ->", ok.valid ? "ok" : "FAIL");
 
 const bad = v.validateRequest({
   method: "POST",

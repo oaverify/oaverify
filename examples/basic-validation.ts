@@ -22,7 +22,7 @@ const valid = v.validateRequest({
   contentType: "application/json",
   body: { name: "Fido", tag: "dog" },
 });
-console.log("valid request →", valid.valid ? "ok" : "FAIL");
+console.log("valid request ->", valid.valid ? "ok" : "FAIL");
 
 const bad = v.validateRequest({
   method: "POST",
@@ -38,4 +38,4 @@ const responseErr = v.validateResponse(
   { method: "POST", path: "/pets", body: { name: "Fido" }, contentType: "application/json" },
   { status: 201 },
 );
-console.log("\nresponse (201, no body) →", responseErr.valid ? "ok" : "FAIL");
+console.log("\nresponse (201, no body) ->", responseErr.valid ? "ok" : "FAIL");

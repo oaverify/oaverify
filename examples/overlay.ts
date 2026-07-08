@@ -50,4 +50,4 @@ const ok = v.validateRequest({
   path: "/pets",
   headers: { "x-request-id": "abc-123" },
 });
-console.log("\nwith X-Request-Id →", ok.valid ? "ok" : "FAIL");
+console.log("\nwith X-Request-Id ->", ok.valid ? "ok" : "FAIL");

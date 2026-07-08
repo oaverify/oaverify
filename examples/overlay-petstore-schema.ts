@@ -61,4 +61,4 @@ const ok = v.validateRequest({
   contentType: "application/json",
   body: { name: "Fido", vaccinated: true },
 });
-console.log("\nPOST /pets with `vaccinated: true` →", ok.valid ? "ok" : "FAIL");
+console.log("\nPOST /pets with `vaccinated: true` ->", ok.valid ? "ok" : "FAIL");

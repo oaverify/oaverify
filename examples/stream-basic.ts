@@ -76,7 +76,7 @@ function countingSink(): { sink: Writable; bytes: () => number } {
   const { sink, bytes } = countingSink();
   await pipeline(Readable.from(itemsBody(100_000)), validator, sink);
   const verdict = await validator.result;
-  console.log(`valid 100k items  → ${verdict.valid ? "ok" : "FAIL"}, echoed ${bytes()} bytes`);
+  console.log(`valid 100k items  -> ${verdict.valid ? "ok" : "FAIL"}, echoed ${bytes()} bytes`);
 }
 
 // --- One bad element fails fast, before the tail streams ------------------
@@ -87,10 +87,10 @@ function countingSink(): { sink: Writable; bytes: () => number } {
 
   try {
     await pipeline(Readable.from(itemsBody(100_000, 7)), validator, countingSink().sink);
-    console.log("\nbad element       → ok (should have failed!)");
+    console.log("\nbad element       -> ok (should have failed!)");
   } catch (err) {
     if (err instanceof ValidationFailedError) {
-      console.log("\nbad element       → rejected (as expected)");
+      console.log("\nbad element       -> rejected (as expected)");
       // Bridge the stream violations to @oav/core's error model, then reuse
       // its formatter instead of hand-rolling one. The stream-specific
       // byteOffset rides in params; append it for the "failed early" point.
