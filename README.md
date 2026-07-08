@@ -52,6 +52,11 @@ thrown exception, and `oav` never mutates your `req` / `res`.
   Lambda@Edge, Deno Deploy. (`oav compile-spec openapi.yaml`.)
 - To extend a spec you don't own (a per-tenant required header, an added
   auth requirement, a tightened schema) with overlays instead of forking.
+- Validator construction cheap enough to run per tenant, per test, or on
+  a cold start. Compiling a spec's schemas runs one to two orders of
+  magnitude faster than Ajv on the benchmark shapes, and steady-state
+  validation is competitive; numbers and method in
+  [docs/comparison.md](https://github.com/aahoughton/oav/blob/main/docs/comparison.md#performance).
 
 **At a glance:**
 
@@ -63,6 +68,7 @@ thrown exception, and `oav` never mutates your `req` / `res`.
 | Streaming validation of large JSON bodies           | oav                       |
 | A pre-deploy report of which bodies can stream      | oav                       |
 | Per-tenant or per-deployment spec overlays          | oav                       |
+| Per-tenant or per-request validator construction    | oav                       |
 | A standalone validator for edge / serverless        | oav                       |
 
 See [docs/comparison.md](https://github.com/aahoughton/oav/blob/main/docs/comparison.md)

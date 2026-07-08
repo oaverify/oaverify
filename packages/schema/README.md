@@ -112,8 +112,10 @@ or custom emit shapes, pass a full `KeywordDefinition` instead. The
 `compile(ctx)` function receives a `KeywordCompileContext` that lets
 you emit generated code directly.
 
-This is a contributor-facing surface; the full compile-context API and
-flag reference live in [`CLAUDE.md`](../../CLAUDE.md#how-to-add-a-new-keyword).
+This is a contributor-facing surface; the procedure lives in
+[`docs/extending.md`](../../docs/extending.md#add-a-new-keyword), and
+the compile-context API reference is the TSDoc on
+`KeywordCompileContext` (`src/keywords/types.ts`).
 
 ## Output and error-collection modes
 

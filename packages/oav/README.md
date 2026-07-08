@@ -36,9 +36,19 @@ const result = validator.validateRequest({
 // result.valid -> boolean; result.errors -> typed error list
 ```
 
+Two sibling packages are easy to miss from here. The framework
+adapters ([below](#framework-integration)) wire this validator into
+Express or Fastify as middleware. And for JSON bodies too large to
+buffer, the separate
+[`@aahoughton/oav-stream-validator`](https://www.npmjs.com/package/@aahoughton/oav-stream-validator)
+package validates the body as it streams, with bounded memory; this
+package's `oav stream-check openapi.yaml` reports which of a spec's
+bodies can stream and which must buffer, before any traffic.
+
 Tested against the JSON Schema 2020-12 test suite, OpenAPI 3.0 / 3.1 /
 3.2 fixtures, real-world specs, and Express 4 / 5 + Fastify integration.
-Full rationale, install matrix, and the tool comparison live in the
+Full rationale, install matrix, the tool comparison, and benchmark
+numbers live in the
 [project README](https://github.com/aahoughton/oav/blob/main/README.md).
 
 ## When to use which
@@ -79,7 +89,7 @@ surface changes.
   ```
 
 - **The `oav` CLI binary**: `oav resolve`, `oav validate`,
-  `oav compile-schema`, `oav compile-spec`. See
+  `oav compile-schema`, `oav compile-spec`, `oav stream-check`. See
   [`packages/cli/README.md`](https://github.com/aahoughton/oav/blob/main/packages/cli/README.md) for commands and
   flags.
 
@@ -119,4 +129,7 @@ the Web Standards adapter.
   security wiring, response validation, file uploads, migration.
 - [`docs/overlays.md`](https://github.com/aahoughton/oav/blob/main/docs/overlays.md): extending an externally-owned
   base spec at load time.
-- [`docs/comparison.md`](https://github.com/aahoughton/oav/blob/main/docs/comparison.md): feature comparison vs Ajv.
+- [`packages/stream-validator/README.md`](https://github.com/aahoughton/oav/blob/main/packages/stream-validator/README.md):
+  streaming body validation and the buffer-budget analyzer.
+- [`docs/comparison.md`](https://github.com/aahoughton/oav/blob/main/docs/comparison.md): feature and performance
+  comparison vs Ajv and other tools.

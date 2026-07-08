@@ -157,6 +157,12 @@ makes sense for your API.
 - **AOT compilation.** `oav compile-spec spec.yaml` emits a
   zero-runtime-deps validator for edge / serverless deployments.
   See the [CLI README](../packages/cli/README.md#compile-spec-output).
+- **Streaming validation of large bodies.** The separate
+  [`@aahoughton/oav-stream-validator`](../packages/stream-validator/README.md)
+  package validates a JSON body as it streams, with bounded memory,
+  and `oav stream-check spec.yaml` reports which of a spec's bodies
+  can stream and which must buffer. eov (like Ajv) validates a
+  fully-parsed value only.
 
 ## Format-shape note
 

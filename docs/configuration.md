@@ -12,6 +12,7 @@ this page is a recipe-oriented overview.
 | `keywords`              | Register user-defined schema keywords (see below).                                                                                                                           |
 | `output`                | Result shape: `"flat"` (default; `{ valid, errors, truncated }`), `"tree"` (nested `{ valid, error, truncated }`), or `"predicate"` (bare boolean). Mirrors `compileSchema`. |
 | `maxErrors`             | Per-call total cap on leaf errors. Default `1` (fast-fail); pass `Number.POSITIVE_INFINITY` to collect every error.                                                          |
+| `maxDepth`              | Cap on recursive `$ref` validation depth; past the cap the payload fails with a `depth` error instead of exhausting the call stack. Unset by default; see below.             |
 | `strict`                | Compile-time schema lint mode: `"off"`, `"warn-partial"` (default), or `"strict"`. Issues surface via `validator.stats.strictIssues`.                                        |
 | `strictQueryParameters` | Reject undeclared query parameters. Default `false`.                                                                                                                         |
 | `validateSecurity`      | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                                             |

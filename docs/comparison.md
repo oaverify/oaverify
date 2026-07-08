@@ -331,10 +331,12 @@ The JavaScript ecosystem has several OpenAPI validation tools with
 different integration shapes. Pick the one whose shape fits how your
 service is already wired.
 
-Pick Ajv + `express-openapi-validator` when you want the fastest
-steady-state validate throughput on a schema you compile once, a
-large userbase, multi-draft support, or the one-line middleware
-integration for Express. Pick `openapi-backend` when routing and
+Pick Ajv + `express-openapi-validator` when you want multi-draft
+support, a large userbase, data-mutating validation (`coerceTypes`,
+`removeAdditional`, `useDefaults`), the one-line middleware
+integration for Express, or the edge Ajv still holds on fast-fail
+rejection of plain object shapes (see the Performance tables above).
+Pick `openapi-backend` when routing and
 operation handlers should be driven by the spec. Pick
 `openapi-enforcer` when its OpenAPI 2.0 / 3.0 validation,
 serialization, and mocking model fits your service.
