@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.8.1](https://github.com/aahoughton/oav/compare/oav-express5-v3.8.0...oav-express5-v3.8.1) (2026-07-08)
+
+
+### Documentation
+
+* surface streaming and performance across the docs ([#461](https://github.com/aahoughton/oav/issues/461)) ([91b7c6f](https://github.com/aahoughton/oav/commit/91b7c6f4a3294e7da13963c0cbabab8f710a8fb4))
+
 ## [3.8.0](https://github.com/aahoughton/oav/compare/oav-express5-v3.7.0...oav-express5-v3.8.0) (2026-07-06)
 
 

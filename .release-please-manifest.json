@@ -1,8 +1,8 @@
 {
-  ".": "3.8.0",
-  "packages/oav": "3.8.0",
-  "packages/oav-express4": "3.8.0",
-  "packages/oav-express5": "3.8.0",
-  "packages/oav-fastify": "3.8.0",
-  "packages/stream-validator": "1.1.0"
+  ".": "3.8.1",
+  "packages/oav": "3.8.1",
+  "packages/oav-express4": "3.8.1",
+  "packages/oav-express5": "3.8.1",
+  "packages/oav-fastify": "3.8.1",
+  "packages/stream-validator": "1.1.1"
 }

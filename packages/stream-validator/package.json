@@ -1,6 +1,6 @@
 {
   "name": "@aahoughton/oav-stream-validator",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Streaming OpenAPI / JSON Schema 2020-12 validator. Validates a JSON body as it streams with bounded memory for multi-GB payloads, echoing bytes through unchanged while reporting violations on a side channel. Built on @aahoughton/oav-core.",
   "keywords": [
     "json-schema",

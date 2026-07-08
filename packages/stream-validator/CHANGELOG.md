@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/aahoughton/oav/compare/oav-stream-validator-v1.1.0...oav-stream-validator-v1.1.1) (2026-07-08)
+
+
+### Documentation
+
+* surface streaming and performance across the docs ([#461](https://github.com/aahoughton/oav/issues/461)) ([91b7c6f](https://github.com/aahoughton/oav/commit/91b7c6f4a3294e7da13963c0cbabab8f710a8fb4))
+
 ## [1.1.0](https://github.com/aahoughton/oav/compare/oav-stream-validator-v1.0.0...oav-stream-validator-v1.1.0) (2026-06-25)
 
 
