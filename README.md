@@ -45,6 +45,11 @@ thrown exception, and `oav` never mutates your `req` / `res`.
   multi-GB payload in heap. A separate streaming engine
   (`@aahoughton/oav-stream-validator`) checks the body against its
   operation schema while echoing the bytes through.
+- Validator construction cheap enough to run per tenant, per test, or on
+  a cold start. Compiling a spec's schemas runs one to two orders of
+  magnitude faster than Ajv on the benchmark shapes, and steady-state
+  validation is competitive; numbers and method in
+  [docs/comparison.md](https://github.com/aahoughton/oav/blob/main/docs/comparison.md#performance).
 - Structured errors with stable codes and paths, ready for
   `application/problem+json`, logs, or your own client messages.
 - A spec compiled to a single zero-dependency module that runs where
@@ -52,11 +57,6 @@ thrown exception, and `oav` never mutates your `req` / `res`.
   Lambda@Edge, Deno Deploy. (`oav compile-spec openapi.yaml`.)
 - To extend a spec you don't own (a per-tenant required header, an added
   auth requirement, a tightened schema) with overlays instead of forking.
-- Validator construction cheap enough to run per tenant, per test, or on
-  a cold start. Compiling a spec's schemas runs one to two orders of
-  magnitude faster than Ajv on the benchmark shapes, and steady-state
-  validation is competitive; numbers and method in
-  [docs/comparison.md](https://github.com/aahoughton/oav/blob/main/docs/comparison.md#performance).
 
 **At a glance:**
 
