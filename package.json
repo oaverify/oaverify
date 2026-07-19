@@ -157,15 +157,15 @@
     "prepublishOnly": "pnpm test"
   },
   "devDependencies": {
-    "@types/node": "26.1.0",
+    "@types/node": "26.1.1",
     "commander": "15.0.0",
     "esbuild": "0.28.1",
-    "oxfmt": "0.57.0",
-    "oxlint": "1.72.0",
-    "oxlint-tsgolint": "^0.24.0",
+    "oxfmt": "0.59.0",
+    "oxlint": "1.74.0",
+    "oxlint-tsgolint": "^0.25.0",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
-    "vitest": "4.1.9",
+    "vitest": "4.1.10",
     "yaml": "2.9.0"
   },
   "engines": {
