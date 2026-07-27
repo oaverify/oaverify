@@ -7,7 +7,7 @@
  * rule, register a validator that sees the whole object, and let
  * the validator reach siblings directly.
  *
- * This is the oav equivalent of Ajv's `$data` references
+ * This is the oaverify equivalent of Ajv's `$data` references
  * (`{ minimum: { $data: "1/min" } }`), which aren't part of standard
  * JSON Schema. Trade-off: the constraint sits on the parent object
  * in the schema rather than inside the constrained field's own

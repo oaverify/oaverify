@@ -1,10 +1,10 @@
 /**
- * Internal re-exports for `oav/schema/internals`. Exposes
+ * Internal re-exports for `@oaverify/core/schema/internals`. Exposes
  * the codegen mechanics, runtime helpers, resolve internals, and
  * subschema-position constants that sit below the public extension
  * recipe. Reachable when you really need them (tests, advanced
  * plugins, tooling that walks or rewrites schemas) but deliberately
- * separated from the main `oav/schema` barrel so the
+ * separated from the main `@oaverify/core/schema` barrel so the
  * public surface matches what keyword authors actually need.
  *
  * Nothing here is covered by semver guarantees. Compare against the

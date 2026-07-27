@@ -45,7 +45,7 @@ export function workspaceAliases(rootDir: string): Record<string, string> {
         string,
       ],
   );
-  // Packages published standalone rather than folded into the oav-core
+  // Packages published standalone rather than folded into the @oaverify/core
   // bundle, so consumers inside the workspace (the CLI) import them by
   // their published names. Alias them to source too, so tests / bundling
   // resolve them without a prior build of their dist.

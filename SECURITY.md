@@ -8,13 +8,13 @@ Use GitHub's private vulnerability reporting:
 <https://github.com/oaverify/oaverify/security/advisories/new>
 
 If that isn't available to you, email <aah@roarmouse.org> with
-"oav security" in the subject line.
+"oaverify security" in the subject line.
 
 Please include:
 
 - A description of the issue and its impact.
 - Steps to reproduce, or a minimal proof of concept.
-- The affected version(s) of `oav`.
+- The affected package name and version(s).
 - Any mitigations or workarounds you're aware of.
 
 You should receive an acknowledgement within a few business days.
@@ -39,7 +39,7 @@ Three sub-roots in this repo own their own lockfiles for test and
 benchmark dependencies, isolated from the main workspace:
 
 - `framework-tests/`: real-server integration tests for the
-  `oav-express4`, `oav-express5`, and `oav-fastify` adapters.
+  `@oaverify/express4`, `@oaverify/express5`, and `@oaverify/fastify` adapters.
 - `performance/`: benchmarks against other JSON Schema / OpenAPI
   validators.
 - `conformance/`: upstream JSON Schema and OpenAPI Overlay test-suite

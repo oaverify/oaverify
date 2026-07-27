@@ -108,7 +108,7 @@ createValidator(spec, {
 });
 ```
 
-`oav` does not bundle `re2` or any other engine: edge runtimes
+`oaverify` does not bundle `re2` or any other engine: edge runtimes
 (Cloudflare Workers, Vercel Edge) don't support native modules, and
 the right answer for those environments is a different tradeoff
 (pattern-length cap, allowlist of permitted patterns, etc.) which

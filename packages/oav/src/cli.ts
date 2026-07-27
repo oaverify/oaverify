@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 export {};
 
-// `commander` is a regular dependency of `oav`, so a normal install
+// `commander` is a regular dependency of `oaverify`, so a normal install
 // puts it in node_modules. If it's missing, the install is corrupted;
 // catch the dynamic import up front and print a clearer message than
 // the default ERR_MODULE_NOT_FOUND trace. `esbuild` is an optional

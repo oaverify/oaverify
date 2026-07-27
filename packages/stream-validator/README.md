@@ -1,4 +1,4 @@
-# oav-stream-validator
+# @oaverify/stream
 
 A streaming JSON Schema 2020-12 validator for
 [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core). It
@@ -36,10 +36,10 @@ recovery, and the buffer-budget analyzer) live in the repo's
 [`examples/` directory](https://github.com/oaverify/oaverify/blob/main/examples/README.md#streaming)
 as `stream-*.ts`.
 
-> **Versioned independently of the `@oaverify/core` family.** This package tracks
-> its own version line rather than the lockstep `@oaverify/core` version, and
-> follows semver from `1.0` (a breaking change bumps the major). The public
-> surface is small and additive-by-design.
+> **Versioned with the `@oaverify/core` family.** The stream validator tracks
+> core/schema semantics closely enough that a core major is a stream
+> compatibility event too. Per-package changelogs stay specific about what
+> changed in this package.
 
 ## Usage
 
@@ -267,7 +267,7 @@ peak. The analyzer bounds the schema; `peakBufferedBytes` reports the input.
 OpenAPI document: one budget per operation, for the request body and each
 response body. A body whose schema cannot be classified is reported with
 an `error` field rather than throwing, so a sweep surveys the whole spec.
-The `oav` CLI surfaces it as `oaverify stream-check <spec>` (a per-operation
+The `oaverify` CLI surfaces it as `oaverify stream-check <spec>` (a per-operation
 table; `--verbose` lists each unbounded position, `--envelope json` emits
 the `SpecBudget`, `--fail-on-unbounded` exits non-zero for CI):
 
@@ -286,8 +286,8 @@ for (const op of analyzeSpec(document).operations) {
 
 ## Status
 
-Published to the default `latest` dist-tag, on its own `1.x` line
-(versioned independently of the `@oaverify/core` family). The classifier
+Published to the default `latest` dist-tag, versioned with the
+`@oaverify/core` family. The classifier
 co-evolves with `@oaverify/core`'s keyword set inside the monorepo (a CI drift
 test makes a divergence a build failure rather than silent breakage); the
 published bundle pins `@oaverify/core` so the two move together.

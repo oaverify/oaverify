@@ -1,6 +1,6 @@
 /**
  * End-to-end HTTP comparison: a REST endpoint that buffers-then-validates
- * (receive whole body -> JSON.parse -> oav) vs one that streams-and-
+ * (receive whole body -> JSON.parse -> oaverify) vs one that streams-and-
  * validates (req -> @oaverify/internal-stream-validator). Real `http` server + real
  * sockets, so backpressure is genuine.
  *

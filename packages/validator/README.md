@@ -1,4 +1,4 @@
-# oav (validator)
+# @oaverify/core
 
 HTTP request/response validator for OpenAPI 3.0, 3.1, and 3.2. This is
 the headline surface of the package; `createValidator` is re-exported
@@ -176,7 +176,7 @@ Two kinds of "unknown":
   compiler; that suppresses the throw and adds an entry to
   `validator.warnings` so the override is still visible.
 - **Unknown minor within 3.x**: e.g. `"3.7.0"` if a future minor
-  ships before oav is updated. Governed by `onUnknownVersion`:
+  ships before oaverify is updated. Governed by `onUnknownVersion`:
 
   ```ts
   createValidator(spec); // fallback31 default (silent, uses 3.1 dialect)

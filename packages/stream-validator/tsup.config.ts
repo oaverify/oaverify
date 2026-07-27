@@ -3,10 +3,10 @@ import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
 
 /**
- * Build config for `oav-stream-validator`, the streaming JSON Schema
+ * Build config for `@oaverify/stream`, the streaming JSON Schema
  * validator.
  *
- * Thin tarball: nothing from `oav-core` is bundled. The engine imports
+ * Thin tarball: nothing from `@oaverify/core` is bundled. The engine imports
  * `@oaverify/internal-core` / `@oaverify/internal-schema` (workspace aliases) in source; the plugin
  * below rewrites those to `@oaverify/core/*` AND marks them
  * external, so the published bundle resolves them from the consumer's
@@ -28,7 +28,7 @@ const oavCoreRewrite: Record<string, string> = {
 
 function rewriteOavCore(): Plugin {
   return {
-    name: "oav-core-rewrite",
+    name: "oaverify-core-rewrite",
     setup(build) {
       build.onResolve({ filter: /^@oaverify\/internal-/ }, (args) => {
         const rewrite = oavCoreRewrite[args.path];

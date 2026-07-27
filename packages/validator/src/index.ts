@@ -1,5 +1,5 @@
 /**
- * The public `oav/validator` surface. One audience: callers
+ * The public `@oaverify/core` validator surface. One audience: callers
  * building a request/response validator from a resolved OpenAPI
  * document: `createValidator`, the `Validator` instance it returns,
  * the options, and the Fetch-API adapters for consumers plugging the

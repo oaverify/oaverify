@@ -1,7 +1,7 @@
 /**
  * Custom formats: register a string format (here, E.164 phone numbers)
  * and enforce it alongside the built-ins. A format is any
- * `(value: string) => boolean`, merged onto the `oav/formats` defaults
+ * `(value: string) => boolean`, merged onto the `@oaverify/core/formats` defaults
  * when you build the validator.
  *
  * Run from the repo root:

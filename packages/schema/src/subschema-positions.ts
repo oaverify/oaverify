@@ -66,7 +66,7 @@ export type SubschemaVisitor = (schema: SchemaOrBoolean, path: string) => void |
  * drifting from the vocabulary. Callers that need to *rewrite* schemas
  * in place can instead reach for the underlying
  * `SUBSCHEMA_*_POSITIONS` constants exported from
- * `oav/schema/internals`.
+ * `@oaverify/core/schema/internals`.
  *
  * @public
  */

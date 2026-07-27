@@ -15,15 +15,15 @@ import type { FastifyContext } from "./types.js";
  *
  * Exported standalone for two cases:
  *
- * 1. You want oav's rendering as the fallback in your own hook:
+ * 1. You want oaverify's rendering as the fallback in your own hook:
  *    call this directly when you don't want to handle the error
  *    yourself.
  * 2. You want a slightly different renderer: use this as the
  *    starting point and adjust (e.g. swap the body, override the
  *    status, add headers).
  *
- * Pairs with sibling `renderProblemDetails` in `oav-express4` /
- * `oav-express5`. Same logic, framework-native API.
+ * Pairs with sibling `renderProblemDetails` in `@oaverify/express4` /
+ * `@oaverify/express5`. Same logic, framework-native API.
  *
  * @public
  */

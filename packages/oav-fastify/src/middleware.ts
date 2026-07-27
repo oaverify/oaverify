@@ -7,14 +7,14 @@ import type { ErrorHandler, FastifyContext } from "./types.js";
 
 /**
  * Options for {@link validateRequests}. The same option shape is
- * used by every adapter in the family (`oav-express4`,
- * `oav-express5`); only the framework-typed argument differs.
+ * used by every adapter in the family (`@oaverify/express4`,
+ * `@oaverify/express5`); only the framework-typed argument differs.
  *
  * @public
  */
 export interface ValidateRequestsOptions {
   /**
-   * Custom extractor from the Fastify request to oav's
+   * Custom extractor from the Fastify request to oaverify's
    * {@link HttpRequest} shape. Default: {@link httpRequestFromFastify}.
    * Override when your stack populates non-standard fields the
    * validator needs (e.g. a proxy that puts the verified body on
@@ -53,11 +53,11 @@ export interface ValidateRequestsOptions {
  * parsers (which populate `request.body`) but before route
  * handlers and Fastify's own per-route schema validation (which
  * runs in the `validation` step). Both can coexist; Fastify's own
- * per-route schemas run after this hook; oav's failures are
+ * per-route schemas run after this hook; oaverify's failures are
  * surfaced first.
  *
- * Pairs with sibling `validateRequests` in `oav-express4` /
- * `oav-express5`. Same factory shape across the family; only the
+ * Pairs with sibling `validateRequests` in `@oaverify/express4` /
+ * `@oaverify/express5`. Same factory shape across the family; only the
  * returned framework-native handler differs.
  *
  * @example

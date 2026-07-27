@@ -1,4 +1,4 @@
-# oav-express5
+# @oaverify/express5
 
 Express 5 adapter for [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): a promise-native middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
 
@@ -14,8 +14,8 @@ Sibling packages: [`@oaverify/express4`](https://github.com/oaverify/oaverify/bl
 # JSON specs only
 npm install @oaverify/core @oaverify/express5 express
 
-# YAML specs + CLI (oav transitively provides oav-core)
-npm install oaverify @oaverify/express5 express
+# YAML specs + CLI
+npm install oaverify @oaverify/yaml @oaverify/express5 express
 ```
 
 `express` is a peer dep; your app's existing install satisfies it.
@@ -83,7 +83,7 @@ Returns an Express 5 promise-returning `RequestHandler`.
 
 `onError` may be async; the middleware awaits it. Express 5 awaits the returned promise, so thrown extractor errors and rejected `onError` promises propagate to the host's error middleware automatically, no `try/catch` needed. The middleware does **not** call `next()` after `onError` returns; your callback owns the response (write to `ctx.res`, or call `ctx.next(err)` to delegate).
 
-> **Validation failures don't traverse Express's error chain by default.** The default `onError` (`renderProblemDetails`) writes the response directly. If you're migrating from `express-openapi-validator` (which emits validation failures as `HttpError` through `next(err)`), your existing error middleware won't see oav's failures unless you forward them; see [Forward to Express's error middleware](#forward-to-expresss-error-middleware) below. Same goes for observability: see [Add observability without changing the response](#add-observability-without-changing-the-response).
+> **Validation failures don't traverse Express's error chain by default.** The default `onError` (`renderProblemDetails`) writes the response directly. If you're migrating from `express-openapi-validator` (which emits validation failures as `HttpError` through `next(err)`), your existing error middleware won't see validation failures unless you forward them; see [Forward to Express's error middleware](#forward-to-expresss-error-middleware) below. Same goes for observability: see [Add observability without changing the response](#add-observability-without-changing-the-response).
 
 ### `validateResponses(validator, options?)`
 
@@ -115,7 +115,7 @@ Body validated: `res.json(obj)`, `res.send(obj)`, `res.send(jsonString)` with a 
 
 ### `httpRequestFromExpress(req)`
 
-Convert an Express 5 `Request` to oav's framework-agnostic `HttpRequest` shape. Read what's already on `req`; body parsing is the host app's responsibility.
+Convert an Express 5 `Request` to oaverify's framework-agnostic `HttpRequest` shape. Read what's already on `req`; body parsing is the host app's responsibility.
 
 Header keys lowercased, path stripped of query string, cookies read from `req.cookies` if present.
 
@@ -245,9 +245,9 @@ Same package shape, same exports, same defaults. The only differences:
 
 - The middleware returned by `validateRequests` is `async` (Express 5 awaits returned promises).
 - No `try/catch` wrapper around the extractor; Express 5 routes thrown errors and rejected promises to the error chain via the promise itself.
-- `peerDependencies` requires `express ^5.0.0` (oav-express4 requires `^4.0.0`).
+- `peerDependencies` requires `express ^5.0.0` (`@oaverify/express4` requires `^4.0.0`).
 
-A migrating consumer's `import { validateRequests } from "@oaverify/express5"` is the only line that changes after upgrading from oav-express4.
+A migrating consumer's `import { validateRequests } from "@oaverify/express5"` is the only line that changes after upgrading from `@oaverify/express4`.
 
 ## See also
 

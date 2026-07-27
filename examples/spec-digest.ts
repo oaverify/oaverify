@@ -11,7 +11,7 @@
  * project and adapt the interpretation choices (what `maxLength` means
  * on a binary field, which `x-*` extensions to recognize, how nested
  * `properties` roll up) to match your domain. Keeping those decisions
- * in application code, not in oav, avoids baking one team's conventions
+ * in application code, not in oaverify, avoids baking one team's conventions
  * into every team's startup.
  *
  * Run from the repo root:

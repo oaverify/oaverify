@@ -1,4 +1,4 @@
-# oav/schema
+# @oaverify/core/schema
 
 JSON Schema 2020-12 compiler. Walks the schema once at construction
 time and emits a JavaScript function via code generation, with no

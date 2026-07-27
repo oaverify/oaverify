@@ -124,29 +124,29 @@ locally too (`pnpm pack` + `npm install` in `/tmp`).
 
 ```bash
 pnpm install
-pnpm build                        # tsup: oav-core + stream-validator + the oav CLI
+pnpm build                        # tsup: @oaverify/core + @oaverify/stream + the oaverify CLI
 pnpm test                         # vitest for everything
 pnpm vitest run packages/schema   # run a single package's tests (path filter)
 pnpm lint                         # oxlint + oxfmt --check + check:deps
 pnpm check:deps                   # assert the @oaverify/internal-* dependency graph (see below)
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)
-pnpm oav <args>                   # run the built CLI (e.g. pnpm oaverify stream-check spec.yaml)
+pnpm oaverify <args>              # run the built CLI (e.g. pnpm oaverify stream-check spec.yaml)
 ```
 
 `pnpm test` uses vitest with workspace aliases from `vitest.config.ts` so
 tests run against `packages/*/src` directly; no need to build before
 testing.
 
-`pnpm oav` runs `packages/oav/dist/cli.js`, so it needs a prior `pnpm build`
-(which builds oav-core, the standalone stream-validator, and the CLI). The
-standalone-tsup packages (`oav`, `stream-validator`, the three adapters)
+`pnpm oaverify` runs `packages/oav/dist/cli.js`, so it needs a prior `pnpm build`
+(which builds `@oaverify/core`, `@oaverify/stream`, and the CLI). The
+standalone-tsup packages (`oaverify`, `stream-validator`, the three adapters)
 set `emitDeclarationOnly: true` in their `tsconfig.json`: their `dist/` is
 the tsup-built runtime artifact, and without this `tsc -b` (typecheck)
 would emit per-file `.js` over the tsup bundle, breaking the built CLI
-until the next `pnpm build`. Leave it in place. (The `@oaverify/internal-*` packages
-bundled into `oav-core` don't need it: their `dist/` is unused, since the
-root tsup bundles them from source.)
+until the next `pnpm build`. Leave it in place. (The `@oaverify/internal-*`
+packages bundled into `@oaverify/core` don't need it: their `dist/` is unused,
+since the root tsup bundles them from source.)
 
 Use `pnpm pack` (not `npm pack`) for any workspace package. `npm pack`
 ships unrewritten `workspace:*` deps; the prepack guard rejects it
@@ -160,7 +160,7 @@ reaching for `pnpm pack` directly.
 - `performance/`: compile / validate benchmarks against other JSON
   Schema validators. `cd performance && pnpm install` to bootstrap.
 - `framework-tests/`: real-server integration tests for the
-  `oav-express4` / `oav-express5` / `oav-fastify` adapters. Owns the
+  `@oaverify/express4` / `@oaverify/express5` / `@oaverify/fastify` adapters. Owns the
   framework runtime devDeps so they stay out of the main lockfile and
   the main dependabot directory's scan (#295). Run with
   `cd framework-tests && pnpm install && pnpm test` (and `pnpm typecheck`,
@@ -181,7 +181,7 @@ The root `.npmrc` sets `auto-install-peers=false` so the adapter
 packages' peer-dep declarations (`express`, `fastify`) do not
 silently pull the framework runtimes into the main workspace
 lockfile. `fastify` is the one exception still installed in the main
-workspace: `oav-fastify/src/*.ts` imports `import type { FastifyRequest } from "fastify"`
+workspace: `packages/oav-fastify/src/*.ts` imports `import type { FastifyRequest } from "fastify"`
 and there is no `@types/fastify` on DefinitelyTyped, so the package
 itself has to be present for tsc to resolve the type.
 
@@ -226,8 +226,8 @@ string) => boolean>` shaped for `compileSchema`'s `formats` option. A
   sub-validator's subtree with its HTTP location (`body`, `query`, …)
   so error paths are unambiguous. Also exports the Fetch-API adapter
   (`httpRequestFromFetch`, …) for Next.js / Hono / Bun / Deno.
-- **`@oaverify/stream`** (published standalone on its own
-  independent `1.x` line, not folded into the `oav-core` bundle): a second, push-based
+- **`@oaverify/stream`** (published standalone and versioned with the
+  `@oaverify/core` family): a second, push-based
   streaming engine. Beyond
   `createStreamValidator`, it exports the **streamability analyzer**:
   `analyzeStreamability(schema)` returns a peak-buffer budget (where a
@@ -245,13 +245,13 @@ string) => boolean>` shaped for `compileSchema`'s `formats` option. A
   pure wiring is `stream-check`, which calls `analyzeSpec` and renders the
   per-operation table; the business logic stays in the analyzer, the CLI
   owns only the rendering (`stream-check.ts`).
-- **`@oaverify/internal-oav-express4` / `oav-express5` / `oav-fastify`**: thin
+- **`@oaverify/internal-oav-express4` / `@oaverify/internal-oav-express5` / `@oaverify/internal-oav-fastify`**: thin
   framework adapters with identical export names and option shapes
   (`validateRequests`, `httpRequestFrom<Framework>`,
   `renderProblemDetails`, `ValidateRequestsOptions`); only the
   framework-typed `Context` field names differ
   (`ExpressContext { req, res, next }` vs
-  `FastifyContext { request, reply }`). `oav-express4` forwards thrown
+  `FastifyContext { request, reply }`). `@oaverify/express4` forwards thrown
   errors via `next(err)`; the express5 / fastify variants are
   async-native. See the "Naming and consistency" principle for why the
   shapes are kept identical.
@@ -270,11 +270,11 @@ cli           → validator → router
               → stream-validator (the published @oaverify/stream)
 overlay-spec  → spec → core
               → core
-oav-express4  → validator → ... (same as cli's chain)
+express4      → validator → ... (same as cli's chain)
               → core
               (peer: express ^4)
-oav-express5  → same chain, peer: express ^5
-oav-fastify   → same chain, peer: fastify ^5
+express5      → same chain, peer: express ^5
+fastify       → same chain, peer: fastify ^5
 ```
 
 Asserted by `scripts/check-deps.mjs` (wired into `pnpm lint`): the
@@ -295,10 +295,9 @@ CLI imports it by that published name, which `check-deps` (scoped to
 (consumed by vitest + tsup) and the published `oaverify` carries it
 as a real runtime dependency (the same shape the framework adapters use for
 `@oaverify/core`). The `pack-smoke` job installs the locally-packed
-stream-validator tarball alongside oav so this dep resolves to the workspace
-build, not the registry. `stream-validator` is unlinked from the `oav-core`
-release group (its own independent line, currently `1.x`), so a
-`stream-validator` bump can ripple into a CLI release that picks it up.
+stream-validator tarball alongside oaverify so this dep resolves to the workspace
+build, not the registry. `stream-validator` is linked into the `@oaverify/core`
+release group because its public contract tracks the core/schema semantics.
 
 ## Extending the compiler
 

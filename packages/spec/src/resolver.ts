@@ -60,7 +60,7 @@ export interface ResolvedSpec {
  * identity-keyed schema cache; non-circular external refs are fully inlined.
  *
  * The synchronous mirror is `resolveSpecSync` (reachable via
- * `oav/spec/internals`); both share the pure URI / ref-rewriting helpers
+ * `@oaverify/core/spec/internals`); both share the pure URI / ref-rewriting helpers
  * in `./resolver-shared.ts` and are pinned to identical behavior by the
  * parity suite. Keep any change to the walk here mirrored there.
  *

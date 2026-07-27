@@ -71,7 +71,7 @@ error's `code`, dotted path, and pointer locate the failure under
 
 ## Supporting helpers
 
-All shipped from `oav` (or `@oaverify/core` for the
+All shipped from `oaverify` (or `@oaverify/core` for the
 lean install). The recipes below assume these are in scope.
 
 `httpStatusFor`, `allowHeaderFor`, `toProblemDetails`, and
@@ -133,7 +133,7 @@ companion package ships the middleware as a one-liner:
 ```ts
 import { validateRequests } from "@oaverify/express4";
 
-app.use(express.json()); // any middleware that populates req.body satisfies oav
+app.use(express.json()); // any middleware that populates req.body satisfies oaverify
 app.use(validateRequests(validator));
 ```
 
@@ -209,7 +209,7 @@ docs.
 
 The [`@oaverify/express5`](https://www.npmjs.com/package/@oaverify/express5)
 companion package ships the middleware as a one-liner: same shape
-as `oav-express4` but promise-native (no `try/catch` wrapper):
+as `@oaverify/express4` but promise-native (no `try/catch` wrapper):
 
 ```ts
 import { validateRequests } from "@oaverify/express5";
@@ -218,7 +218,7 @@ app.use(express.json());
 app.use(validateRequests(validator));
 ```
 
-Same exports as `oav-express4` (`httpRequestFromExpress`,
+Same exports as `@oaverify/express4` (`httpRequestFromExpress`,
 `renderProblemDetails` standalone), same options (`toHttpRequest`,
 `onError`), same defaults. See the
 [adapter README](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md)
@@ -253,7 +253,7 @@ Requires `express.json()` (or any equivalent middleware that
 populates `req.body` with a parsed object) registered before this
 middleware, and `cookie-parser` if you use the `cookies` field.
 Custom streaming parsers, `body-parser`, fastify's bridge, and
-app-specific middleware all work the same way; oav doesn't care
+app-specific middleware all work the same way; oaverify doesn't care
 _how_ `req.body` got populated, only that it's there.
 
 See [body-parser caveats](#body-parser-caveats) for sharp edges that
@@ -313,7 +313,7 @@ before `preValidation` runs; register `fastify.setErrorHandler` if
 you want `application/problem+json` for those too.
 
 Note: Fastify's idiomatic per-route-schema pattern (`route({ schema:
-{ body, response } })`) is independent of oav. Use oav-fastify when
+{ body, response } })`) is independent of oaverify. Use `@oaverify/fastify` when
 the OpenAPI spec is the source of truth; use Fastify's built-in
 schema validation when you author schemas inline.
 
@@ -423,7 +423,7 @@ const result = validator.validateRequest(httpRequest);
 the adapter. Hono parallels the per-route Standard-Schema validator
 pattern (`@hono/zod-validator` etc.), so per-route with a typed
 `<T>` is the native idiom and `c.req.valid('json')` is the
-community muscle memory; oav's `validateFetchRequest<T>` slots into
+community muscle memory; oaverify's `validateFetchRequest<T>` slots into
 the same shape via `c.req.raw`.
 
 **Hono gotcha**: `c.req.raw.body` is a one-shot stream. Don't run
@@ -771,11 +771,11 @@ want to surface structured details too. `BuiltInErrorParams` in
 
 ### Body parser caveats
 
-oav doesn't parse bodies; it validates already-parsed bodies. Two
-sharp edges that bite both inline middleware and the `oav-express4`
+oaverify doesn't parse bodies; it validates already-parsed bodies. Two
+sharp edges that bite both inline middleware and the `@oaverify/express4`
 adapter:
 
-1. **Malformed JSON throws before oav runs.** `express.json()` throws
+1. **Malformed JSON throws before oaverify runs.** `express.json()` throws
    a `SyntaxError` on bad JSON, and Express's default error handler
    emits an HTML page. Install an Express error middleware to convert
    it to `application/problem+json` upstream of the validator.
@@ -783,7 +783,7 @@ adapter:
 2. **Empty-body normalization.** Some body parsers (streaming
    variants, custom multi-format setups) leave `req.body === undefined`
    for empty `{}`-equivalent payloads instead of an empty object. When
-   that happens, oav's `required`-field checks short-circuit on the
+   that happens, oaverify's `required`-field checks short-circuit on the
    missing body, so validation passes for what the client thinks is an
    empty submission, even when the spec marks fields as `required`.
    If your parser does this, normalize before calling `validateRequest`:
@@ -797,7 +797,7 @@ adapter:
    alternative parsers (`body-parser`'s streaming mode, fastify's
    bridge, custom multipart middleware) often do.
 
-   For consumers using `oav-express4`, override the extractor:
+   For consumers using `@oaverify/express4`, override the extractor:
 
    ```ts
    import { httpRequestFromExpress, validateRequests } from "@oaverify/express4";
@@ -811,7 +811,7 @@ adapter:
 
 (Unmatched `Content-Type` is handled correctly without extra wiring:
 even when `express.json()` leaves `req.body` empty for a non-JSON
-request, oav sees the declared header, finds no matching media type
+request, oaverify sees the declared header, finds no matching media type
 in the spec, and returns a `content-type` leaf that maps to 415. The
 sibling case (**no Content-Type AND no body**) returns `body` /
 400 instead of 415, since there's no client signal about format
@@ -900,7 +900,7 @@ app.use(
 ```
 
 The `toHttpRequest` extension point is a general seam for **any
-"reshape what oav sees"** use case: synthesizing a body from
+"reshape what oaverify sees"** use case: synthesizing a body from
 `req.files`, normalizing an empty body to `{}`, merging headers
 from an upstream proxy, anything that wants to live above the
 extraction layer without bypassing it. The empty-body normalization
@@ -914,7 +914,7 @@ common spec pattern for "one file or many"
 branches match the same payload, so `oneOf` fails with
 `matchCount: 2`. The fix is usually to drop the `oneOf` and accept
 the array form (parsers like multer always deliver arrays anyway);
-the original spec was already ambiguous before oav surfaced it.
+the original spec was already ambiguous before oaverify surfaced it.
 
 ### Deriving middleware config from the spec
 
@@ -1146,7 +1146,7 @@ app.get("/pets/:id", async (req, res) => {
 
 ### Security / authentication
 
-`oav` performs **shape-only** security validation (when opted in
+`oaverify` performs **shape-only** security validation (when opted in
 via `validateSecurity: "shape"` or `"strict"`): it confirms the
 request carries the credential location declared by the spec (a
 `Bearer` token in `Authorization`, the declared apiKey header /
@@ -1249,16 +1249,16 @@ policy) on `{ ok: false }` before validation runs. The validator's
 own `validateSecurity` shape check is then redundant; leave it at
 its default `"off"`.
 
-For framework-adapter consumers (`oav-express4`, future siblings),
+For framework-adapter consumers (`@oaverify/express4`, future siblings),
 the same dispatcher pattern works; only the request-shape extraction
 changes (`httpRequestFromExpress(req)`, etc.).
 
 ### Type coercion on body fields
 
-oav doesn't coerce `{"age": "42"}` to `{"age": 42}` on request
+oaverify doesn't coerce `{"age": "42"}` to `{"age": 42}` on request
 bodies by default.
 
-Query parameters are different: `oav` auto-coerces scalar query
+Query parameters are different: `oaverify` auto-coerces scalar query
 params per their declared type (`type: integer` → `Number(raw)`,
 `type: boolean` → `true`/`false`). Only bodies are strict.
 
@@ -1351,5 +1351,5 @@ stay framework-shaped rather than competitor-shaped:
 
 - **[migration-from-eov.md](./migration-from-eov.md)**: migrating
   from `express-openapi-validator`. Behavior-difference reference,
-  option map (eov → oav), features not carried over, features
+  option map (eov → oaverify), features not carried over, features
   added.

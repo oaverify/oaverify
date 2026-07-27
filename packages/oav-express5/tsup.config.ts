@@ -3,8 +3,8 @@ import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
 
 /**
- * Build config for `oav-express5`, the Express 5 adapter.
- * Same shape as oav-express4: thin tarball, oav-core externalized,
+ * Build config for `@oaverify/express5`, the Express 5 adapter.
+ * Same shape as `@oaverify/express4`: thin tarball, `@oaverify/core` externalized,
  * express marked external (peer dep).
  */
 const oavCoreRewrite: Record<string, string> = {
@@ -14,7 +14,7 @@ const oavCoreRewrite: Record<string, string> = {
 
 function rewriteOavCore(): Plugin {
   return {
-    name: "oav-core-rewrite",
+    name: "oaverify-core-rewrite",
     setup(build) {
       build.onResolve({ filter: /^@oaverify\/internal-/ }, (args) => {
         const rewrite = oavCoreRewrite[args.path];

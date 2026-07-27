@@ -1,7 +1,7 @@
 # @oaverify/internal-router
 
 > **Internal package, not published.** `@oaverify/internal-router` is a workspace-private
-> dependency of `oav`; it does not appear on npm and has no
+> dependency of `@oaverify/core`; it does not appear on npm and has no
 > published subpath. This README documents the internal surface for
 > contributors navigating the monorepo. Third-party consumers get the
 > router's functionality transparently via `createValidator`.

@@ -1,15 +1,15 @@
-# oav
+# oaverify
 
 [![npm](https://img.shields.io/npm/v/oaverify)](https://www.npmjs.com/package/oaverify)
 [![CI](https://github.com/oaverify/oaverify/actions/workflows/ci.yml/badge.svg)](https://github.com/oaverify/oaverify/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/npm/l/oaverify)](https://github.com/oaverify/oaverify/blob/main/LICENSE)
 
-The command-line tool for [oav](https://github.com/oaverify/oaverify):
+The command-line tool for [oaverify](https://github.com/oaverify/oaverify):
 validate requests, responses, and examples against an OpenAPI 3.0 /
 3.1 / 3.2 document, resolve multi-file specs, report streaming budgets,
 and compile standalone validators.
 
-This package ships the `oav` binary and nothing else. The library API
+This package ships the `oaverify` binary and nothing else. The library API
 lives in
 [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core);
 importing from this package will not resolve.

@@ -12,14 +12,14 @@ import type { ErrorHandler, FastifyContext } from "./types.js";
 
 /**
  * Options for {@link validateResponses}. The same option shape is used
- * by every adapter in the family (`oav-express4`, `oav-express5`); only
+ * by every adapter in the family (`@oaverify/express4`, `@oaverify/express5`); only
  * the framework-typed argument differs.
  *
  * @public
  */
 export interface ValidateResponsesOptions {
   /**
-   * Custom extractor from the Fastify request to oav's
+   * Custom extractor from the Fastify request to oaverify's
    * {@link HttpRequest} shape, used only to match the operation the
    * response answers (method + path). Default:
    * {@link httpRequestFromFastify}.

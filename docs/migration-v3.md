@@ -129,7 +129,7 @@ const err = r.valid ? null : r.error; // ValidationError | null, as before
 
 ## 6. Adapter `onError` receives a leaf list
 
-The framework adapters (`oav-express4`, `oav-express5`, `oav-fastify`) pass a
+The framework adapters (`@oaverify/express4`, `@oaverify/express5`, `@oaverify/fastify`) pass a
 flat `ValidationError[]` to `onError`, regardless of the validator's `output`
 (a tree validator's result is flattened first).
 

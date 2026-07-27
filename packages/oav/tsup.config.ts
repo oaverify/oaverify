@@ -3,14 +3,14 @@ import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
 
 /**
- * Build config for `oav`, the CLI tarball.
+ * Build config for `oaverify`, the CLI tarball.
  *
- * This package ships one thing: the `oav` binary. The library API
- * lives in `oav-core`, the YAML readers in `oav-yaml`; neither is
+ * This package ships one thing: the `oaverify` binary. The library API
+ * lives in `@oaverify/core`, the YAML readers in `@oaverify/yaml`; neither is
  * re-exported here.
  *
  * Dependency shape:
- * - `oav-core` and `oav-yaml` are external runtime deps the
+ * - `@oaverify/core` and `@oaverify/yaml` are external runtime deps the
  *   consumer's install already provides.
  * - `commander` is an external runtime dep, imported dynamically at
  *   CLI start with a clear error when the install is corrupt.
@@ -19,9 +19,9 @@ import { defineConfig } from "tsup";
  * - `@oaverify/internal-cli` (the workspace package that owns the CLI logic) is
  *   bundled in, along with everything it transitively imports from
  *   `@oaverify/internal-*`. Those transitive imports are rewritten to the
- *   corresponding `oav-core/*` subpaths AND marked external by the
+ *   corresponding `@oaverify/core/*` subpaths AND marked external by the
  *   plugin below, so the bundle imports the compiler / validator from
- *   oav-core at run time rather than inlining a second copy.
+ *   `@oaverify/core` at run time rather than inlining a second copy.
  *
  * ESM only: `cli.ts` uses top-level `await`, which isn't legal in a
  * CJS output. The `bin` field points at `./dist/cli.js` and Node picks
@@ -29,8 +29,8 @@ import { defineConfig } from "tsup";
  */
 const repoRoot = resolve(__dirname, "..", "..");
 
-// `@oaverify/internal-*` → `oav-core[/*]`: kept external (resolved at
-// run time from the consumer's install of oav-core).
+// `@oaverify/internal-*` -> `@oaverify/core[/*]`: kept external (resolved at
+// run time from the consumer's install of `@oaverify/core`).
 const oavCoreRewrite: Record<string, string> = {
   "@oaverify/internal-core": "@oaverify/core/core",
   "@oaverify/internal-schema": "@oaverify/core/schema",
@@ -54,10 +54,10 @@ const bundledWorkspace: Record<string, string> = {
 // the originally-imported specifier. Doing the rewrite+external in a
 // single onResolve hook is the reliable way to get imports like
 // `@oaverify/internal-schema` emitted into the bundle as
-// `import ... from "oav-core/schema"`.
+// `import ... from "@oaverify/core/schema"`.
 function rewriteOavCore(): Plugin {
   return {
-    name: "oav-core-rewrite",
+    name: "oaverify-core-rewrite",
     setup(build) {
       build.onResolve({ filter: /^@oaverify\/internal-/ }, (args) => {
         const rewrite = oavCoreRewrite[args.path];

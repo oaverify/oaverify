@@ -1,4 +1,4 @@
-# oav/formats
+# @oaverify/core/formats
 
 Built-in string format validators for the `format` keyword. Each is a
 pure `(value: string) => boolean`; `builtInFormats` is the keyed map

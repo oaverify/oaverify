@@ -82,8 +82,8 @@ export interface LoadSpecSyncOptions {
   entry: string;
   /**
    * Synchronous reader. Defaults to a JSON-only filesystem reader
-   * ({@link createFileReaderSync}). The batteries-included `oav`
-   * distribution ships a `loadSpecSync` whose default also reads YAML.
+   * ({@link createFileReaderSync}). `@oaverify/yaml` ships a
+   * `loadSpecSync` whose default also reads YAML.
    */
   reader?: SyncDocumentReader;
   /** Base directory/URI for resolving relative refs. Defaults to the entry's directory. */
@@ -117,7 +117,7 @@ export interface LoadSpecSyncOptions {
  *
  * @example
  * ```ts
- * // JSON specs (oav-core). For YAML, use oav's loadSpecSync.
+ * // JSON specs (@oaverify/core). For YAML, use @oaverify/yaml's loadSpecSync.
  * const { document } = loadSpecSync({ entry: "openapi.json" });
  * const validator = createValidator(document);
  * ```

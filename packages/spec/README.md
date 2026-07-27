@@ -1,19 +1,16 @@
-# oav/spec
+# @oaverify/core/spec
 
 Multi-file OpenAPI loader, `$ref` resolver, and overlay merger. Use
 this when you want to stitch a spec together before handing it to
 `createValidator`.
 
-This module is available at matching subpaths in both
-`@oaverify/core/spec` and `@oaverify/core/spec`. The examples
-below import from `oaverify`; substitute `@oaverify/core`
-if you're on the lean package.
+This module is available from `@oaverify/core/spec`. The examples
+below use that package.
 
 > **`@oaverify/core` ships JSON readers only.** Calling
 > `createFileReader()` or `createHttpReader()` on a `.yaml` / `.yml`
 > path throws an install-hint error. For YAML support, install
-> `oaverify` (for the bundled `createYamlFileReader`) or
-> register your own YAML reader.
+> `@oaverify/yaml` or register your own YAML reader.
 
 ## Loading a spec
 
@@ -91,16 +88,16 @@ interface DocumentReader {
 }
 ```
 
-Built-ins (JSON only; YAML support lives in `oav`):
+Built-ins (JSON only; YAML support lives in `@oaverify/yaml`):
 
 - `createFileReader(cwd?)`: filesystem JSON. `.yaml` / `.yml` paths
   throw an install-hint error; compose with `createYamlFileReader` from
-  `oav` to cover YAML.
+  `@oaverify/yaml` to cover YAML.
 - `createHttpReader()`: HTTP / HTTPS JSON. Same YAML policy.
 - `createMemoryReader(entries)`: in-memory JSON or pre-parsed objects.
 - `composeReaders([...])`: layers readers, dispatching by `canRead`.
 
-`oav` additionally exports `createYamlFileReader`,
+`@oaverify/yaml` additionally exports `createYamlFileReader`,
 `createSmartHttpReader`, and `parseYamlString` for YAML-backed specs.
 `createSmartHttpReader` supersedes the JSON-only `createHttpReader`
 when composed: it claims every `http(s)` URI and dispatches by

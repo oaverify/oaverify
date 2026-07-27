@@ -12,14 +12,14 @@ import type { ErrorHandler, ExpressContext } from "./types.js";
 
 /**
  * Options for {@link validateResponses}. The same option shape is used
- * by every adapter in the family (`oav-express4`, `oav-fastify`); only
+ * by every adapter in the family (`@oaverify/express4`, `@oaverify/fastify`); only
  * the framework-typed argument differs.
  *
  * @public
  */
 export interface ValidateResponsesOptions {
   /**
-   * Custom extractor from the Express request to oav's
+   * Custom extractor from the Express request to oaverify's
    * {@link HttpRequest} shape, used only to match the operation the
    * response answers (method + path). Default:
    * {@link httpRequestFromExpress}.
@@ -183,7 +183,7 @@ export function validateResponses(
 
     res.send = ((...args: unknown[]): Response => {
       // Express 5 removed the multi-arg send forms; forwarding them
-      // unvalidated keeps this wrapper identical to oav-express4's.
+      // unvalidated keeps this wrapper identical to @oaverify/express4's.
       if (args.length > 1) return originalSend(...args);
       const body = args[0];
       // Split-phase. Status and declared headers are checked for every

@@ -1,6 +1,6 @@
-# oav (CLI)
+# oaverify (CLI)
 
-The `oav` binary: a thin wrapper around the oav library for shell
+The `oaverify` binary: a thin wrapper around the oaverify library for shell
 scripts, Makefiles, and CI.
 
 ## Install
@@ -8,17 +8,17 @@ scripts, Makefiles, and CI.
 ```bash
 # global install
 npm install -g oaverify
-oav --help
+oaverify --help
 
 # one-off via npx
 npx oaverify validate openapi.yaml --request req.http
 ```
 
-The CLI lives in the `oav` package, not `@oaverify/core`. `@oaverify/core`
-doesn't ship a `bin` or any CLI glue. `oav` carries `commander`
+The CLI lives in the `oaverify` package, not `@oaverify/core`. `@oaverify/core`
+doesn't ship a `bin` or any CLI glue. `oaverify` carries `commander`
 (argv parsing) as a regular dependency. `esbuild` (AOT bundling
 for `compile-schema` / `compile-spec`) is an optional peer
-dependency; install it alongside `oav` only if you use those
+dependency; install it alongside `oaverify` only if you use those
 commands. Users who only need the programmatic API install
 `@oaverify/core` instead.
 
@@ -183,7 +183,7 @@ Same limits as `compile-schema`, plus:
   can't be serialised. Compile dynamically with `createValidator`
   if you need them.
 - **External `$ref`s**: internal refs within the document compile
-  fine; multi-file external refs must be pre-inlined via `oav
+  fine; multi-file external refs must be pre-inlined via `oaverify
 resolve` or `resolveSpec` before running `compile-spec`.
 
 ### Relationship to ajv's `standaloneCode`

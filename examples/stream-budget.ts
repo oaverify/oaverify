@@ -17,7 +17,7 @@
  *     the punch list a deployer tightens.
  *
  * The CLI prints the same budget as a table:
- *   pnpm oav stream-check examples/specs/ingest.yaml --verbose
+ *   pnpm oaverify stream-check examples/specs/ingest.yaml --verbose
  * and `--fail-on-unbounded` turns it into a CI gate.
  *
  * Translation to the published packages: `analyzeSpec` from

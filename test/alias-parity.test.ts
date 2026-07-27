@@ -37,14 +37,14 @@ function tsupRewriteKeys(): string[] {
   return [...keys].sort();
 }
 
-// The oav tarball bundles the CLI + router and rewrites the rest of
-// `@oaverify/internal-*` to oav-core subpaths; it never imports the framework
+// The oaverify tarball bundles the CLI + router and rewrites the rest of
+// `@oaverify/internal-*` to @oaverify/core subpaths; it never imports the framework
 // adapters, so those keys appear in the resolution tables but not the
 // tsup rewrite map. `@oaverify/internal-stream-validator` aliases the package published
 // as `@oaverify/stream`. It is consumed by the CLI and
-// consumed by the CLI as an external runtime dependency (like oav-core),
+// consumed by the CLI as an external runtime dependency (like @oaverify/core),
 // so it is wired into the resolution tables (for typecheck / tests) but
-// deliberately not bundled into any oav tarball. Update this list when
+// deliberately not bundled into any oaverify tarball. Update this list when
 // adding or removing a published package.
 const NOT_IN_OAV_BUNDLE = [
   "@oaverify/internal-oav-express4",

@@ -3,9 +3,9 @@ import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
 
 /**
- * Build config for `oav-yaml`, the YAML reader package.
+ * Build config for `@oaverify/yaml`, the YAML reader package.
  *
- * Thin tarball: nothing from `oav-core` is bundled. The package
+ * Thin tarball: nothing from `@oaverify/core` is bundled. The package
  * imports `@oaverify/internal-spec` / `@oaverify/internal-spec/internals` (workspace aliases) in
  * source; the plugin below rewrites those to `@oaverify/core/*`
  * AND marks them external, so the published bundle resolves them from
@@ -21,7 +21,7 @@ const oavCoreRewrite: Record<string, string> = {
 
 function rewriteOavCore(): Plugin {
   return {
-    name: "oav-core-rewrite",
+    name: "oaverify-core-rewrite",
     setup(build) {
       build.onResolve({ filter: /^@oaverify\/internal-/ }, (args) => {
         const rewrite = oavCoreRewrite[args.path];

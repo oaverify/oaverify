@@ -33,12 +33,12 @@ Compose the readers ahead of the JSON-only ones from
 install hint pointing here.
 
 `loadSpecSync` exists in both packages: `@oaverify/core/spec`'s is JSON-only,
-`oav-yaml`'s defaults its reader to cover both, so a `.yaml` entry
+`@oaverify/yaml`'s default reader covers both, so a `.yaml` entry
 loads with no composition.
 
 ## The CLI
 
-`oaverify` ships the `oav` binary and no library exports. See
+`oaverify` ships the `oaverify` binary and no library exports. See
 [`packages/cli/README.md`](../packages/cli/README.md) for commands and
 flags.
 

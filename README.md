@@ -1,4 +1,4 @@
-# oav
+# oaverify
 
 [![npm](https://img.shields.io/npm/v/oaverify)](https://www.npmjs.com/package/oaverify)
 [![CI](https://github.com/oaverify/oaverify/actions/workflows/ci.yml/badge.svg)](https://github.com/oaverify/oaverify/actions/workflows/ci.yml)
@@ -33,9 +33,9 @@ One call covers the whole HTTP frame: method, path, parameters, body,
 content type, status, and headers. Errors come back as a flat list of
 typed leaves (`code`, `path`, `message`, `params`) you render yourself,
 or a nested tree on request. Invalid input is a return value, not a
-thrown exception, and oav never mutates your `req` / `res`.
+thrown exception, and oaverify never mutates your `req` / `res`.
 
-**Reach for oav when you want**
+**Reach for oaverify when you want**
 
 - A pre-deploy answer to "which request and response bodies can stream,
   which must buffer, and how large can a buffer get?" `analyzeSpec`
@@ -64,12 +64,12 @@ thrown exception, and oav never mutates your `req` / `res`.
 | --------------------------------------------------- | ------------------------- |
 | Generic JSON Schema validation across many drafts   | Ajv                       |
 | Turnkey Express middleware with uploads + auth      | express-openapi-validator |
-| Framework-neutral OpenAPI request/response checking | oav                       |
-| Streaming validation of large JSON bodies           | oav                       |
-| A pre-deploy report of which bodies can stream      | oav                       |
-| Per-tenant or per-deployment spec overlays          | oav                       |
-| Per-tenant or per-request validator construction    | oav                       |
-| A standalone validator for edge / serverless        | oav                       |
+| Framework-neutral OpenAPI request/response checking | oaverify                  |
+| Streaming validation of large JSON bodies           | oaverify                  |
+| A pre-deploy report of which bodies can stream      | oaverify                  |
+| Per-tenant or per-deployment spec overlays          | oaverify                  |
+| Per-tenant or per-request validator construction    | oaverify                  |
+| A standalone validator for edge / serverless        | oaverify                  |
 
 See [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md)
 for the full feature map.
@@ -150,7 +150,7 @@ app.post("/pets", (req, res) => res.json({ ok: true }));
 
 Invalid requests receive an `application/problem+json` response.
 Valid requests continue to your route handlers. Express 4 uses the
-same shape with `oav-express4`; Fastify uses `oav-fastify` as a
+same shape with `@oaverify/express4`; Fastify uses `@oaverify/fastify` as a
 `preValidation` hook. See [docs/integration.md](https://github.com/oaverify/oaverify/blob/main/docs/integration.md).
 
 ### Framework-agnostic
@@ -233,7 +233,7 @@ for (const op of analyzeSpec(document).operations) {
 
 `oaverify stream-check openapi.yaml` prints the same per-operation budget as
 a table (`--fail-on-unbounded` makes it a CI gate). The stream validator
-versions independently of the `@oaverify/core` family on its own `1.x` line;
+is versioned with the `@oaverify/core` family on the same 4.x line;
 see [`packages/stream-validator/README.md`](https://github.com/oaverify/oaverify/blob/main/packages/stream-validator/README.md)
 for the engine, the buffer model, and the edit hooks.
 
@@ -303,14 +303,14 @@ shapes live in [`docs/integration.md`](https://github.com/oaverify/oaverify/blob
 The JavaScript ecosystem already has solid OpenAPI validation tools:
 Ajv for JSON Schema, `express-openapi-validator` for Express,
 `openapi-backend` for operationId routing plus validation, and smaller
-request/response validators for custom stacks. oav is aimed at
+request/response validators for custom stacks. oaverify is aimed at
 HTTP-aware validation with structured errors, streaming validation of
 large bodies plus design-time buffer budgets, overlays, and standalone
 OpenAPI validator output. See [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md)
 for the feature map, and [docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md)
 if you are migrating from `express-openapi-validator`.
 
-On raw speed, oav and Ajv trade wins: oav compiles schemas one to two
+On raw speed, oaverify and Ajv trade wins: oaverify compiles schemas one to two
 orders of magnitude faster, validates competitively on typical bodies,
 and runs a touch lighter on memory than `express-openapi-validator`;
 Ajv leads narrowly on fast-fail rejection of some plain object shapes.
@@ -331,9 +331,9 @@ Adyen) that have to load and compile without error. See
 [`conformance/REPORT.md`](https://github.com/oaverify/oaverify/blob/main/conformance/REPORT.md) for pass / fail
 counts by category.
 
-Categories oav does not aim to cover:
+Categories oaverify does not aim to cover:
 
-- `$dynamicRef` with runtime dynamic-scope rebinding (oav resolves
+- `$dynamicRef` with runtime dynamic-scope rebinding (oaverify resolves
   statically against the anchor map).
 - The `optional/format/*` subtree (`format` is annotation-only by
   default per JSON Schema 2020-12 §6.3).
@@ -406,7 +406,7 @@ The canonical contract is the `ValidatorOptions` TSDoc.
 
 ## Framework integration
 
-`oav` is a validator, not a middleware package: you write a short
+`@oaverify/core` is a validator library, not a middleware package: you write a short
 adapter between your framework and `validateRequest` /
 `validateResponse`, or use one of the companion adapter packages. An
 inline Express 5 adapter is about this long:
@@ -450,7 +450,7 @@ Fetch helpers (`validateFetchRequest`, `validateFetchResponse`). See
 response validation, uploads, security, ignored paths, and custom error
 envelopes.
 
-`oav` is not a drop-in replacement for `express-openapi-validator`.
+oaverify is not a drop-in replacement for `express-openapi-validator`.
 The adapters cover request validation; response validation, auth
 dispatch, upload parsing, and custom error envelopes stay explicit in
 your application. In return, the validator does not mutate `req` or

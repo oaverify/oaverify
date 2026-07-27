@@ -15,7 +15,7 @@ import type { ExpressContext } from "./types.js";
  *
  * Exported standalone for two cases:
  *
- * 1. You want oav's rendering as the fallback in your own
+ * 1. You want oaverify's rendering as the fallback in your own
  *    middleware: call this directly when you don't want to handle
  *    the error yourself.
  * 2. You want a slightly different renderer: use this as the

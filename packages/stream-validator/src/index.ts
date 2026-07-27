@@ -11,8 +11,8 @@
  * BUFFER (so format assertion and built-in formats come from that
  * delegate), and reuses `@oaverify/internal-core`'s flat error model.
  *
- * Published as `@oaverify/stream`, versioned independently
- * of the `oav-core` family (its own version line).
+ * Published as `@oaverify/stream`, versioned with the `@oaverify/core`
+ * family because its public contract tracks core/schema semantics.
  *
  * @packageDocumentation
  */

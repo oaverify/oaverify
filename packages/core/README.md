@@ -1,13 +1,11 @@
-# oav/core
+# @oaverify/core/core
 
 Error tree model, shared OpenAPI / HTTP types, and output formatters.
 Imported by every other module in the package, and (because the error
 tree is what `validateRequest` / `validateResponse` return) the
 closest thing to a "read me first" for library consumers.
 
-This subpath is available from both `@oaverify/core/core` and
-`oav-core/core`; the imports below work identically
-against either package.
+This subpath is available from `@oaverify/core/core`.
 
 ```ts
 import {

@@ -5,7 +5,7 @@
  * operation-level `$ref` resolver. Reachable when you need them
  * (tests, advanced plugins, tooling that reuses the same style /
  * explode rules outside the normal validator flow) but deliberately
- * separated from the main `oav/validator` barrel so the
+ * separated from the main `@oaverify/core` validator barrel so the
  * public surface matches what request/response-validation consumers
  * actually need.
  *

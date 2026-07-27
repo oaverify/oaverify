@@ -1,5 +1,5 @@
 {
-  "name": "@oav-dev/mem-bench",
+  "name": "@oaverify-dev/mem-bench",
   "version": "0.0.0",
   "private": true,
   "description": "Isolated HTTP-server fixtures for the steady-state memory benchmark. Both servers validate the same OpenAPI spec against identical traffic; the memory probe endpoint (/__memory) lets the runner compare RSS/heap across runs.",

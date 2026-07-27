@@ -3,14 +3,13 @@ import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
 
 /**
- * Build config for `oav-express4`, the Express 4 adapter.
+ * Build config for `@oaverify/express4`, the Express 4 adapter.
  *
- * Thin tarball: nothing from `oav-core` is bundled. The adapter
+ * Thin tarball: nothing from `@oaverify/core` is bundled. The adapter
  * imports `@oaverify/internal-core` / `@oaverify/internal-validator` (workspace aliases) in
  * source; the plugin below rewrites those to `@oaverify/core/*`
  * AND marks them external so the published bundle resolves them
- * from the consumer's install of `@oaverify/core` (or
- * `oaverify`, which transitively provides it).
+ * from the consumer's install of `@oaverify/core`.
  *
  * `express` is a peer dep, never bundled. `@types/express` is a
  * dev dep and only contributes to the .d.ts emit.
@@ -22,7 +21,7 @@ const oavCoreRewrite: Record<string, string> = {
 
 function rewriteOavCore(): Plugin {
   return {
-    name: "oav-core-rewrite",
+    name: "oaverify-core-rewrite",
     setup(build) {
       build.onResolve({ filter: /^@oaverify\/internal-/ }, (args) => {
         const rewrite = oavCoreRewrite[args.path];

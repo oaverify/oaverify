@@ -1,5 +1,5 @@
 /**
- * The error model shared by every layer of the @oav validator. All errors form
+ * The error model shared by every layer of the @oaverify validator. All errors form
  * a tree: every node has a {@link ValidationError.children} array (possibly
  * empty) regardless of whether it is a leaf or a branch. Applicator keywords
  * (oneOf, allOf, etc.) and HTTP-level validators produce branch nodes; simple

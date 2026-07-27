@@ -436,7 +436,7 @@ export const specOverlayVerbs: ReadonlySet<string> = new Set(Object.keys(SPEC_OV
  * the values are validated when {@link applyOverlays} applies them. An
  * empty object passes (a no-op overlay). A standard OpenAPI Overlay
  * 1.0 envelope (`overlay` / `actions`) fails; translate it first with
- * `oav/overlay-spec`'s `translateOverlay`.
+ * `@oaverify/core/overlay-spec`'s `translateOverlay`.
  *
  * @public
  */

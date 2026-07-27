@@ -1,5 +1,5 @@
 /**
- * The public `oav-express4` surface plus the type shape every adapter
+ * The public `@oaverify/express4` surface plus the type shape every adapter
  * in the family shares.
  *
  * - {@link validateRequests}: request-validation middleware; the 80% case.
@@ -13,7 +13,7 @@
  *   `validateResponses` failure path.
  *
  * Naming and option shapes are deliberately consistent with the
- * sibling `oav-express5` / `oav-fastify` adapters.
+ * sibling `@oaverify/express5` / `@oaverify/fastify` adapters.
  *
  * @packageDocumentation
  */
@@ -26,7 +26,7 @@ export { ResponseValidationError } from "./response-error.js";
 export type { ErrorHandler, ExpressContext } from "./types.js";
 
 // Re-export the types that appear in our own option signatures. Strictly
-// not duplication of oav-core's surface; these ARE the adapter's
+// not duplication of @oaverify/core's surface; these ARE the adapter's
 // public contract, just borrowed for non-duplication reasons. Importing
 // them from this package means consumers don't have to know which
 // package owns them.

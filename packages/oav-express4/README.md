@@ -1,4 +1,4 @@
-# oav-express4
+# @oaverify/express4
 
 Express 4 adapter for [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): a request-validator middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
 
@@ -14,8 +14,8 @@ Sibling packages: [`@oaverify/express5`](https://github.com/oaverify/oaverify/bl
 # JSON specs only
 npm install @oaverify/core @oaverify/express4 express
 
-# YAML specs + CLI (oav transitively provides oav-core)
-npm install oaverify @oaverify/express4 express
+# YAML specs + CLI
+npm install oaverify @oaverify/yaml @oaverify/express4 express
 ```
 
 `express` is a peer dep; your app's existing install satisfies it.
@@ -40,7 +40,7 @@ app.post("/pets", (req, res) => res.json({ ok: true }));
 
 Invalid requests receive a `400 application/problem+json` response (status from `httpStatusFor`, body from `toProblemDetails`, `Allow` header on 405). Valid requests reach the route handlers.
 
-> **Body parser ordering matters.** `express.json()` (or your equivalent) must run **before** `validateRequests(...)`, otherwise `req.body` is `undefined` and the validator emits `body required` for every request: a misleading error that points at the schema, not at the missing parser. Same for `cookie-parser` if your spec validates cookies. Any middleware that populates `req.body` with a parsed object satisfies oav: `express.json()`, custom streaming parsers, `body-parser`, fastify's bridge, app-specific middleware all work the same way.
+> **Body parser ordering matters.** `express.json()` (or your equivalent) must run **before** `validateRequests(...)`, otherwise `req.body` is `undefined` and the validator emits `body required` for every request: a misleading error that points at the schema, not at the missing parser. Same for `cookie-parser` if your spec validates cookies. Any middleware that populates `req.body` with a parsed object satisfies the validator: `express.json()`, custom streaming parsers, `body-parser`, fastify's bridge, app-specific middleware all work the same way.
 >
 > **Empty-body normalization.** Some parsers (streaming variants, custom multi-format setups) leave `req.body === undefined` even after they run, for empty `{}`-equivalent payloads. When that happens, `required`-field checks short-circuit on the missing body, so empty submissions pass validation. Normalize via `toHttpRequest`:
 >
@@ -85,7 +85,7 @@ Returns an Express 4 `RequestHandler`.
 
 `onError` may be async; the middleware awaits it. If it throws or rejects, the error is forwarded via `next(err)` so the host's error middleware sees it. The middleware does **not** call `next()` after `onError` returns; your callback owns the response (write to `ctx.res`, or call `ctx.next(err)` to delegate).
 
-> **Validation failures don't traverse Express's error chain by default.** The default `onError` (`renderProblemDetails`) writes the response directly. If you're migrating from `express-openapi-validator` (which emits validation failures as `HttpError` through `next(err)`), your existing error middleware won't see oav's failures unless you forward them; see [Forward to Express's error middleware](#forward-to-expresss-error-middleware) below. Same goes for observability: see [Add observability without changing the response](#add-observability-without-changing-the-response).
+> **Validation failures don't traverse Express's error chain by default.** The default `onError` (`renderProblemDetails`) writes the response directly. If you're migrating from `express-openapi-validator` (which emits validation failures as `HttpError` through `next(err)`), your existing error middleware won't see validation failures unless you forward them; see [Forward to Express's error middleware](#forward-to-expresss-error-middleware) below. Same goes for observability: see [Add observability without changing the response](#add-observability-without-changing-the-response).
 
 ### `validateResponses(validator, options?)`
 
@@ -117,7 +117,7 @@ Body validated: `res.json(obj)`, `res.send(obj)`, `res.send(jsonString)` with a 
 
 ### `httpRequestFromExpress(req)`
 
-Convert an Express 4 `Request` to oav's framework-agnostic `HttpRequest` shape. Read what's already on `req`; body parsing is the host app's responsibility.
+Convert an Express 4 `Request` to oaverify's framework-agnostic `HttpRequest` shape. Read what's already on `req`; body parsing is the host app's responsibility.
 
 Header keys lowercased, path stripped of query string, cookies read from `req.cookies` if present.
 
@@ -159,7 +159,7 @@ The check is shape-only: it confirms the declared credential is _present_, not t
 
 ### Per-scheme auth dispatch (the eov `securityHandlers` shape)
 
-eov's `securityHandlers` is a per-scheme dispatch table: you supply an auth function per declared scheme and eov calls it. `oav-express4` doesn't ship this as a helper, but the recipe is small. Mount it as middleware _before_ `validateRequests`:
+eov's `securityHandlers` is a per-scheme dispatch table: you supply an auth function per declared scheme and eov calls it. `@oaverify/express4` doesn't ship this as a helper, but the recipe is small. Mount it as middleware _before_ `validateRequests`:
 
 ```ts
 import type { Request } from "express";
@@ -313,7 +313,7 @@ app.use(
 );
 ```
 
-`toHttpRequest` is the general "reshape what oav sees" seam: synthesizing body from files, normalizing empty bodies, merging headers from an upstream proxy, anything that lives above the extraction layer. The empty-body normalization recipe higher in this README and this multer recipe are two examples of the same pattern.
+`toHttpRequest` is the general "reshape what the validator sees" seam: synthesizing body from files, normalizing empty bodies, merging headers from an upstream proxy, anything that lives above the extraction layer. The empty-body normalization recipe higher in this README and this multer recipe are two examples of the same pattern.
 
 For per-route inline multer (validator called from inside the route handler) and the full multer recipe with text-field reassembly, see the [integration.md file uploads section](https://github.com/oaverify/oaverify/blob/main/docs/integration.md#file-uploads-with-multer).
 

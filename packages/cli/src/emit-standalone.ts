@@ -33,8 +33,8 @@ export interface EmitStandaloneOptions {
   /**
    * Import-path prefix for runtime deps in the emitted module.
    * Defaults to `"@oaverify/core"` (the published library). Tests
-   * override to `"@oav"` so the output resolves against the
-   * workspace aliases instead of a published tarball.
+   * use workspace aliases for that same published name, so generated
+   * output exercises the real import path.
    */
   importPrefix?: string;
 }

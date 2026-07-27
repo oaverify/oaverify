@@ -1,4 +1,4 @@
-# @oav-dev/performance
+# @oaverify-dev/performance
 
 Cross-library benchmarks for `@oaverify/internal-schema` vs
 [ajv](https://github.com/ajv-validator/ajv) (2020-12 dialect).

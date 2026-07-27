@@ -679,7 +679,7 @@ export interface ValidatorOptions {
   /**
    * How to handle a spec with an unknown **minor** version inside the
    * OpenAPI 3.x line; e.g. `openapi: "3.7.0"` if a future minor ships
-   * before oav is updated. Pure forward-compat control; does not govern
+   * before oaverify is updated. Pure forward-compat control; does not govern
    * category errors (missing `openapi` field, wrong major), which
    * always throw unless `dialect` is set.
    *

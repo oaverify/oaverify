@@ -3,9 +3,9 @@ import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
 
 /**
- * Build config for `oav-fastify`, the Fastify adapter.
- * Same shape as oav-express4 / oav-express5: thin tarball,
- * oav-core externalized, fastify marked external (peer dep).
+ * Build config for `@oaverify/fastify`, the Fastify adapter.
+ * Same shape as `@oaverify/express4` / `@oaverify/express5`: thin tarball,
+ * `@oaverify/core` externalized, fastify marked external (peer dep).
  */
 const oavCoreRewrite: Record<string, string> = {
   "@oaverify/internal-core": "@oaverify/core/core",
@@ -14,7 +14,7 @@ const oavCoreRewrite: Record<string, string> = {
 
 function rewriteOavCore(): Plugin {
   return {
-    name: "oav-core-rewrite",
+    name: "oaverify-core-rewrite",
     setup(build) {
       build.onResolve({ filter: /^@oaverify\/internal-/ }, (args) => {
         const rewrite = oavCoreRewrite[args.path];

@@ -5,7 +5,7 @@
  *   spec.yaml      — the OpenAPI document
  *   cases.json     — an array of {name, kind, method, path, ..., expect, expectCodes}
  *
- * Cases run via the oav CLI (invokes the built binary at
+ * Cases run via the oaverify CLI (invokes the built binary at
  * packages/oav/dist/cli.js) and compare exit code + emitted leaf
  * error codes against expectations.
  *
@@ -71,7 +71,7 @@ function buildHttpFile(c: Case): string {
 }
 
 function run(c: Case, specPath: string): CaseOutcome {
-  const tmp = mkdtempSync(join(tmpdir(), "oav-case-"));
+  const tmp = mkdtempSync(join(tmpdir(), "oaverify-case-"));
   try {
     if (c.kind === "request") {
       const httpFile = join(tmp, "req.http");

@@ -1,4 +1,4 @@
-# oav-fastify
+# @oaverify/fastify
 
 Fastify adapter for [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): a `preValidation` hook factory plus standalone helpers (`httpRequestFromFastify`, `renderProblemDetails`) for callers composing their own hooks.
 
@@ -12,8 +12,8 @@ Sibling packages: [`@oaverify/express4`](https://github.com/oaverify/oaverify/bl
 # JSON specs only
 npm install @oaverify/core @oaverify/fastify fastify
 
-# YAML specs + CLI (oav transitively provides oav-core)
-npm install oaverify @oaverify/fastify fastify
+# YAML specs + CLI
+npm install oaverify @oaverify/yaml @oaverify/fastify fastify
 ```
 
 `fastify` is a peer dep; your app's existing install satisfies it.
@@ -59,12 +59,12 @@ Fastify runs hooks in a fixed order:
 
 1. `onRequest`: request parsing not yet done
 2. `preParsing`: about to parse the body
-3. `preValidation`: body parsed; **this is where oav runs**
+3. `preValidation`: body parsed; **this is where oaverify runs**
 4. `validation`: Fastify's per-route schema validation
 5. `preHandler`: about to call the route handler
 6. `handler`
 
-Mount on `preValidation` so oav sees the parsed body. If you also have per-route Fastify schemas declared, Fastify's own validation runs in step 4 (after this hook). Both can coexist: if oav rejects, Fastify's own validation never runs; if oav passes, Fastify's runs as usual. Authoring the same constraints in both places isn't recommended, but mixing them (oav for spec-driven validation, Fastify schemas for app-internal types) works.
+Mount on `preValidation` so oaverify sees the parsed body. If you also have per-route Fastify schemas declared, Fastify's own validation runs in step 4 (after this hook). Both can coexist: if oaverify rejects, Fastify's own validation never runs; if oaverify passes, Fastify's runs as usual. Authoring the same constraints in both places isn't recommended, but mixing them (oaverify for spec-driven validation, Fastify schemas for app-internal types) works.
 
 ## API
 
@@ -105,7 +105,7 @@ Status and declared headers are checked for every reply, regardless of media typ
 
 ### `httpRequestFromFastify(request)`
 
-Convert a `FastifyRequest` to oav's framework-agnostic `HttpRequest` shape. Read what's already on the request; body parsing is Fastify's responsibility (handled by content-type parsers before `preValidation`).
+Convert a `FastifyRequest` to oaverify's framework-agnostic `HttpRequest` shape. Read what's already on the request; body parsing is Fastify's responsibility (handled by content-type parsers before `preValidation`).
 
 Header keys passed through (Fastify already lowercases per HTTP spec), path stripped of query string from `request.url`, query taken from `request.query` (Fastify parses it into an object), cookies read from `request.cookies` if `@fastify/cookie` populated them.
 
@@ -220,16 +220,16 @@ The hook awaits the returned promise; rejections propagate to Fastify's `setErro
 
 ### Coexisting with Fastify per-route schemas
 
-Fastify's idiomatic per-route-schema pattern is independent of oav. The two can coexist in the same app:
+Fastify's idiomatic per-route-schema pattern is independent of oaverify. The two can coexist in the same app:
 
-- Use **oav-fastify** when the OpenAPI spec is the source of truth, for endpoints whose contract is published / contract-tested / shared with other languages or services.
+- Use **`@oaverify/fastify`** when the OpenAPI spec is the source of truth, for endpoints whose contract is published / contract-tested / shared with other languages or services.
 - Use **Fastify per-route schemas** for app-internal types where you'd rather author the schema inline.
 
-If both fire on the same route, oav's `preValidation` hook runs first; if it passes, Fastify's `validation` step runs next. Don't author the same constraints in both places.
+If both fire on the same route, oaverify's `preValidation` hook runs first; if it passes, Fastify's `validation` step runs next. Don't author the same constraints in both places.
 
 ### Comparison with `fastify-openapi-glue`
 
-[`fastify-openapi-glue`](https://www.npmjs.com/package/fastify-openapi-glue) reads an OpenAPI spec at startup and **generates routes + handler stubs from it**. oav-fastify is a different shape: it validates against the spec while leaving route declarations in your app. Use `fastify-openapi-glue` if you want spec-driven scaffolding; use oav-fastify if your routes already exist and you want OpenAPI as the validation source of truth.
+[`fastify-openapi-glue`](https://www.npmjs.com/package/fastify-openapi-glue) reads an OpenAPI spec at startup and **generates routes + handler stubs from it**. `@oaverify/fastify` is a different shape: it validates against the spec while leaving route declarations in your app. Use `fastify-openapi-glue` if you want spec-driven scaffolding; use `@oaverify/fastify` if your routes already exist and you want OpenAPI as the validation source of truth.
 
 ## See also
 
