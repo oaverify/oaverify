@@ -199,6 +199,7 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/packed"
           pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed"
           (cd packages/oav && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
+          (cd packages/yaml && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/oav-express4 && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/oav-express5 && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/oav-fastify && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
@@ -207,7 +208,7 @@ jobs:
       - name: smoke-import @oaverify/core
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
           rm -rf /tmp/smoke-core && mkdir -p /tmp/smoke-core && cd /tmp/smoke-core
           npm init -y > /dev/null
           npm install "$CORE_TGZ"
@@ -237,7 +238,7 @@ jobs:
           try {
             await createFileReader().read("dummy.yaml");
           } catch (e) {
-            threw = /Install @aahoughton\/oav/.test(String(e?.message ?? ""));
+            threw = /Install @oaverify\/yaml/.test(String(e?.message ?? ""));
           }
           if (!threw) throw new Error("expected oav-core's createFileReader to reject .yaml with an install hint");
           if (typeof translateOverlay !== "function") throw new Error("translateOverlay missing");
@@ -253,75 +254,78 @@ jobs:
           console.log("oav-core smoke ok");
           EOF
           node smoke.mjs
-      - name: smoke-import oaverify
+      - name: smoke @oaverify/yaml
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
-          SV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-stream-validator-*.tgz | head -n1)"
-          OAV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-[0-9]*.tgz | head -n1)"
-          rm -rf /tmp/smoke-oav && mkdir -p /tmp/smoke-oav && cd /tmp/smoke-oav
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          YAML_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-yaml-*.tgz | head -n1)"
+          rm -rf /tmp/smoke-yaml && mkdir -p /tmp/smoke-yaml && cd /tmp/smoke-yaml
           npm init -y > /dev/null
-          # Install all tarballs in one shot so `oaverify`'s
-          # dependencies on `@oaverify/core` and
-          # `@oaverify/stream` (the CLI's stream-check command)
-          # resolve against the locally-packed artifacts, not the registry.
-          npm install commander "$CORE_TGZ" "$SV_TGZ" "$OAV_TGZ"
+          npm install "$CORE_TGZ" "$YAML_TGZ"
           cat > smoke.mjs <<'EOF'
-          import { createValidator, createYamlFileReader, parseYamlString } from "oaverify";
-          import { compileSchema, jsonSchemaDialect } from "oaverify/schema";
-          import { composeReaders, createFileReader } from "oaverify/spec";
-          import { translateOverlay, applySpecOverlay } from "oaverify/overlay-spec";
-          const v = createValidator({
-            openapi: "3.1.0",
-            info: { title: "t", version: "1" },
-            paths: {
-              "/x": {
-                post: {
-                  requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["a"] } } } },
-                  responses: { "200": { description: "ok" } },
-                },
-              },
-            },
-          });
-          const reqResult = v.validateRequest({ method: "POST", path: "/x", contentType: "application/json", body: {} });
-          if (reqResult.valid) throw new Error("expected invalid (missing required 'a')");
-          const { validate } = compileSchema({ type: "integer" }, { dialect: jsonSchemaDialect });
-          if (!validate(42).valid) throw new Error("expected valid");
+          import { composeReaders, createFileReader } from "@oaverify/core/spec";
+          import { createSmartHttpReader, createYamlFileReader, loadSpecSync, parseYamlString } from "@oaverify/yaml";
           const parsed = parseYamlString("openapi: 3.1.0\ninfo: { title: t, version: '1' }\npaths: {}");
           if (parsed.openapi !== "3.1.0") throw new Error("parseYamlString regression");
-          // composeReaders must accept the YAML reader from oaverify
-          // alongside oav-core's JSON readers.
-          const reader = composeReaders([createYamlFileReader(), createFileReader()]);
+          // The YAML readers must compose with oav-core's JSON-only ones.
+          const reader = composeReaders([createYamlFileReader(), createSmartHttpReader(), createFileReader()]);
           if (!reader.canRead("spec.yaml") || !reader.canRead("spec.json")) {
             throw new Error("composed reader should claim both .yaml and .json");
           }
-          if (typeof translateOverlay !== "function") throw new Error("translateOverlay missing");
-          if (typeof applySpecOverlay !== "function") throw new Error("applySpecOverlay missing");
-          const overlay = translateOverlay({
-            overlay: "1.0.0",
-            info: { title: "t", version: "1" },
-            actions: [{ target: "$.info", update: { description: "patched" } }],
-          });
-          if (!overlay.info || overlay.info.description !== "patched") {
-            throw new Error("translateOverlay did not produce the expected info verb");
-          }
-          console.log("oav smoke ok");
+          if (typeof loadSpecSync !== "function") throw new Error("loadSpecSync missing");
+          console.log("oaverify-yaml smoke ok");
           EOF
           node smoke.mjs
-          # CLI should be present in bin; verify --help exits 0
-          npx oav --help > /dev/null
-          # Exercise stream-check: it imports analyzeSpec from
-          # @oaverify/stream, so this fails if that dependency
-          # is missing or stale in the installed tree.
-          cat > spec.json <<'JSON'
-          {"openapi":"3.1.0","info":{"title":"t","version":"1"},"paths":{"/x":{"post":{"requestBody":{"content":{"application/json":{"schema":{"type":"object"}}}}}}}}
-          JSON
-          npx oav stream-check spec.json > /dev/null
+      - name: smoke the oaverify CLI
+        run: |
+          set -euo pipefail
+          # `oaverify` ships only the binary now; the library surface is
+          # smoke-tested against @oaverify/core above. Install every
+          # tarball it depends on so nothing resolves to the registry.
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          YAML_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-yaml-*.tgz | head -n1)"
+          SV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-stream-*.tgz | head -n1)"
+          CLI_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-[0-9]*.tgz | head -n1)"
+          rm -rf /tmp/smoke-cli && mkdir -p /tmp/smoke-cli && cd /tmp/smoke-cli
+          npm init -y > /dev/null
+          npm install "$CORE_TGZ" "$YAML_TGZ" "$SV_TGZ" "$CLI_TGZ"
+          # The library surface must NOT be reachable from the CLI package.
+          if node -e 'import("oaverify/schema").then(()=>process.exit(0),()=>process.exit(1))'; then
+            echo "oaverify should not export a library surface" >&2
+            exit 1
+          fi
+          npx oaverify --help > /dev/null
+          cat > spec.yaml <<'YAML'
+          openapi: 3.1.0
+          info: { title: t, version: "1" }
+          paths:
+            /x:
+              post:
+                requestBody:
+                  required: true
+                  content:
+                    application/json:
+                      schema: { type: object, required: [a] }
+                responses:
+                  "200": { description: ok }
+          YAML
+          # A YAML spec exercises the oaverify-yaml dependency through the
+          # CLI's default reader chain.
+          echo '{"a":1}' > ok.json
+          echo '{}' > bad.json
+          npx oaverify validate --path "POST /x" --body ok.json spec.yaml
+          if npx oaverify validate --path "POST /x" --body bad.json spec.yaml > /dev/null 2>&1; then
+            echo "expected a non-zero exit for the invalid body" >&2
+            exit 1
+          fi
+          # stream-check imports analyzeSpec from @oaverify/stream, so this
+          # fails if that dependency is missing or stale in the tree.
+          npx oaverify stream-check spec.yaml > /dev/null
       - name: smoke-import @oaverify/express4
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
-          E4_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-express4-*.tgz | head -n1)"
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          E4_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-express4-*.tgz | head -n1)"
           rm -rf /tmp/smoke-e4 && mkdir -p /tmp/smoke-e4 && cd /tmp/smoke-e4
           npm init -y > /dev/null
           npm install express@4 "$CORE_TGZ" "$E4_TGZ"
@@ -354,8 +358,8 @@ jobs:
       - name: smoke-import @oaverify/express5
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
-          E5_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-express5-*.tgz | head -n1)"
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          E5_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-express5-*.tgz | head -n1)"
           rm -rf /tmp/smoke-e5 && mkdir -p /tmp/smoke-e5 && cd /tmp/smoke-e5
           npm init -y > /dev/null
           npm install express@5 "$CORE_TGZ" "$E5_TGZ"
@@ -388,8 +392,8 @@ jobs:
       - name: smoke-import @oaverify/fastify
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
-          F_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-fastify-*.tgz | head -n1)"
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          F_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-fastify-*.tgz | head -n1)"
           rm -rf /tmp/smoke-fastify && mkdir -p /tmp/smoke-fastify && cd /tmp/smoke-fastify
           npm init -y > /dev/null
           npm install fastify@5 "$CORE_TGZ" "$F_TGZ"
@@ -422,8 +426,8 @@ jobs:
       - name: smoke-import @oaverify/stream
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
-          SV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-stream-validator-*.tgz | head -n1)"
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          SV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-stream-*.tgz | head -n1)"
           rm -rf /tmp/smoke-sv && mkdir -p /tmp/smoke-sv && cd /tmp/smoke-sv
           npm init -y > /dev/null
           # Install both tarballs together so the stream validator's

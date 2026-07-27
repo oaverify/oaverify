@@ -410,11 +410,19 @@ export async function compileSchemaCommand(
     importPrefix?: string;
     /**
      * Override esbuild's resolveDir. Defaults to `process.cwd()`,
-     * which is where a real consumer's installed `oav`
-     * sits. Tests point this at `packages/oav/` where the workspace's
-     * `@oaverify/internal-*` symlinks are reachable. Not exposed on the CLI.
+     * which is where a real consumer's installed `@oaverify/core`
+     * sits. Not exposed on the CLI.
      */
     resolveDir?: string;
+    /**
+     * Test-only: esbuild `alias` entries for the emitted module's
+     * imports. The emitted source imports `@oaverify/core` subpaths by
+     * their real published names, which resolve through that package's
+     * `exports` map to `dist/`. Tests run against source with no build,
+     * so they alias those specifiers to the workspace sources instead.
+     * Not exposed on the CLI.
+     */
+    bundleAlias?: Record<string, string>;
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
@@ -437,7 +445,7 @@ export async function compileSchemaCommand(
     return { exitCode: 3 };
   }
   try {
-    source = await bundleEmitted(source, args.resolveDir ?? process.cwd());
+    source = await bundleEmitted(source, args.resolveDir ?? process.cwd(), args.bundleAlias);
   } catch (err) {
     io.stderr(`compile-schema: ${(err as Error).message}\n`);
     return { exitCode: 3 };
@@ -456,7 +464,11 @@ export async function compileSchemaCommand(
  * invoke the CLI don't pay the dependency cost. Throws with an
  * install-hint message when esbuild isn't resolvable.
  */
-async function bundleEmitted(source: string, resolveDir: string): Promise<string> {
+async function bundleEmitted(
+  source: string,
+  resolveDir: string,
+  alias?: Record<string, string>,
+): Promise<string> {
   let esbuild: typeof Esbuild;
   try {
     esbuild = await import("esbuild");
@@ -474,6 +486,7 @@ async function bundleEmitted(source: string, resolveDir: string): Promise<string
   }
   const result = await esbuild.build({
     stdin: { contents: source, resolveDir, loader: "js" },
+    ...(alias === undefined ? {} : { alias }),
     bundle: true,
     format: "esm",
     platform: "neutral",
@@ -509,10 +522,12 @@ export async function compileSpecCommand(
     outputMode?: "flat" | "tree" | "predicate";
     /** Leaf-error cap baked into the emitted validators. Default `1`. */
     maxErrors?: number;
-    /** Test-only: rewrite emit imports to `@oav` so the workspace resolves. */
+    /** Test-only: override the emitted module's import prefix. */
     importPrefix?: string;
     /** Test-only: override esbuild's resolveDir for in-workspace bundle. */
     resolveDir?: string;
+    /** Test-only: esbuild `alias` entries so emitted imports resolve to source. */
+    bundleAlias?: Record<string, string>;
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
@@ -551,7 +566,7 @@ export async function compileSpecCommand(
     return { exitCode: 3 };
   }
   try {
-    source = await bundleEmitted(source, args.resolveDir ?? process.cwd());
+    source = await bundleEmitted(source, args.resolveDir ?? process.cwd(), args.bundleAlias);
   } catch (err) {
     io.stderr(`compile-spec: ${(err as Error).message}\n`);
     return { exitCode: 3 };

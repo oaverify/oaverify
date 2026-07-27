@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { buildProgram } from "../src/cli.js";
 import { memoryIo, type MemoryIo } from "./fixtures.js";
+import { resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
+import { workspaceAliases } from "../../../workspace-aliases.js";
+
+// The emitted module imports `@oaverify/core` subpaths by their real
+// published names, which resolve through that package's exports map to
+// its build output. The suite runs against source with no prior build,
+// so alias them to the workspace sources via the same table vitest uses.
+const CORE_ALIASES = Object.fromEntries(
+  Object.entries(
+    workspaceAliases(resolvePath(fileURLToPath(new URL("../../..", import.meta.url)))),
+  ).filter(([k]) => k.startsWith("@oaverify/core")),
+);
 
 /**
  * Argv-level coverage of the Commander program. Previously the CLI
@@ -322,6 +335,7 @@ describe("compile-schema output", () => {
         output: "v.mjs",
         dialect: "2020-12",
         resolveDir,
+        bundleAlias: CORE_ALIASES,
       },
       mem.io,
     );

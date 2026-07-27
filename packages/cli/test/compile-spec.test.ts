@@ -14,6 +14,17 @@ import type { OpenAPIDocument, ValidationError } from "@oaverify/internal-core";
 import { createValidator } from "@oaverify/internal-validator";
 import { compileSpecCommand } from "../src/commands.js";
 import { memoryIo } from "./fixtures.js";
+import { workspaceAliases } from "../../../workspace-aliases.js";
+
+// The emitted module imports `@oaverify/core` subpaths by their real
+// published names, which resolve through that package's exports map to
+// dist/. The suite runs against source with no prior build, so alias
+// them to packages/*/src via the same table vitest uses.
+const CORE_ALIASES = Object.fromEntries(
+  Object.entries(
+    workspaceAliases(resolvePath(fileURLToPath(new URL("../../..", import.meta.url)))),
+  ).filter(([k]) => k.startsWith("@oaverify/core")),
+);
 
 // esbuild needs a directory where `@oaverify/core` resolves, since that is
 // what the emitted module imports via the default importPrefix.
@@ -120,6 +131,7 @@ async function buildAot(
       overlays: [],
       output: "out.mjs",
       resolveDir: RESOLVE_DIR,
+      bundleAlias: CORE_ALIASES,
       requestsOnly: extra.requestsOnly,
       only: extra.only,
       outputMode: extra.outputMode,
@@ -331,6 +343,7 @@ describe("compile-spec --only", () => {
         overlays: [],
         output: "out.mjs",
         resolveDir: RESOLVE_DIR,
+        bundleAlias: CORE_ALIASES,
       },
       mem.io,
     );
