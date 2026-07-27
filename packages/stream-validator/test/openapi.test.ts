@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
-import { compileSchema, jsonSchemaDialect, oas30Dialect } from "@oav/schema";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import { compileSchema, jsonSchemaDialect, oas30Dialect } from "@oaverify/internal-schema";
 import { createStreamValidator, type StreamVerdict } from "../src/index.js";
 // `normalizeOas30` is engine-internal (not on the package's public index);
 // the OAS-3.0 normalization it drives is exercised through the public
@@ -82,7 +82,7 @@ describe("normalizeOas30", () => {
   });
 });
 
-describe("OpenAPI 3.0 verdict parity with @oav/schema oas30Dialect", () => {
+describe("OpenAPI 3.0 verdict parity with @oaverify/internal-schema oas30Dialect", () => {
   const cases: Array<{ schema: SchemaObject; values: unknown[] }> = [
     { schema: { type: "string", nullable: true }, values: ["x", null, 1] },
     {

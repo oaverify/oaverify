@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import type { ValidationError } from "@oav/core";
+import type { ValidationError } from "@oaverify/internal-core";
 
 /**
  * The trio every Express 5 middleware receives. Passed to user-supplied

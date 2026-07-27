@@ -7,8 +7,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { OpenAPIDocument } from "@oav/core";
-import { createMemoryReader, resolveSpec } from "@oav/spec";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
+import { createMemoryReader, resolveSpec } from "@oaverify/internal-spec";
 import { createValidator } from "./fixtures.js";
 
 describe("operation-level $ref resolution", () => {

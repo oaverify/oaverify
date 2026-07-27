@@ -32,7 +32,7 @@ export type PathSegment = string | number;
  * re-declaring the interface in its own module:
  *
  * ```ts
- * declare module "@oav/core" {
+ * declare module "@oaverify/internal-core" {
  *   interface BuiltInErrorParams {
  *     "my-custom": { reason: string };
  *   }
@@ -120,7 +120,7 @@ export interface BuiltInErrorParams {
    */
   depth: { limit: number };
 
-  // --- HTTP-level wrappers (emitted by @oav/validator) ---
+  // --- HTTP-level wrappers (emitted by @oaverify/internal-validator) ---
   /** No path template matched `path`: semantically HTTP 404. */
   route: { method: string; path: string };
   /**
@@ -227,7 +227,7 @@ export const BUILT_IN_ERROR_CODES = [
   "dependencies",
   // --- Compiler safety limits ---
   "depth",
-  // --- HTTP-level wrappers (emitted by @oav/validator) ---
+  // --- HTTP-level wrappers (emitted by @oaverify/internal-validator) ---
   "route",
   "method",
   "body",
@@ -264,7 +264,7 @@ export const BUILT_IN_ERROR_CODES = [
  * appear as leaves, so summary renderers never see them.
  *
  * Guarded by tests on both sides: this package asserts the subset
- * relation, and `@oav/validator`'s error-codes suite asserts every
+ * relation, and `@oaverify/internal-validator`'s error-codes suite asserts every
  * emitted leaf with one of these codes names its location in the
  * message.
  *

@@ -1,23 +1,23 @@
 # Modules
 
-`@aahoughton/oav-core` is the library. It publishes a root entry and
+`@oaverify/core` is the library. It publishes a root entry and
 five public subpath entrypoints (plus the not-semver-covered
 `*/internals` subpaths listed further down).
 
-| Import                              | Surface                                                                         |
-| ----------------------------------- | ------------------------------------------------------------------------------- |
-| `@aahoughton/oav-core`              | `createValidator`, `combineValidators`, error helpers, formatters, types        |
-| `@aahoughton/oav-core/schema`       | `compileSchema`, dialects, vocabularies, custom keywords, keyword introspection |
-| `@aahoughton/oav-core/spec`         | `loadSpec`, `loadSpecSync`, `resolveSpec`, `applyOverlays`, readers             |
-| `@aahoughton/oav-core/overlay-spec` | `translateOverlay`, `applySpecOverlay`: OpenAPI Overlay 1.0 → typed SpecOverlay |
-| `@aahoughton/oav-core/formats`      | Built-in string format validators                                               |
-| `@aahoughton/oav-core/core`         | Error tree model, shared OpenAPI / HTTP types                                   |
+| Import                        | Surface                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| `@oaverify/core`              | `createValidator`, `combineValidators`, error helpers, formatters, types        |
+| `@oaverify/core/schema`       | `compileSchema`, dialects, vocabularies, custom keywords, keyword introspection |
+| `@oaverify/core/spec`         | `loadSpec`, `loadSpecSync`, `resolveSpec`, `applyOverlays`, readers             |
+| `@oaverify/core/overlay-spec` | `translateOverlay`, `applySpecOverlay`: OpenAPI Overlay 1.0 → typed SpecOverlay |
+| `@oaverify/core/formats`      | Built-in string format validators                                               |
+| `@oaverify/core/core`         | Error tree model, shared OpenAPI / HTTP types                                   |
 
 `oav-core` carries no runtime dependencies and parses JSON only.
 
 ## YAML
 
-`@aahoughton/oav-yaml` adds the YAML side, in its own package because
+`@oaverify/yaml` adds the YAML side, in its own package because
 it pulls in a parser:
 
 | Export                       | Purpose                                                           |
@@ -28,17 +28,17 @@ it pulls in a parser:
 | `loadSpecSync(options)`      | Synchronous loader whose default reader covers YAML and JSON      |
 
 Compose the readers ahead of the JSON-only ones from
-`@aahoughton/oav-core/spec`, which act as the fallback. Calling
+`@oaverify/core/spec`, which act as the fallback. Calling
 `oav-core`'s `createFileReader()` on a `.yaml` path throws with an
 install hint pointing here.
 
-`loadSpecSync` exists in both packages: `oav-core/spec`'s is JSON-only,
+`loadSpecSync` exists in both packages: `@oaverify/core/spec`'s is JSON-only,
 `oav-yaml`'s defaults its reader to cover both, so a `.yaml` entry
 loads with no composition.
 
 ## The CLI
 
-`@aahoughton/oav` ships the `oav` binary and no library exports. See
+`oaverify` ships the `oav` binary and no library exports. See
 [`packages/cli/README.md`](../packages/cli/README.md) for commands and
 flags.
 
@@ -49,11 +49,11 @@ Each public package also exposes lower-level primitives behind a
 tests, and sit deliberately outside the semver contract: compare
 against the public barrel before reaching for them.
 
-| Import                                     | Surface                                                                                           |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `@aahoughton/oav-core/schema/internals`    | Codegen mechanics, runtime helpers, and resolve internals below the keyword-author API            |
-| `@aahoughton/oav-core/spec/internals`      | Synchronous resolver primitives (`resolveSpecSync`, `createFileReaderSync`, `composeReadersSync`) |
-| `@aahoughton/oav-core/validator/internals` | Parameter deserialization, query assembly, and the operation-level `$ref` resolver                |
+| Import                               | Surface                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `@oaverify/core/schema/internals`    | Codegen mechanics, runtime helpers, and resolve internals below the keyword-author API            |
+| `@oaverify/core/spec/internals`      | Synchronous resolver primitives (`resolveSpecSync`, `createFileReaderSync`, `composeReadersSync`) |
+| `@oaverify/core/validator/internals` | Parameter deserialization, query assembly, and the operation-level `$ref` resolver                |
 
 ## Companion adapter packages
 

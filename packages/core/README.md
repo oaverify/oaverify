@@ -5,7 +5,7 @@ Imported by every other module in the package, and (because the error
 tree is what `validateRequest` / `validateResponse` return) the
 closest thing to a "read me first" for library consumers.
 
-This subpath is available from both `oav/core` and
+This subpath is available from both `@oaverify/core/core` and
 `oav-core/core`; the imports below work identically
 against either package.
 
@@ -15,7 +15,7 @@ import {
   collectLeaves,
   type ValidationError,
   type ErrorParamsFor,
-} from "@aahoughton/oav-core/core";
+} from "@oaverify/core/core";
 ```
 
 ## Error tree
@@ -197,7 +197,7 @@ spec (e.g. overlays, custom tooling) handle them explicitly.
 ## Version detection
 
 ```ts
-import { detectOpenAPIVersion } from "@aahoughton/oav-core/core";
+import { detectOpenAPIVersion } from "@oaverify/core/core";
 
 detectOpenAPIVersion({ openapi: "3.0.3", info: {}, paths: {} }); // "3.0"
 detectOpenAPIVersion({ openapi: "3.2.0", info: {}, paths: {} }); // "3.2"

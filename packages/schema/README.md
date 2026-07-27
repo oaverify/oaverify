@@ -15,7 +15,7 @@ the root entrypoint instead.
 ## Quick start
 
 ```ts
-import { compileSchema, jsonSchemaDialect } from "@aahoughton/oav-core/schema";
+import { compileSchema, jsonSchemaDialect } from "@oaverify/core/schema";
 
 const { validate } = compileSchema(
   { type: "object", required: ["name"], properties: { name: { type: "string" } } },
@@ -58,7 +58,7 @@ import {
   validationVocabulary,
   applicatorVocabulary,
   type Dialect,
-} from "@aahoughton/oav-core/schema";
+} from "@oaverify/core/schema";
 
 const minimalDialect: Dialect = {
   id: "minimal",
@@ -86,7 +86,7 @@ validator into a `KeywordDefinition`, registers it alongside the
 built-ins, and dispatches via generated code on the hot path:
 
 ```ts
-import { compileSchema, jsonSchemaDialect } from "@aahoughton/oav-core/schema";
+import { compileSchema, jsonSchemaDialect } from "@oaverify/core/schema";
 
 const { validate } = compileSchema(
   { type: "integer", divisibleBy: 7 },

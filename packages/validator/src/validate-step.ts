@@ -3,9 +3,9 @@ import {
   type HttpRequest,
   type ParameterObject,
   type ValidationError,
-} from "@oav/core";
-import type { RouteMatch } from "@oav/router";
-import type { CompiledTreeSchema } from "@oav/schema";
+} from "@oaverify/internal-core";
+import type { RouteMatch } from "@oaverify/internal-router";
+import type { CompiledTreeSchema } from "@oaverify/internal-schema";
 import { deserialize, matchParsedMediaType } from "./deserialize.js";
 import type { OperationCache } from "./operation-cache.js";
 import { assembleObjectQueryParam } from "./query-assembly.js";

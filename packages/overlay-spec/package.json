@@ -1,8 +1,8 @@
 {
-  "name": "@oav/overlay-spec",
+  "name": "@oaverify/internal-overlay-spec",
   "version": "0.0.0",
   "private": true,
-  "description": "Internal: translator from OpenAPI Overlay 1.0 spec-format documents to @oav/spec's typed SpecOverlay.",
+  "description": "Internal: translator from OpenAPI Overlay 1.0 spec-format documents to @oaverify/internal-spec's typed SpecOverlay.",
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -13,8 +13,8 @@
     }
   },
   "dependencies": {
-    "@oav/core": "workspace:*",
-    "@oav/spec": "workspace:*"
+    "@oaverify/internal-core": "workspace:*",
+    "@oaverify/internal-spec": "workspace:*"
   },
   "engines": {
     "node": ">=20"

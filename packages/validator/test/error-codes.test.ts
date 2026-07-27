@@ -4,7 +4,7 @@ import {
   walkErrors,
   type OpenAPIDocument,
   type ValidationError,
-} from "@oav/core";
+} from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import { createValidator, leafCodes } from "./fixtures.js";
 

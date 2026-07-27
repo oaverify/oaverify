@@ -4,8 +4,8 @@ import {
   type HttpRequest,
   type HttpResponse,
   type ValidationError,
-} from "@oav/core";
-import type { TreeValidator, Validator } from "@oav/validator";
+} from "@oaverify/internal-core";
+import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromFastify } from "./extract.js";
 import { ResponseValidationError } from "./response-error.js";
 import type { ErrorHandler, FastifyContext } from "./types.js";
@@ -93,7 +93,7 @@ const VALIDATED = Symbol("oav.responseValidated");
  *
  * @example
  * ```ts
- * import { validateRequests, validateResponses } from "@aahoughton/oav-fastify";
+ * import { validateRequests, validateResponses } from "@oaverify/fastify";
  *
  * app.addHook("preValidation", validateRequests(validator));
  * if (process.env.NODE_ENV !== "production") {

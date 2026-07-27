@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OpenAPIDocument } from "@oav/core";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
 import {
   UnrecognisedTargetError,
   applySpecOverlay,
@@ -353,7 +353,7 @@ describe("applySpecOverlay", () => {
     expect(patched.tags?.find((t) => t.name === "pets")?.description).toBe("fresh");
   });
 
-  it("delegates to @oav/spec's applyOverlays semantics (later overlays win, base untouched)", () => {
+  it("delegates to @oaverify/internal-spec's applyOverlays semantics (later overlays win, base untouched)", () => {
     const start = base();
     const patched = applySpecOverlay(start, doc([{ target: "$.paths['/pets']", remove: true }]));
     expect(patched.paths?.["/pets"]).toBeUndefined();

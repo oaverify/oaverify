@@ -1,33 +1,33 @@
 # oav-express4
 
-Express 4 adapter for [`oav-core`](https://www.npmjs.com/package/@aahoughton/oav-core): a request-validator middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
+Express 4 adapter for [`oav-core`](https://www.npmjs.com/package/@oaverify/core): a request-validator middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
 
-Thin: this package re-exports nothing from oav-core. You install both. The adapter declares oav-core as a regular dependency, so a single `npm install @aahoughton/oav-express4` pulls oav-core along. Add [`oav-yaml`](https://www.npmjs.com/package/@aahoughton/oav-yaml) if your specs are YAML.
+Thin: this package re-exports nothing from oav-core. You install both. The adapter declares oav-core as a regular dependency, so a single `npm install @oaverify/express4` pulls oav-core along. Add [`oav-yaml`](https://www.npmjs.com/package/@oaverify/yaml) if your specs are YAML.
 
-Sibling packages: [`oav-express5`](https://github.com/aahoughton/oav/blob/main/packages/oav-express5/README.md), [`oav-fastify`](https://github.com/aahoughton/oav/blob/main/packages/oav-fastify/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
+Sibling packages: [`oav-express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md), [`oav-fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
 
-> **Migrating from `express-openapi-validator`?** See [docs/migration-from-eov.md](https://github.com/aahoughton/oav/blob/main/docs/migration-from-eov.md) for behavior differences (path-label `/params/` → `/path/`, `errorCode` namespacing, status mapping) and a worked porting walkthrough.
+> **Migrating from `express-openapi-validator`?** See [docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md) for behavior differences (path-label `/params/` → `/path/`, `errorCode` namespacing, status mapping) and a worked porting walkthrough.
 
 ## Install
 
 ```bash
 # JSON specs only
-npm install @aahoughton/oav-core @aahoughton/oav-express4 express
+npm install @oaverify/core @oaverify/express4 express
 
 # YAML specs + CLI (oav transitively provides oav-core)
-npm install @aahoughton/oav @aahoughton/oav-express4 express
+npm install oaverify @oaverify/express4 express
 ```
 
 `express` is a peer dep; your app's existing install satisfies it.
 
-> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@aahoughton/oav-yaml`](https://www.npmjs.com/package/@aahoughton/oav-yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
+> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
 
 ## Quick start
 
 ```ts
 import express from "express";
-import { createValidator } from "@aahoughton/oav-core";
-import { validateRequests } from "@aahoughton/oav-express4";
+import { createValidator } from "@oaverify/core";
+import { validateRequests } from "@oaverify/express4";
 
 const validator = createValidator(spec); // see "Hardening for untrusted input" below
 
@@ -45,7 +45,7 @@ Invalid requests receive a `400 application/problem+json` response (status from 
 > **Empty-body normalization.** Some parsers (streaming variants, custom multi-format setups) leave `req.body === undefined` even after they run, for empty `{}`-equivalent payloads. When that happens, `required`-field checks short-circuit on the missing body, so empty submissions pass validation. Normalize via `toHttpRequest`:
 >
 > ```ts
-> import { httpRequestFromExpress, validateRequests } from "@aahoughton/oav-express4";
+> import { httpRequestFromExpress, validateRequests } from "@oaverify/express4";
 >
 > app.use(
 >   validateRequests(validator, {
@@ -70,7 +70,7 @@ const validator = createValidator(spec, {
 - **`maxDepth`** bounds recursion through self-referential (`$ref`) schemas. Without it, a few KB of deeply nested JSON can exhaust the call stack and surface as a 500. Past the cap, validation emits a `depth` error (mapped to 400) instead of descending. Legitimate payloads rarely recurse beyond ten or fifteen levels, so 32 to 64 is generous.
 - **`maxErrors`** caps how many errors one request can produce, in compute and in response size: a large array whose every element fails the same way otherwise yields one error per element. Results carry `truncated: true` when the cap was hit. Leave it unset in development if you want every error at once.
 
-A byte-size limit (`express.json({ limit })`) and a parse-boundary depth cap, applied before the request reaches the validator, are backstops for nesting the validator never traverses (fields the schema doesn't descend into); see [Guarding against deeply nested payloads](https://github.com/aahoughton/oav/blob/main/docs/configuration.md#guarding-against-deeply-nested-payloads).
+A byte-size limit (`express.json({ limit })`) and a parse-boundary depth cap, applied before the request reaches the validator, are backstops for nesting the validator never traverses (fields the schema doesn't descend into); see [Guarding against deeply nested payloads](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md#guarding-against-deeply-nested-payloads).
 
 ## API
 
@@ -92,7 +92,7 @@ Returns an Express 4 `RequestHandler`.
 Opt-in middleware that validates outgoing responses (`res.json`, `res.send`) against the spec. Mount it where you want response checking, conventionally on in development and off in production:
 
 ```ts
-import { validateResponses } from "@aahoughton/oav-express4";
+import { validateResponses } from "@oaverify/express4";
 
 if (process.env.NODE_ENV !== "production") {
   app.use(validateResponses(validator));
@@ -163,7 +163,7 @@ eov's `securityHandlers` is a per-scheme dispatch table: you supply an auth func
 
 ```ts
 import type { Request } from "express";
-import { createValidator } from "@aahoughton/oav-core";
+import { createValidator } from "@oaverify/core";
 
 type SchemeHandler = (req: Request, scopes: string[]) => Promise<boolean>;
 
@@ -294,7 +294,7 @@ When the validator is mounted globally and one or a few routes accept file uploa
 
 ```ts
 import multer from "multer";
-import { httpRequestFromExpress, validateRequests } from "@aahoughton/oav-express4";
+import { httpRequestFromExpress, validateRequests } from "@oaverify/express4";
 
 const upload = multer({ storage: multer.memoryStorage() });
 app.use("/uploads", upload.any());
@@ -315,12 +315,12 @@ app.use(
 
 `toHttpRequest` is the general "reshape what oav sees" seam: synthesizing body from files, normalizing empty bodies, merging headers from an upstream proxy, anything that lives above the extraction layer. The empty-body normalization recipe higher in this README and this multer recipe are two examples of the same pattern.
 
-For per-route inline multer (validator called from inside the route handler) and the full multer recipe with text-field reassembly, see the [integration.md file uploads section](https://github.com/aahoughton/oav/blob/main/docs/integration.md#file-uploads-with-multer).
+For per-route inline multer (validator called from inside the route handler) and the full multer recipe with text-field reassembly, see the [integration.md file uploads section](https://github.com/oaverify/oaverify/blob/main/docs/integration.md#file-uploads-with-multer).
 
 ## See also
 
-- [`oav-core`](https://www.npmjs.com/package/@aahoughton/oav-core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
-- [`oav`](https://www.npmjs.com/package/@aahoughton/oav): oav-core plus YAML readers and the `oav` CLI.
-- The repo-root [`docs/integration.md`](https://github.com/aahoughton/oav/blob/main/docs/integration.md): broader recipes (security, file uploads, response validation, status mapping, type coercion, ignoring paths).
-- The repo-root [`docs/migration-from-eov.md`](https://github.com/aahoughton/oav/blob/main/docs/migration-from-eov.md): porting from `express-openapi-validator`.
-- [`oav-stream-validator`](https://www.npmjs.com/package/@aahoughton/oav-stream-validator): for JSON bodies too large to buffer through `express.json()`, validates the bytes as they stream; `oav stream-check spec.yaml` reports which of a spec's bodies can stream.
+- [`oav-core`](https://www.npmjs.com/package/@oaverify/core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
+- [`oav`](https://www.npmjs.com/package/oaverify): oav-core plus YAML readers and the `oav` CLI.
+- The repo-root [`docs/integration.md`](https://github.com/oaverify/oaverify/blob/main/docs/integration.md): broader recipes (security, file uploads, response validation, status mapping, type coercion, ignoring paths).
+- The repo-root [`docs/migration-from-eov.md`](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md): porting from `express-openapi-validator`.
+- [`oav-stream-validator`](https://www.npmjs.com/package/@oaverify/stream): for JSON bodies too large to buffer through `express.json()`, validates the bytes as they stream; `oaverify stream-check spec.yaml` reports which of a spec's bodies can stream.

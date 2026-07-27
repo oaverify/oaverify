@@ -1,6 +1,11 @@
 /* eslint-disable unicorn/no-thenable -- `then` is a JSON Schema keyword here */
 import { describe, expect, it } from "vitest";
-import { collectLeaves, createBranchError, formatError, type ValidationError } from "@oav/core";
+import {
+  collectLeaves,
+  createBranchError,
+  formatError,
+  type ValidationError,
+} from "@oaverify/internal-core";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { appendErrors } from "../src/compiler/runtime.js";
 import { jsonSchemaDialect } from "../src/keywords/vocabulary.js";

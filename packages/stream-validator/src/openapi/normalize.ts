@@ -4,7 +4,7 @@
  * The classifier and spine work on a 2020-12-shaped schema. OpenAPI 3.1
  * and 3.2 are 2020-12-native and need no rewrite; OpenAPI 3.0 uses a
  * constrained dialect with three deviations this pass rewrites (mirroring
- * `@oav/schema`'s `oas30Dialect` semantics, so the streaming verdict
+ * `@oaverify/internal-schema`'s `oas30Dialect` semantics, so the streaming verdict
  * matches the in-memory one):
  *
  *   1. `nullable: true` widens `type: "X"` to `type: ["X", "null"]`.
@@ -20,12 +20,12 @@
  * @packageDocumentation
  */
 
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import {
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
-} from "@oav/schema/internals";
+} from "@oaverify/internal-schema/internals";
 
 const SINGLE = new Set<string>(SUBSCHEMA_SINGLE_POSITIONS);
 const ARRAY = new Set<string>(SUBSCHEMA_ARRAY_POSITIONS);

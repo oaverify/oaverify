@@ -1,5 +1,5 @@
-import { type OpenAPIDocument } from "@oav/core";
-import { createValidator } from "@oav/validator";
+import { type OpenAPIDocument } from "@oaverify/internal-core";
+import { createValidator } from "@oaverify/internal-validator";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { describe, expect, it, vi } from "vitest";
 import { ResponseValidationError } from "../src/response-error.js";

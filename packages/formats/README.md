@@ -5,8 +5,8 @@ pure `(value: string) => boolean`; `builtInFormats` is the keyed map
 passed to `createValidator({ formats })` or `compileSchema({ formats })`.
 
 ```ts
-import { builtInFormats, validateUuid } from "@aahoughton/oav-core/formats";
-import { compileSchema, jsonSchemaDialect } from "@aahoughton/oav-core/schema";
+import { builtInFormats, validateUuid } from "@oaverify/core/formats";
+import { compileSchema, jsonSchemaDialect } from "@oaverify/core/schema";
 
 const { validate } = compileSchema(
   { type: "string", format: "uuid" },
@@ -32,7 +32,7 @@ replace them.
 - **Misc**: `uuid`
 
 `regex` also works as a `format`, but it isn't a key in `builtInFormats`:
-`oav/schema` registers it inside `createDeps` so it routes through the
+`@oaverify/core/schema` registers it inside `createDeps` so it routes through the
 same compile path as the `pattern` keyword (and honors `regexCompiler`).
 The standalone `validateRegex` predicate is still exported for direct use.
 
@@ -42,7 +42,7 @@ The validator and compiler both accept a `formats` option that merges
 on top of the built-ins:
 
 ```ts
-import { createValidator } from "@aahoughton/oav-core";
+import { createValidator } from "@oaverify/core";
 
 const v = createValidator(spec, {
   formats: {
@@ -68,6 +68,6 @@ In JSON Schema 2020-12, `format` is advisory by default: a validator
 recognizes the name but doesn't reject malformed values. OpenAPI 3.0 /
 3.1 / 3.2 treat `format` as assertive; the validator wires up the
 corresponding vocabulary so `format: email` rejects non-emails.
-When compiling directly via `oav/schema`, use
+When compiling directly via `@oaverify/core/schema`, use
 `openapi31Dialect` (or the assertive vocabulary explicitly) to get
 assertive semantics.

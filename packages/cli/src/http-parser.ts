@@ -1,4 +1,4 @@
-import type { HttpRequest, JsonValue } from "@oav/core";
+import type { HttpRequest, JsonValue } from "@oaverify/internal-core";
 
 /**
  * Parse a string in the standard `.http` file format (method/path line,

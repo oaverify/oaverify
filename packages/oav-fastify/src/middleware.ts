@@ -1,6 +1,6 @@
 import type { FastifyRequest, preValidationAsyncHookHandler } from "fastify";
-import { collectLeaves, type HttpRequest, type ValidationError } from "@oav/core";
-import type { TreeValidator, Validator } from "@oav/validator";
+import { collectLeaves, type HttpRequest, type ValidationError } from "@oaverify/internal-core";
+import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromFastify } from "./extract.js";
 import { renderProblemDetails } from "./render.js";
 import type { ErrorHandler, FastifyContext } from "./types.js";
@@ -63,7 +63,7 @@ export interface ValidateRequestsOptions {
  * @example
  * ```ts
  * import Fastify from "fastify";
- * import { validateRequests } from "@aahoughton/oav-fastify";
+ * import { validateRequests } from "@oaverify/fastify";
  *
  * const app = Fastify();
  * app.addHook("preValidation", validateRequests(validator));

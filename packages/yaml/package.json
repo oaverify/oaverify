@@ -1,7 +1,7 @@
 {
-  "name": "@aahoughton/oav-yaml",
+  "name": "@oaverify/yaml",
   "version": "3.8.0",
-  "description": "YAML readers for @aahoughton/oav-core: load hand-authored .yaml/.yml OpenAPI specs from disk or over HTTP, plus a synchronous loadSpecSync.",
+  "description": "YAML readers for @oaverify/core: load hand-authored .yaml/.yml OpenAPI specs from disk or over HTTP, plus a synchronous loadSpecSync.",
   "keywords": [
     "oas",
     "openapi",
@@ -16,15 +16,15 @@
     "validator",
     "yaml"
   ],
-  "homepage": "https://github.com/aahoughton/oav#readme",
+  "homepage": "https://github.com/oaverify/oaverify#readme",
   "bugs": {
-    "url": "https://github.com/aahoughton/oav/issues"
+    "url": "https://github.com/oaverify/oaverify/issues"
   },
   "license": "MIT",
   "author": "Andrew Houghton <aah@roarmouse.org>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aahoughton/oav.git",
+    "url": "git+https://github.com/oaverify/oaverify.git",
     "directory": "packages/yaml"
   },
   "files": [
@@ -62,12 +62,12 @@
     "postpack": "node ../../scripts/pack-devdeps.mjs restore"
   },
   "dependencies": {
-    "@aahoughton/oav-core": "workspace:*",
+    "@oaverify/core": "workspace:*",
     "yaml": "^2.6.0"
   },
   "devDependencies": {
-    "@oav/spec": "workspace:*",
-    "@oav/validator": "workspace:*",
+    "@oaverify/internal-spec": "workspace:*",
+    "@oaverify/internal-validator": "workspace:*",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "4.1.9"

@@ -1,6 +1,6 @@
 /**
  * Real-world OpenAPI benchmark driver. Takes one or more spec entry
- * paths (YAML / JSON), loads each through @oav/spec's `loadSpec`,
+ * paths (YAML / JSON), loads each through @oaverify/internal-spec's `loadSpec`,
  * constructs a `Validator`, and reports:
  *
  *   - raw file size on disk

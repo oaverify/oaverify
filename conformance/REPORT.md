@@ -85,11 +85,11 @@ The upstream Overlay test suite is purely
 envelope-schema-validation: every fixture under `tests/v1.0/pass/`
 must match the canonical overlay JSON Schema, every fixture under
 `tests/v1.0/fail/` must not. We compile that schema through
-`@oav/schema` and run it as our envelope check. Current state:
+`@oaverify/internal-schema` and run it as our envelope check. Current state:
 **32/32 envelope parity** (12 pass + 20 fail).
 
 The runner also feeds every pass fixture through
-`@oav/overlay-spec`'s `translateOverlay()` and classifies the result
+`@oaverify/internal-overlay-spec`'s `translateOverlay()` and classifies the result
 as `ok` / `unrecognised-target` / `translator-error`. This is
 informational (upstream does not assert semantic translation), but
 it surfaces translator-coverage gaps next to the envelope numbers.

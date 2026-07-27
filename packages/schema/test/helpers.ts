@@ -1,5 +1,5 @@
 import { compileSchema, type CompileOptions } from "../src/compiler/compiler.js";
-import type { SchemaOrBoolean } from "@oav/core";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { jsonSchemaDialect } from "../src/keywords/vocabulary.js";
 
 /**

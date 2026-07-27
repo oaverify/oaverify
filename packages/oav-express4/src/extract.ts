@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import type { HttpRequest } from "@oav/core";
+import type { HttpRequest } from "@oaverify/internal-core";
 
 /**
  * Convert an Express 4 `Request` to oav's framework-agnostic

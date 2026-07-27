@@ -170,7 +170,7 @@ directly. If you specifically need `formatError` (a named built-in format or
 a custom renderer), wrap the list in a root first:
 
 ```ts
-import { createBranchError, formatError } from "@aahoughton/oav-core";
+import { createBranchError, formatError } from "@oaverify/core";
 
 const result = validator.validateRequest(httpRequest);
 if (!result.valid) {

@@ -24,10 +24,10 @@ export {
   type ValidatorStats,
 } from "./validator.js";
 export { combineValidators, type CombineOptions } from "./combine.js";
-// Re-exported from `@oav/router` so consumers of the validator surface
+// Re-exported from `@oaverify/internal-router` so consumers of the validator surface
 // get the `Validator.routes` element type without reaching across into
 // the router package.
-export type { RouteInfo } from "@oav/router";
+export type { RouteInfo } from "@oaverify/internal-router";
 export {
   httpRequestFromFetch,
   httpResponseFromFetch,
@@ -39,4 +39,4 @@ export type {
   CustomKeywordFailure,
   CustomKeywordValidator,
   RegexCompiler,
-} from "@oav/schema";
+} from "@oaverify/internal-schema";

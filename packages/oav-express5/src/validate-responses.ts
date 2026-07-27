@@ -4,8 +4,8 @@ import {
   type HttpRequest,
   type HttpResponse,
   type ValidationError,
-} from "@oav/core";
-import type { TreeValidator, Validator } from "@oav/validator";
+} from "@oaverify/internal-core";
+import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromExpress } from "./extract.js";
 import { ResponseValidationError } from "./response-error.js";
 import type { ErrorHandler, ExpressContext } from "./types.js";
@@ -97,7 +97,7 @@ function responseHeaders(res: Response): Record<string, string | string[]> {
  *
  * @example
  * ```ts
- * import { validateRequests, validateResponses } from "@aahoughton/oav-express5";
+ * import { validateRequests, validateResponses } from "@oaverify/express5";
  *
  * app.use(validateRequests(validator));
  * if (process.env.NODE_ENV !== "production") {

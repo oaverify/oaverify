@@ -164,9 +164,9 @@ Capabilities that the Ajv stack covers and oav does not.
 - **Schema-level AOT (programmatic surface).** Ajv's `standaloneCode`
   is a library API that takes a map of named schemas and emits one
   module with interlinked validators: cross-schema `$ref`s resolve
-  at emit time, CommonJS or ESM output. `oav compile-schema` is
+  at emit time, CommonJS or ESM output. `oaverify compile-schema` is
   CLI-only and single-schema: multi-schema projects need to run it
-  per schema, with a preceding `oav resolve` step to inline any
+  per schema, with a preceding `oaverify resolve` step to inline any
   cross-references. For build tools scripting many emits, Ajv's API
   is more ergonomic; oav has no batched programmatic equivalent.
 - **Named schema registry.** `addSchema` / `getSchema` / `removeSchema`
@@ -176,7 +176,7 @@ Capabilities that the Ajv stack covers and oav does not.
   that build up a schema collection incrementally.
 - **Full RFC 3986 URI resolution.** Ajv handles absolute-URI `$ref`s
   and `$id` base-URI rewrites natively. oav requires external /
-  multi-file refs to be pre-inlined by `oav/spec.resolveSpec()`
+  multi-file refs to be pre-inlined by `@oaverify/core/spec`'s `resolveSpec()`
   before compile, and accepts fragment-only refs thereafter.
 - **Full meta-schema validation.** Ajv can validate your schema
   against the draft's meta-schema at compile time, catching both
@@ -212,7 +212,7 @@ Capabilities oav has that Ajv (alone or with
 `express-openapi-validator`) doesn't.
 
 - **Streaming body validation.** The separate
-  `@aahoughton/oav-stream-validator` package validates a JSON body
+  `@oaverify/stream` package validates a JSON body
   against its operation schema as it streams, echoing the input bytes
   through to a sink and reporting violations on a side channel. Memory
   stays bounded for schemas with structural bounds (or configured
@@ -226,7 +226,7 @@ Capabilities oav has that Ajv (alone or with
   `"unbounded"` where the schema has no structural cap), without reading
   a byte of traffic. It runs the same classifier the streaming engine
   uses, so the budget matches runtime behavior. The CLI surfaces it as
-  `oav stream-check <spec>`, with `--fail-on-unbounded` as a CI gate.
+  `oaverify stream-check <spec>`, with `--fail-on-unbounded` as a CI gate.
   An Ajv + middleware stack can validate the parsed body, but a buffer
   budget needs the resolved (and overlaid) operation schema and the
   streaming classifier in one place; in a split stack no one layer
@@ -237,7 +237,7 @@ Capabilities oav has that Ajv (alone or with
   `validateRequest` / `validateResponse` call. Ajv is a JSON Schema
   validator; wiring the HTTP layer on top of it is what
   `express-openapi-validator` does, and only for Express.
-- **AOT-compiled HTTP validator.** `oav compile-spec <openapi.yaml>`
+- **AOT-compiled HTTP validator.** `oaverify compile-spec <openapi.yaml>`
   emits a single ES module exposing the full `validateRequest` /
   `validateResponse` / `getOperation` surface with every operation's
   schemas pre-compiled. Runs on Cloudflare Workers, Vercel Edge,

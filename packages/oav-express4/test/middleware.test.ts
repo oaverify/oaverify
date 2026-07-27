@@ -1,5 +1,5 @@
-import { type OpenAPIDocument, type ValidationError } from "@oav/core";
-import { createValidator } from "@oav/validator";
+import { type OpenAPIDocument, type ValidationError } from "@oaverify/internal-core";
+import { createValidator } from "@oaverify/internal-validator";
 import type { NextFunction, Request, Response } from "express";
 import { describe, expect, it, vi } from "vitest";
 import { httpRequestFromExpress } from "../src/extract.js";

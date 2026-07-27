@@ -5,7 +5,7 @@
 Please **do not** open a public issue for security-relevant bugs.
 
 Use GitHub's private vulnerability reporting:
-<https://github.com/aahoughton/oav/security/advisories/new>
+<https://github.com/oaverify/oaverify/security/advisories/new>
 
 If that isn't available to you, email <aah@roarmouse.org> with
 "oav security" in the subject line.
@@ -28,11 +28,11 @@ major version line. Older minor versions do not receive backports.
 
 ## Scope of published packages
 
-The published packages (`@aahoughton/oav`, `@aahoughton/oav-core`,
-`@aahoughton/oav-express4`, `@aahoughton/oav-express5`,
-`@aahoughton/oav-fastify`) declare framework runtimes (`express`,
+The published packages (`oaverify`, `@oaverify/core`,
+`@oaverify/express4`, `@oaverify/express5`,
+`@oaverify/fastify`) declare framework runtimes (`express`,
 `fastify`) as peer dependencies. Nothing from those frameworks ships
-inside any of the tarballs, and `@aahoughton/oav-core` has no runtime
+inside any of the tarballs, and `@oaverify/core` has no runtime
 dependencies at all.
 
 Three sub-roots in this repo own their own lockfiles for test and

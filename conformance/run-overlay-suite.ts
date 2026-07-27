@@ -6,14 +6,14 @@
  *
  *   1. Loads the canonical overlay JSON Schema from
  *      `Overlay-Specification/schemas/v1.0/schema.yaml`, compiles it
- *      through `@oav/schema`, and uses the compiled validator as our
+ *      through `@oaverify/internal-schema`, and uses the compiled validator as our
  *      envelope check.
  *   2. Walks `tests/v1.0/pass/*.yaml` and `tests/v1.0/fail/*.yaml`,
  *      asserting that pass fixtures validate and fail fixtures do not.
  *      This is the parity surface we share with the upstream
  *      `matchJsonSchema`-driven Vitest runner.
  *   3. As an informational layer, every pass fixture is also fed
- *      through `translateOverlay()` from `@oav/overlay-spec` and
+ *      through `translateOverlay()` from `@oaverify/internal-overlay-spec` and
  *      classified as `ok` / `unrecognised-target` / `translator-error`.
  *      This is not a conformance metric (the upstream suite does not
  *      assert semantic translation); it surfaces translator coverage

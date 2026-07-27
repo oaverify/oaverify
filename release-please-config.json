@@ -6,8 +6,8 @@
   "plugins": [
     {
       "type": "linked-versions",
-      "groupName": "oav",
-      "components": ["oav-core", "oav", "oav-yaml", "oav-express4", "oav-express5", "oav-fastify"]
+      "groupName": "oaverify",
+      "components": ["core", "oaverify", "yaml", "express4", "express5", "fastify"]
     }
   ],
   "changelog-sections": [
@@ -65,44 +65,44 @@
   "packages": {
     ".": {
       "release-type": "node",
-      "package-name": "@aahoughton/oav-core",
-      "component": "oav-core",
+      "package-name": "@oaverify/core",
+      "component": "core",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/oav": {
       "release-type": "node",
-      "package-name": "@aahoughton/oav",
-      "component": "oav",
+      "package-name": "oaverify",
+      "component": "oaverify",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/yaml": {
       "release-type": "node",
-      "package-name": "@aahoughton/oav-yaml",
-      "component": "oav-yaml",
+      "package-name": "@oaverify/yaml",
+      "component": "yaml",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/oav-express4": {
       "release-type": "node",
-      "package-name": "@aahoughton/oav-express4",
-      "component": "oav-express4",
+      "package-name": "@oaverify/express4",
+      "component": "express4",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/oav-express5": {
       "release-type": "node",
-      "package-name": "@aahoughton/oav-express5",
-      "component": "oav-express5",
+      "package-name": "@oaverify/express5",
+      "component": "express5",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/oav-fastify": {
       "release-type": "node",
-      "package-name": "@aahoughton/oav-fastify",
-      "component": "oav-fastify",
+      "package-name": "@oaverify/fastify",
+      "component": "fastify",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/stream-validator": {
       "release-type": "node",
-      "package-name": "@aahoughton/oav-stream-validator",
-      "component": "oav-stream-validator",
+      "package-name": "@oaverify/stream",
+      "component": "stream",
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true
     }

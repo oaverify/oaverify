@@ -78,7 +78,7 @@ makes sense for your API.
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `apiSpec` (path/URL/object)             | `loadSpec({ reader, entry })` + `createValidator(doc)`                                                          |
 | `$refParser: "bundle" \| "dereference"` | `loadSpec` inlines external refs; circulars become internal refs. Use `resolveSpec` directly for finer control. |
-| `validateApiSpec`                       | Run `oav resolve spec.yaml` in CI; no runtime toggle.                                                           |
+| `validateApiSpec`                       | Run `oaverify resolve spec.yaml` in CI; no runtime toggle.                                                      |
 
 ### Request validation
 
@@ -154,13 +154,13 @@ makes sense for your API.
   specific routes without configuration, run it twice (per-request
   and per-response) with different `maxErrors` budgets, or run it at
   the edge of a queue processor outside any HTTP framework.
-- **AOT compilation.** `oav compile-spec spec.yaml` emits a
+- **AOT compilation.** `oaverify compile-spec spec.yaml` emits a
   zero-runtime-deps validator for edge / serverless deployments.
   See the [CLI README](../packages/cli/README.md#compile-spec-output).
 - **Streaming validation of large bodies.** The separate
-  [`@aahoughton/oav-stream-validator`](../packages/stream-validator/README.md)
+  [`@oaverify/stream`](../packages/stream-validator/README.md)
   package validates a JSON body as it streams, with bounded memory,
-  and `oav stream-check spec.yaml` reports which of a spec's bodies
+  and `oaverify stream-check spec.yaml` reports which of a spec's bodies
   can stream and which must buffer. eov (like Ajv) validates a
   fully-parsed value only.
 
@@ -184,10 +184,10 @@ formats: {
 ```
 
 When migrating a map of ajv-shaped definitions without rewriting each
-one, `oav/formats` exports `fromAjvFormats` for the conversion:
+one, `@oaverify/core/formats` exports `fromAjvFormats` for the conversion:
 
 ```ts
-import { fromAjvFormats } from "@aahoughton/oav-core/formats";
+import { fromAjvFormats } from "@oaverify/core/formats";
 
 createValidator(spec, { formats: fromAjvFormats(myAjvFormats) });
 ```
@@ -207,7 +207,7 @@ Keep them in the map if it's simpler; they cost nothing.
 string, use `formatSummary` with `{ select: "all" }`:
 
 ```ts
-import { formatSummary } from "@aahoughton/oav-core";
+import { formatSummary } from "@oaverify/core";
 
 // Default: first failing leaf, equivalent to eov's default `message`.
 formatSummary(err);

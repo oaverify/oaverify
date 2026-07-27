@@ -12,7 +12,7 @@ export const customKeywordVocabulary = "https://oav.dev/vocab/custom-keywords";
 
 /**
  * Failure detail a {@link CustomKeywordValidator} may return to customize
- * the emitted {@link import("@oav/core").ValidationError}. Omitted fields
+ * the emitted {@link import("@oaverify/internal-core").ValidationError}. Omitted fields
  * take sensible defaults: `message` becomes
  * `"value failed custom keyword \"<name>\""`; `params` defaults to `{}`.
  *

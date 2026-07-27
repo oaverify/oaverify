@@ -5,7 +5,7 @@ import {
   type OutputFormat,
   type SchemaOrBoolean,
   type ValidationError,
-} from "@oav/core";
+} from "@oaverify/internal-core";
 import {
   composeReaders,
   createFileReader,
@@ -15,12 +15,16 @@ import {
   specOverlayVerbs,
   type DocumentReader,
   type SpecOverlay,
-} from "@oav/spec";
-import { isOverlayDocument, translateOverlay, type OverlayDocument } from "@oav/overlay-spec";
-import { createValidator } from "@oav/validator";
+} from "@oaverify/internal-spec";
+import {
+  isOverlayDocument,
+  translateOverlay,
+  type OverlayDocument,
+} from "@oaverify/internal-overlay-spec";
+import { createValidator } from "@oaverify/internal-validator";
 import type * as Esbuild from "esbuild";
-import type { OpenAPIDocument } from "@oav/core";
-import { analyzeSpec } from "@aahoughton/oav-stream-validator";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
+import { analyzeSpec } from "@oaverify/stream";
 import { emitStandalone, type StandaloneDialect } from "./emit-standalone.js";
 import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
@@ -102,7 +106,7 @@ export function defaultCommandIo(): CommandIo {
 /**
  * Read and shape-check one `--overlay` file. Accepts a standard
  * OpenAPI Overlay 1.0 document (routed through
- * {@link @oav/overlay-spec!translateOverlay}) or a typed
+ * {@link @oaverify/internal-overlay-spec!translateOverlay}) or a typed
  * {@link SpecOverlay} (every key a recognised verb). Anything else
  * throws with the offending path and keys instead of being cast and
  * silently mis-applied (#448).
@@ -167,7 +171,7 @@ function primarySink(
 }
 
 /**
- * Implement the `oav resolve <spec>` subcommand.
+ * Implement the `oaverify resolve <spec>` subcommand.
  *
  * @param args - Entry spec path, overlay files, optional lint flags, and
  *   base CLI options.
@@ -232,10 +236,10 @@ export async function resolveCommand(
 }
 
 /**
- * Implement the `oav stream-check <spec> ...` subcommand: roll up the
+ * Implement the `oaverify stream-check <spec> ...` subcommand: roll up the
  * streaming-buffer budget for every operation's request / response bodies
  * and print a per-operation table (or the `SpecBudget` JSON envelope). This
- * is the streamability analysis (`@oav/stream-validator`) surfaced over a
+ * is the streamability analysis (`@oaverify/internal-stream-validator`) surfaced over a
  * whole resolved spec, so a deployer can see, before deploy, which bodies
  * stream and which buffer (and where).
  *
@@ -286,7 +290,7 @@ export async function streamCheckCommand(
 }
 
 /**
- * Implement the `oav validate <spec> ...` subcommand.
+ * Implement the `oaverify validate <spec> ...` subcommand.
  *
  * @param args - Entry spec, overlays, and one of the mutually-exclusive
  *               validate-what inputs.
@@ -380,7 +384,7 @@ export type ValidateMode =
   | { kind: "responseForPath"; method: string; path: string; status: number; body: string };
 
 /**
- * Implement the `oav compile-schema <schema>` subcommand. Reads a JSON
+ * Implement the `oaverify compile-schema <schema>` subcommand. Reads a JSON
  * Schema from disk (or stdin via `-`), emits an ES module whose
  * `validate(data)` mirrors `compileSchema(schema).validate(data)`, then
  * bundles it via esbuild into a single file with zero imports.
@@ -408,7 +412,7 @@ export async function compileSchemaCommand(
      * Override esbuild's resolveDir. Defaults to `process.cwd()`,
      * which is where a real consumer's installed `oav`
      * sits. Tests point this at `packages/oav/` where the workspace's
-     * `@oav/*` symlinks are reachable. Not exposed on the CLI.
+     * `@oaverify/internal-*` symlinks are reachable. Not exposed on the CLI.
      */
     resolveDir?: string;
   },
@@ -460,7 +464,7 @@ async function bundleEmitted(source: string, resolveDir: string): Promise<string
     if ((err as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND") {
       throw new Error(
         "compile-schema / compile-spec require 'esbuild' as a peer dependency.\n" +
-          "  Install it alongside @aahoughton/oav, e.g.:\n" +
+          "  Install it alongside oaverify, e.g.:\n" +
           "    npm install esbuild\n" +
           "    pnpm add esbuild",
         { cause: err },
@@ -482,7 +486,7 @@ async function bundleEmitted(source: string, resolveDir: string): Promise<string
 }
 
 /**
- * Implement the `oav compile-spec <spec>` subcommand. Loads an OpenAPI
+ * Implement the `oaverify compile-spec <spec>` subcommand. Loads an OpenAPI
  * document (with optional overlays), compiles every operation's
  * schemas, and emits a standalone ES module exposing the full
  * `createValidator`-equivalent surface: `validateRequest`,

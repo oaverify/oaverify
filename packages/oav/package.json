@@ -1,7 +1,7 @@
 {
-  "name": "@aahoughton/oav",
+  "name": "oaverify",
   "version": "3.8.0",
-  "description": "Command-line OpenAPI validator (3.0/3.1/3.2): validate requests, responses, and examples against a spec, resolve and lint documents, and compile standalone validators. Library API lives in @aahoughton/oav-core.",
+  "description": "Command-line OpenAPI validator (3.0/3.1/3.2): validate requests, responses, and examples against a spec, resolve and lint documents, and compile standalone validators. Library API lives in @oaverify/core.",
   "keywords": [
     "api-validation",
     "cli",
@@ -21,19 +21,19 @@
     "validator",
     "yaml"
   ],
-  "homepage": "https://github.com/aahoughton/oav#readme",
+  "homepage": "https://github.com/oaverify/oaverify#readme",
   "bugs": {
-    "url": "https://github.com/aahoughton/oav/issues"
+    "url": "https://github.com/oaverify/oaverify/issues"
   },
   "license": "MIT",
   "author": "Andrew Houghton <aah@roarmouse.org>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aahoughton/oav.git",
+    "url": "git+https://github.com/oaverify/oaverify.git",
     "directory": "packages/oav"
   },
   "bin": {
-    "oav": "./dist/cli.js"
+    "oaverify": "./dist/cli.js"
   },
   "files": [
     "dist",
@@ -56,14 +56,14 @@
     "postpack": "node ../../scripts/pack-devdeps.mjs restore"
   },
   "dependencies": {
-    "@aahoughton/oav-core": "workspace:*",
-    "@aahoughton/oav-stream-validator": "workspace:*",
-    "@aahoughton/oav-yaml": "workspace:*",
+    "@oaverify/core": "workspace:*",
+    "@oaverify/stream": "workspace:*",
+    "@oaverify/yaml": "workspace:*",
     "commander": "^15.0.0"
   },
   "devDependencies": {
-    "@oav/cli": "workspace:*",
-    "@oav/spec": "workspace:*",
+    "@oaverify/internal-cli": "workspace:*",
+    "@oaverify/internal-spec": "workspace:*",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "4.1.9"

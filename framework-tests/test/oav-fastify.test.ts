@@ -1,12 +1,12 @@
-import { type OpenAPIDocument } from "@oav/core";
+import { type OpenAPIDocument } from "@oaverify/internal-core";
 import {
   httpRequestFromFastify,
   renderProblemDetails,
   ResponseValidationError,
   validateRequests,
   validateResponses,
-} from "@oav/oav-fastify";
-import { createValidator } from "@oav/validator";
+} from "@oaverify/internal-oav-fastify";
+import { createValidator } from "@oaverify/internal-validator";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 

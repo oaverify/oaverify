@@ -5,14 +5,14 @@ this when you want to stitch a spec together before handing it to
 `createValidator`.
 
 This module is available at matching subpaths in both
-`oav/spec` and `oav-core/spec`. The examples
-below import from `@aahoughton/oav`; substitute `@aahoughton/oav-core`
+`@oaverify/core/spec` and `@oaverify/core/spec`. The examples
+below import from `oaverify`; substitute `@oaverify/core`
 if you're on the lean package.
 
 > **`oav-core` ships JSON readers only.** Calling
 > `createFileReader()` or `createHttpReader()` on a `.yaml` / `.yml`
 > path throws an install-hint error. For YAML support, install
-> `@aahoughton/oav` (for the bundled `createYamlFileReader`) or
+> `oaverify` (for the bundled `createYamlFileReader`) or
 > register your own YAML reader.
 
 ## Loading a spec
@@ -22,7 +22,7 @@ resolves external `$ref`s, and applies any overlays (in the right
 order) in a single call:
 
 ```ts
-import { composeReaders, createFileReader, loadSpec } from "@aahoughton/oav-core/spec";
+import { composeReaders, createFileReader, loadSpec } from "@oaverify/core/spec";
 
 const reader = composeReaders([createFileReader()]);
 const { document, sources } = await loadSpec({
@@ -48,7 +48,7 @@ exists for code that builds a validator in a synchronous bootstrap and
 can't `await`: a server or CLI that loads its spec once at startup.
 
 ```ts
-import { loadSpecSync } from "@aahoughton/oav-core/spec";
+import { loadSpecSync } from "@oaverify/core/spec";
 
 const { document } = loadSpecSync({ entry: "openapi.json" });
 const validator = createValidator(document);
@@ -60,7 +60,7 @@ needs no reader composition. To read from a custom synchronous source,
 pass a `{ read, canRead }` object as `reader`.
 
 `oav-core`'s `loadSpecSync` is JSON-only. For YAML, use the
-`loadSpecSync` from `@aahoughton/oav-yaml`, whose default reader covers
+`loadSpecSync` from `@oaverify/yaml`, whose default reader covers
 `.yaml` / `.yml` and `.json`.
 
 `loadSpecSync` blocks on filesystem reads (`readFileSync`); use it at
@@ -108,8 +108,8 @@ response `Content-Type` (falling back to URL extension), so JSON and
 YAML endpoints work through the same reader:
 
 ```ts
-import { composeReaders, createFileReader } from "@aahoughton/oav-core/spec";
-import { createSmartHttpReader, createYamlFileReader } from "@aahoughton/oav-yaml";
+import { composeReaders, createFileReader } from "@oaverify/core/spec";
+import { createSmartHttpReader, createYamlFileReader } from "@oaverify/yaml";
 
 const reader = composeReaders([
   createYamlFileReader(),
@@ -124,7 +124,7 @@ the two methods; plug it in via `composeReaders`.
 ## Overlays
 
 ```ts
-import { applyOverlays, type SpecOverlay } from "@aahoughton/oav-core/spec";
+import { applyOverlays, type SpecOverlay } from "@oaverify/core/spec";
 
 const overlay: SpecOverlay = {
   addPaths: {
@@ -198,7 +198,7 @@ findings. The validator surfaces it too: `createValidator(spec,
 layer is natural for the flow; running `lint: true` in two places lints
 twice.
 
-`oav resolve --lint` exposes the same checks at the CLI; pair with
+`oaverify resolve --lint` exposes the same checks at the CLI; pair with
 `--fail-on warning` for a CI gate.
 
 See `SpecHygieneIssue` for the per-finding shape.

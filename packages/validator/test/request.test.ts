@@ -1,4 +1,4 @@
-import { collectLeaves, httpStatusFor, type OpenAPIDocument } from "@oav/core";
+import { collectLeaves, httpStatusFor, type OpenAPIDocument } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import { createValidator, leafAt, leafCodes, petSpec } from "./fixtures.js";
 

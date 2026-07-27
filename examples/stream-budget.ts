@@ -21,8 +21,8 @@
  * and `--fail-on-unbounded` turns it into a CI gate.
  *
  * Translation to the published packages: `analyzeSpec` from
- * `@aahoughton/oav-stream-validator`, `resolveSpec` from
- * `@aahoughton/oav-core/spec`. See ./README.md.
+ * `@oaverify/stream`, `resolveSpec` from
+ * `@oaverify/core/spec`. See ./README.md.
  *
  * Run from the repo root:
  *   pnpm dlx tsx examples/stream-budget.ts

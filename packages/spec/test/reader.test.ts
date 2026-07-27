@@ -29,7 +29,7 @@ describe("memory reader", () => {
 
   it("throws the install-hint error for .yaml string sources", async () => {
     const r = createMemoryReader(new Map([["x.yaml", "a: 1"]]));
-    await expect(r.read("x.yaml")).rejects.toThrow(/Install @aahoughton\/oav/);
+    await expect(r.read("x.yaml")).rejects.toThrow(/Install @oaverify\/yaml/);
   });
 });
 
@@ -59,7 +59,7 @@ describe("http reader", () => {
     vi.stubGlobal("fetch", fetchMock);
     const r = createHttpReader();
     await expect(r.read("https://example.com/spec.yaml")).rejects.toThrow(
-      /Install @aahoughton\/oav/,
+      /Install @oaverify\/yaml/,
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -129,7 +129,7 @@ describe("file reader", () => {
 
   it("throws the install-hint error for .yaml paths (before touching disk)", async () => {
     const r = createFileReader(dir);
-    await expect(r.read("something.yaml")).rejects.toThrow(/Install @aahoughton\/oav/);
+    await expect(r.read("something.yaml")).rejects.toThrow(/Install @oaverify\/yaml/);
   });
 });
 

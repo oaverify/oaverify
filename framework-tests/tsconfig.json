@@ -9,11 +9,11 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@oav/core": ["../packages/core/src/index.ts"],
-      "@oav/validator": ["../packages/validator/src/index.ts"],
-      "@oav/oav-express4": ["../packages/oav-express4/src/index.ts"],
-      "@oav/oav-express5": ["../packages/oav-express5/src/index.ts"],
-      "@oav/oav-fastify": ["../packages/oav-fastify/src/index.ts"]
+      "@oaverify/internal-core": ["../packages/core/src/index.ts"],
+      "@oaverify/internal-validator": ["../packages/validator/src/index.ts"],
+      "@oaverify/internal-oav-express4": ["../packages/oav-express4/src/index.ts"],
+      "@oaverify/internal-oav-express5": ["../packages/oav-express5/src/index.ts"],
+      "@oaverify/internal-oav-fastify": ["../packages/oav-fastify/src/index.ts"]
     }
   },
   "include": ["test/**/*.ts", "vitest.config.ts", "workspace-aliases.ts"]

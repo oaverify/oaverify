@@ -1,8 +1,8 @@
 {
-  "name": "@oav/schema",
+  "name": "@oaverify/internal-schema",
   "version": "0.0.0",
   "private": true,
-  "description": "Internal: JSON Schema 2020-12 compiler for @aahoughton/oav.",
+  "description": "Internal: JSON Schema 2020-12 compiler for oaverify.",
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -17,10 +17,10 @@
     }
   },
   "dependencies": {
-    "@oav/core": "workspace:*"
+    "@oaverify/internal-core": "workspace:*"
   },
   "devDependencies": {
-    "@oav/formats": "workspace:*"
+    "@oaverify/internal-formats": "workspace:*"
   },
   "engines": {
     "node": ">=20"

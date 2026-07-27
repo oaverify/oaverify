@@ -5,17 +5,17 @@
   "description": "Isolated HTTP-server fixtures for the steady-state memory benchmark. Both servers validate the same OpenAPI spec against identical traffic; the memory probe endpoint (/__memory) lets the runner compare RSS/heap across runs.",
   "type": "module",
   "devDependencies": {
-    "@aahoughton/oav": "link:../../packages/oav",
-    "@aahoughton/oav-core": "link:../..",
+    "@oaverify/core": "link:../..",
     "express": "^4.21.2",
-    "express-openapi-validator": "^5.5.9"
+    "express-openapi-validator": "^5.5.9",
+    "oaverify": "link:../../packages/oav"
   },
   "engines": {
     "node": ">=20"
   },
   "pnpm": {
     "overrides": {
-      "@aahoughton/oav-core": "link:../..",
+      "@oaverify/core": "link:../..",
       "esbuild": ">=0.28.1"
     }
   }

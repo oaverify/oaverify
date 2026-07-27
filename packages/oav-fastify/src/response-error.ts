@@ -1,4 +1,4 @@
-import type { ValidationError } from "@oav/core";
+import type { ValidationError } from "@oaverify/internal-core";
 
 /**
  * Thrown by the default {@link validateResponses} `onError` when an

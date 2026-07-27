@@ -31,7 +31,7 @@ describe("defaultCommandIo", () => {
   it("still rejects .yaml URLs at the JSON reader layer with the install-hint error", async () => {
     const io = defaultCommandIo();
     await expect(io.reader.read("https://example.com/spec.yaml")).rejects.toThrow(
-      /Install @aahoughton\/oav/,
+      /Install @oaverify\/yaml/,
     );
   });
 });

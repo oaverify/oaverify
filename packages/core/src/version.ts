@@ -14,7 +14,7 @@
  *   shares 3.1's dialect.
  *
  * This module is intentionally tiny: it classifies a spec into one of
- * these buckets. Consumers (notably `@oav/validator`) use the bucket
+ * these buckets. Consumers (notably `@oaverify/internal-validator`) use the bucket
  * to pick the right vocabulary set at validator construction.
  *
  * @packageDocumentation

@@ -19,7 +19,7 @@ import type {
   OperationObject,
   RequestBodyObject,
   ResponseObject,
-} from "@oav/core";
+} from "@oaverify/internal-core";
 import {
   carryComponents,
   HTTP_METHODS,

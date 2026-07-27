@@ -5,10 +5,10 @@ import type {
   RequestBodyObject,
   ResponseObject,
   SchemaOrBoolean,
-} from "@oav/core";
-import { resolveJsonPointer } from "@oav/core";
-import type { RouteMatch } from "@oav/router";
-import type { CompiledTreeSchema } from "@oav/schema";
+} from "@oaverify/internal-core";
+import { resolveJsonPointer } from "@oaverify/internal-core";
+import type { RouteMatch } from "@oaverify/internal-router";
+import type { CompiledTreeSchema } from "@oaverify/internal-schema";
 import type { BodyDirection } from "./body-schema-transform.js";
 import { compileMediaTypePatterns, type ParsedMediaTypePattern } from "./deserialize.js";
 import type { CompiledSecurity } from "./security.js";
@@ -213,7 +213,7 @@ export function buildOperationCache(
  * header) against the spec. Returns the target object with any siblings
  * on the reference itself dropped: per OAS, siblings of a Reference
  * are ignored. Follows chains with a depth guard to catch cycles.
- * External refs must be inlined upstream by `@oav/spec.resolveSpec()`.
+ * External refs must be inlined upstream by `@oaverify/internal-spec.resolveSpec()`.
  *
  * Lifted to module scope so it can be exercised independently of
  * `createValidator`.
@@ -233,7 +233,7 @@ export function resolveOperationRef<T>(
     if (typeof ref !== "string") return current as T;
     if (!ref.startsWith("#")) {
       throw new Error(
-        `external ref "${ref}" not resolved; run @oav/spec's resolveSpec() over the document before passing it to createValidator()`,
+        `external ref "${ref}" not resolved; run @oaverify/internal-spec's resolveSpec() over the document before passing it to createValidator()`,
       );
     }
     current = resolveJsonPointer(spec, ref.slice(1));

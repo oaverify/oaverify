@@ -34,5 +34,5 @@ export type { ErrorHandler, FastifyContext } from "./types.js";
 // public contract, just borrowed for non-duplication reasons. Importing
 // them from this package means consumers don't have to know which
 // package owns them.
-export type { HttpRequest, ValidationError } from "@oav/core";
-export type { Validator } from "@oav/validator";
+export type { HttpRequest, ValidationError } from "@oaverify/internal-core";
+export type { Validator } from "@oaverify/internal-validator";

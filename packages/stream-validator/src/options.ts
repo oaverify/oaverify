@@ -5,13 +5,13 @@
  * @packageDocumentation
  */
 
-import type { PathSegment } from "@oav/core";
-import type { CustomKeywordValidator, Dialect, RegexCompiler } from "@oav/schema";
+import type { PathSegment } from "@oaverify/internal-core";
+import type { CustomKeywordValidator, Dialect, RegexCompiler } from "@oaverify/internal-schema";
 
 /**
  * A JSON instance location, as an array of property names and array
  * indices from the document root. The root is the empty array `[]`. The
- * same `PathSegment[]` shape `@oav/core` errors carry, so violation
+ * same `PathSegment[]` shape `@oaverify/internal-core` errors carry, so violation
  * paths line up with the in-memory engine's.
  *
  * @public
@@ -36,7 +36,7 @@ export type PathFilter = JsonPath | ((path: JsonPath, kind: "object" | "array") 
  *   - **Verdict policy** (`maxErrors`, `policy`): how many violations to
  *     collect and whether the first one tears down the stream.
  *   - **Schema semantics** (`formats`, `keywords`, `regexCompiler`,
- *     `parity`): shared with `@oav/schema`'s `CompileOptions` where they
+ *     `parity`): shared with `@oaverify/internal-schema`'s `CompileOptions` where they
  *     overlap; threaded into the BUFFER-island delegate.
  *   - **Observability** (`keyEvents`): an opt-in, compile-time-gated key
  *     channel.
@@ -52,14 +52,14 @@ export interface StreamValidatorOptions {
    * OpenAPI version of the schema. `"3.0"` normalizes the schema to
    * 2020-12 shape before classification; all three select OpenAPI
    * semantics (`format` asserts). Omit for raw JSON Schema 2020-12. This
-   * is the raw-schema analog of `@oav/validator` reading the version off
+   * is the raw-schema analog of `@oaverify/internal-validator` reading the version off
    * the spec; pair it with `dialect` only to override.
    */
   openApiVersion?: "3.0" | "3.1" | "3.2";
 
   /**
    * Dialect whose keyword set drives classification, matching
-   * `@oav/schema`'s `CompileOptions.dialect` / `@oav/validator`'s
+   * `@oaverify/internal-schema`'s `CompileOptions.dialect` / `@oaverify/internal-validator`'s
    * `ValidatorOptions.dialect`. Defaults to `jsonSchemaDialect` (or the
    * OpenAPI dialect when `openApiVersion` is set); set it only to
    * override that choice.
@@ -68,7 +68,7 @@ export interface StreamValidatorOptions {
 
   /**
    * How many violations to collect before sealing the verdict. Defaults
-   * to `1` (Ajv-parity fast-fail), matching `@oav/schema`. `Infinity`
+   * to `1` (Ajv-parity fast-fail), matching `@oaverify/internal-schema`. `Infinity`
    * collects every violation.
    */
   maxErrors?: number;
@@ -87,7 +87,7 @@ export interface StreamValidatorOptions {
 
   /**
    * Custom string-format validators, shape-compatible with
-   * `@oav/schema`'s `formats` option. Threaded into the BUFFER-island
+   * `@oaverify/internal-schema`'s `formats` option. Threaded into the BUFFER-island
    * delegate's in-memory compile; they take effect only where that engine
    * asserts `format` (an OpenAPI dialect, or the 2020-12 format-assertion
    * vocabulary). The forward STREAM path treats `format` as an annotation
@@ -108,12 +108,12 @@ export interface StreamValidatorOptions {
    * Regex engine for `pattern` / `format`, e.g. RE2 for untrusted input
    * (ReDoS hardening). Hardens the spine's own regex use and is threaded
    * into the BUFFER-island delegate. Same option as
-   * `@oav/schema`'s `CompileOptions.regexCompiler`.
+   * `@oaverify/internal-schema`'s `CompileOptions.regexCompiler`.
    */
   regexCompiler?: RegexCompiler;
 
   /**
-   * Force exact `@oav/schema` message parity by classifying `oneOf` /
+   * Force exact `@oaverify/internal-schema` message parity by classifying `oneOf` /
    * `anyOf` (and other TEE-eligible composition) as BUFFER, so the
    * in-memory engine produces the violation messages. Default `false`
    * (stream where possible). Off by default because it trades the
@@ -177,7 +177,7 @@ export interface StreamValidatorOptions {
    * Maximum nesting depth. Bounds spine-stack growth and guards the
    * native-stack `RangeError` an in-memory island delegate would throw
    * on a deeply nested island. Default off. Same option as
-   * `@oav/schema`'s `CompileOptions.maxDepth`.
+   * `@oaverify/internal-schema`'s `CompileOptions.maxDepth`.
    */
   maxDepth?: number;
 
@@ -229,14 +229,14 @@ export interface StreamValidatorOptions {
    * unbounded `pattern` / `format` string, an unbounded BUFFER island,
    * unbounded depth, or `uniqueItems` with no `maxItems`. The recommended
    * setting for untrusted input. Named for the resource-bound axis it
-   * governs, distinct from `@oav/validator`'s schema-lint `strict` mode.
+   * governs, distinct from `@oaverify/internal-validator`'s schema-lint `strict` mode.
    * Default `false`.
    */
   enforceBounds?: boolean;
 
   /**
    * Sink for non-fatal compile-time warnings (the unbounded-* dimensions
-   * the classifier flags). Matches `@oav/validator`'s
+   * the classifier flags). Matches `@oaverify/internal-validator`'s
    * `ValidatorOptions.warn`. Absent: warnings are dropped (unless
    * `enforceBounds` escalates them to a thrown error).
    */

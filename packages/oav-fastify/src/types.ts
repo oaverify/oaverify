@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { ValidationError } from "@oav/core";
+import type { ValidationError } from "@oaverify/internal-core";
 
 /**
  * The pair every Fastify hook receives. Passed to user-supplied

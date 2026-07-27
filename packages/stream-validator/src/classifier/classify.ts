@@ -27,13 +27,18 @@
  * @packageDocumentation
  */
 
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
-import { type Dialect, jsonSchemaDialect, keywordDefinitions, walkSubschemas } from "@oav/schema";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import {
+  type Dialect,
+  jsonSchemaDialect,
+  keywordDefinitions,
+  walkSubschemas,
+} from "@oaverify/internal-schema";
 import {
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
-} from "@oav/schema/internals";
+} from "@oaverify/internal-schema/internals";
 import { resolveRef as resolveRefLocal } from "../ref-resolve.js";
 import { KEYWORD_CATEGORY } from "./keyword-table.js";
 import { joinStrategy, type Strategy } from "./strategy.js";
@@ -151,7 +156,7 @@ export function classify(root: SchemaOrBoolean, options: ClassifyOptions = {}): 
   // dispatching keyword that is registered but missing from
   // KEYWORD_CATEGORY is deliberately NOT in this set, so it falls through
   // to REJECT (the runtime backstop for a consumer on a newer
-  // @oav/schema; the drift test catches it in-repo).
+  // @oaverify/internal-schema; the drift test catches it in-repo).
   const folded = new Set<string>();
   for (const def of keywordDefinitions(dialect).values()) {
     for (const impl of def.implements ?? []) folded.add(impl);

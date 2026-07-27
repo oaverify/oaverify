@@ -16,7 +16,7 @@ import { workspaceAliases } from "./workspace-aliases.js";
  *   src/core.ts                →  "oav-core/core"
  *   src/validator-internals.ts →  "oav-core/validator/internals"
  *
- * The internal `@oav/*` workspace packages are redirected to their
+ * The internal `@oaverify/internal-*` workspace packages are redirected to their
  * source via the esbuild `alias` option, then bundled in as normal
  * modules so consumers never see them.
  *

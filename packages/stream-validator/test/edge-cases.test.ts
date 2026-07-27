@@ -1,8 +1,8 @@
 import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
-import { compileSchema, jsonSchemaDialect } from "@oav/schema";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import { compileSchema, jsonSchemaDialect } from "@oaverify/internal-schema";
 import { classify, ClassifierError } from "../src/classifier/index.js";
 import { createStreamValidator, type StreamVerdict } from "../src/index.js";
 
@@ -63,7 +63,7 @@ describe("$dynamicRef is followed (static anchor)", () => {
 });
 
 describe("percent-encoded JSON pointer refs resolve", () => {
-  it("resolves #/$defs/Record%3Cx%3E like @oav/schema", async () => {
+  it("resolves #/$defs/Record%3Cx%3E like @oaverify/internal-schema", async () => {
     const schema: SchemaObject = {
       type: "object",
       properties: { id: { $ref: "#/$defs/Record%3Cx%3E" } },

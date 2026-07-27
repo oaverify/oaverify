@@ -1,4 +1,4 @@
-import type { SchemaOrBoolean } from "@oav/core";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 
 /**
  * Known JSON Schema 2020-12 (+ OpenAPI) positions that hold a single

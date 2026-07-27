@@ -7,7 +7,7 @@
  * given a resolved document and an operation locator, it pulls the
  * request-body schema, carries the document's ref container so an internal
  * `$ref` (`#/components/schemas/Pet`) resolves, and reads the OpenAPI
- * version off `doc.openapi`. It mirrors `@aahoughton/oav-core`'s
+ * version off `doc.openapi`. It mirrors `@oaverify/core`'s
  * `getOperation` locator (`{ method, path }`).
  *
  * `path` is the literal path-template key, looked up exactly (no
@@ -20,8 +20,8 @@
  * you.
  *
  * Translation to the published packages: `resolveSpec` from
- * `@aahoughton/oav-core/spec`, `streamValidatorForOperation` from
- * `@aahoughton/oav-stream-validator`. See ./README.md.
+ * `@oaverify/core/spec`, `streamValidatorForOperation` from
+ * `@oaverify/stream`. See ./README.md.
  *
  * Run from the repo root:
  *   pnpm dlx tsx examples/stream-from-spec.ts
@@ -59,7 +59,7 @@ async function streamPet(label: string, pet: unknown): Promise<void> {
     console.log(`${label} -> ok`);
   } catch (err) {
     if (err instanceof ValidationFailedError) {
-      // Bridge to @oav/core's error model and reuse its one-line summary.
+      // Bridge to @oaverify/internal-core's error model and reuse its one-line summary.
       const summary = formatSummary(toValidationError(err.verdict.violations));
       console.log(`${label} -> rejected: ${summary}`);
     } else {

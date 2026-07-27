@@ -1,4 +1,9 @@
-import type { PathSegment, SchemaObject, SchemaOrBoolean, ValidationError } from "@oav/core";
+import type {
+  PathSegment,
+  SchemaObject,
+  SchemaOrBoolean,
+  ValidationError,
+} from "@oaverify/internal-core";
 import { CodeGen, NAMES } from "../codegen/index.js";
 import { buildKeywordMap } from "../introspection.js";
 import type { CompileMode, Dialect, KeywordDefinition } from "../keywords/types.js";
@@ -216,7 +221,7 @@ function runStrictLint(
  * (`type`, `required`, `minimum`, …) is its own record, plus a childless
  * marker leaf for each failed composition keyword (`anyOf` / `oneOf`);
  * no `"schema"` branch wrappers. Each record is a {@link ValidationError}
- * with an empty `children`, so the `@oav/core` renderers consume it
+ * with an empty `children`, so the `@oaverify/internal-core` renderers consume it
  * unchanged. For the nested error tree, compile with `output: "tree"`
  * and see {@link TreeValidationResult}.
  *
@@ -251,7 +256,7 @@ export type ValidationResult =
  * nested {@link ValidationError} tree under `error`, with `"schema"`
  * branch nodes mirroring the schema's composition structure. The opt-in
  * counterpart to the flat {@link ValidationResult} default. The HTTP
- * validator in `@oav/validator` compiles in this mode so it can nest
+ * validator in `@oaverify/internal-validator` compiles in this mode so it can nest
  * per-location subtrees (`body`, `query`, …) under one root.
  *
  * A discriminated union on `valid`: a successful result carries no error
@@ -429,7 +434,7 @@ export type CompiledFlatSchema = CompiledSchema;
  *
  * @remarks
  * Ordering convention (shared with
- * {@link @aahoughton/oav!ValidatorOptions}):
+ * {@link oaverify!ValidatorOptions}):
  *
  *   1. Compile essentials: `dialect`.
  *   2. Shared extension points: `formats`, `keywords`.
@@ -488,7 +493,7 @@ export interface CompileOptions {
    *   numbers on the rejection benchmark.
    * - `"tree"`: a {@link TreeValidationResult}: `{ valid }` plus, on
    *   failure, a single nested {@link ValidationError} tree under `error`
-   *   and `truncated`. The rich diagnostic shape; what `@oav/validator`
+   *   and `truncated`. The rich diagnostic shape; what `@oaverify/internal-validator`
    *   compiles in so it can nest per-location subtrees.
    * - `"predicate"`: a {@link CompiledPredicate} whose `validate(data)`
    *   returns a bare `boolean`. No {@link ValidationError} tree is ever

@@ -12,7 +12,7 @@
  * @packageDocumentation
  */
 
-import type { OpenAPIDocument, SchemaObject, SchemaOrBoolean } from "@oav/core";
+import type { OpenAPIDocument, SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import type { StreamValidatorOptions } from "../options.js";
 import { resolveRef } from "../ref-resolve.js";
 

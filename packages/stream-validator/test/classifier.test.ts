@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import { classify, ClassifierError } from "../src/classifier/index.js";
 
 function rootStrategy(schema: SchemaOrBoolean, opts = {}) {

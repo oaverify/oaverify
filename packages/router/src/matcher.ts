@@ -1,4 +1,4 @@
-import type { HttpMethod, OperationObject, PathItem } from "@oav/core";
+import type { HttpMethod, OperationObject, PathItem } from "@oaverify/internal-core";
 
 /**
  * Decode a single path token, tolerating malformed percent-encoding.
@@ -51,7 +51,7 @@ export type Segment =
  * the requested method is declared on it.
  *
  * `operation` and `pathItem` are the identical references supplied to
- * {@link createRouter}. Downstream consumers (notably `@oav/validator`)
+ * {@link createRouter}. Downstream consumers (notably `@oaverify/internal-validator`)
  * key per-operation caches on `operation`'s object identity via
  * `WeakMap`, so any future router change must preserve that identity:
  * do not clone, merge, or otherwise reconstruct these references.
@@ -119,13 +119,13 @@ export interface Router {
    * specificity sort order (more literal segments first). Static for
    * the router's lifetime; the same frozen array is returned each call.
    * Used for spec introspection and cross-router overlap checks (see
-   * `@oav/validator`'s `combineValidators`).
+   * `@oaverify/internal-validator`'s `combineValidators`).
    */
   routes(): readonly RouteInfo[];
 }
 
 // HTTP methods to scan on a `PathItem` when collecting `allowed` for a
-// 405 response. Mirrors the `HttpMethod` union in @oav/core; kept local
+// 405 response. Mirrors the `HttpMethod` union in @oaverify/internal-core; kept local
 // here to avoid pulling an extra symbol across the package boundary
 // for a constant array.
 const ALL_METHODS: HttpMethod[] = [
@@ -266,7 +266,7 @@ function segmentSignature(s: Segment): string {
  *
  * `createRouter` uses this internally to reject parameter-name-only
  * collisions within one document. It is exported so cross-router checks
- * (notably `@oav/validator`'s `combineValidators` route-disjointness
+ * (notably `@oaverify/internal-validator`'s `combineValidators` route-disjointness
  * guard) can detect the same overlap between separately-built routers,
  * using the identical structural rule the matcher itself applies.
  *

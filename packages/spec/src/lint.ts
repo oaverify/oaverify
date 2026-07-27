@@ -7,7 +7,7 @@ import {
   type PathItem,
   type ReferenceObject,
   type TagObject,
-} from "@oav/core";
+} from "@oaverify/internal-core";
 
 /**
  * A single spec-hygiene finding from {@link lintResolvedSpec}.

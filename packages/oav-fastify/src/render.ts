@@ -1,4 +1,9 @@
-import { allowHeaderFor, httpStatusFor, toProblemDetails, type ValidationError } from "@oav/core";
+import {
+  allowHeaderFor,
+  httpStatusFor,
+  toProblemDetails,
+  type ValidationError,
+} from "@oaverify/internal-core";
 import type { FastifyContext } from "./types.js";
 
 /**

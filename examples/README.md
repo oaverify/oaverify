@@ -15,19 +15,19 @@ pnpm dlx tsx examples/<example>.ts
 
 The examples import from `packages/*/src` directly so they work without
 `pnpm build`. Third-party consumers would write
-`import { ... } from "@aahoughton/oav-core"` instead; the logic
+`import { ... } from "@oaverify/core"` instead; the logic
 translates 1:1. `resolveSpec`, `loadSpec`, and the readers live at
-`@aahoughton/oav-core/spec`, and the YAML readers
+`@oaverify/core/spec`, and the YAML readers
 (`createYamlFileReader`, `createSmartHttpReader`) come from
-`@aahoughton/oav-yaml`, since `oav-core` is JSON-only.
+`@oaverify/yaml`, since `oav-core` is JSON-only.
 
 The streaming examples import from `packages/stream-validator/src`, which
-translates to `@aahoughton/oav-stream-validator`. That is a separate
+translates to `@oaverify/stream`. That is a separate
 package (not part of the `oav` / `oav-core` re-export), versioned
 independently on its own version line:
 
 ```bash
-npm install @aahoughton/oav-stream-validator
+npm install @oaverify/stream
 ```
 
 ## What's in here
@@ -51,7 +51,7 @@ shape and when to use each section (`extendSchemas`, `replaceSchemas`,
 
 ### Streaming
 
-The streaming validator (`@aahoughton/oav-stream-validator`) is a second
+The streaming validator (`@oaverify/stream`) is a second
 engine: it validates a JSON body as the bytes flow through,
 echoing them out unchanged, without buffering the whole document. The
 runtime examples break the load-a-spec / print-a-verdict mold: they pipe

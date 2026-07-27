@@ -13,7 +13,7 @@
  * @packageDocumentation
  */
 
-import type { ParameterObject, SchemaOrBoolean } from "@oav/core";
+import type { ParameterObject, SchemaOrBoolean } from "@oaverify/internal-core";
 
 /**
  * Peek at the `type` keyword of a schema, returning the first string

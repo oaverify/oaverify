@@ -1,4 +1,4 @@
-import type { SchemaOrBoolean } from "@oav/core";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 
 /**
  * A URI-keyed registry of schemas. A single `Map` provides `add` / `get` /

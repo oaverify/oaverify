@@ -1,6 +1,6 @@
 # @oav-dev/performance
 
-Cross-library benchmarks for `@oav/schema` vs
+Cross-library benchmarks for `@oaverify/internal-schema` vs
 [ajv](https://github.com/ajv-validator/ajv) (2020-12 dialect).
 Two benchmark entry points, two use cases.
 
@@ -87,7 +87,7 @@ more specs and reports:
 - heap usage
 
 Use it to sanity-check a new spec loads end-to-end through oav, or to
-regression-check when you touch `@oav/spec` / `@oav/validator`.
+regression-check when you touch `@oaverify/internal-spec` / `@oaverify/internal-validator`.
 
 ### `bench-http-validator.ts`: HTTP request/response hot paths
 
@@ -292,7 +292,7 @@ fast path.
   object, no message string, no wrapper. Every failure short-circuits to
   `return false;`. The mode cannot be combined with a finite `maxErrors`
   (the two are semantically incompatible; the compiler throws).
-- **`@oav/schema`**'s remaining validate overhead vs ajv comes from
+- **`@oaverify/internal-schema`**'s remaining validate overhead vs ajv comes from
   two structural choices: schemas that contain applicators
   (`properties` / `items` / `allOf` / ...) compile to a function call
   rather than inlining into the enclosing body (V8 monomorphizes

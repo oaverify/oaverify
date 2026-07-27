@@ -1,6 +1,6 @@
 import type { Request, RequestHandler } from "express";
-import { collectLeaves, type HttpRequest, type ValidationError } from "@oav/core";
-import type { TreeValidator, Validator } from "@oav/validator";
+import { collectLeaves, type HttpRequest, type ValidationError } from "@oaverify/internal-core";
+import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromExpress } from "./extract.js";
 import { renderProblemDetails } from "./render.js";
 import type { ErrorHandler, ExpressContext } from "./types.js";
@@ -59,7 +59,7 @@ export interface ValidateRequestsOptions {
  * @example
  * ```ts
  * import express from "express";
- * import { validateRequests } from "@aahoughton/oav-express5";
+ * import { validateRequests } from "@oaverify/express5";
  *
  * const app = express();
  * app.use(express.json());

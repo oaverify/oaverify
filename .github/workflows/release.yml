@@ -30,13 +30,13 @@ on:
     inputs:
       tag:
         # release-please creates one tag per package per release
-        # (component prefix from release-please-config.json). The five
+        # (component prefix from release-please-config.json). The six
         # linked packages share a version, so their tags point at the same
-        # commit; oav-stream-validator is unlinked (its own 0.x line) and
-        # carries its own tag at its own commit. Pass whichever package's
-        # tag you are republishing; oav-core is the conventional choice for
-        # the linked group.
-        description: "Release tag to (re)publish, e.g. oav-core-v2.1.1 or oav-stream-validator-v0.1.0"
+        # commit; stream is unlinked (its own 1.x line) and carries its own
+        # tag at its own commit. Pass whichever package's tag you are
+        # republishing; core is the conventional choice for the linked
+        # group.
+        description: "Release tag to (re)publish, e.g. core-v4.0.0 or stream-v1.2.0"
         required: true
         type: string
 
@@ -83,8 +83,8 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          if [[ ! "$TAG" =~ ^(oav-core|oav|oav-yaml|oav-express4|oav-express5|oav-fastify|oav-stream-validator)-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Invalid tag '$TAG'. Expected <component>-v<MAJOR>.<MINOR>.<PATCH>, e.g. oav-core-v2.1.1"
+          if [[ ! "$TAG" =~ ^(core|oaverify|yaml|express4|express5|fastify|stream)-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid tag '$TAG'. Expected <component>-v<MAJOR>.<MINOR>.<PATCH>, e.g. core-v4.0.0"
             exit 1
           fi
       # Check out the exact release commit. On the auto path

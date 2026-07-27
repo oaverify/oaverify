@@ -5,11 +5,11 @@ corpora:
 
 - The canonical
   [JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite)
-  against `@oav/schema`.
+  against `@oaverify/internal-schema`.
 - The
   [OpenAPI Overlay 1.0 test suite](https://github.com/OAI/Overlay-Specification)
-  against the envelope schema (compiled through `@oav/schema`) plus
-  `@oav/overlay-spec`'s translator.
+  against the envelope schema (compiled through `@oaverify/internal-schema`) plus
+  `@oaverify/internal-overlay-spec`'s translator.
 - A set of OpenAPI request/response scenarios against the built `oav`
   CLI.
 

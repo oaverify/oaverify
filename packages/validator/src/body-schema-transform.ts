@@ -18,13 +18,13 @@
  * @packageDocumentation
  */
 
-import type { SchemaOrBoolean } from "@oav/core";
-import { type RefResolver } from "@oav/schema";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import { type RefResolver } from "@oaverify/internal-schema";
 import {
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
-} from "@oav/schema/internals";
+} from "@oaverify/internal-schema/internals";
 
 /**
  * Which leg of the HTTP exchange a schema is being validated against.

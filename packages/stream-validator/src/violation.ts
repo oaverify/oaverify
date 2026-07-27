@@ -1,5 +1,5 @@
 /**
- * Bridge a {@link SchemaViolation} to `@oav/core`'s {@link ValidationError}
+ * Bridge a {@link SchemaViolation} to `@oaverify/internal-core`'s {@link ValidationError}
  * so streaming output flows into the existing rendering surface
  * (`formatText`, `formatSummary`, `toProblemDetails`, and the framework
  * adapters' `renderProblemDetails`) instead of needing a stream-specific
@@ -18,7 +18,7 @@
  * @packageDocumentation
  */
 
-import type { PathSegment, ValidationError } from "@oav/core";
+import type { PathSegment, ValidationError } from "@oaverify/internal-core";
 import type { SchemaViolation } from "./spine/index.js";
 
 // Coarse, parameterless gloss per STREAM-path code. The forward spine
@@ -70,13 +70,13 @@ function convertOne(violation: SchemaViolation): ValidationError {
 
 /**
  * Convert a streaming {@link SchemaViolation} (or a list of them, e.g. a
- * verdict's `violations`) to `@oav/core`'s {@link ValidationError},
+ * verdict's `violations`) to `@oaverify/internal-core`'s {@link ValidationError},
  * carrying the stream `byteOffset` in `params.byteOffset`. Hand the result
- * to any `@oav/core` renderer:
+ * to any `@oaverify/internal-core` renderer:
  *
  * ```ts
- * import { formatText, toProblemDetails } from "@aahoughton/oav-core";
- * import { toValidationError } from "@aahoughton/oav-stream-validator";
+ * import { formatText, toProblemDetails } from "@oaverify/core";
+ * import { toValidationError } from "@oaverify/stream";
  *
  * const verdict = await validator.result;
  * if (!verdict.valid) {
@@ -86,7 +86,7 @@ function convertOne(violation: SchemaViolation): ValidationError {
  * }
  * ```
  *
- * Mirrors `@oav/core`'s `toJsonObject`: a single violation in yields a
+ * Mirrors `@oaverify/internal-core`'s `toJsonObject`: a single violation in yields a
  * single error; a list yields a list.
  *
  * @public

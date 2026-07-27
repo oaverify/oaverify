@@ -1,5 +1,5 @@
 import { NAMES, quoteString } from "../codegen/index.js";
-import type { JsonValue } from "@oav/core";
+import type { JsonValue } from "@oaverify/internal-core";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
 

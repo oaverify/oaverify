@@ -4,7 +4,7 @@
  * Clones of that repo live under ./JSON-Schema-Test-Suite (gitignored).
  * This script walks `tests/draft2020-12/*.json` (and optionally
  * `tests/draft2020-12/optional/*.json`), compiles each group's schema
- * with @oav/schema, runs each case's data, and reports:
+ * with @oaverify/internal-schema, runs each case's data, and reports:
  *
  *   - total cases attempted
  *   - pass (our verdict matches `valid`)

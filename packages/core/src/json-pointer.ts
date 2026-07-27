@@ -15,7 +15,7 @@ import type { JsonValue } from "./types.js";
  *     `Error`; use a `try`/`catch` at call sites that expect the
  *     reference to optionally exist.
  *
- * Shared by `@oav/schema`'s internal `$ref` resolver and `@oav/spec`'s
+ * Shared by `@oaverify/internal-schema`'s internal `$ref` resolver and `@oaverify/internal-spec`'s
  * document stitcher; having one implementation means a single place
  * for any future RFC edge-case fix.
  *

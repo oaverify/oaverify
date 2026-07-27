@@ -14,7 +14,7 @@
  * 4. Consecutive validate() calls share state across the shared-array.
  */
 
-import type { ValidationError } from "@oav/core";
+import type { ValidationError } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect } from "../src/keywords/vocabulary.js";

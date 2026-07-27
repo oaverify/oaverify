@@ -7,7 +7,7 @@ import {
   type SecurityRequirementObject,
   type SecuritySchemeObject,
   type ValidationError,
-} from "@oav/core";
+} from "@oaverify/internal-core";
 
 /**
  * Shape-only security check precompiled from a single OpenAPI security

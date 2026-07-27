@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
-import { compileSchema, jsonSchemaDialect } from "@oav/schema";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import { compileSchema, jsonSchemaDialect } from "@oaverify/internal-schema";
 import { createStreamValidator } from "../src/index.js";
 
 const enc = new TextEncoder();

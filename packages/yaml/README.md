@@ -1,6 +1,6 @@
-# @aahoughton/oav-yaml
+# @oaverify/yaml
 
-YAML readers for [`@aahoughton/oav-core`](https://github.com/aahoughton/oav).
+YAML readers for [`@oaverify/core`](https://github.com/oaverify/oaverify).
 
 `oav-core` parses JSON only, so it can advertise zero runtime
 dependencies. This package adds the YAML side: filesystem readers for
@@ -9,10 +9,10 @@ standalone string parser, and a synchronous loader whose default reader
 handles both YAML and JSON.
 
 ```bash
-npm install @aahoughton/oav-core @aahoughton/oav-yaml
+npm install @oaverify/core @oaverify/yaml
 ```
 
-If you use the CLI, you already have this: `@aahoughton/oav` depends on
+If you use the CLI, you already have this: `oaverify` depends on
 it.
 
 ## Loading a YAML spec
@@ -21,8 +21,8 @@ it.
 JSON from disk, so nothing needs composing:
 
 ```ts
-import { createValidator } from "@aahoughton/oav-core";
-import { loadSpecSync } from "@aahoughton/oav-yaml";
+import { createValidator } from "@oaverify/core";
+import { loadSpecSync } from "@oaverify/yaml";
 
 const { document } = loadSpecSync({ entry: "openapi.yaml" });
 const validator = createValidator(document);
@@ -33,8 +33,8 @@ ahead of the JSON-only one from `oav-core`, so JSON acts as the
 fallback:
 
 ```ts
-import { composeReaders, createFileReader, loadSpec } from "@aahoughton/oav-core/spec";
-import { createYamlFileReader } from "@aahoughton/oav-yaml";
+import { composeReaders, createFileReader, loadSpec } from "@oaverify/core/spec";
+import { createYamlFileReader } from "@oaverify/yaml";
 
 const reader = composeReaders([createYamlFileReader(), createFileReader()]);
 const { document } = await loadSpec({ reader, entry: "openapi.yaml" });
@@ -48,8 +48,8 @@ when the header is ambiguous. That covers the common case of a server
 publishing YAML at an extensionless path:
 
 ```ts
-import { composeReaders, createFileReader } from "@aahoughton/oav-core/spec";
-import { createSmartHttpReader } from "@aahoughton/oav-yaml";
+import { composeReaders, createFileReader } from "@oaverify/core/spec";
+import { createSmartHttpReader } from "@oaverify/yaml";
 
 const reader = composeReaders([createSmartHttpReader(), createFileReader()]);
 const { document } = await loadSpec({ reader, entry: "https://api.example.com/openapi" });
@@ -64,8 +64,8 @@ For sources that never touch a reader (an inlined spec, a database
 column, a spec fetched by your own client):
 
 ```ts
-import { createValidator, type OpenAPIDocument } from "@aahoughton/oav-core";
-import { parseYamlString } from "@aahoughton/oav-yaml";
+import { createValidator, type OpenAPIDocument } from "@oaverify/core";
+import { parseYamlString } from "@oaverify/yaml";
 
 const document = parseYamlString(source) as OpenAPIDocument;
 const validator = createValidator(document);
@@ -81,7 +81,7 @@ const validator = createValidator(document);
 | `loadSpecSync(options)`      | synchronous loader defaulting to a YAML + JSON reader       |
 
 The contract for each is the TSDoc on the export. See
-[`DocumentReader`](https://github.com/aahoughton/oav/blob/main/packages/spec/src/reader.ts)
+[`DocumentReader`](https://github.com/oaverify/oaverify/blob/main/packages/spec/src/reader.ts)
 for the reader interface if you are writing your own.
 
 ## License

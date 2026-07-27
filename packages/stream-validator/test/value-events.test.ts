@@ -1,7 +1,7 @@
 import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
-import type { PathSegment, SchemaOrBoolean } from "@oav/core";
+import type { PathSegment, SchemaOrBoolean } from "@oaverify/internal-core";
 import {
   createStreamValidator,
   type StreamValidatorOptions,

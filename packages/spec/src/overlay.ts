@@ -22,7 +22,7 @@ import type {
   SecuritySchemeObject,
   ServerObject,
   TagObject,
-} from "@oav/core";
+} from "@oaverify/internal-core";
 
 /**
  * Per-operation override recipe used inside {@link SpecOverlay.overrides}.

@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { KNOWN_OUTPUT_FORMATS, isOutputFormat, type OutputFormat } from "@oav/core";
+import { KNOWN_OUTPUT_FORMATS, isOutputFormat, type OutputFormat } from "@oaverify/internal-core";
 import {
   compileSchemaCommand,
   compileSpecCommand,
@@ -52,7 +52,10 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const exit = options.exit ?? ((code) => process.exit(code));
 
   const program = new Command();
-  program.name("oav").description("OpenAPI 3.1 HTTP request/response validator").exitOverride();
+  program
+    .name("oaverify")
+    .description("OpenAPI 3.1 HTTP request/response validator")
+    .exitOverride();
 
   program
     .command("resolve <spec>")

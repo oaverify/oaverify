@@ -1,8 +1,8 @@
 {
-  "name": "@oav/spec",
+  "name": "@oaverify/internal-spec",
   "version": "0.0.0",
   "private": true,
-  "description": "Internal: OpenAPI spec loader, $ref resolver, and overlay merger for @aahoughton/oav.",
+  "description": "Internal: OpenAPI spec loader, $ref resolver, and overlay merger for oaverify.",
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -17,7 +17,7 @@
     }
   },
   "dependencies": {
-    "@oav/core": "workspace:*"
+    "@oaverify/internal-core": "workspace:*"
   },
   "engines": {
     "node": ">=20"

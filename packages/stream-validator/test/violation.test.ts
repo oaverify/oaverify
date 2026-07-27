@@ -1,8 +1,8 @@
 import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
-import { formatSummary, formatText, toProblemDetails } from "@oav/core";
-import type { SchemaOrBoolean } from "@oav/core";
+import { formatSummary, formatText, toProblemDetails } from "@oaverify/internal-core";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { createStreamValidator, type SchemaViolation, toValidationError } from "../src/index.js";
 
 const enc = new TextEncoder();

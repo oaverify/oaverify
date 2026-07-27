@@ -1,4 +1,4 @@
-import { resolveJsonPointer, type OpenAPIDocument } from "@oav/core";
+import { resolveJsonPointer, type OpenAPIDocument } from "@oaverify/internal-core";
 import type { SyncDocumentReader } from "./reader.js";
 import { lintResolvedSpec } from "./lint.js";
 import type { ResolvedSpec } from "./resolver.js";

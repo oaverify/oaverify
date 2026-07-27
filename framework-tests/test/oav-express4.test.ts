@@ -1,12 +1,12 @@
-import { type OpenAPIDocument } from "@oav/core";
+import { type OpenAPIDocument } from "@oaverify/internal-core";
 import {
   httpRequestFromExpress,
   renderProblemDetails,
   ResponseValidationError,
   validateRequests,
   validateResponses,
-} from "@oav/oav-express4";
-import { createValidator } from "@oav/validator";
+} from "@oaverify/internal-oav-express4";
+import { createValidator } from "@oaverify/internal-validator";
 import express, { type Express, type Request } from "express-4";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";

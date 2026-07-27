@@ -62,8 +62,8 @@ Two entry points, same result.
 **`applyOverlays`** takes an already-resolved base document:
 
 ```ts
-import { applyOverlays } from "@aahoughton/oav-core/spec";
-import { createValidator } from "@aahoughton/oav-core";
+import { applyOverlays } from "@oaverify/core/spec";
+import { createValidator } from "@oaverify/core";
 
 const patched = applyOverlays(base, [overlay1, overlay2]);
 const validator = createValidator(patched);
@@ -73,7 +73,7 @@ const validator = createValidator(patched);
 pass; use this for multi-file specs or remote documents:
 
 ```ts
-import { loadSpec, composeReaders, createFileReader } from "@aahoughton/oav-core/spec";
+import { loadSpec, composeReaders, createFileReader } from "@oaverify/core/spec";
 
 const reader = composeReaders([createFileReader()]);
 const { document } = await loadSpec({
@@ -91,7 +91,7 @@ document is deep-cloned; the input is never mutated.
 
 The full surface lives on the `SpecOverlay`, `PathOverride`,
 `OperationOverride`, `ResponseOverride`, `ModifyOperationsEntry`, and
-`ModifyParametersEntry` types in `@aahoughton/oav-core/spec`. The roadmap
+`ModifyParametersEntry` types in `@oaverify/core/spec`. The roadmap
 TSDoc on each interface lists every field with semantics. The
 snippets below cover the common shapes; see the types for the full
 list.
@@ -333,7 +333,7 @@ const overlay: SpecOverlay = {
   runnable end-to-end demos.
 - Handed a standard [OpenAPI Overlay 1.0](https://spec.openapis.org/overlay/1.0.0)
   document (JSONPath-targeted actions) rather than a typed
-  `SpecOverlay`? `@aahoughton/oav-core/overlay-spec` translates it onto
+  `SpecOverlay`? `@oaverify/core/overlay-spec` translates it onto
   the verbs in this doc; see
   ["Consuming spec-format overlays"](./integration.md#consuming-spec-format-overlays)
   and [`packages/overlay-spec/README.md`](../packages/overlay-spec/README.md).

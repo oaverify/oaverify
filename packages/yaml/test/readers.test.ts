@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { composeReaders, createFileReader, resolveSpec } from "@oav/spec";
+import { composeReaders, createFileReader, resolveSpec } from "@oaverify/internal-spec";
 import { createSmartHttpReader, createYamlFileReader, parseYamlString } from "../src/index.js";
 
 describe("createYamlFileReader", () => {

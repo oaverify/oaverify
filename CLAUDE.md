@@ -128,10 +128,10 @@ pnpm build                        # tsup: oav-core + stream-validator + the oav 
 pnpm test                         # vitest for everything
 pnpm vitest run packages/schema   # run a single package's tests (path filter)
 pnpm lint                         # oxlint + oxfmt --check + check:deps
-pnpm check:deps                   # assert the @oav/* dependency graph (see below)
+pnpm check:deps                   # assert the @oaverify/internal-* dependency graph (see below)
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)
-pnpm oav <args>                   # run the built CLI (e.g. pnpm oav stream-check spec.yaml)
+pnpm oav <args>                   # run the built CLI (e.g. pnpm oaverify stream-check spec.yaml)
 ```
 
 `pnpm test` uses vitest with workspace aliases from `vitest.config.ts` so
@@ -144,7 +144,7 @@ standalone-tsup packages (`oav`, `stream-validator`, the three adapters)
 set `emitDeclarationOnly: true` in their `tsconfig.json`: their `dist/` is
 the tsup-built runtime artifact, and without this `tsc -b` (typecheck)
 would emit per-file `.js` over the tsup bundle, breaking the built CLI
-until the next `pnpm build`. Leave it in place. (The `@oav/*` packages
+until the next `pnpm build`. Leave it in place. (The `@oaverify/internal-*` packages
 bundled into `oav-core` don't need it: their `dist/` is unused, since the
 root tsup bundles them from source.)
 
@@ -200,33 +200,33 @@ Import surface is in [docs/modules.md](./docs/modules.md); each
 package's README covers its responsibilities. The non-obvious nugget
 per package:
 
-- **`@oav/core`**: the shared error-tree model and HTTP/format
-  helpers. Every package except the leaf `@oav/formats` depends on it;
+- **`@oaverify/internal-core`**: the shared error-tree model and HTTP/format
+  helpers. Every package except the leaf `@oaverify/internal-formats` depends on it;
   it depends on nothing.
-- **`@oav/schema`**: the JSON Schema 2020-12 compiler; walks a schema,
+- **`@oaverify/internal-schema`**: the JSON Schema 2020-12 compiler; walks a schema,
   dispatches each keyword via `KeywordDefinition.compile(ctx)`, and
   `eval`s the generated source through `new Function(deps, src)`.
   Boolean schemas are first-class; `$ref` uses an identity-keyed cache
   so self-recursive refs emit normal recursive calls. Codegen
-  mechanics live behind the `oav/schema/internals` subpath (not
+  mechanics live behind the `@oaverify/core/schema/internals` subpath (not
   semver-covered; reach for them only when a plugin truly needs them).
-- **`@oav/formats`**: pure string validators, a `Record<string, (s:
+- **`@oaverify/internal-formats`**: pure string validators, a `Record<string, (s:
 string) => boolean>` shaped for `compileSchema`'s `formats` option. A
   leaf alongside `core`: no workspace dependencies.
-- **`@oav/spec`**: `DocumentReader` (file/http/memory/composite) plus
+- **`@oaverify/internal-spec`**: `DocumentReader` (file/http/memory/composite) plus
   `resolveSpec()`, which inlines external `$ref`s and leaves circular
   ones as internal refs. `applyOverlays()` is the extension system.
-- **`@oav/overlay-spec`**: OpenAPI Overlay 1.0 -> typed `SpecOverlay`.
+- **`@oaverify/internal-overlay-spec`**: OpenAPI Overlay 1.0 -> typed `SpecOverlay`.
   Closed-form recogniser, not a JSONPath engine; unrecognised target
-  shapes throw with the offending string. Subpath `oav/overlay-spec`.
-- **`@oav/router`**: sorted-list route matcher; `match` is a linear
+  shapes throw with the offending string. Subpath `@oaverify/core/overlay-spec`.
+- **`@oaverify/internal-router`**: sorted-list route matcher; `match` is a linear
   scan, O(routes x segments). Cheap for typical spec sizes (see #327).
-- **`@oav/validator`**: the HTTP orchestrator. `createValidator`
+- **`@oaverify/internal-validator`**: the HTTP orchestrator. `createValidator`
   pre-compiles per-operation schemas on first access and prefixes each
   sub-validator's subtree with its HTTP location (`body`, `query`, …)
   so error paths are unambiguous. Also exports the Fetch-API adapter
   (`httpRequestFromFetch`, …) for Next.js / Hono / Bun / Deno.
-- **`@aahoughton/oav-stream-validator`** (published standalone on its own
+- **`@oaverify/stream`** (published standalone on its own
   independent `1.x` line, not folded into the `oav-core` bundle): a second, push-based
   streaming engine. Beyond
   `createStreamValidator`, it exports the **streamability analyzer**:
@@ -241,11 +241,11 @@ string) => boolean>` shaped for `compileSchema`'s `formats` option. A
   extraction (`carryComponents`, `resolveLocalRef`) lives in the shared
   engine-free `openapi/body-schema.ts` so both `operation.ts` and the
   analyzer use it.
-- **`@oav/cli`**: thin commander wrapper. The one place it reaches past
+- **`@oaverify/internal-cli`**: thin commander wrapper. The one place it reaches past
   pure wiring is `stream-check`, which calls `analyzeSpec` and renders the
   per-operation table; the business logic stays in the analyzer, the CLI
   owns only the rendering (`stream-check.ts`).
-- **`@oav/oav-express4` / `oav-express5` / `oav-fastify`**: thin
+- **`@oaverify/internal-oav-express4` / `oav-express5` / `oav-fastify`**: thin
   framework adapters with identical export names and option shapes
   (`validateRequests`, `httpRequestFrom<Framework>`,
   `renderProblemDetails`, `ValidateRequestsOptions`); only the
@@ -267,7 +267,7 @@ cli           → validator → router
               → spec → core
               → overlay-spec → spec → core
               → core
-              → stream-validator (the published @aahoughton/oav-stream-validator)
+              → stream-validator (the published @oaverify/stream)
 overlay-spec  → spec → core
               → core
 oav-express4  → validator → ... (same as cli's chain)
@@ -278,23 +278,23 @@ oav-fastify   → same chain, peer: fastify ^5
 ```
 
 Asserted by `scripts/check-deps.mjs` (wired into `pnpm lint`): the
-runtime `@oav/*` graph (from each package's `dependencies`) stays
-acyclic, and declarations match imports both ways (no `@oav/*` declared
+runtime `@oaverify/internal-*` graph (from each package's `dependencies`) stays
+acyclic, and declarations match imports both ways (no `@oaverify/internal-*` declared
 but unimported, none imported but undeclared). "Declared" unions
-`dependencies` + `devDependencies`, since the internal `@oav/*` packages
+`dependencies` + `devDependencies`, since the internal `@oaverify/internal-*` packages
 carry their deps at runtime while the published `@aahoughton/*` bundles
-carry the same `@oav/*` as build-only devDeps. Adding a real edge means
+carry the same `@oaverify/internal-*` as build-only devDeps. Adding a real edge means
 updating both the graph above and the relevant `package.json`; a phantom
 or undeclared edge fails the build.
 
 The `cli → stream-validator` edge is the one exception not asserted by
 `check-deps`: the stream validator is published standalone as
-`@aahoughton/oav-stream-validator` (not an `@oav/*` bundle-member), so the
+`@oaverify/stream` (not an `@oaverify/internal-*` bundle-member), so the
 CLI imports it by that published name, which `check-deps` (scoped to
-`@oav/*`) does not police. Its source alias lives in `workspace-aliases.ts`
-(consumed by vitest + tsup) and the published `@aahoughton/oav` carries it
+`@oaverify/internal-*`) does not police. Its source alias lives in `workspace-aliases.ts`
+(consumed by vitest + tsup) and the published `oaverify` carries it
 as a real runtime dependency (the same shape the framework adapters use for
-`@aahoughton/oav-core`). The `pack-smoke` job installs the locally-packed
+`@oaverify/core`). The `pack-smoke` job installs the locally-packed
 stream-validator tarball alongside oav so this dep resolves to the workspace
 build, not the registry. `stream-validator` is unlinked from the `oav-core`
 release group (its own independent line, currently `1.x`), so a

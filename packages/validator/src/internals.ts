@@ -59,13 +59,13 @@ export {
 // request time.
 export { checkSecurity, compileOperationSecurity } from "./security.js";
 
-// The router is a workspace-private package (`@oav/router`) that
+// The router is a workspace-private package (`@oaverify/internal-router`) that
 // isn't published on its own. `oav compile-spec`'s emitted output
 // needs `createRouter` at module load to build its dispatch table;
 // re-exporting it here keeps all emit-side imports funnelled through
 // `oav/validator/internals` so the emitted module only
 // has to reach into one subpath.
-export { createRouter, type RouteMatch, type Router } from "@oav/router";
+export { createRouter, type RouteMatch, type Router } from "@oaverify/internal-router";
 
 // Result reshaping. The validator builds a nested error tree internally
 // and reshapes it to the requested `output` / `maxErrors` at the public

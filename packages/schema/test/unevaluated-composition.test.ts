@@ -1,6 +1,6 @@
 /* eslint-disable unicorn/no-thenable -- `then` is a JSON Schema keyword here */
 import { describe, expect, it } from "vitest";
-import type { ValidationError } from "@oav/core";
+import type { ValidationError } from "@oaverify/internal-core";
 import { compile } from "./helpers.js";
 
 function leafCodes(err: ValidationError | undefined): string[] {

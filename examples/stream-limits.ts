@@ -19,7 +19,7 @@
  * stream-validator's README for the full limit set.
  *
  * Translation to the published package: import from
- * `@aahoughton/oav-stream-validator`. See ./README.md.
+ * `@oaverify/stream`. See ./README.md.
  *
  * Run from the repo root:
  *   pnpm dlx tsx examples/stream-limits.ts

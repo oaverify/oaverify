@@ -1,7 +1,7 @@
 # framework-tests
 
-Isolated integration tests for the `@aahoughton/oav-express4`,
-`@aahoughton/oav-express5`, and `@aahoughton/oav-fastify` adapters.
+Isolated integration tests for the `@oaverify/express4`,
+`@oaverify/express5`, and `@oaverify/fastify` adapters.
 
 ## Why this lives outside the main workspace
 
@@ -63,7 +63,7 @@ noise is.
 
 ## How tests reach into the main packages
 
-`vitest.config.ts` registers `@oav/*` aliases that resolve directly into
+`vitest.config.ts` registers `@oaverify/internal-*` aliases that resolve directly into
 `../packages/<pkg>/src/index.ts`, the same way the main repo's vitest
 config does. Tests run against source, not against built `dist/`
 artifacts. The `pack-smoke` CI job already covers the dist surface.

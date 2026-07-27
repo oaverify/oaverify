@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OpenAPIDocument } from "@oav/core";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { applyOverlays, isSpecOverlay, specOverlayVerbs } from "../src/overlay.js";
 
 function base(): OpenAPIDocument {

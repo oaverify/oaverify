@@ -10,8 +10,8 @@ import {
   createYamlFileReader,
   httpStatusFor,
   toProblemDetails,
-} from "@aahoughton/oav";
-import { loadSpec } from "@aahoughton/oav/spec";
+} from "oaverify";
+import { loadSpec } from "oaverify/spec";
 import { fileURLToPath } from "node:url";
 
 const specPath = fileURLToPath(new URL("./openapi.yaml", import.meta.url));

@@ -1,5 +1,5 @@
 import type { FastifyRequest } from "fastify";
-import type { HttpRequest } from "@oav/core";
+import type { HttpRequest } from "@oaverify/internal-core";
 
 /**
  * Convert a Fastify `FastifyRequest` to oav's framework-agnostic

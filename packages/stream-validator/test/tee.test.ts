@@ -1,7 +1,7 @@
 import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import { createStreamValidator } from "../src/index.js";
 import { SpineValidator } from "../src/spine/index.js";
 import { JsonTokenizer } from "../src/tokenizer/index.js";

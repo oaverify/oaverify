@@ -16,9 +16,9 @@ import { defineConfig } from "tsup";
  *   CLI start with a clear error when the install is corrupt.
  * - `esbuild` is an external optional peer, used only by
  *   `compile-schema` / `compile-spec` and reported lazily by them.
- * - `@oav/cli` (the workspace package that owns the CLI logic) is
+ * - `@oaverify/internal-cli` (the workspace package that owns the CLI logic) is
  *   bundled in, along with everything it transitively imports from
- *   `@oav/*`. Those transitive imports are rewritten to the
+ *   `@oaverify/internal-*`. Those transitive imports are rewritten to the
  *   corresponding `oav-core/*` subpaths AND marked external by the
  *   plugin below, so the bundle imports the compiler / validator from
  *   oav-core at run time rather than inlining a second copy.
@@ -29,37 +29,37 @@ import { defineConfig } from "tsup";
  */
 const repoRoot = resolve(__dirname, "..", "..");
 
-// `@oav/*` → `oav-core[/*]`: kept external (resolved at
+// `@oaverify/internal-*` → `oav-core[/*]`: kept external (resolved at
 // run time from the consumer's install of oav-core).
 const oavCoreRewrite: Record<string, string> = {
-  "@oav/core": "@aahoughton/oav-core/core",
-  "@oav/schema": "@aahoughton/oav-core/schema",
-  "@oav/schema/internals": "@aahoughton/oav-core/schema/internals",
-  "@oav/spec": "@aahoughton/oav-core/spec",
-  "@oav/spec/internals": "@aahoughton/oav-core/spec/internals",
-  "@oav/overlay-spec": "@aahoughton/oav-core/overlay-spec",
-  "@oav/formats": "@aahoughton/oav-core/formats",
-  "@oav/validator": "@aahoughton/oav-core",
-  "@oav/validator/internals": "@aahoughton/oav-core/validator/internals",
+  "@oaverify/internal-core": "@oaverify/core/core",
+  "@oaverify/internal-schema": "@oaverify/core/schema",
+  "@oaverify/internal-schema/internals": "@oaverify/core/schema/internals",
+  "@oaverify/internal-spec": "@oaverify/core/spec",
+  "@oaverify/internal-spec/internals": "@oaverify/core/spec/internals",
+  "@oaverify/internal-overlay-spec": "@oaverify/core/overlay-spec",
+  "@oaverify/internal-formats": "@oaverify/core/formats",
+  "@oaverify/internal-validator": "@oaverify/core",
+  "@oaverify/internal-validator/internals": "@oaverify/core/validator/internals",
 };
 
-// `@oav/cli` + `@oav/router`: private workspace packages bundled
+// `@oaverify/internal-cli` + `@oaverify/internal-router`: private workspace packages bundled
 // into this tarball (no external runtime counterpart).
 const bundledWorkspace: Record<string, string> = {
-  "@oav/cli": resolve(repoRoot, "packages", "cli", "src", "index.ts"),
-  "@oav/router": resolve(repoRoot, "packages", "router", "src", "index.ts"),
+  "@oaverify/internal-cli": resolve(repoRoot, "packages", "cli", "src", "index.ts"),
+  "@oaverify/internal-router": resolve(repoRoot, "packages", "router", "src", "index.ts"),
 };
 
 // esbuild resolves aliases before external-matching, but only for
 // the originally-imported specifier. Doing the rewrite+external in a
 // single onResolve hook is the reliable way to get imports like
-// `@oav/schema` emitted into the bundle as
+// `@oaverify/internal-schema` emitted into the bundle as
 // `import ... from "oav-core/schema"`.
 function rewriteOavCore(): Plugin {
   return {
     name: "oav-core-rewrite",
     setup(build) {
-      build.onResolve({ filter: /^@oav\// }, (args) => {
+      build.onResolve({ filter: /^@oaverify\/internal-/ }, (args) => {
         const rewrite = oavCoreRewrite[args.path];
         if (rewrite) return { path: rewrite, external: true };
         const bundled = bundledWorkspace[args.path];
@@ -79,12 +79,6 @@ export default defineConfig({
   sourcemap: false,
   target: "es2022",
   tsconfig: resolve(__dirname, "../../tsconfig.build.json"),
-  external: [
-    "@aahoughton/oav-core",
-    "@aahoughton/oav-stream-validator",
-    "@aahoughton/oav-yaml",
-    "commander",
-    "esbuild",
-  ],
+  external: ["@oaverify/core", "@oaverify/stream", "@oaverify/yaml", "commander", "esbuild"],
   esbuildPlugins: [rewriteOavCore()],
 });

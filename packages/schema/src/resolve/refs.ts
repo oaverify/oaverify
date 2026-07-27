@@ -2,7 +2,7 @@ import {
   resolveJsonPointer as coreResolveJsonPointer,
   type SchemaObject,
   type SchemaOrBoolean,
-} from "@oav/core";
+} from "@oaverify/internal-core";
 import { absolutizeUri, type ResolvedGraph } from "./resolver.js";
 
 /**

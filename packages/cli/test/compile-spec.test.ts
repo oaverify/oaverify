@@ -10,17 +10,17 @@
 import { describe, expect, it } from "vitest";
 import { resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { OpenAPIDocument, ValidationError } from "@oav/core";
-import { createValidator } from "@oav/validator";
+import type { OpenAPIDocument, ValidationError } from "@oaverify/internal-core";
+import { createValidator } from "@oaverify/internal-validator";
 import { compileSpecCommand } from "../src/commands.js";
 import { memoryIo } from "./fixtures.js";
 
-// esbuild needs a directory where the `@oav/*` import prefix resolves.
-// packages/cli is the natural choice: it declares every `@oav/*` the
-// emitted module imports, so the symlinks are present in its
-// node_modules. In production the consumer's cwd has oav-core
+// esbuild needs a directory where `@oaverify/core` resolves, since that is
+// what the emitted module imports via the default importPrefix.
+// packages/oav declares it as a runtime dependency, so the symlink is in
+// its node_modules. In production the consumer's cwd has @oaverify/core
 // installed and the default resolveDir is correct.
-const RESOLVE_DIR = resolvePath(fileURLToPath(new URL("..", import.meta.url)));
+const RESOLVE_DIR = resolvePath(fileURLToPath(new URL("../../oav", import.meta.url)));
 
 const petstore: OpenAPIDocument = {
   openapi: "3.1.0",
@@ -119,7 +119,6 @@ async function buildAot(
       spec: "spec.json",
       overlays: [],
       output: "out.mjs",
-      importPrefix: "@oav",
       resolveDir: RESOLVE_DIR,
       requestsOnly: extra.requestsOnly,
       only: extra.only,
@@ -331,7 +330,6 @@ describe("compile-spec --only", () => {
         spec: "spec.json",
         overlays: [],
         output: "out.mjs",
-        importPrefix: "@oav",
         resolveDir: RESOLVE_DIR,
       },
       mem.io,

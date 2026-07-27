@@ -5,7 +5,7 @@ the headline surface of the package; `createValidator` is re-exported
 from the package root.
 
 ```ts
-import { createValidator } from "@aahoughton/oav-core";
+import { createValidator } from "@oaverify/core";
 
 const validator = createValidator(resolvedSpec);
 
@@ -48,7 +48,7 @@ hooks: [`oav-express4`](../oav-express4/README.md),
 Native OpenAPI 3.0 dialect alongside 3.1 / 3.2, so `nullable`,
 boolean `exclusiveMaximum`, and `$ref`-suppresses-siblings work by
 3.0 rules rather than via a 2020-12 translation shim. Pairs with
-[`oav/spec`](../spec/README.md)'s `applyOverlays` for
+[`@oaverify/core/spec`](../spec/README.md)'s `applyOverlays` for
 patching externally-owned base specs at load time. Pass counts against
 the upstream test suites live in
 [`conformance/REPORT.md`](../../conformance/REPORT.md). The
@@ -71,7 +71,7 @@ the upstream test suites live in
 - **Content-type negotiation**: against the request / response
   `Content-Type`, including wildcards (`application/*`, `*/*`).
 - **Response status matching**: exact, then `NXX` class, then `default`.
-- **Format validators**: the `oav/formats` built-ins merged
+- **Format validators**: the `@oaverify/core/formats` built-ins merged
   with any extras passed via `options.formats`.
 
 ## Validator methods
@@ -92,7 +92,7 @@ the upstream test suites live in
 | Option                  | Effect                                                                                                                           |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `dialect`               | Force a specific {@link Dialect}, bypassing version detection.                                                                   |
-| `formats`               | Extra string format validators merged with `oav/formats`.                                                                        |
+| `formats`               | Extra string format validators merged with `@oaverify/core/formats`.                                                             |
 | `keywords`              | User-registered schema keywords (see below).                                                                                     |
 | `output`                | Result shape: `"flat"` (default), `"tree"`, or `"predicate"`. Mirrors `compileSchema`.                                           |
 | `maxErrors`             | Per-call total cap on leaf errors. Default `1` (fast-fail); `Number.POSITIVE_INFINITY` collects every error.                     |
@@ -109,7 +109,7 @@ that dispatches each request to the member owning its route. The result
 is a `Validator`, so the framework adapters consume it unchanged.
 
 ```ts
-import { createValidator, combineValidators } from "@aahoughton/oav-core";
+import { createValidator, combineValidators } from "@oaverify/core";
 
 const validator = combineValidators(
   [createValidator(specV1), createValidator(specV2)],

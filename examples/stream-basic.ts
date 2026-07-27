@@ -16,7 +16,7 @@
  * basic-validation.ts.
  *
  * Translation to the published packages: import `createStreamValidator`
- * from `@aahoughton/oav-stream-validator`. See ./README.md.
+ * from `@oaverify/stream`. See ./README.md.
  *
  * Run from the repo root:
  *   pnpm dlx tsx examples/stream-basic.ts
@@ -91,7 +91,7 @@ function countingSink(): { sink: Writable; bytes: () => number } {
   } catch (err) {
     if (err instanceof ValidationFailedError) {
       console.log("\nbad element       -> rejected (as expected)");
-      // Bridge the stream violations to @oav/core's error model, then reuse
+      // Bridge the stream violations to @oaverify/internal-core's error model, then reuse
       // its formatter instead of hand-rolling one. The stream-specific
       // byteOffset rides in params; append it for the "failed early" point.
       for (const v of seen) {

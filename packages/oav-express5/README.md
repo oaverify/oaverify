@@ -1,33 +1,33 @@
 # oav-express5
 
-Express 5 adapter for [`oav-core`](https://www.npmjs.com/package/@aahoughton/oav-core): a promise-native middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
+Express 5 adapter for [`oav-core`](https://www.npmjs.com/package/@oaverify/core): a promise-native middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
 
-Same shape as the [`oav-express4`](https://github.com/aahoughton/oav/blob/main/packages/oav-express4/README.md) sibling; only the framework-typed argument and the async semantics differ. Express 5's promise-native middleware means thrown errors and rejected promises propagate to the host's error middleware automatically, with no `try/catch` wrapper.
+Same shape as the [`oav-express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md) sibling; only the framework-typed argument and the async semantics differ. Express 5's promise-native middleware means thrown errors and rejected promises propagate to the host's error middleware automatically, with no `try/catch` wrapper.
 
-Sibling packages: [`oav-express4`](https://github.com/aahoughton/oav/blob/main/packages/oav-express4/README.md), [`oav-fastify`](https://github.com/aahoughton/oav/blob/main/packages/oav-fastify/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
+Sibling packages: [`oav-express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md), [`oav-fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
 
-> **Migrating from `express-openapi-validator`?** See [docs/migration-from-eov.md](https://github.com/aahoughton/oav/blob/main/docs/migration-from-eov.md) for behavior differences (path-label `/params/` → `/path/`, `errorCode` namespacing, status mapping) and a worked porting walkthrough.
+> **Migrating from `express-openapi-validator`?** See [docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md) for behavior differences (path-label `/params/` → `/path/`, `errorCode` namespacing, status mapping) and a worked porting walkthrough.
 
 ## Install
 
 ```bash
 # JSON specs only
-npm install @aahoughton/oav-core @aahoughton/oav-express5 express
+npm install @oaverify/core @oaverify/express5 express
 
 # YAML specs + CLI (oav transitively provides oav-core)
-npm install @aahoughton/oav @aahoughton/oav-express5 express
+npm install oaverify @oaverify/express5 express
 ```
 
 `express` is a peer dep; your app's existing install satisfies it.
 
-> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@aahoughton/oav-yaml`](https://www.npmjs.com/package/@aahoughton/oav-yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
+> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
 
 ## Quick start
 
 ```ts
 import express from "express";
-import { createValidator } from "@aahoughton/oav-core";
-import { validateRequests } from "@aahoughton/oav-express5";
+import { createValidator } from "@oaverify/core";
+import { validateRequests } from "@oaverify/express5";
 
 const validator = createValidator(spec); // see "Hardening for untrusted input" below
 
@@ -45,7 +45,7 @@ Invalid requests receive a `400 application/problem+json` response (status from 
 > **Empty-body normalization.** Some parsers leave `req.body === undefined` for empty `{}`-equivalent payloads. When that happens, `required`-field checks short-circuit on the missing body. Normalize via `toHttpRequest`:
 >
 > ```ts
-> import { httpRequestFromExpress, validateRequests } from "@aahoughton/oav-express5";
+> import { httpRequestFromExpress, validateRequests } from "@oaverify/express5";
 >
 > app.use(
 >   validateRequests(validator, {
@@ -68,7 +68,7 @@ const validator = createValidator(spec, {
 - **`maxDepth`** bounds recursion through self-referential (`$ref`) schemas. Without it, a few KB of deeply nested JSON can exhaust the call stack and surface as a 500. Past the cap, validation emits a `depth` error (mapped to 400) instead of descending. Legitimate payloads rarely recurse beyond ten or fifteen levels, so 32 to 64 is generous.
 - **`maxErrors`** caps how many errors one request can produce, in compute and in response size: a large array whose every element fails the same way otherwise yields one error per element. Results carry `truncated: true` when the cap was hit. Leave it unset in development if you want every error at once.
 
-A byte-size limit (`express.json({ limit })`) and a parse-boundary depth cap, applied before the request reaches the validator, are backstops for nesting the validator never traverses (fields the schema doesn't descend into); see [Guarding against deeply nested payloads](https://github.com/aahoughton/oav/blob/main/docs/configuration.md#guarding-against-deeply-nested-payloads).
+A byte-size limit (`express.json({ limit })`) and a parse-boundary depth cap, applied before the request reaches the validator, are backstops for nesting the validator never traverses (fields the schema doesn't descend into); see [Guarding against deeply nested payloads](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md#guarding-against-deeply-nested-payloads).
 
 ## API
 
@@ -90,7 +90,7 @@ Returns an Express 5 promise-returning `RequestHandler`.
 Opt-in middleware that validates outgoing responses (`res.json`, `res.send`) against the spec. Mount it where you want response checking, conventionally on in development and off in production:
 
 ```ts
-import { validateResponses } from "@aahoughton/oav-express5";
+import { validateResponses } from "@oaverify/express5";
 
 if (process.env.NODE_ENV !== "production") {
   app.use(validateResponses(validator));
@@ -237,7 +237,7 @@ The middleware awaits the returned promise. Express 5 awaits the middleware itse
 
 ### Global validator + per-route multer (file uploads)
 
-When the validator is mounted globally and one or a few routes accept file uploads via multer, mount multer at the route prefix that needs it (upstream of the global validator) and use `toHttpRequest` to synthesize the spec-shaped body from `req.files`. See the [integration.md file uploads recipe](https://github.com/aahoughton/oav/blob/main/docs/integration.md#file-uploads-with-multer) for the full pattern; the only difference for Express 5 is the lack of `try/catch` (which neither the recipe nor the adapter needs).
+When the validator is mounted globally and one or a few routes accept file uploads via multer, mount multer at the route prefix that needs it (upstream of the global validator) and use `toHttpRequest` to synthesize the spec-shaped body from `req.files`. See the [integration.md file uploads recipe](https://github.com/oaverify/oaverify/blob/main/docs/integration.md#file-uploads-with-multer) for the full pattern; the only difference for Express 5 is the lack of `try/catch` (which neither the recipe nor the adapter needs).
 
 ## Express 4 vs Express 5
 
@@ -247,12 +247,12 @@ Same package shape, same exports, same defaults. The only differences:
 - No `try/catch` wrapper around the extractor; Express 5 routes thrown errors and rejected promises to the error chain via the promise itself.
 - `peerDependencies` requires `express ^5.0.0` (oav-express4 requires `^4.0.0`).
 
-A migrating consumer's `import { validateRequests } from "@aahoughton/oav-express5"` is the only line that changes after upgrading from oav-express4.
+A migrating consumer's `import { validateRequests } from "@oaverify/express5"` is the only line that changes after upgrading from oav-express4.
 
 ## See also
 
-- [`oav-core`](https://www.npmjs.com/package/@aahoughton/oav-core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
-- [`oav`](https://www.npmjs.com/package/@aahoughton/oav): oav-core plus YAML readers and the `oav` CLI.
-- The repo-root [`docs/integration.md`](https://github.com/aahoughton/oav/blob/main/docs/integration.md): broader recipes (security, file uploads, response validation, status mapping, type coercion, ignoring paths).
-- The repo-root [`docs/migration-from-eov.md`](https://github.com/aahoughton/oav/blob/main/docs/migration-from-eov.md): porting from `express-openapi-validator`.
-- [`oav-stream-validator`](https://www.npmjs.com/package/@aahoughton/oav-stream-validator): for JSON bodies too large to buffer through `express.json()`, validates the bytes as they stream; `oav stream-check spec.yaml` reports which of a spec's bodies can stream.
+- [`oav-core`](https://www.npmjs.com/package/@oaverify/core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
+- [`oav`](https://www.npmjs.com/package/oaverify): oav-core plus YAML readers and the `oav` CLI.
+- The repo-root [`docs/integration.md`](https://github.com/oaverify/oaverify/blob/main/docs/integration.md): broader recipes (security, file uploads, response validation, status mapping, type coercion, ignoring paths).
+- The repo-root [`docs/migration-from-eov.md`](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md): porting from `express-openapi-validator`.
+- [`oav-stream-validator`](https://www.npmjs.com/package/@oaverify/stream): for JSON bodies too large to buffer through `express.json()`, validates the bytes as they stream; `oaverify stream-check spec.yaml` reports which of a spec's bodies can stream.

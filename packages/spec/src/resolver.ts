@@ -1,4 +1,4 @@
-import { resolveJsonPointer, type OpenAPIDocument } from "@oav/core";
+import { resolveJsonPointer, type OpenAPIDocument } from "@oaverify/internal-core";
 import type { DocumentReader } from "./reader.js";
 import { lintResolvedSpec, type SpecHygieneIssue } from "./lint.js";
 import {
@@ -11,7 +11,7 @@ import {
   rewriteInternalRefTarget,
 } from "./resolver-shared.js";
 
-// Re-export the canonical implementation so @oav/spec consumers who
+// Re-export the canonical implementation so @oaverify/internal-spec consumers who
 // imported `resolveJsonPointer` keep working.
 export { resolveJsonPointer };
 

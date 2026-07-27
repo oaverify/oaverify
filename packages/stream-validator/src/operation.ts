@@ -1,6 +1,6 @@
 /**
  * Bridge a resolved OpenAPI document to a streaming body validator,
- * mirroring `@oav/validator`'s `Validator.getOperation` locator shape
+ * mirroring `@oaverify/internal-validator`'s `Validator.getOperation` locator shape
  * (`{ method, path }`).
  *
  * The stream validator validates one resolved schema; routing and
@@ -21,7 +21,7 @@
  * @packageDocumentation
  */
 
-import type { HttpMethod, OpenAPIDocument, RequestBodyObject } from "@oav/core";
+import type { HttpMethod, OpenAPIDocument, RequestBodyObject } from "@oaverify/internal-core";
 import { createStreamValidator, type StreamValidator } from "./engine/index.js";
 import {
   carryComponents,
@@ -52,8 +52,8 @@ export interface OperationLocator {
  * `$ref`s resolve.
  *
  * ```ts
- * import { resolveSpec } from "@aahoughton/oav-core/spec";
- * import { streamValidatorForOperation } from "@aahoughton/oav-stream-validator";
+ * import { resolveSpec } from "@oaverify/core/spec";
+ * import { streamValidatorForOperation } from "@oaverify/stream";
  *
  * const { document } = await resolveSpec({ reader, entry });
  * const validator = streamValidatorForOperation(document, {
@@ -67,7 +67,7 @@ export interface OperationLocator {
  * shape `resolveSpec` leaves in place) is followed; an external one that
  * survived resolution throws. Throws (before any byte) when the path,
  * method, request body, media type, or body schema is absent. Pairs with
- * `@oav/validator`'s `getOperation`: same `{ method, path }` locator,
+ * `@oaverify/internal-validator`'s `getOperation`: same `{ method, path }` locator,
  * exact-key lookup, no routing.
  *
  * @public

@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { jsonSchemaDialect, keywordDefinitions, oas30Dialect, openapi31Dialect } from "@oav/schema";
+import {
+  jsonSchemaDialect,
+  keywordDefinitions,
+  oas30Dialect,
+  openapi31Dialect,
+} from "@oaverify/internal-schema";
 import { KEYWORD_CATEGORY } from "../src/classifier/index.js";
 
 /**
- * Drift backstop: every keyword `@oav/schema` registers must have a
+ * Drift backstop: every keyword `@oaverify/internal-schema` registers must have a
  * classification in the engine's table. A new keyword (or a new dialect's
  * keyword) upstream fails this test until the engine consciously
  * classifies it, rather than silently mis-streaming. The runtime compile

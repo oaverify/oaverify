@@ -1,4 +1,4 @@
-import { collectLeaves, type OpenAPIDocument, type ValidationError } from "@oav/core";
+import { collectLeaves, type OpenAPIDocument, type ValidationError } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import type { CustomKeywordValidator } from "../src/index.js";
 import { createValidator } from "./fixtures.js";

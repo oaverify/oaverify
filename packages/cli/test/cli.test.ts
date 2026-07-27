@@ -305,9 +305,9 @@ describe("buildProgram: argv-level", () => {
 // The compile-schema command always bundles via esbuild. These tests
 // invoke the command directly (not through runCli) so they can override
 // the esbuild resolveDir to point at packages/cli/, which declares every
-// `@oav/*` the emitted module imports and so has the symlinks. In
-// production the consumer's cwd has oav-core installed and the default
-// resolveDir is correct.
+// `@oaverify/core` the emitted module imports and so has the symlink. In
+// production the consumer's cwd has @oaverify/core installed and the
+// default resolveDir is correct.
 describe("compile-schema output", () => {
   it("produces an import-free bundle that runs", async () => {
     const { compileSchemaCommand } = await import("../src/commands.js");
@@ -315,13 +315,12 @@ describe("compile-schema output", () => {
     const { fileURLToPath } = await import("node:url");
     const schema = { type: "object", required: ["name"], properties: { name: { type: "string" } } };
     const mem = memoryIo([], [["schema.json", JSON.stringify(schema)]]);
-    const resolveDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
+    const resolveDir = resolve(fileURLToPath(new URL("../../oav", import.meta.url)));
     const res = await compileSchemaCommand(
       {
         schema: "schema.json",
         output: "v.mjs",
         dialect: "2020-12",
-        importPrefix: "@oav",
         resolveDir,
       },
       mem.io,
@@ -331,7 +330,7 @@ describe("compile-schema output", () => {
 
     const bundled = mem.writes[0]?.[1] ?? "";
     expect(bundled).not.toMatch(/from\s+["']@aahoughton\/oav/);
-    expect(bundled).not.toMatch(/from\s+["']@oav/);
+    expect(bundled).not.toMatch(/from\s+["']@oaverify\/internal-/);
     expect(bundled).toMatch(/\bvalidate\b/);
 
     const mod = (await import(

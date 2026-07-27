@@ -12,9 +12,9 @@ try {
 } catch (err) {
   if ((err as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND") {
     process.stderr.write(
-      "error: the oav CLI can't resolve 'commander' (argv parsing). " +
-        "It's declared as a dependency of @aahoughton/oav; reinstall the package to repair the node_modules tree:\n" +
-        "    npm install --force @aahoughton/oav\n" +
+      "error: the oaverify CLI can't resolve 'commander' (argv parsing). " +
+        "It's declared as a dependency of oaverify; reinstall the package to repair the node_modules tree:\n" +
+        "    npm install --force oaverify\n" +
         "    pnpm install --force\n",
     );
     process.exit(2);
@@ -22,13 +22,13 @@ try {
   throw err;
 }
 
-const { buildProgram, defaultCommandIo } = await import("@oav/cli");
-const { composeReaders } = await import("@oav/spec");
-const { createSmartHttpReader, createYamlFileReader } = await import("@aahoughton/oav-yaml");
+const { buildProgram, defaultCommandIo } = await import("@oaverify/internal-cli");
+const { composeReaders } = await import("@oaverify/internal-spec");
+const { createSmartHttpReader, createYamlFileReader } = await import("@oaverify/yaml");
 
-// Default I/O composes the YAML readers from @aahoughton/oav-yaml in
-// front of the JSON-only readers baked into @oav/cli's defaultCommandIo,
-// so `oav resolve spec.yaml` and `oav resolve https://host/openapi`
+// Default I/O composes the YAML readers from @oaverify/yaml in
+// front of the JSON-only readers baked into @oaverify/internal-cli's defaultCommandIo,
+// so `oaverify resolve spec.yaml` and `oaverify resolve https://host/openapi`
 // work out of the box. createSmartHttpReader handles both JSON and
 // YAML over HTTP by inspecting Content-Type; it replaces the core
 // createHttpReader in the chain for any http(s) URI.

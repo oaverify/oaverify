@@ -1,7 +1,7 @@
 # Real-world OpenAPI specs
 
 Smoke-test harness that runs a set of public real-world OpenAPI 3.x
-specs through `@oav/spec`'s `loadSpec` and `@oav/validator`'s
+specs through `@oaverify/internal-spec`'s `loadSpec` and `@oaverify/internal-validator`'s
 `createValidator`, then samples a handful of operations per spec with
 `validateRequest` to exercise the lazy per-operation cache.
 

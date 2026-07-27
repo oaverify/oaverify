@@ -1,6 +1,6 @@
-# @oav/router
+# @oaverify/internal-router
 
-> **Internal package, not published.** `@oav/router` is a workspace-private
+> **Internal package, not published.** `@oaverify/internal-router` is a workspace-private
 > dependency of `oav`; it does not appear on npm and has no
 > published subpath. This README documents the internal surface for
 > contributors navigating the monorepo. Third-party consumers get the
@@ -12,7 +12,7 @@ linearly per request. Resolves `method + path` to the matching
 
 ```ts
 // Internal usage inside the monorepo
-import { createRouter } from "@oav/router";
+import { createRouter } from "@oaverify/internal-router";
 
 const router = createRouter({
   "/pets":          { get: {...}, post: {...} },

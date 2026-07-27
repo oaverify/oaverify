@@ -1,5 +1,10 @@
-import type { HttpRequest, HttpResponse, OpenAPIDocument, ValidationError } from "@oav/core";
-import { collectLeaves } from "@oav/core";
+import type {
+  HttpRequest,
+  HttpResponse,
+  OpenAPIDocument,
+  ValidationError,
+} from "@oaverify/internal-core";
+import { collectLeaves } from "@oaverify/internal-core";
 import {
   createValidator as createValidatorRaw,
   type TreeValidator,

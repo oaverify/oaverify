@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { OpenAPIDocument } from "@oav/core";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
 import type { RegexCompiler } from "../src/index.js";
 import { createValidator } from "../src/validator.js";
 
 /**
  * Validator-level forwarding: createValidator(spec, { regexCompiler })
  * has to thread the option into every per-operation compileSchema
- * invocation. The compiler-level tests in @oav/schema cover the API
+ * invocation. The compiler-level tests in @oaverify/internal-schema cover the API
  * directly; these tests exercise the validator surface so a future
  * refactor that drops the forward (e.g. only passing through one of
  * the request / response code paths) regresses visibly.
