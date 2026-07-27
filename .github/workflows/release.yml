@@ -170,34 +170,37 @@ jobs:
             "oaverify-fastify-*.tgz"
             "oaverify-[0-9]*.tgz"
           )
-          seen=0
+          # Resolve the full ordered list and assert coverage BEFORE the
+          # first publish. The order is hand-maintained, so a package added
+          # to Pack but not listed here must fail the release outright
+          # rather than after shipping a partial set.
+          FILES=()
           for pattern in "${ORDER[@]}"; do
             for tarball in pkgs/$pattern; do
               if [ ! -e "$tarball" ]; then
                 echo "::error::no tarball matched $pattern"
                 exit 1
               fi
-              seen=$((seen + 1))
-              manifest=$(tar -xOf "$tarball" package/package.json)
-              name=$(printf '%s' "$manifest" | jq -r .name)
-              version=$(printf '%s' "$manifest" | jq -r .version)
-              if npm view "${name}@${version}" version > /dev/null 2>&1; then
-                echo "skip: ${name}@${version} already published"
-                continue
-              fi
-              echo "publish: ${name}@${version}"
-              # `./` prefix: without it npm parses a relative path containing
-              # `/` as a github user/repo spec (e.g. `pkgs/oaverify-X.tgz` ->
-              # github user `pkgs`, repo `oaverify-X.tgz`) and tries to
-              # git-clone it, failing with code 128 before any OIDC exchange.
-              npm publish --access public "./$tarball"
+              FILES+=("$tarball")
             done
           done
-          # The ordered list is hand-maintained, so assert it covered
-          # everything Pack produced. Without this, adding a package and
-          # forgetting to list it here would silently skip publishing it.
           total=$(find pkgs -name '*.tgz' | wc -l | tr -d ' ')
-          if [ "$seen" -ne "$total" ]; then
-            echo "::error::publish order covered $seen tarballs but Pack produced $total"
+          if [ "${#FILES[@]}" -ne "$total" ]; then
+            echo "::error::publish order covers ${#FILES[@]} tarballs but Pack produced $total; update ORDER"
             exit 1
           fi
+          for tarball in "${FILES[@]}"; do
+            manifest=$(tar -xOf "$tarball" package/package.json)
+            name=$(printf '%s' "$manifest" | jq -r .name)
+            version=$(printf '%s' "$manifest" | jq -r .version)
+            if npm view "${name}@${version}" version > /dev/null 2>&1; then
+              echo "skip: ${name}@${version} already published"
+              continue
+            fi
+            echo "publish: ${name}@${version}"
+            # `./` prefix: without it npm parses a relative path containing
+            # `/` as a github user/repo spec (e.g. `pkgs/oaverify-X.tgz` ->
+            # github user `pkgs`, repo `oaverify-X.tgz`) and tries to
+            # git-clone it, failing with code 128 before any OIDC exchange.
+            npm publish --access public "./$tarball"
+          done
