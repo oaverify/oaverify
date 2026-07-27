@@ -13,7 +13,7 @@ five public subpath entrypoints (plus the not-semver-covered
 | `@oaverify/core/formats`      | Built-in string format validators                                               |
 | `@oaverify/core/core`         | Error tree model, shared OpenAPI / HTTP types                                   |
 
-`oav-core` carries no runtime dependencies and parses JSON only.
+`@oaverify/core` carries no runtime dependencies and parses JSON only.
 
 ## YAML
 
@@ -29,7 +29,7 @@ it pulls in a parser:
 
 Compose the readers ahead of the JSON-only ones from
 `@oaverify/core/spec`, which act as the fallback. Calling
-`oav-core`'s `createFileReader()` on a `.yaml` path throws with an
+`@oaverify/core`'s `createFileReader()` on a `.yaml` path throws with an
 install hint pointing here.
 
 `loadSpecSync` exists in both packages: `@oaverify/core/spec`'s is JSON-only,
@@ -61,9 +61,9 @@ Per-framework adapter packages share the same export names and option
 shapes as each other; only the framework-typed argument differs. Each
 has its own README:
 
-- [`oav-express4`](../packages/oav-express4/README.md): Express 4 (peer: `express ^4`).
-- [`oav-express5`](../packages/oav-express5/README.md): Express 5 (peer: `express ^5`); promise-native middleware shape.
-- [`oav-fastify`](../packages/oav-fastify/README.md): Fastify (peer: `fastify ^5`); ships a `preValidation` hook instead of middleware.
+- [`@oaverify/express4`](../packages/oav-express4/README.md): Express 4 (peer: `express ^4`).
+- [`@oaverify/express5`](../packages/oav-express5/README.md): Express 5 (peer: `express ^5`); promise-native middleware shape.
+- [`@oaverify/fastify`](../packages/oav-fastify/README.md): Fastify (peer: `fastify ^5`); ships a `preValidation` hook instead of middleware.
 
 For Next.js, Hono, Bun, and Deno, use the Web Standards adapter
 (`httpRequestFromFetch`, `validateFetchRequest`) directly; no

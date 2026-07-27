@@ -14,7 +14,7 @@
 // "Declared" unions `dependencies` and `devDependencies`, because the two
 // package kinds carry their @oaverify/internal-* deps differently: the internal private
 // packages (`@oaverify/internal-*`) depend at runtime via `dependencies`, while the
-// published `@aahoughton/*` packages tsup-bundle everything, so their
+// published `@oaverify/*` packages tsup-bundle everything, so their
 // @oaverify/internal-* sit in `devDependencies` (build/typecheck only) and their runtime
 // dep is `@oaverify/core`. The cycle check uses `dependencies` only
 // (the runtime DAG); the bundles contribute no runtime @oaverify/internal-* edges.

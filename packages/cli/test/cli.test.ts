@@ -343,7 +343,7 @@ describe("compile-schema output", () => {
     expect(res.exitCode).toBe(0);
 
     const bundled = mem.writes[0]?.[1] ?? "";
-    expect(bundled).not.toMatch(/from\s+["']@aahoughton\/oav/);
+    expect(bundled).not.toMatch(/from\s+["']@oaverify\//);
     expect(bundled).not.toMatch(/from\s+["']@oaverify\/internal-/);
     expect(bundled).toMatch(/\bvalidate\b/);
 

@@ -2,7 +2,7 @@
 
 YAML readers for [`@oaverify/core`](https://github.com/oaverify/oaverify).
 
-`oav-core` parses JSON only, so it can advertise zero runtime
+`@oaverify/core` parses JSON only, so it can advertise zero runtime
 dependencies. This package adds the YAML side: filesystem readers for
 `.yaml` / `.yml`, an HTTP reader that dispatches on `Content-Type`, a
 standalone string parser, and a synchronous loader whose default reader
@@ -29,7 +29,7 @@ const validator = createValidator(document);
 ```
 
 For the async path, compose the readers yourself. Order the YAML reader
-ahead of the JSON-only one from `oav-core`, so JSON acts as the
+ahead of the JSON-only one from `@oaverify/core`, so JSON acts as the
 fallback:
 
 ```ts
@@ -55,7 +55,7 @@ const reader = composeReaders([createSmartHttpReader(), createFileReader()]);
 const { document } = await loadSpec({ reader, entry: "https://api.example.com/openapi" });
 ```
 
-It handles JSON as well as YAML, so it replaces `oav-core`'s
+It handles JSON as well as YAML, so it replaces `@oaverify/core`'s
 `createHttpReader` in the chain rather than sitting alongside it.
 
 ## Parsing a string

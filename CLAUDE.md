@@ -282,7 +282,7 @@ runtime `@oaverify/internal-*` graph (from each package's `dependencies`) stays
 acyclic, and declarations match imports both ways (no `@oaverify/internal-*` declared
 but unimported, none imported but undeclared). "Declared" unions
 `dependencies` + `devDependencies`, since the internal `@oaverify/internal-*` packages
-carry their deps at runtime while the published `@aahoughton/*` bundles
+carry their deps at runtime while the published `@oaverify/*` bundles
 carry the same `@oaverify/internal-*` as build-only devDeps. Adding a real edge means
 updating both the graph above and the relevant `package.json`; a phantom
 or undeclared edge fails the build.

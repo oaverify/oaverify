@@ -317,7 +317,7 @@ Ajv 8 has four runtime dependencies:
 | `require-from-string`  | Load compiled-validator source as a module (standalone codegen) |
 
 oav's compiler and validator have zero runtime dependencies. The lean
-`oav-core` package ships exactly that (no runtime deps),
+`@oaverify/core` package ships exactly that (no runtime deps),
 and accepts JSON specs. The `oav` package adds YAML readers for
 `.yaml` spec files and the `oav` CLI. The two efficiency
 libraries Ajv pulls in (`fast-deep-equal`, `json-schema-traverse`)

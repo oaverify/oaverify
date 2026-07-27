@@ -103,13 +103,13 @@ const result = validator.validateRequest({
 ```
 
 Add [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml)
-if your specs are YAML; `oav-core` parses JSON only, which is what keeps
+if your specs are YAML; `@oaverify/core` parses JSON only, which is what keeps
 it free of runtime dependencies.
 
 For framework wiring there are adapter packages
-([`oav-express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md),
-[`oav-express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md),
-[`oav-fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md)),
+([`@oaverify/express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md),
+[`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md),
+[`@oaverify/fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md)),
 and for bodies too large to buffer there is
 [`@oaverify/stream`](https://www.npmjs.com/package/@oaverify/stream).
 

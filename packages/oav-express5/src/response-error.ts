@@ -18,7 +18,7 @@ export class ResponseValidationError extends Error {
 
   constructor(errors: ValidationError[]) {
     super(
-      `oav: outgoing response failed validation (${errors.length} issue${errors.length === 1 ? "" : "s"})`,
+      `oaverify: outgoing response failed validation (${errors.length} issue${errors.length === 1 ? "" : "s"})`,
     );
     this.name = "ResponseValidationError";
     this.errors = errors;

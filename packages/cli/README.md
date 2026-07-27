@@ -14,13 +14,13 @@ oav --help
 npx oaverify validate openapi.yaml --request req.http
 ```
 
-The CLI lives in the `oav` package, not `oav-core`. `oav-core`
+The CLI lives in the `oav` package, not `@oaverify/core`. `@oaverify/core`
 doesn't ship a `bin` or any CLI glue. `oav` carries `commander`
 (argv parsing) as a regular dependency. `esbuild` (AOT bundling
 for `compile-schema` / `compile-spec`) is an optional peer
 dependency; install it alongside `oav` only if you use those
 commands. Users who only need the programmatic API install
-`oav-core` instead.
+`@oaverify/core` instead.
 
 ## Commands
 

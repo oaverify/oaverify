@@ -9,7 +9,7 @@ This module is available at matching subpaths in both
 below import from `oaverify`; substitute `@oaverify/core`
 if you're on the lean package.
 
-> **`oav-core` ships JSON readers only.** Calling
+> **`@oaverify/core` ships JSON readers only.** Calling
 > `createFileReader()` or `createHttpReader()` on a `.yaml` / `.yml`
 > path throws an install-hint error. For YAML support, install
 > `oaverify` (for the bundled `createYamlFileReader`) or
@@ -59,7 +59,7 @@ It differs from `loadSpec` in one deliberate way: `reader` is
 needs no reader composition. To read from a custom synchronous source,
 pass a `{ read, canRead }` object as `reader`.
 
-`oav-core`'s `loadSpecSync` is JSON-only. For YAML, use the
+`@oaverify/core`'s `loadSpecSync` is JSON-only. For YAML, use the
 `loadSpecSync` from `@oaverify/yaml`, whose default reader covers
 `.yaml` / `.yml` and `.json`.
 

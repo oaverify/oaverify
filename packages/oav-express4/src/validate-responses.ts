@@ -62,7 +62,7 @@ const defaultOnError: ErrorHandler<ExpressContext> = (errors) => {
 
 // Marks a response already wrapped by validateResponses; a second mount
 // on the same chain would validate every response twice.
-const WRAPPED = Symbol("oav.validateResponses");
+const WRAPPED = Symbol("oaverify.validateResponses");
 
 // getHeaders() reports numeric values (Content-Length, or any
 // setHeader(name, number)) as numbers; the validator's header

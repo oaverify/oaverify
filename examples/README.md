@@ -19,11 +19,11 @@ The examples import from `packages/*/src` directly so they work without
 translates 1:1. `resolveSpec`, `loadSpec`, and the readers live at
 `@oaverify/core/spec`, and the YAML readers
 (`createYamlFileReader`, `createSmartHttpReader`) come from
-`@oaverify/yaml`, since `oav-core` is JSON-only.
+`@oaverify/yaml`, since `@oaverify/core` is JSON-only.
 
 The streaming examples import from `packages/stream-validator/src`, which
 translates to `@oaverify/stream`. That is a separate
-package (not part of the `oav` / `oav-core` re-export), versioned
+package (not part of the `oav` / `@oaverify/core` re-export), versioned
 independently on its own version line:
 
 ```bash

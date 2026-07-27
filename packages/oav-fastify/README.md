@@ -1,10 +1,10 @@
 # oav-fastify
 
-Fastify adapter for [`oav-core`](https://www.npmjs.com/package/@oaverify/core): a `preValidation` hook factory plus standalone helpers (`httpRequestFromFastify`, `renderProblemDetails`) for callers composing their own hooks.
+Fastify adapter for [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): a `preValidation` hook factory plus standalone helpers (`httpRequestFromFastify`, `renderProblemDetails`) for callers composing their own hooks.
 
-Same shape as the Express siblings ([`oav-express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md), [`oav-express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md)); only the framework-typed argument and Fastify's hook-vs-middleware distinction differ. Fastify is async-native, so thrown errors and rejected promises propagate to Fastify's error handler automatically, with no `try/catch` wrapper.
+Same shape as the Express siblings ([`@oaverify/express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md), [`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md)); only the framework-typed argument and Fastify's hook-vs-middleware distinction differ. Fastify is async-native, so thrown errors and rejected promises propagate to Fastify's error handler automatically, with no `try/catch` wrapper.
 
-Sibling packages: [`oav-express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md), [`oav-express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
+Sibling packages: [`@oaverify/express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md), [`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
 
 ## Install
 
@@ -18,7 +18,7 @@ npm install oaverify @oaverify/fastify fastify
 
 `fastify` is a peer dep; your app's existing install satisfies it.
 
-> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
+> **YAML specs.** `@oaverify/core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
 
 ## Quick start
 
@@ -233,8 +233,8 @@ If both fire on the same route, oav's `preValidation` hook runs first; if it pas
 
 ## See also
 
-- [`oav-core`](https://www.npmjs.com/package/@oaverify/core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
-- [`oav`](https://www.npmjs.com/package/oaverify): oav-core plus YAML readers and the `oav` CLI.
+- [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
+- [`oaverify`](https://www.npmjs.com/package/oaverify): the CLI. The library is `@oaverify/core`.
 - The repo-root [`docs/integration.md`](https://github.com/oaverify/oaverify/blob/main/docs/integration.md): broader recipes (security, file uploads, response validation, status mapping, type coercion, ignoring paths).
 - The repo-root [`docs/migration-from-eov.md`](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md): porting from `express-openapi-validator`.
-- [`oav-stream-validator`](https://www.npmjs.com/package/@oaverify/stream): for JSON bodies past what `bodyLimit` should buffer, validates the bytes as they stream; `oaverify stream-check spec.yaml` reports which of a spec's bodies can stream.
+- [`@oaverify/stream`](https://www.npmjs.com/package/@oaverify/stream): for JSON bodies past what `bodyLimit` should buffer, validates the bytes as they stream; `oaverify stream-check spec.yaml` reports which of a spec's bodies can stream.

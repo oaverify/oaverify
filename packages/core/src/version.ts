@@ -88,7 +88,7 @@ export function classifyUnknownVersion(rawOpenapi: unknown): UnknownVersionReaso
         `like "3.1.0" (got ${typeof rawOpenapi}). ` +
         'Swagger 2.0 documents use `swagger: "2.0"` instead and need to be converted ' +
         "first (e.g. `npx swagger2openapi input.json -o output.json`). " +
-        "AsyncAPI / OpenRPC / other formats are different domains and oav doesn't handle them.",
+        "AsyncAPI / OpenRPC / other formats are different domains and oaverify doesn't handle them.",
     };
   }
   const match = /^(\d+)\.(\d+)/.exec(rawOpenapi);
@@ -106,7 +106,7 @@ export function classifyUnknownVersion(rawOpenapi: unknown): UnknownVersionReaso
         : "";
     return {
       kind: "wrong-major",
-      message: `oav supports OpenAPI 3.x; got openapi: "${rawOpenapi}".${hint}`,
+      message: `oaverify supports OpenAPI 3.x; got openapi: "${rawOpenapi}".${hint}`,
     };
   }
   return { kind: "ok-unknown-minor", raw: rawOpenapi };

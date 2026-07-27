@@ -9,9 +9,9 @@ when the framework exposes Web Standards `Request` / `Response`.
 
 | Your app uses                        | Start here                                                                                    |
 | ------------------------------------ | --------------------------------------------------------------------------------------------- |
-| Express 4                            | [`oav-express4`](../packages/oav-express4/README.md), then [Express 4](#express-4)            |
-| Express 5                            | [`oav-express5`](../packages/oav-express5/README.md), then [Express 5](#express-5)            |
-| Fastify                              | [`oav-fastify`](../packages/oav-fastify/README.md), then [Fastify](#fastify)                  |
+| Express 4                            | [`@oaverify/express4`](../packages/oav-express4/README.md), then [Express 4](#express-4)      |
+| Express 5                            | [`@oaverify/express5`](../packages/oav-express5/README.md), then [Express 5](#express-5)      |
+| Fastify                              | [`@oaverify/fastify`](../packages/oav-fastify/README.md), then [Fastify](#fastify)            |
 | Next.js, Hono, Bun, Deno, Fetch APIs | [`validateFetchRequest`](#nextjs-app-router-hono-bun-deno)                                    |
 | Another framework                    | [What the validator expects](#what-the-validator-expects)                                     |
 | A custom error response shape        | [Preserving an existing client error envelope](#preserving-an-existing-client-error-envelope) |
@@ -71,7 +71,7 @@ error's `code`, dotted path, and pointer locate the failure under
 
 ## Supporting helpers
 
-All shipped from `oav` (or `oav-core` for the
+All shipped from `oav` (or `@oaverify/core` for the
 lean install). The recipes below assume these are in scope.
 
 `httpStatusFor`, `allowHeaderFor`, `toProblemDetails`, and
@@ -127,7 +127,7 @@ import {
 
 ### Express 4
 
-The [`oav-express4`](https://www.npmjs.com/package/@oaverify/express4)
+The [`@oaverify/express4`](https://www.npmjs.com/package/@oaverify/express4)
 companion package ships the middleware as a one-liner:
 
 ```ts
@@ -207,7 +207,7 @@ docs.
 
 ### Express 5
 
-The [`oav-express5`](https://www.npmjs.com/package/@oaverify/express5)
+The [`@oaverify/express5`](https://www.npmjs.com/package/@oaverify/express5)
 companion package ships the middleware as a one-liner: same shape
 as `oav-express4` but promise-native (no `try/catch` wrapper):
 
@@ -261,7 +261,7 @@ affect this pattern.
 
 ### Fastify
 
-The [`oav-fastify`](https://www.npmjs.com/package/@oaverify/fastify)
+The [`@oaverify/fastify`](https://www.npmjs.com/package/@oaverify/fastify)
 companion package ships the hook as a one-liner: same shape as the
 Express adapters but Fastify-native (a `preValidation` hook, not
 middleware):
@@ -767,7 +767,7 @@ full diff). Each `issue.params` carries machine-readable detail
 (e.g. `{ maximum: 30, actual: 42 }` for `maximum`,
 `{ format: "email", actual: "not-an-email" }` for `format`) if you
 want to surface structured details too. `BuiltInErrorParams` in
-`oav-core` documents the shape per code.
+`@oaverify/core` documents the shape per code.
 
 ### Body parser caveats
 

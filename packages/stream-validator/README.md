@@ -1,7 +1,7 @@
 # oav-stream-validator
 
 A streaming JSON Schema 2020-12 validator for
-[`oav-core`](https://www.npmjs.com/package/@oaverify/core). It
+[`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core). It
 validates a JSON document against a resolved schema **as it streams**,
 echoing the input bytes through unchanged while reporting violations on a
 side channel. Memory is bounded for forward-decidable schemas with
@@ -16,14 +16,14 @@ invalid body can be refused before its tail arrives. If your bodies
 fit comfortably in heap, the in-memory validator is the faster tool.
 
 This is a second engine, not a mode of the in-memory validator.
-`oav-core`'s compiler is pull-based over a fully-parsed value; this engine
-is push-based over a token stream. It reuses `oav-core`'s in-memory
+`@oaverify/core`'s compiler is pull-based over a fully-parsed value; this engine
+is push-based over a token stream. It reuses `@oaverify/core`'s in-memory
 validator for the subtrees a compile-time classifier marks BUFFER (so
 `format` assertion runs in that delegate, against the formats you register
 through the `formats` option; no format library is bundled by default),
 and reuses its flat error model.
 
-Thin: this package bundles nothing from `oav-core`. It declares
+Thin: this package bundles nothing from `@oaverify/core`. It declares
 `@oaverify/core` as a regular dependency, so installing the stream
 validator pulls the engine it delegates to along with it.
 
@@ -36,8 +36,8 @@ recovery, and the buffer-budget analyzer) live in the repo's
 [`examples/` directory](https://github.com/oaverify/oaverify/blob/main/examples/README.md#streaming)
 as `stream-*.ts`.
 
-> **Versioned independently of the `oav-core` family.** This package tracks
-> its own version line rather than the lockstep `oav-core` version, and
+> **Versioned independently of the `@oaverify/core` family.** This package tracks
+> its own version line rather than the lockstep `@oaverify/core` version, and
 > follows semver from `1.0` (a breaking change bumps the major). The public
 > surface is small and additive-by-design.
 
@@ -287,7 +287,7 @@ for (const op of analyzeSpec(document).operations) {
 ## Status
 
 Published to the default `latest` dist-tag, on its own `1.x` line
-(versioned independently of the `oav-core` family). The classifier
-co-evolves with `oav-core`'s keyword set inside the monorepo (a CI drift
+(versioned independently of the `@oaverify/core` family). The classifier
+co-evolves with `@oaverify/core`'s keyword set inside the monorepo (a CI drift
 test makes a divergence a build failure rather than silent breakage); the
 published bundle pins `@oaverify/core` so the two move together.

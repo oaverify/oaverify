@@ -93,9 +93,9 @@ Pick the packages that match what you need.
 | Fastify `preValidation` hook                    | `@oaverify/core` + `@oaverify/fastify`  |
 | Streaming large bodies + buffer-budget analysis | `@oaverify/stream`                      |
 
-`oav-core` is the library and carries no runtime dependencies. It parses
+`@oaverify/core` is the library and carries no runtime dependencies. It parses
 JSON; YAML support is a separate package because it pulls in a parser.
-The adapters and the streaming engine depend on `oav-core`, so installing
+The adapters and the streaming engine depend on `@oaverify/core`, so installing
 one gets you both.
 
 ```bash
@@ -119,7 +119,7 @@ A valid request prints nothing and exits `0`; validation errors print to
 stdout and exit non-zero. (Redirect with `--output <file>`, or silence the
 report and rely on the exit code with `--quiet`.)
 
-`oav-core` exposes its surface at five subpath entrypoints (`/schema`,
+`@oaverify/core` exposes its surface at five subpath entrypoints (`/schema`,
 `/spec`, `/overlay-spec`, `/formats`, `/core`) alongside the root export.
 See [`docs/modules.md`](https://github.com/oaverify/oaverify/blob/main/docs/modules.md)
 for what each one exports.
@@ -233,7 +233,7 @@ for (const op of analyzeSpec(document).operations) {
 
 `oaverify stream-check openapi.yaml` prints the same per-operation budget as
 a table (`--fail-on-unbounded` makes it a CI gate). The stream validator
-versions independently of the `oav-core` family on its own `1.x` line;
+versions independently of the `@oaverify/core` family on its own `1.x` line;
 see [`packages/stream-validator/README.md`](https://github.com/oaverify/oaverify/blob/main/packages/stream-validator/README.md)
 for the engine, the buffer model, and the edit hooks.
 
@@ -438,9 +438,9 @@ the flat `errors` list or a tree `error`, so this wiring is the same
 whichever `output` the validator uses.
 
 Companion adapter packages cover common request-validation wiring:
-[`oav-express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md),
-[`oav-express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md), and
-[`oav-fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md). They share export
+[`@oaverify/express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md),
+[`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md), and
+[`@oaverify/fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md). They share export
 names and option shapes; only the framework type differs.
 
 For Next.js, Hono, Bun, Deno, and custom frameworks, use the

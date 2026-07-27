@@ -4,7 +4,7 @@ A focused reference for porting an Express app off
 `express-openapi-validator` (eov) onto `oav`. Reads as a punch list,
 not a tutorial; for integration recipes, see
 [integration.md](./integration.md). For Express 4 specifically, the
-[`oav-express4`](../packages/oav-express4/README.md)
+[`@oaverify/express4`](../packages/oav-express4/README.md)
 companion package gets you most of eov's ergonomics back as a
 one-liner; the recipes in this doc work whether you use the adapter
 or write the middleware inline.
@@ -144,7 +144,7 @@ makes sense for your API.
   see [overlays.md](./overlays.md).
 - **Smaller install footprint.** `oav` depends on `yaml`,
   `commander`, and `esbuild` (the latter two for CLI + AOT compile
-  output); `oav-core` is the lean alternative with zero
+  output); `@oaverify/core` is the lean alternative with zero
   runtime deps for programmatic-only consumers who don't need the
   CLI or YAML readers.
 - **No mutation of `req`.** eov attaches `req.openapi`, coerces

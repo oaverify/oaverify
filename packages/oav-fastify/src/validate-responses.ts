@@ -68,7 +68,7 @@ function responseHeaders(reply: FastifyReply): Record<string, string | string[]>
 // Marks a request whose response has already been validated, so the
 // error reply Fastify renders after a throwing onError is not itself
 // re-validated into a loop.
-const VALIDATED = Symbol("oav.responseValidated");
+const VALIDATED = Symbol("oaverify.responseValidated");
 
 /**
  * Build a Fastify `onSend` hook that validates every outgoing response

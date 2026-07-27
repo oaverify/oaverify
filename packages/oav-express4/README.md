@@ -1,10 +1,10 @@
 # oav-express4
 
-Express 4 adapter for [`oav-core`](https://www.npmjs.com/package/@oaverify/core): a request-validator middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
+Express 4 adapter for [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): a request-validator middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
 
-Thin: this package re-exports nothing from oav-core. You install both. The adapter declares oav-core as a regular dependency, so a single `npm install @oaverify/express4` pulls oav-core along. Add [`oav-yaml`](https://www.npmjs.com/package/@oaverify/yaml) if your specs are YAML.
+Thin: this package re-exports nothing from `@oaverify/core`. You install both. The adapter declares it as a regular dependency, so a single `npm install @oaverify/express4` pulls it along. Add [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) if your specs are YAML.
 
-Sibling packages: [`oav-express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md), [`oav-fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
+Sibling packages: [`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md), [`@oaverify/fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
 
 > **Migrating from `express-openapi-validator`?** See [docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md) for behavior differences (path-label `/params/` → `/path/`, `errorCode` namespacing, status mapping) and a worked porting walkthrough.
 
@@ -20,7 +20,7 @@ npm install oaverify @oaverify/express4 express
 
 `express` is a peer dep; your app's existing install satisfies it.
 
-> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
+> **YAML specs.** `@oaverify/core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
 
 ## Quick start
 
@@ -210,7 +210,7 @@ If multiple projects end up copying this recipe, that's the signal to harvest in
 
 ### Skip validation for paths the spec doesn't declare
 
-The validator owns this: pass it `ignorePaths` or `ignoreUndocumented` at construction. See `ValidatorOptions` in `oav-core` for the contract.
+The validator owns this: pass it `ignorePaths` or `ignoreUndocumented` at construction. See `ValidatorOptions` in `@oaverify/core` for the contract.
 
 ```ts
 const validator = createValidator(spec, {
@@ -319,8 +319,8 @@ For per-route inline multer (validator called from inside the route handler) and
 
 ## See also
 
-- [`oav-core`](https://www.npmjs.com/package/@oaverify/core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
-- [`oav`](https://www.npmjs.com/package/oaverify): oav-core plus YAML readers and the `oav` CLI.
+- [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
+- [`oaverify`](https://www.npmjs.com/package/oaverify): the CLI. The library is `@oaverify/core`.
 - The repo-root [`docs/integration.md`](https://github.com/oaverify/oaverify/blob/main/docs/integration.md): broader recipes (security, file uploads, response validation, status mapping, type coercion, ignoring paths).
 - The repo-root [`docs/migration-from-eov.md`](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md): porting from `express-openapi-validator`.
-- [`oav-stream-validator`](https://www.npmjs.com/package/@oaverify/stream): for JSON bodies too large to buffer through `express.json()`, validates the bytes as they stream; `oaverify stream-check spec.yaml` reports which of a spec's bodies can stream.
+- [`@oaverify/stream`](https://www.npmjs.com/package/@oaverify/stream): for JSON bodies too large to buffer through `express.json()`, validates the bytes as they stream; `oaverify stream-check spec.yaml` reports which of a spec's bodies can stream.

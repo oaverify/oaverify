@@ -1,10 +1,10 @@
 # oav-express5
 
-Express 5 adapter for [`oav-core`](https://www.npmjs.com/package/@oaverify/core): a promise-native middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
+Express 5 adapter for [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): a promise-native middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
 
-Same shape as the [`oav-express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md) sibling; only the framework-typed argument and the async semantics differ. Express 5's promise-native middleware means thrown errors and rejected promises propagate to the host's error middleware automatically, with no `try/catch` wrapper.
+Same shape as the [`@oaverify/express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md) sibling; only the framework-typed argument and the async semantics differ. Express 5's promise-native middleware means thrown errors and rejected promises propagate to the host's error middleware automatically, with no `try/catch` wrapper.
 
-Sibling packages: [`oav-express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md), [`oav-fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
+Sibling packages: [`@oaverify/express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md), [`@oaverify/fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
 
 > **Migrating from `express-openapi-validator`?** See [docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md) for behavior differences (path-label `/params/` → `/path/`, `errorCode` namespacing, status mapping) and a worked porting walkthrough.
 
@@ -20,7 +20,7 @@ npm install oaverify @oaverify/express5 express
 
 `express` is a peer dep; your app's existing install satisfies it.
 
-> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
+> **YAML specs.** `@oaverify/core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
 
 ## Quick start
 
@@ -157,7 +157,7 @@ The check is shape-only: it confirms the declared credential is _present_, not t
 
 ### Skip validation for paths the spec doesn't declare
 
-The validator owns this: pass it `ignorePaths` or `ignoreUndocumented` at construction. See `ValidatorOptions` in `oav-core` for the contract.
+The validator owns this: pass it `ignorePaths` or `ignoreUndocumented` at construction. See `ValidatorOptions` in `@oaverify/core` for the contract.
 
 ```ts
 const validator = createValidator(spec, {
@@ -251,8 +251,8 @@ A migrating consumer's `import { validateRequests } from "@oaverify/express5"` i
 
 ## See also
 
-- [`oav-core`](https://www.npmjs.com/package/@oaverify/core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
-- [`oav`](https://www.npmjs.com/package/oaverify): oav-core plus YAML readers and the `oav` CLI.
+- [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
+- [`oaverify`](https://www.npmjs.com/package/oaverify): the CLI. The library is `@oaverify/core`.
 - The repo-root [`docs/integration.md`](https://github.com/oaverify/oaverify/blob/main/docs/integration.md): broader recipes (security, file uploads, response validation, status mapping, type coercion, ignoring paths).
 - The repo-root [`docs/migration-from-eov.md`](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md): porting from `express-openapi-validator`.
-- [`oav-stream-validator`](https://www.npmjs.com/package/@oaverify/stream): for JSON bodies too large to buffer through `express.json()`, validates the bytes as they stream; `oaverify stream-check spec.yaml` reports which of a spec's bodies can stream.
+- [`@oaverify/stream`](https://www.npmjs.com/package/@oaverify/stream): for JSON bodies too large to buffer through `express.json()`, validates the bytes as they stream; `oaverify stream-check spec.yaml` reports which of a spec's bodies can stream.

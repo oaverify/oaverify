@@ -37,9 +37,9 @@ detected on construction (or `undefined` if the field was missing or
 unsupported and a fallback was used; see `onUnknownVersion` below).
 
 Companion adapter packages wrap the validator as middleware /
-hooks: [`oav-express4`](../oav-express4/README.md),
-[`oav-express5`](../oav-express5/README.md),
-[`oav-fastify`](../oav-fastify/README.md). Each exports the same
+hooks: [`@oaverify/express4`](../oav-express4/README.md),
+[`@oaverify/express5`](../oav-express5/README.md),
+[`@oaverify/fastify`](../oav-fastify/README.md). Each exports the same
 `validateRequests` factory plus standalone helpers
 (`httpRequestFrom<Framework>`, `renderProblemDetails`).
 
