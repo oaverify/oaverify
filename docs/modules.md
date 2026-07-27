@@ -1,38 +1,59 @@
 # Modules
 
-The package publishes a root entry and five public subpath
-entrypoints (plus the not-semver-covered `*/internals` subpaths listed
-further down). `oav-core` mirrors the same paths; substitute
-`oav-core/...` to import from the lean package.
+`@aahoughton/oav-core` is the library. It publishes a root entry and
+five public subpath entrypoints (plus the not-semver-covered
+`*/internals` subpaths listed further down).
 
-| Import                         | Surface                                                                         |
-| ------------------------------ | ------------------------------------------------------------------------------- |
-| `@aahoughton/oav`              | `createValidator`, `combineValidators`, error helpers, formatters, types        |
-| `@aahoughton/oav/schema`       | `compileSchema`, dialects, vocabularies, custom keywords, keyword introspection |
-| `@aahoughton/oav/spec`         | `loadSpec`, `loadSpecSync`, `resolveSpec`, `applyOverlays`, readers             |
-| `@aahoughton/oav/overlay-spec` | `translateOverlay`, `applySpecOverlay`: OpenAPI Overlay 1.0 → typed SpecOverlay |
-| `@aahoughton/oav/formats`      | Built-in string format validators                                               |
-| `@aahoughton/oav/core`         | Error tree model, shared OpenAPI / HTTP types                                   |
+| Import                              | Surface                                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------------- |
+| `@aahoughton/oav-core`              | `createValidator`, `combineValidators`, error helpers, formatters, types        |
+| `@aahoughton/oav-core/schema`       | `compileSchema`, dialects, vocabularies, custom keywords, keyword introspection |
+| `@aahoughton/oav-core/spec`         | `loadSpec`, `loadSpecSync`, `resolveSpec`, `applyOverlays`, readers             |
+| `@aahoughton/oav-core/overlay-spec` | `translateOverlay`, `applySpecOverlay`: OpenAPI Overlay 1.0 → typed SpecOverlay |
+| `@aahoughton/oav-core/formats`      | Built-in string format validators                                               |
+| `@aahoughton/oav-core/core`         | Error tree model, shared OpenAPI / HTTP types                                   |
 
-`oav` also exports `loadSpecSync` (YAML-defaulting, so a `.yaml`
-spec loads with no reader composition), `createYamlFileReader`,
-`createSmartHttpReader` (HTTP reader that handles both JSON and YAML
-by inspecting `Content-Type`), and `parseYamlString` at the root
-entry, and ships the `oav` CLI as a `bin`.
+`oav-core` carries no runtime dependencies and parses JSON only.
+
+## YAML
+
+`@aahoughton/oav-yaml` adds the YAML side, in its own package because
+it pulls in a parser:
+
+| Export                       | Purpose                                                           |
+| ---------------------------- | ----------------------------------------------------------------- |
+| `createYamlFileReader(cwd?)` | Reader for `.yaml` / `.yml` on disk                               |
+| `createSmartHttpReader()`    | HTTP reader handling JSON and YAML, dispatching on `Content-Type` |
+| `parseYamlString(source)`    | Parse a YAML string, for specs loaded out of band                 |
+| `loadSpecSync(options)`      | Synchronous loader whose default reader covers YAML and JSON      |
+
+Compose the readers ahead of the JSON-only ones from
+`@aahoughton/oav-core/spec`, which act as the fallback. Calling
+`oav-core`'s `createFileReader()` on a `.yaml` path throws with an
+install hint pointing here.
+
+`loadSpecSync` exists in both packages: `oav-core/spec`'s is JSON-only,
+`oav-yaml`'s defaults its reader to cover both, so a `.yaml` entry
+loads with no composition.
+
+## The CLI
+
+`@aahoughton/oav` ships the `oav` binary and no library exports. See
+[`packages/cli/README.md`](../packages/cli/README.md) for commands and
+flags.
 
 ## Internal subpaths (not covered by semver)
 
 Each public package also exposes lower-level primitives behind a
 `/internals` path. They exist for advanced plugins, tooling, and
 tests, and sit deliberately outside the semver contract: compare
-against the public barrel before reaching for them. `oav-core` mirrors
-each at the matching `oav-core/...` path.
+against the public barrel before reaching for them.
 
-| Import                                | Surface                                                                                           |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `@aahoughton/oav/schema/internals`    | Codegen mechanics, runtime helpers, and resolve internals below the keyword-author API            |
-| `@aahoughton/oav/spec/internals`      | Synchronous resolver primitives (`resolveSpecSync`, `createFileReaderSync`, `composeReadersSync`) |
-| `@aahoughton/oav/validator/internals` | Parameter deserialization, query assembly, and the operation-level `$ref` resolver                |
+| Import                                     | Surface                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `@aahoughton/oav-core/schema/internals`    | Codegen mechanics, runtime helpers, and resolve internals below the keyword-author API            |
+| `@aahoughton/oav-core/spec/internals`      | Synchronous resolver primitives (`resolveSpecSync`, `createFileReaderSync`, `composeReadersSync`) |
+| `@aahoughton/oav-core/validator/internals` | Parameter deserialization, query assembly, and the operation-level `$ref` resolver                |
 
 ## Companion adapter packages
 

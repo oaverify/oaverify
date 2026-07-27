@@ -20,7 +20,7 @@ npm install @aahoughton/oav @aahoughton/oav-express5 express
 
 `express` is a peer dep; your app's existing install satisfies it.
 
-> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, either install [`oav`](https://www.npmjs.com/package/@aahoughton/oav) instead (it bundles the YAML readers and the CLI), or install `yaml` separately and parse the spec yourself before passing the parsed object to `createValidator`.
+> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@aahoughton/oav-yaml`](https://www.npmjs.com/package/@aahoughton/oav-yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
 
 ## Quick start
 

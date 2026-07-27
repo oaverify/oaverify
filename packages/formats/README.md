@@ -5,8 +5,8 @@ pure `(value: string) => boolean`; `builtInFormats` is the keyed map
 passed to `createValidator({ formats })` or `compileSchema({ formats })`.
 
 ```ts
-import { builtInFormats, validateUuid } from "@aahoughton/oav/formats";
-import { compileSchema, jsonSchemaDialect } from "@aahoughton/oav/schema";
+import { builtInFormats, validateUuid } from "@aahoughton/oav-core/formats";
+import { compileSchema, jsonSchemaDialect } from "@aahoughton/oav-core/schema";
 
 const { validate } = compileSchema(
   { type: "string", format: "uuid" },
@@ -42,7 +42,7 @@ The validator and compiler both accept a `formats` option that merges
 on top of the built-ins:
 
 ```ts
-import { createValidator } from "@aahoughton/oav";
+import { createValidator } from "@aahoughton/oav-core";
 
 const v = createValidator(spec, {
   formats: {

@@ -15,12 +15,11 @@ pnpm dlx tsx examples/<example>.ts
 
 The examples import from `packages/*/src` directly so they work without
 `pnpm build`. Third-party consumers would write
-`import { ... } from "@aahoughton/oav"` / `"@aahoughton/oav/spec"`
-instead; the logic translates 1:1. Consumers on the lean
-`@aahoughton/oav-core` package can substitute `@aahoughton/oav-core`
-for `@aahoughton/oav` in import specifiers that don't touch
-`createYamlFileReader` (oav-core is JSON-only); `resolveSpec` lives at
-`@aahoughton/oav-core/spec`.
+`import { ... } from "@aahoughton/oav-core"` instead; the logic
+translates 1:1. `resolveSpec`, `loadSpec`, and the readers live at
+`@aahoughton/oav-core/spec`, and the YAML readers
+(`createYamlFileReader`, `createSmartHttpReader`) come from
+`@aahoughton/oav-yaml`, since `oav-core` is JSON-only.
 
 The streaming examples import from `packages/stream-validator/src`, which
 translates to `@aahoughton/oav-stream-validator`. That is a separate

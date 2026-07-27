@@ -1,18 +1,18 @@
 # @oav/overlay-spec
 
-Translator from [OpenAPI Overlay 1.0](https://spec.openapis.org/overlay/1.0.0) spec-format documents to oav's typed `SpecOverlay`. Internal workspace package; the public surface ships at `@aahoughton/oav/overlay-spec` (and `@aahoughton/oav-core/overlay-spec`).
+Translator from [OpenAPI Overlay 1.0](https://spec.openapis.org/overlay/1.0.0) spec-format documents to oav's typed `SpecOverlay`. Internal workspace package; the public surface ships at `@aahoughton/oav-core/overlay-spec` (and `@aahoughton/oav-core/overlay-spec`).
 
 ## Why
 
-oav's first-party overlay surface is `SpecOverlay` from `@aahoughton/oav/spec`: typed verbs scoped to known OpenAPI shapes, hand-authored against the type. The OpenAPI Overlay 1.0 spec describes overlays as a list of JSONPath-targeted actions instead. This package consumes spec-format input and re-expresses it as typed `SpecOverlay` so callers can apply third-party overlay documents through the same code path.
+oav's first-party overlay surface is `SpecOverlay` from `@aahoughton/oav-core/spec`: typed verbs scoped to known OpenAPI shapes, hand-authored against the type. The OpenAPI Overlay 1.0 spec describes overlays as a list of JSONPath-targeted actions instead. This package consumes spec-format input and re-expresses it as typed `SpecOverlay` so callers can apply third-party overlay documents through the same code path.
 
 The translator maps a closed set of `target` expression shapes onto the typed `SpecOverlay` verbs in `@oav/spec`, not arbitrary JSONPath. The recognized shapes describe typical OAS axes (paths, methods, parameters by name and `in`, component buckets by name); anything outside that set throws a translation error naming the offending expression (recursive descent `..`, array slices, filter functions, wildcards across non-OAS axes); no silent partial application. Against the OpenAPI Overlay 1.0 canonical test suite this covers the conventional-shape targets; the rest throw. See [`docs/configuration.md`](../../docs/configuration.md) and [`docs/overlays.md`](../../docs/overlays.md) for the typed-authoring path.
 
 ## API
 
 ```ts
-import { translateOverlay, applySpecOverlay } from "@aahoughton/oav/overlay-spec";
-import { applyOverlays } from "@aahoughton/oav/spec";
+import { translateOverlay, applySpecOverlay } from "@aahoughton/oav-core/overlay-spec";
+import { applyOverlays } from "@aahoughton/oav-core/spec";
 
 // Translate spec-format input into a typed SpecOverlay.
 const overlay = translateOverlay(specFormatDocument);

@@ -77,7 +77,7 @@ catastrophic backtracking) on platforms that allow a native dep:
 
 ```ts
 import RE2 from "re2";
-import { createValidator } from "@aahoughton/oav";
+import { createValidator } from "@aahoughton/oav-core";
 
 const validator = createValidator(spec, {
   regexCompiler: (pattern) => new RE2(pattern),

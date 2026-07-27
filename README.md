@@ -12,7 +12,7 @@ them as they arrive, and a design-time analyzer reports which bodies
 stream and which must buffer before you ship.
 
 ```ts
-import { createValidator } from "@aahoughton/oav";
+import { createValidator } from "@aahoughton/oav-core";
 
 const validator = createValidator(document); // your parsed OpenAPI spec
 
@@ -33,7 +33,7 @@ One call covers the whole HTTP frame: method, path, parameters, body,
 content type, status, and headers. Errors come back as a flat list of
 typed leaves (`code`, `path`, `message`, `params`) you render yourself,
 or a nested tree on request. Invalid input is a return value, not a
-thrown exception, and `oav` never mutates your `req` / `res`.
+thrown exception, and oav never mutates your `req` / `res`.
 
 **Reach for oav when you want**
 
@@ -81,31 +81,31 @@ Express 4 / 5 + Fastify integration. See
 
 ## Install
 
-Pick the package that matches what you need. (`oav` is the shorthand
-used elsewhere in the docs for `@aahoughton/oav`.)
+Pick the packages that match what you need.
 
-| You need                                         | Install                                                                                             |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| YAML specs, HTTP/YAML readers, and the `oav` CLI | `@aahoughton/oav`                                                                                   |
-| JSON or pre-parsed specs with zero runtime deps  | `@aahoughton/oav-core`                                                                              |
-| Express 4 request middleware                     | `@aahoughton/oav` + `@aahoughton/oav-express4`                                                      |
-| Express 5 request middleware                     | `@aahoughton/oav` + `@aahoughton/oav-express5`                                                      |
-| Fastify `preValidation` hook                     | `@aahoughton/oav` + `@aahoughton/oav-fastify`                                                       |
-| Streaming large bodies + buffer-budget analysis  | `@aahoughton/oav-stream-validator` (+ `@aahoughton/oav` or `@aahoughton/oav-core` to load the spec) |
-| Edge/serverless validator emitted at build time  | `@aahoughton/oav` as a dev/build dependency                                                         |
+| You need                                        | Install                                             |
+| ----------------------------------------------- | --------------------------------------------------- |
+| The library: validate requests and responses    | `@aahoughton/oav-core`                              |
+| Loading specs written in YAML                   | `@aahoughton/oav-core` + `@aahoughton/oav-yaml`     |
+| The command-line tool                           | `@aahoughton/oav` (or run it with `npx`)            |
+| Express 4 request middleware                    | `@aahoughton/oav-core` + `@aahoughton/oav-express4` |
+| Express 5 request middleware                    | `@aahoughton/oav-core` + `@aahoughton/oav-express5` |
+| Fastify `preValidation` hook                    | `@aahoughton/oav-core` + `@aahoughton/oav-fastify`  |
+| Streaming large bodies + buffer-budget analysis | `@aahoughton/oav-stream-validator`                  |
 
-`oav` is a superset of `oav-core`: same programmatic surface plus YAML
-readers and the `oav` CLI. The CLI's `commander` and `esbuild` deps
-load on demand from the binary entry, never from the library
-entrypoints, so application bundles tree-shake them out.
+`oav-core` is the library and carries no runtime dependencies. It parses
+JSON; YAML support is a separate package because it pulls in a parser.
+The adapters and the streaming engine depend on `oav-core`, so installing
+one gets you both.
 
 ```bash
-npm install @aahoughton/oav            # YAML + CLI
-npm install @aahoughton/oav-core       # JSON only, zero runtime deps
-npm install @aahoughton/oav-express4   # Express 4 adapter (transitively pulls oav-core)
-npm install @aahoughton/oav-express5   # Express 5 adapter
-npm install @aahoughton/oav-fastify    # Fastify adapter
-npm install @aahoughton/oav-stream-validator   # streaming body validation + analyzeSpec
+npm install @aahoughton/oav-core             # the library, zero runtime deps
+npm install @aahoughton/oav-yaml             # YAML + smart HTTP readers
+npm install @aahoughton/oav-express4         # Express 4 adapter
+npm install @aahoughton/oav-express5         # Express 5 adapter
+npm install @aahoughton/oav-fastify          # Fastify adapter
+npm install @aahoughton/oav-stream-validator # streaming validation + analyzeSpec
+npm install -g @aahoughton/oav               # the CLI
 ```
 
 Want to try it against your own spec before wiring anything in? The CLI
@@ -119,11 +119,10 @@ A valid request prints nothing and exits `0`; validation errors print to
 stdout and exit non-zero. (Redirect with `--output <file>`, or silence the
 report and rely on the exit code with `--quiet`.)
 
-`oav` re-exports `oav-core` at five subpath entrypoints (`/schema`,
-`/spec`, `/overlay-spec`, `/formats`, `/core`); on the lean package,
-substitute `oav-core` in imports that don't touch the YAML readers
-(`createYamlFileReader`, `createSmartHttpReader`) or the CLI. See
-[`docs/modules.md`](https://github.com/aahoughton/oav/blob/main/docs/modules.md) for what each subpath exports.
+`oav-core` exposes its surface at five subpath entrypoints (`/schema`,
+`/spec`, `/overlay-spec`, `/formats`, `/core`) alongside the root export.
+See [`docs/modules.md`](https://github.com/aahoughton/oav/blob/main/docs/modules.md)
+for what each one exports.
 
 ## Quick start
 
@@ -131,8 +130,9 @@ substitute `oav-core` in imports that don't touch the YAML readers
 
 ```ts
 import express from "express";
-import { createValidator, createYamlFileReader } from "@aahoughton/oav";
-import { loadSpec } from "@aahoughton/oav/spec";
+import { createValidator } from "@aahoughton/oav-core";
+import { loadSpec } from "@aahoughton/oav-core/spec";
+import { createYamlFileReader } from "@aahoughton/oav-yaml";
 import { validateRequests } from "@aahoughton/oav-express5";
 
 const { document } = await loadSpec({
@@ -156,8 +156,9 @@ same shape with `oav-express4`; Fastify uses `oav-fastify` as a
 ### Framework-agnostic
 
 ```ts
-import { createValidator, createYamlFileReader, formatText } from "@aahoughton/oav";
-import { loadSpec } from "@aahoughton/oav/spec";
+import { createValidator, formatText } from "@aahoughton/oav-core";
+import { loadSpec } from "@aahoughton/oav-core/spec";
+import { createYamlFileReader } from "@aahoughton/oav-yaml";
 
 const { document } = await loadSpec({
   reader: createYamlFileReader(),
@@ -242,8 +243,8 @@ for the engine, the buffer model, and the edit hooks.
 is constructed. Typical shapes:
 
 ```ts
-import { applyOverlays } from "@aahoughton/oav/spec";
-import type { SpecOverlay } from "@aahoughton/oav/spec";
+import { applyOverlays } from "@aahoughton/oav-core/spec";
+import type { SpecOverlay } from "@aahoughton/oav-core/spec";
 
 // Add a deployment-specific server. `addServers` appends; `servers`
 // replaces wholesale.
@@ -411,7 +412,7 @@ adapter between your framework and `validateRequest` /
 inline Express 5 adapter is about this long:
 
 ```ts
-import { allowHeaderFor, httpStatusFor, toProblemDetails } from "@aahoughton/oav";
+import { allowHeaderFor, httpStatusFor, toProblemDetails } from "@aahoughton/oav-core";
 
 app.use(async (req, res, next) => {
   const result = validator.validateRequest({

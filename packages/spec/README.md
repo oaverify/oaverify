@@ -22,7 +22,7 @@ resolves external `$ref`s, and applies any overlays (in the right
 order) in a single call:
 
 ```ts
-import { composeReaders, createFileReader, loadSpec } from "@aahoughton/oav/spec";
+import { composeReaders, createFileReader, loadSpec } from "@aahoughton/oav-core/spec";
 
 const reader = composeReaders([createFileReader()]);
 const { document, sources } = await loadSpec({
@@ -48,7 +48,7 @@ exists for code that builds a validator in a synchronous bootstrap and
 can't `await`: a server or CLI that loads its spec once at startup.
 
 ```ts
-import { loadSpecSync } from "@aahoughton/oav/spec";
+import { loadSpecSync } from "@aahoughton/oav-core/spec";
 
 const { document } = loadSpecSync({ entry: "openapi.json" });
 const validator = createValidator(document);
@@ -59,9 +59,9 @@ It differs from `loadSpec` in one deliberate way: `reader` is
 needs no reader composition. To read from a custom synchronous source,
 pass a `{ read, canRead }` object as `reader`.
 
-`oav-core`'s `loadSpecSync` is JSON-only. For YAML, use the batteries
-`loadSpecSync` from `oav`, whose default reader covers `.yaml` /
-`.yml` and `.json`.
+`oav-core`'s `loadSpecSync` is JSON-only. For YAML, use the
+`loadSpecSync` from `@aahoughton/oav-yaml`, whose default reader covers
+`.yaml` / `.yml` and `.json`.
 
 `loadSpecSync` blocks on filesystem reads (`readFileSync`); use it at
 boot or in a CLI, not on a per-request path. For non-blocking contexts,
@@ -108,8 +108,8 @@ response `Content-Type` (falling back to URL extension), so JSON and
 YAML endpoints work through the same reader:
 
 ```ts
-import { composeReaders, createFileReader } from "@aahoughton/oav/spec";
-import { createSmartHttpReader, createYamlFileReader } from "@aahoughton/oav";
+import { composeReaders, createFileReader } from "@aahoughton/oav-core/spec";
+import { createSmartHttpReader, createYamlFileReader } from "@aahoughton/oav-yaml";
 
 const reader = composeReaders([
   createYamlFileReader(),
@@ -124,7 +124,7 @@ the two methods; plug it in via `composeReaders`.
 ## Overlays
 
 ```ts
-import { applyOverlays, type SpecOverlay } from "@aahoughton/oav/spec";
+import { applyOverlays, type SpecOverlay } from "@aahoughton/oav-core/spec";
 
 const overlay: SpecOverlay = {
   addPaths: {

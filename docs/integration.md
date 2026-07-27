@@ -120,7 +120,7 @@ import {
   formatSummary,
   httpStatusFor,
   toProblemDetails,
-} from "@aahoughton/oav";
+} from "@aahoughton/oav-core";
 ```
 
 ## Per-framework integration
@@ -190,7 +190,8 @@ and threading a Promise through just to build one validator.
 one, so the validator is ready inline:
 
 ```ts
-import { createValidator, loadSpecSync } from "@aahoughton/oav";
+import { createValidator } from "@aahoughton/oav-core";
+import { loadSpecSync } from "@aahoughton/oav-yaml";
 import { validateRequests } from "@aahoughton/oav-express4";
 
 const { document } = loadSpecSync({ entry: "openapi.yaml" });
@@ -333,7 +334,7 @@ bytes) and returns a discriminated union.
 
 ```ts
 // app/pets/route.ts
-import { allowHeaderFor, httpStatusFor, toProblemDetails } from "@aahoughton/oav";
+import { allowHeaderFor, httpStatusFor, toProblemDetails } from "@aahoughton/oav-core";
 import { validator } from "@/lib/validator";
 
 type CreatePet = { name: string; tag?: string };
@@ -375,7 +376,7 @@ you can put the adapter there instead:
 
 ```ts
 // proxy.ts (Next 16+) / middleware.ts (Next 15)
-import { allowHeaderFor, httpStatusFor, toProblemDetails } from "@aahoughton/oav";
+import { allowHeaderFor, httpStatusFor, toProblemDetails } from "@aahoughton/oav-core";
 import { NextResponse, type NextRequest } from "next/server";
 import { validator } from "@/lib/validator";
 
@@ -411,7 +412,7 @@ without buffering it, reach for
 instead; it checks the bytes as they stream.
 
 ```ts
-import { httpRequestFromFetch } from "@aahoughton/oav";
+import { httpRequestFromFetch } from "@aahoughton/oav-core";
 
 const { httpRequest } = await httpRequestFromFetch(request);
 // Mutate httpRequest.body however you need, then:
@@ -486,8 +487,8 @@ for the full surface; the four shapes that come up most often:
 declared, append to the `servers` list:
 
 ```ts
-import { applyOverlays } from "@aahoughton/oav/spec";
-import type { SpecOverlay } from "@aahoughton/oav/spec";
+import { applyOverlays } from "@aahoughton/oav-core/spec";
+import type { SpecOverlay } from "@aahoughton/oav-core/spec";
 
 const eu: SpecOverlay = {
   addServers: [{ url: "https://eu.api.example.com", description: "EU region" }],
@@ -567,12 +568,12 @@ document is deep-cloned, never mutated.
 OpenAPI's own [Overlay 1.0](https://spec.openapis.org/overlay/1.0.0)
 spec describes overlays as a list of JSONPath-targeted actions
 (`{ target, update? | remove? }`). When a third-party tool hands you
-an overlay in that format, `@aahoughton/oav/overlay-spec` translates
+an overlay in that format, `@aahoughton/oav-core/overlay-spec` translates
 it into a typed `SpecOverlay` so it flows through the same
 `applyOverlays` path:
 
 ```ts
-import { applySpecOverlay } from "@aahoughton/oav/overlay-spec";
+import { applySpecOverlay } from "@aahoughton/oav-core/overlay-spec";
 
 const overlayDoc = {
   overlay: "1.0.0",
@@ -598,7 +599,7 @@ with the offending target string in the message. No partial
 application: a single malformed action aborts the translation.
 
 For overlays you author yourself, prefer the typed `SpecOverlay`
-surface in `@aahoughton/oav/spec`. The translator is the import path
+surface in `@aahoughton/oav-core/spec`. The translator is the import path
 when you have to consume external spec-format input.
 
 ### Status-code mapping
@@ -663,7 +664,7 @@ client. Two override points are exposed: pass `detail` to
 `issues[*].params` before sending.
 
 ```ts
-import { httpStatusFor, toProblemDetails, type ValidationError } from "@aahoughton/oav";
+import { httpStatusFor, toProblemDetails, type ValidationError } from "@aahoughton/oav-core";
 
 function safeProblemDetails(errors: ValidationError[], instance: string) {
   const pd = toProblemDetails(errors, { instance });
@@ -710,7 +711,7 @@ top-levels, and security/content-type leaves under `request` /
 `response` wrappers.
 
 ```ts
-import { collectIssues, httpStatusFor, type ValidationError } from "@aahoughton/oav";
+import { collectIssues, httpStatusFor, type ValidationError } from "@aahoughton/oav-core";
 
 // .. or whatever your clients already parse.
 type ClientError = {
@@ -829,7 +830,7 @@ pnpm add -D @types/multer    # else every Express.Multer.File reference goes red
 
 ```ts
 import multer from "multer";
-import { createValidator, httpStatusFor, toProblemDetails } from "@aahoughton/oav";
+import { createValidator, httpStatusFor, toProblemDetails } from "@aahoughton/oav-core";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -924,7 +925,7 @@ startup:
 
 ```ts
 import multer from "multer";
-import { createValidator } from "@aahoughton/oav";
+import { createValidator } from "@aahoughton/oav-core";
 import { digestOperation } from "./spec-digest"; // copied from examples/spec-digest.ts
 
 const validator = createValidator(spec);
@@ -976,7 +977,7 @@ options depending on how much of the fetch helper you want to keep:
 schema declares:
 
 ```ts
-import { readBodyFromFetch } from "@aahoughton/oav";
+import { readBodyFromFetch } from "@aahoughton/oav-core";
 import { parseMultipart } from "@mjackson/multipart-parser"; // or busboy, formidable, etc.
 
 export async function POST(request: Request) {
@@ -1308,7 +1309,7 @@ single `Validator`, so the framework adapters consume it unchanged: one
 `validateRequests` mount instead of one per spec.
 
 ```ts
-import { createValidator, combineValidators } from "@aahoughton/oav";
+import { createValidator, combineValidators } from "@aahoughton/oav-core";
 
 const validator = combineValidators([createValidator(specV1), createValidator(specV2)], {
   onOverlap: "error",

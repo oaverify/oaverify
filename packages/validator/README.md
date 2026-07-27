@@ -5,7 +5,7 @@ the headline surface of the package; `createValidator` is re-exported
 from the package root.
 
 ```ts
-import { createValidator } from "@aahoughton/oav";
+import { createValidator } from "@aahoughton/oav-core";
 
 const validator = createValidator(resolvedSpec);
 
@@ -109,7 +109,7 @@ that dispatches each request to the member owning its route. The result
 is a `Validator`, so the framework adapters consume it unchanged.
 
 ```ts
-import { createValidator, combineValidators } from "@aahoughton/oav";
+import { createValidator, combineValidators } from "@aahoughton/oav-core";
 
 const validator = combineValidators(
   [createValidator(specV1), createValidator(specV2)],

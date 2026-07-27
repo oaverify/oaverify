@@ -187,7 +187,7 @@ When migrating a map of ajv-shaped definitions without rewriting each
 one, `oav/formats` exports `fromAjvFormats` for the conversion:
 
 ```ts
-import { fromAjvFormats } from "@aahoughton/oav/formats";
+import { fromAjvFormats } from "@aahoughton/oav-core/formats";
 
 createValidator(spec, { formats: fromAjvFormats(myAjvFormats) });
 ```
@@ -207,7 +207,7 @@ Keep them in the map if it's simpler; they cost nothing.
 string, use `formatSummary` with `{ select: "all" }`:
 
 ```ts
-import { formatSummary } from "@aahoughton/oav";
+import { formatSummary } from "@aahoughton/oav-core";
 
 // Default: first failing leaf, equivalent to eov's default `message`.
 formatSummary(err);

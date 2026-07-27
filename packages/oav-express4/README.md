@@ -2,7 +2,7 @@
 
 Express 4 adapter for [`oav-core`](https://www.npmjs.com/package/@aahoughton/oav-core): a request-validator middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
 
-Thin: this package re-exports nothing from oav-core. You install both. The adapter declares oav-core as a regular dependency, so a single `npm install @aahoughton/oav-express4` pulls oav-core along; or install [`oav`](https://www.npmjs.com/package/@aahoughton/oav) instead if you want YAML readers and the CLI.
+Thin: this package re-exports nothing from oav-core. You install both. The adapter declares oav-core as a regular dependency, so a single `npm install @aahoughton/oav-express4` pulls oav-core along. Add [`oav-yaml`](https://www.npmjs.com/package/@aahoughton/oav-yaml) if your specs are YAML.
 
 Sibling packages: [`oav-express5`](https://github.com/aahoughton/oav/blob/main/packages/oav-express5/README.md), [`oav-fastify`](https://github.com/aahoughton/oav/blob/main/packages/oav-fastify/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
 
@@ -20,7 +20,7 @@ npm install @aahoughton/oav @aahoughton/oav-express4 express
 
 `express` is a peer dep; your app's existing install satisfies it.
 
-> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, either install [`oav`](https://www.npmjs.com/package/@aahoughton/oav) instead (it bundles the YAML readers and the CLI), or install `yaml` separately and parse the spec yourself before passing the parsed object to `createValidator`.
+> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@aahoughton/oav-yaml`](https://www.npmjs.com/package/@aahoughton/oav-yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
 
 ## Quick start
 

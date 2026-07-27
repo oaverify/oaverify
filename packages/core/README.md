@@ -15,7 +15,7 @@ import {
   collectLeaves,
   type ValidationError,
   type ErrorParamsFor,
-} from "@aahoughton/oav/core";
+} from "@aahoughton/oav-core/core";
 ```
 
 ## Error tree
@@ -197,7 +197,7 @@ spec (e.g. overlays, custom tooling) handle them explicitly.
 ## Version detection
 
 ```ts
-import { detectOpenAPIVersion } from "@aahoughton/oav/core";
+import { detectOpenAPIVersion } from "@aahoughton/oav-core/core";
 
 detectOpenAPIVersion({ openapi: "3.0.3", info: {}, paths: {} }); // "3.0"
 detectOpenAPIVersion({ openapi: "3.2.0", info: {}, paths: {} }); // "3.2"
