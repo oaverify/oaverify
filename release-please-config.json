@@ -7,7 +7,7 @@
     {
       "type": "linked-versions",
       "groupName": "oaverify",
-      "components": ["core", "oaverify", "yaml", "express4", "express5", "fastify"]
+      "components": ["core", "oaverify", "yaml", "express4", "express5", "fastify", "stream"]
     }
   ],
   "changelog-sections": [
@@ -103,8 +103,7 @@
       "release-type": "node",
       "package-name": "@oaverify/stream",
       "component": "stream",
-      "changelog-path": "CHANGELOG.md",
-      "bump-minor-pre-major": true
+      "changelog-path": "CHANGELOG.md"
     }
   }
 }
