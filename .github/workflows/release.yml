@@ -8,7 +8,7 @@ name: release
 #    one. No release is created until you merge that PR.
 #
 # 2. When the release PR is merged, release-please creates a GitHub
-#    Release + git tag, sets `release_created: true` in outputs, and
+#    Release + git tag, sets `releases_created: true` in outputs, and
 #    the `publish` job runs: installs, builds, and publishes the
 #    tagged commit to npm.
 
@@ -48,7 +48,7 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     outputs:
-      release_created: ${{ steps.rp.outputs.release_created }}
+      releases_created: ${{ steps.rp.outputs.releases_created }}
     steps:
       - id: rp
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
@@ -62,10 +62,13 @@ jobs:
     # Release just created), OR when this workflow is manually
     # dispatched (recovery from a partial / failed publish).
     # Regular pushes to main run release-please above but skip
-    # publish — release-please's `release_created` is `false` while
-    # it's only updating the in-flight release PR.
+    # publish — release-please's `releases_created` is `false` while
+    # it's only updating the in-flight release PR. Note the plural: the
+    # singular `release_created` is scoped to the ROOT component, so a
+    # release that touches only an unlinked package (stream) would tag
+    # but never publish.
     if: |
-      needs.release-please.outputs.release_created == 'true' ||
+      needs.release-please.outputs.releases_created == 'true' ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
@@ -151,19 +154,50 @@ jobs:
       - name: Publish
         run: |
           set -euo pipefail
-          for tarball in pkgs/*.tgz; do
-            manifest=$(tar -xOf "$tarball" package/package.json)
-            name=$(printf '%s' "$manifest" | jq -r .name)
-            version=$(printf '%s' "$manifest" | jq -r .version)
-            if npm view "${name}@${version}" version > /dev/null 2>&1; then
-              echo "skip: ${name}@${version} already published"
-              continue
-            fi
-            echo "publish: ${name}@${version}"
-            # `./` prefix: without it npm 11 parses a relative path
-            # containing `/` as a github user/repo spec (e.g.
-            # `pkgs/aahoughton-oav-X.tgz` -> github user `pkgs`, repo
-            # `aahoughton-oav-X.tgz`) and tries to git-clone it,
-            # failing with code 128 before any OIDC token exchange.
-            npm publish --access public "./$tarball"
+          npm --version
+          # Dependency-first order. Glob order would publish the CLI FIRST:
+          # tarball names flatten the scope, so `oaverify-4.0.0.tgz` sorts
+          # ahead of `oaverify-core-4.0.0.tgz` ("4" < "c"). If the job then
+          # died before the dependencies landed, `npm install oaverify` would
+          # resolve to versions that do not exist on the registry. The retry
+          # path recovers, but the broken window is public and avoidable.
+          ORDER=(
+            "oaverify-core-*.tgz"
+            "oaverify-yaml-*.tgz"
+            "oaverify-stream-*.tgz"
+            "oaverify-express4-*.tgz"
+            "oaverify-express5-*.tgz"
+            "oaverify-fastify-*.tgz"
+            "oaverify-[0-9]*.tgz"
+          )
+          seen=0
+          for pattern in "${ORDER[@]}"; do
+            for tarball in pkgs/$pattern; do
+              if [ ! -e "$tarball" ]; then
+                echo "::error::no tarball matched $pattern"
+                exit 1
+              fi
+              seen=$((seen + 1))
+              manifest=$(tar -xOf "$tarball" package/package.json)
+              name=$(printf '%s' "$manifest" | jq -r .name)
+              version=$(printf '%s' "$manifest" | jq -r .version)
+              if npm view "${name}@${version}" version > /dev/null 2>&1; then
+                echo "skip: ${name}@${version} already published"
+                continue
+              fi
+              echo "publish: ${name}@${version}"
+              # `./` prefix: without it npm parses a relative path containing
+              # `/` as a github user/repo spec (e.g. `pkgs/oaverify-X.tgz` ->
+              # github user `pkgs`, repo `oaverify-X.tgz`) and tries to
+              # git-clone it, failing with code 128 before any OIDC exchange.
+              npm publish --access public "./$tarball"
+            done
           done
+          # The ordered list is hand-maintained, so assert it covered
+          # everything Pack produced. Without this, adding a package and
+          # forgetting to list it here would silently skip publishing it.
+          total=$(find pkgs -name '*.tgz' | wc -l | tr -d ' ')
+          if [ "$seen" -ne "$total" ]; then
+            echo "::error::publish order covered $seen tarballs but Pack produced $total"
+            exit 1
+          fi
