@@ -34,9 +34,16 @@
 //   - Collapse subpaths. An import of `@oav/validator/internals` counts
 //     as using `@oav/validator` (the cli relies on this barrel).
 //
-// Shipped src = packages/<pkg>/src/**/*.ts minus *.test.ts (the package
-// tsconfigs exclude tests from the build; a test-only import belongs in
-// devDependencies, which this check does not police).
+// Two source sets, because the two assertions ask different questions:
+//   - RUNTIME src = packages/<pkg>/src/**/*.ts minus *.test.ts. Feeds the
+//     cycle check, which models the shipped dependency DAG; the package
+//     tsconfigs exclude tests from the build, so a test import is not a
+//     runtime edge.
+//   - ALL src = the above plus *.test.ts anywhere under the package. Feeds
+//     the declared-vs-imported checks, because a test-only import still
+//     belongs in devDependencies. Scanning only runtime src made those two
+//     checks contradict each other: the comment said test-only imports go in
+//     devDependencies, and the phantom check then flagged them as unused.
 //
 // Use: node ./scripts/check-deps.mjs  (wired into `pnpm lint`).
 
@@ -71,8 +78,9 @@ function importedPackages(source) {
   return found;
 }
 
-// Recursively collect shipped .ts sources (skip *.test.ts) under `dir`.
-function collectSources(dir) {
+// Recursively collect .ts sources under `dir`. `includeTests` selects
+// between the two source sets described at the top of this file.
+function collectSources(dir, includeTests = false) {
   const out = [];
   let entries;
   try {
@@ -83,9 +91,9 @@ function collectSources(dir) {
   for (const entry of entries) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      out.push(...collectSources(full));
-    } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
-      out.push(full);
+      out.push(...collectSources(full, includeTests));
+    } else if (entry.name.endsWith(".ts")) {
+      if (includeTests || !entry.name.endsWith(".test.ts")) out.push(full);
     }
   }
   return out;
@@ -111,8 +119,13 @@ function readPackages() {
         ...Object.keys(manifest.devDependencies ?? {}).filter((d) => d.startsWith(SCOPE)),
       ]),
     ];
+    // Declared-vs-imported spans tests; the cycle check does not (see the
+    // two-source-sets note at the top).
     const imported = new Set();
-    for (const file of collectSources(join(dir, "src"))) {
+    for (const file of [
+      ...collectSources(join(dir, "src"), true),
+      ...collectSources(join(dir, "test"), true),
+    ]) {
       for (const pkg of importedPackages(readFileSync(file, "utf8"))) imported.add(pkg);
     }
     imported.delete(manifest.name); // a package importing its own subpath is not a dep.

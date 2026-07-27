@@ -67,6 +67,7 @@
   },
   "devDependencies": {
     "@oav/spec": "workspace:*",
+    "@oav/validator": "workspace:*",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "4.1.9"

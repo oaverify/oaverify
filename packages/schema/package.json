@@ -19,6 +19,9 @@
   "dependencies": {
     "@oav/core": "workspace:*"
   },
+  "devDependencies": {
+    "@oav/formats": "workspace:*"
+  },
   "engines": {
     "node": ">=20"
   }

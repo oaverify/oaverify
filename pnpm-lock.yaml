@@ -199,6 +199,10 @@ importers:
       '@oav/core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@oav/formats':
+        specifier: workspace:*
+        version: link:../formats
 
   packages/spec:
     dependencies:
@@ -258,6 +262,9 @@ importers:
       '@oav/spec':
         specifier: workspace:*
         version: link:../spec
+      '@oav/validator':
+        specifier: workspace:*
+        version: link:../validator
       tsup:
         specifier: 8.5.1
         version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)
