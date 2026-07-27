@@ -81,34 +81,19 @@ importers:
       '@aahoughton/oav-stream-validator':
         specifier: workspace:*
         version: link:../stream-validator
+      '@aahoughton/oav-yaml':
+        specifier: workspace:*
+        version: link:../yaml
       commander:
         specifier: ^15.0.0
         version: 15.0.0
-      yaml:
-        specifier: ^2.6.0
-        version: 2.9.0
     devDependencies:
       '@oav/cli':
         specifier: workspace:*
         version: link:../cli
-      '@oav/core':
-        specifier: workspace:*
-        version: link:../core
-      '@oav/formats':
-        specifier: workspace:*
-        version: link:../formats
-      '@oav/overlay-spec':
-        specifier: workspace:*
-        version: link:../overlay-spec
-      '@oav/schema':
-        specifier: workspace:*
-        version: link:../schema
       '@oav/spec':
         specifier: workspace:*
         version: link:../spec
-      '@oav/validator':
-        specifier: workspace:*
-        version: link:../validator
       tsup:
         specifier: 8.5.1
         version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)
@@ -260,6 +245,28 @@ importers:
       '@oav/spec':
         specifier: workspace:*
         version: link:../spec
+
+  packages/yaml:
+    dependencies:
+      '@aahoughton/oav-core':
+        specifier: workspace:*
+        version: link:../..
+      yaml:
+        specifier: ^2.6.0
+        version: 2.9.0
+    devDependencies:
+      '@oav/spec':
+        specifier: workspace:*
+        version: link:../spec
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 4.1.9
+        version: 4.1.9(@types/node@26.1.0)(esbuild@0.28.1)(yaml@2.9.0)
 
 packages:
 

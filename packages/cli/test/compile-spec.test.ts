@@ -15,7 +15,12 @@ import { createValidator } from "@oav/validator";
 import { compileSpecCommand } from "../src/commands.js";
 import { memoryIo } from "./fixtures.js";
 
-const RESOLVE_DIR = resolvePath(fileURLToPath(new URL("../../oav", import.meta.url)));
+// esbuild needs a directory where the `@oav/*` import prefix resolves.
+// packages/cli is the natural choice: it declares every `@oav/*` the
+// emitted module imports, so the symlinks are present in its
+// node_modules. In production the consumer's cwd has oav-core
+// installed and the default resolveDir is correct.
+const RESOLVE_DIR = resolvePath(fileURLToPath(new URL("..", import.meta.url)));
 
 const petstore: OpenAPIDocument = {
   openapi: "3.1.0",

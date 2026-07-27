@@ -26,7 +26,7 @@ import type {
   SchemaObject,
   SecurityRequirementObject,
 } from "../packages/core/src/index.ts";
-import { createYamlFileReader } from "../packages/oav/src/yaml.ts";
+import { createYamlFileReader } from "../packages/yaml/src/index.ts";
 import { loadSpec } from "../packages/spec/src/index.ts";
 import { createValidator } from "../packages/validator/src/index.ts";
 

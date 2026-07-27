@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createValidator } from "@oav/validator";
-import { loadSpecSync } from "../src/yaml.js";
+import { loadSpecSync } from "../src/index.js";
 
 // The batteries-included loadSpecSync: YAML entry + cross-file $ref on
 // disk, resolved synchronously and handed to createValidator. This is

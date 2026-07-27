@@ -24,9 +24,9 @@ try {
 
 const { buildProgram, defaultCommandIo } = await import("@oav/cli");
 const { composeReaders } = await import("@oav/spec");
-const { createSmartHttpReader, createYamlFileReader } = await import("./yaml.js");
+const { createSmartHttpReader, createYamlFileReader } = await import("@aahoughton/oav-yaml");
 
-// Default I/O composes the readers shipped with this package in
+// Default I/O composes the YAML readers from @aahoughton/oav-yaml in
 // front of the JSON-only readers baked into @oav/cli's defaultCommandIo,
 // so `oav resolve spec.yaml` and `oav resolve https://host/openapi`
 // work out of the box. createSmartHttpReader handles both JSON and

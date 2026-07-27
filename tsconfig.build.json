@@ -20,7 +20,6 @@
       "@oav/validator/internals": ["./packages/validator/src/internals.ts"],
       "@oav/stream-validator": ["./packages/stream-validator/src/index.ts"],
       "@oav/cli": ["./packages/cli/src/index.ts"],
-      "@oav/oav": ["./packages/oav/src/index.ts"],
       "@oav/oav-express4": ["./packages/oav-express4/src/index.ts"],
       "@oav/oav-express5": ["./packages/oav-express5/src/index.ts"],
       "@oav/oav-fastify": ["./packages/oav-fastify/src/index.ts"]

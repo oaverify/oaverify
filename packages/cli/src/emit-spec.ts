@@ -97,7 +97,7 @@ const DIALECT_MAP: Record<StandaloneDialect, Dialect> = {
  * @internal
  */
 export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {}): string {
-  const importPrefix = options.importPrefix ?? "@aahoughton/oav";
+  const importPrefix = options.importPrefix ?? "@aahoughton/oav-core";
   const outputMode = options.outputMode ?? "flat";
   const maxErrors = options.maxErrors ?? 1;
   // Bake the cap as a JS literal; Infinity has no JSON form.

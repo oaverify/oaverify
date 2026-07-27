@@ -21,9 +21,9 @@ function hasYamlExtension(uri: string): boolean {
 }
 
 const YAML_HINT =
-  "@aahoughton/oav-core does not parse YAML directly. Install @aahoughton/oav " +
-  "(the batteries-included distribution) and compose createYamlFileReader() / " +
-  "createSmartHttpReader() ahead of the JSON-only readers from @aahoughton/oav-core/spec.";
+  "@aahoughton/oav-core does not parse YAML directly. Install @aahoughton/oav-yaml " +
+  "and compose createYamlFileReader() / createSmartHttpReader() ahead of the " +
+  "JSON-only readers from @aahoughton/oav-core/spec.";
 
 /**
  * Read files from the local filesystem. JSON only; `.yaml` / `.yml`

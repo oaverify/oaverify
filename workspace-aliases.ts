@@ -15,7 +15,6 @@ const PACKAGES = [
   "validator",
   "stream-validator",
   "cli",
-  "oav",
   "oav-express4",
   "oav-express5",
   "oav-fastify",
@@ -34,15 +33,16 @@ export function workspaceAliases(rootDir: string): Record<string, string> {
     (pkg) =>
       [`@oav/${pkg}`, resolve(rootDir, "packages", pkg, "src", "index.ts")] as [string, string],
   );
-  // The stream validator is published standalone as `@aahoughton/oav-stream-validator`
-  // (not folded into the oav-core bundle), so consumers inside the workspace
-  // (the CLI) import it by that published name. Alias it to source too, so
-  // tests / bundling resolve it without a prior build of its dist.
+  // Packages published standalone rather than folded into the oav-core
+  // bundle, so consumers inside the workspace (the CLI) import them by
+  // their published names. Alias them to source too, so tests / bundling
+  // resolve them without a prior build of their dist.
   const publishedEntries: Array<[string, string]> = [
     [
       "@aahoughton/oav-stream-validator",
       resolve(rootDir, "packages", "stream-validator", "src", "index.ts"),
     ],
+    ["@aahoughton/oav-yaml", resolve(rootDir, "packages", "yaml", "src", "index.ts")],
   ];
   return Object.fromEntries([...subpathEntries, ...packageEntries, ...publishedEntries]);
 }

@@ -1,21 +1,16 @@
 {
-  "name": "@aahoughton/oav",
+  "name": "@aahoughton/oav-yaml",
   "version": "3.8.0",
-  "description": "Command-line OpenAPI validator (3.0/3.1/3.2): validate requests, responses, and examples against a spec, resolve and lint documents, and compile standalone validators. Library API lives in @aahoughton/oav-core.",
+  "description": "YAML readers for @aahoughton/oav-core: load hand-authored .yaml/.yml OpenAPI specs from disk or over HTTP, plus a synchronous loadSpecSync.",
   "keywords": [
-    "api-validation",
-    "cli",
-    "command-line",
     "oas",
     "openapi",
     "openapi-3.0",
     "openapi-3.1",
     "openapi-3.2",
-    "openapi-cli",
+    "openapi-loader",
     "openapi-validator",
-    "request-validator",
-    "response-validator",
-    "spec-validation",
+    "spec-loader",
     "swagger",
     "validation",
     "validator",
@@ -30,10 +25,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/aahoughton/oav.git",
-    "directory": "packages/oav"
-  },
-  "bin": {
-    "oav": "./dist/cli.js"
+    "directory": "packages/yaml"
   },
   "files": [
     "dist",
@@ -41,7 +33,21 @@
     "LICENSE"
   ],
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -57,24 +63,13 @@
   },
   "dependencies": {
     "@aahoughton/oav-core": "workspace:*",
-    "@aahoughton/oav-stream-validator": "workspace:*",
-    "@aahoughton/oav-yaml": "workspace:*",
-    "commander": "^15.0.0"
+    "yaml": "^2.6.0"
   },
   "devDependencies": {
-    "@oav/cli": "workspace:*",
     "@oav/spec": "workspace:*",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "4.1.9"
-  },
-  "peerDependencies": {
-    "esbuild": "^0.28.0"
-  },
-  "peerDependenciesMeta": {
-    "esbuild": {
-      "optional": true
-    }
   },
   "engines": {
     "node": ">=22"

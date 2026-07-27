@@ -31,7 +31,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { formatSummary } from "../packages/core/src/index.ts";
-import { createYamlFileReader } from "../packages/oav/src/yaml.ts";
+import { createYamlFileReader } from "../packages/yaml/src/index.ts";
 import { resolveSpec } from "../packages/spec/src/index.ts";
 import {
   streamValidatorForOperation,

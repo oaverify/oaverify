@@ -3,28 +3,29 @@ import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
 
 /**
- * Build config for `oav`, the batteries-included tarball.
- * Emits subpath shims that re-export `oav-core/*`, adds
- * the YAML readers at the root entry, and bundles the `oav` CLI.
+ * Build config for `oav`, the CLI tarball.
+ *
+ * This package ships one thing: the `oav` binary. The library API
+ * lives in `oav-core`, the YAML readers in `oav-yaml`; neither is
+ * re-exported here.
  *
  * Dependency shape:
- * - `oav-core` and `yaml` are external runtime deps the
+ * - `oav-core` and `oav-yaml` are external runtime deps the
  *   consumer's install already provides.
- * - `commander` is an external optional-peer, resolved at CLI run
- *   time with a clear error when missing.
+ * - `commander` is an external runtime dep, imported dynamically at
+ *   CLI start with a clear error when the install is corrupt.
+ * - `esbuild` is an external optional peer, used only by
+ *   `compile-schema` / `compile-spec` and reported lazily by them.
  * - `@oav/cli` (the workspace package that owns the CLI logic) is
  *   bundled in, along with everything it transitively imports from
  *   `@oav/*`. Those transitive imports are rewritten to the
- *   corresponding `oav-core/*` subpaths AND marked
- *   external by the plugin below, so the final bundles still import
- *   the compiler / validator from oav-core at run time rather than
- *   inlining a second copy.
+ *   corresponding `oav-core/*` subpaths AND marked external by the
+ *   plugin below, so the bundle imports the compiler / validator from
+ *   oav-core at run time rather than inlining a second copy.
  *
- * Two configs are exported: the library entries emit both ESM and
- * CJS, while the CLI emits ESM only (top-level `await` in cli.ts
- * isn't legal in a CJS output, and the `bin` field points at
- * `./dist/cli.js`. Node picks up the ESM build regardless of
- * consumers' package type).
+ * ESM only: `cli.ts` uses top-level `await`, which isn't legal in a
+ * CJS output. The `bin` field points at `./dist/cli.js` and Node picks
+ * up the ESM build regardless of the consumer's package type.
  */
 const repoRoot = resolve(__dirname, "..", "..");
 
@@ -69,41 +70,21 @@ function rewriteOavCore(): Plugin {
   };
 }
 
-const external = ["yaml", "commander", "esbuild"];
-
-export default defineConfig([
-  {
-    entry: {
-      index: "src/index.ts",
-      schema: "src/schema.ts",
-      "schema-internals": "src/schema-internals.ts",
-      spec: "src/spec.ts",
-      "spec-internals": "src/spec-internals.ts",
-      "overlay-spec": "src/overlay-spec.ts",
-      formats: "src/formats.ts",
-      core: "src/core.ts",
-      "validator-internals": "src/validator-internals.ts",
-    },
-    format: ["esm", "cjs"],
-    dts: true,
-    clean: true,
-    // No published source maps; see root tsup.config.ts for the rationale.
-    sourcemap: false,
-    target: "es2022",
-    tsconfig: "../../tsconfig.build.json",
-    external,
-    esbuildPlugins: [rewriteOavCore()],
-  },
-  {
-    entry: { cli: "src/cli.ts" },
-    format: ["esm"],
-    dts: false,
-    clean: false,
-    // No published source maps; see root tsup.config.ts for the rationale.
-    sourcemap: false,
-    target: "es2022",
-    tsconfig: "../../tsconfig.build.json",
-    external,
-    esbuildPlugins: [rewriteOavCore()],
-  },
-]);
+export default defineConfig({
+  entry: { cli: "src/cli.ts" },
+  format: ["esm"],
+  dts: false,
+  clean: true,
+  // No published source maps; see root tsup.config.ts for the rationale.
+  sourcemap: false,
+  target: "es2022",
+  tsconfig: resolve(__dirname, "../../tsconfig.build.json"),
+  external: [
+    "@aahoughton/oav-core",
+    "@aahoughton/oav-stream-validator",
+    "@aahoughton/oav-yaml",
+    "commander",
+    "esbuild",
+  ],
+  esbuildPlugins: [rewriteOavCore()],
+});

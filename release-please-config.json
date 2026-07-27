@@ -7,21 +7,60 @@
     {
       "type": "linked-versions",
       "groupName": "oav",
-      "components": ["oav-core", "oav", "oav-express4", "oav-express5", "oav-fastify"]
+      "components": ["oav-core", "oav", "oav-yaml", "oav-express4", "oav-express5", "oav-fastify"]
     }
   ],
   "changelog-sections": [
-    { "type": "feat", "section": "Features" },
-    { "type": "fix", "section": "Bug Fixes" },
-    { "type": "perf", "section": "Performance" },
-    { "type": "revert", "section": "Reverts" },
-    { "type": "docs", "section": "Documentation", "hidden": false },
-    { "type": "refactor", "section": "Refactoring" },
-    { "type": "build", "section": "Build", "hidden": true },
-    { "type": "ci", "section": "CI", "hidden": true },
-    { "type": "chore", "section": "Chore", "hidden": true },
-    { "type": "test", "section": "Tests", "hidden": true },
-    { "type": "style", "section": "Style", "hidden": true }
+    {
+      "type": "feat",
+      "section": "Features"
+    },
+    {
+      "type": "fix",
+      "section": "Bug Fixes"
+    },
+    {
+      "type": "perf",
+      "section": "Performance"
+    },
+    {
+      "type": "revert",
+      "section": "Reverts"
+    },
+    {
+      "type": "docs",
+      "section": "Documentation",
+      "hidden": false
+    },
+    {
+      "type": "refactor",
+      "section": "Refactoring"
+    },
+    {
+      "type": "build",
+      "section": "Build",
+      "hidden": true
+    },
+    {
+      "type": "ci",
+      "section": "CI",
+      "hidden": true
+    },
+    {
+      "type": "chore",
+      "section": "Chore",
+      "hidden": true
+    },
+    {
+      "type": "test",
+      "section": "Tests",
+      "hidden": true
+    },
+    {
+      "type": "style",
+      "section": "Style",
+      "hidden": true
+    }
   ],
   "packages": {
     ".": {
@@ -34,6 +73,12 @@
       "release-type": "node",
       "package-name": "@aahoughton/oav",
       "component": "oav",
+      "changelog-path": "CHANGELOG.md"
+    },
+    "packages/yaml": {
+      "release-type": "node",
+      "package-name": "@aahoughton/oav-yaml",
+      "component": "oav-yaml",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/oav-express4": {
