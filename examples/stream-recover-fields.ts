@@ -16,7 +16,7 @@
  * or log on them while the rest of the body is still in flight.
  *
  * Translation to the published package: import from
- * `@aahoughton/oav-stream-validator`. See ./README.md.
+ * `@oaverify/stream`. See ./README.md.
  *
  * Run from the repo root:
  *   pnpm dlx tsx examples/stream-recover-fields.ts

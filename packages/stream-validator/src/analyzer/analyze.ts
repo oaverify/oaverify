@@ -34,13 +34,13 @@
  * @packageDocumentation
  */
 
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import {
   type Dialect,
   FORMAT_ASSERTION_VOCAB,
   jsonSchemaDialect,
   openapi31Dialect,
-} from "@oav/schema";
+} from "@oaverify/internal-schema";
 import { classify, type Classification } from "../classifier/index.js";
 import { normalizeOas30 } from "../openapi/index.js";
 import type { StreamValidatorOptions } from "../options.js";

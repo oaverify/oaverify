@@ -12,10 +12,15 @@ import {
   type ReferenceObject,
   type SchemaOrBoolean,
   type ValidationError,
-} from "@oav/core";
-import { builtInFormats } from "@oav/formats";
-import { createRouter, type RouteInfo, type RouteMatch, type Router } from "@oav/router";
-import { lintResolvedSpec, type SpecHygieneIssue } from "@oav/spec";
+} from "@oaverify/internal-core";
+import { builtInFormats } from "@oaverify/internal-formats";
+import {
+  createRouter,
+  type RouteInfo,
+  type RouteMatch,
+  type Router,
+} from "@oaverify/internal-router";
+import { lintResolvedSpec, type SpecHygieneIssue } from "@oaverify/internal-spec";
 import {
   compileSchema,
   createRefResolver,
@@ -30,7 +35,7 @@ import {
   type StrictIssue,
   type TreeValidationResult,
   type ValidationResult,
-} from "@oav/schema";
+} from "@oaverify/internal-schema";
 import { deserialize, matchParsedMediaType, matchResponseKey } from "./deserialize.js";
 import { reshapeResult, toFetchResult } from "./reshape.js";
 import {
@@ -84,7 +89,7 @@ function dialectFor(version: OpenAPIVersion): Dialect {
 
 /**
  * The HTTP validator (flat output, the default). `validateRequest` /
- * `validateResponse` return a {@link @aahoughton/oav/schema!ValidationResult}:
+ * `validateResponse` return a {@link oaverify/schema!ValidationResult}:
  * `{ valid: true }` or `{ valid: false, errors, truncated }` with a flat
  * list of leaf errors. Compile with `output: "tree"` for a
  * {@link TreeValidator} (nested {@link ValidationError} tree) or
@@ -370,7 +375,7 @@ type OutputDependentMethods =
 /**
  * The HTTP validator built with `output: "tree"`. Identical to
  * {@link Validator} except `validateRequest` / `validateResponse` return
- * a {@link @aahoughton/oav/schema!TreeValidationResult} (a nested
+ * a {@link oaverify/schema!TreeValidationResult} (a nested
  * {@link ValidationError} tree under `error`) instead of the flat default.
  *
  * @public
@@ -461,7 +466,7 @@ export interface ValidatorStats {
  *
  * @remarks
  * Ordering convention (shared with
- * {@link @aahoughton/oav/schema!CompileOptions}):
+ * {@link oaverify/schema!CompileOptions}):
  *
  *   1. Compile essentials: `dialect`.
  *   2. Shared extension points: `formats`, `keywords`.
@@ -524,13 +529,13 @@ export interface ValidatorOptions {
 
   /**
    * What `validateRequest` / `validateResponse` return. Mirrors
-   * {@link @aahoughton/oav/schema!CompileOptions.output}:
+   * {@link oaverify/schema!CompileOptions.output}:
    *
    * - `"flat"` (default): a
-   *   {@link @aahoughton/oav/schema!ValidationResult}: `{ valid }` plus,
+   *   {@link oaverify/schema!ValidationResult}: `{ valid }` plus,
    *   on failure, a flat `errors` leaf list and `truncated`. The
    *   constructed validator has type {@link Validator}.
-   * - `"tree"`: a {@link @aahoughton/oav/schema!TreeValidationResult}: a
+   * - `"tree"`: a {@link oaverify/schema!TreeValidationResult}: a
    *   nested {@link ValidationError} tree under `error`. Type
    *   {@link TreeValidator}.
    * - `"predicate"`: a bare `boolean`. Type {@link PredicateValidator};
@@ -674,7 +679,7 @@ export interface ValidatorOptions {
   /**
    * How to handle a spec with an unknown **minor** version inside the
    * OpenAPI 3.x line; e.g. `openapi: "3.7.0"` if a future minor ships
-   * before oav is updated. Pure forward-compat control; does not govern
+   * before oaverify is updated. Pure forward-compat control; does not govern
    * category errors (missing `openapi` field, wrong major), which
    * always throw unless `dialect` is set.
    *
@@ -708,8 +713,8 @@ export interface ValidatorOptions {
    * thrown. Defaults to `false`.
    *
    * The same engine runs from
-   * {@link @aahoughton/oav/spec!resolveSpec} and
-   * {@link @aahoughton/oav/spec!loadSpec}; pick whichever layer is
+   * {@link oaverify/spec!resolveSpec} and
+   * {@link oaverify/spec!loadSpec}; pick whichever layer is
    * natural for your flow. Running it in both places lints twice for
    * no benefit.
    */

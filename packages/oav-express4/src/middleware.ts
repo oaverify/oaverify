@@ -1,20 +1,20 @@
 import type { Request, RequestHandler } from "express";
-import { collectLeaves, type HttpRequest, type ValidationError } from "@oav/core";
-import type { TreeValidator, Validator } from "@oav/validator";
+import { collectLeaves, type HttpRequest, type ValidationError } from "@oaverify/internal-core";
+import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromExpress } from "./extract.js";
 import { renderProblemDetails } from "./render.js";
 import type { ErrorHandler, ExpressContext } from "./types.js";
 
 /**
  * Options for {@link validateRequests}. The same option shape is
- * used by every adapter in the family (`oav-express5`,
- * `oav-fastify`); only the framework-typed argument differs.
+ * used by every adapter in the family (`@oaverify/express5`,
+ * `@oaverify/fastify`); only the framework-typed argument differs.
  *
  * @public
  */
 export interface ValidateRequestsOptions {
   /**
-   * Custom extractor from the Express request to oav's
+   * Custom extractor from the Express request to oaverify's
    * {@link HttpRequest} shape. Default: {@link httpRequestFromExpress}.
    * Override when your stack populates non-standard fields the
    * validator needs (e.g. a proxy that puts the verified body on
@@ -53,13 +53,13 @@ export interface ValidateRequestsOptions {
  * middleware forwards both via `next(err)` so the host app's error
  * middleware sees them.
  *
- * Same factory shape across the sibling `oav-express5` /
- * `oav-fastify` adapters.
+ * Same factory shape across the sibling `@oaverify/express5` /
+ * `@oaverify/fastify` adapters.
  *
  * @example
  * ```ts
  * import express from "express";
- * import { validateRequests } from "@aahoughton/oav-express4";
+ * import { validateRequests } from "@oaverify/express4";
  *
  * const app = express();
  * app.use(express.json());

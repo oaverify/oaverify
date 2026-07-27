@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
-import { compileSchema, jsonSchemaDialect } from "@oav/schema";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import { compileSchema, jsonSchemaDialect } from "@oaverify/internal-schema";
 import { createStreamValidator } from "../src/index.js";
 
 const enc = new TextEncoder();
@@ -28,7 +28,7 @@ function inMemory(schema: SchemaOrBoolean, value: unknown): boolean {
  * Comprehensive composition coverage: this is the safety net for the TEE
  * refactor (which changes composition from buffer-and-delegate to forward
  * streaming). Every (schema, value) pair must produce the same verdict as
- * @oav/schema's in-memory engine; the refactor must keep them green.
+ * @oaverify/internal-schema's in-memory engine; the refactor must keep them green.
  *
  * Each schema is probed against a broad set of diverse values, so the
  * matrix exercises exactly-one (`oneOf`) overlap, keyword-applies-only-to-
@@ -130,7 +130,7 @@ const SCHEMAS: SchemaObject[] = [
   { type: "integer", anyOf: [{ minimum: 100 }, { maximum: -100 }] },
 ];
 
-describe("composition differential vs @oav/schema (TEE safety net)", () => {
+describe("composition differential vs @oaverify/internal-schema (TEE safety net)", () => {
   for (const schema of SCHEMAS) {
     for (const value of PROBES) {
       it(`${JSON.stringify(schema)} vs ${JSON.stringify(value) ?? "undefined"}`, async () => {

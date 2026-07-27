@@ -1,4 +1,4 @@
-import type { ValidationError } from "@oav/core";
+import type { ValidationError } from "@oaverify/internal-core";
 
 /**
  * Thrown by the default {@link validateResponses} `onError` when an
@@ -18,7 +18,7 @@ export class ResponseValidationError extends Error {
 
   constructor(errors: ValidationError[]) {
     super(
-      `oav: outgoing response failed validation (${errors.length} issue${errors.length === 1 ? "" : "s"})`,
+      `oaverify: outgoing response failed validation (${errors.length} issue${errors.length === 1 ? "" : "s"})`,
     );
     this.name = "ResponseValidationError";
     this.errors = errors;

@@ -5,14 +5,14 @@ import type {
   ParameterObject,
   ServerObject,
   TagObject,
-} from "@oav/core";
+} from "@oaverify/internal-core";
 import type {
   ModifyOperationsEntry,
   OperationOverride,
   PathOverride,
   ResponseOverride,
   SpecOverlay,
-} from "@oav/spec";
+} from "@oaverify/internal-spec";
 import {
   type FilterExpr,
   type PathToken,
@@ -31,7 +31,7 @@ export type NormalizedAction =
 
 /**
  * The HTTP methods that OpenAPI Overlay path targets are expected to
- * use. Mirrors {@link @oav/core!HttpMethod} but kept local so the
+ * use. Mirrors {@link @oaverify/internal-core!HttpMethod} but kept local so the
  * recogniser doesn't depend on a runtime constant.
  */
 const HTTP_METHODS: ReadonlySet<HttpMethod> = new Set([

@@ -44,27 +44,27 @@ importers:
 
   packages/cli:
     dependencies:
-      '@aahoughton/oav-stream-validator':
-        specifier: workspace:*
-        version: link:../stream-validator
-      '@oav/core':
+      '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
-      '@oav/formats':
+      '@oaverify/internal-formats':
         specifier: workspace:*
         version: link:../formats
-      '@oav/overlay-spec':
+      '@oaverify/internal-overlay-spec':
         specifier: workspace:*
         version: link:../overlay-spec
-      '@oav/schema':
+      '@oaverify/internal-schema':
         specifier: workspace:*
         version: link:../schema
-      '@oav/spec':
+      '@oaverify/internal-spec':
         specifier: workspace:*
         version: link:../spec
-      '@oav/validator':
+      '@oaverify/internal-validator':
         specifier: workspace:*
         version: link:../validator
+      '@oaverify/stream':
+        specifier: workspace:*
+        version: link:../stream-validator
       commander:
         specifier: 15.0.0
         version: 15.0.0
@@ -75,40 +75,25 @@ importers:
 
   packages/oav:
     dependencies:
-      '@aahoughton/oav-core':
+      '@oaverify/core':
         specifier: workspace:*
         version: link:../..
-      '@aahoughton/oav-stream-validator':
+      '@oaverify/stream':
         specifier: workspace:*
         version: link:../stream-validator
+      '@oaverify/yaml':
+        specifier: workspace:*
+        version: link:../yaml
       commander:
         specifier: ^15.0.0
         version: 15.0.0
-      yaml:
-        specifier: ^2.6.0
-        version: 2.9.0
     devDependencies:
-      '@oav/cli':
+      '@oaverify/internal-cli':
         specifier: workspace:*
         version: link:../cli
-      '@oav/core':
-        specifier: workspace:*
-        version: link:../core
-      '@oav/formats':
-        specifier: workspace:*
-        version: link:../formats
-      '@oav/overlay-spec':
-        specifier: workspace:*
-        version: link:../overlay-spec
-      '@oav/schema':
-        specifier: workspace:*
-        version: link:../schema
-      '@oav/spec':
+      '@oaverify/internal-spec':
         specifier: workspace:*
         version: link:../spec
-      '@oav/validator':
-        specifier: workspace:*
-        version: link:../validator
       tsup:
         specifier: 8.5.1
         version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)
@@ -121,14 +106,14 @@ importers:
 
   packages/oav-express4:
     dependencies:
-      '@aahoughton/oav-core':
+      '@oaverify/core':
         specifier: workspace:*
         version: link:../..
     devDependencies:
-      '@oav/core':
+      '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
-      '@oav/validator':
+      '@oaverify/internal-validator':
         specifier: workspace:*
         version: link:../validator
       '@types/express':
@@ -146,14 +131,14 @@ importers:
 
   packages/oav-express5:
     dependencies:
-      '@aahoughton/oav-core':
+      '@oaverify/core':
         specifier: workspace:*
         version: link:../..
     devDependencies:
-      '@oav/core':
+      '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
-      '@oav/validator':
+      '@oaverify/internal-validator':
         specifier: workspace:*
         version: link:../validator
       '@types/express':
@@ -171,14 +156,14 @@ importers:
 
   packages/oav-fastify:
     dependencies:
-      '@aahoughton/oav-core':
+      '@oaverify/core':
         specifier: workspace:*
         version: link:../..
     devDependencies:
-      '@oav/core':
+      '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
-      '@oav/validator':
+      '@oaverify/internal-validator':
         specifier: workspace:*
         version: link:../validator
       fastify:
@@ -196,41 +181,45 @@ importers:
 
   packages/overlay-spec:
     dependencies:
-      '@oav/core':
+      '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
-      '@oav/spec':
+      '@oaverify/internal-spec':
         specifier: workspace:*
         version: link:../spec
 
   packages/router:
     dependencies:
-      '@oav/core':
+      '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
 
   packages/schema:
     dependencies:
-      '@oav/core':
+      '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@oaverify/internal-formats':
+        specifier: workspace:*
+        version: link:../formats
 
   packages/spec:
     dependencies:
-      '@oav/core':
+      '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
 
   packages/stream-validator:
     dependencies:
-      '@aahoughton/oav-core':
+      '@oaverify/core':
         specifier: workspace:*
         version: link:../..
     devDependencies:
-      '@oav/core':
+      '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
-      '@oav/schema':
+      '@oaverify/internal-schema':
         specifier: workspace:*
         version: link:../schema
       tsup:
@@ -245,21 +234,46 @@ importers:
 
   packages/validator:
     dependencies:
-      '@oav/core':
+      '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
-      '@oav/formats':
+      '@oaverify/internal-formats':
         specifier: workspace:*
         version: link:../formats
-      '@oav/router':
+      '@oaverify/internal-router':
         specifier: workspace:*
         version: link:../router
-      '@oav/schema':
+      '@oaverify/internal-schema':
         specifier: workspace:*
         version: link:../schema
-      '@oav/spec':
+      '@oaverify/internal-spec':
         specifier: workspace:*
         version: link:../spec
+
+  packages/yaml:
+    dependencies:
+      '@oaverify/core':
+        specifier: workspace:*
+        version: link:../..
+      yaml:
+        specifier: ^2.6.0
+        version: 2.9.0
+    devDependencies:
+      '@oaverify/internal-spec':
+        specifier: workspace:*
+        version: link:../spec
+      '@oaverify/internal-validator':
+        specifier: workspace:*
+        version: link:../validator
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 4.1.9
+        version: 4.1.9(@types/node@26.1.0)(esbuild@0.28.1)(yaml@2.9.0)
 
 packages:
 

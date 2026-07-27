@@ -1,8 +1,8 @@
 import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
-import type { RegexCompiler, SchemaOrBoolean } from "@oav/core";
-import { compileSchema, jsonSchemaDialect, openapi31Dialect } from "@oav/schema";
+import type { RegexCompiler, SchemaOrBoolean } from "@oaverify/internal-core";
+import { compileSchema, jsonSchemaDialect, openapi31Dialect } from "@oaverify/internal-schema";
 import {
   BufferLimitError,
   createStreamValidator,

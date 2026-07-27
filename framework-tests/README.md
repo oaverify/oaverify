@@ -1,7 +1,7 @@
 # framework-tests
 
-Isolated integration tests for the `@aahoughton/oav-express4`,
-`@aahoughton/oav-express5`, and `@aahoughton/oav-fastify` adapters.
+Isolated integration tests for the `@oaverify/express4`,
+`@oaverify/express5`, and `@oaverify/fastify` adapters.
 
 ## Why this lives outside the main workspace
 
@@ -47,23 +47,23 @@ resolution honest. The alias only changes the directory name in
 runtime behavior is identical to a normal `import express from "express"`
 in user code.
 
-## Why fastify still appears in `oav-fastify/devDependencies`
+## Why fastify still appears in `@oaverify/fastify`'s devDependencies
 
 Express ships its types separately (`@types/express`), so the
-`oav-express{4,5}` adapter packages keep only `@types/express` as a
+`@oaverify/express{4,5}` adapter packages keep only `@types/express` as a
 devDep and rely on this sub-package for the express runtime. Fastify
 ships its own types, and there is no `@types/fastify` on
-DefinitelyTyped; `oav-fastify/src/*.ts` imports `import type { FastifyRequest } from "fastify"`,
+DefinitelyTyped; `packages/oav-fastify/src/*.ts` imports `import type { FastifyRequest } from "fastify"`,
 which TypeScript can only resolve if the `fastify` package itself is
 present at the package being type-checked. So `fastify` stays in
-`oav-fastify/devDependencies` for type-check purposes, even though the
+`@oaverify/fastify` devDependencies for type-check purposes, even though the
 integration test runs here. Dependabot noise from fastify transitives
 is therefore not eliminated by this split, only the much larger express
 noise is.
 
 ## How tests reach into the main packages
 
-`vitest.config.ts` registers `@oav/*` aliases that resolve directly into
+`vitest.config.ts` registers `@oaverify/internal-*` aliases that resolve directly into
 `../packages/<pkg>/src/index.ts`, the same way the main repo's vitest
 config does. Tests run against source, not against built `dist/`
 artifacts. The `pack-smoke` CI job already covers the dist surface.

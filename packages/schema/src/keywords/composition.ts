@@ -1,5 +1,5 @@
 import { quoteString } from "../codegen/index.js";
-import type { SchemaOrBoolean } from "@oav/core";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { propertyAbsent, propertyPresent } from "./object-validation.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { APPLICATOR_VOCAB } from "./vocabulary-uris.js";

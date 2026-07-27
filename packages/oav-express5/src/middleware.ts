@@ -1,20 +1,20 @@
 import type { Request, RequestHandler } from "express";
-import { collectLeaves, type HttpRequest, type ValidationError } from "@oav/core";
-import type { TreeValidator, Validator } from "@oav/validator";
+import { collectLeaves, type HttpRequest, type ValidationError } from "@oaverify/internal-core";
+import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromExpress } from "./extract.js";
 import { renderProblemDetails } from "./render.js";
 import type { ErrorHandler, ExpressContext } from "./types.js";
 
 /**
  * Options for {@link validateRequests}. The same option shape is
- * used by every adapter in the family (`oav-express4`,
- * `oav-fastify`); only the framework-typed argument differs.
+ * used by every adapter in the family (`@oaverify/express4`,
+ * `@oaverify/fastify`); only the framework-typed argument differs.
  *
  * @public
  */
 export interface ValidateRequestsOptions {
   /**
-   * Custom extractor from the Express request to oav's
+   * Custom extractor from the Express request to oaverify's
    * {@link HttpRequest} shape. Default: {@link httpRequestFromExpress}.
    * Override when your stack populates non-standard fields the
    * validator needs (e.g. a proxy that puts the verified body on
@@ -53,13 +53,13 @@ export interface ValidateRequestsOptions {
  * thrown exceptions / rejected promises propagate to the host's
  * error middleware automatically. No try/catch wrapper needed.
  *
- * Pairs with sibling `validateRequests` in `oav-express4` /
- * `oav-fastify`. Same factory shape across the family.
+ * Pairs with sibling `validateRequests` in `@oaverify/express4` /
+ * `@oaverify/fastify`. Same factory shape across the family.
  *
  * @example
  * ```ts
  * import express from "express";
- * import { validateRequests } from "@aahoughton/oav-express5";
+ * import { validateRequests } from "@oaverify/express5";
  *
  * const app = express();
  * app.use(express.json());

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PathItem } from "@oav/core";
+import type { PathItem } from "@oaverify/internal-core";
 import { createRouter, parseTemplate } from "../src/matcher.js";
 
 const op = (id: string) => ({ operationId: id, responses: { "200": { description: "ok" } } });

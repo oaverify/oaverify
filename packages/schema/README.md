@@ -1,4 +1,4 @@
-# oav/schema
+# @oaverify/core/schema
 
 JSON Schema 2020-12 compiler. Walks the schema once at construction
 time and emits a JavaScript function via code generation, with no
@@ -15,7 +15,7 @@ the root entrypoint instead.
 ## Quick start
 
 ```ts
-import { compileSchema, jsonSchemaDialect } from "@aahoughton/oav/schema";
+import { compileSchema, jsonSchemaDialect } from "@oaverify/core/schema";
 
 const { validate } = compileSchema(
   { type: "object", required: ["name"], properties: { name: { type: "string" } } },
@@ -58,7 +58,7 @@ import {
   validationVocabulary,
   applicatorVocabulary,
   type Dialect,
-} from "@aahoughton/oav/schema";
+} from "@oaverify/core/schema";
 
 const minimalDialect: Dialect = {
   id: "minimal",
@@ -86,7 +86,7 @@ validator into a `KeywordDefinition`, registers it alongside the
 built-ins, and dispatches via generated code on the hot path:
 
 ```ts
-import { compileSchema, jsonSchemaDialect } from "@aahoughton/oav/schema";
+import { compileSchema, jsonSchemaDialect } from "@oaverify/core/schema";
 
 const { validate } = compileSchema(
   { type: "integer", divisibleBy: 7 },

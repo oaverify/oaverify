@@ -1,4 +1,4 @@
-import { collectLeaves, httpStatusFor, type ValidationError } from "@oav/core";
+import { collectLeaves, httpStatusFor, type ValidationError } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import { compile } from "./helpers.js";
 

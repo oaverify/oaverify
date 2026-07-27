@@ -1,6 +1,6 @@
 /* eslint-disable unicorn/no-thenable -- `then` is a JSON Schema keyword here */
 import { describe, expect, it } from "vitest";
-import type { SchemaOrBoolean } from "@oav/core";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect, oas30Dialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
 

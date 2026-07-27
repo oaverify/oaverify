@@ -1,7 +1,7 @@
 # Examples
 
 Self-contained TypeScript examples that exercise the most common
-`oav` entry points. Each file loads a spec from [`specs/`](./specs)
+`oaverify` entry points. Each file loads a spec from [`specs/`](./specs)
 and prints what it did to stdout, the same pattern a real application
 uses.
 
@@ -15,20 +15,19 @@ pnpm dlx tsx examples/<example>.ts
 
 The examples import from `packages/*/src` directly so they work without
 `pnpm build`. Third-party consumers would write
-`import { ... } from "@aahoughton/oav"` / `"@aahoughton/oav/spec"`
-instead; the logic translates 1:1. Consumers on the lean
-`@aahoughton/oav-core` package can substitute `@aahoughton/oav-core`
-for `@aahoughton/oav` in import specifiers that don't touch
-`createYamlFileReader` (oav-core is JSON-only); `resolveSpec` lives at
-`@aahoughton/oav-core/spec`.
+`import { ... } from "@oaverify/core"` instead; the logic
+translates 1:1. `resolveSpec`, `loadSpec`, and the readers live at
+`@oaverify/core/spec`, and the YAML readers
+(`createYamlFileReader`, `createSmartHttpReader`) come from
+`@oaverify/yaml`, since `@oaverify/core` is JSON-only.
 
 The streaming examples import from `packages/stream-validator/src`, which
-translates to `@aahoughton/oav-stream-validator`. That is a separate
-package (not part of the `oav` / `oav-core` re-export), versioned
+translates to `@oaverify/stream`. That is a separate
+package (not part of the `oaverify` / `@oaverify/core` re-export), versioned
 independently on its own version line:
 
 ```bash
-npm install @aahoughton/oav-stream-validator
+npm install @oaverify/stream
 ```
 
 ## What's in here
@@ -52,7 +51,7 @@ shape and when to use each section (`extendSchemas`, `replaceSchemas`,
 
 ### Streaming
 
-The streaming validator (`@aahoughton/oav-stream-validator`) is a second
+The streaming validator (`@oaverify/stream`) is a second
 engine: it validates a JSON body as the bytes flow through,
 echoing them out unchanged, without buffering the whole document. The
 runtime examples break the load-a-spec / print-a-verdict mold: they pipe

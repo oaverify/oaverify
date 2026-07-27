@@ -1,5 +1,5 @@
 /**
- * Hot-path benchmark for @oav/validator request/response orchestration.
+ * Hot-path benchmark for @oaverify/internal-validator request/response orchestration.
  *
  * This complements run.ts, which measures the JSON Schema compiler
  * directly. The validator benchmark constructs one OpenAPI validator,

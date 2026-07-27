@@ -4,22 +4,22 @@ import {
   type HttpRequest,
   type HttpResponse,
   type ValidationError,
-} from "@oav/core";
-import type { TreeValidator, Validator } from "@oav/validator";
+} from "@oaverify/internal-core";
+import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromExpress } from "./extract.js";
 import { ResponseValidationError } from "./response-error.js";
 import type { ErrorHandler, ExpressContext } from "./types.js";
 
 /**
  * Options for {@link validateResponses}. The same option shape is used
- * by every adapter in the family (`oav-express5`, `oav-fastify`); only
+ * by every adapter in the family (`@oaverify/express5`, `@oaverify/fastify`); only
  * the framework-typed argument differs.
  *
  * @public
  */
 export interface ValidateResponsesOptions {
   /**
-   * Custom extractor from the Express request to oav's
+   * Custom extractor from the Express request to oaverify's
    * {@link HttpRequest} shape, used only to match the operation the
    * response answers (method + path). Default:
    * {@link httpRequestFromExpress}.
@@ -62,7 +62,7 @@ const defaultOnError: ErrorHandler<ExpressContext> = (errors) => {
 
 // Marks a response already wrapped by validateResponses; a second mount
 // on the same chain would validate every response twice.
-const WRAPPED = Symbol("oav.validateResponses");
+const WRAPPED = Symbol("oaverify.validateResponses");
 
 // getHeaders() reports numeric values (Content-Length, or any
 // setHeader(name, number)) as numbers; the validator's header
@@ -97,7 +97,7 @@ function responseHeaders(res: Response): Record<string, string | string[]> {
  *
  * @example
  * ```ts
- * import { validateRequests, validateResponses } from "@aahoughton/oav-express4";
+ * import { validateRequests, validateResponses } from "@oaverify/express4";
  *
  * app.use(validateRequests(validator));
  * if (process.env.NODE_ENV !== "production") {

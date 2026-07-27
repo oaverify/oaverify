@@ -1,5 +1,5 @@
 /**
- * The public `oav/validator` surface. One audience: callers
+ * The public `@oaverify/core` validator surface. One audience: callers
  * building a request/response validator from a resolved OpenAPI
  * document: `createValidator`, the `Validator` instance it returns,
  * the options, and the Fetch-API adapters for consumers plugging the
@@ -7,7 +7,7 @@
  *
  * Parameter deserialisation primitives, query-assembly helpers, and
  * the operation-level `$ref` resolver live behind
- * `oav/validator/internals`. Reach for them only when a
+ * `@oaverify/core/validator/internals`. Reach for them only when a
  * tool needs the same style/explode or `$ref` rules outside the normal
  * validator flow; nothing there is covered by semver.
  *
@@ -24,10 +24,10 @@ export {
   type ValidatorStats,
 } from "./validator.js";
 export { combineValidators, type CombineOptions } from "./combine.js";
-// Re-exported from `@oav/router` so consumers of the validator surface
+// Re-exported from `@oaverify/internal-router` so consumers of the validator surface
 // get the `Validator.routes` element type without reaching across into
 // the router package.
-export type { RouteInfo } from "@oav/router";
+export type { RouteInfo } from "@oaverify/internal-router";
 export {
   httpRequestFromFetch,
   httpResponseFromFetch,
@@ -39,4 +39,4 @@ export type {
   CustomKeywordFailure,
   CustomKeywordValidator,
   RegexCompiler,
-} from "@oav/schema";
+} from "@oaverify/internal-schema";

@@ -7,14 +7,5 @@
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "src/**/*.test.ts"],
-  "references": [
-    { "path": "../cli" },
-    { "path": "../core" },
-    { "path": "../formats" },
-    { "path": "../overlay-spec" },
-    { "path": "../schema" },
-    { "path": "../spec" },
-    { "path": "../stream-validator" },
-    { "path": "../validator" }
-  ]
+  "references": [{ "path": "../cli" }, { "path": "../spec" }, { "path": "../yaml" }]
 }

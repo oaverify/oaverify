@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectLeaves } from "@oav/core";
+import { collectLeaves } from "@oaverify/internal-core";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect } from "../src/keywords/vocabulary.js";
 

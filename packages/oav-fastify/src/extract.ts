@@ -1,8 +1,8 @@
 import type { FastifyRequest } from "fastify";
-import type { HttpRequest } from "@oav/core";
+import type { HttpRequest } from "@oaverify/internal-core";
 
 /**
- * Convert a Fastify `FastifyRequest` to oav's framework-agnostic
+ * Convert a Fastify `FastifyRequest` to oaverify's framework-agnostic
  * {@link HttpRequest} shape. Read what's already on the request;
  * do not touch the body parser or any async source; bodies are
  * assumed already-parsed by Fastify's content-type parsers
@@ -16,8 +16,8 @@ import type { HttpRequest } from "@oav/core";
  * Cookies are read from `request.cookies` if `@fastify/cookie` has
  * populated them, otherwise omitted.
  *
- * Pairs with sibling `httpRequestFromExpress` in `oav-express4` /
- * `oav-express5`: same name pattern as oav's existing
+ * Pairs with sibling `httpRequestFromExpress` in `@oaverify/express4` /
+ * `@oaverify/express5`: same name pattern as oaverify's existing
  * {@link httpRequestFromFetch}. The Fetch variant alone is async and
  * returns `{ httpRequest, body }` (it has to read the body stream);
  * the framework variants, this one included, are sync and return a

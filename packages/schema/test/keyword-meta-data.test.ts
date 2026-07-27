@@ -137,7 +137,7 @@ describe("content vocabulary", () => {
       contentMediaType: "application/jwt",
       contentSchema: { type: "object", properties: { iss: { type: "string" } } },
     } as Record<string, unknown>);
-    // Not actually base64-encoded JWT; oav doesn't decode + re-validate.
+    // Not actually base64-encoded JWT; oaverify doesn't decode + re-validate.
     expect(v.validate("anything").valid).toBe(true);
     expect(v.validate(123).valid).toBe(false); // type:string still enforced
   });

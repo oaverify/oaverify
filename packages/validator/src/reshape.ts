@@ -1,17 +1,17 @@
 /**
  * Result reshaping, factored out of `validator.ts` so it can be
- * re-exported through `@oav/validator/internals` without dragging the
- * validator's full module graph (`@oav/spec` -> `node:fs`, etc.) into
- * `oav compile-spec`'s standalone esbuild bundle. The only runtime
- * dependency here is `@oav/core`'s `collectLeaves`.
+ * re-exported through `@oaverify/internal-validator/internals` without dragging the
+ * validator's full module graph (`@oaverify/internal-spec` -> `node:fs`, etc.) into
+ * `oaverify compile-spec`'s standalone esbuild bundle. The only runtime
+ * dependency here is `@oaverify/internal-core`'s `collectLeaves`.
  *
  * The validator builds a nested error tree internally and reshapes it to
  * the requested `output` / `maxErrors` at its public boundary; the emitted
  * standalone module reuses these same functions so its AOT output's result
  * shape stays identical to `createValidator`.
  */
-import { collectLeaves, type ValidationError } from "@oav/core";
-import type { TreeValidationResult, ValidationResult } from "@oav/schema";
+import { collectLeaves, type ValidationError } from "@oaverify/internal-core";
+import type { TreeValidationResult, ValidationResult } from "@oaverify/internal-schema";
 
 /**
  * Depth-first prune of an error tree to at most `max` leaves, dropping
@@ -42,7 +42,7 @@ function trimTreeToLeaves(root: ValidationError, max: number): ValidationError {
  * into the requested output, applying the per-call `maxErrors` total.
  * `truncated` reports that the cap was reached (more problems may exist).
  *
- * Exported through `@oav/validator/internals` so `oav compile-spec`'s
+ * Exported through `@oaverify/internal-validator/internals` so `oaverify compile-spec`'s
  * emitted standalone module reshapes its hand-built tree the same way,
  * keeping the AOT output's result shape identical to this validator's.
  *
@@ -70,7 +70,7 @@ export function reshapeResult(
  * `{ ok: true, body }` on success, or `{ ok: false }` plus the failure
  * fields (`errors`/`error` + `truncated`, or nothing in predicate mode).
  *
- * Exported through `@oav/validator/internals` for the `oav compile-spec`
+ * Exported through `@oaverify/internal-validator/internals` for the `oaverify compile-spec`
  * emitted module's `validateFetch*` wrappers (same reason as
  * {@link reshapeResult}).
  *

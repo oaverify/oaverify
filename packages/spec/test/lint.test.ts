@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OpenAPIDocument } from "@oav/core";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { lintResolvedSpec } from "../src/lint.js";
 
 function minimalSpec(overrides: Partial<OpenAPIDocument> = {}): OpenAPIDocument {

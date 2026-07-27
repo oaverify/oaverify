@@ -1,7 +1,7 @@
 /**
  * Custom formats: register a string format (here, E.164 phone numbers)
  * and enforce it alongside the built-ins. A format is any
- * `(value: string) => boolean`, merged onto the `oav/formats` defaults
+ * `(value: string) => boolean`, merged onto the `@oaverify/core/formats` defaults
  * when you build the validator.
  *
  * Run from the repo root:
@@ -10,7 +10,7 @@
 
 import { fileURLToPath } from "node:url";
 import { formatText } from "../packages/core/src/index.ts";
-import { createYamlFileReader } from "../packages/oav/src/yaml.ts";
+import { createYamlFileReader } from "../packages/yaml/src/index.ts";
 import { loadSpec } from "../packages/spec/src/index.ts";
 import { createValidator } from "../packages/validator/src/index.ts";
 

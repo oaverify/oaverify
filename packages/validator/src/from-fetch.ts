@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import type { HttpRequest, HttpResponse } from "@oav/core";
+import type { HttpRequest, HttpResponse } from "@oaverify/internal-core";
 
 /**
  * Options shared by the `validateFetchRequest` family and

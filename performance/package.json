@@ -1,8 +1,8 @@
 {
-  "name": "@oav-dev/performance",
+  "name": "@oaverify-dev/performance",
   "version": "0.0.0",
   "private": true,
-  "description": "Benchmarks: @oav/schema compile + validate performance vs ajv (2020-12).",
+  "description": "Benchmarks: @oaverify/internal-schema compile + validate performance vs ajv (2020-12).",
   "type": "module",
   "scripts": {
     "bench": "tsx run.ts",

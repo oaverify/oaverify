@@ -10,8 +10,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { OpenAPIDocument } from "@oav/core";
-import { jsonSchemaDialect } from "@oav/schema";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
+import { jsonSchemaDialect } from "@oaverify/internal-schema";
 import { createValidator } from "./fixtures.js";
 
 function spec32(): OpenAPIDocument {

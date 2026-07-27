@@ -1,5 +1,5 @@
-import type { SchemaOrBoolean } from "@oav/core";
-import type { RefResolver } from "@oav/schema";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import type { RefResolver } from "@oaverify/internal-schema";
 import { describe, expect, it } from "vitest";
 import {
   createDirectionResolver,

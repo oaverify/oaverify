@@ -1,21 +1,19 @@
 /**
- * YAML + HTTP readers shipped by the batteries-included
- * `oav` distribution. Each implements
- * {@link @aahoughton/oav/spec!DocumentReader} and is designed to be
- * composed via
- * {@link @aahoughton/oav/spec!composeReaders}: order YAML readers
- * first so the JSON-only readers in `oav-core/spec` act
- * as the fallback for `.json` paths.
+ * YAML readers for `@oaverify/core`. Each implements
+ * {@link @oaverify/core/spec!DocumentReader} and is designed to
+ * be composed via
+ * {@link @oaverify/core/spec!composeReaders}: order YAML readers
+ * first so the JSON-only readers in `@oaverify/core/spec` act as the
+ * fallback for `.json` paths.
  *
- * The lean `oav-core` package intentionally doesn't carry
- * YAML parsing so it can advertise zero runtime dependencies; this
- * module lives in `oav` (which depends on oav-core plus
- * `yaml`).
+ * `@oaverify/core` intentionally doesn't carry YAML parsing so it can
+ * advertise zero runtime dependencies; this package adds it, at the
+ * cost of a dependency on `yaml`.
  *
  * @example
  * ```ts
- * import { composeReaders, createFileReader, loadSpec } from "@aahoughton/oav/spec";
- * import { createYamlFileReader } from "@aahoughton/oav";
+ * import { composeReaders, createFileReader, loadSpec } from "@oaverify/core/spec";
+ * import { createYamlFileReader } from "@oaverify/yaml";
  *
  * const reader = composeReaders([createYamlFileReader(), createFileReader()]);
  * const { document } = await loadSpec({ reader, entry: "openapi.yaml" });
@@ -30,12 +28,12 @@ import {
   type DocumentReader,
   type LoadSpecSyncOptions,
   type ResolvedSpec,
-} from "@oav/spec";
+} from "@oaverify/internal-spec";
 import {
   composeReadersSync,
   createFileReaderSync,
   type SyncDocumentReader,
-} from "@oav/spec/internals";
+} from "@oaverify/internal-spec/internals";
 import { parse as parseYaml } from "yaml";
 
 function decodePercent(s: string): string {
@@ -56,8 +54,8 @@ function hasYamlExtension(uri: string): boolean {
  *
  * @example
  * ```ts
- * import { composeReaders, createFileReader } from "@aahoughton/oav/spec";
- * import { createYamlFileReader } from "@aahoughton/oav";
+ * import { composeReaders, createFileReader } from "@oaverify/core/spec";
+ * import { createYamlFileReader } from "@oaverify/yaml";
  *
  * const reader = composeReaders([createYamlFileReader(), createFileReader()]);
  * ```
@@ -117,8 +115,8 @@ function isJsonMime(mime: string): boolean {
  *
  * @example
  * ```ts
- * import { composeReaders, createFileReader } from "@aahoughton/oav/spec";
- * import { createSmartHttpReader } from "@aahoughton/oav";
+ * import { composeReaders, createFileReader } from "@oaverify/core/spec";
+ * import { createSmartHttpReader } from "@oaverify/yaml";
  *
  * const reader = composeReaders([createSmartHttpReader(), createFileReader()]);
  * ```
@@ -160,7 +158,8 @@ export function createSmartHttpReader(): DocumentReader {
  *
  * @example
  * ```ts
- * import { createValidator, parseYamlString, type OpenAPIDocument } from "@aahoughton/oav";
+ * import { createValidator, type OpenAPIDocument } from "@oaverify/core";
+ * import { parseYamlString } from "@oaverify/yaml";
  *
  * const spec = parseYamlString(yamlSource) as OpenAPIDocument;
  * const validator = createValidator(spec);
@@ -178,7 +177,7 @@ export function parseYamlString(source: string): unknown {
  * {@link loadSpecSync}. Kept module-internal on purpose: the narrow
  * sync surface is `loadSpecSync` alone, which defaults its reader, so
  * the common case never names a reader. (The JSON sync primitives are
- * reachable via `oav/spec/internals` for custom compose orders; a
+ * reachable via `@oaverify/core/spec/internals` for custom compose orders; a
  * caller needing YAML in a custom sync compose can pass `loadSpecSync`
  * a `reader` built from those plus their own YAML step.)
  */
@@ -198,9 +197,9 @@ function createYamlFileReaderSync(cwd: string = process.cwd()): SyncDocumentRead
 }
 
 /**
- * Synchronous spec loader for the batteries-included distribution.
- * Same contract as {@link @aahoughton/oav/spec!loadSpecSync} from
- * `oav-core`, but its default reader reads YAML and JSON files from
+ * Synchronous spec loader with YAML support.
+ * Same contract as {@link @oaverify/core/spec!loadSpecSync} from
+ * `@oaverify/core`, but its default reader reads YAML and JSON files from
  * disk (the core loader is JSON-only), so `loadSpecSync({ entry:
  * "openapi.yaml" })` works without composing readers.
  *
@@ -214,12 +213,12 @@ function createYamlFileReaderSync(cwd: string = process.cwd()): SyncDocumentRead
  *
  * Pass `reader` to override the default (a `{ read, canRead }` object
  * satisfies the synchronous reader shape; the JSON-only primitives live
- * at `oav/spec/internals`).
+ * at `@oaverify/core/spec/internals`).
  *
  * @example
  * ```ts
- * import { loadSpecSync } from "@aahoughton/oav";
- * import { createValidator } from "@aahoughton/oav";
+ * import { createValidator } from "@oaverify/core";
+ * import { loadSpecSync } from "@oaverify/yaml";
  *
  * const { document } = loadSpecSync({ entry: "openapi.yaml" });
  * const validator = createValidator(document);

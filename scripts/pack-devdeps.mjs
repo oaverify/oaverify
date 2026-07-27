@@ -1,7 +1,7 @@
 // Strip / restore `devDependencies` on the current package's
 // package.json around `pnpm pack`. Devdeps in a published tarball
 // are dead weight; for sub-packages they additionally expose the
-// `@oav/*` workspace names (rewritten to `0.0.0`).
+// `@oaverify/internal-*` workspace names (rewritten to `0.0.0`).
 //
 // Considered alternative: `clean-publish` (the canonical npm-ecosystem
 // tool for this) is incompatible with our setup. Its documented pnpm-

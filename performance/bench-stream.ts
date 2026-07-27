@@ -1,8 +1,8 @@
 /**
  * Streaming vs parse-and-validate, on large payloads.
  *
- * Compares `@oav/stream-validator` (one-pass, bytes-in) against the two
- * parse-and-validate engines (`@oav/schema` and ajv, both: JSON.parse the
+ * Compares `@oaverify/internal-stream-validator` (one-pass, bytes-in) against the two
+ * parse-and-validate engines (`@oaverify/internal-schema` and ajv, both: JSON.parse the
  * whole body, then validate the JS value) on a STREAM-classifiable schema
  * (a large array of typed objects, so the streamer never buffers).
  *

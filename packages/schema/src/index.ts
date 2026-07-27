@@ -1,5 +1,5 @@
 /**
- * The public `oav/schema` surface. Two audiences:
+ * The public `@oaverify/core/schema` surface. Two audiences:
  *
  *   1. Compiler consumers: `compileSchema`, `CompiledSchema`,
  *      `CompileOptions`, dialects. The minimum needed to turn a schema
@@ -11,7 +11,7 @@
  *
  * Codegen mechanics, runtime helpers, resolve internals, and the
  * subschema-position constants live behind
- * `oav/schema/internals`. Reach for them when a custom
+ * `@oaverify/core/schema/internals`. Reach for them when a custom
  * plugin genuinely needs them, accepting that they're not covered by
  * semver.
  *
@@ -164,7 +164,7 @@ export { typeKeyword } from "./keywords/type.js";
 export { discriminatorKeyword } from "./keywords/discriminator.js";
 export { unevaluatedItemsKeyword, unevaluatedPropertiesKeyword } from "./keywords/unevaluated.js";
 
-// Ref resolution: needed by `@oav/validator` and any consumer wiring
+// Ref resolution: needed by `@oaverify/internal-validator` and any consumer wiring
 // up a custom spec loader. The lower-level `SchemaRegistry` /
 // `collectDynamicAnchors` primitives are in `./internals`.
 export {

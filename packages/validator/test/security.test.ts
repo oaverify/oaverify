@@ -1,4 +1,4 @@
-import type { ErrorParamsFor, OpenAPIDocument, ValidationError } from "@oav/core";
+import type { ErrorParamsFor, OpenAPIDocument, ValidationError } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import { createValidator } from "./fixtures.js";
 

@@ -4,22 +4,22 @@ import {
   type HttpRequest,
   type HttpResponse,
   type ValidationError,
-} from "@oav/core";
-import type { TreeValidator, Validator } from "@oav/validator";
+} from "@oaverify/internal-core";
+import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromExpress } from "./extract.js";
 import { ResponseValidationError } from "./response-error.js";
 import type { ErrorHandler, ExpressContext } from "./types.js";
 
 /**
  * Options for {@link validateResponses}. The same option shape is used
- * by every adapter in the family (`oav-express4`, `oav-fastify`); only
+ * by every adapter in the family (`@oaverify/express4`, `@oaverify/fastify`); only
  * the framework-typed argument differs.
  *
  * @public
  */
 export interface ValidateResponsesOptions {
   /**
-   * Custom extractor from the Express request to oav's
+   * Custom extractor from the Express request to oaverify's
    * {@link HttpRequest} shape, used only to match the operation the
    * response answers (method + path). Default:
    * {@link httpRequestFromExpress}.
@@ -62,7 +62,7 @@ const defaultOnError: ErrorHandler<ExpressContext> = (errors) => {
 
 // Marks a response already wrapped by validateResponses; a second mount
 // on the same chain would validate every response twice.
-const WRAPPED = Symbol("oav.validateResponses");
+const WRAPPED = Symbol("oaverify.validateResponses");
 
 // getHeaders() reports numeric values (Content-Length, or any
 // setHeader(name, number)) as numbers; the validator's header
@@ -97,7 +97,7 @@ function responseHeaders(res: Response): Record<string, string | string[]> {
  *
  * @example
  * ```ts
- * import { validateRequests, validateResponses } from "@aahoughton/oav-express5";
+ * import { validateRequests, validateResponses } from "@oaverify/express5";
  *
  * app.use(validateRequests(validator));
  * if (process.env.NODE_ENV !== "production") {
@@ -183,7 +183,7 @@ export function validateResponses(
 
     res.send = ((...args: unknown[]): Response => {
       // Express 5 removed the multi-arg send forms; forwarding them
-      // unvalidated keeps this wrapper identical to oav-express4's.
+      // unvalidated keeps this wrapper identical to @oaverify/express4's.
       if (args.length > 1) return originalSend(...args);
       const body = args[0];
       // Split-phase. Status and declared headers are checked for every

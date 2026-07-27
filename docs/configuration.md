@@ -77,7 +77,7 @@ catastrophic backtracking) on platforms that allow a native dep:
 
 ```ts
 import RE2 from "re2";
-import { createValidator } from "@aahoughton/oav";
+import { createValidator } from "@oaverify/core";
 
 const validator = createValidator(spec, {
   regexCompiler: (pattern) => new RE2(pattern),
@@ -108,7 +108,7 @@ createValidator(spec, {
 });
 ```
 
-`oav` does not bundle `re2` or any other engine: edge runtimes
+`oaverify` does not bundle `re2` or any other engine: edge runtimes
 (Cloudflare Workers, Vercel Edge) don't support native modules, and
 the right answer for those environments is a different tradeoff
 (pattern-length cap, allowlist of permitted patterns, etc.) which
@@ -123,8 +123,8 @@ Throws inside the compiler:
 
 `pattern` and `format: "regex"` use the same compiler policy: one
 `regexCompiler` covers both, and there's no second hook to keep in
-sync. `format: "regex"` is auto-registered by `@oav/schema` and no
-longer ships from `@oav/formats`'s `builtInFormats`; a user-supplied
+sync. `format: "regex"` is auto-registered by `@oaverify/internal-schema` and no
+longer ships from `@oaverify/internal-formats`'s `builtInFormats`; a user-supplied
 entry in `formats` still overrides it if you want a different policy
 for the format than for `pattern`.
 

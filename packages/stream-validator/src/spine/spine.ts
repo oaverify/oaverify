@@ -32,8 +32,8 @@
  * @packageDocumentation
  */
 
-import type { PathSegment, SchemaObject, SchemaOrBoolean } from "@oav/core";
-import type { RegexCompiler } from "@oav/schema";
+import type { PathSegment, SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import type { RegexCompiler } from "@oaverify/internal-schema";
 import type { Strategy } from "../classifier/strategy.js";
 import type { JsonEventHandler } from "../tokenizer/index.js";
 import { resolveRef } from "../ref-resolve.js";
@@ -134,7 +134,7 @@ export type IslandDelegate = (
 /**
  * A non-fatal schema violation: a well-formed value that failed the
  * schema, reported on the `violation` side channel (distinct from the
- * fatal `error` channel). Shares `code` and `path` with `@oav/core`'s
+ * fatal `error` channel). Shares `code` and `path` with `@oaverify/internal-core`'s
  * `ValidationError` and adds `byteOffset`.
  *
  * `message` / `params` / `children` are populated on the BUFFER (island)
@@ -803,7 +803,7 @@ export class SpineValidator implements JsonEventHandler {
     if (!isObjectSchema(s)) return;
     out.schemas.push(s);
     // `$dynamicRef` is resolved statically against the anchor map, the
-    // same limitation @oav/schema documents. Refs resolve against the
+    // same limitation @oaverify/internal-schema documents. Refs resolve against the
     // document root (may differ from the validation root in a sub-spine).
     const ref = (s as Record<string, unknown>).$ref ?? (s as Record<string, unknown>).$dynamicRef;
     if (typeof ref !== "string") return;
@@ -1745,7 +1745,7 @@ function stripComposition(s: SchemaObject): SchemaObject {
 function combineTee(o: TeeObligations): boolean {
   if (o.hasFalse) return false;
   for (const s of o.required) if (!s.verdict().valid) return false;
-  // An empty anyOf / oneOf is vacuously valid (matches @oav/schema, which
+  // An empty anyOf / oneOf is vacuously valid (matches @oaverify/internal-schema, which
   // emits no check for an empty composition array).
   for (const group of o.anyOf) {
     if (group.length > 0 && !group.some((s) => s.verdict().valid)) return false;
@@ -1762,7 +1762,7 @@ function combineTee(o: TeeObligations): boolean {
   return true;
 }
 
-// Mirror @oav/schema's tolerant multipleOf check so verdicts agree on
+// Mirror @oaverify/internal-schema's tolerant multipleOf check so verdicts agree on
 // floating-point divisors (see packages/schema/src/keywords/number.ts).
 function isMultipleOf(value: number, divisor: number): boolean {
   const q = value / divisor;

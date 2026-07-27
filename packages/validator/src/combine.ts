@@ -5,10 +5,10 @@ import {
   type OpenAPIVersion,
   type OperationObject,
   type PathItem,
-} from "@oav/core";
-import { routeSignature, type RouteInfo } from "@oav/router";
-import type { SpecHygieneIssue } from "@oav/spec";
-import type { TreeValidationResult, ValidationResult } from "@oav/schema";
+} from "@oaverify/internal-core";
+import { routeSignature, type RouteInfo } from "@oaverify/internal-router";
+import type { SpecHygieneIssue } from "@oaverify/internal-spec";
+import type { TreeValidationResult, ValidationResult } from "@oaverify/internal-schema";
 import {
   httpRequestFromFetch,
   httpResponseFromFetch,

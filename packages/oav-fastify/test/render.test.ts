@@ -1,4 +1,4 @@
-import { createBranchError, createLeafError } from "@oav/core";
+import { createBranchError, createLeafError } from "@oaverify/internal-core";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { describe, expect, it, vi } from "vitest";
 import { renderProblemDetails } from "../src/render.js";

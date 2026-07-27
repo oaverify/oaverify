@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
-import { compileSchema, jsonSchemaDialect } from "@oav/schema";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import { compileSchema, jsonSchemaDialect } from "@oaverify/internal-schema";
 import { ClassifierError } from "../src/classifier/index.js";
 import { createStreamValidator } from "../src/index.js";
 
@@ -177,7 +177,7 @@ const CORPUS: Array<{ schema: SchemaObject; values: unknown[] }> = [
   },
 ];
 
-describe("engine verdict equivalence with @oav/schema (differential, incl. islands)", () => {
+describe("engine verdict equivalence with @oaverify/internal-schema (differential, incl. islands)", () => {
   let supported = 0;
   let skipped = 0;
   for (const { schema, values } of CORPUS) {

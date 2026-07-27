@@ -16,20 +16,20 @@ Run against three upstream / hand-curated test corpora:
 
 ## Summary
 
-| Source                              | Cases | Pass | Mismatch | Error | % pass |
-| ----------------------------------- | ----- | ---- | -------- | ----- | ------ |
-| JSON Schema Test Suite (required)   | 1290  | 1270 | 16       | 4     | 98.4%  |
-| JSON Schema Test Suite (+ optional) | 1452  | 1429 | 19       | 4     | 98.4%  |
-| OpenAPI Overlay 1.0 (envelope)      | 32    | 32   | 0        | 0     | 100%   |
-| OpenAPI `petstore` via `oav` CLI    | 32    | 32   | 0        | 0     | 100%   |
+| Source                                | Cases | Pass | Mismatch | Error | % pass |
+| ------------------------------------- | ----- | ---- | -------- | ----- | ------ |
+| JSON Schema Test Suite (required)     | 1290  | 1270 | 16       | 4     | 98.4%  |
+| JSON Schema Test Suite (+ optional)   | 1452  | 1429 | 19       | 4     | 98.4%  |
+| OpenAPI Overlay 1.0 (envelope)        | 32    | 32   | 0        | 0     | 100%   |
+| OpenAPI `petstore` via `oaverify` CLI | 32    | 32   | 0        | 0     | 100%   |
 
 "Mismatch" = our verdict differs from upstream; "error" = our compiler
 crashed (we couldn't produce a verdict at all).
 
 The OpenAPI cases live in `conformance/openapi-cases/<group>/spec.yaml` +
-`cases.json` and run through the real `oav` CLI binary. `expectCodes` on
+`cases.json` and run through the real `oaverify` CLI binary. `expectCodes` on
 each case lists the leaf error `code`s that must appear in our error
-tree. Full parity on messages isn't required: `oav` uses its own
+tree. Full parity on messages isn't required: oaverify uses its own
 message strings, but the machine-readable `code`s are stable and
 checkable.
 
@@ -85,11 +85,11 @@ The upstream Overlay test suite is purely
 envelope-schema-validation: every fixture under `tests/v1.0/pass/`
 must match the canonical overlay JSON Schema, every fixture under
 `tests/v1.0/fail/` must not. We compile that schema through
-`@oav/schema` and run it as our envelope check. Current state:
+`@oaverify/internal-schema` and run it as our envelope check. Current state:
 **32/32 envelope parity** (12 pass + 20 fail).
 
 The runner also feeds every pass fixture through
-`@oav/overlay-spec`'s `translateOverlay()` and classifies the result
+`@oaverify/internal-overlay-spec`'s `translateOverlay()` and classifies the result
 as `ok` / `unrecognised-target` / `translator-error`. This is
 informational (upstream does not assert semantic translation), but
 it surfaces translator-coverage gaps next to the envelope numbers.

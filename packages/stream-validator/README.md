@@ -1,7 +1,7 @@
-# oav-stream-validator
+# @oaverify/stream
 
 A streaming JSON Schema 2020-12 validator for
-[`oav-core`](https://www.npmjs.com/package/@aahoughton/oav-core). It
+[`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core). It
 validates a JSON document against a resolved schema **as it streams**,
 echoing the input bytes through unchanged while reporting violations on a
 side channel. Memory is bounded for forward-decidable schemas with
@@ -16,36 +16,36 @@ invalid body can be refused before its tail arrives. If your bodies
 fit comfortably in heap, the in-memory validator is the faster tool.
 
 This is a second engine, not a mode of the in-memory validator.
-`oav-core`'s compiler is pull-based over a fully-parsed value; this engine
-is push-based over a token stream. It reuses `oav-core`'s in-memory
+`@oaverify/core`'s compiler is pull-based over a fully-parsed value; this engine
+is push-based over a token stream. It reuses `@oaverify/core`'s in-memory
 validator for the subtrees a compile-time classifier marks BUFFER (so
 `format` assertion runs in that delegate, against the formats you register
 through the `formats` option; no format library is bundled by default),
 and reuses its flat error model.
 
-Thin: this package bundles nothing from `oav-core`. It declares
-`@aahoughton/oav-core` as a regular dependency, so installing the stream
+Thin: this package bundles nothing from `@oaverify/core`. It declares
+`@oaverify/core` as a regular dependency, so installing the stream
 validator pulls the engine it delegates to along with it.
 
 ```bash
-npm install @aahoughton/oav-stream-validator
+npm install @oaverify/stream
 ```
 
 Runnable examples (echo-through, spec bridging, input bounds, scalar
 recovery, and the buffer-budget analyzer) live in the repo's
-[`examples/` directory](https://github.com/aahoughton/oav/blob/main/examples/README.md#streaming)
+[`examples/` directory](https://github.com/oaverify/oaverify/blob/main/examples/README.md#streaming)
 as `stream-*.ts`.
 
-> **Versioned independently of the `oav-core` family.** This package tracks
-> its own version line rather than the lockstep `oav-core` version, and
-> follows semver from `1.0` (a breaking change bumps the major). The public
-> surface is small and additive-by-design.
+> **Versioned with the `@oaverify/core` family.** The stream validator tracks
+> core/schema semantics closely enough that a core major is a stream
+> compatibility event too. Per-package changelogs stay specific about what
+> changed in this package.
 
 ## Usage
 
 ```ts
 import { pipeline } from "node:stream/promises";
-import { createStreamValidator } from "@aahoughton/oav-stream-validator";
+import { createStreamValidator } from "@oaverify/stream";
 
 const validator = createStreamValidator(schema); // throws here if the schema can't be streamed
 
@@ -91,7 +91,7 @@ streams without materializing. Everything that genuinely needs the whole
 value (object/array `enum` / `const`, `dependentSchemas`, `discriminator`,
 `contains`, `uniqueItems`, a composition with a non-forward branch, or
 `format` under an OpenAPI dialect) is a **BUFFER island**: the subtree is
-materialized and delegated to `@oav/schema`'s in-memory validator,
+materialized and delegated to `@oaverify/internal-schema`'s in-memory validator,
 bounded by `maxBufferedBytes`. Only a REJECT keyword
 (`unevaluatedProperties` / `unevaluatedItems`), an unknown keyword, or an
 unresolvable `$ref` fails fast at construction.
@@ -117,8 +117,8 @@ OpenAPI version off `doc.openapi`. (Your router still picks the
 operation; the locator is an exact path-template key, not a match.)
 
 ```ts
-import { createFileReader, resolveSpec } from "@aahoughton/oav-core/spec";
-import { streamValidatorForOperation } from "@aahoughton/oav-stream-validator";
+import { createFileReader, resolveSpec } from "@oaverify/core/spec";
+import { streamValidatorForOperation } from "@oaverify/stream";
 
 const { document } = await resolveSpec({ reader: createFileReader(), entry: "openapi.json" });
 const validator = streamValidatorForOperation(document, { method: "post", path: "/pets" });
@@ -231,7 +231,7 @@ buffers and how much, without reading a byte. The same classification the
 engine runs on, turned into a peak-buffer budget you check before deploy.
 
 ```ts
-import { analyzeStreamability } from "@aahoughton/oav-stream-validator";
+import { analyzeStreamability } from "@oaverify/stream";
 
 const report = analyzeStreamability(bodySchema, { openApiVersion: "3.1" });
 report.classification; // "streamable" | "tee" | "buffer"
@@ -267,13 +267,13 @@ peak. The analyzer bounds the schema; `peakBufferedBytes` reports the input.
 OpenAPI document: one budget per operation, for the request body and each
 response body. A body whose schema cannot be classified is reported with
 an `error` field rather than throwing, so a sweep surveys the whole spec.
-The `oav` CLI surfaces it as `oav stream-check <spec>` (a per-operation
+The `oaverify` CLI surfaces it as `oaverify stream-check <spec>` (a per-operation
 table; `--verbose` lists each unbounded position, `--envelope json` emits
 the `SpecBudget`, `--fail-on-unbounded` exits non-zero for CI):
 
 ```ts
-import { createFileReader, resolveSpec } from "@aahoughton/oav-core/spec";
-import { analyzeSpec } from "@aahoughton/oav-stream-validator";
+import { createFileReader, resolveSpec } from "@oaverify/core/spec";
+import { analyzeSpec } from "@oaverify/stream";
 
 const { document } = await resolveSpec({ reader: createFileReader(), entry: "openapi.json" });
 for (const op of analyzeSpec(document).operations) {
@@ -286,8 +286,8 @@ for (const op of analyzeSpec(document).operations) {
 
 ## Status
 
-Published to the default `latest` dist-tag, on its own `1.x` line
-(versioned independently of the `oav-core` family). The classifier
-co-evolves with `oav-core`'s keyword set inside the monorepo (a CI drift
+Published to the default `latest` dist-tag, versioned with the
+`@oaverify/core` family. The classifier
+co-evolves with `@oaverify/core`'s keyword set inside the monorepo (a CI drift
 test makes a divergence a build failure rather than silent breakage); the
-published bundle pins `@aahoughton/oav-core` so the two move together.
+published bundle pins `@oaverify/core` so the two move together.

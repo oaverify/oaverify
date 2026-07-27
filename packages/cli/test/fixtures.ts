@@ -1,4 +1,4 @@
-import { createMemoryReader, type DocumentReader } from "@oav/spec";
+import { createMemoryReader, type DocumentReader } from "@oaverify/internal-spec";
 import type { CommandIo } from "../src/commands.js";
 
 /**

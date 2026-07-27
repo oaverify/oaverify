@@ -1,31 +1,31 @@
-# oav-fastify
+# @oaverify/fastify
 
-Fastify adapter for [`oav-core`](https://www.npmjs.com/package/@aahoughton/oav-core): a `preValidation` hook factory plus standalone helpers (`httpRequestFromFastify`, `renderProblemDetails`) for callers composing their own hooks.
+Fastify adapter for [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): a `preValidation` hook factory plus standalone helpers (`httpRequestFromFastify`, `renderProblemDetails`) for callers composing their own hooks.
 
-Same shape as the Express siblings ([`oav-express4`](https://github.com/aahoughton/oav/blob/main/packages/oav-express4/README.md), [`oav-express5`](https://github.com/aahoughton/oav/blob/main/packages/oav-express5/README.md)); only the framework-typed argument and Fastify's hook-vs-middleware distinction differ. Fastify is async-native, so thrown errors and rejected promises propagate to Fastify's error handler automatically, with no `try/catch` wrapper.
+Same shape as the Express siblings ([`@oaverify/express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md), [`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md)); only the framework-typed argument and Fastify's hook-vs-middleware distinction differ. Fastify is async-native, so thrown errors and rejected promises propagate to Fastify's error handler automatically, with no `try/catch` wrapper.
 
-Sibling packages: [`oav-express4`](https://github.com/aahoughton/oav/blob/main/packages/oav-express4/README.md), [`oav-express5`](https://github.com/aahoughton/oav/blob/main/packages/oav-express5/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
+Sibling packages: [`@oaverify/express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md), [`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
 
 ## Install
 
 ```bash
 # JSON specs only
-npm install @aahoughton/oav-core @aahoughton/oav-fastify fastify
+npm install @oaverify/core @oaverify/fastify fastify
 
-# YAML specs + CLI (oav transitively provides oav-core)
-npm install @aahoughton/oav @aahoughton/oav-fastify fastify
+# YAML specs + CLI
+npm install oaverify @oaverify/yaml @oaverify/fastify fastify
 ```
 
 `fastify` is a peer dep; your app's existing install satisfies it.
 
-> **YAML specs.** `oav-core` is JSON-only by design (zero runtime deps). If your spec is YAML, either install [`oav`](https://www.npmjs.com/package/@aahoughton/oav) instead (it bundles the YAML readers and the CLI), or install `yaml` separately and parse the spec yourself before passing the parsed object to `createValidator`.
+> **YAML specs.** `@oaverify/core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
 
 ## Quick start
 
 ```ts
 import Fastify from "fastify";
-import { createValidator } from "@aahoughton/oav-core";
-import { validateRequests } from "@aahoughton/oav-fastify";
+import { createValidator } from "@oaverify/core";
+import { validateRequests } from "@oaverify/fastify";
 
 const validator = createValidator(spec); // see "Hardening for untrusted input" below
 
@@ -51,7 +51,7 @@ const validator = createValidator(spec, {
 - **`maxDepth`** bounds recursion through self-referential (`$ref`) schemas. Without it, a few KB of deeply nested JSON can exhaust the call stack and surface as a 500. Past the cap, validation emits a `depth` error (mapped to 400) instead of descending. Legitimate payloads rarely recurse beyond ten or fifteen levels, so 32 to 64 is generous.
 - **`maxErrors`** caps how many errors one request can produce, in compute and in response size: a large array whose every element fails the same way otherwise yields one error per element. Results carry `truncated: true` when the cap was hit. Leave it unset in development if you want every error at once.
 
-A body-size limit (Fastify's `bodyLimit`) and a parse-boundary depth cap in an `onRequest` / `preValidation` hook, applied before the request reaches the validator, are backstops for nesting the validator never traverses (fields the schema doesn't descend into); see [Guarding against deeply nested payloads](https://github.com/aahoughton/oav/blob/main/docs/configuration.md#guarding-against-deeply-nested-payloads).
+A body-size limit (Fastify's `bodyLimit`) and a parse-boundary depth cap in an `onRequest` / `preValidation` hook, applied before the request reaches the validator, are backstops for nesting the validator never traverses (fields the schema doesn't descend into); see [Guarding against deeply nested payloads](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md#guarding-against-deeply-nested-payloads).
 
 ## Mount point: `preValidation`
 
@@ -59,12 +59,12 @@ Fastify runs hooks in a fixed order:
 
 1. `onRequest`: request parsing not yet done
 2. `preParsing`: about to parse the body
-3. `preValidation`: body parsed; **this is where oav runs**
+3. `preValidation`: body parsed; **this is where oaverify runs**
 4. `validation`: Fastify's per-route schema validation
 5. `preHandler`: about to call the route handler
 6. `handler`
 
-Mount on `preValidation` so oav sees the parsed body. If you also have per-route Fastify schemas declared, Fastify's own validation runs in step 4 (after this hook). Both can coexist: if oav rejects, Fastify's own validation never runs; if oav passes, Fastify's runs as usual. Authoring the same constraints in both places isn't recommended, but mixing them (oav for spec-driven validation, Fastify schemas for app-internal types) works.
+Mount on `preValidation` so oaverify sees the parsed body. If you also have per-route Fastify schemas declared, Fastify's own validation runs in step 4 (after this hook). Both can coexist: if oaverify rejects, Fastify's own validation never runs; if oaverify passes, Fastify's runs as usual. Authoring the same constraints in both places isn't recommended, but mixing them (oaverify for spec-driven validation, Fastify schemas for app-internal types) works.
 
 ## API
 
@@ -86,7 +86,7 @@ Returns a Fastify `preValidationHookHandler`.
 Opt-in `onSend` hook that validates outgoing responses against the spec. No monkey-patching: Fastify's `onSend` receives the serialized payload natively. Register it where you want response checking, conventionally on in development and off in production:
 
 ```ts
-import { validateResponses } from "@aahoughton/oav-fastify";
+import { validateResponses } from "@oaverify/fastify";
 
 if (process.env.NODE_ENV !== "production") {
   app.addHook("onSend", validateResponses(validator));
@@ -105,7 +105,7 @@ Status and declared headers are checked for every reply, regardless of media typ
 
 ### `httpRequestFromFastify(request)`
 
-Convert a `FastifyRequest` to oav's framework-agnostic `HttpRequest` shape. Read what's already on the request; body parsing is Fastify's responsibility (handled by content-type parsers before `preValidation`).
+Convert a `FastifyRequest` to oaverify's framework-agnostic `HttpRequest` shape. Read what's already on the request; body parsing is Fastify's responsibility (handled by content-type parsers before `preValidation`).
 
 Header keys passed through (Fastify already lowercases per HTTP spec), path stripped of query string from `request.url`, query taken from `request.query` (Fastify parses it into an object), cookies read from `request.cookies` if `@fastify/cookie` populated them.
 
@@ -220,21 +220,21 @@ The hook awaits the returned promise; rejections propagate to Fastify's `setErro
 
 ### Coexisting with Fastify per-route schemas
 
-Fastify's idiomatic per-route-schema pattern is independent of oav. The two can coexist in the same app:
+Fastify's idiomatic per-route-schema pattern is independent of oaverify. The two can coexist in the same app:
 
-- Use **oav-fastify** when the OpenAPI spec is the source of truth, for endpoints whose contract is published / contract-tested / shared with other languages or services.
+- Use **`@oaverify/fastify`** when the OpenAPI spec is the source of truth, for endpoints whose contract is published / contract-tested / shared with other languages or services.
 - Use **Fastify per-route schemas** for app-internal types where you'd rather author the schema inline.
 
-If both fire on the same route, oav's `preValidation` hook runs first; if it passes, Fastify's `validation` step runs next. Don't author the same constraints in both places.
+If both fire on the same route, oaverify's `preValidation` hook runs first; if it passes, Fastify's `validation` step runs next. Don't author the same constraints in both places.
 
 ### Comparison with `fastify-openapi-glue`
 
-[`fastify-openapi-glue`](https://www.npmjs.com/package/fastify-openapi-glue) reads an OpenAPI spec at startup and **generates routes + handler stubs from it**. oav-fastify is a different shape: it validates against the spec while leaving route declarations in your app. Use `fastify-openapi-glue` if you want spec-driven scaffolding; use oav-fastify if your routes already exist and you want OpenAPI as the validation source of truth.
+[`fastify-openapi-glue`](https://www.npmjs.com/package/fastify-openapi-glue) reads an OpenAPI spec at startup and **generates routes + handler stubs from it**. `@oaverify/fastify` is a different shape: it validates against the spec while leaving route declarations in your app. Use `fastify-openapi-glue` if you want spec-driven scaffolding; use `@oaverify/fastify` if your routes already exist and you want OpenAPI as the validation source of truth.
 
 ## See also
 
-- [`oav-core`](https://www.npmjs.com/package/@aahoughton/oav-core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
-- [`oav`](https://www.npmjs.com/package/@aahoughton/oav): oav-core plus YAML readers and the `oav` CLI.
-- The repo-root [`docs/integration.md`](https://github.com/aahoughton/oav/blob/main/docs/integration.md): broader recipes (security, file uploads, response validation, status mapping, type coercion, ignoring paths).
-- The repo-root [`docs/migration-from-eov.md`](https://github.com/aahoughton/oav/blob/main/docs/migration-from-eov.md): porting from `express-openapi-validator`.
-- [`oav-stream-validator`](https://www.npmjs.com/package/@aahoughton/oav-stream-validator): for JSON bodies past what `bodyLimit` should buffer, validates the bytes as they stream; `oav stream-check spec.yaml` reports which of a spec's bodies can stream.
+- [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
+- [`oaverify`](https://www.npmjs.com/package/oaverify): the CLI. The library is `@oaverify/core`.
+- The repo-root [`docs/integration.md`](https://github.com/oaverify/oaverify/blob/main/docs/integration.md): broader recipes (security, file uploads, response validation, status mapping, type coercion, ignoring paths).
+- The repo-root [`docs/migration-from-eov.md`](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md): porting from `express-openapi-validator`.
+- [`@oaverify/stream`](https://www.npmjs.com/package/@oaverify/stream): for JSON bodies past what `bodyLimit` should buffer, validates the bytes as they stream; `oaverify stream-check spec.yaml` reports which of a spec's bodies can stream.

@@ -1,5 +1,5 @@
 /**
- * Cross-library benchmarks for @oav/schema vs ajv (2020-12 dialect).
+ * Cross-library benchmarks for @oaverify/internal-schema vs ajv (2020-12 dialect).
  *
  * Two modes:
  *

@@ -1,4 +1,4 @@
-import type { ParameterObject, ParameterStyle, SchemaObject } from "@oav/core";
+import type { ParameterObject, ParameterStyle, SchemaObject } from "@oaverify/internal-core";
 
 /**
  * Deserialize a raw parameter string (from URL/header/cookie) into the

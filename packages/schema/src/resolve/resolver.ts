@@ -1,4 +1,4 @@
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import { SchemaRegistry } from "./registry.js";
 
 /**

@@ -1,5 +1,5 @@
 /**
- * Large-response stress benchmark: how oav behaves when the payload is
+ * Large-response stress benchmark: how oaverify behaves when the payload is
  * a very large array (tens to hundreds of MB once parsed), which is the
  * regime real API responses hit and the synthetic `run.ts`
  * microbenchmarks (100-element arrays) do not.
@@ -9,13 +9,13 @@
  *   - parse vs validate split. A large body is `JSON.parse`d into a JS
  *     object graph before any validator runs; that parse + residency
  *     often dwarfs validation. We measure both.
- *   - retained memory. oav's DEFAULT mode collects every error into a
+ *   - retained memory. oaverify's DEFAULT mode collects every error into a
  *     tree. On a broadly-invalid large payload that is ~one node per
  *     failure: an unbounded-memory / OOM vector. `maxErrors` and
  *     `predicate` bound it. We measure the RSS the validator retains
  *     on top of the (already resident) payload.
  *   - the default-mode mismatch vs Ajv. Ajv's default is `allErrors:
- *     false` (fast-fail); oav's default is collect-all. Comparing
+ *     false` (fast-fail); oaverify's default is collect-all. Comparing
  *     Ajv-default against oav-default compares fast-fail against
  *     collect-all. This script runs both Ajv modes so the comparison
  *     can be made honestly: Ajv-default ~ oav-maxErrors:1,
@@ -138,7 +138,7 @@ function runCell(engine: Engine, validity: Validity): CellResult {
   const baseRss = (gc(), rssMB());
   const v0 = now();
 
-  if (engine.startsWith("oav")) {
+  if (engine.startsWith("oaverify")) {
     const opts =
       engine === "oav-predicate"
         ? ({ dialect: jsonSchemaDialect, predicate: true } as const)

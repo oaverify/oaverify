@@ -15,7 +15,7 @@
  * @packageDocumentation
  */
 
-import type { JsonValue, PathSegment } from "@oav/core";
+import type { JsonValue, PathSegment } from "@oaverify/internal-core";
 
 /**
  * Default cap on a captured scalar's source-byte span, applied when

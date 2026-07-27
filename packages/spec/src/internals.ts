@@ -1,7 +1,7 @@
 /**
- * Internal re-exports for `oav/spec/internals`. Exposes the
+ * Internal re-exports for `@oaverify/core/spec/internals`. Exposes the
  * synchronous resolver and its sync reader primitives, which back the
- * public {@link loadSpecSync} but are kept off the main `oav/spec`
+ * public {@link loadSpecSync} but are kept off the main `@oaverify/core/spec`
  * barrel on purpose.
  *
  * `loadSpecSync` defaults its reader, so the common boot-time case

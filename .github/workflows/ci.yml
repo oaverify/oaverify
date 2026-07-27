@@ -177,7 +177,7 @@ jobs:
   pack-smoke:
     # Catches `exports` map / `files` / bundler regressions that unit
     # tests don't surface. Packs both publish tarballs
-    # (`@aahoughton/oav-core` + `@aahoughton/oav`), installs them into
+    # (`@oaverify/core` + `oaverify`), installs them into
     # fresh sandboxes, and imports each documented subpath.
     runs-on: ubuntu-latest
     steps:
@@ -199,23 +199,24 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/packed"
           pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed"
           (cd packages/oav && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
+          (cd packages/yaml && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/oav-express4 && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/oav-express5 && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/oav-fastify && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/stream-validator && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           ls -1 "$GITHUB_WORKSPACE/packed"
-      - name: smoke-import @aahoughton/oav-core
+      - name: smoke-import @oaverify/core
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
           rm -rf /tmp/smoke-core && mkdir -p /tmp/smoke-core && cd /tmp/smoke-core
           npm init -y > /dev/null
           npm install "$CORE_TGZ"
           cat > smoke.mjs <<'EOF'
-          import { createValidator } from "@aahoughton/oav-core";
-          import { compileSchema, jsonSchemaDialect } from "@aahoughton/oav-core/schema";
-          import { createFileReader } from "@aahoughton/oav-core/spec";
-          import { translateOverlay, applySpecOverlay } from "@aahoughton/oav-core/overlay-spec";
+          import { createValidator } from "@oaverify/core";
+          import { compileSchema, jsonSchemaDialect } from "@oaverify/core/schema";
+          import { createFileReader } from "@oaverify/core/spec";
+          import { translateOverlay, applySpecOverlay } from "@oaverify/core/overlay-spec";
           const v = createValidator({
             openapi: "3.1.0",
             info: { title: "t", version: "1" },
@@ -237,7 +238,7 @@ jobs:
           try {
             await createFileReader().read("dummy.yaml");
           } catch (e) {
-            threw = /Install @aahoughton\/oav/.test(String(e?.message ?? ""));
+            threw = /Install @oaverify\/yaml/.test(String(e?.message ?? ""));
           }
           if (!threw) throw new Error("expected oav-core's createFileReader to reject .yaml with an install hint");
           if (typeof translateOverlay !== "function") throw new Error("translateOverlay missing");
@@ -253,93 +254,96 @@ jobs:
           console.log("oav-core smoke ok");
           EOF
           node smoke.mjs
-      - name: smoke-import @aahoughton/oav
+      - name: smoke @oaverify/yaml
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
-          SV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-stream-validator-*.tgz | head -n1)"
-          OAV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-[0-9]*.tgz | head -n1)"
-          rm -rf /tmp/smoke-oav && mkdir -p /tmp/smoke-oav && cd /tmp/smoke-oav
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          YAML_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-yaml-*.tgz | head -n1)"
+          rm -rf /tmp/smoke-yaml && mkdir -p /tmp/smoke-yaml && cd /tmp/smoke-yaml
           npm init -y > /dev/null
-          # Install all tarballs in one shot so `@aahoughton/oav`'s
-          # dependencies on `@aahoughton/oav-core` and
-          # `@aahoughton/oav-stream-validator` (the CLI's stream-check command)
-          # resolve against the locally-packed artifacts, not the registry.
-          npm install commander "$CORE_TGZ" "$SV_TGZ" "$OAV_TGZ"
+          npm install "$CORE_TGZ" "$YAML_TGZ"
           cat > smoke.mjs <<'EOF'
-          import { createValidator, createYamlFileReader, parseYamlString } from "@aahoughton/oav";
-          import { compileSchema, jsonSchemaDialect } from "@aahoughton/oav/schema";
-          import { composeReaders, createFileReader } from "@aahoughton/oav/spec";
-          import { translateOverlay, applySpecOverlay } from "@aahoughton/oav/overlay-spec";
-          const v = createValidator({
-            openapi: "3.1.0",
-            info: { title: "t", version: "1" },
-            paths: {
-              "/x": {
-                post: {
-                  requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["a"] } } } },
-                  responses: { "200": { description: "ok" } },
-                },
-              },
-            },
-          });
-          const reqResult = v.validateRequest({ method: "POST", path: "/x", contentType: "application/json", body: {} });
-          if (reqResult.valid) throw new Error("expected invalid (missing required 'a')");
-          const { validate } = compileSchema({ type: "integer" }, { dialect: jsonSchemaDialect });
-          if (!validate(42).valid) throw new Error("expected valid");
+          import { composeReaders, createFileReader } from "@oaverify/core/spec";
+          import { createSmartHttpReader, createYamlFileReader, loadSpecSync, parseYamlString } from "@oaverify/yaml";
           const parsed = parseYamlString("openapi: 3.1.0\ninfo: { title: t, version: '1' }\npaths: {}");
           if (parsed.openapi !== "3.1.0") throw new Error("parseYamlString regression");
-          // composeReaders must accept the YAML reader from @aahoughton/oav
-          // alongside oav-core's JSON readers.
-          const reader = composeReaders([createYamlFileReader(), createFileReader()]);
+          // The YAML readers must compose with oav-core's JSON-only ones.
+          const reader = composeReaders([createYamlFileReader(), createSmartHttpReader(), createFileReader()]);
           if (!reader.canRead("spec.yaml") || !reader.canRead("spec.json")) {
             throw new Error("composed reader should claim both .yaml and .json");
           }
-          if (typeof translateOverlay !== "function") throw new Error("translateOverlay missing");
-          if (typeof applySpecOverlay !== "function") throw new Error("applySpecOverlay missing");
-          const overlay = translateOverlay({
-            overlay: "1.0.0",
-            info: { title: "t", version: "1" },
-            actions: [{ target: "$.info", update: { description: "patched" } }],
-          });
-          if (!overlay.info || overlay.info.description !== "patched") {
-            throw new Error("translateOverlay did not produce the expected info verb");
-          }
-          console.log("oav smoke ok");
+          if (typeof loadSpecSync !== "function") throw new Error("loadSpecSync missing");
+          console.log("oaverify-yaml smoke ok");
           EOF
           node smoke.mjs
-          # CLI should be present in bin; verify --help exits 0
-          npx oav --help > /dev/null
-          # Exercise stream-check: it imports analyzeSpec from
-          # @aahoughton/oav-stream-validator, so this fails if that dependency
-          # is missing or stale in the installed tree.
-          cat > spec.json <<'JSON'
-          {"openapi":"3.1.0","info":{"title":"t","version":"1"},"paths":{"/x":{"post":{"requestBody":{"content":{"application/json":{"schema":{"type":"object"}}}}}}}}
-          JSON
-          npx oav stream-check spec.json > /dev/null
-      - name: smoke-import @aahoughton/oav-express4
+      - name: smoke the oaverify CLI
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
-          E4_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-express4-*.tgz | head -n1)"
+          # `oaverify` ships only the binary now; the library surface is
+          # smoke-tested against @oaverify/core above. Install every
+          # tarball it depends on so nothing resolves to the registry.
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          YAML_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-yaml-*.tgz | head -n1)"
+          SV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-stream-*.tgz | head -n1)"
+          CLI_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-[0-9]*.tgz | head -n1)"
+          rm -rf /tmp/smoke-cli && mkdir -p /tmp/smoke-cli && cd /tmp/smoke-cli
+          npm init -y > /dev/null
+          npm install "$CORE_TGZ" "$YAML_TGZ" "$SV_TGZ" "$CLI_TGZ"
+          # The library surface must NOT be reachable from the CLI package.
+          if node -e 'import("oaverify/schema").then(()=>process.exit(0),()=>process.exit(1))'; then
+            echo "oaverify should not export a library surface" >&2
+            exit 1
+          fi
+          npx oaverify --help > /dev/null
+          cat > spec.yaml <<'YAML'
+          openapi: 3.1.0
+          info: { title: t, version: "1" }
+          paths:
+            /x:
+              post:
+                requestBody:
+                  required: true
+                  content:
+                    application/json:
+                      schema: { type: object, required: [a] }
+                responses:
+                  "200": { description: ok }
+          YAML
+          # A YAML spec exercises the oaverify-yaml dependency through the
+          # CLI's default reader chain.
+          echo '{"a":1}' > ok.json
+          echo '{}' > bad.json
+          npx oaverify validate --path "POST /x" --body ok.json spec.yaml
+          if npx oaverify validate --path "POST /x" --body bad.json spec.yaml > /dev/null 2>&1; then
+            echo "expected a non-zero exit for the invalid body" >&2
+            exit 1
+          fi
+          # stream-check imports analyzeSpec from @oaverify/stream, so this
+          # fails if that dependency is missing or stale in the tree.
+          npx oaverify stream-check spec.yaml > /dev/null
+      - name: smoke-import @oaverify/express4
+        run: |
+          set -euo pipefail
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          E4_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-express4-*.tgz | head -n1)"
           rm -rf /tmp/smoke-e4 && mkdir -p /tmp/smoke-e4 && cd /tmp/smoke-e4
           npm init -y > /dev/null
           npm install express@4 "$CORE_TGZ" "$E4_TGZ"
           cat > smoke.mjs <<'EOF'
-          import { createValidator } from "@aahoughton/oav-core";
+          import { createValidator } from "@oaverify/core";
           import {
             httpRequestFromExpress,
             renderProblemDetails,
             validateRequests,
-          } from "@aahoughton/oav-express4";
+          } from "@oaverify/express4";
           if (typeof validateRequests !== "function") throw new Error("validateRequests missing");
           if (typeof httpRequestFromExpress !== "function") throw new Error("httpRequestFromExpress missing");
           if (typeof renderProblemDetails !== "function") throw new Error("renderProblemDetails missing");
           // Exercise the cross-package boundary: build a validator from the
           // published core and hand it to the published adapter. This forces
-          // the adapter's rewritten `@aahoughton/oav-core/core` imports to
+          // the adapter's rewritten `@oaverify/core/core` imports to
           // load and proves a published-core validator is consumable. A leaked
-          // `@oav/*` import would fail resolution here.
+          // `@oaverify/internal-*` import would fail resolution here.
           const handler = validateRequests(
             createValidator({
               openapi: "3.1.0",
@@ -351,29 +355,29 @@ jobs:
           console.log("oav-express4 smoke ok");
           EOF
           node smoke.mjs
-      - name: smoke-import @aahoughton/oav-express5
+      - name: smoke-import @oaverify/express5
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
-          E5_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-express5-*.tgz | head -n1)"
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          E5_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-express5-*.tgz | head -n1)"
           rm -rf /tmp/smoke-e5 && mkdir -p /tmp/smoke-e5 && cd /tmp/smoke-e5
           npm init -y > /dev/null
           npm install express@5 "$CORE_TGZ" "$E5_TGZ"
           cat > smoke.mjs <<'EOF'
-          import { createValidator } from "@aahoughton/oav-core";
+          import { createValidator } from "@oaverify/core";
           import {
             httpRequestFromExpress,
             renderProblemDetails,
             validateRequests,
-          } from "@aahoughton/oav-express5";
+          } from "@oaverify/express5";
           if (typeof validateRequests !== "function") throw new Error("validateRequests missing");
           if (typeof httpRequestFromExpress !== "function") throw new Error("httpRequestFromExpress missing");
           if (typeof renderProblemDetails !== "function") throw new Error("renderProblemDetails missing");
           // Exercise the cross-package boundary: build a validator from the
           // published core and hand it to the published adapter. This forces
-          // the adapter's rewritten `@aahoughton/oav-core/core` imports to
+          // the adapter's rewritten `@oaverify/core/core` imports to
           // load and proves a published-core validator is consumable. A leaked
-          // `@oav/*` import would fail resolution here.
+          // `@oaverify/internal-*` import would fail resolution here.
           const handler = validateRequests(
             createValidator({
               openapi: "3.1.0",
@@ -385,29 +389,29 @@ jobs:
           console.log("oav-express5 smoke ok");
           EOF
           node smoke.mjs
-      - name: smoke-import @aahoughton/oav-fastify
+      - name: smoke-import @oaverify/fastify
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
-          F_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-fastify-*.tgz | head -n1)"
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          F_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-fastify-*.tgz | head -n1)"
           rm -rf /tmp/smoke-fastify && mkdir -p /tmp/smoke-fastify && cd /tmp/smoke-fastify
           npm init -y > /dev/null
           npm install fastify@5 "$CORE_TGZ" "$F_TGZ"
           cat > smoke.mjs <<'EOF'
-          import { createValidator } from "@aahoughton/oav-core";
+          import { createValidator } from "@oaverify/core";
           import {
             httpRequestFromFastify,
             renderProblemDetails,
             validateRequests,
-          } from "@aahoughton/oav-fastify";
+          } from "@oaverify/fastify";
           if (typeof validateRequests !== "function") throw new Error("validateRequests missing");
           if (typeof httpRequestFromFastify !== "function") throw new Error("httpRequestFromFastify missing");
           if (typeof renderProblemDetails !== "function") throw new Error("renderProblemDetails missing");
           // Exercise the cross-package boundary: build a validator from the
           // published core and hand it to the published adapter. This forces
-          // the adapter's rewritten `@aahoughton/oav-core/core` imports to
+          // the adapter's rewritten `@oaverify/core/core` imports to
           // load and proves a published-core validator is consumable. A leaked
-          // `@oav/*` import would fail resolution here.
+          // `@oaverify/internal-*` import would fail resolution here.
           const hook = validateRequests(
             createValidator({
               openapi: "3.1.0",
@@ -419,25 +423,25 @@ jobs:
           console.log("oav-fastify smoke ok");
           EOF
           node smoke.mjs
-      - name: smoke-import @aahoughton/oav-stream-validator
+      - name: smoke-import @oaverify/stream
         run: |
           set -euo pipefail
-          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-core-*.tgz | head -n1)"
-          SV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/aahoughton-oav-stream-validator-*.tgz | head -n1)"
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          SV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-stream-*.tgz | head -n1)"
           rm -rf /tmp/smoke-sv && mkdir -p /tmp/smoke-sv && cd /tmp/smoke-sv
           npm init -y > /dev/null
           # Install both tarballs together so the stream validator's
-          # dependency on @aahoughton/oav-core resolves against the locally
+          # dependency on @oaverify/core resolves against the locally
           # packed core, not the registry.
           npm install "$CORE_TGZ" "$SV_TGZ"
           cat > smoke.mjs <<'EOF'
           import { pipeline } from "node:stream/promises";
           import { Readable } from "node:stream";
-          import { createStreamValidator } from "@aahoughton/oav-stream-validator";
+          import { createStreamValidator } from "@oaverify/stream";
           // Exercise the cross-package boundary: the engine delegates BUFFER
           // islands and dialect handling to the published core, so this proves
-          // the rewritten `@aahoughton/oav-core/{core,schema,schema/internals}`
-          // imports load. A leaked `@oav/*` import would fail resolution here.
+          // the rewritten `@oaverify/core/{core,schema,schema/internals}`
+          // imports load. A leaked `@oaverify/internal-*` import would fail resolution here.
           const validator = createStreamValidator({
             type: "object",
             required: ["a"],

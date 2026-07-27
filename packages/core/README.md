@@ -1,13 +1,11 @@
-# oav/core
+# @oaverify/core/core
 
 Error tree model, shared OpenAPI / HTTP types, and output formatters.
 Imported by every other module in the package, and (because the error
 tree is what `validateRequest` / `validateResponse` return) the
 closest thing to a "read me first" for library consumers.
 
-This subpath is available from both `oav/core` and
-`oav-core/core`; the imports below work identically
-against either package.
+This subpath is available from `@oaverify/core/core`.
 
 ```ts
 import {
@@ -15,7 +13,7 @@ import {
   collectLeaves,
   type ValidationError,
   type ErrorParamsFor,
-} from "@aahoughton/oav/core";
+} from "@oaverify/core/core";
 ```
 
 ## Error tree
@@ -176,9 +174,9 @@ collectIssues(err)
 See the [Framework integration](../../README.md#framework-integration)
 section of the root README for Express / Fastify / Next.js snippets.
 Companion adapter packages wrap these helpers as middleware /
-hooks: [`oav-express4`](../oav-express4/README.md),
-[`oav-express5`](../oav-express5/README.md),
-[`oav-fastify`](../oav-fastify/README.md).
+hooks: [`@oaverify/express4`](../oav-express4/README.md),
+[`@oaverify/express5`](../oav-express5/README.md),
+[`@oaverify/fastify`](../oav-fastify/README.md).
 
 ## OpenAPI / HTTP types
 
@@ -197,7 +195,7 @@ spec (e.g. overlays, custom tooling) handle them explicitly.
 ## Version detection
 
 ```ts
-import { detectOpenAPIVersion } from "@aahoughton/oav/core";
+import { detectOpenAPIVersion } from "@oaverify/core/core";
 
 detectOpenAPIVersion({ openapi: "3.0.3", info: {}, paths: {} }); // "3.0"
 detectOpenAPIVersion({ openapi: "3.2.0", info: {}, paths: {} }); // "3.2"

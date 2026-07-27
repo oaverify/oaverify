@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import type { ValidationError } from "@oav/core";
+import type { ValidationError } from "@oaverify/internal-core";
 
 /**
  * The trio every Express 4 middleware receives. Passed to user-supplied
@@ -19,11 +19,11 @@ export interface ExpressContext {
 
 /**
  * Signature shared by `onError` on every adapter in the family
- * (`oav-express4`, `oav-express5`, `oav-fastify`). The `Ctx`
+ * (`@oaverify/express4`, `@oaverify/express5`, `@oaverify/fastify`). The `Ctx`
  * parameter is the only thing that varies; same name and shape
  * everywhere.
  *
- * Returning a Promise is supported on every adapter. `oav-express4`
+ * Returning a Promise is supported on every adapter. `@oaverify/express4`
  * awaits the return so async work (logging to a remote service,
  * loading per-tenant rendering config, etc.) can complete before the
  * middleware exits. Sync handlers pay no measurable overhead.

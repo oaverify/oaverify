@@ -1,9 +1,9 @@
 /* eslint-disable unicorn/no-thenable -- `then` is a JSON Schema keyword here */
 import { describe, expect, it } from "vitest";
-import type { SchemaOrBoolean } from "@oav/core";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
-import { builtInFormats } from "@oav/formats";
+import { builtInFormats } from "@oaverify/internal-formats";
 
 const predicate = (schema: SchemaOrBoolean) =>
   compileSchema(schema, { dialect: jsonSchemaDialect, predicate: true, formats: builtInFormats });

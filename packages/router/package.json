@@ -1,8 +1,8 @@
 {
-  "name": "@oav/router",
+  "name": "@oaverify/internal-router",
   "version": "0.0.0",
   "private": true,
-  "description": "Internal: OpenAPI path matcher for @aahoughton/oav.",
+  "description": "Internal: OpenAPI path matcher for oaverify.",
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -13,7 +13,7 @@
     }
   },
   "dependencies": {
-    "@oav/core": "workspace:*"
+    "@oaverify/internal-core": "workspace:*"
   },
   "engines": {
     "node": ">=20"

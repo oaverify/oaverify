@@ -4,15 +4,18 @@ import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 /**
  * Vocabulary URI for user-registered keywords. Not a published JSON
  * Schema vocabulary; just a local tag that keeps custom entries
- * alongside the built-in ones in the keyword registry.
+ * alongside the built-in ones in the keyword registry. It is an
+ * identifier, not a fetchable document, so nothing resolves it; the
+ * repository URL is used because that is a namespace this project
+ * demonstrably controls.
  *
  * @public
  */
-export const customKeywordVocabulary = "https://oav.dev/vocab/custom-keywords";
+export const customKeywordVocabulary = "https://github.com/oaverify/oaverify/vocab/custom-keywords";
 
 /**
  * Failure detail a {@link CustomKeywordValidator} may return to customize
- * the emitted {@link import("@oav/core").ValidationError}. Omitted fields
+ * the emitted {@link import("@oaverify/internal-core").ValidationError}. Omitted fields
  * take sensible defaults: `message` becomes
  * `"value failed custom keyword \"<name>\""`; `params` defaults to `{}`.
  *

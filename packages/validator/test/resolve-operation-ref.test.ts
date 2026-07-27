@@ -1,4 +1,4 @@
-import type { ReferenceObject } from "@oav/core";
+import type { ReferenceObject } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import { resolveOperationRef } from "../src/operation-cache.js";
 

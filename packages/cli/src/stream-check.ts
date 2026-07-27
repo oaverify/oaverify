@@ -1,5 +1,5 @@
 /**
- * Human-readable rendering for `oav stream-check`: a per-operation
+ * Human-readable rendering for `oaverify stream-check`: a per-operation
  * streamability table over a {@link SpecBudget}, surfacing where each
  * request / response body buffers and the unbounded positions that drive
  * the cost. The machine-readable form is the `SpecBudget` JSON itself
@@ -8,13 +8,8 @@
  * @packageDocumentation
  */
 
-import type { OpenAPIDocument } from "@oav/core";
-import type {
-  BodyBudget,
-  ByteSize,
-  SpecBudget,
-  StreamabilityReport,
-} from "@aahoughton/oav-stream-validator";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
+import type { BodyBudget, ByteSize, SpecBudget, StreamabilityReport } from "@oaverify/stream";
 
 /** Format a wire-byte size as a short human string. */
 export function formatBytes(size: ByteSize): string {

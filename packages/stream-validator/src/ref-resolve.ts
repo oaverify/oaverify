@@ -8,8 +8,8 @@
  * @packageDocumentation
  */
 
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
-import { walkSubschemas } from "@oav/schema";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import { walkSubschemas } from "@oaverify/internal-schema";
 
 function isObjectSchema(s: unknown): s is SchemaObject {
   return typeof s === "object" && s !== null && !Array.isArray(s);
@@ -39,7 +39,7 @@ export function resolveRef(root: SchemaObject, ref: string): SchemaOrBoolean | u
   if (ref === "#" || ref === "") return root;
   if (ref.startsWith("#/")) {
     // A fragment is a URI: percent-decode each segment, then unescape the
-    // JSON Pointer `~1` / `~0` (parity with @oav/schema, which resolves
+    // JSON Pointer `~1` / `~0` (parity with @oaverify/internal-schema, which resolves
     // e.g. `#/$defs/Record%3Cstring%2CPerson%3E`).
     const segments = ref
       .slice(2)

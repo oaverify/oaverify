@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OpenAPIDocument, SchemaOrBoolean } from "@oav/core";
+import type { OpenAPIDocument, SchemaOrBoolean } from "@oaverify/internal-core";
 import { emitSpec } from "../src/emit-spec.js";
 
 /**
@@ -41,7 +41,7 @@ describe("emitSpec schema dedup", () => {
       },
     } as unknown as OpenAPIDocument;
 
-    const source = emitSpec(document, { importPrefix: "@oav" });
+    const source = emitSpec(document);
     const iifeCount = (source.match(/= \(function \(deps\) \{/g) ?? []).length;
     expect(iifeCount).toBe(1);
   });

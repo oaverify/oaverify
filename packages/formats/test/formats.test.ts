@@ -172,7 +172,7 @@ describe("builtInFormats map", () => {
     for (const k of keys) expect(typeof builtInFormats[k]).toBe("function");
   });
 
-  it("does not include `regex` (registered by @oav/schema's createDeps)", () => {
+  it("does not include `regex` (registered by @oaverify/internal-schema's createDeps)", () => {
     expect(builtInFormats["regex"]).toBeUndefined();
   });
 });

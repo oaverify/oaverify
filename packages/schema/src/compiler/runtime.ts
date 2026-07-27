@@ -1,4 +1,9 @@
-import { createBranchError, createError, createLeafError, type ValidationError } from "@oav/core";
+import {
+  createBranchError,
+  createError,
+  createLeafError,
+  type ValidationError,
+} from "@oaverify/internal-core";
 import type { CustomKeywordValidator } from "../keywords/custom.js";
 
 /**

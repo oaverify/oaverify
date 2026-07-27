@@ -1,8 +1,8 @@
 {
-  "name": "@oav-dev/conformance",
+  "name": "@oaverify-dev/conformance",
   "version": "0.0.0",
   "private": true,
-  "description": "Conformance harness: runs upstream test suites and OpenAPI cases through @oav/schema and the oav CLI.",
+  "description": "Conformance harness: runs upstream test suites and OpenAPI cases through @oaverify/internal-schema and the oaverify CLI.",
   "type": "module",
   "scripts": {
     "suite": "tsx run-json-schema-suite.ts",

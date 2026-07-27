@@ -1,18 +1,18 @@
 /**
- * `@oav/stream-validator`: a streaming JSON Schema 2020-12 validator. It
+ * `@oaverify/internal-stream-validator`: a streaming JSON Schema 2020-12 validator. It
  * validates a JSON document against a resolved schema as the bytes stream,
  * echoing them through unchanged while reporting violations on a side
  * channel. Memory is bounded for forward-decidable schemas with structural
  * bounds, so multi-GB bodies validate without materializing in heap.
  *
  * This is a second engine, push-based over a token stream, distinct from
- * `@oav/schema`'s pull-based compiler. It reuses `@oav/schema`'s
+ * `@oaverify/internal-schema`'s pull-based compiler. It reuses `@oaverify/internal-schema`'s
  * in-memory validator for subtrees a compile-time classifier marks
  * BUFFER (so format assertion and built-in formats come from that
- * delegate), and reuses `@oav/core`'s flat error model.
+ * delegate), and reuses `@oaverify/internal-core`'s flat error model.
  *
- * Published as `@aahoughton/oav-stream-validator`, versioned independently
- * of the `oav-core` family (its own version line).
+ * Published as `@oaverify/stream`, versioned with the `@oaverify/core`
+ * family because its public contract tracks core/schema semantics.
  *
  * @packageDocumentation
  */

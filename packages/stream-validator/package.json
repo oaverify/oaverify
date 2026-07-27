@@ -1,7 +1,7 @@
 {
-  "name": "@aahoughton/oav-stream-validator",
+  "name": "@oaverify/stream",
   "version": "1.1.0",
-  "description": "Streaming OpenAPI / JSON Schema 2020-12 validator. Validates a JSON body as it streams with bounded memory for multi-GB payloads, echoing bytes through unchanged while reporting violations on a side channel. Built on @aahoughton/oav-core.",
+  "description": "Streaming OpenAPI / JSON Schema 2020-12 validator. Validates a JSON body as it streams with bounded memory for multi-GB payloads, echoing bytes through unchanged while reporting violations on a side channel. Built on @oaverify/core.",
   "keywords": [
     "json-schema",
     "json-schema-2020-12",
@@ -18,15 +18,15 @@
     "validation",
     "validator"
   ],
-  "homepage": "https://github.com/aahoughton/oav#readme",
+  "homepage": "https://github.com/oaverify/oaverify#readme",
   "bugs": {
-    "url": "https://github.com/aahoughton/oav/issues"
+    "url": "https://github.com/oaverify/oaverify/issues"
   },
   "license": "MIT",
   "author": "Andrew Houghton <aah@roarmouse.org>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aahoughton/oav.git",
+    "url": "git+https://github.com/oaverify/oaverify.git",
     "directory": "packages/stream-validator"
   },
   "files": [
@@ -64,11 +64,11 @@
     "postpack": "node ../../scripts/pack-devdeps.mjs restore"
   },
   "dependencies": {
-    "@aahoughton/oav-core": "workspace:*"
+    "@oaverify/core": "workspace:*"
   },
   "devDependencies": {
-    "@oav/core": "workspace:*",
-    "@oav/schema": "workspace:*",
+    "@oaverify/internal-core": "workspace:*",
+    "@oaverify/internal-schema": "workspace:*",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "4.1.9"
@@ -76,5 +76,5 @@
   "engines": {
     "node": ">=22"
   },
-  "//": "Published to the default `latest` dist-tag, versioned independently of the lockstep oav-core family (its own 1.x line, semver from 1.0). No prepublishOnly: release.yml runs `pnpm test` from root before publish."
+  "//": "Published to the default `latest` dist-tag, versioned with the lockstep @oaverify/core family. No prepublishOnly: release.yml runs `pnpm test` from root before publish."
 }

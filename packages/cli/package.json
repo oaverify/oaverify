@@ -1,8 +1,8 @@
 {
-  "name": "@oav/cli",
+  "name": "@oaverify/internal-cli",
   "version": "0.0.0",
   "private": true,
-  "description": "Internal: CLI entrypoint for @aahoughton/oav.",
+  "description": "Internal: CLI entrypoint for oaverify.",
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.ts",
@@ -13,13 +13,13 @@
     }
   },
   "dependencies": {
-    "@aahoughton/oav-stream-validator": "workspace:*",
-    "@oav/core": "workspace:*",
-    "@oav/formats": "workspace:*",
-    "@oav/overlay-spec": "workspace:*",
-    "@oav/schema": "workspace:*",
-    "@oav/spec": "workspace:*",
-    "@oav/validator": "workspace:*",
+    "@oaverify/internal-core": "workspace:*",
+    "@oaverify/internal-formats": "workspace:*",
+    "@oaverify/internal-overlay-spec": "workspace:*",
+    "@oaverify/internal-schema": "workspace:*",
+    "@oaverify/internal-spec": "workspace:*",
+    "@oaverify/internal-validator": "workspace:*",
+    "@oaverify/stream": "workspace:*",
     "commander": "15.0.0"
   },
   "engines": {

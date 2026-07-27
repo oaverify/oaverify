@@ -1,5 +1,5 @@
 {
-  "name": "@aahoughton/oav-core",
+  "name": "@oaverify/core",
   "version": "3.8.0",
   "description": "Zero-dependency OpenAPI request/response validator (3.0/3.1/3.2) for TypeScript, Node, and edge/serverless runtimes.",
   "keywords": [
@@ -25,15 +25,15 @@
     "validation",
     "validator"
   ],
-  "homepage": "https://github.com/aahoughton/oav#readme",
+  "homepage": "https://github.com/oaverify/oaverify#readme",
   "bugs": {
-    "url": "https://github.com/aahoughton/oav/issues"
+    "url": "https://github.com/oaverify/oaverify/issues"
   },
   "license": "MIT",
   "author": "Andrew Houghton <aah@roarmouse.org>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aahoughton/oav.git"
+    "url": "git+https://github.com/oaverify/oaverify.git"
   },
   "files": [
     "dist",
@@ -143,8 +143,8 @@
     "provenance": true
   },
   "scripts": {
-    "build": "tsup && pnpm --filter @aahoughton/oav-stream-validator build && pnpm --filter @aahoughton/oav build",
-    "oav": "node packages/oav/dist/cli.js",
+    "build": "tsup && pnpm --filter @oaverify/stream build && pnpm --filter @oaverify/yaml build && pnpm --filter oaverify build",
+    "oaverify": "node packages/oav/dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "oxlint && oxfmt --check . && pnpm check:deps",

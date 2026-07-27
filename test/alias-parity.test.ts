@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { workspaceAliases } from "../workspace-aliases.js";
 
-// Parity guard for the hand-maintained `@oav/*` -> path tables. Adding a
+// Parity guard for the hand-maintained `@oaverify/internal-*` -> path tables. Adding a
 // subpath export (a new `*/internals`, a new package) means updating
 // three places; missing one surfaces as a confusing resolve failure
 // (tests pass but the build breaks, or vice versa) rather than a clear
@@ -12,7 +12,7 @@ import { workspaceAliases } from "../workspace-aliases.js";
 // the entries the `oav` bundle legitimately doesn't reference.
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const onlyOav = (k: string): boolean => k.startsWith("@oav/");
+const onlyOav = (k: string): boolean => k.startsWith("@oaverify/internal-");
 
 function aliasKeys(): string[] {
   return Object.keys(workspaceAliases(root)).filter(onlyOav).sort();
@@ -28,33 +28,33 @@ function tsconfigPathKeys(): string[] {
 function tsupRewriteKeys(): string[] {
   // packages/oav/tsup.config.ts can't be imported here (it reads
   // `__dirname` at module load, which is undefined under ESM), so read
-  // it as text and extract the quoted `@oav/*` keys of its rewrite and
-  // bundle maps. Values are `@aahoughton/oav-core/...` and comments use
-  // backticks, so a quoted `@oav/...` literal is always a map key.
+  // it as text and extract the quoted `@oaverify/internal-*` keys of its rewrite and
+  // bundle maps. Values are `@oaverify/core/...` and comments use
+  // backticks, so a quoted `@oaverify/internal-...` literal is always a map key.
   const src = readFileSync(resolve(root, "packages/oav/tsup.config.ts"), "utf8");
   const keys = new Set<string>();
-  for (const m of src.matchAll(/["'](@oav\/[^"']+)["']/g)) keys.add(m[1]!);
+  for (const m of src.matchAll(/["'](@oaverify\/internal-[^"']+)["']/g)) keys.add(m[1]!);
   return [...keys].sort();
 }
 
-// The oav bundle re-exports oav-core's surface and bundles the CLI +
-// router; it never imports itself or the framework adapters, so those
-// keys appear in the resolution tables but not the tsup rewrite map.
-// `@oav/stream-validator` is published standalone and consumed by the CLI
-// as an external runtime dependency (like oav-core), so it is wired into
-// the resolution tables (for typecheck / tests) but deliberately not
-// bundled into any oav tarball. Update this list when adding or removing a
-// published package.
+// The oaverify tarball bundles the CLI + router and rewrites the rest of
+// `@oaverify/internal-*` to @oaverify/core subpaths; it never imports the framework
+// adapters, so those keys appear in the resolution tables but not the
+// tsup rewrite map. `@oaverify/internal-stream-validator` aliases the package published
+// as `@oaverify/stream`. It is consumed by the CLI and
+// consumed by the CLI as an external runtime dependency (like @oaverify/core),
+// so it is wired into the resolution tables (for typecheck / tests) but
+// deliberately not bundled into any oaverify tarball. Update this list when
+// adding or removing a published package.
 const NOT_IN_OAV_BUNDLE = [
-  "@oav/oav",
-  "@oav/oav-express4",
-  "@oav/oav-express5",
-  "@oav/oav-fastify",
-  "@oav/stream-validator",
+  "@oaverify/internal-oav-express4",
+  "@oaverify/internal-oav-express5",
+  "@oaverify/internal-oav-fastify",
+  "@oaverify/internal-stream-validator",
 ].sort();
 
-describe("@oav/* alias parity across resolution tables", () => {
-  it("workspace-aliases.ts and tsconfig.build.json cover the same @oav/* keys", () => {
+describe("@oaverify/internal-* alias parity across resolution tables", () => {
+  it("workspace-aliases.ts and tsconfig.build.json cover the same @oaverify/internal-* keys", () => {
     expect(aliasKeys()).toEqual(tsconfigPathKeys());
   });
 

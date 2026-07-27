@@ -1,50 +1,50 @@
-# oav (CLI)
+# oaverify (CLI)
 
-The `oav` binary: a thin wrapper around the oav library for shell
+The `oaverify` binary: a thin wrapper around the oaverify library for shell
 scripts, Makefiles, and CI.
 
 ## Install
 
 ```bash
 # global install
-npm install -g @aahoughton/oav
-oav --help
+npm install -g oaverify
+oaverify --help
 
 # one-off via npx
-npx @aahoughton/oav validate openapi.yaml --request req.http
+npx oaverify validate openapi.yaml --request req.http
 ```
 
-The CLI lives in the `oav` package, not `oav-core`. `oav-core`
-doesn't ship a `bin` or any CLI glue. `oav` carries `commander`
+The CLI lives in the `oaverify` package, not `@oaverify/core`. `@oaverify/core`
+doesn't ship a `bin` or any CLI glue. `oaverify` carries `commander`
 (argv parsing) as a regular dependency. `esbuild` (AOT bundling
 for `compile-schema` / `compile-spec`) is an optional peer
-dependency; install it alongside `oav` only if you use those
+dependency; install it alongside `oaverify` only if you use those
 commands. Users who only need the programmatic API install
-`oav-core` instead.
+`@oaverify/core` instead.
 
 ## Commands
 
 ```bash
-oav resolve <spec>                                       # stitch a multi-file spec
-oav resolve <spec> --overlay overlay1.json --overlay overlay2.json
-oav resolve <spec> --lint                                # spec-hygiene check; findings to stderr
-oav resolve <spec> --lint --fail-on warning              # CI gate: exit 1 on any finding
-oav resolve <spec> --lint --envelope json                # findings folded into JSON envelope
+oaverify resolve <spec>                                       # stitch a multi-file spec
+oaverify resolve <spec> --overlay overlay1.json --overlay overlay2.json
+oaverify resolve <spec> --lint                                # spec-hygiene check; findings to stderr
+oaverify resolve <spec> --lint --fail-on warning              # CI gate: exit 1 on any finding
+oaverify resolve <spec> --lint --envelope json                # findings folded into JSON envelope
 
-oav validate <spec> --request req.http                   # full HTTP request from a .http file
-oav validate <spec> --path "POST /pets" --body body.json
-oav validate <spec> --path "GET /pets" --response --status 200 --body resp.json
+oaverify validate <spec> --request req.http                   # full HTTP request from a .http file
+oaverify validate <spec> --path "POST /pets" --body body.json
+oaverify validate <spec> --path "GET /pets" --response --status 200 --body resp.json
 
-oav compile-schema <schema.json> -o v.mjs                # single JSON Schema -> standalone validator
-oav compile-schema <schema.json> --dialect openapi-3.0
+oaverify compile-schema <schema.json> -o v.mjs                # single JSON Schema -> standalone validator
+oaverify compile-schema <schema.json> --dialect openapi-3.0
 
-oav compile-spec <openapi.yaml> -o v.mjs                 # OpenAPI spec -> standalone HTTP validator
-oav compile-spec <openapi.yaml> --requests-only -o v.mjs
-oav compile-spec <openapi.yaml> --only "POST /pets" -o v.mjs
+oaverify compile-spec <openapi.yaml> -o v.mjs                 # OpenAPI spec -> standalone HTTP validator
+oaverify compile-spec <openapi.yaml> --requests-only -o v.mjs
+oaverify compile-spec <openapi.yaml> --only "POST /pets" -o v.mjs
 
-oav stream-check <openapi.yaml>                          # per-operation streaming-buffer budget
-oav stream-check <openapi.yaml> --verbose                # list each unbounded buffering position
-oav stream-check <openapi.yaml> --fail-on-unbounded      # CI gate: exit 1 if any body is unbounded
+oaverify stream-check <openapi.yaml>                          # per-operation streaming-buffer budget
+oaverify stream-check <openapi.yaml> --verbose                # list each unbounded buffering position
+oaverify stream-check <openapi.yaml> --fail-on-unbounded      # CI gate: exit 1 if any body is unbounded
 ```
 
 Pass `-` as the file path to read from stdin (e.g. `--body -`).
@@ -79,7 +79,7 @@ below for the expected shape.
 
 ## `compile-schema` output
 
-`oav compile-schema <schema.json>` emits an ESM module exporting a
+`oaverify compile-schema <schema.json>` emits an ESM module exporting a
 `validate(data)` function matching `compileSchema(schema).validate(data)`.
 esbuild bundles the runtime helpers into the output, so the resulting
 module has zero imports. Typical output is ~13 KB for a small schema,
@@ -92,18 +92,18 @@ library footprint is unwanted.
 Constraints on the input schema:
 
 - **Built-in formats only.** If the schema references `format: "..."`
-  names outside `oav/formats`, compile fails with exit
+  names outside `@oaverify/core/formats`, compile fails with exit
   code 3 and a listing of the unknown names. Custom formats aren't
   serialisable to standalone source.
 - **No custom keywords.** Same reason: the keyword's validator
   function can't be serialised.
-- **External `$ref`s must be pre-inlined.** Run `oav resolve` over
-  a multi-file input first, or use `oav/spec.resolveSpec`
+- **External `$ref`s must be pre-inlined.** Run `oaverify resolve` over
+  a multi-file input first, or use `@oaverify/core/spec`'s `resolveSpec`
   programmatically, before piping the schema into `compile-schema`.
 
 ## `compile-spec` output
 
-`oav compile-spec <openapi.yaml>` emits an ESM module exposing the
+`oaverify compile-spec <openapi.yaml>` emits an ESM module exposing the
 same surface as `createValidator(document)`: `validateRequest`,
 `validateResponse`, `validateFetchRequest`, `validateFetchResponse`,
 `getOperation`, `detectedVersion`, `warnings`. Every operation's
@@ -135,7 +135,7 @@ application boot get the same behavior with no YAML parse, no
 ### Flags
 
 - **`--overlay <file>`** (repeatable): applies overlays at build
-  time. Same semantics as `oav resolve`.
+  time. Same semantics as `oaverify resolve`.
 - **`--dialect <name>`**: forces a specific schema dialect. Default
   is auto-detected from the spec's `openapi` field.
 - **`--output-mode flat|tree|predicate`**: result shape of the emitted
@@ -183,7 +183,7 @@ Same limits as `compile-schema`, plus:
   can't be serialised. Compile dynamically with `createValidator`
   if you need them.
 - **External `$ref`s**: internal refs within the document compile
-  fine; multi-file external refs must be pre-inlined via `oav
+  fine; multi-file external refs must be pre-inlined via `oaverify
 resolve` or `resolveSpec` before running `compile-spec`.
 
 ### Relationship to ajv's `standaloneCode`
@@ -197,10 +197,10 @@ than hand-built over a standalone schema validator.
 
 ## `stream-check` output
 
-`oav stream-check <openapi.yaml>` reports the streaming-buffer budget
+`oaverify stream-check <openapi.yaml>` reports the streaming-buffer budget
 for every operation: for the request body and each response body, which
 bodies stream, which must buffer, and how large a buffer can get. It is
-the streamability analysis (`@aahoughton/oav-stream-validator`'s
+the streamability analysis (`@oaverify/stream`'s
 `analyzeSpec`) surfaced over a whole resolved spec, so a deployer can
 see before deploy where a body would be materialized in heap.
 
@@ -211,7 +211,7 @@ machine consumers. `--fail-on-unbounded` exits `1` when any body has an
 unbounded peak, so CI can reject a spec that can't stream within a
 fixed memory bound; `--max-buffered-bytes <n>` computes the effective
 peak against a chosen cap. Overlays apply first (`--overlay`, same
-semantics as `oav resolve`).
+semantics as `oaverify resolve`).
 
 A body whose schema can't be classified is reported with an error
 rather than aborting the sweep, so one unclassifiable body doesn't hide

@@ -1,7 +1,7 @@
 /**
  * Runner for the JSONTestSuite parser-conformance corpus
  * (https://github.com/nst/JSONTestSuite), driving the
- * `@oav/stream-validator` SAX tokenizer.
+ * `@oaverify/internal-stream-validator` SAX tokenizer.
  *
  * A clone of that repo lives under ./JSONTestSuite (gitignored; cloned
  * by `pnpm setup:json-parse`). This script walks `test_parsing/*.json`,

@@ -1,5 +1,5 @@
 /**
- * Error-tree memory anatomy: where the bytes go when oav collects a full
+ * Error-tree memory anatomy: where the bytes go when oaverify collects a full
  * error tree on a broadly-invalid large payload (default, non-`maxErrors`
  * mode). Companion to `large-payload.ts`, which showed that the default
  * collect-all mode retains ~60x the payload size and is ~2.8x heavier

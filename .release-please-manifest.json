@@ -1,6 +1,7 @@
 {
   ".": "3.8.0",
   "packages/oav": "3.8.0",
+  "packages/yaml": "3.8.0",
   "packages/oav-express4": "3.8.0",
   "packages/oav-express5": "3.8.0",
   "packages/oav-fastify": "3.8.0",

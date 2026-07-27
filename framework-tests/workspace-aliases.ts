@@ -14,6 +14,9 @@ const PACKAGES = ["core", "validator", "oav-express4", "oav-express5", "oav-fast
 
 export function workspaceAliases(): Record<string, string> {
   return Object.fromEntries(
-    PACKAGES.map((pkg) => [`@oav/${pkg}`, resolve(rootDir, "packages", pkg, "src", "index.ts")]),
+    PACKAGES.map((pkg) => [
+      `@oaverify/internal-${pkg}`,
+      resolve(rootDir, "packages", pkg, "src", "index.ts"),
+    ]),
   );
 }

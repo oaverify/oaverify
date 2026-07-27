@@ -3,20 +3,20 @@ import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
 
 /**
- * Build config for `oav-express5`, the Express 5 adapter.
- * Same shape as oav-express4: thin tarball, oav-core externalized,
+ * Build config for `@oaverify/express5`, the Express 5 adapter.
+ * Same shape as `@oaverify/express4`: thin tarball, `@oaverify/core` externalized,
  * express marked external (peer dep).
  */
 const oavCoreRewrite: Record<string, string> = {
-  "@oav/core": "@aahoughton/oav-core/core",
-  "@oav/validator": "@aahoughton/oav-core",
+  "@oaverify/internal-core": "@oaverify/core/core",
+  "@oaverify/internal-validator": "@oaverify/core",
 };
 
 function rewriteOavCore(): Plugin {
   return {
-    name: "oav-core-rewrite",
+    name: "oaverify-core-rewrite",
     setup(build) {
-      build.onResolve({ filter: /^@oav\// }, (args) => {
+      build.onResolve({ filter: /^@oaverify\/internal-/ }, (args) => {
         const rewrite = oavCoreRewrite[args.path];
         if (rewrite) return { path: rewrite, external: true };
         return null;
@@ -34,6 +34,6 @@ export default defineConfig({
   sourcemap: false,
   target: "es2022",
   tsconfig: resolve(__dirname, "../../tsconfig.build.json"),
-  external: ["express", "@aahoughton/oav-core"],
+  external: ["express", "@oaverify/core"],
   esbuildPlugins: [rewriteOavCore()],
 });

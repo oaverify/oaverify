@@ -1,10 +1,10 @@
 /**
  * The keyword classification table: every built-in keyword's category,
  * which drives how the classifier folds it into a node's streaming
- * strategy. Keyed off `@oav/schema`'s keyword identity.
+ * strategy. Keyed off `@oaverify/internal-schema`'s keyword identity.
  *
  * A CI drift test (keyword-drift.test.ts) asserts every keyword
- * `@oav/schema` registers (across the JSON Schema and OpenAPI dialects)
+ * `@oaverify/internal-schema` registers (across the JSON Schema and OpenAPI dialects)
  * has an entry here, so a new keyword cannot land upstream without the
  * engine consciously classifying it. The runtime compile path has its
  * own backstop: an unrecognized keyword in a schema is a REJECT, never a
@@ -62,7 +62,7 @@ export type KeywordCategory =
  * Schema 2020-12, OpenAPI 3.1/3.2, and OpenAPI 3.0 keyword sets. Keywords
  * folded into another by `implements` (`minContains` / `maxContains` into
  * `contains`; `then` / `else` into `if`) are not listed: they never
- * dispatch on their own, so `@oav/schema` does not register them
+ * dispatch on their own, so `@oaverify/internal-schema` does not register them
  * independently.
  *
  * @public

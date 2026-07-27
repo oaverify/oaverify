@@ -1,5 +1,5 @@
 /**
- * Runs each OpenAPI 3.x spec under ./specs/ through @oav/spec + @oav/validator
+ * Runs each OpenAPI 3.x spec under ./specs/ through @oaverify/internal-spec + @oaverify/internal-validator
  * and reports whether the spec loads, resolves, and produces a working
  * validator. The point is real-world handling, not request/response checking.
  *

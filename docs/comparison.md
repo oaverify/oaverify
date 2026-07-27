@@ -1,4 +1,4 @@
-# oav vs other JavaScript OpenAPI validators
+# oaverify vs other JavaScript OpenAPI validators
 
 Ajv is the canonical JSON Schema validator for JavaScript, and
 `express-openapi-validator` is the most widely-used middleware built
@@ -17,7 +17,7 @@ build/load time; they don't sit in the request path.
 
 This document spends most of its space on Ajv and
 `express-openapi-validator` because they are the closest comparison for
-oav's core surface: schema validation plus HTTP-layer request/response
+oaverify's core surface: schema validation plus HTTP-layer request/response
 checks. The broader ecosystem matters, but the same decision usually
 comes down to the shape of integration you want.
 
@@ -31,7 +31,7 @@ comes down to the shape of integration you want.
 | `openapi-enforcer` / middleware                | OpenAPI 2.0 / 3.0 services that want validation plus serialization/mocking            |
 | `openapi-request-validator` / response sibling | Lower-level request or response checks around your own routing                        |
 | Spec validators/parsers                        | Validating the OpenAPI document, resolving refs, linting, or tooling                  |
-| oav                                            | HTTP-aware validation, streamability budgets, overlays, and standalone validator emit |
+| oaverify                                       | HTTP-aware validation, streamability budgets, overlays, and standalone validator emit |
 
 This document is about behavior and capabilities. For raw numbers
 and methodology see [`performance/README.md`](../performance/README.md);
@@ -46,22 +46,22 @@ the host-stamped per-shape numbers are below.
   median of 3 runs; commit `6270795`, 2026-07-05
 
 The harness measures five configurations: Ajv fast-fail
-(`allErrors: false`), Ajv full-collect (`allErrors: true`), oav fast-fail
-(flat, `maxErrors: 1`, the zero-config default), oav full-collect
-(`maxErrors: Infinity`), and oav predicate (`output: "predicate"`).
-Validate is compared against the matched Ajv mode: oav fast-fail vs Ajv
-fast-fail, oav full-collect vs Ajv full-collect, oav predicate vs Ajv
+(`allErrors: false`), Ajv full-collect (`allErrors: true`), oaverify fast-fail
+(flat, `maxErrors: 1`, the zero-config default), oaverify full-collect
+(`maxErrors: Infinity`), and oaverify predicate (`output: "predicate"`).
+Validate is compared against the matched Ajv mode: oaverify fast-fail vs Ajv
+fast-fail, oaverify full-collect vs Ajv full-collect, oaverify predicate vs Ajv
 fast-fail.
 
 ### Compile
 
-oav's clearest, most consistent win. Ajv's compile is near-constant
-per-schema overhead; oav scales with shape and runs an order of
+oaverify's clearest, most consistent win. Ajv's compile is near-constant
+per-schema overhead; oaverify scales with shape and runs an order of
 magnitude or two faster. This matters wherever validator construction
 is in the hot path (per-request, per-tenant, per-test, edge cold-start,
 AOT module emit).
 
-| shape               | Ajv     | oav      | speedup |
+| shape               | Ajv     | oaverify | speedup |
 | ------------------- | ------- | -------- | ------- |
 | `tiny`              | 7.82 ms | 27.4 µs  | 285×    |
 | `petstore`          | 6.69 ms | 132.1 µs | 51×     |
@@ -73,8 +73,8 @@ AOT module emit).
 
 ### Validate
 
-Each cell is oav's throughput as a percent of the matched Ajv mode:
-`100%` is parity, above is oav faster, below is Ajv faster. On typical
+Each cell is oaverify's throughput as a percent of the matched Ajv mode:
+`100%` is parity, above is oaverify faster, below is Ajv faster. On typical
 request bodies the absolute per-call gaps are tens of nanoseconds, so
 these percentages move real numbers only at extreme validation volume.
 
@@ -86,51 +86,51 @@ and fast-fail pulls ahead as the error count grows.
 
 Valid input:
 
-| shape               | oav fast-fail | oav full-collect | oav predicate |
-| ------------------- | ------------- | ---------------- | ------------- |
-| `tiny`              | 138%          | 153%             | 136%          |
-| `petstore`          | 95%           | 97%              | 110%          |
-| `tree`              | 112%          | 110%             | 131%          |
-| `composition`       | 181%          | 178%             | 216%          |
-| `array-heavy`       | 117%          | 114%             | 209%          |
-| `unique-primitives` | 174%          | 167%             | 173%          |
-| `long-string`       | >1000×†       | >1000×†          | >1000×†       |
+| shape               | oaverify fast-fail | oaverify full-collect | oaverify predicate |
+| ------------------- | ------------------ | --------------------- | ------------------ |
+| `tiny`              | 138%               | 153%                  | 136%               |
+| `petstore`          | 95%                | 97%                   | 110%               |
+| `tree`              | 112%               | 110%                  | 131%               |
+| `composition`       | 181%               | 178%                  | 216%               |
+| `array-heavy`       | 117%               | 114%                  | 209%               |
+| `unique-primitives` | 174%               | 167%                  | 173%               |
+| `long-string`       | >1000×†            | >1000×†               | >1000×†            |
 
 Invalid input (averaged across failure-position fixtures):
 
-| shape               | oav fast-fail | oav full-collect | oav predicate |
-| ------------------- | ------------- | ---------------- | ------------- |
-| `tiny`              | 84%           | 105%             | 121%          |
-| `petstore`          | 85%           | 97%              | 160%          |
-| `tree`              | 87%           | 108%             | 180%          |
-| `composition`       | 109%          | 74%              | 219%          |
-| `array-heavy`       | 112%          | 77%              | 210%          |
-| `unique-primitives` | 323%          | 309%             | 319%          |
-| `long-string`       | 43%           | 87%              | >1000×†       |
+| shape               | oaverify fast-fail | oaverify full-collect | oaverify predicate |
+| ------------------- | ------------------ | --------------------- | ------------------ |
+| `tiny`              | 84%                | 105%                  | 121%               |
+| `petstore`          | 85%                | 97%                   | 160%               |
+| `tree`              | 87%                | 108%                  | 180%               |
+| `composition`       | 109%               | 74%                   | 219%               |
+| `array-heavy`       | 112%               | 77%                   | 210%               |
+| `unique-primitives` | 323%               | 309%                  | 319%               |
+| `long-string`       | 43%                | 87%                   | >1000×†            |
 
-The trade-off: oav fast-fail trails Ajv fast-fail modestly on plain
+The trade-off: oaverify fast-fail trails Ajv fast-fail modestly on plain
 object rejection (`tiny`/`petstore`/`tree` at 84–87%), leads on
 `composition` and `array-heavy`, and leads clearly on `uniqueItems`.
-oav full-collect stays close to Ajv full-collect: ahead on most
+oaverify full-collect stays close to Ajv full-collect: ahead on most
 accept-path shapes, mixed on rejection (trailing on `composition` and
-`array-heavy`, where collecting every error costs more). oav predicate
+`array-heavy`, where collecting every error costs more). oaverify predicate
 mode, which skips error materialisation, is at or above parity
 everywhere.
 
-† `long-string` is a pathological shape. On the accept path oav is
+† `long-string` is a pathological shape. On the accept path oaverify is
 roughly three to four thousand times faster than Ajv (capped here to
 `>1000×`), because Ajv's handling of very long length-bounded strings is
-expensive on this input while oav short-circuits. The reject path is
-noisier and swings the other way for fast-fail (oav at 43%). Read this
+expensive on this input while oaverify short-circuits. The reject path is
+noisier and swings the other way for fast-fail (oaverify at 43%). Read this
 row as a shape-specific signal, not a typical result.
 
 ### Memory
 
-Steady-state HTTP-server footprint over 50,000 requests, oav vs
+Steady-state HTTP-server footprint over 50,000 requests, oaverify vs
 `express-openapi-validator` (which wraps Ajv), both Express 4 against the
 same 40-schema spec and identical traffic:
 
-| metric                          | oav      | eov + Ajv |
+| metric                          | oaverify | eov + Ajv |
 | ------------------------------- | -------- | --------- |
 | Baseline RSS                    | 77.1 MB  | 85.8 MB   |
 | Steady-state RSS (avg)          | 102.3 MB | 102.7 MB  |
@@ -138,7 +138,7 @@ same 40-schema spec and identical traffic:
 | Post-idle RSS                   | 102.2 MB | 102.6 MB  |
 | Throughput (ms / 500-req batch) | 894 ms   | 920 ms    |
 
-The steady-state footprints track each other closely; oav carries a
+The steady-state footprints track each other closely; oaverify carries a
 little less heap and turns the same workload over a few percent faster.
 Neither footprint is large; the gap is unlikely to decide a deployment.
 (Batch times are not comparable across runs of this table: the driver
@@ -150,74 +150,74 @@ real-world OpenAPI documents, and the raw host-stamped JSON live in
 
 ## Where Ajv (+ express-openapi-validator) does more
 
-Capabilities that the Ajv stack covers and oav does not.
+Capabilities that the Ajv stack covers and oaverify does not.
 
 - **Multiple JSON Schema drafts.** Ajv supports draft-04, draft-06,
-  draft-07, draft-2019-09, 2020-12, and JTD. oav compiles 2020-12 and
+  draft-07, draft-2019-09, 2020-12, and JTD. oaverify compiles 2020-12 and
   OpenAPI 3.0's constrained dialect only; earlier drafts and JTD are
   not supported.
 - **Data-mutating options.** `coerceTypes`, `removeAdditional`, and
   `useDefaults` let Ajv mutate the validated value in place: coercing
   strings to numbers, stripping undeclared properties, filling missing
-  properties from `default`. oav treats validation as a yes/no
+  properties from `default`. oaverify treats validation as a yes/no
   question and does not mutate inputs.
 - **Schema-level AOT (programmatic surface).** Ajv's `standaloneCode`
   is a library API that takes a map of named schemas and emits one
   module with interlinked validators: cross-schema `$ref`s resolve
-  at emit time, CommonJS or ESM output. `oav compile-schema` is
+  at emit time, CommonJS or ESM output. `oaverify compile-schema` is
   CLI-only and single-schema: multi-schema projects need to run it
-  per schema, with a preceding `oav resolve` step to inline any
+  per schema, with a preceding `oaverify resolve` step to inline any
   cross-references. For build tools scripting many emits, Ajv's API
-  is more ergonomic; oav has no batched programmatic equivalent.
+  is more ergonomic; oaverify has no batched programmatic equivalent.
 - **Named schema registry.** `addSchema` / `getSchema` / `removeSchema`
   give Ajv a name-to-validator map that cross-schema `$ref`s resolve
-  through. oav accepts an `external: Map<string, Schema>` on
+  through. oaverify accepts an `external: Map<string, Schema>` on
   `compileSchema`; fine for one-shot compiles, less ergonomic for apps
   that build up a schema collection incrementally.
 - **Full RFC 3986 URI resolution.** Ajv handles absolute-URI `$ref`s
-  and `$id` base-URI rewrites natively. oav requires external /
-  multi-file refs to be pre-inlined by `oav/spec.resolveSpec()`
+  and `$id` base-URI rewrites natively. oaverify requires external /
+  multi-file refs to be pre-inlined by `@oaverify/core/spec`'s `resolveSpec()`
   before compile, and accepts fragment-only refs thereafter.
 - **Full meta-schema validation.** Ajv can validate your schema
   against the draft's meta-schema at compile time, catching both
   unknown-keyword typos and wrong value shapes (e.g. `minimum: "5"`
-  when it should be a number). oav ships a narrower `strict` option
+  when it should be a number). oaverify ships a narrower `strict` option
   that catches unknown-keyword typos (`minimumx: 5`) and flags
   partially-implemented features; it doesn't check value shapes
   against the meta-schema.
 - **`$data` references.** Ajv's non-standard extension where one
   keyword's value comes from the data being validated
-  (`{ minimum: { $data: "1/min" } }`). oav doesn't implement it. The
+  (`{ minimum: { $data: "1/min" } }`). oaverify doesn't implement it. The
   common use case (cross-field constraints like `max >= min`)
-  works in oav via an object-level custom keyword that sees the
+  works in oaverify via an object-level custom keyword that sees the
   whole object and reaches siblings directly; see
   [`examples/cross-field-validation.ts`](../examples/cross-field-validation.ts).
   Trade-off: the constraint sits on the parent object in the schema
   rather than inside the constrained field's own subschema.
 - **Async validation.** Ajv supports async formats and keywords (e.g.
-  a format that hits a database). oav's formats and custom keywords
+  a format that hits a database). oaverify's formats and custom keywords
   are synchronous.
 - **`express-openapi-validator` conveniences.** `req.body` /
   `req.query` type coercion, `res.json` interception for response
   validation, `fileUploader` (multer integration), `securityHandlers`
-  (credential-verifying dispatch; oav does shape-only security
+  (credential-verifying dispatch; oaverify does shape-only security
   validation but doesn't verify credentials),
   `operationHandlers` filesystem auto-loading, and `ignorePaths` /
-  `ignoreUndocumented` are one-liner options. oav leaves these to the
+  `ignoreUndocumented` are one-liner options. oaverify leaves these to the
   adapter; see [`integration.md`](./integration.md) for recipes.
 
-## Where oav does more
+## Where oaverify does more
 
-Capabilities oav has that Ajv (alone or with
+Capabilities oaverify has that Ajv (alone or with
 `express-openapi-validator`) doesn't.
 
 - **Streaming body validation.** The separate
-  `@aahoughton/oav-stream-validator` package validates a JSON body
+  `@oaverify/stream` package validates a JSON body
   against its operation schema as it streams, echoing the input bytes
   through to a sink and reporting violations on a side channel. Memory
   stays bounded for schemas with structural bounds (or configured
   caps), so a multi-GB body validates without materializing in heap. A
-  second, push-based engine that reuses oav's keyword set and flat error
+  second, push-based engine that reuses oaverify's keyword set and flat error
   model. Ajv and `express-openapi-validator` validate a fully-parsed
   value; there is no streaming path.
 - **Design-time buffer budgets.** `analyzeSpec(document)` reports, per
@@ -226,7 +226,7 @@ Capabilities oav has that Ajv (alone or with
   `"unbounded"` where the schema has no structural cap), without reading
   a byte of traffic. It runs the same classifier the streaming engine
   uses, so the budget matches runtime behavior. The CLI surfaces it as
-  `oav stream-check <spec>`, with `--fail-on-unbounded` as a CI gate.
+  `oaverify stream-check <spec>`, with `--fail-on-unbounded` as a CI gate.
   An Ajv + middleware stack can validate the parsed body, but a buffer
   budget needs the resolved (and overlaid) operation schema and the
   streaming classifier in one place; in a split stack no one layer
@@ -237,7 +237,7 @@ Capabilities oav has that Ajv (alone or with
   `validateRequest` / `validateResponse` call. Ajv is a JSON Schema
   validator; wiring the HTTP layer on top of it is what
   `express-openapi-validator` does, and only for Express.
-- **AOT-compiled HTTP validator.** `oav compile-spec <openapi.yaml>`
+- **AOT-compiled HTTP validator.** `oaverify compile-spec <openapi.yaml>`
   emits a single ES module exposing the full `validateRequest` /
   `validateResponse` / `getOperation` surface with every operation's
   schemas pre-compiled. Runs on Cloudflare Workers, Vercel Edge,
@@ -281,7 +281,7 @@ type: "string" }` to `{ type: ["string", "number", "boolean",
 - **Predicate mode.** `compileSchema(schema, { output: "predicate" })`
   returns `{ validate: (x) => boolean }`. No error tree construction,
   no path snapshotting, no accumulator allocation. Ajv's
-  `allErrors: false` still maintains error infrastructure; oav's
+  `allErrors: false` still maintains error infrastructure; oaverify's
   predicate mode compiles to a different function entirely.
 - **Explicit error budget.** `maxErrors: N` caps the errors collected
   and short-circuits hot loops when the budget is exhausted. The default
@@ -316,13 +316,13 @@ Ajv 8 has four runtime dependencies:
 | `fast-uri`             | RFC 3986 URI parsing for `$id` / `$ref` resolution              |
 | `require-from-string`  | Load compiled-validator source as a module (standalone codegen) |
 
-oav's compiler and validator have zero runtime dependencies. The lean
-`oav-core` package ships exactly that (no runtime deps),
-and accepts JSON specs. The `oav` package adds YAML readers for
-`.yaml` spec files and the `oav` CLI. The two efficiency
+oaverify's compiler and validator have zero runtime dependencies. The lean
+`@oaverify/core` package ships exactly that (no runtime deps),
+and accepts JSON specs. The `oaverify` package adds YAML readers for
+`.yaml` spec files and the `oaverify` CLI. The two efficiency
 libraries Ajv pulls in (`fast-deep-equal`, `json-schema-traverse`)
 have equivalents in-tree; the two capability libraries (`fast-uri`,
-`require-from-string`) map to features oav doesn't implement (see
+`require-from-string`) map to features oaverify doesn't implement (see
 "Where Ajv does more" above).
 
 ## Summary
@@ -341,7 +341,7 @@ operation handlers should be driven by the spec. Pick
 `openapi-enforcer` when its OpenAPI 2.0 / 3.0 validation,
 serialization, and mocking model fits your service.
 
-Pick oav when you want a structured error tree, streaming validation of
+Pick oaverify when you want a structured error tree, streaming validation of
 large bodies with a design-time buffer budget you can check before
 deploy, overlays over specs you don't own, an OpenAPI 3.0 dialect built
 into the validator, explicit control over where validation runs in your

@@ -17,19 +17,19 @@
  *     the punch list a deployer tightens.
  *
  * The CLI prints the same budget as a table:
- *   pnpm oav stream-check examples/specs/ingest.yaml --verbose
+ *   pnpm oaverify stream-check examples/specs/ingest.yaml --verbose
  * and `--fail-on-unbounded` turns it into a CI gate.
  *
  * Translation to the published packages: `analyzeSpec` from
- * `@aahoughton/oav-stream-validator`, `resolveSpec` from
- * `@aahoughton/oav-core/spec`. See ./README.md.
+ * `@oaverify/stream`, `resolveSpec` from
+ * `@oaverify/core/spec`. See ./README.md.
  *
  * Run from the repo root:
  *   pnpm dlx tsx examples/stream-budget.ts
  */
 
 import { fileURLToPath } from "node:url";
-import { createYamlFileReader } from "../packages/oav/src/yaml.ts";
+import { createYamlFileReader } from "../packages/yaml/src/index.ts";
 import { resolveSpec } from "../packages/spec/src/index.ts";
 import { analyzeSpec, type ByteSize } from "../packages/stream-validator/src/index.ts";
 

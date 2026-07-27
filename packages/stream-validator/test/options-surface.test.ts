@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { SchemaOrBoolean } from "@oav/core";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { createStreamValidator, type StreamValidatorOptions } from "../src/index.js";
 
 const enc = new TextEncoder();
 
-describe("numeric options are validated at construction (parity with @oav/schema)", () => {
+describe("numeric options are validated at construction (parity with @oaverify/internal-schema)", () => {
   const schema = { type: "string" } as SchemaOrBoolean;
   for (const name of ["maxErrors", "maxDepth", "maxBufferedBytes", "maxTotalBytes"] as const) {
     for (const bad of [0, -1, 1.5]) {
@@ -22,11 +22,11 @@ describe("numeric options are validated at construction (parity with @oav/schema
   }
 });
 
-describe("warn surfaces classifier warnings (matches @oav/validator)", () => {
+describe("warn surfaces classifier warnings (matches @oaverify/internal-validator)", () => {
   it("calls warn for an unbounded pattern string", () => {
     const messages: string[] = [];
     // A single options type (StreamValidatorOptions) carries dialect /
-    // openApiVersion / warn, matching @oav/validator's ValidatorOptions.
+    // openApiVersion / warn, matching @oaverify/internal-validator's ValidatorOptions.
     const opts: StreamValidatorOptions = { warn: (m) => messages.push(m) };
     createStreamValidator({ type: "string", pattern: "^a+$" } as SchemaOrBoolean, opts);
     expect(messages.some((m) => /maxLength|unbounded/.test(m))).toBe(true);

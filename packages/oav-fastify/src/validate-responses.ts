@@ -4,22 +4,22 @@ import {
   type HttpRequest,
   type HttpResponse,
   type ValidationError,
-} from "@oav/core";
-import type { TreeValidator, Validator } from "@oav/validator";
+} from "@oaverify/internal-core";
+import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromFastify } from "./extract.js";
 import { ResponseValidationError } from "./response-error.js";
 import type { ErrorHandler, FastifyContext } from "./types.js";
 
 /**
  * Options for {@link validateResponses}. The same option shape is used
- * by every adapter in the family (`oav-express4`, `oav-express5`); only
+ * by every adapter in the family (`@oaverify/express4`, `@oaverify/express5`); only
  * the framework-typed argument differs.
  *
  * @public
  */
 export interface ValidateResponsesOptions {
   /**
-   * Custom extractor from the Fastify request to oav's
+   * Custom extractor from the Fastify request to oaverify's
    * {@link HttpRequest} shape, used only to match the operation the
    * response answers (method + path). Default:
    * {@link httpRequestFromFastify}.
@@ -68,7 +68,7 @@ function responseHeaders(reply: FastifyReply): Record<string, string | string[]>
 // Marks a request whose response has already been validated, so the
 // error reply Fastify renders after a throwing onError is not itself
 // re-validated into a loop.
-const VALIDATED = Symbol("oav.responseValidated");
+const VALIDATED = Symbol("oaverify.responseValidated");
 
 /**
  * Build a Fastify `onSend` hook that validates every outgoing response
@@ -93,7 +93,7 @@ const VALIDATED = Symbol("oav.responseValidated");
  *
  * @example
  * ```ts
- * import { validateRequests, validateResponses } from "@aahoughton/oav-fastify";
+ * import { validateRequests, validateResponses } from "@oaverify/fastify";
  *
  * app.addHook("preValidation", validateRequests(validator));
  * if (process.env.NODE_ENV !== "production") {

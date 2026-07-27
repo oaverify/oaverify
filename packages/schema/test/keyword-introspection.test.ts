@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SchemaOrBoolean } from "@oav/core";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import {
   jsonSchemaDialect,
   keywordDefinitions,

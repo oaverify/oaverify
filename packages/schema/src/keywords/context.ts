@@ -1,4 +1,4 @@
-import type { SchemaObject, SchemaOrBoolean } from "@oav/core";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import { NAMES, pathJoinExpr, rawExpr, type CodeGen } from "../codegen/index.js";
 import type {
   CompileAndCallOptions,

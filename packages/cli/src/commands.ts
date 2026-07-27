@@ -5,7 +5,7 @@ import {
   type OutputFormat,
   type SchemaOrBoolean,
   type ValidationError,
-} from "@oav/core";
+} from "@oaverify/internal-core";
 import {
   composeReaders,
   createFileReader,
@@ -15,12 +15,16 @@ import {
   specOverlayVerbs,
   type DocumentReader,
   type SpecOverlay,
-} from "@oav/spec";
-import { isOverlayDocument, translateOverlay, type OverlayDocument } from "@oav/overlay-spec";
-import { createValidator } from "@oav/validator";
+} from "@oaverify/internal-spec";
+import {
+  isOverlayDocument,
+  translateOverlay,
+  type OverlayDocument,
+} from "@oaverify/internal-overlay-spec";
+import { createValidator } from "@oaverify/internal-validator";
 import type * as Esbuild from "esbuild";
-import type { OpenAPIDocument } from "@oav/core";
-import { analyzeSpec } from "@aahoughton/oav-stream-validator";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
+import { analyzeSpec } from "@oaverify/stream";
 import { emitStandalone, type StandaloneDialect } from "./emit-standalone.js";
 import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
@@ -84,7 +88,7 @@ export function defaultCommandIo(): CommandIo {
     // stat against the HTTP reader (which would reject it via
     // canRead anyway, but clearer ordering). HTTP reader accepts
     // `http:` / `https:` URIs; the YAML-over-HTTP story rides on
-    // top of this chain in `oav`'s CLI wrapper, which
+    // top of this chain in oaverify's CLI wrapper, which
     // composes YAML readers in front of whatever we return here.
     reader: composeReaders([createFileReader(), createHttpReader()]),
     async readText(pathOrDash: string) {
@@ -102,7 +106,7 @@ export function defaultCommandIo(): CommandIo {
 /**
  * Read and shape-check one `--overlay` file. Accepts a standard
  * OpenAPI Overlay 1.0 document (routed through
- * {@link @oav/overlay-spec!translateOverlay}) or a typed
+ * {@link @oaverify/internal-overlay-spec!translateOverlay}) or a typed
  * {@link SpecOverlay} (every key a recognised verb). Anything else
  * throws with the offending path and keys instead of being cast and
  * silently mis-applied (#448).
@@ -167,7 +171,7 @@ function primarySink(
 }
 
 /**
- * Implement the `oav resolve <spec>` subcommand.
+ * Implement the `oaverify resolve <spec>` subcommand.
  *
  * @param args - Entry spec path, overlay files, optional lint flags, and
  *   base CLI options.
@@ -232,10 +236,10 @@ export async function resolveCommand(
 }
 
 /**
- * Implement the `oav stream-check <spec> ...` subcommand: roll up the
+ * Implement the `oaverify stream-check <spec> ...` subcommand: roll up the
  * streaming-buffer budget for every operation's request / response bodies
  * and print a per-operation table (or the `SpecBudget` JSON envelope). This
- * is the streamability analysis (`@oav/stream-validator`) surfaced over a
+ * is the streamability analysis (`@oaverify/internal-stream-validator`) surfaced over a
  * whole resolved spec, so a deployer can see, before deploy, which bodies
  * stream and which buffer (and where).
  *
@@ -286,7 +290,7 @@ export async function streamCheckCommand(
 }
 
 /**
- * Implement the `oav validate <spec> ...` subcommand.
+ * Implement the `oaverify validate <spec> ...` subcommand.
  *
  * @param args - Entry spec, overlays, and one of the mutually-exclusive
  *               validate-what inputs.
@@ -380,12 +384,12 @@ export type ValidateMode =
   | { kind: "responseForPath"; method: string; path: string; status: number; body: string };
 
 /**
- * Implement the `oav compile-schema <schema>` subcommand. Reads a JSON
+ * Implement the `oaverify compile-schema <schema>` subcommand. Reads a JSON
  * Schema from disk (or stdin via `-`), emits an ES module whose
  * `validate(data)` mirrors `compileSchema(schema).validate(data)`, then
  * bundles it via esbuild into a single file with zero imports.
  *
- * The output runs without `oav` installed at all: the
+ * The output runs without `@oaverify/core` installed at all: the
  * Lambda / edge / single-file deployment case. `esbuild` is a required
  * peer dependency for this subcommand; a clear install hint prints on
  * stderr with exit code 3 if it's not resolvable.
@@ -398,19 +402,26 @@ export async function compileSchemaCommand(
     output?: string;
     dialect?: StandaloneDialect;
     /**
-     * Override the `oav` prefix used in the intermediate
-     * pre-bundle module's imports. Tests pass `"@oav"` so esbuild
-     * resolves against the in-workspace package aliases rather than
-     * the published package name. Not exposed on the CLI.
+     * Override the `@oaverify/core` prefix used in the intermediate
+     * pre-bundle module's imports. Tests use workspace aliases for
+     * that same published name. Not exposed on the CLI.
      */
     importPrefix?: string;
     /**
      * Override esbuild's resolveDir. Defaults to `process.cwd()`,
-     * which is where a real consumer's installed `oav`
-     * sits. Tests point this at `packages/oav/` where the workspace's
-     * `@oav/*` symlinks are reachable. Not exposed on the CLI.
+     * which is where a real consumer's installed `@oaverify/core`
+     * sits. Not exposed on the CLI.
      */
     resolveDir?: string;
+    /**
+     * Test-only: esbuild `alias` entries for the emitted module's
+     * imports. The emitted source imports `@oaverify/core` subpaths by
+     * their real published names, which resolve through that package's
+     * `exports` map to `dist/`. Tests run against source with no build,
+     * so they alias those specifiers to the workspace sources instead.
+     * Not exposed on the CLI.
+     */
+    bundleAlias?: Record<string, string>;
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
@@ -433,7 +444,7 @@ export async function compileSchemaCommand(
     return { exitCode: 3 };
   }
   try {
-    source = await bundleEmitted(source, args.resolveDir ?? process.cwd());
+    source = await bundleEmitted(source, args.resolveDir ?? process.cwd(), args.bundleAlias);
   } catch (err) {
     io.stderr(`compile-schema: ${(err as Error).message}\n`);
     return { exitCode: 3 };
@@ -452,7 +463,11 @@ export async function compileSchemaCommand(
  * invoke the CLI don't pay the dependency cost. Throws with an
  * install-hint message when esbuild isn't resolvable.
  */
-async function bundleEmitted(source: string, resolveDir: string): Promise<string> {
+async function bundleEmitted(
+  source: string,
+  resolveDir: string,
+  alias?: Record<string, string>,
+): Promise<string> {
   let esbuild: typeof Esbuild;
   try {
     esbuild = await import("esbuild");
@@ -460,7 +475,7 @@ async function bundleEmitted(source: string, resolveDir: string): Promise<string
     if ((err as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND") {
       throw new Error(
         "compile-schema / compile-spec require 'esbuild' as a peer dependency.\n" +
-          "  Install it alongside @aahoughton/oav, e.g.:\n" +
+          "  Install it alongside oaverify, e.g.:\n" +
           "    npm install esbuild\n" +
           "    pnpm add esbuild",
         { cause: err },
@@ -470,6 +485,7 @@ async function bundleEmitted(source: string, resolveDir: string): Promise<string
   }
   const result = await esbuild.build({
     stdin: { contents: source, resolveDir, loader: "js" },
+    ...(alias === undefined ? {} : { alias }),
     bundle: true,
     format: "esm",
     platform: "neutral",
@@ -482,7 +498,7 @@ async function bundleEmitted(source: string, resolveDir: string): Promise<string
 }
 
 /**
- * Implement the `oav compile-spec <spec>` subcommand. Loads an OpenAPI
+ * Implement the `oaverify compile-spec <spec>` subcommand. Loads an OpenAPI
  * document (with optional overlays), compiles every operation's
  * schemas, and emits a standalone ES module exposing the full
  * `createValidator`-equivalent surface: `validateRequest`,
@@ -505,10 +521,12 @@ export async function compileSpecCommand(
     outputMode?: "flat" | "tree" | "predicate";
     /** Leaf-error cap baked into the emitted validators. Default `1`. */
     maxErrors?: number;
-    /** Test-only: rewrite emit imports to `@oav` so the workspace resolves. */
+    /** Test-only: override the emitted module's import prefix. */
     importPrefix?: string;
     /** Test-only: override esbuild's resolveDir for in-workspace bundle. */
     resolveDir?: string;
+    /** Test-only: esbuild `alias` entries so emitted imports resolve to source. */
+    bundleAlias?: Record<string, string>;
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
@@ -547,7 +565,7 @@ export async function compileSpecCommand(
     return { exitCode: 3 };
   }
   try {
-    source = await bundleEmitted(source, args.resolveDir ?? process.cwd());
+    source = await bundleEmitted(source, args.resolveDir ?? process.cwd(), args.bundleAlias);
   } catch (err) {
     io.stderr(`compile-spec: ${(err as Error).message}\n`);
     return { exitCode: 3 };

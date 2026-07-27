@@ -5,16 +5,16 @@
 Please **do not** open a public issue for security-relevant bugs.
 
 Use GitHub's private vulnerability reporting:
-<https://github.com/aahoughton/oav/security/advisories/new>
+<https://github.com/oaverify/oaverify/security/advisories/new>
 
 If that isn't available to you, email <aah@roarmouse.org> with
-"oav security" in the subject line.
+"oaverify security" in the subject line.
 
 Please include:
 
 - A description of the issue and its impact.
 - Steps to reproduce, or a minimal proof of concept.
-- The affected version(s) of `oav`.
+- The affected package name and version(s).
 - Any mitigations or workarounds you're aware of.
 
 You should receive an acknowledgement within a few business days.
@@ -28,18 +28,18 @@ major version line. Older minor versions do not receive backports.
 
 ## Scope of published packages
 
-The published packages (`@aahoughton/oav`, `@aahoughton/oav-core`,
-`@aahoughton/oav-express4`, `@aahoughton/oav-express5`,
-`@aahoughton/oav-fastify`) declare framework runtimes (`express`,
+The published packages (`oaverify`, `@oaverify/core`,
+`@oaverify/express4`, `@oaverify/express5`,
+`@oaverify/fastify`) declare framework runtimes (`express`,
 `fastify`) as peer dependencies. Nothing from those frameworks ships
-inside any of the tarballs, and `@aahoughton/oav-core` has no runtime
+inside any of the tarballs, and `@oaverify/core` has no runtime
 dependencies at all.
 
 Three sub-roots in this repo own their own lockfiles for test and
 benchmark dependencies, isolated from the main workspace:
 
 - `framework-tests/`: real-server integration tests for the
-  `oav-express4`, `oav-express5`, and `oav-fastify` adapters.
+  `@oaverify/express4`, `@oaverify/express5`, and `@oaverify/fastify` adapters.
 - `performance/`: benchmarks against other JSON Schema / OpenAPI
   validators.
 - `conformance/`: upstream JSON Schema and OpenAPI Overlay test-suite

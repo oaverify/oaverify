@@ -9,9 +9,9 @@ when the framework exposes Web Standards `Request` / `Response`.
 
 | Your app uses                        | Start here                                                                                    |
 | ------------------------------------ | --------------------------------------------------------------------------------------------- |
-| Express 4                            | [`oav-express4`](../packages/oav-express4/README.md), then [Express 4](#express-4)            |
-| Express 5                            | [`oav-express5`](../packages/oav-express5/README.md), then [Express 5](#express-5)            |
-| Fastify                              | [`oav-fastify`](../packages/oav-fastify/README.md), then [Fastify](#fastify)                  |
+| Express 4                            | [`@oaverify/express4`](../packages/oav-express4/README.md), then [Express 4](#express-4)      |
+| Express 5                            | [`@oaverify/express5`](../packages/oav-express5/README.md), then [Express 5](#express-5)      |
+| Fastify                              | [`@oaverify/fastify`](../packages/oav-fastify/README.md), then [Fastify](#fastify)            |
 | Next.js, Hono, Bun, Deno, Fetch APIs | [`validateFetchRequest`](#nextjs-app-router-hono-bun-deno)                                    |
 | Another framework                    | [What the validator expects](#what-the-validator-expects)                                     |
 | A custom error response shape        | [Preserving an existing client error envelope](#preserving-an-existing-client-error-envelope) |
@@ -71,7 +71,7 @@ error's `code`, dotted path, and pointer locate the failure under
 
 ## Supporting helpers
 
-All shipped from `oav` (or `oav-core` for the
+All shipped from `oaverify` (or `@oaverify/core` for the
 lean install). The recipes below assume these are in scope.
 
 `httpStatusFor`, `allowHeaderFor`, `toProblemDetails`, and
@@ -120,20 +120,20 @@ import {
   formatSummary,
   httpStatusFor,
   toProblemDetails,
-} from "@aahoughton/oav";
+} from "@oaverify/core";
 ```
 
 ## Per-framework integration
 
 ### Express 4
 
-The [`oav-express4`](https://www.npmjs.com/package/@aahoughton/oav-express4)
+The [`@oaverify/express4`](https://www.npmjs.com/package/@oaverify/express4)
 companion package ships the middleware as a one-liner:
 
 ```ts
-import { validateRequests } from "@aahoughton/oav-express4";
+import { validateRequests } from "@oaverify/express4";
 
-app.use(express.json()); // any middleware that populates req.body satisfies oav
+app.use(express.json()); // any middleware that populates req.body satisfies oaverify
 app.use(validateRequests(validator));
 ```
 
@@ -143,7 +143,7 @@ Defaults: status from `httpStatusFor`, `Allow` header from
 `httpRequestFromExpress(req)` (the extractor) and
 `renderProblemDetails(errors, ctx)` (the default renderer) standalone,
 for callers composing their own middleware. See the
-[adapter README](https://github.com/aahoughton/oav/blob/main/packages/oav-express4/README.md)
+[adapter README](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md)
 for the options (`toHttpRequest`, `onError`), async `onError`
 semantics, and adapter-specific patterns. Cross-cutting recipes
 (body parsers, file uploads, security, response validation) are
@@ -190,8 +190,9 @@ and threading a Promise through just to build one validator.
 one, so the validator is ready inline:
 
 ```ts
-import { createValidator, loadSpecSync } from "@aahoughton/oav";
-import { validateRequests } from "@aahoughton/oav-express4";
+import { createValidator } from "@oaverify/core";
+import { loadSpecSync } from "@oaverify/yaml";
+import { validateRequests } from "@oaverify/express4";
 
 const { document } = loadSpecSync({ entry: "openapi.yaml" });
 app.use(express.json());
@@ -201,26 +202,26 @@ app.use(validateRequests(createValidator(document)));
 Blocking filesystem reads, so it's for boot, not per-request; it throws
 on an unreadable spec, so wrap it in `try/catch` if a missing spec
 should disable validation instead of aborting startup. See the
-[synchronous loading](https://github.com/aahoughton/oav/blob/main/packages/spec/README.md#synchronous-loading)
+[synchronous loading](https://github.com/oaverify/oaverify/blob/main/packages/spec/README.md#synchronous-loading)
 docs.
 
 ### Express 5
 
-The [`oav-express5`](https://www.npmjs.com/package/@aahoughton/oav-express5)
+The [`@oaverify/express5`](https://www.npmjs.com/package/@oaverify/express5)
 companion package ships the middleware as a one-liner: same shape
-as `oav-express4` but promise-native (no `try/catch` wrapper):
+as `@oaverify/express4` but promise-native (no `try/catch` wrapper):
 
 ```ts
-import { validateRequests } from "@aahoughton/oav-express5";
+import { validateRequests } from "@oaverify/express5";
 
 app.use(express.json());
 app.use(validateRequests(validator));
 ```
 
-Same exports as `oav-express4` (`httpRequestFromExpress`,
+Same exports as `@oaverify/express4` (`httpRequestFromExpress`,
 `renderProblemDetails` standalone), same options (`toHttpRequest`,
 `onError`), same defaults. See the
-[adapter README](https://github.com/aahoughton/oav/blob/main/packages/oav-express5/README.md)
+[adapter README](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md)
 for options, async `onError` semantics, and common patterns.
 
 **Manual middleware (when you need full control).** Express 5 is
@@ -252,7 +253,7 @@ Requires `express.json()` (or any equivalent middleware that
 populates `req.body` with a parsed object) registered before this
 middleware, and `cookie-parser` if you use the `cookies` field.
 Custom streaming parsers, `body-parser`, fastify's bridge, and
-app-specific middleware all work the same way; oav doesn't care
+app-specific middleware all work the same way; oaverify doesn't care
 _how_ `req.body` got populated, only that it's there.
 
 See [body-parser caveats](#body-parser-caveats) for sharp edges that
@@ -260,13 +261,13 @@ affect this pattern.
 
 ### Fastify
 
-The [`oav-fastify`](https://www.npmjs.com/package/@aahoughton/oav-fastify)
+The [`@oaverify/fastify`](https://www.npmjs.com/package/@oaverify/fastify)
 companion package ships the hook as a one-liner: same shape as the
 Express adapters but Fastify-native (a `preValidation` hook, not
 middleware):
 
 ```ts
-import { validateRequests } from "@aahoughton/oav-fastify";
+import { validateRequests } from "@oaverify/fastify";
 
 app.addHook("preValidation", validateRequests(validator));
 ```
@@ -274,7 +275,7 @@ app.addHook("preValidation", validateRequests(validator));
 Same cross-adapter exports (`httpRequestFromFastify`,
 `renderProblemDetails` standalone), same options (`toHttpRequest`,
 `onError`), same defaults. See the
-[adapter README](https://github.com/aahoughton/oav/blob/main/packages/oav-fastify/README.md)
+[adapter README](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md)
 for options, async `onError` semantics, common patterns, and the
 relationship to Fastify's own per-route schema validation.
 
@@ -312,7 +313,7 @@ before `preValidation` runs; register `fastify.setErrorHandler` if
 you want `application/problem+json` for those too.
 
 Note: Fastify's idiomatic per-route-schema pattern (`route({ schema:
-{ body, response } })`) is independent of oav. Use oav-fastify when
+{ body, response } })`) is independent of oaverify. Use `@oaverify/fastify` when
 the OpenAPI spec is the source of truth; use Fastify's built-in
 schema validation when you author schemas inline.
 
@@ -333,7 +334,7 @@ bytes) and returns a discriminated union.
 
 ```ts
 // app/pets/route.ts
-import { allowHeaderFor, httpStatusFor, toProblemDetails } from "@aahoughton/oav";
+import { allowHeaderFor, httpStatusFor, toProblemDetails } from "@oaverify/core";
 import { validator } from "@/lib/validator";
 
 type CreatePet = { name: string; tag?: string };
@@ -375,7 +376,7 @@ you can put the adapter there instead:
 
 ```ts
 // proxy.ts (Next 16+) / middleware.ts (Next 15)
-import { allowHeaderFor, httpStatusFor, toProblemDetails } from "@aahoughton/oav";
+import { allowHeaderFor, httpStatusFor, toProblemDetails } from "@oaverify/core";
 import { NextResponse, type NextRequest } from "next/server";
 import { validator } from "@/lib/validator";
 
@@ -407,11 +408,11 @@ middleware validated).
 fit (e.g. an unusual content type, or a decode step of your own), use
 the lower-level primitive below. To validate a large JSON body
 without buffering it, reach for
-[`@aahoughton/oav-stream-validator`](../packages/stream-validator/README.md)
+[`@oaverify/stream`](../packages/stream-validator/README.md)
 instead; it checks the bytes as they stream.
 
 ```ts
-import { httpRequestFromFetch } from "@aahoughton/oav";
+import { httpRequestFromFetch } from "@oaverify/core";
 
 const { httpRequest } = await httpRequestFromFetch(request);
 // Mutate httpRequest.body however you need, then:
@@ -422,7 +423,7 @@ const result = validator.validateRequest(httpRequest);
 the adapter. Hono parallels the per-route Standard-Schema validator
 pattern (`@hono/zod-validator` etc.), so per-route with a typed
 `<T>` is the native idiom and `c.req.valid('json')` is the
-community muscle memory; oav's `validateFetchRequest<T>` slots into
+community muscle memory; oaverify's `validateFetchRequest<T>` slots into
 the same shape via `c.req.raw`.
 
 **Hono gotcha**: `c.req.raw.body` is a one-shot stream. Don't run
@@ -486,8 +487,8 @@ for the full surface; the four shapes that come up most often:
 declared, append to the `servers` list:
 
 ```ts
-import { applyOverlays } from "@aahoughton/oav/spec";
-import type { SpecOverlay } from "@aahoughton/oav/spec";
+import { applyOverlays } from "@oaverify/core/spec";
+import type { SpecOverlay } from "@oaverify/core/spec";
 
 const eu: SpecOverlay = {
   addServers: [{ url: "https://eu.api.example.com", description: "EU region" }],
@@ -567,12 +568,12 @@ document is deep-cloned, never mutated.
 OpenAPI's own [Overlay 1.0](https://spec.openapis.org/overlay/1.0.0)
 spec describes overlays as a list of JSONPath-targeted actions
 (`{ target, update? | remove? }`). When a third-party tool hands you
-an overlay in that format, `@aahoughton/oav/overlay-spec` translates
+an overlay in that format, `@oaverify/core/overlay-spec` translates
 it into a typed `SpecOverlay` so it flows through the same
 `applyOverlays` path:
 
 ```ts
-import { applySpecOverlay } from "@aahoughton/oav/overlay-spec";
+import { applySpecOverlay } from "@oaverify/core/overlay-spec";
 
 const overlayDoc = {
   overlay: "1.0.0",
@@ -592,13 +593,13 @@ const patched = applySpecOverlay(base, overlayDoc);
 
 The translator does not ship a JSONPath engine. It recognises a
 closed set of `target` shapes (full list in the
-[`@oav/overlay-spec` README](../packages/overlay-spec/README.md))
+[`@oaverify/internal-overlay-spec` README](../packages/overlay-spec/README.md))
 and throws `UnrecognisedTargetError` on anything outside the set,
 with the offending target string in the message. No partial
 application: a single malformed action aborts the translation.
 
 For overlays you author yourself, prefer the typed `SpecOverlay`
-surface in `@aahoughton/oav/spec`. The translator is the import path
+surface in `@oaverify/core/spec`. The translator is the import path
 when you have to consume external spec-format input.
 
 ### Status-code mapping
@@ -663,7 +664,7 @@ client. Two override points are exposed: pass `detail` to
 `issues[*].params` before sending.
 
 ```ts
-import { httpStatusFor, toProblemDetails, type ValidationError } from "@aahoughton/oav";
+import { httpStatusFor, toProblemDetails, type ValidationError } from "@oaverify/core";
 
 function safeProblemDetails(errors: ValidationError[], instance: string) {
   const pd = toProblemDetails(errors, { instance });
@@ -710,7 +711,7 @@ top-levels, and security/content-type leaves under `request` /
 `response` wrappers.
 
 ```ts
-import { collectIssues, httpStatusFor, type ValidationError } from "@aahoughton/oav";
+import { collectIssues, httpStatusFor, type ValidationError } from "@oaverify/core";
 
 // .. or whatever your clients already parse.
 type ClientError = {
@@ -766,15 +767,15 @@ full diff). Each `issue.params` carries machine-readable detail
 (e.g. `{ maximum: 30, actual: 42 }` for `maximum`,
 `{ format: "email", actual: "not-an-email" }` for `format`) if you
 want to surface structured details too. `BuiltInErrorParams` in
-`oav-core` documents the shape per code.
+`@oaverify/core` documents the shape per code.
 
 ### Body parser caveats
 
-oav doesn't parse bodies; it validates already-parsed bodies. Two
-sharp edges that bite both inline middleware and the `oav-express4`
+oaverify doesn't parse bodies; it validates already-parsed bodies. Two
+sharp edges that bite both inline middleware and the `@oaverify/express4`
 adapter:
 
-1. **Malformed JSON throws before oav runs.** `express.json()` throws
+1. **Malformed JSON throws before oaverify runs.** `express.json()` throws
    a `SyntaxError` on bad JSON, and Express's default error handler
    emits an HTML page. Install an Express error middleware to convert
    it to `application/problem+json` upstream of the validator.
@@ -782,7 +783,7 @@ adapter:
 2. **Empty-body normalization.** Some body parsers (streaming
    variants, custom multi-format setups) leave `req.body === undefined`
    for empty `{}`-equivalent payloads instead of an empty object. When
-   that happens, oav's `required`-field checks short-circuit on the
+   that happens, oaverify's `required`-field checks short-circuit on the
    missing body, so validation passes for what the client thinks is an
    empty submission, even when the spec marks fields as `required`.
    If your parser does this, normalize before calling `validateRequest`:
@@ -796,10 +797,10 @@ adapter:
    alternative parsers (`body-parser`'s streaming mode, fastify's
    bridge, custom multipart middleware) often do.
 
-   For consumers using `oav-express4`, override the extractor:
+   For consumers using `@oaverify/express4`, override the extractor:
 
    ```ts
-   import { httpRequestFromExpress, validateRequests } from "@aahoughton/oav-express4";
+   import { httpRequestFromExpress, validateRequests } from "@oaverify/express4";
 
    app.use(
      validateRequests(validator, {
@@ -810,7 +811,7 @@ adapter:
 
 (Unmatched `Content-Type` is handled correctly without extra wiring:
 even when `express.json()` leaves `req.body` empty for a non-JSON
-request, oav sees the declared header, finds no matching media type
+request, oaverify sees the declared header, finds no matching media type
 in the spec, and returns a `content-type` leaf that maps to 415. The
 sibling case (**no Content-Type AND no body**) returns `body` /
 400 instead of 415, since there's no client signal about format
@@ -829,7 +830,7 @@ pnpm add -D @types/multer    # else every Express.Multer.File reference goes red
 
 ```ts
 import multer from "multer";
-import { createValidator, httpStatusFor, toProblemDetails } from "@aahoughton/oav";
+import { createValidator, httpStatusFor, toProblemDetails } from "@oaverify/core";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -873,7 +874,7 @@ synthesizing the spec-shaped body from `req.files`:
 
 ```ts
 import multer from "multer";
-import { httpRequestFromExpress, validateRequests } from "@aahoughton/oav-express4";
+import { httpRequestFromExpress, validateRequests } from "@oaverify/express4";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -899,7 +900,7 @@ app.use(
 ```
 
 The `toHttpRequest` extension point is a general seam for **any
-"reshape what oav sees"** use case: synthesizing a body from
+"reshape what oaverify sees"** use case: synthesizing a body from
 `req.files`, normalizing an empty body to `{}`, merging headers
 from an upstream proxy, anything that wants to live above the
 extraction layer without bypassing it. The empty-body normalization
@@ -913,7 +914,7 @@ common spec pattern for "one file or many"
 branches match the same payload, so `oneOf` fails with
 `matchCount: 2`. The fix is usually to drop the `oneOf` and accept
 the array form (parsers like multer always deliver arrays anyway);
-the original spec was already ambiguous before oav surfaced it.
+the original spec was already ambiguous before oaverify surfaced it.
 
 ### Deriving middleware config from the spec
 
@@ -924,7 +925,7 @@ startup:
 
 ```ts
 import multer from "multer";
-import { createValidator } from "@aahoughton/oav";
+import { createValidator } from "@oaverify/core";
 import { digestOperation } from "./spec-digest"; // copied from examples/spec-digest.ts
 
 const validator = createValidator(spec);
@@ -976,7 +977,7 @@ options depending on how much of the fetch helper you want to keep:
 schema declares:
 
 ```ts
-import { readBodyFromFetch } from "@aahoughton/oav";
+import { readBodyFromFetch } from "@oaverify/core";
 import { parseMultipart } from "@mjackson/multipart-parser"; // or busboy, formidable, etc.
 
 export async function POST(request: Request) {
@@ -1022,9 +1023,9 @@ declares object shape, required fields, array bounds, or `oneOf`
 needs the full payload before `validateRequest` can check it.
 `validateRequest` accepts an already-buffered 10 GB document; the
 memory cost is the caller's. For a body too large to buffer, the
-separate [`@aahoughton/oav-stream-validator`](../packages/stream-validator/README.md)
+separate [`@oaverify/stream`](../packages/stream-validator/README.md)
 package validates it as it streams, with bounded memory, and
-`oav stream-check spec.yaml` reports which of a spec's bodies can
+`oaverify stream-check spec.yaml` reports which of a spec's bodies can
 stream at all. For spec-level opt-out, declare the body as
 `format: binary` and let the opaque-body bypass accept whatever the
 HTTP layer decoded.
@@ -1041,7 +1042,7 @@ The adapters ship a `validateResponses` middleware (sibling to
 conventionally on in development and off in production:
 
 ```ts
-import { validateRequests, validateResponses } from "@aahoughton/oav-express5";
+import { validateRequests, validateResponses } from "@oaverify/express5";
 
 app.use(validateRequests(validator));
 if (process.env.NODE_ENV !== "production") {
@@ -1145,7 +1146,7 @@ app.get("/pets/:id", async (req, res) => {
 
 ### Security / authentication
 
-`oav` performs **shape-only** security validation (when opted in
+`oaverify` performs **shape-only** security validation (when opted in
 via `validateSecurity: "shape"` or `"strict"`): it confirms the
 request carries the credential location declared by the spec (a
 `Bearer` token in `Authorization`, the declared apiKey header /
@@ -1248,16 +1249,16 @@ policy) on `{ ok: false }` before validation runs. The validator's
 own `validateSecurity` shape check is then redundant; leave it at
 its default `"off"`.
 
-For framework-adapter consumers (`oav-express4`, future siblings),
+For framework-adapter consumers (`@oaverify/express4`, future siblings),
 the same dispatcher pattern works; only the request-shape extraction
 changes (`httpRequestFromExpress(req)`, etc.).
 
 ### Type coercion on body fields
 
-oav doesn't coerce `{"age": "42"}` to `{"age": 42}` on request
+oaverify doesn't coerce `{"age": "42"}` to `{"age": 42}` on request
 bodies by default.
 
-Query parameters are different: `oav` auto-coerces scalar query
+Query parameters are different: `oaverify` auto-coerces scalar query
 params per their declared type (`type: integer` → `Number(raw)`,
 `type: boolean` → `true`/`false`). Only bodies are strict.
 
@@ -1308,7 +1309,7 @@ single `Validator`, so the framework adapters consume it unchanged: one
 `validateRequests` mount instead of one per spec.
 
 ```ts
-import { createValidator, combineValidators } from "@aahoughton/oav";
+import { createValidator, combineValidators } from "@oaverify/core";
 
 const validator = combineValidators([createValidator(specV1), createValidator(specV2)], {
   onOverlap: "error",
@@ -1350,5 +1351,5 @@ stay framework-shaped rather than competitor-shaped:
 
 - **[migration-from-eov.md](./migration-from-eov.md)**: migrating
   from `express-openapi-validator`. Behavior-difference reference,
-  option map (eov → oav), features not carried over, features
+  option map (eov → oaverify), features not carried over, features
   added.

@@ -1,4 +1,4 @@
-import type { ParameterObject } from "@oav/core";
+import type { ParameterObject } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import {
   assembleDeepObject,

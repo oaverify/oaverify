@@ -18,7 +18,7 @@ import { validateEmail, validateIdnEmail } from "./email.js";
 import { validateHostname, validateIdnHostname } from "./hostname.js";
 import { validateIpv4, validateIpv6 } from "./ip.js";
 // Note: validateRegex is intentionally not imported into builtInFormats.
-// @oav/schema's createDeps auto-registers a `regex` format that shares the
+// @oaverify/internal-schema's createDeps auto-registers a `regex` format that shares the
 // pattern-keyword compile path (and the regexCompiler hook). The standalone
 // validateRegex export still lives in ./misc.ts as a u-mode utility.
 import { validateUuid } from "./misc.js";
@@ -34,10 +34,10 @@ import {
 
 /**
  * Every built-in format validator, keyed by its JSON Schema format name.
- * Hand to {@link @oav/schema!compileSchema#formats | compileSchema's formats
+ * Hand to {@link @oaverify/internal-schema!compileSchema#formats | compileSchema's formats
  * option} to get out-of-the-box format validation.
  *
- * `regex` is intentionally absent: `@oav/schema` registers its own
+ * `regex` is intentionally absent: `@oaverify/internal-schema` registers its own
  * `regex` validator inside `createDeps` so it routes through the same
  * compiler as the `pattern` keyword (and honors the `regexCompiler`
  * option). Override by setting `formats: { regex: yourFn, ... }` if you
@@ -72,12 +72,12 @@ export const builtInFormats: Record<string, (value: string) => boolean> = {
 };
 
 /**
- * An Ajv-shaped format definition: `{ type, validate }`. oav's
+ * An Ajv-shaped format definition: `{ type, validate }`. oaverify's
  * `format` keyword only applies to string values (per JSON Schema
  * 2020-12 §6.3), so `type` is carried for shape compatibility but
  * not acted on; non-string values skip format validation regardless.
  *
- * Ajv's adjacent `async` / `compare` fields aren't used by oav and
+ * Ajv's adjacent `async` / `compare` fields aren't used by oaverify and
  * are ignored by {@link fromAjvFormats}.
  *
  * @public
@@ -89,7 +89,7 @@ export interface AjvFormatDef {
 
 /**
  * Convert a map of Ajv-shaped format definitions to the plain
- * predicate shape oav's `formats` option expects. One-way; pass the
+ * predicate shape oaverify's `formats` option expects. One-way; pass the
  * result straight into `createValidator` / `compileSchema`.
  *
  * Main audience: migrants from `ajv-formats` or
@@ -104,8 +104,8 @@ export interface AjvFormatDef {
  *
  * @example
  * ```ts
- * import { createValidator } from "@aahoughton/oav";
- * import { fromAjvFormats } from "@aahoughton/oav/formats";
+ * import { createValidator } from "oaverify";
+ * import { fromAjvFormats } from "oaverify/formats";
  *
  * const validator = createValidator(spec, {
  *   formats: fromAjvFormats(myAjvFormats),

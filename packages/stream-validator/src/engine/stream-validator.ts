@@ -21,7 +21,7 @@
  * STREAM-classified values validate on the forward spine; non-stream
  * subtrees (composition, object/array equality, `dependentSchemas`,
  * `contains`, `uniqueItems`, `format` under an asserting dialect) are
- * materialized and delegated to `@oav/schema`'s in-memory engine. Only a
+ * materialized and delegated to `@oaverify/internal-schema`'s in-memory engine. Only a
  * REJECT keyword (`unevaluated*`), an unknown keyword, or an unresolvable
  * `$ref` fails fast at construction (invariant 2). `maxBufferedBytes` /
  * `maxDepth` / `maxTotalBytes` bound memory; `regexCompiler` hardens
@@ -31,14 +31,19 @@
  */
 
 import { Transform, type TransformCallback } from "node:stream";
-import type { PathSegment, SchemaObject, SchemaOrBoolean, ValidationError } from "@oav/core";
+import type {
+  PathSegment,
+  SchemaObject,
+  SchemaOrBoolean,
+  ValidationError,
+} from "@oaverify/internal-core";
 import {
   compileSchema,
   type Dialect,
   FORMAT_ASSERTION_VOCAB,
   jsonSchemaDialect,
   openapi31Dialect,
-} from "@oav/schema";
+} from "@oaverify/internal-schema";
 import { normalizeOas30 } from "../openapi/index.js";
 import { classify } from "../classifier/index.js";
 import {

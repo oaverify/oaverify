@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 
-// Single source of truth for the @oav/* -> packages/*/src/index.ts alias
+// Single source of truth for the @oaverify/internal-* -> packages/*/src/index.ts alias
 // map. Imported by tsup.config.ts and vitest.config.ts. tsconfig.build.json
 // has its own copy under "paths" because JSON cannot import TS — keep it
 // in sync when adding a new workspace package.
@@ -15,7 +15,6 @@ const PACKAGES = [
   "validator",
   "stream-validator",
   "cli",
-  "oav",
   "oav-express4",
   "oav-express5",
   "oav-fastify",
@@ -23,26 +22,58 @@ const PACKAGES = [
 
 export function workspaceAliases(rootDir: string): Record<string, string> {
   // Sub-path barrel keys (more specific) come first so bundlers that
-  // match on longest prefix / insertion order pick `@oav/<pkg>/internals`
-  // before the base `@oav/<pkg>` alias.
+  // match on longest prefix / insertion order pick `@oaverify/internal-<pkg>/internals`
+  // before the base `@oaverify/internal-<pkg>` alias.
   const subpathEntries: Array<[string, string]> = [
-    ["@oav/schema/internals", resolve(rootDir, "packages", "schema", "src", "internals.ts")],
-    ["@oav/spec/internals", resolve(rootDir, "packages", "spec", "src", "internals.ts")],
-    ["@oav/validator/internals", resolve(rootDir, "packages", "validator", "src", "internals.ts")],
+    [
+      "@oaverify/internal-schema/internals",
+      resolve(rootDir, "packages", "schema", "src", "internals.ts"),
+    ],
+    [
+      "@oaverify/internal-spec/internals",
+      resolve(rootDir, "packages", "spec", "src", "internals.ts"),
+    ],
+    [
+      "@oaverify/internal-validator/internals",
+      resolve(rootDir, "packages", "validator", "src", "internals.ts"),
+    ],
   ];
   const packageEntries = PACKAGES.map(
     (pkg) =>
-      [`@oav/${pkg}`, resolve(rootDir, "packages", pkg, "src", "index.ts")] as [string, string],
+      [`@oaverify/internal-${pkg}`, resolve(rootDir, "packages", pkg, "src", "index.ts")] as [
+        string,
+        string,
+      ],
   );
-  // The stream validator is published standalone as `@aahoughton/oav-stream-validator`
-  // (not folded into the oav-core bundle), so consumers inside the workspace
-  // (the CLI) import it by that published name. Alias it to source too, so
-  // tests / bundling resolve it without a prior build of its dist.
+  // Packages published standalone rather than folded into the @oaverify/core
+  // bundle, so consumers inside the workspace (the CLI) import them by
+  // their published names. Alias them to source too, so tests / bundling
+  // resolve them without a prior build of their dist.
   const publishedEntries: Array<[string, string]> = [
+    ["@oaverify/stream", resolve(rootDir, "packages", "stream-validator", "src", "index.ts")],
+    ["@oaverify/yaml", resolve(rootDir, "packages", "yaml", "src", "index.ts")],
+    // The published subpaths of `@oaverify/core`. Emitted standalone
+    // validators import these by their real names, so tests that write a
+    // generated module to a tmpdir and import it need them resolvable to
+    // source. Longest-first, as above.
     [
-      "@aahoughton/oav-stream-validator",
-      resolve(rootDir, "packages", "stream-validator", "src", "index.ts"),
+      "@oaverify/core/schema/internals",
+      resolve(rootDir, "packages", "schema", "src", "internals.ts"),
     ],
+    ["@oaverify/core/spec/internals", resolve(rootDir, "packages", "spec", "src", "internals.ts")],
+    [
+      "@oaverify/core/validator/internals",
+      resolve(rootDir, "packages", "validator", "src", "internals.ts"),
+    ],
+    ["@oaverify/core/schema", resolve(rootDir, "packages", "schema", "src", "index.ts")],
+    ["@oaverify/core/spec", resolve(rootDir, "packages", "spec", "src", "index.ts")],
+    [
+      "@oaverify/core/overlay-spec",
+      resolve(rootDir, "packages", "overlay-spec", "src", "index.ts"),
+    ],
+    ["@oaverify/core/formats", resolve(rootDir, "packages", "formats", "src", "index.ts")],
+    ["@oaverify/core/core", resolve(rootDir, "packages", "core", "src", "index.ts")],
+    ["@oaverify/core", resolve(rootDir, "packages", "validator", "src", "index.ts")],
   ];
   return Object.fromEntries([...subpathEntries, ...packageEntries, ...publishedEntries]);
 }

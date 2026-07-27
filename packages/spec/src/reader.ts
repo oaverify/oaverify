@@ -21,14 +21,14 @@ function hasYamlExtension(uri: string): boolean {
 }
 
 const YAML_HINT =
-  "@aahoughton/oav-core does not parse YAML directly. Install @aahoughton/oav " +
-  "(the batteries-included distribution) and compose createYamlFileReader() / " +
-  "createSmartHttpReader() ahead of the JSON-only readers from @aahoughton/oav-core/spec.";
+  "@oaverify/core does not parse YAML directly. Install @oaverify/yaml " +
+  "and compose createYamlFileReader() / createSmartHttpReader() ahead of the " +
+  "JSON-only readers from @oaverify/core/spec.";
 
 /**
  * Read files from the local filesystem. JSON only; `.yaml` / `.yml`
  * paths throw with a clear install hint. Pair with
- * `oav`' `createYamlFileReader` via
+ * `@oaverify/yaml`'s `createYamlFileReader` via
  * {@link composeReaders} for YAML support.
  *
  * @param cwd - Optional base directory. Defaults to `process.cwd()`.
@@ -69,7 +69,7 @@ export function createFileReader(cwd: string = process.cwd()): DocumentReader {
 
 /**
  * Read documents over HTTP/HTTPS. JSON only; pair with
- * `oav`'s `createSmartHttpReader` for YAML (it claims all
+ * `@oaverify/yaml`'s `createSmartHttpReader` for YAML (it claims all
  * `http(s)` URIs and dispatches by `Content-Type`, so it shadows this
  * reader in a compose chain; that's fine; JSON endpoints still parse
  * as JSON there).
@@ -103,7 +103,7 @@ export function createHttpReader(): DocumentReader {
  * In-memory reader, keyed by string URI. Primarily used in tests.
  * String sources are parsed as JSON; pre-parsed object sources pass
  * through. YAML strings need pre-parsing via
- * `oav`' `parseYamlString` before they're added to
+ * `@oaverify/yaml`'s `parseYamlString` before they're added to
  * the map.
  *
  * @param sources - Map of URI → JSON string (or already-parsed value).
@@ -136,7 +136,7 @@ export function createMemoryReader(sources: Map<string, unknown>): DocumentReade
 /**
  * Try each reader in order until one accepts the URI. Useful for mixing
  * file / HTTP / memory sources in a single resolver, and for layering
- * the YAML readers from `oav` ahead of the
+ * the YAML readers from `@oaverify/yaml` ahead of the
  * JSON-only ones here.
  *
  * @param readers - Ordered list of readers.
@@ -144,7 +144,7 @@ export function createMemoryReader(sources: Map<string, unknown>): DocumentReade
  *
  * @example
  * ```ts
- * import { createYamlFileReader } from "@aahoughton/oav";
+ * import { createYamlFileReader } from "@oaverify/yaml";
  * const reader = composeReaders([createYamlFileReader(), createFileReader()]);
  * ```
  *
@@ -170,8 +170,8 @@ export function composeReaders(readers: DocumentReader[]): DocumentReader {
 // intentionally NOT exported from the package barrel: only `loadSpecSync`
 // is public, and it defaults its reader so the common case needs no
 // reader composition. These primitives are reachable via
-// `oav/spec/internals` for the rare caller who needs a custom sync
-// compose order, and are not covered by semver. See the note on
+// `@oaverify/core/spec/internals` for the rare caller who needs a
+// custom sync compose order, and are not covered by semver. See the note on
 // `SyncDocumentReader` for why this stays a deliberately narrow seam.
 
 /**

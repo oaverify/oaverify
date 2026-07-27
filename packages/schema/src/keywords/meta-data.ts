@@ -26,7 +26,7 @@ function annotationKeyword(name: string, vocabulary: string = META_DATA_VOCAB): 
  * `title`: a short human-readable label for the schema. Annotation-
  * only; emits no validation code. Bundled into
  * {@link metaDataVocabulary} and reachable alongside it from
- * `oav/schema`.
+ * `@oaverify/core/schema`.
  *
  * @public
  */
@@ -43,7 +43,7 @@ export const descriptionKeyword = annotationKeyword("description");
 
 /**
  * `default`: a suggested default value for the schema. Preserved as
- * metadata only; oav never injects defaults into request bodies or
+ * metadata only; oaverify never injects defaults into request bodies or
  * response bodies (see the `useDefaults` discussion in
  * [`docs/comparison.md`](../../../docs/comparison.md) if you need that behavior).
  *
@@ -102,7 +102,7 @@ export const exampleKeyword = annotationKeyword("example", OPENAPI_META_DATA_VOC
 /**
  * OpenAPI Schema Object's `xml` annotation. Describes how a property
  * serialises to XML (element name, namespace, attribute placement).
- * Annotation-only for JSON validation; oav doesn't emit XML.
+ * Annotation-only for JSON validation; oaverify doesn't emit XML.
  * Spec-defined on the OpenAPI Schema Object across 3.0 / 3.1 / 3.2.
  *
  * @public
@@ -121,7 +121,7 @@ export const externalDocsKeyword = annotationKeyword("externalDocs", OPENAPI_MET
 /**
  * JSON Schema 2020-12 `contentEncoding`: declares the encoding (e.g.
  * `base64`) used for a string value. The spec marks the content
- * vocabulary as not required to validate; oav treats it as
+ * vocabulary as not required to validate; oaverify treats it as
  * annotation-only.
  *
  * @public
@@ -140,7 +140,7 @@ export const contentMediaTypeKeyword = annotationKeyword("contentMediaType", CON
 /**
  * JSON Schema 2020-12 `contentSchema`: schema describing the structure
  * of decoded content (after applying `contentEncoding` and parsing
- * `contentMediaType`). Annotation-only; oav doesn't decode + re-validate.
+ * `contentMediaType`). Annotation-only; oaverify doesn't decode + re-validate.
  *
  * @public
  */

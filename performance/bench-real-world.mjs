@@ -1,6 +1,6 @@
 /**
  * Real-world OpenAPI benchmark driver. Takes one or more spec entry
- * paths (YAML / JSON), loads each through @oav/spec's `loadSpec`,
+ * paths (YAML / JSON), loads each through @oaverify/internal-spec's `loadSpec`,
  * constructs a `Validator`, and reports:
  *
  *   - raw file size on disk
@@ -20,7 +20,7 @@
  * Inside each spec, external `$ref`s resolve against the entry's own
  * directory.
  *
- * Deliberately zero dependencies beyond the oav dist bundle itself,
+ * Deliberately zero dependencies beyond the oaverify dist bundle itself,
  * so this script works against a plain `pnpm build` without needing
  * the performance sub-package's dev deps.
  */
@@ -96,7 +96,7 @@ async function bench(entryPath) {
   const sizeOnDisk = bytesOfDirectory(abs);
 
   // Two load paths in sequence:
-  //   (a) oav's own loadSpec. May fail when a subtree from an external
+  //   (a) oaverify's own loadSpec. May fail when a subtree from an external
   //       file contains internal `#/components/...` refs that get
   //       orphaned by the inliner. On this run we time it anyway; if
   //       it throws we fall back to (b) and record the failure.
@@ -222,7 +222,7 @@ for (const r of rows) {
       .join(""),
   );
   if (r.oavLoadError) {
-    console.log(`  oav loadSpec failed: ${r.oavLoadError}`);
+    console.log(`  oaverify loadSpec failed: ${r.oavLoadError}`);
   }
 }
 console.log();

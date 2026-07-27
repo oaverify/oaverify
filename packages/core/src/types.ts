@@ -1,7 +1,7 @@
 /**
  * Shared structural types for OpenAPI 3.1 documents, JSON Schema objects, and
  * HTTP request/response envelopes. These types are intentionally permissive:
- * they describe the shape {@link @oav/spec} and {@link @oav/validator}
+ * they describe the shape {@link @oaverify/internal-spec} and {@link @oaverify/internal-validator}
  * produce/consume, not a fully-checked schema.
  */
 
@@ -189,7 +189,7 @@ export type SecurityRequirementObject = Record<string, string[]>;
  * {@link ComponentsObject.securitySchemes}. Referenced by name from a
  * {@link SecurityRequirementObject}.
  *
- * oav's validator performs shape-only checks on `http` (bearer / basic)
+ * oaverify's validator performs shape-only checks on `http` (bearer / basic)
  * and `apiKey` schemes; it confirms the request carries the declared
  * credential location and format, but does not verify the credential
  * itself. `oauth2`, `openIdConnect`, and `mutualTLS` are accepted in
@@ -261,7 +261,7 @@ export interface ExternalDocumentationObject {
 /**
  * OpenAPI `exampleObject`. Either `value` or `externalValue` carries
  * the example data; `summary` / `description` are metadata. Not
- * validated by oav today.
+ * validated by oaverify today.
  *
  * @public
  */
@@ -274,7 +274,7 @@ export interface ExampleObject {
 
 /**
  * OpenAPI `linkObject`. The runtime payload (`parameters`, `requestBody`)
- * uses runtime-expression syntax that oav does not evaluate today, so
+ * uses runtime-expression syntax that oaverify does not evaluate today, so
  * those slots are typed loosely.
  *
  * @public
@@ -291,7 +291,7 @@ export interface LinkObject {
 /**
  * OpenAPI `callbackObject`: a map of runtime-expression strings to the
  * {@link PathItem} that should be invoked when the expression evaluates.
- * The expression dialect is documented in the OAS spec; oav does not
+ * The expression dialect is documented in the OAS spec; oaverify does not
  * evaluate it.
  *
  * @public

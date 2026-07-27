@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { SchemaOrBoolean } from "@oav/core";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { emitStandalone } from "../src/emit-standalone.js";
 
 /**
@@ -10,7 +10,7 @@ import { emitStandalone } from "../src/emit-standalone.js";
  * file, import it, and verify its `validate` produces the same
  * verdict as compileSchema's dynamic version on the same fixtures.
  *
- * The emitter's import prefix is set to `@oav` (our workspace alias)
+ * The emitter's import prefix defaults to `@oaverify/core`
  * so vitest's module resolver can satisfy the generated imports
  * without needing a published tarball.
  */
@@ -20,7 +20,6 @@ async function compileModule<T = unknown>(
 ): Promise<{ validate: (data: unknown) => { valid: boolean; error?: unknown }; dir: string }> {
   const source = emitStandalone(schema, {
     dialect: opts?.dialect ?? "2020-12",
-    importPrefix: "@oav",
   });
   const dir = await mkdtemp(join(tmpdir(), "oav-emit-"));
   const file = join(dir, "v.mjs");
@@ -82,9 +81,9 @@ describe("emitStandalone", () => {
     ).toThrow(/not in the built-in set/);
   });
 
-  it('accepts schemas using format: "regex" (auto-registered by @oav/schema\'s createDeps)', async () => {
+  it('accepts schemas using format: "regex" (auto-registered by @oaverify/internal-schema\'s createDeps)', async () => {
     // Regression guard: the `regex` format was removed from
-    // builtInFormats when @oav/schema started auto-registering it
+    // builtInFormats when @oaverify/internal-schema started auto-registering it
     // inside createDeps. The standalone preflight has to know about
     // the auto-registration set, otherwise it rejects a legitimate
     // built-in format. Round-trip the emitted module to confirm the

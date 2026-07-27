@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { buildProgram } from "../src/cli.js";
 import { memoryIo, type MemoryIo } from "./fixtures.js";
+import { resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
+import { workspaceAliases } from "../../../workspace-aliases.js";
+
+// The emitted module imports `@oaverify/core` subpaths by their real
+// published names, which resolve through that package's exports map to
+// its build output. The suite runs against source with no prior build,
+// so alias them to the workspace sources via the same table vitest uses.
+const CORE_ALIASES = Object.fromEntries(
+  Object.entries(
+    workspaceAliases(resolvePath(fileURLToPath(new URL("../../..", import.meta.url)))),
+  ).filter(([k]) => k.startsWith("@oaverify/core")),
+);
 
 /**
  * Argv-level coverage of the Commander program. Previously the CLI
@@ -304,10 +317,10 @@ describe("buildProgram: argv-level", () => {
 
 // The compile-schema command always bundles via esbuild. These tests
 // invoke the command directly (not through runCli) so they can override
-// the esbuild resolveDir to point at packages/oav/, which has the
-// workspace-alias `@oav/*` symlinks. In production the consumer's cwd
-// has `oav` installed and the default resolveDir is
-// correct.
+// the esbuild resolveDir to point at packages/cli/, which declares every
+// `@oaverify/core` the emitted module imports and so has the symlink. In
+// production the consumer's cwd has @oaverify/core installed and the
+// default resolveDir is correct.
 describe("compile-schema output", () => {
   it("produces an import-free bundle that runs", async () => {
     const { compileSchemaCommand } = await import("../src/commands.js");
@@ -321,8 +334,8 @@ describe("compile-schema output", () => {
         schema: "schema.json",
         output: "v.mjs",
         dialect: "2020-12",
-        importPrefix: "@oav",
         resolveDir,
+        bundleAlias: CORE_ALIASES,
       },
       mem.io,
     );
@@ -330,8 +343,8 @@ describe("compile-schema output", () => {
     expect(res.exitCode).toBe(0);
 
     const bundled = mem.writes[0]?.[1] ?? "";
-    expect(bundled).not.toMatch(/from\s+["']@aahoughton\/oav/);
-    expect(bundled).not.toMatch(/from\s+["']@oav/);
+    expect(bundled).not.toMatch(/from\s+["']@oaverify\//);
+    expect(bundled).not.toMatch(/from\s+["']@oaverify\/internal-/);
     expect(bundled).toMatch(/\bvalidate\b/);
 
     const mod = (await import(
