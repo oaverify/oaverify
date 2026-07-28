@@ -319,3 +319,40 @@ describe("router", () => {
     }
   });
 });
+
+describe("slash trimming (js/polynomial-redos regression)", () => {
+  const r = createRouter({ "/pets/{id}": { get: op("getPet") } });
+
+  it("collapses leading and trailing slash runs", () => {
+    expect(parseTemplate("///pets///")).toEqual([{ kind: "literal", value: "pets" }]);
+    expect(parseTemplate("")).toEqual([]);
+    expect(parseTemplate("///")).toEqual([]);
+    expect(r.match("get", "///pets/42///")?.pathParams).toEqual({ id: "42" });
+  });
+
+  it("leaves interior slash runs alone (they are empty segments, not trimmed)", () => {
+    // Only the outer runs are stripped; an interior run still splits into
+    // empty tokens, so this must not match /pets/{id}.
+    expect(parseTemplate("/a//b/")).toEqual([
+      { kind: "literal", value: "a" },
+      { kind: "literal", value: "" },
+      { kind: "literal", value: "b" },
+    ]);
+    expect(r.match("get", "/pets//42")?.pathParams).toBeUndefined();
+  });
+
+  it("stays linear on a long interior slash run", () => {
+    // The trailing-slash strip used to be /\/+$/, which has no anchor to
+    // pin the `+`: on a long INTERIOR run it retries at every slash and
+    // fails the `$` each time. A leading run alone is harmless, since the
+    // anchored /^\/+/ eats it first -- so the run must sit in the middle.
+    //
+    // At this size the old quadratic path takes tens of seconds; the
+    // linear one is sub-millisecond. The 2s budget is ~4000x the honest
+    // cost, so it absorbs any CI jitter while still failing decisively.
+    const path = `/a${"/".repeat(200_000)}b`;
+    const started = performance.now();
+    r.match("get", path);
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+});

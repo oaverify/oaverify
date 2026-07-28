@@ -213,3 +213,44 @@ describe("fromAjvFormats", () => {
     expect(formats.foo?.("bar")).toBe(false);
   });
 });
+
+describe("uri (js/polynomial-redos regression)", () => {
+  it("still accepts and rejects the same values after the regex was flattened", () => {
+    // The scheme pre-filter dropped a redundant `(?:\/\/[^\s]*)?` group.
+    // These pin the boundaries the group might plausibly have been holding.
+    for (const ok of [
+      "http://example.com",
+      "https://a.b/c?d=e#f",
+      "mailto:a@b.c",
+      "urn:isbn:0451450523",
+      "file:///tmp/x",
+      "ftp://u:p@h:21/p",
+      "a+b-c.d:e//f",
+    ]) {
+      expect(validateUri(ok), ok).toBe(true);
+    }
+    for (const bad of [
+      "//example.com", // no scheme
+      "://x",
+      "1http://x", // scheme must start with a letter
+      "-a:b",
+      "http://x y", // interior whitespace
+      "http://x ", // trailing whitespace
+      " http://x",
+      "/relative/path",
+    ]) {
+      expect(validateUri(bad), bad).toBe(false);
+    }
+  });
+
+  it("stays linear on a long non-matching authority", () => {
+    // The old pattern had two adjacent unbounded [^\s]* after the scheme.
+    // A trailing space makes the overall match fail, forcing the engine to
+    // redistribute the split across them: quadratic. At this size the old
+    // path takes tens of seconds; the flattened one is sub-millisecond.
+    const value = `A://${"!".repeat(200_000)} `;
+    const started = performance.now();
+    expect(validateUri(value)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+});
