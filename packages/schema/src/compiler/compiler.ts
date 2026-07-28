@@ -47,9 +47,6 @@ const DEFAULT_SCHEMA_LINT_MODE = "warn" as const;
  */
 const OAS30_REF_SIBLINGS_ALLOWED = new Set(["$ref", "description", "summary"]);
 
-/** Composition keys that can introduce a `required` key from elsewhere. */
-const COMPOSITION_KEYS = ["$ref", "allOf", "oneOf", "anyOf"] as const;
-
 /**
  * Annotation-only keys that don't affect validation. Stripped before
  * structural-equality compares so a "two branches differ only in
@@ -165,29 +162,23 @@ function runSchemaLint(
       }
     }
 
-    if (Array.isArray(obj.required)) {
-      const hasComposition = COMPOSITION_KEYS.some((k) => k in obj);
-      if (!hasComposition) {
-        const props = obj.properties;
-        const propKeys =
-          typeof props === "object" && props !== null && !Array.isArray(props)
-            ? new Set(Object.keys(props as Record<string, unknown>))
-            : new Set<string>();
-        for (const name of obj.required) {
-          if (typeof name !== "string") continue;
-          if (propKeys.has(name)) continue;
-          issues.push({
-            code: "silent-rewrite/required-not-in-properties",
-            keyword: "required",
-            path,
-            message:
-              path.length === 0
-                ? `required: "${name}" at <root> not declared in properties (likely a typo)`
-                : `required: "${name}" at "${path}" not declared in properties (likely a typo)`,
-          });
-        }
-      }
-    }
+    // silent-rewrite/required-not-in-properties is withheld pending
+    // #475 / #477.
+    //
+    // The guard asks "does *this* object compose?", which is the wrong
+    // question, and it fails in both directions at once. It over-fires
+    // on a `then` or `oneOf[i]` branch whose property is declared on an
+    // ancestor sharing the same instance, and it suppresses itself on
+    // schemas that legitimately compose -- which is exactly where the
+    // unsatisfiable cases live. Measured across 13 published OpenAPI
+    // 3.1 specs: 77 findings, 2 true positives. 2.6% signal.
+    //
+    // A rule nobody trusts gets switched off, which loses its true
+    // positives anyway, so emitting it is worse than withholding it.
+    // #477 replaces the guard with "what property names are reachable
+    // at this instance location?", which fixes both directions; the
+    // rule returns then. The code and message shape stay documented on
+    // SchemaLintIssue so the reintroduction is a revert, not a redesign.
 
     for (const key of COMPOSITION_BRANCH_KEYS) {
       const branches = obj[key];
@@ -342,10 +333,14 @@ export interface SchemaLintIssue {
    *   target only.
    * - `"silent-rewrite/required-not-in-properties"`: a `required`
    *   array names a key that doesn't appear in the same schema's
-   *   `properties`. Almost always a typo. Conservative: skipped on
-   *   schemas that mix `required` with `$ref` / `allOf` / `oneOf` /
-   *   `anyOf` (the named key could be contributed by a composed
-   *   branch).
+   *   `properties`. Almost always a typo.
+   *
+   *   Not currently emitted. The implementation ran at 2.6% signal (77
+   *   findings, 2 true positives across 13 published specs) because its
+   *   guard asked whether *this* object composes rather than which
+   *   property names are reachable at the instance location. Withheld
+   *   until #477 replaces the guard; the code stays declared so the
+   *   reintroduction does not have to re-widen this union.
    * - `"silent-rewrite/redundant-composition-branches"`: an `oneOf` /
    *   `anyOf` array where two or more branches are structurally
    *   identical after compile-time rewrites (notably the validator's
