@@ -162,7 +162,7 @@
     "esbuild": "0.28.1",
     "oxfmt": "0.61.0",
     "oxlint": "1.76.0",
-    "oxlint-tsgolint": "^0.24.0",
+    "oxlint-tsgolint": "^7.0.2001",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "4.1.10",
