@@ -38,6 +38,17 @@ export interface BuildProgramOptions {
    * exit code via the rejection and doesn't actually terminate.
    */
   exit?: (code: number) => void;
+  /**
+   * Version reported by `--version`. Supplied by the binary, which
+   * reads it from its own `package.json`, rather than baked in here:
+   * this package is bundled into the `oaverify` tarball and has no
+   * version of its own that a user could meaningfully be told.
+   *
+   * Omitted, `--version` is not registered at all, which is better than
+   * answering with something that could drift from the installed
+   * package.
+   */
+  version?: string;
 }
 
 /**
@@ -82,6 +93,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .name("oaverify")
     .description("OpenAPI 3.1 HTTP request/response validator")
     .exitOverride();
+  // A wrapper recording which engine produced a result reaches for this
+  // first; without it they record the path to the binary instead (#518).
+  if (options.version !== undefined) program.version(options.version);
 
   program
     .command("resolve <spec>")

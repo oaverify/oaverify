@@ -37,7 +37,17 @@ const io = {
   ...baseIo,
   reader: composeReaders([createYamlFileReader(), createSmartHttpReader(), baseIo.reader]),
 };
-const program = buildProgram({ io });
+// Read from this package's own manifest rather than a constant, so the
+// reported version cannot drift from the installed package and there is
+// nothing to remember to bump. npm always ships package.json, and the
+// bin lives at dist/cli.js, so this resolves inside the tarball as well
+// as in the repo.
+const { readFile } = await import("node:fs/promises");
+const { version } = JSON.parse(
+  await readFile(new URL("../package.json", import.meta.url), "utf8"),
+) as { version: string };
+
+const program = buildProgram({ io, version });
 try {
   await program.parseAsync(process.argv);
 } catch (err) {

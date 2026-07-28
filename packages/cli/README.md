@@ -118,6 +118,7 @@ below for the expected shape.
 | `--max-buffered-bytes <n>`                    | stream-check                                     | Buffer cap the effective peak is computed against (clamps over-cap positions to the cap).                                               |
 | `-o <file>`                                   | all                                              | Write output to a file instead of stdout.                                                                                               |
 | `--quiet`                                     | resolve / validate / stream-check                | Exit code only, no stdout.                                                                                                              |
+| `-V, --version`                               | (top level)                                      | Print the installed version and exit.                                                                                                   |
 
 ## `compile-schema` output
 
