@@ -27,6 +27,18 @@ updates:
       # version scoping, ignore @types/express here and bump it by
       # hand when an in-major patch lands upstream.
       - dependency-name: "@types/express"
+      # fastify is pinned exactly in two roots that dependabot scans
+      # independently: packages/oav-fastify (present only so tsc can
+      # resolve `import type { FastifyRequest }`) and framework-tests
+      # (the runtime the integration tests boot). A bump to one side
+      # alone puts two distinct fastify installs in the type graph,
+      # and FastifyInstance from one is not assignable to the other,
+      # so framework-tests typecheck fails with a wall of TS2769s
+      # (#472, #464, #483). Dependabot cannot open one PR spanning both
+      # directories, so bump fastify by hand in both places at once,
+      # the same way express-4 / express-5 are handled in the
+      # framework-tests entry below.
+      - dependency-name: "fastify"
     groups:
       types:
         patterns:
@@ -43,8 +55,9 @@ updates:
           - minor
           - patch
         exclude-patterns:
-          # See note above.
+          # See notes above.
           - "@types/express"
+          - "fastify"
 
   - package-ecosystem: npm
     directory: "/performance"
@@ -146,6 +159,11 @@ updates:
       - dependency-name: "express-5"
       - dependency-name: "@types/express-4"
       - dependency-name: "@types/express-5"
+      # Also pinned in packages/oav-fastify. See the note in the root
+      # directory's ignore list: the two pins have to move together or
+      # this directory's typecheck breaks, and dependabot cannot span
+      # both directories in one PR.
+      - dependency-name: "fastify"
     groups:
       dev-minor-and-patch:
         dependency-type: development
@@ -157,6 +175,7 @@ updates:
           - "express-5"
           - "@types/express-4"
           - "@types/express-5"
+          - "fastify"
 
   - package-ecosystem: github-actions
     directory: "/"
