@@ -1,67 +1,67 @@
 # Detection audit
 
 ## `malformed/items-array` (malformed)
-- **oaverify**: (fatal) check: "items" at <root> must be an object or boolean; got an array. In JSON Schema 2020-12 the tuple form is "prefixItems"; an array-valued "items" is the draft-04 / Swagger 2.0 spelling.
+- **oaverify**: (fatal) check: GET /things 200 response body (application/json): "items" at <root> must be an object or boolean; got an array. In JSON Schema 2020-12 the tuple form is "prefixItems"; an array-valued "items" is the draft-04 / Swagger 2.0 spelling.
 - **ajv**: ajv/compile: strict mode: "items" is 1-tuple, but minItems or maxItems/additionalItems are not specified or different at path "#" [paths./things.get.responses.200.application/json]
 - **spectral**: oas3-schema: "items" property must be a valid Schema Object. [paths//things/get/responses/200/content/application/json/schema/items]
 - **redocly**: struct: Expected type `Schema` (object) but got `array` [#/paths/~1things/get/responses/200/content/application~1json/schema/items]
 
 ## `malformed/type-boolean` (malformed)
-- **oaverify**: (fatal) check: keyword "type" at "properties.flag.type" has unknown type name "Boolean"; expected one of "null", "boolean", "object", "array", "string", "number", "integer". Did you mean "boolean"?
+- **oaverify**: (fatal) check: GET /things 200 response body (application/json): keyword "type" at "properties.flag.type" has unknown type name "Boolean"; expected one of "null", "boolean", "object", "array", "string", "number", "integer". Did you mean "boolean"?
 - ajv: no matching finding (1 raised)
 - **spectral**: oas3-schema: "type" property must be equal to one of the allowed values: "array", "boolean", "integer", "null", "number", "object", "string". Did you mean "boolean"?. [paths//things/get/responses/200/content/application/json/schema/properties/flag/type]
 - **redocly**: struct: `type` can be one of the following only: "object", "array", "string", "number", "integer", "boolean", "null". [#/paths/~1things/get/responses/200/content/application~1json/schema/properties/flag/type]
 
 ## `malformed/if-null` (malformed)
-- **oaverify**: (fatal) check: "if" at <root> must be an object or boolean; got null.
+- **oaverify**: (fatal) check: GET /things 200 response body (application/json): "if" at <root> must be an object or boolean; got null.
 - ajv: no matching finding (1 raised)
 - spectral: no matching finding (1 raised)
 - redocly: no matching finding (7 raised)
 
 ## `malformed/enum-scalar` (malformed)
-- **oaverify**: (fatal) check: keyword "enum" at "properties.status.enum" requires an array of values; got number
+- **oaverify**: (fatal) check: GET /things 200 response body (application/json): keyword "enum" at "properties.status.enum" requires an array of values; got number
 - **ajv**: ajv/compile: schema is invalid: data/properties/status/enum must be array [paths./things.get.responses.200.application/json]
 - **spectral**: oas3-schema: "enum" property must be array. [paths//things/get/responses/200/content/application/json/schema/properties/status/enum]
 - **redocly**: struct: Expected type `array` but got `integer`. [#/paths/~1things/get/responses/200/content/application~1json/schema/properties/status/enum]
 
 ## `malformed/required-string` (malformed)
-- **oaverify**: (fatal) check: keyword "required" requires an array of strings; got string "id"
+- **oaverify**: (fatal) check: GET /things 200 response body (application/json): keyword "required" requires an array of strings; got string "id"
 - **ajv**: ajv/compile: schema is invalid: data/required must be array [paths./things.get.responses.200.application/json]
 - **spectral**: oas3-schema: "required" property must be array. [paths//things/get/responses/200/content/application/json/schema/required]
 - **redocly**: struct: Expected type `array` but got `string`. [#/paths/~1things/get/responses/200/content/application~1json/schema/required]
 
 ## `malformed/properties-array` (malformed)
-- **oaverify**: (fatal) check: "properties" at <root> must be an object mapping names to schemas; got an array.
+- **oaverify**: (fatal) check: GET /things 200 response body (application/json): "properties" at <root> must be an object mapping names to schemas; got an array.
 - **ajv**: ajv/compile: schema is invalid: data/properties must be object [paths./things.get.responses.200.application/json]
 - **spectral**: oas3-schema: "properties" property must be object. [paths//things/get/responses/200/content/application/json/schema/properties]
 - **redocly**: struct: Expected type `SchemaProperties` (object) but got `array` [#/paths/~1things/get/responses/200/content/application~1json/schema/properties]
 
 ## `lint/required-typo` (lint)
-- **oaverify**: silent-rewrite/required-not-in-properties: required: "nam" at <root> is not declared in properties reachable here (likely a typo) [<root>]
+- **oaverify**: silent-rewrite/required-not-in-properties: required: "nam" at <root> is not declared in properties reachable here (likely a typo) [GET /things 200 response body (application/json) -> <root>]
 - **ajv**: ajv/compile: strict mode: required property "nam" is not defined at "#" (strictRequired) [paths./things.get.responses.200.application/json]
 - spectral: no matching finding (5 raised)
 - redocly: no matching finding (6 raised)
 
 ## `lint/required-typo-behind-ref` (lint)
-- **oaverify**: silent-rewrite/required-not-in-properties: required: "total" at "items" is not declared in properties reachable here (likely a typo) [items]
+- **oaverify**: silent-rewrite/required-not-in-properties: required: "total" at "items" is not declared in properties reachable here (likely a typo) [GET /things 200 response body (application/json) -> items]
 - **ajv**: ajv/compile: strict mode: required property "total" is not defined at "#" (strictRequired) [components.schemas.Item]
 - spectral: no matching finding (5 raised)
 - **redocly**: no-required-schema-properties-undefined: Required property 'total' is not defined. [#/components/schemas/Item/required/1]
 
 ## `lint/ref-siblings-oas30` (lint)
-- oaverify: no matching finding (0 raised)
+- **oaverify**: silent-rewrite/ref-siblings-oas30: OAS 3.0: "required" sibling of $ref at <root> is silently dropped (only description/summary survive) [GET /things 200 response body (application/json) -> <root>]
 - ajv: no matching finding (1 raised)
 - **spectral**: no-$ref-siblings: $ref must not be placed next to any other properties [paths//things/get/responses/200/content/application/json/schema/required]
 - redocly: no matching finding (5 raised)
 
 ## `lint/redundant-oneof` (lint)
-- **oaverify**: silent-rewrite/redundant-composition-branches: oneOf[1] is structurally identical to oneOf[0] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec [oneOf[1]]
+- **oaverify**: silent-rewrite/redundant-composition-branches: oneOf[1] is structurally identical to oneOf[0] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec [GET /things 200 response body (application/json) -> oneOf[1]]
 - ajv: no matching finding (0 raised)
 - spectral: no matching finding (5 raised)
 - redocly: no matching finding (5 raised)
 
 ## `lint/unknown-keyword` (lint)
-- **oaverify**: unknown-keyword: unknown keyword "minLenght" at "properties.name" [properties.name]
+- **oaverify**: unknown-keyword: unknown keyword "minLenght" at "properties.name" [GET /things 200 response body (application/json) -> properties.name]
 - **ajv**: ajv/compile: strict mode: unknown keyword: "minLenght" [paths./things.get.responses.200.application/json]
 - spectral: no matching finding (5 raised)
 - **redocly**: struct: Property `minLenght` is not expected here. [#/paths/~1things/get/responses/200/content/application~1json/schema/properties/name/minLenght]

@@ -96,6 +96,20 @@ export function createDirectionResolver(
  * `{ $ref: "#/components/schemas/User" }` resolves to the concrete
  * `User` object schema, which is what the direction transform needs
  * to walk. Cycles are guarded by a visited set.
+ *
+ * Only a `$ref` that carries nothing else is followed. Under 2020-12
+ * (so OpenAPI 3.1) a `$ref` alongside other keywords means "the target
+ * AND those keywords", and replacing the node with its target drops
+ * them: `{ $ref: Pet, required: [name] }` at a body root silently
+ * stopped enforcing `required`. Leaving such a node alone costs
+ * nothing, because the compiler already applies `$ref` with siblings
+ * correctly (it does so everywhere below the root), and the direction
+ * transform still reaches the target through
+ * {@link createDirectionResolver}.
+ *
+ * Under OAS 3.0 those siblings are dropped by the specification rather
+ * than by us, and the compiler does that itself. Keeping the node also
+ * lets `silent-rewrite/ref-siblings-oas30` see it and warn (#505).
  */
 function unwrapRootRef(schema: SchemaOrBoolean, refResolver: RefResolver): SchemaOrBoolean {
   const visited = new Set<SchemaOrBoolean>();
@@ -104,7 +118,8 @@ function unwrapRootRef(schema: SchemaOrBoolean, refResolver: RefResolver): Schem
     typeof current === "object" &&
     current !== null &&
     !Array.isArray(current) &&
-    typeof (current as { $ref?: unknown }).$ref === "string"
+    typeof (current as { $ref?: unknown }).$ref === "string" &&
+    isBareRef(current as Record<string, unknown>)
   ) {
     if (visited.has(current)) return current;
     visited.add(current);
@@ -115,6 +130,28 @@ function unwrapRootRef(schema: SchemaOrBoolean, refResolver: RefResolver): Schem
     }
   }
   return current;
+}
+
+/**
+ * Keys that sit alongside `$ref` without changing what validates.
+ * Everything else makes the node mean more than its target.
+ */
+const REF_ANNOTATION_SIBLINGS = new Set([
+  "$ref",
+  "title",
+  "description",
+  "summary",
+  "example",
+  "examples",
+  "deprecated",
+  "$comment",
+]);
+
+function isBareRef(node: Record<string, unknown>): boolean {
+  for (const key of Object.keys(node)) {
+    if (!REF_ANNOTATION_SIBLINGS.has(key)) return false;
+  }
+  return true;
 }
 
 function transformInner(
