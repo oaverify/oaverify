@@ -121,76 +121,83 @@ function runSchemaLint(
   // the question is what property names are reachable at an instance
   // position, which a per-node visitor cannot see.
   issues.push(...collectRequiredIssues(schema, rules.resolveRef));
-  walkSubschemas(schema, (node, path) => {
-    if (typeof node !== "object" || node === null || Array.isArray(node)) return;
-    const obj = node as Record<string, unknown>;
+  // Follow refs, or the rules below see one operation's inline schema
+  // plus at most the component named directly as its body: on Asana,
+  // 1 of 278 component schemas (#513).
+  walkSubschemas(
+    schema,
+    (node, path) => {
+      if (typeof node !== "object" || node === null || Array.isArray(node)) return;
+      const obj = node as Record<string, unknown>;
 
-    for (const key of Object.keys(obj)) {
-      const def = byKeyword.get(key);
-      if (def?.partial !== undefined) {
-        issues.push({
-          code: "partial-feature",
-          keyword: key,
-          path,
-          message: `"${key}" is partially supported: ${def.partial}`,
-        });
-        continue;
-      }
-      if (mode !== "strict") continue;
-      if (known.has(key)) continue;
-      // `x-*` extensions are tolerated by OpenAPI convention; accept
-      // them in strict mode too.
-      if (key.startsWith("x-")) continue;
-      issues.push({
-        code: "unknown-keyword",
-        keyword: key,
-        path,
-        message:
-          path.length === 0
-            ? `unknown keyword "${key}" at <root>`
-            : `unknown keyword "${key}" at "${path}"`,
-      });
-    }
-
-    // silent-rewrite/* checks are always-on (any non-"off" mode).
-    if (rules.refSuppressesSiblings && typeof obj.$ref === "string") {
       for (const key of Object.keys(obj)) {
-        if (OAS30_REF_SIBLINGS_ALLOWED.has(key)) continue;
+        const def = byKeyword.get(key);
+        if (def?.partial !== undefined) {
+          issues.push({
+            code: "partial-feature",
+            keyword: key,
+            path,
+            message: `"${key}" is partially supported: ${def.partial}`,
+          });
+          continue;
+        }
+        if (mode !== "strict") continue;
+        if (known.has(key)) continue;
+        // `x-*` extensions are tolerated by OpenAPI convention; accept
+        // them in strict mode too.
+        if (key.startsWith("x-")) continue;
         issues.push({
-          code: "silent-rewrite/ref-siblings-oas30",
+          code: "unknown-keyword",
           keyword: key,
           path,
           message:
             path.length === 0
-              ? `OAS 3.0: "${key}" sibling of $ref at <root> is silently dropped (only description/summary survive)`
-              : `OAS 3.0: "${key}" sibling of $ref at "${path}" is silently dropped (only description/summary survive)`,
+              ? `unknown keyword "${key}" at <root>`
+              : `unknown keyword "${key}" at "${path}"`,
         });
       }
-    }
 
-    for (const key of COMPOSITION_BRANCH_KEYS) {
-      const branches = obj[key];
-      if (!Array.isArray(branches) || branches.length < 2) continue;
-      // O(n^2) pairwise compare; n is small in real specs (oneOf with
-      // 2-5 branches is the common shape). For each branch, flag if any
-      // earlier branch is structurally equal to it (skip the first
-      // occurrence to avoid N findings for N identical branches).
-      for (let i = 1; i < branches.length; i += 1) {
-        for (let j = 0; j < i; j += 1) {
-          if (structuralEqual(branches[i], branches[j])) {
-            const branchPath = path.length === 0 ? `${key}[${i}]` : `${path}.${key}[${i}]`;
-            issues.push({
-              code: "silent-rewrite/redundant-composition-branches",
-              keyword: key,
-              path: branchPath,
-              message: `${key}[${i}] is structurally identical to ${key}[${j}] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec`,
-            });
-            break;
+      // silent-rewrite/* checks are always-on (any non-"off" mode).
+      if (rules.refSuppressesSiblings && typeof obj.$ref === "string") {
+        for (const key of Object.keys(obj)) {
+          if (OAS30_REF_SIBLINGS_ALLOWED.has(key)) continue;
+          issues.push({
+            code: "silent-rewrite/ref-siblings-oas30",
+            keyword: key,
+            path,
+            message:
+              path.length === 0
+                ? `OAS 3.0: "${key}" sibling of $ref at <root> is silently dropped (only description/summary survive)`
+                : `OAS 3.0: "${key}" sibling of $ref at "${path}" is silently dropped (only description/summary survive)`,
+          });
+        }
+      }
+
+      for (const key of COMPOSITION_BRANCH_KEYS) {
+        const branches = obj[key];
+        if (!Array.isArray(branches) || branches.length < 2) continue;
+        // O(n^2) pairwise compare; n is small in real specs (oneOf with
+        // 2-5 branches is the common shape). For each branch, flag if any
+        // earlier branch is structurally equal to it (skip the first
+        // occurrence to avoid N findings for N identical branches).
+        for (let i = 1; i < branches.length; i += 1) {
+          for (let j = 0; j < i; j += 1) {
+            if (structuralEqual(branches[i], branches[j])) {
+              const branchPath = path.length === 0 ? `${key}[${i}]` : `${path}.${key}[${i}]`;
+              issues.push({
+                code: "silent-rewrite/redundant-composition-branches",
+                keyword: key,
+                path: branchPath,
+                message: `${key}[${i}] is structurally identical to ${key}[${j}] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec`,
+              });
+              break;
+            }
           }
         }
       }
-    }
-  });
+    },
+    (ref) => rules.resolveRef?.(ref) as SchemaOrBoolean | undefined,
+  );
   // Stamped once here rather than at each `issues.push`: the context is
   // the same for every issue this compile produces, and threading it
   // through each construction site invites one of them to forget.

@@ -54,6 +54,20 @@ schema  silent-rewrite/required-not-in-properties
   required: "signedDate" is not declared in properties reachable here
 ```
 
+A schema reached through a `$ref` is addressed by the component it came
+from (`components.schemas.Pet.properties.tags`) rather than by the route
+that reached it.
+
+Schemas compile per operation, so a component several operations share
+would otherwise be reported once per operation. `check` prints it once
+against the first operation that reached it and counts the rest; the
+JSON envelope carries the count as `occurrences`.
+
+```
+schema [silent-rewrite/ref-siblings-oas30] GET /a 200 response body (application/json)
+  -> components.schemas.Wrapper.properties.inner (and 2 more operation(s)): OAS 3.0: ...
+```
+
 ```bash
 
 oaverify resolve <spec>                                       # stitch a multi-file spec

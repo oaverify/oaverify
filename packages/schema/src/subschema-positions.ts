@@ -56,10 +56,41 @@ export const SUBSCHEMA_MAP_POSITIONS = [
 export type SubschemaVisitor = (schema: SchemaOrBoolean, path: string) => void | boolean;
 
 /**
+ * Display path for a schema reached through `$ref`. A local pointer
+ * becomes the dotted document path it names, so
+ * `#/components/schemas/Email` reads as `components.schemas.Email` and
+ * joins with the path below it in the same style. Anything else (an
+ * anchor, an external URI) is shown as written, since there is no
+ * document path to give.
+ *
+ * Shared by every pass that follows refs, so a reader sees one address
+ * format whichever check produced the message.
+ *
+ * @internal
+ */
+export function pathForRef(ref: string): string {
+  if (!ref.startsWith("#/")) return ref;
+  return ref
+    .slice(2)
+    .split("/")
+    .map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"))
+    .join(".");
+}
+
+/**
  * Walk every subschema reachable from `root`, in pre-order, descending
  * through every schema-valued key the JSON Schema 2020-12 vocabulary
  * (plus the keys OpenAPI adds on top) declares. Boolean schemas and
  * `$ref` nodes are visited but not descended.
+ *
+ * Pass `resolveRef` to follow `$ref` and walk its target too, reported
+ * under the document path the pointer names. Without it the walk covers
+ * only what is structurally present, which is what a caller holding a
+ * self-contained schema wants. A caller holding one operation's slice
+ * of a larger document wants the resolver, or it sees an arbitrary
+ * fraction of what will be compiled: on Asana, 1 of 278 component
+ * schemas (#513). Each ref target is walked once per call, which also
+ * stops a recursive component looping.
  *
  * Intended for tooling (linters, introspection, tree rewriters) that
  * would otherwise re-derive the set of schema-valued keys and risk
@@ -70,12 +101,31 @@ export type SubschemaVisitor = (schema: SchemaOrBoolean, path: string) => void |
  *
  * @public
  */
-export function walkSubschemas(root: SchemaOrBoolean, visit: SubschemaVisitor): void {
+export function walkSubschemas(
+  root: SchemaOrBoolean,
+  visit: SubschemaVisitor,
+  resolveRef?: (ref: string) => SchemaOrBoolean | undefined,
+): void {
+  // Only ref targets are deduped, never structural positions: the same
+  // schema object appearing under two keys is two places a reader may
+  // need to fix, and each deserves its own path. A ref target is one
+  // place however many pointers reach it, and deduping it is also what
+  // stops a recursive component from looping.
+  const walkedRefTargets = new WeakSet<object>();
+
   const go = (node: SchemaOrBoolean, path: string): void => {
     const keep = visit(node, path);
     if (keep === false) return;
     if (typeof node !== "object" || node === null || Array.isArray(node)) return;
     const n = node as Record<string, unknown>;
+
+    if (resolveRef !== undefined && typeof n["$ref"] === "string") {
+      const target = resolveRef(n["$ref"]);
+      if (target !== undefined && !(typeof target === "object" && walkedRefTargets.has(target))) {
+        if (typeof target === "object" && target !== null) walkedRefTargets.add(target);
+        go(target, pathForRef(n["$ref"]));
+      }
+    }
     for (const k of SUBSCHEMA_SINGLE_POSITIONS) {
       const v = n[k];
       if (v !== undefined) go(v as SchemaOrBoolean, path === "" ? k : `${path}.${k}`);

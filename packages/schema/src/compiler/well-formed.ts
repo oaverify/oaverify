@@ -2,6 +2,7 @@ import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import type { KeywordDefinition } from "../keywords/types.js";
 import type { RefResolver } from "../resolve/index.js";
 import {
+  pathForRef,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
@@ -38,23 +39,6 @@ function at(path: string): string {
 function isSchemaNode(value: unknown): boolean {
   if (typeof value === "boolean") return true;
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
- * Display path for a schema reached through `$ref`. A local pointer
- * becomes the dotted document path it names, so
- * `#/components/schemas/Email` reads as `components.schemas.Email` and
- * joins with the path below it in the same style. Anything else (an
- * anchor, an external URI) is shown as written, since there is no
- * document path to give.
- */
-function pathForRef(ref: string): string {
-  if (!ref.startsWith("#/")) return ref;
-  return ref
-    .slice(2)
-    .split("/")
-    .map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"))
-    .join(".");
 }
 
 /**
