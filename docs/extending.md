@@ -54,16 +54,47 @@ properties `"i"` and `"d"` while rejecting `{ "id": 1 }`. Nothing looks
 broken from outside; the validator just enforces a contract nobody
 wrote.
 
-Use the guards instead. Each validates, then returns a value safe to
-interpolate into generated source, and names the keyword in its error:
+Declare the contract once with `validateKeywordValue`, and the compiler
+checks it across the whole schema before generating any code:
 
-| Helper                      | Requires                   |
-| --------------------------- | -------------------------- |
-| `numberLiteral`             | a finite number            |
-| `nonNegativeIntegerLiteral` | an integer >= 0            |
-| `positiveNumberLiteral`     | a finite number > 0        |
-| `stringArrayValue`          | an array of strings        |
-| `quoteString`               | (escapes a string literal) |
+```ts
+export const myKeyword: KeywordDefinition = {
+  keyword: "myKeyword",
+  vocabulary: MY_VOCAB,
+  validateKeywordValue: (value) =>
+    Array.isArray(value) ? undefined : `requires an array; got ${typeof value}`,
+  compile(ctx) {
+    const names = parseMyValue(ctx.schema);
+    // ...
+  },
+};
+// keyword "myKeyword" at "properties.a.myKeyword" requires an array; got string
+```
+
+Return `undefined` to accept, or a short reason to reject; the compiler
+supplies the keyword name and the path. Two rules:
+
+- **Keep the check in `compile` too**, or have both call one shared
+  parser. `compile` is reachable through paths that did not go through
+  the pre-pass, and a cast justified by "the pre-pass guarantees it" is
+  the same reasoning that produced `required: "id"`.
+- **Keyword-local contracts only.** Anything that needs an ancestor, a
+  sibling, or the whole document belongs in a lint pass. This hook
+  cannot see them, and a rule that pretends otherwise is wrong under
+  `not` and inside dead composition branches.
+
+For values that land in generated source, use the guards. Each
+validates, then returns a value safe to interpolate, and names the
+keyword in its error:
+
+| Helper                      | Requires                          |
+| --------------------------- | --------------------------------- |
+| `numberLiteral`             | a finite number                   |
+| `nonNegativeIntegerLiteral` | an integer >= 0                   |
+| `positiveNumberLiteral`     | a finite number > 0               |
+| `stringArrayValue`          | an array of strings               |
+| `checkStringArray`          | (non-throwing half, for the hook) |
+| `quoteString`               | (escapes a string literal)        |
 
 ```ts
 const names = stringArrayValue(ctx.schema, "myKeyword");

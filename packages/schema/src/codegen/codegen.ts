@@ -344,18 +344,29 @@ export function booleanLiteral(value: unknown, keyword: string): string {
  * @public
  */
 export function stringArrayValue(value: unknown, keyword: string): string[] {
+  const reason = checkStringArray(value);
+  if (reason !== undefined) throw new Error(`keyword "${keyword}" ${reason}`);
+  return value as string[];
+}
+
+/**
+ * Non-throwing half of {@link stringArrayValue}, for
+ * `KeywordDefinition.validateKeywordValue`. Returns the reason a value
+ * is unusable, or `undefined` when it is fine. Both halves go through
+ * this one check so the whole-graph pre-pass and codegen cannot drift
+ * on what a keyword accepts.
+ *
+ * @public
+ */
+export function checkStringArray(value: unknown): string | undefined {
   if (!Array.isArray(value)) {
-    throw new Error(
-      `keyword "${keyword}" requires an array of strings; got ${describeValue(value)}`,
-    );
+    return `requires an array of strings; got ${describeValue(value)}`;
   }
   const badAt = value.findIndex((v) => typeof v !== "string");
   if (badAt !== -1) {
-    throw new Error(
-      `keyword "${keyword}" requires an array of strings; element ${badAt} is ${describeValue(value[badAt])}`,
-    );
+    return `requires an array of strings; element ${badAt} is ${describeValue(value[badAt])}`;
   }
-  return value as string[];
+  return undefined;
 }
 
 function describeValue(value: unknown): string {

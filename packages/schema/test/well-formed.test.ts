@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { assertWellFormedSchema } from "../src/compiler/well-formed.js";
+import { buildKeywordMap } from "../src/introspection.js";
 import { jsonSchemaDialect, oas30Dialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
 
 const compileWith = (schema: unknown, overrides: Record<string, unknown> = {}) =>
@@ -174,7 +175,12 @@ describe("well-formedness: does not reject legal schemas", () => {
     // that hangs.
     const node: Record<string, unknown> = { type: "object" };
     node.properties = { self: node };
-    expect(() => assertWellFormedSchema(node as SchemaOrBoolean)).not.toThrow();
+    expect(() =>
+      assertWellFormedSchema(
+        node as SchemaOrBoolean,
+        buildKeywordMap(openapi31Dialect.vocabularies),
+      ),
+    ).not.toThrow();
   });
 
   it("shares a subschema without re-walking it", () => {

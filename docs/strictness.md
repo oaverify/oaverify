@@ -25,7 +25,10 @@ createValidator(spec); // throws
 
 This covers a schema-valued slot holding something that is not a schema
 (`items: [ ... ]`, `if: null`) and a keyword holding a value it cannot
-use (`type: "Boolean"`, `required: "id"`, `minimum: "5"`).
+use (`type: "Boolean"`, `required: "id"`, `enum: 5`, `minimum: "5"`).
+
+The check walks the whole document, so a typo in a `$defs` entry nothing
+`$ref`s is caught along with the rest.
 
 Both classes used to slip through, and the reason they are fatal now is
 what they did instead. An array-valued `items` compiled to a schema with

@@ -16,8 +16,9 @@ import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
 export const typeKeyword: KeywordDefinition = {
   keyword: "type",
   vocabulary: CORE_VALIDATION_VOCAB,
+  validateKeywordValue: (value) => checkTypeNames(value),
   compile(ctx: KeywordCompileContext): void {
-    const expected = assertTypeNames(ctx.schema);
+    const expected = parseTypeNames(ctx.schema);
     const condition = buildTypeMismatchCondition(ctx.data, expected);
     ctx.gen.if(condition, () => {
       const expectedLit = JSON.stringify(expected);
@@ -44,26 +45,36 @@ export const typeKeyword: KeywordDefinition = {
  * payload rather than at the spec that is actually wrong. No author
  * means that, so it is a compile error.
  */
-function assertTypeNames(value: unknown): string[] {
+export function checkTypeNames(
+  value: unknown,
+  legal: readonly string[] = JSON_SCHEMA_TYPE_NAMES,
+): string | undefined {
   const names = Array.isArray(value) ? value : [value];
-  if (names.length === 0) {
-    throw new Error(`keyword "type" requires at least one type name; got an empty array`);
-  }
+  if (names.length === 0) return "requires at least one type name; got an empty array";
   for (const name of names) {
     if (typeof name !== "string") {
-      throw new Error(
-        `keyword "type" requires a type name or array of type names; got ${describe(name)}`,
-      );
+      return `requires a type name or array of type names; got ${describe(name)}`;
     }
-    if (!(JSON_SCHEMA_TYPE_NAMES as readonly string[]).includes(name)) {
-      throw new Error(
-        `keyword "type" has unknown type name ${JSON.stringify(name)}; ` +
-          `expected one of ${JSON_SCHEMA_TYPE_NAMES.map((t) => JSON.stringify(t)).join(", ")}.` +
-          suggestTypeName(name, JSON_SCHEMA_TYPE_NAMES),
+    if (!legal.includes(name)) {
+      return (
+        `has unknown type name ${JSON.stringify(name)}; ` +
+        `expected one of ${legal.map((t) => JSON.stringify(t)).join(", ")}.` +
+        suggestTypeName(name, legal)
       );
     }
   }
-  return names as string[];
+  return undefined;
+}
+
+/**
+ * Throwing counterpart of {@link checkTypeNames}, for the compile path.
+ * Both go through one check so the pre-pass and codegen cannot drift on
+ * what `type` accepts.
+ */
+function parseTypeNames(value: unknown): string[] {
+  const reason = checkTypeNames(value);
+  if (reason !== undefined) throw new Error(`keyword "type" ${reason}`);
+  return (Array.isArray(value) ? value : [value]) as string[];
 }
 
 function describe(value: unknown): string {

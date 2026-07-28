@@ -1,4 +1,5 @@
-import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import type { KeywordDefinition } from "../keywords/types.js";
 import {
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
@@ -80,13 +81,24 @@ function hintFor(key: string, value: unknown): string {
  * needs to see. It shares the `SUBSCHEMA_*_POSITIONS` constants, so the
  * two cannot drift apart on which keys hold schemas.
  *
+ * Keyword values are checked in the same pass, through each
+ * {@link KeywordDefinition.validateKeywordValue}. One traversal rather
+ * than two: the walk is O(nodes) and doubling it buys nothing. Because
+ * it covers the whole graph, a keyword in a subschema no `$ref` reaches
+ * is checked too, which the per-keyword `compile` guards cannot do.
+ *
  * @param root - Schema to check, walked in full before compiling.
+ * @param byKeyword - Active dialect's keyword map, for the value hooks.
  * @param label - Prefix for the thrown message, e.g. an external
  *   schema's name. Omit for the schema being compiled.
  *
  * @internal
  */
-export function assertWellFormedSchema(root: SchemaOrBoolean, label?: string): void {
+export function assertWellFormedSchema(
+  root: SchemaOrBoolean,
+  byKeyword: ReadonlyMap<string, KeywordDefinition>,
+  label?: string,
+): void {
   const prefix = label === undefined ? "" : `${label}: `;
   // Object graphs are normally acyclic here (circular references
   // survive as `$ref` strings, which are never descended), but a
@@ -107,6 +119,23 @@ export function assertWellFormedSchema(root: SchemaOrBoolean, label?: string): v
     const obj = node as Record<string, unknown>;
     if (seen.has(obj)) return;
     seen.add(obj);
+
+    // Keyword values, before descending. `Object.keys` matches what
+    // keyword dispatch itself iterates, so a key present with an
+    // undefined value is checked rather than skipped.
+    for (const key of Object.keys(obj)) {
+      const reason = byKeyword.get(key)?.validateKeywordValue?.(obj[key], {
+        keyword: key,
+        path: path === "" ? key : `${path}.${key}`,
+        parentSchema: obj as SchemaObject,
+      });
+      if (reason !== undefined) {
+        // At the root the path *is* the keyword name, so `at "type"`
+        // would just repeat what the sentence already said.
+        const where = path === "" ? "" : ` at ${at(`${path}.${key}`)}`;
+        fail(`keyword "${key}"${where} ${reason}`);
+      }
+    }
 
     // Presence is `hasOwn`, not `!== undefined`. Keyword dispatch walks
     // `Object.keys`, which reports a key whose value is `undefined`, so
