@@ -73,14 +73,15 @@ Under the default `maxErrors: 1`, every rejection reports `truncated: true`.
 ## 3. `output` replaces the `flat` / `predicate` booleans
 
 `output: "flat" | "tree" | "predicate"` is the single knob for the result
-shape. The `flat: true` and `predicate: true` booleans still work as
-deprecated aliases (removed in v4) and throw if combined with a conflicting
-`output`.
+shape.
 
 ```ts
-compileSchema(schema, { dialect, predicate: true }); // deprecated
-compileSchema(schema, { dialect, output: "predicate" }); // v3
+compileSchema(schema, { dialect, output: "predicate" });
 ```
+
+The v2 `flat: true` / `predicate: true` booleans survived v3 as deprecated
+aliases and were removed in v4. If you are coming from v2 and land on v4,
+go straight to `output`.
 
 ## 4. Result type renames
 
@@ -91,9 +92,10 @@ compileSchema(schema, { dialect, output: "predicate" }); // v3
 | `CompiledSchema` (tree)   | `CompiledTreeSchema`                      |
 | `CompiledFlatSchema`      | `CompiledSchema` (now the flat default)   |
 
-`FlatValidationResult` and `CompiledFlatSchema` remain as deprecated aliases
-of the new flat types for one major. If you imported `ValidationResult`
-expecting the tree shape, switch to `TreeValidationResult`.
+`FlatValidationResult` and `CompiledFlatSchema` survived v3 as deprecated
+aliases and were removed in v4; use `ValidationResult` and `CompiledSchema`.
+If you imported `ValidationResult` expecting the tree shape, switch to
+`TreeValidationResult`.
 
 ## 5. The validator returns a result object
 

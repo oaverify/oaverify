@@ -89,30 +89,6 @@ describe("v3 default output", () => {
     expect(r.truncated).toBe(false);
   });
 
-  describe("deprecated boolean aliases", () => {
-    it("flat: true is an alias for output: flat", () => {
-      const v = compileSchema({ type: "string" }, { ...opts, flat: true });
-      const r = v.validate(42);
-      if (r.valid) return;
-      expect(r.errors[0]?.code).toBe("type");
-    });
-
-    it("predicate: true is an alias for output: predicate", () => {
-      const v = compileSchema({ type: "string" }, { ...opts, predicate: true });
-      expect(v.validate("ok")).toBe(true);
-      expect(v.validate(42)).toBe(false);
-    });
-
-    it("throws when output conflicts with a legacy boolean", () => {
-      expect(() => compileSchema({}, { ...opts, output: "tree", flat: true })).toThrow(
-        /conflicts with the deprecated/,
-      );
-      expect(() => compileSchema({}, { ...opts, output: "flat", predicate: true })).toThrow(
-        /conflicts with the deprecated/,
-      );
-    });
-  });
-
   // A finite maxErrors must never change a valid/invalid verdict. Schemas
   // that track evaluated keys collect every error (the cap is not enforced
   // there) precisely so the short-circuit can't starve an

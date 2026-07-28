@@ -93,17 +93,11 @@ const LEAF_CASES: Array<{ name: string; schema: unknown; data: unknown }> = [
 ];
 
 describe("flat mode: configuration guards", () => {
-  it("rejects flat + predicate as mutually exclusive", () => {
-    expect(() =>
-      compileSchema({} as never, { dialect: jsonSchemaDialect, flat: true, predicate: true }),
-    ).toThrow(/mutually exclusive/);
-  });
-
   it("accepts flat + maxErrors", () => {
     expect(() =>
       compileSchema({ type: "string" } as never, {
         dialect: jsonSchemaDialect,
-        flat: true,
+        output: "flat",
         maxErrors: 3,
       }),
     ).not.toThrow();
