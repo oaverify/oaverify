@@ -1,0 +1,25 @@
+openapi: 3.1.0
+info:
+  title: Detection case
+  version: "1.0.0"
+components:
+  schemas:
+    Thing:
+      type: object
+      properties:
+        id:
+          type: string
+      required: [id]
+paths:
+  /things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Thing"

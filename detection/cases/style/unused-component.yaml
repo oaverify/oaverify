@@ -1,0 +1,18 @@
+openapi: 3.1.0
+info:
+  title: Detection case
+  version: "1.0.0"
+components:
+  schemas:
+    NeverReferenced:
+      type: object
+      properties:
+        id:
+          type: string
+paths:
+  /things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: ok

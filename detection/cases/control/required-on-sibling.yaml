@@ -1,0 +1,31 @@
+openapi: 3.1.0
+info:
+  title: Detection case
+  version: "1.0.0"
+paths:
+  /things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                allOf:
+                  - if:
+                      properties:
+                        kind: {}
+                    then:
+                      properties:
+                        id:
+                          required: [ssn]
+                properties:
+                  kind:
+                    type: string
+                  id:
+                    type: object
+                    properties:
+                      ssn:
+                        type: string

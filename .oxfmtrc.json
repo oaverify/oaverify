@@ -9,6 +9,7 @@
     "coverage/",
     "conformance/JSON-Schema-Test-Suite/",
     "CHANGELOG.md",
-    "conformance/json-schema-results.json"
+    "conformance/json-schema-results.json",
+    "detection/results/"
   ]
 }
