@@ -299,6 +299,13 @@ const overlay: SpecOverlay = {
 };
 ```
 
+The patch is a `Partial` of the component, which is what lets the
+example above name neither `name` nor `in`: those stay as the base
+declared them. A key that is not already in the bucket is created from
+the patch as written, so a partial patch there produces a partial
+component. Reach for `replace<Bucket>` when you mean to add a complete
+one.
+
 ## Things to know
 
 - **`$ref` resolution timing.** Overlays target the resolved

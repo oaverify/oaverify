@@ -313,57 +313,73 @@ export interface SpecOverlay {
   /** Remove component schemas. Throws if a target schema isn't present. */
   removeSchemas?: string[];
 
-  /** Shallow-merge into existing `components.parameters` entries; new keys append. */
-  extendParameters?: Record<string, ParameterObject | ReferenceObject>;
+  /**
+   * Shallow-merge a patch into existing `components.parameters` entries.
+   *
+   * The patch is a {@link https://www.typescriptlang.org/docs/handbook/utility-types.html#partialtype | Partial}
+   * because that is what extending means: supplying only `description`
+   * leaves `name` and `in` as the base declared them. A name not
+   * already in the bucket is created from the patch as-is, so a partial
+   * patch there produces a partial component; use `replaceParameters`
+   * to add a complete one.
+   */
+  extendParameters?: Record<string, Partial<ParameterObject> | ReferenceObject>;
   /** Replace `components.parameters` entries by name. New keys append. */
   replaceParameters?: Record<string, ParameterObject | ReferenceObject>;
   /** Remove `components.parameters` entries by name. Throws on missing. */
   removeComponentParameters?: string[];
 
-  /** Shallow-merge into existing `components.responses` entries; new keys append. */
-  extendComponentResponses?: Record<string, ResponseObject | ReferenceObject>;
+  /** Shallow-merge a patch into existing `components.responses` entries;
+   * a new key is created from the patch. See {@link SpecOverlay.extendParameters}. */
+  extendComponentResponses?: Record<string, Partial<ResponseObject> | ReferenceObject>;
   /** Replace `components.responses` entries by name. New keys append. */
   replaceComponentResponses?: Record<string, ResponseObject | ReferenceObject>;
   /** Remove `components.responses` entries by name. Throws on missing. */
   removeComponentResponses?: string[];
 
-  /** Shallow-merge into existing `components.requestBodies` entries; new keys append. */
-  extendRequestBodies?: Record<string, RequestBodyObject | ReferenceObject>;
+  /** Shallow-merge a patch into existing `components.requestBodies` entries;
+   * a new key is created from the patch. See {@link SpecOverlay.extendParameters}. */
+  extendRequestBodies?: Record<string, Partial<RequestBodyObject> | ReferenceObject>;
   /** Replace `components.requestBodies` entries by name. New keys append. */
   replaceRequestBodies?: Record<string, RequestBodyObject | ReferenceObject>;
   /** Remove `components.requestBodies` entries by name. Throws on missing. */
   removeRequestBodies?: string[];
 
-  /** Shallow-merge into existing `components.headers` entries; new keys append. */
-  extendHeaders?: Record<string, HeaderObject | ReferenceObject>;
+  /** Shallow-merge a patch into existing `components.headers` entries;
+   * a new key is created from the patch. See {@link SpecOverlay.extendParameters}. */
+  extendHeaders?: Record<string, Partial<HeaderObject> | ReferenceObject>;
   /** Replace `components.headers` entries by name. New keys append. */
   replaceHeaders?: Record<string, HeaderObject | ReferenceObject>;
   /** Remove `components.headers` entries by name. Throws on missing. */
   removeHeaders?: string[];
 
-  /** Shallow-merge into existing `components.securitySchemes` entries; new keys append. */
-  extendSecuritySchemes?: Record<string, SecuritySchemeObject | ReferenceObject>;
+  /** Shallow-merge a patch into existing `components.securitySchemes` entries;
+   * a new key is created from the patch. See {@link SpecOverlay.extendParameters}. */
+  extendSecuritySchemes?: Record<string, Partial<SecuritySchemeObject> | ReferenceObject>;
   /** Replace `components.securitySchemes` entries by name. New keys append. */
   replaceSecuritySchemes?: Record<string, SecuritySchemeObject | ReferenceObject>;
   /** Remove `components.securitySchemes` entries by name. Throws on missing. */
   removeSecuritySchemes?: string[];
 
-  /** Shallow-merge into existing `components.links` entries; new keys append. */
-  extendLinks?: Record<string, LinkObject | ReferenceObject>;
+  /** Shallow-merge a patch into existing `components.links` entries;
+   * a new key is created from the patch. See {@link SpecOverlay.extendParameters}. */
+  extendLinks?: Record<string, Partial<LinkObject> | ReferenceObject>;
   /** Replace `components.links` entries by name. New keys append. */
   replaceLinks?: Record<string, LinkObject | ReferenceObject>;
   /** Remove `components.links` entries by name. Throws on missing. */
   removeLinks?: string[];
 
-  /** Shallow-merge into existing `components.callbacks` entries; new keys append. */
-  extendCallbacks?: Record<string, CallbackObject | ReferenceObject>;
+  /** Shallow-merge a patch into existing `components.callbacks` entries;
+   * a new key is created from the patch. See {@link SpecOverlay.extendParameters}. */
+  extendCallbacks?: Record<string, Partial<CallbackObject> | ReferenceObject>;
   /** Replace `components.callbacks` entries by name. New keys append. */
   replaceCallbacks?: Record<string, CallbackObject | ReferenceObject>;
   /** Remove `components.callbacks` entries by name. Throws on missing. */
   removeCallbacks?: string[];
 
-  /** Shallow-merge into existing `components.examples` entries; new keys append. */
-  extendExamples?: Record<string, ExampleObject | ReferenceObject>;
+  /** Shallow-merge a patch into existing `components.examples` entries;
+   * a new key is created from the patch. See {@link SpecOverlay.extendParameters}. */
+  extendExamples?: Record<string, Partial<ExampleObject> | ReferenceObject>;
   /** Replace `components.examples` entries by name. New keys append. */
   replaceExamples?: Record<string, ExampleObject | ReferenceObject>;
   /** Remove `components.examples` entries by name. Throws on missing. */
