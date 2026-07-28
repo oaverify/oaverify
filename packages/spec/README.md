@@ -195,7 +195,7 @@ findings. The validator surfaces it too: `createValidator(spec,
 layer is natural for the flow; running `lint: true` in two places lints
 twice.
 
-`oaverify resolve --lint` exposes the same checks at the CLI; pair with
+`oaverify check` exposes the same checks at the CLI; pair with
 `--fail-on warning` for a CI gate.
 
 See `SpecHygieneIssue` for the per-finding shape.

@@ -98,36 +98,44 @@ describe("buildProgram: argv-level", () => {
     expect(mem.writes[0]?.[1]).toContain('"openapi"');
   });
 
-  it("resolve --lint --fail-on warning exits 1 when the spec has hygiene issues", async () => {
+  it("check --fail-on warning exits 1 when the spec has hygiene issues", async () => {
     const dirty = {
       ...spec,
       components: { schemas: { Orphan: { type: "object" } } },
     };
     const mem = memoryIo([["spec.json", dirty]]);
-    const out = await runCli(["resolve", "spec.json", "--lint", "--fail-on", "warning"], mem);
+    const out = await runCli(["check", "spec.json", "--fail-on", "warning"], mem);
     expect(out.exitCode).toBe(1);
-    expect(out.stderr).toContain("warning [unused-component]");
+    expect(out.stdout).toContain("hygiene [unused-component]");
   });
 
-  it("resolve --lint --envelope json folds findings into the envelope", async () => {
+  it("check --format json emits one classed findings array", async () => {
     const dirty = {
       ...spec,
       components: { schemas: { Orphan: { type: "object" } } },
     };
     const mem = memoryIo([["spec.json", dirty]]);
-    const out = await runCli(["resolve", "spec.json", "--lint", "--envelope", "json"], mem);
+    const out = await runCli(["check", "spec.json", "--format", "json"], mem);
     expect(out.exitCode).toBe(0);
     expect(out.stderr).toBe("");
-    const env = JSON.parse(out.stdout);
-    expect(env.specHygieneIssues).toHaveLength(1);
-    expect(env.specHygieneIssues[0].code).toBe("unused-component");
+    const payload = JSON.parse(out.stdout) as { findings: { class: string; code: string }[] };
+    expect(payload.findings.some((f) => f.code === "unused-component")).toBe(true);
+    for (const f of payload.findings) expect(f.class).toBeTruthy();
   });
 
-  it("resolve --fail-on without --lint is a usage error", async () => {
+  it("check rejects an unknown --only class as a usage error", async () => {
     const mem = memoryIo([["spec.json", spec]]);
-    const out = await runCli(["resolve", "spec.json", "--fail-on", "warning"], mem);
-    expect(out.exitCode).toBe(3);
-    expect(out.stderr).toContain("--fail-on requires --lint");
+    await expect(runCli(["check", "spec.json", "--only", "nonsense"], mem)).rejects.toThrow(
+      /unknown check class/,
+    );
+  });
+
+  it("resolve no longer accepts --lint", async () => {
+    // Moved to `check`. Commander rejects the unknown option.
+    const mem = memoryIo([["spec.json", spec]]);
+    await expect(runCli(["resolve", "spec.json", "--lint"], mem)).rejects.toThrow(
+      /unknown option .--lint./,
+    );
   });
 
   it("validate --path/--body happy path exits 0 and stays silent", async () => {

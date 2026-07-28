@@ -1,12 +1,15 @@
 import { Command } from "commander";
 import { KNOWN_OUTPUT_FORMATS, isOutputFormat, type OutputFormat } from "@oaverify/internal-core";
 import {
+  CHECK_CLASSES,
+  checkCommand,
   compileSchemaCommand,
   compileSpecCommand,
   defaultCommandIo,
   resolveCommand,
   streamCheckCommand,
   validateCommand,
+  type CheckClass,
   type CommandIo,
   type ValidateMode,
 } from "./commands.js";
@@ -66,14 +69,44 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       collectOverlays,
       [],
     )
+    .option("-o, --output <file>", "write output to a file instead of stdout")
+    .option("--quiet", "print nothing; exit code only", false)
+    .action(async (spec: string, opts: { overlay: string[]; output?: string; quiet: boolean }) => {
+      const res = await resolveCommand(
+        {
+          spec,
+          overlays: opts.overlay,
+          options: { output: opts.output, quiet: opts.quiet },
+        },
+        io,
+      );
+      exit(res.exitCode);
+    });
+
+  program
+    .command("check <spec>")
+    .description("Report what is wrong with a spec: hygiene and schema-lint findings.")
     .option(
-      "--lint",
-      "run spec-hygiene checks; findings go to stderr (or the json envelope when --envelope json)",
-      false,
+      "--overlay <file...>",
+      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      collectOverlays,
+      [],
+    )
+    .option(
+      "--only <classes>",
+      `comma-separated subset of: ${CHECK_CLASSES.join(", ")} (default: all)`,
+      (value: string): CheckClass[] =>
+        value.split(",").map((raw) => {
+          const name = raw.trim();
+          if (!(CHECK_CLASSES as readonly string[]).includes(name)) {
+            throw new Error(`unknown check class: ${name} (expected ${CHECK_CLASSES.join(", ")})`);
+          }
+          return name as CheckClass;
+        }),
     )
     .option(
       "--fail-on <level>",
-      "non-zero exit when any finding at or above <level> appears (only 'warning' for now); requires --lint",
+      "non-zero exit when any finding at or above <level> appears (only 'warning' for now)",
       (value: string): "warning" => {
         if (value !== "warning") {
           throw new Error(`unknown level: ${value} (expected "warning")`);
@@ -82,11 +115,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       },
     )
     .option(
-      "--envelope <shape>",
-      "'text' (default; document on stdout, findings on stderr) or 'json' ({ document, specHygieneIssues } single payload)",
+      "--format <shape>",
+      "'text' (default; one finding per line) or 'json' ({ findings })",
       (value: string): "text" | "json" => {
         if (value !== "text" && value !== "json") {
-          throw new Error(`unknown envelope: ${value} (expected "text" or "json")`);
+          throw new Error(`unknown format: ${value} (expected "text" or "json")`);
         }
         return value;
       },
@@ -99,25 +132,21 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
         spec: string,
         opts: {
           overlay: string[];
-          lint: boolean;
+          only?: CheckClass[];
           failOn?: "warning";
-          envelope: "text" | "json";
+          format: "text" | "json";
           output?: string;
           quiet: boolean;
         },
       ) => {
-        const res = await resolveCommand(
+        const res = await checkCommand(
           {
             spec,
-            overlays: opts.overlay ?? [],
-            lint: opts.lint,
-            ...(opts.failOn !== undefined && { failOn: opts.failOn }),
-            envelope: opts.envelope,
-            options: {
-              format: "text",
-              output: opts.output,
-              quiet: opts.quiet,
-            },
+            overlays: opts.overlay,
+            only: opts.only,
+            failOn: opts.failOn,
+            format: opts.format,
+            options: { output: opts.output, quiet: opts.quiet },
           },
           io,
         );
@@ -193,11 +222,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       [],
     )
     .option(
-      "--envelope <shape>",
+      "--format <shape>",
       "'text' (default; per-operation table) or 'json' (the SpecBudget payload)",
       (value: string): "text" | "json" => {
         if (value !== "text" && value !== "json") {
-          throw new Error(`unknown envelope: ${value} (expected "text" or "json")`);
+          throw new Error(`unknown format: ${value} (expected "text" or "json")`);
         }
         return value;
       },
@@ -217,7 +246,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
         spec: string,
         opts: {
           overlay: string[];
-          envelope: "text" | "json";
+          format: "text" | "json";
           maxBufferedBytes?: number;
           failOnUnbounded: boolean;
           verbose: boolean;
@@ -229,7 +258,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           {
             spec,
             overlays: opts.overlay ?? [],
-            envelope: opts.envelope,
+            format: opts.format,
             ...(opts.maxBufferedBytes !== undefined && {
               maxBufferedBytes: opts.maxBufferedBytes,
             }),

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  checkCommand,
   defaultCommandIo,
   resolveCommand,
   validateCommand,
@@ -199,86 +200,100 @@ describe("resolveCommand", () => {
     };
   }
 
-  it("--lint emits warnings to stderr, document still on stdout, exit 0", async () => {
+  it("resolve prints the document and nothing else", async () => {
+    // Lint moved to `check`; resolve is back to stitching and printing.
     const { io, stdout, stderr } = memoryIo([["spec.json", dirtySpec()]]);
-    const result = await resolveCommand(
-      { spec: "spec.json", overlays: [], lint: true, options: textOpts },
-      io,
-    );
+    const result = await resolveCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
     expect(result.exitCode).toBe(0);
-    expect(stderr.value).toContain("warning [unused-component]");
-    expect(stderr.value).toContain("/components/schemas/Orphan");
     expect(stdout.value).toContain('"openapi"');
+    expect(stderr.value).toBe("");
   });
 
-  it("--lint --fail-on warning bumps exit code to 1 when findings exist", async () => {
-    const { io } = memoryIo([["spec.json", dirtySpec()]]);
-    const result = await resolveCommand(
-      {
-        spec: "spec.json",
-        overlays: [],
-        lint: true,
-        failOn: "warning",
-        options: textOpts,
-      },
-      io,
-    );
-    expect(result.exitCode).toBe(1);
-  });
-
-  it("--lint --fail-on warning stays at 0 when the spec is clean", async () => {
-    const cleanSpec = {
-      openapi: "3.1.0",
-      info: { title: "X", version: "1" },
-      paths: { "/pets": { get: { responses: { "200": { description: "ok" } } } } },
-    };
-    const { io } = memoryIo([["spec.json", cleanSpec]]);
-    const result = await resolveCommand(
-      {
-        spec: "spec.json",
-        overlays: [],
-        lint: true,
-        failOn: "warning",
-        options: textOpts,
-      },
-      io,
-    );
+  it("check reports hygiene findings with their class and pointer", async () => {
+    const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
+    const result = await checkCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
     expect(result.exitCode).toBe(0);
+    expect(stdout.value).toContain("hygiene [unused-component]");
+    expect(stdout.value).toContain("/components/schemas/Orphan");
   });
 
-  it("--envelope json folds findings into the envelope (no stderr split)", async () => {
+  it("check --fail-on warning exits 1 when findings exist, 0 when clean", async () => {
+    const dirty = memoryIo([["spec.json", dirtySpec()]]);
+    expect(
+      (
+        await checkCommand(
+          { spec: "spec.json", overlays: [], failOn: "warning", options: textOpts },
+          dirty.io,
+        )
+      ).exitCode,
+    ).toBe(1);
+
+    const clean = memoryIo([
+      [
+        "spec.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1" },
+          paths: { "/pets": { get: { responses: { "200": { description: "ok" } } } } },
+        },
+      ],
+    ]);
+    expect(
+      (
+        await checkCommand(
+          { spec: "spec.json", overlays: [], failOn: "warning", options: textOpts },
+          clean.io,
+        )
+      ).exitCode,
+    ).toBe(0);
+  });
+
+  it("check --format json emits one findings array, every entry classed", async () => {
     const { io, stdout, stderr } = memoryIo([["spec.json", dirtySpec()]]);
-    const result = await resolveCommand(
-      {
-        spec: "spec.json",
-        overlays: [],
-        lint: true,
-        envelope: "json",
-        options: textOpts,
-      },
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], format: "json", options: textOpts },
       io,
     );
     expect(result.exitCode).toBe(0);
     expect(stderr.value).toBe("");
-    const envelope = JSON.parse(stdout.value);
-    expect(envelope).toHaveProperty("document");
-    expect(envelope.specHygieneIssues).toHaveLength(1);
-    expect(envelope.specHygieneIssues[0].code).toBe("unused-component");
+    const payload = JSON.parse(stdout.value) as { findings: { class: string }[] };
+    expect(payload.findings.length).toBeGreaterThan(0);
+    // `class` is required: a consumer must be able to re-split the array.
+    for (const f of payload.findings) expect(f.class).toBeTruthy();
   });
 
-  it("--fail-on without --lint is a usage error (exit 3)", async () => {
-    const { io, stderr } = memoryIo([["spec.json", dirtySpec()]]);
-    const result = await resolveCommand(
-      {
-        spec: "spec.json",
-        overlays: [],
-        failOn: "warning",
-        options: textOpts,
-      },
+  it("check --only narrows the classes that run", async () => {
+    const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
+    await checkCommand(
+      { spec: "spec.json", overlays: [], only: ["schema"], format: "json", options: textOpts },
       io,
     );
-    expect(result.exitCode).toBe(3);
-    expect(stderr.value).toContain("--fail-on requires --lint");
+    const payload = JSON.parse(stdout.value) as { findings: { class: string }[] };
+    expect(payload.findings.every((f) => f.class === "schema")).toBe(true);
+  });
+
+  it("check exits 2 when the document cannot be compiled", async () => {
+    // Malformed is not a finding: there is no validator to grade.
+    const { io, stderr } = memoryIo([
+      [
+        "spec.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1" },
+          paths: {
+            "/p": {
+              get: {
+                parameters: [{ name: "q", in: "query", schema: { type: "Strng" } }],
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        },
+      ],
+    ]);
+    const result = await checkCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
+    expect(result.exitCode).toBe(2);
+    expect(stderr.value).toContain("unknown type name");
   });
 });
 

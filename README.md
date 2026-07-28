@@ -361,7 +361,7 @@ Flags: `--format text|json|summary`, `--depth n`, `--overlay file`
 (repeatable), `-o file`, `--quiet`, `--dialect` (compile-schema /
 compile-spec), `--requests-only` (compile-spec), `--only METHOD PATH`
 (compile-spec, repeatable), `--verbose` / `--fail-on-unbounded` /
-`--envelope json` (stream-check). See
+`--format json` (stream-check). See
 [packages/cli/README.md](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md) for the full
 surface, the `.http` file format, and both compile commands' output
 contracts.
