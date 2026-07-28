@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { collectLeaves } from "@oaverify/internal-core";
-import { compileSchema } from "../src/compiler/compiler.js";
+import { compileSchema, type CompiledTreeSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect } from "../src/keywords/vocabulary.js";
+import { failure } from "./helpers.js";
 
-// Tree output so the assertions can walk `r.error`; `maxErrors`
+// Tree output so the assertions can walk `failure(r).error`; `maxErrors`
 // uncapped unless a test pins it. (The zero-config default is
 // `maxErrors: 1`, covered in default-output.test.ts.)
-function compile(schema: unknown, maxErrors?: number): ReturnType<typeof compileSchema> {
+function compile(schema: unknown, maxErrors?: number): CompiledTreeSchema {
   return compileSchema(schema as never, {
     dialect: jsonSchemaDialect,
     output: "tree",
@@ -19,26 +20,26 @@ describe("maxErrors option", () => {
     const v = compile({ required: ["a", "b", "c", "d"] });
     const r = v.validate({});
     expect(r.valid).toBe(false);
-    expect(collectLeaves(r.error!)).toHaveLength(4);
-    expect(r.truncated).toBe(false);
+    expect(collectLeaves(failure(r).error)).toHaveLength(4);
+    expect(failure(r).truncated).toBe(false);
   });
 
   it("caps total leaf errors at the configured maxErrors", () => {
     const v = compile({ required: ["a", "b", "c", "d"] }, 2);
     const r = v.validate({});
     expect(r.valid).toBe(false);
-    expect(collectLeaves(r.error!)).toHaveLength(2);
-    expect(r.truncated).toBe(true);
+    expect(collectLeaves(failure(r).error)).toHaveLength(2);
+    expect(failure(r).truncated).toBe(true);
   });
 
   it("resets the budget between consecutive validate() calls", () => {
     const v = compile({ required: ["a", "b"] }, 1);
     const r1 = v.validate({});
-    expect(collectLeaves(r1.error!)).toHaveLength(1);
-    expect(r1.truncated).toBe(true);
+    expect(collectLeaves(failure(r1).error)).toHaveLength(1);
+    expect(failure(r1).truncated).toBe(true);
     const r2 = v.validate({});
-    expect(collectLeaves(r2.error!)).toHaveLength(1);
-    expect(r2.truncated).toBe(true);
+    expect(collectLeaves(failure(r2).error)).toHaveLength(1);
+    expect(failure(r2).truncated).toBe(true);
     // sanity: validity is unaffected
     const r3 = v.validate({ a: 1, b: 2 });
     expect(r3.valid).toBe(true);
@@ -59,8 +60,8 @@ describe("maxErrors option", () => {
     );
     const r = v.validate({ a: "x", b: "y", c: "z" });
     expect(r.valid).toBe(false);
-    expect(collectLeaves(r.error!)).toHaveLength(1);
-    expect(r.truncated).toBe(true);
+    expect(collectLeaves(failure(r).error)).toHaveLength(1);
+    expect(failure(r).truncated).toBe(true);
   });
 
   it("short-circuits array-item iteration once the budget is exhausted", () => {
@@ -73,8 +74,8 @@ describe("maxErrors option", () => {
     expect(r.valid).toBe(false);
     // Leaf count proves the short-circuit: a non-gated impl would collect
     // 10_000 leaves, not 3.
-    expect(collectLeaves(r.error!)).toHaveLength(3);
-    expect(r.truncated).toBe(true);
+    expect(collectLeaves(failure(r).error)).toHaveLength(3);
+    expect(failure(r).truncated).toBe(true);
   });
 
   it("short-circuits property iteration once the budget is exhausted", () => {
@@ -83,15 +84,15 @@ describe("maxErrors option", () => {
     for (let i = 0; i < 1000; i += 1) bad[`extra${i}`] = 1;
     const r = v.validate(bad);
     expect(r.valid).toBe(false);
-    expect(collectLeaves(r.error!)).toHaveLength(2);
-    expect(r.truncated).toBe(true);
+    expect(collectLeaves(failure(r).error)).toHaveLength(2);
+    expect(failure(r).truncated).toBe(true);
   });
 
   it("reports truncated: false when everything fit in the budget", () => {
     const v = compile({ required: ["a"] }, 10);
     const r = v.validate({});
-    expect(collectLeaves(r.error!)).toHaveLength(1);
-    expect(r.truncated).toBe(false);
+    expect(collectLeaves(failure(r).error)).toHaveLength(1);
+    expect(failure(r).truncated).toBe(false);
   });
 
   it("valid input never sets truncated even with a tight cap", () => {
@@ -131,9 +132,8 @@ describe("flat-mode fast-fail (budget exhaustion returns immediately)", () => {
     const v = flatCompile({ type: "integer" });
     const r = v.validate("nope");
     expect(r.valid).toBe(false);
-    if (r.valid) return;
-    expect(r.errors).toHaveLength(1);
-    expect(r.truncated).toBe(true);
+    expect(failure(r).errors).toHaveLength(1);
+    expect(failure(r).truncated).toBe(true);
   });
 
   it("stops evaluating keywords once the budget is exhausted", () => {
@@ -154,9 +154,8 @@ describe("flat-mode fast-fail (budget exhaustion returns immediately)", () => {
     );
     const r = v.validate("something-else");
     expect(r.valid).toBe(false);
-    if (r.valid) return;
-    expect(r.errors.map((e) => e.code)).toEqual(["const"]);
-    expect(r.truncated).toBe(true);
+    expect(failure(r).errors.map((e) => e.code)).toEqual(["const"]);
+    expect(failure(r).truncated).toBe(true);
     expect(calls).toBe(0);
 
     // Valid data still reaches the custom keyword.
@@ -185,9 +184,8 @@ describe("flat-mode fast-fail (budget exhaustion returns immediately)", () => {
     );
     const r = v.validate({ a: "bad", b: 1 });
     expect(r.valid).toBe(false);
-    if (r.valid) return;
-    expect(r.errors.map((e) => e.code)).toEqual(["type"]);
-    expect(r.truncated).toBe(true);
+    expect(failure(r).errors.map((e) => e.code)).toEqual(["type"]);
+    expect(failure(r).truncated).toBe(true);
     expect(calls).toBe(0);
   });
 
@@ -195,17 +193,15 @@ describe("flat-mode fast-fail (budget exhaustion returns immediately)", () => {
     const v = flatCompile({ required: ["a", "b"] }, { maxErrors: 5 });
     const r = v.validate({});
     expect(r.valid).toBe(false);
-    if (r.valid) return;
-    expect(r.errors).toHaveLength(2);
-    expect(r.truncated).toBe(false);
+    expect(failure(r).errors).toHaveLength(2);
+    expect(failure(r).truncated).toBe(false);
   });
 
   it("landing exactly on the cap reports truncated: true", () => {
     const v = flatCompile({ required: ["a", "b"] }, { maxErrors: 2 });
     const r = v.validate({});
     expect(r.valid).toBe(false);
-    if (r.valid) return;
-    expect(r.errors).toHaveLength(2);
-    expect(r.truncated).toBe(true);
+    expect(failure(r).errors).toHaveLength(2);
+    expect(failure(r).truncated).toBe(true);
   });
 });

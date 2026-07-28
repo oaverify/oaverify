@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { composeReaders, createMemoryReader } from "../src/reader.js";
 import { resolveJsonPointer, resolveSpec } from "../src/resolver.js";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 
 function collectInternalRefs(value: unknown, out: string[] = []): string[] {
   if (value === null || typeof value !== "object") return out;
@@ -113,8 +114,7 @@ describe("resolveSpec", () => {
       ]),
     );
     const { document } = await resolveSpec({ reader, entry: "a.json" });
-    const docRecord = document as unknown as Record<string, unknown>;
-    const defs = docRecord.$defs as Record<string, unknown>;
+    const defs = (document as unknown as { $defs: Record<string, unknown> }).$defs;
     const ext = defs.__ext__ as Record<string, unknown>;
     expect(Object.keys(ext).length).toBeGreaterThan(0);
     for (const ref of collectInternalRefs(document)) {
@@ -153,15 +153,13 @@ describe("resolveSpec", () => {
     );
     const { document } = await resolveSpec({ reader, entry: "main.json" });
     const schemas = (
-      (document as unknown as Record<string, unknown>).components as Record<string, unknown>
-    ).schemas as Record<string, Record<string, unknown>>;
-    expect(schemas.Plain.type).toBe("object");
-    expect(schemas.Plain.$ref).toBeUndefined();
-    const docRecord = document as unknown as Record<string, unknown>;
-    const ext = ((docRecord.$defs ?? {}) as Record<string, unknown>).__ext__ as Record<
-      string,
-      unknown
-    >;
+      document as unknown as { components: { schemas: Record<string, Record<string, unknown>> } }
+    ).components.schemas;
+    expect(schemas.Plain?.type).toBe("object");
+    expect(schemas.Plain?.$ref).toBeUndefined();
+    const docRecord = document as unknown as SchemaOrBoolean;
+    const ext = (docRecord as unknown as { $defs: Record<string, unknown> }).$defs
+      .__ext__ as Record<string, unknown>;
     expect(ext).toBeDefined();
     expect(Object.keys(ext)).toContain("loop.json");
     expect(Object.keys(ext)).not.toContain("plain.json");
@@ -209,7 +207,7 @@ describe("resolveSpec", () => {
       ]),
     );
     const { document } = await resolveSpec({ reader, entry: "a.json" });
-    const defs = (document as unknown as Record<string, unknown>).$defs as Record<string, unknown>;
+    const defs = (document as unknown as { $defs: Record<string, unknown> }).$defs;
     expect((defs.Existing as Record<string, unknown>).type).toBe("string");
     expect(defs.__ext__).toBeDefined();
   });

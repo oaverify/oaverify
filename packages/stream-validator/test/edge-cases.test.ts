@@ -5,6 +5,7 @@ import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import { compileSchema, jsonSchemaDialect } from "@oaverify/internal-schema";
 import { classify, ClassifierError } from "../src/classifier/index.js";
 import { createStreamValidator, type StreamVerdict } from "../src/index.js";
+import { asError } from "./helpers.js";
 
 const enc = new TextEncoder();
 
@@ -43,12 +44,13 @@ async function expectParity(schema: SchemaOrBoolean, values: unknown[]): Promise
 
 describe("draft-07 dependencies (array form)", () => {
   it("enforces a property-presence dependency", async () => {
-    await expectParity({ type: "object", dependencies: { creditCard: ["billingAddress"] } }, [
-      {},
-      { creditCard: "x" },
-      { creditCard: "x", billingAddress: "y" },
-      { billingAddress: "y" },
-    ]);
+    await expectParity(
+      {
+        type: "object",
+        dependencies: { creditCard: ["billingAddress"] },
+      } as unknown as SchemaOrBoolean,
+      [{}, { creditCard: "x" }, { creditCard: "x", billingAddress: "y" }, { billingAddress: "y" }],
+    );
   });
 });
 
@@ -93,7 +95,7 @@ describe("maxBufferedBytes is enforced on a single-chunk scalar", () => {
         new Writable({ write: (_c, _e, cb) => cb() }),
       ),
     ).rejects.toThrow(/maxBufferedBytes/);
-    expect((await guard).message).toMatch(/maxBufferedBytes/);
+    expect(asError(await guard).message).toMatch(/maxBufferedBytes/);
   });
 });
 

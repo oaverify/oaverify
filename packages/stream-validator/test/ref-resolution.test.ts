@@ -34,15 +34,16 @@ async function expectParity(schema: SchemaOrBoolean, values: unknown[]): Promise
 
 describe("components is a ref container, not an unknown keyword", () => {
   it("resolves a #/components/schemas ref on the stream path", async () => {
-    const schema: SchemaObject = {
+    const schema = {
       $ref: "#/components/schemas/Pet",
       components: { schemas: { Pet: { type: "object", required: ["name"] } } },
-    };
+    } as unknown as SchemaOrBoolean;
     await expectParity(schema, [{ name: "x" }, {}, "not-object"]);
   });
 
   it("resolves component refs inside a BUFFER island (oneOf)", async () => {
-    const schema: SchemaObject = {
+    // `components` is an OpenAPI ref container, not a schema keyword.
+    const schema = {
       type: "object",
       properties: {
         pet: {

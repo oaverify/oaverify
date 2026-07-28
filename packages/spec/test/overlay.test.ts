@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { applyOverlays, isSpecOverlay, specOverlayVerbs } from "../src/overlay.js";
+import { notRef } from "./helpers.js";
 
 function base(): OpenAPIDocument {
   return {
@@ -26,6 +27,12 @@ function base(): OpenAPIDocument {
   };
 }
 
+// NOTE: the `as never` casts below are working around a real type bug,
+// not test sloppiness. `extend*` operations merge a *partial* patch into
+// an existing component, but SpecOverlay types them as the full object
+// (`Record<string, ParameterObject | ReferenceObject>`), so patching just
+// a `description` does not type-check. Filed separately; remove the casts
+// when the overlay types take Partial for extend operations.
 describe("applyOverlays", () => {
   it("addPaths inserts new paths and rejects conflicts", () => {
     const patched = applyOverlays(base(), [
@@ -62,8 +69,8 @@ describe("applyOverlays", () => {
     ]);
     const params = patched.paths?.["/pets"]?.get?.parameters ?? [];
     expect(params).toHaveLength(2);
-    const byKey = Object.fromEntries(params.map((p) => [`${p.in}:${p.name}`, p]));
-    expect(byKey["query:limit"]?.schema).toEqual({ type: "string" });
+    const byKey = Object.fromEntries(params.map((p) => [`${notRef(p).in}:${notRef(p).name}`, p]));
+    expect(notRef(byKey["query:limit"]!).schema).toEqual({ type: "string" });
     expect(byKey["header:X-Tenant"]).toBeDefined();
   });
 
@@ -82,7 +89,7 @@ describe("applyOverlays", () => {
       },
     ]);
     const params = patched.paths?.["/pets"]?.get?.parameters ?? [];
-    expect(params.some((p) => p.name === "trace")).toBe(true);
+    expect(params.some((p) => notRef(p).name === "trace")).toBe(true);
   });
 
   it("extendSchemas wraps the existing schema in allOf", () => {
@@ -378,7 +385,7 @@ describe("applyOverlays: component bucket fan-out", () => {
     const patched = applyOverlays(baseWithComponents(), [
       {
         extendParameters: {
-          TraceId: { description: "traces" },
+          TraceId: { description: "traces" } as never,
           NewParam: { name: "X-New", in: "header" },
         },
       },
@@ -418,11 +425,11 @@ describe("applyOverlays: component bucket fan-out", () => {
       {
         extendComponentResponses: { NotFound: { description: "not found 2" } },
         replaceComponentResponses: { New: { description: "fresh" } },
-        extendRequestBodies: { PetBody: { description: "pet" } },
+        extendRequestBodies: { PetBody: { description: "pet" } } as never,
         replaceRequestBodies: { NewBody: { content: {} } },
         extendHeaders: { RateLimit: { description: "limit" } },
         replaceHeaders: { Other: { schema: { type: "string" } } },
-        extendSecuritySchemes: { apiKey: { description: "key" } },
+        extendSecuritySchemes: { apiKey: { description: "key" } } as never,
         replaceSecuritySchemes: { bearer: { type: "http", scheme: "bearer" } },
         extendLinks: { GetPet: { description: "fetch" } },
         replaceLinks: { Other: { operationId: "x" } },

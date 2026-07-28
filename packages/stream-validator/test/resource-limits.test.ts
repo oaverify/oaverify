@@ -1,8 +1,11 @@
 import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
-import type { RegexCompiler, SchemaOrBoolean } from "@oaverify/internal-core";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import type { RegexCompiler } from "@oaverify/internal-schema";
 import { compileSchema, jsonSchemaDialect, openapi31Dialect } from "@oaverify/internal-schema";
+import { asError } from "./helpers.js";
+
 import {
   BufferLimitError,
   createStreamValidator,
@@ -156,7 +159,7 @@ describe("uniqueItems buffers as an island, bounded by maxUniqueItems / maxBuffe
     await expect(
       pipeline(source(bigUnique(300), 8), validator, new Writable({ write: (_c, _e, cb) => cb() })),
     ).rejects.toThrow(/maxUniqueItems/);
-    expect((await guard).message).toMatch(/maxUniqueItems/);
+    expect(asError(await guard).message).toMatch(/maxUniqueItems/);
   });
 
   it("maxBufferedBytes also caps the uniqueItems island (byte budget)", async () => {
@@ -170,7 +173,7 @@ describe("uniqueItems buffers as an island, bounded by maxUniqueItems / maxBuffe
     await expect(
       pipeline(source(bigUnique(300), 8), validator, new Writable({ write: (_c, _e, cb) => cb() })),
     ).rejects.toThrow(/maxBufferedBytes/);
-    expect((await guard).message).toMatch(/maxBufferedBytes/);
+    expect(asError(await guard).message).toMatch(/maxBufferedBytes/);
   });
 
   it("enforceBounds rejects uniqueItems without maxItems at construction", () => {
@@ -226,6 +229,6 @@ describe("destroy settles the result promise", () => {
     validator.on("error", () => {});
     const guard = validator.result.catch((e) => e as Error);
     validator.destroy(new Error("aborted"));
-    expect((await guard).message).toBe("aborted");
+    expect(asError(await guard).message).toBe("aborted");
   });
 });

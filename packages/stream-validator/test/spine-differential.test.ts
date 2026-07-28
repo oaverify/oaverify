@@ -42,7 +42,7 @@ function inMemoryValid(schema: SchemaOrBoolean, value: unknown): boolean {
   }).validate(value).valid;
 }
 
-const CORPUS: Array<{ schema: SchemaObject; values: unknown[] }> = [
+const CORPUS: Array<{ schema: SchemaOrBoolean; values: unknown[] }> = [
   // --- STREAM keyword set ---
   { schema: { type: "string" }, values: ["", "abc", 1, true, null, {}, []] },
   { schema: { type: "integer" }, values: [1, 1.0, 1.5, "1", true] },

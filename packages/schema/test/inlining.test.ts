@@ -6,10 +6,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { compileSchema } from "../src/compiler/compiler.js";
+import { compileSchema, type CompiledTreeSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect } from "../src/keywords/vocabulary.js";
+import { failure } from "./helpers.js";
 
-function compile(schema: unknown): ReturnType<typeof compileSchema> {
+function compile(schema: unknown): CompiledTreeSchema {
   return compileSchema(schema as never, {
     dialect: jsonSchemaDialect,
     output: "tree",
@@ -80,8 +81,8 @@ describe("subschema inlining", () => {
     expect(v.validate([1, 2, 3]).valid).toBe(true);
     const r = v.validate([1, "two", 3]);
     expect(r.valid).toBe(false);
-    expect(r.error?.code).toBe("type");
-    expect(r.error?.path).toEqual([1]);
+    expect(failure(r).error.code).toBe("type");
+    expect(failure(r).error.path).toEqual([1]);
   });
 
   it("inlining preserves validation behavior: property form", () => {
@@ -89,7 +90,7 @@ describe("subschema inlining", () => {
     expect(v.validate({ age: 5 }).valid).toBe(true);
     const r = v.validate({ age: "x" });
     expect(r.valid).toBe(false);
-    expect(r.error?.path).toEqual(["age"]);
+    expect(failure(r).error.path).toEqual(["age"]);
   });
 
   it("inlining respects maxErrors: allocated paths still wear the budget cap", () => {
@@ -99,7 +100,7 @@ describe("subschema inlining", () => {
     );
     const r = v.validate(["a", "b", "c", "d", "e"]);
     expect(r.valid).toBe(false);
-    expect(r.truncated).toBe(true);
+    expect(failure(r).truncated).toBe(true);
     // Collect leaves under the (possibly "schema"-wrapped) root
     const collect = (e: unknown, out: unknown[] = []): unknown[] => {
       if (e === null || typeof e !== "object") return out;
@@ -111,7 +112,7 @@ describe("subschema inlining", () => {
       for (const c of node.children) collect(c, out);
       return out;
     };
-    expect(collect(r.error)).toHaveLength(3);
+    expect(collect(failure(r).error)).toHaveLength(3);
   });
 
   it("inlining does not break recursive $ref schemas (those stay as functions)", () => {

@@ -1,0 +1,41 @@
+{
+  // Type-checks the test suites, which the build graph deliberately
+  // leaves out: each package's tsconfig has `include: ["src/**/*"]`,
+  // because its job is emitting `dist`, and test files must not be
+  // emitted. That left tests entirely unchecked -- a renamed option
+  // could sit in a test as a silently-ignored excess property and
+  // surface only as a confusing behavioural failure (#496).
+  //
+  // Modelled on `examples/tsconfig.json`: `noEmit` + `composite: false`
+  // so this never participates in `tsc -b`, and paths pointing at `src`
+  // so a check here needs no prior build and sees current source rather
+  // than the last-built `dist`.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "incremental": false,
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@oaverify/internal-core": ["./packages/core/src/index.ts"],
+      "@oaverify/internal-schema": ["./packages/schema/src/index.ts"],
+      "@oaverify/internal-schema/internals": ["./packages/schema/src/internals.ts"],
+      "@oaverify/internal-formats": ["./packages/formats/src/index.ts"],
+      "@oaverify/internal-spec": ["./packages/spec/src/index.ts"],
+      "@oaverify/internal-overlay-spec": ["./packages/overlay-spec/src/index.ts"],
+      "@oaverify/internal-router": ["./packages/router/src/index.ts"],
+      "@oaverify/internal-validator": ["./packages/validator/src/index.ts"],
+      "@oaverify/internal-validator/internals": ["./packages/validator/src/internals.ts"],
+      "@oaverify/internal-stream-validator": ["./packages/stream-validator/src/index.ts"],
+      "@oaverify/stream": ["./packages/stream-validator/src/index.ts"],
+      "@oaverify/internal-cli": ["./packages/cli/src/index.ts"],
+      "@oaverify/internal-yaml": ["./packages/yaml/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/test/**/*.ts", "packages/*/src/**/*.test.ts", "test/**/*.ts"]
+}

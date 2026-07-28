@@ -2,6 +2,7 @@ import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import { applyOverlays } from "@oaverify/internal-spec";
 import { createValidator } from "../src/validator.js";
+import { notRef } from "./fixtures.js";
 
 /**
  * Startup-time introspection: `getOperation` returns the resolved +
@@ -53,7 +54,13 @@ describe("Validator.getOperation", () => {
     expect(info).not.toBeNull();
     expect(info?.pathPattern).toBe("/uploads");
     expect(info?.operation.operationId).toBe("uploadOne");
-    const mediaTypes = Object.keys(info?.operation.requestBody?.content ?? {});
+    const mediaTypes = Object.keys(
+      (
+        notRef(info?.operation.requestBody ?? {}) as {
+          content?: Record<string, { schema?: unknown }>;
+        }
+      ).content ?? {},
+    );
     expect(mediaTypes).toEqual(["multipart/form-data"]);
   });
 
@@ -111,7 +118,11 @@ describe("Validator.getOperation", () => {
     // The user walks the schema the way their middleware needs; the
     // point of the getter is just that the walk sees the post-overlay
     // operation without the consumer rediscovering path matching.
-    const schema = info?.operation.requestBody?.content["multipart/form-data"]?.schema as
+    const schema = (
+      notRef(info?.operation.requestBody ?? {}) as {
+        content: Record<string, { schema?: unknown }>;
+      }
+    ).content["multipart/form-data"]?.schema as
       | { properties?: { file?: { maxLength?: number } } }
       | undefined;
     expect(schema?.properties?.file?.maxLength).toBe(2_000_000);

@@ -32,11 +32,14 @@ export type TreeShim = Omit<TreeValidator, "validateRequest" | "validateResponse
 };
 
 export function createValidator(spec: OpenAPIDocument, options: ValidatorOptions = {}): TreeShim {
-  const v = createValidatorRaw(spec, {
+  // Annotated: `createValidator` is overloaded, and spreading `options`
+  // widens the argument enough that resolution falls back to the union
+  // of all three output shapes, making `r.error` below a type error.
+  const v: TreeValidator = createValidatorRaw(spec, {
     output: "tree",
     maxErrors: Number.POSITIVE_INFINITY,
     ...options,
-  });
+  } as ValidatorOptions & { output: "tree" });
   return Object.assign(Object.create(null) as object, v, {
     validateRequest: (req: HttpRequest): ValidationError | null => {
       const r = v.validateRequest(req);
@@ -121,4 +124,34 @@ export function petSpec(): OpenAPIDocument {
       },
     },
   };
+}
+
+/**
+ * Narrow a validation result to its failure branch.
+ *
+ * `expect(r.valid).toBe(false)` does not narrow a discriminated union,
+ * so `r.errors` is a type error at every assertion site. The two
+ * workarounds both have costs: `r.errors?.[0]` types fine but an
+ * assertion against `undefined` can pass for the wrong reason, and
+ * `if (r.valid) return` silently skips the rest of the test when the
+ * result is unexpectedly valid. This throws instead.
+ */
+export function failure<T extends { valid: boolean }>(result: T): Extract<T, { valid: false }> {
+  if (result.valid) {
+    throw new Error("expected an invalid result, got a valid one");
+  }
+  return result as Extract<T, { valid: false }>;
+}
+
+/**
+ * Narrow past a `$ref` union. OpenAPI containers type most members as
+ * `ReferenceObject | T`; these specs are already resolved, so the ref
+ * branch is unreachable -- but say so explicitly rather than casting,
+ * so a genuinely unresolved ref fails loudly here.
+ */
+export function notRef<T extends object>(node: T): Exclude<T, { $ref: string }> {
+  if ("$ref" in node) {
+    throw new Error(`expected a resolved object, got $ref ${String(node.$ref)}`);
+  }
+  return node as Exclude<T, { $ref: string }>;
 }

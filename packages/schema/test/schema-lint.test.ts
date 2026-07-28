@@ -77,7 +77,8 @@ describe("schema lint", () => {
     expect(baseIssues.map((i) => i.keyword).sort()).toEqual(["externalDocs", "xml"]);
     // Both OpenAPI dialects DO recognize them.
     for (const dialect of [openapi31Dialect, oas30Dialect]) {
-      const issues = compileSchema(schema, { dialect, strict: "strict" }).stats.schemaLintIssues;
+      const issues = compileSchema(schema, { dialect, schemaLint: "strict" }).stats
+        .schemaLintIssues;
       expect(issues).toEqual([]);
     }
   });

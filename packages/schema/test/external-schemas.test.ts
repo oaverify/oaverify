@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { compile } from "./helpers.js";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 
 describe("compileSchema with external schemas", () => {
   it("resolves an absolute $ref to a pre-registered external schema", () => {
     const external = new Map([
-      [
-        "https://example.com/Name",
-        { type: "string", minLength: 1 } as unknown as Record<string, unknown>,
-      ],
+      ["https://example.com/Name", { type: "string", minLength: 1 } as unknown as SchemaOrBoolean],
     ]);
     const v = compile(
       {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compile } from "./helpers.js";
+import { compile, failure } from "./helpers.js";
 
 describe("unevaluatedProperties keyword", () => {
   it("rejects properties not covered by properties or patternProperties", () => {
@@ -11,8 +11,8 @@ describe("unevaluatedProperties keyword", () => {
     expect(v.validate({ a: "x", "x-extra": 1 }).valid).toBe(true);
     const r = v.validate({ a: "x", unknown: 1 });
     expect(r.valid).toBe(false);
-    expect(r.error?.code).toBe("unevaluatedProperties");
-    expect(r.error?.path).toEqual(["unknown"]);
+    expect(failure(r).error.code).toBe("unevaluatedProperties");
+    expect(failure(r).error.path).toEqual(["unknown"]);
   });
 
   it("validates unevaluated properties against the given schema", () => {
@@ -85,8 +85,8 @@ describe("discriminator keyword", () => {
 
     const r = v.validate({ kind: "Cat" });
     expect(r.valid).toBe(false);
-    expect(r.error?.code).toBe("required");
-    expect(r.error?.path).toEqual(["purr"]);
+    expect(failure(r).error.code).toBe("required");
+    expect(failure(r).error.path).toEqual(["purr"]);
   });
 
   it("errors when the discriminator value matches no branch", () => {
@@ -99,8 +99,8 @@ describe("discriminator keyword", () => {
     });
     const r = v.validate({ kind: "Mouse" });
     expect(r.valid).toBe(false);
-    expect(r.error?.code).toBe("discriminator");
-    expect(r.error?.params).toMatchObject({ value: "Mouse" });
+    expect(failure(r).error.code).toBe("discriminator");
+    expect(failure(r).error.params).toMatchObject({ value: "Mouse" });
   });
 
   it("errors when the discriminator property is missing or non-string", () => {
@@ -111,7 +111,7 @@ describe("discriminator keyword", () => {
     });
     const r = v.validate({});
     expect(r.valid).toBe(false);
-    expect(r.error?.code).toBe("discriminator");
+    expect(failure(r).error.code).toBe("discriminator");
   });
 
   it("falls back to the schema name when no explicit mapping is declared", () => {
@@ -128,8 +128,8 @@ describe("discriminator keyword", () => {
     expect(v.validate({ kind: "Cat", purr: true }).valid).toBe(true);
     expect(v.validate({ kind: "Dog", bark: "woof" }).valid).toBe(true);
     const r = v.validate({ kind: "Mouse" });
-    expect(r.error?.code).toBe("discriminator");
-    expect(r.error?.params).toMatchObject({ value: "Mouse" });
+    expect(failure(r).error.code).toBe("discriminator");
+    expect(failure(r).error.params).toMatchObject({ value: "Mouse" });
   });
 
   it("accepts multiple mapping keys that point to the same branch", () => {
@@ -178,7 +178,7 @@ describe("discriminator keyword", () => {
       { kind: "Cat" }, // missing purr
     ]);
     expect(r.valid).toBe(false);
-    expect(r.error?.code).toBe("required");
-    expect(r.error?.path).toEqual([2, "purr"]);
+    expect(failure(r).error.code).toBe("required");
+    expect(failure(r).error.path).toEqual([2, "purr"]);
   });
 });

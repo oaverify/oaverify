@@ -1,7 +1,7 @@
 /* eslint-disable unicorn/no-thenable -- `then` is a JSON Schema keyword here */
 import { describe, expect, it } from "vitest";
 import type { ValidationError } from "@oaverify/internal-core";
-import { compile } from "./helpers.js";
+import { compile, failure } from "./helpers.js";
 
 function leafCodes(err: ValidationError | undefined): string[] {
   if (err === undefined) return [];
@@ -19,7 +19,7 @@ describe("unevaluatedProperties across composition", () => {
     expect(v.validate({ foo: "ok" }).valid).toBe(true);
     const r = v.validate({ foo: "ok", bar: 1 });
     expect(r.valid).toBe(false);
-    expect(leafCodes(r.error)).toContain("unevaluatedProperties");
+    expect(leafCodes(failure(r).error)).toContain("unevaluatedProperties");
   });
 
   it("counts properties from a passing anyOf branch as evaluated", () => {
@@ -133,7 +133,7 @@ describe("unevaluatedProperties across composition", () => {
     expect(v.validate({ foo: "then", bar: "bar" }).valid).toBe(true);
     const r = v.validate({ foo: "then", bar: "bar", extra: "no" });
     expect(r.valid).toBe(false);
-    expect(leafCodes(r.error)).toContain("unevaluatedProperties");
+    expect(leafCodes(failure(r).error)).toContain("unevaluatedProperties");
   });
 
   it("preserves if annotations when if has no sibling then/else", () => {

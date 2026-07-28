@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadSpecSync } from "../src/load.js";
 import { createFileReaderSync } from "../src/reader.js";
+import { notRef } from "./helpers.js";
 
 // End-to-end against the real filesystem (the boot-time case loadSpecSync
 // exists for): a multi-file $ref graph on disk, plus the failure modes a
@@ -48,8 +49,11 @@ describe("loadSpecSync on disk", () => {
 
   it("resolves a multi-file $ref graph from local files (default reader)", () => {
     const { document, sources } = loadSpecSync({ entry: join(dir, "openapi.json") });
-    const schema =
-      document.paths?.["/pets"]?.post?.requestBody?.content?.["application/json"]?.schema;
+    const schema = (
+      notRef(document.paths?.["/pets"]?.post?.requestBody ?? {}) as {
+        content?: Record<string, { schema?: unknown }>;
+      }
+    ).content?.["application/json"]?.schema;
     expect(schema).toEqual({
       type: "object",
       required: ["name"],

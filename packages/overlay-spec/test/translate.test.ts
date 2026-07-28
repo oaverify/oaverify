@@ -208,7 +208,7 @@ describe("translateOverlay: paths and operations", () => {
       ]),
     );
     expect(o.overrides?.["*"]?.pathItem).toEqual({ summary: "any path" });
-    expect(o.overrides?.["/pets"]?.operations?.["*"]).toMatchObject({
+    expect((o.overrides?.["/pets"]?.operations as Record<string, unknown>)?.["*"]).toMatchObject({
       description: "any method on /pets",
     });
   });

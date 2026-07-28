@@ -1,6 +1,6 @@
 import { collectLeaves, httpStatusFor, type ValidationError } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
-import { compile } from "./helpers.js";
+import { compile, failure } from "./helpers.js";
 
 // A self-recursive object schema: each level may carry one `child`, which
 // validates against the root again. The canonical tree/comment shape.
@@ -68,21 +68,21 @@ describe("maxDepth: boundary semantics", () => {
     const v = compile(recursive, { maxDepth: 3 });
     const r = v.validate(nestChild(4));
     expect(r.valid).toBe(false);
-    expect(leafCodes(r.error)).toContain("depth");
+    expect(leafCodes(failure(r).error)).toContain("depth");
   });
 
   it("reports the configured limit in the error params", () => {
     const v = compile(recursive, { maxDepth: 2 });
     const r = v.validate(nestChild(5));
     expect(r.valid).toBe(false);
-    const depthLeaf = collectLeaves(r.error!).find((l) => l.code === "depth");
+    const depthLeaf = collectLeaves(failure(r).error).find((l) => l.code === "depth");
     expect(depthLeaf?.params).toEqual({ limit: 2 });
   });
 
   it("maps the depth error to HTTP 400", () => {
     const v = compile(recursive, { maxDepth: 2 });
     const r = v.validate(nestChild(5));
-    expect(httpStatusFor(r.error!)).toBe(400);
+    expect(httpStatusFor(failure(r).error)).toBe(400);
   });
 });
 
@@ -93,7 +93,7 @@ describe("maxDepth: stack safety", () => {
     const v = compile(recursive, { maxDepth: 64 });
     const r = v.validate(nestChild(DEEP));
     expect(r.valid).toBe(false);
-    expect(leafCodes(r.error)).toContain("depth");
+    expect(leafCodes(failure(r).error)).toContain("depth");
   });
 
   it("confirms the same payload overflows without the guard", () => {
@@ -160,6 +160,6 @@ describe("maxDepth: mutual recursion", () => {
     for (let i = 100_000 - 1; i >= 0; i -= 1) node = { [i % 2 === 0 ? "b" : "a"]: node };
     const r = v.validate(node);
     expect(r.valid).toBe(false);
-    expect(leafCodes(r.error)).toContain("depth");
+    expect(leafCodes(failure(r).error)).toContain("depth");
   });
 });

@@ -105,7 +105,7 @@ describe("emitStandalone", () => {
     const schema: SchemaOrBoolean = {
       type: "integer",
       maximum: 10,
-      // @ts-expect-error OAS 3.0 permits this shape
+      // OAS 3.0 permits a boolean here; SchemaObject models it.
       exclusiveMaximum: true,
     };
     const { validate, dir } = await compileModule(schema, { dialect: "openapi-3.0" });
