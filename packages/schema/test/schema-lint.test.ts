@@ -4,9 +4,9 @@ import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect, oas30Dialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
 
-describe("strict mode", () => {
-  const lint = (schema: SchemaOrBoolean, mode?: "off" | "warn-partial" | "strict") =>
-    compileSchema(schema, { dialect: jsonSchemaDialect, strict: mode }).stats.strictIssues;
+describe("schema lint", () => {
+  const lint = (schema: SchemaOrBoolean, mode?: "off" | "warn" | "strict") =>
+    compileSchema(schema, { dialect: jsonSchemaDialect, schemaLint: mode }).stats.schemaLintIssues;
 
   // Schemas that use $dynamicRef need a $dynamicAnchor somewhere
   // reachable. A self-anchored root works for both test cases.
@@ -16,8 +16,9 @@ describe("strict mode", () => {
     minimumx: 5, // also a typo
   } as unknown as SchemaOrBoolean;
 
-  it("defaults to warn-partial: flags $dynamicRef but not unknown keywords", () => {
-    const issues = compileSchema(dynamicSchema, { dialect: jsonSchemaDialect }).stats.strictIssues;
+  it("defaults to warn: flags $dynamicRef but not unknown keywords", () => {
+    const issues = compileSchema(dynamicSchema, { dialect: jsonSchemaDialect }).stats
+      .schemaLintIssues;
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({
       code: "partial-feature",
@@ -71,12 +72,12 @@ describe("strict mode", () => {
     // they're OpenAPI extensions, not core JSON Schema keywords.
     const baseIssues = compileSchema(schema, {
       dialect: jsonSchemaDialect,
-      strict: "strict",
-    }).stats.strictIssues;
+      schemaLint: "strict",
+    }).stats.schemaLintIssues;
     expect(baseIssues.map((i) => i.keyword).sort()).toEqual(["externalDocs", "xml"]);
     // Both OpenAPI dialects DO recognize them.
     for (const dialect of [openapi31Dialect, oas30Dialect]) {
-      const issues = compileSchema(schema, { dialect, strict: "strict" }).stats.strictIssues;
+      const issues = compileSchema(schema, { dialect, strict: "strict" }).stats.schemaLintIssues;
       expect(issues).toEqual([]);
     }
   });
@@ -146,7 +147,7 @@ describe("strict mode: silent-rewrite/ref-siblings-oas30", () => {
     }) as unknown as SchemaOrBoolean;
 
   const oas30Lint = (schema: SchemaOrBoolean) =>
-    compileSchema(schema, { dialect: oas30Dialect }).stats.strictIssues;
+    compileSchema(schema, { dialect: oas30Dialect }).stats.schemaLintIssues;
 
   it("flags non-metadata siblings of $ref under OAS 3.0", () => {
     const schema = withTarget({
@@ -177,7 +178,7 @@ describe("strict mode: silent-rewrite/ref-siblings-oas30", () => {
       },
     });
     for (const dialect of [jsonSchemaDialect, openapi31Dialect]) {
-      const issues = compileSchema(schema, { dialect }).stats.strictIssues.filter(
+      const issues = compileSchema(schema, { dialect }).stats.schemaLintIssues.filter(
         (i) => i.code === "silent-rewrite/ref-siblings-oas30",
       );
       expect(issues).toEqual([]);
@@ -187,7 +188,7 @@ describe("strict mode: silent-rewrite/ref-siblings-oas30", () => {
 
 describe("strict mode: silent-rewrite/required-not-in-properties", () => {
   const lint = (schema: SchemaOrBoolean) =>
-    compileSchema(schema, { dialect: jsonSchemaDialect }).stats.strictIssues;
+    compileSchema(schema, { dialect: jsonSchemaDialect }).stats.schemaLintIssues;
 
   it("flags a required key not in properties (typo case)", () => {
     const schema = {
@@ -239,7 +240,7 @@ describe("strict mode: silent-rewrite/required-not-in-properties", () => {
 
 describe("strict mode: silent-rewrite/redundant-composition-branches", () => {
   const lint = (schema: SchemaOrBoolean) =>
-    compileSchema(schema, { dialect: jsonSchemaDialect }).stats.strictIssues;
+    compileSchema(schema, { dialect: jsonSchemaDialect }).stats.schemaLintIssues;
 
   it("flags literally identical oneOf branches", () => {
     const schema = {

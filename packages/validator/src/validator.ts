@@ -32,7 +32,7 @@ import {
   type Dialect,
   type RefResolver,
   type RegexCompiler,
-  type StrictIssue,
+  type SchemaLintIssue,
   type TreeValidationResult,
   type ValidationResult,
 } from "@oaverify/internal-schema";
@@ -351,7 +351,7 @@ export interface Validator {
    * {@link ValidatorOptions.lint} is `true`. Empty otherwise. Frozen
    * after `createValidator` returns.
    *
-   * Different from {@link ValidatorStats.strictIssues}, which lints
+   * Different from {@link ValidatorStats.schemaLintIssues}, which lints
    * compiled schemas; this one lints the OpenAPI document itself
    * (unused components, dead path parameters, unreachable `$defs`).
    */
@@ -431,17 +431,17 @@ export interface ValidatorStats {
    */
   responseBodiesCompiled: number;
   /**
-   * Live array of strict-mode issues surfaced by
-   * {@link ValidatorOptions.strict}. Grows as schemas compile (request
+   * Live array of schema lint issues surfaced by
+   * {@link ValidatorOptions.schemaLint}. Grows as schemas compile (request
    * / path / header / query schemas at construction; response-body
-   * schemas lazily on first use). An empty array when `strict: "off"`
+   * schemas lazily on first use). An empty array when `schemaLint: "off"`
    * or when the linter found nothing to flag.
    *
    * Schema paths are the full path inside each compiled schema, not
    * HTTP-frame-prefixed; the linter runs over raw JSON Schema, not
    * OpenAPI.
    */
-  strictIssues: readonly StrictIssue[];
+  schemaLintIssues: readonly SchemaLintIssue[];
 }
 
 /**
@@ -455,7 +455,7 @@ export interface ValidatorStats {
  *   {@link ValidatorOptions.keywords}.
  * - **Output shape + error budget**: {@link ValidatorOptions.output},
  *   {@link ValidatorOptions.maxErrors}.
- * - **Strict-mode linting**: {@link ValidatorOptions.strict}.
+ * - **Schema lint**: {@link ValidatorOptions.schemaLint}.
  * - **Security gating**: {@link ValidatorOptions.validateSecurity}.
  * - **Path filtering**: {@link ValidatorOptions.ignoreUndocumented},
  *   {@link ValidatorOptions.ignorePaths}.
@@ -581,14 +581,14 @@ export interface ValidatorOptions {
    * Compile-time schema linting applied to every schema the validator
    * compiles (request parameters / body; response headers; response
    * bodies lazily). Issues surface via
-   * {@link ValidatorStats.strictIssues}; no throws.
+   * {@link ValidatorStats.schemaLintIssues}; no throws.
    *
    * - `"off"`: silence on everything.
-   * - `"warn-partial"` (default): warn on keywords flagged as
+   * - `"warn"` (default): warn on keywords flagged as
    *   partially-implemented (currently `$dynamicRef`).
    * - `"strict"`: warn on partial features AND unknown keys.
    */
-  strict?: "off" | "warn-partial" | "strict";
+  schemaLint?: "off" | "warn" | "strict";
   /**
    * Custom compiler for schema `pattern` keywords and `format: "regex"`.
    * Defaults to JavaScript's built-in `RegExp` (with u-mode and a
@@ -727,7 +727,7 @@ export interface ValidatorOptions {
  * @param spec - The fully-resolved OpenAPI document (no external `$ref`s).
  * @param options - Tunables for the validator. See {@link ValidatorOptions}
  *   for the full set: security gating, path filtering, dialect override,
- *   error budget, custom formats and keywords, strict-mode linting,
+ *   error budget, custom formats and keywords, schema lint,
  *   version-mismatch handling, and a warn-output sink.
  * @returns A validator that can check individual requests and responses.
  *
@@ -853,12 +853,12 @@ export function createValidator(
   const refResolver: RefResolver = createRefResolver(graph);
 
   // Live array. Compile closure appends on each miss; consumers read
-  // `validator.stats.strictIssues` at any point to see what's been
+  // `validator.stats.schemaLintIssues` at any point to see what's been
   // flagged so far.
-  const strictIssues: StrictIssue[] = [];
+  const schemaLintIssues: SchemaLintIssue[] = [];
   const stats: ValidatorStats = {
     responseBodiesCompiled: 0,
-    strictIssues,
+    schemaLintIssues,
   };
 
   const compiledCache = new Map<SchemaOrBoolean, CompiledTreeSchema>();
@@ -882,11 +882,11 @@ export function createValidator(
       maxErrors,
       maxDepth: options.maxDepth,
       keywords: options.keywords,
-      strict: options.strict,
+      schemaLint: options.schemaLint,
       regexCompiler: options.regexCompiler,
     });
     compiledCache.set(schema, c);
-    for (const issue of c.stats.strictIssues) strictIssues.push(issue);
+    for (const issue of c.stats.schemaLintIssues) schemaLintIssues.push(issue);
     return c;
   };
 

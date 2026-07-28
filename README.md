@@ -297,6 +297,7 @@ shapes live in [`docs/integration.md`](https://github.com/oaverify/oaverify/blob
 | Compare against Ajv and other tools        | [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md)                                   |
 | Migrate from express-openapi-validator     | [docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md)                   |
 | Use custom formats, keywords, or limits    | [docs/configuration.md](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md)                             |
+| Work out what "strict" controls            | [docs/strictness.md](https://github.com/oaverify/oaverify/blob/main/docs/strictness.md)                                   |
 
 ## How it compares
 
@@ -398,7 +399,7 @@ npx swagger2openapi swagger.json -o openapi.json
 ## Configuring the validator
 
 `createValidator(spec, options)` accepts options for dialect override,
-custom formats and keywords, error budget, strict-mode lint, security
+custom formats and keywords, error budget, schema lint, security
 shape-checking, ignored paths, and version-mismatch policy. See
 [`docs/configuration.md`](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md) for the option
 table, custom-keyword recipe, and bounded-error-collection details.

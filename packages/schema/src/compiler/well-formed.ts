@@ -69,7 +69,7 @@ function hintFor(key: string, value: unknown): string {
  * Both are the same defect, so both get the same treatment here: throw,
  * name the offending value, and give the dotted path to it.
  *
- * This runs in every mode, including `strict: "off"`. Well-formedness is
+ * This runs in every mode, including `schemaLint: "off"`. Well-formedness is
  * a precondition rather than a lint level -- `strict` grades schemas
  * that *are* schemas, and there is nothing to grade here. The `"off"`
  * path already threw on these inputs, just without saying where.

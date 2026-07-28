@@ -351,7 +351,7 @@ export function combineValidators(
     get stats(): ValidatorStats {
       return {
         responseBodiesCompiled: validators.reduce((n, m) => n + m.stats.responseBodiesCompiled, 0),
-        strictIssues: validators.flatMap((m) => [...m.stats.strictIssues]),
+        schemaLintIssues: validators.flatMap((m) => [...m.stats.schemaLintIssues]),
       };
     },
   };
