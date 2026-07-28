@@ -353,6 +353,64 @@ describe("schema lint: required-not-in-properties (instance-position aware)", ()
       }),
     ).toEqual([]);
   });
+
+  it("visits a component once per instance position, not once per path", () => {
+    // A diamond `$ref` graph: every level references the next twice. The
+    // walk used to dedupe against the current path, so each level
+    // doubled the work and 22 levels took ten seconds (#511). The
+    // property under test is termination in reasonable time; the bound
+    // is loose enough not to be a benchmark, and the old behaviour is
+    // orders of magnitude outside it.
+    const N = 24;
+    const $defs: Record<string, unknown> = {};
+    for (let i = 0; i < N; i += 1) {
+      $defs[`S${i}`] = {
+        anyOf: [{ $ref: `#/$defs/S${i + 1}` }, { $ref: `#/$defs/S${i + 1}` }],
+      };
+    }
+    $defs[`S${N}`] = { type: "object", properties: { a: { type: "string" } } };
+
+    const started = performance.now();
+    expect(flagged({ $defs, allOf: [{ $ref: "#/$defs/S0" }] })).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(3000);
+  });
+
+  it("stays linear when the duplication is under properties", () => {
+    const N = 24;
+    const $defs: Record<string, unknown> = {};
+    for (let i = 0; i < N; i += 1) {
+      $defs[`S${i}`] = {
+        type: "object",
+        properties: { a: { $ref: `#/$defs/S${i + 1}` }, b: { $ref: `#/$defs/S${i + 1}` } },
+      };
+    }
+    $defs[`S${N}`] = { type: "object", properties: { a: { type: "string" } } };
+
+    const started = performance.now();
+    expect(flagged({ $defs, allOf: [{ $ref: "#/$defs/S0" }] })).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(3000);
+  });
+
+  it("still judges one component separately at each instance position", () => {
+    // The dedupe key is (node, schemas constraining the instance), not
+    // the node alone. `Needs` requires `x`; at `ok` a sibling declares
+    // it and at `bad` nothing does, so skipping the second visit would
+    // lose a real finding.
+    const issues = flagged({
+      type: "object",
+      properties: {
+        ok: {
+          type: "object",
+          allOf: [{ $ref: "#/$defs/Needs" }],
+          properties: { x: { type: "string" } },
+        },
+        bad: { type: "object", allOf: [{ $ref: "#/$defs/Needs" }] },
+      },
+      $defs: { Needs: { required: ["x"] } },
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.path).toContain("bad");
+  });
 });
 
 describe("strict mode: silent-rewrite/redundant-composition-branches", () => {
