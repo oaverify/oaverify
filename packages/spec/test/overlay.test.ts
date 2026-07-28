@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
-import { applyOverlays, isSpecOverlay, specOverlayVerbs } from "../src/overlay.js";
+import {
+  applyOverlays,
+  isSpecOverlay,
+  specOverlayVerbs,
+  type SpecOverlay,
+} from "../src/overlay.js";
 import { notRef } from "./helpers.js";
 
 function base(): OpenAPIDocument {
@@ -27,12 +32,6 @@ function base(): OpenAPIDocument {
   };
 }
 
-// NOTE: the `as never` casts below are working around a real type bug,
-// not test sloppiness. `extend*` operations merge a *partial* patch into
-// an existing component, but SpecOverlay types them as the full object
-// (`Record<string, ParameterObject | ReferenceObject>`), so patching just
-// a `description` does not type-check. Filed separately; remove the casts
-// when the overlay types take Partial for extend operations.
 describe("applyOverlays", () => {
   it("addPaths inserts new paths and rejects conflicts", () => {
     const patched = applyOverlays(base(), [
@@ -382,10 +381,15 @@ describe("applyOverlays: component bucket fan-out", () => {
   }
 
   it("extendParameters shallow-merges existing entries; new keys append", () => {
+    // `TraceId` supplies only `description`, with no `name` or `in`.
+    // That is the whole point of extend, and it is also the type test:
+    // these files are type-checked (#496), so narrowing the extend
+    // verbs back to the full component object fails the build here
+    // rather than pushing a cast into user code (#499).
     const patched = applyOverlays(baseWithComponents(), [
       {
         extendParameters: {
-          TraceId: { description: "traces" } as never,
+          TraceId: { description: "traces" },
           NewParam: { name: "X-New", in: "header" },
         },
       },
@@ -425,11 +429,11 @@ describe("applyOverlays: component bucket fan-out", () => {
       {
         extendComponentResponses: { NotFound: { description: "not found 2" } },
         replaceComponentResponses: { New: { description: "fresh" } },
-        extendRequestBodies: { PetBody: { description: "pet" } } as never,
+        extendRequestBodies: { PetBody: { description: "pet" } },
         replaceRequestBodies: { NewBody: { content: {} } },
         extendHeaders: { RateLimit: { description: "limit" } },
         replaceHeaders: { Other: { schema: { type: "string" } } },
-        extendSecuritySchemes: { apiKey: { description: "key" } } as never,
+        extendSecuritySchemes: { apiKey: { description: "key" } },
         replaceSecuritySchemes: { bearer: { type: "http", scheme: "bearer" } },
         extendLinks: { GetPet: { description: "fetch" } },
         replaceLinks: { Other: { operationId: "x" } },
@@ -540,7 +544,7 @@ describe("applyOverlays: component bucket fan-out", () => {
     ],
     [
       "securitySchemes",
-      () => ({
+      (): SpecOverlay => ({
         replaceSecuritySchemes: { Conflict: { type: "apiKey", name: "K", in: "header" } },
         removeSecuritySchemes: ["Conflict"],
       }),
@@ -565,9 +569,7 @@ describe("applyOverlays: component bucket fan-out", () => {
   ] as const)(
     "%s bucket: replace + remove for same key throws",
     (_bucket, overlayFn, expectedError) => {
-      expect(() => applyOverlays(baseWithComponents(), [overlayFn() as never])).toThrow(
-        expectedError,
-      );
+      expect(() => applyOverlays(baseWithComponents(), [overlayFn()])).toThrow(expectedError);
     },
   );
 
