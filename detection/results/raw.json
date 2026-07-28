@@ -208,7 +208,7 @@
     },
     "spectral": {
       "findings": [],
-      "fatal": "(node:27781) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nError running Spectral!\nUse --verbose flag to print the error stack.\nError #1: Cannot read properties of null (reading 'enum')"
+      "fatal": "(node:90661) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nError running Spectral!\nUse --verbose flag to print the error stack.\nError #1: Cannot read properties of null (reading 'enum')"
     },
     "redocly": {
       "findings": [
