@@ -23,6 +23,7 @@ import {
   walkSubschemas,
 } from "../subschema-positions.js";
 import { createDeps, type RegexCompiler, type ValidatorDeps } from "./runtime.js";
+import { collectRequiredIssues } from "./required-lint.js";
 import { assertWellFormedSchema } from "./well-formed.js";
 
 // Token scan fed into CompileStats.emittedTreeRuntime. Word-boundaried
@@ -115,6 +116,10 @@ function runSchemaLint(
   }
 
   const issues: SchemaLintIssue[] = [];
+  // Ancestor-aware, so it walks the graph itself rather than per-node:
+  // the question is what property names are reachable at an instance
+  // position, which a per-node visitor cannot see.
+  issues.push(...collectRequiredIssues(schema));
   walkSubschemas(schema, (node, path) => {
     if (typeof node !== "object" || node === null || Array.isArray(node)) return;
     const obj = node as Record<string, unknown>;
@@ -161,24 +166,6 @@ function runSchemaLint(
         });
       }
     }
-
-    // silent-rewrite/required-not-in-properties is withheld pending
-    // #475 / #477.
-    //
-    // The guard asks "does *this* object compose?", which is the wrong
-    // question, and it fails in both directions at once. It over-fires
-    // on a `then` or `oneOf[i]` branch whose property is declared on an
-    // ancestor sharing the same instance, and it suppresses itself on
-    // schemas that legitimately compose -- which is exactly where the
-    // unsatisfiable cases live. Measured across 13 published OpenAPI
-    // 3.1 specs: 77 findings, 2 true positives. 2.6% signal.
-    //
-    // A rule nobody trusts gets switched off, which loses its true
-    // positives anyway, so emitting it is worse than withholding it.
-    // #477 replaces the guard with "what property names are reachable
-    // at this instance location?", which fixes both directions; the
-    // rule returns then. The code and message shape stay documented on
-    // SchemaLintIssue so the reintroduction is a revert, not a redesign.
 
     for (const key of COMPOSITION_BRANCH_KEYS) {
       const branches = obj[key];

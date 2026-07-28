@@ -187,32 +187,99 @@ describe("strict mode: silent-rewrite/ref-siblings-oas30", () => {
   });
 });
 
-describe("schema lint: required-not-in-properties is withheld", () => {
-  const lint = (schema: SchemaOrBoolean) =>
-    compileSchema(schema, { dialect: jsonSchemaDialect }).stats.schemaLintIssues;
+describe("schema lint: required-not-in-properties (ancestor-aware)", () => {
+  const flagged = (schema: unknown) =>
+    compileSchema(schema as SchemaOrBoolean, {
+      dialect: jsonSchemaDialect,
+    }).stats.schemaLintIssues.filter((i) => i.code === "silent-rewrite/required-not-in-properties");
 
-  // The rule ran at 2.6% signal (77 findings, 2 true positives across 13
-  // published specs) and is not emitted pending #477's ancestor-aware
-  // rewrite. Pinned as a test rather than left implicit, so its return is
-  // a deliberate change rather than an accident.
-  it("does not emit the code, including on the case it was written for", () => {
-    const typo = {
+  it("flags a name nothing reachable declares", () => {
+    const issues = flagged({
       type: "object",
       properties: { name: { type: "string" } },
       required: ["nam"],
-    } as unknown as SchemaOrBoolean;
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('"nam"');
+  });
+
+  it("does not flag a branch whose property is declared on an ancestor", () => {
+    // The false positive that made the old rule 2.6% signal: a oneOf
+    // branch validates the SAME instance, so requestedAmount is
+    // reachable from the parent.
     expect(
-      lint(typo).filter((i) => i.code === "silent-rewrite/required-not-in-properties"),
+      flagged({
+        type: "object",
+        properties: {
+          requestedAmount: { type: "number" },
+          requestedPercentage: { type: "number" },
+        },
+        oneOf: [{ required: ["requestedAmount"] }, { required: ["requestedPercentage"] }],
+      }),
     ).toEqual([]);
   });
 
-  it("still emits the other schema-lint codes", () => {
-    // The withholding is per-rule, not a disabled class.
-    const issues = compileSchema({ minimumx: 5 } as unknown as SchemaOrBoolean, {
-      dialect: jsonSchemaDialect,
-      schemaLint: "strict",
-    }).stats.schemaLintIssues;
-    expect(issues.map((i) => i.code)).toContain("unknown-keyword");
+  it("never flags under a not ancestor", () => {
+    // `required` under `not` is a negative constraint; the name need
+    // never be declared anywhere.
+    expect(
+      flagged({
+        type: "object",
+        properties: { a: { type: "string" } },
+        not: { required: ["nowhere"] },
+      }),
+    ).toEqual([]);
+  });
+
+  it("catches the unsatisfiable case the old guard suppressed", () => {
+    // The false negative: the old rule skipped any schema that composed,
+    // which is exactly where these live. `cusip` exists one level down
+    // under `notification`, so the top-level required can never be met.
+    const issues = flagged({
+      type: "object",
+      properties: {
+        eventType: { type: "string" },
+        notification: { type: "object", properties: { cusip: { type: "string" } } },
+      },
+      allOf: [{ required: ["eventType", "cusip"] }],
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('"cusip"');
+  });
+
+  it("stays silent when any contributor can supply unknown names", () => {
+    for (const extra of [
+      { additionalProperties: true },
+      { additionalProperties: { type: "string" } },
+      { patternProperties: { "^x-": { type: "string" } } },
+    ]) {
+      expect(
+        flagged({ type: "object", properties: {}, required: ["anything"], ...extra }),
+        JSON.stringify(extra),
+      ).toEqual([]);
+    }
+  });
+
+  it("resolves $ref contributors", () => {
+    expect(
+      flagged({
+        $defs: { Named: { type: "object", properties: { name: { type: "string" } } } },
+        allOf: [{ $ref: "#/$defs/Named" }],
+        required: ["name"],
+      }),
+    ).toEqual([]);
+  });
+
+  it("resets the chain at a child instance", () => {
+    // `items` validates a different instance, so the parent's
+    // properties are not reachable inside it.
+    const issues = flagged({
+      type: "object",
+      properties: { outer: { type: "string" } },
+      items: { type: "object", properties: {}, required: ["outer"] },
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.path).toContain("items");
   });
 });
 
