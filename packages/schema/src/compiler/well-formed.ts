@@ -1,5 +1,6 @@
 import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import type { KeywordDefinition } from "../keywords/types.js";
+import type { RefResolver } from "../resolve/index.js";
 import {
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
@@ -37,6 +38,23 @@ function at(path: string): string {
 function isSchemaNode(value: unknown): boolean {
   if (typeof value === "boolean") return true;
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Display path for a schema reached through `$ref`. A local pointer
+ * becomes the dotted document path it names, so
+ * `#/components/schemas/Email` reads as `components.schemas.Email` and
+ * joins with the path below it in the same style. Anything else (an
+ * anchor, an external URI) is shown as written, since there is no
+ * document path to give.
+ */
+function pathForRef(ref: string): string {
+  if (!ref.startsWith("#/")) return ref;
+  return ref
+    .slice(2)
+    .split("/")
+    .map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"))
+    .join(".");
 }
 
 /**
@@ -98,6 +116,7 @@ export function assertWellFormedSchema(
   root: SchemaOrBoolean,
   byKeyword: ReadonlyMap<string, KeywordDefinition>,
   label?: string,
+  refResolver?: RefResolver,
 ): void {
   const prefix = label === undefined ? "" : `${label}: `;
   // Object graphs are normally acyclic here (circular references
@@ -119,6 +138,29 @@ export function assertWellFormedSchema(
     const obj = node as Record<string, unknown>;
     if (seen.has(obj)) return;
     seen.add(obj);
+
+    // Follow `$ref`. Without this the guard covers only the schema
+    // literally handed to `compileSchema`, and in the HTTP pipeline that
+    // is one operation's inline schema: components arrive through the
+    // resolver, so every `$ref` below the root compiled unchecked. The
+    // structural checks below exist nowhere else, so a bad `items`
+    // inside a component was not merely unlocated, it was accepted, and
+    // the constraint was dropped at runtime (#512).
+    //
+    // `seen` makes this linear: well-formedness does not depend on where
+    // a schema is used, so each object is checked once however many
+    // references reach it.
+    const ref = obj["$ref"];
+    if (typeof ref === "string" && refResolver !== undefined) {
+      let target: SchemaOrBoolean | undefined;
+      try {
+        target = refResolver.resolve(ref);
+      } catch {
+        // An unresolvable `$ref` is its own error, raised by the
+        // compiler with its own message. Not this pass's business.
+      }
+      if (target !== undefined) go(target, pathForRef(ref));
+    }
 
     // Keyword values, before descending. `Object.keys` matches what
     // keyword dispatch itself iterates, so a key present with an

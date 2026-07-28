@@ -253,4 +253,63 @@ describe("well-formedness: does not reject legal schemas", () => {
       ),
     ).toThrow(/^GET \/pets 200 response: external schema "urn:ext": /);
   });
+
+  // `$defs` in the same object is walked structurally, so it cannot
+  // show whether refs are followed. These supply a resolver whose
+  // targets are not reachable from the schema object at all, which is
+  // the shape the HTTP pipeline actually has: components arrive through
+  // the resolver, not in the compiled schema (#512).
+  const withTargets = (targets: Record<string, unknown>) => ({
+    resolve(ref: string) {
+      const t = targets[ref];
+      if (t === undefined) throw new Error(`unresolvable ${ref}`);
+      return t as SchemaOrBoolean;
+    },
+  });
+
+  it("checks schemas reached only through the resolver", () => {
+    expect(() =>
+      compileWith(
+        { type: "object", properties: { email: { $ref: "#/components/schemas/Email" } } },
+        {
+          refResolver: withTargets({
+            "#/components/schemas/Email": {
+              type: "object",
+              properties: { tags: { items: [{ type: "string" }] } },
+            },
+          }),
+        },
+      ),
+    ).toThrow(
+      /"items" at "components\.schemas\.Email\.properties\.tags" must be an object or boolean/,
+    );
+  });
+
+  it("names the component in the path, not the route that reached it", () => {
+    expect(() =>
+      compileWith(
+        { properties: { a: { $ref: "#/components/schemas/Bad" } } },
+        { refResolver: withTargets({ "#/components/schemas/Bad": { not: [{ type: "string" }] } }) },
+      ),
+    ).toThrow(/at "components\.schemas\.Bad"/);
+  });
+
+  it("leaves an unresolvable $ref to the compiler to report", () => {
+    // A dangling ref is its own error with its own message. This pass
+    // must not restate it as a well-formedness complaint.
+    expect(() =>
+      compileWith({ properties: { a: { $ref: "#/nope" } } }, { refResolver: withTargets({}) }),
+    ).toThrow(/nope/);
+  });
+
+  it("terminates on a component that references itself", () => {
+    const self: Record<string, unknown> = { type: "object" };
+    self["properties"] = { next: { $ref: "#/components/schemas/Node" } };
+    expect(() =>
+      compileWith(
+        { $ref: "#/components/schemas/Node" },
+        { refResolver: withTargets({ "#/components/schemas/Node": self }) },
+      ),
+    ).not.toThrow();
+  });
 });

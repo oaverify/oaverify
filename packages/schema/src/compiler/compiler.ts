@@ -896,6 +896,15 @@ export function compileSchema(
   const graph = resolve(schema, { registry });
   const refResolver = options.refResolver ?? createRefResolver(graph);
 
+  // Second pass, now that refs can be followed. The first pass above
+  // runs without a resolver because `resolve` itself walks the schema
+  // and a malformed slot would crash it before this pass could say
+  // where the problem is. Components arrive through the resolver rather
+  // than in the schema object, so without this they compile unchecked
+  // (#512). Re-walking the root costs one linear pass over a graph that
+  // is about to be compiled.
+  assertWellFormedSchema(schema, byKeyword, options.label, refResolver);
+
   // One-pass walk: does anything in this compile unit use
   // `unevaluatedProperties` / `unevaluatedItems`? Include external
   // schemas in the walk because a `$ref` can cross into them. A false
