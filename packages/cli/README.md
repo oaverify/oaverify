@@ -43,6 +43,18 @@ oaverify check <spec>                                         # hygiene + schema
 oaverify check <spec> --only schema                           # one class only
 oaverify check <spec> --fail-on warning                       # CI gate: exit 1 on any finding
 oaverify check <spec> --format json                           # { findings: [...] }, each classed
+```
+
+Schema findings are located by the operation they were compiled for,
+then the path within that schema:
+
+```
+schema  silent-rewrite/required-not-in-properties
+  GET /policies 200 response body (application/json) -> properties.items.allOf[0]
+  required: "signedDate" is not declared in properties reachable here
+```
+
+```bash
 
 oaverify resolve <spec>                                       # stitch a multi-file spec
 oaverify resolve <spec> --overlay overlay1.json --overlay overlay2.json

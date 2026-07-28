@@ -228,4 +228,29 @@ describe("well-formedness: does not reject legal schemas", () => {
       /"items" at <root> must be an object or boolean; got undefined\. Remove the key/,
     );
   });
+  it("prefixes the thrown message with the caller's label", () => {
+    // A path relative to the compiled schema is unambiguous on its own
+    // and useless across a spec with dozens of operations. The label is
+    // how the HTTP validator says which one this was.
+    expect(() =>
+      compileWith(
+        { type: "object", properties: { a: { type: "array", items: null } } },
+        { label: "POST /things request body (application/json)" },
+      ),
+    ).toThrow(
+      /^POST \/things request body \(application\/json\): "items" at "properties\.a" must be an object/,
+    );
+  });
+
+  it("keeps the external-schema label distinct from the caller's", () => {
+    expect(() =>
+      compileWith(
+        { $ref: "urn:ext" },
+        {
+          label: "GET /pets 200 response",
+          external: new Map([["urn:ext", { type: "array", items: null } as never]]),
+        },
+      ),
+    ).toThrow(/^GET \/pets 200 response: external schema "urn:ext": /);
+  });
 });

@@ -104,6 +104,7 @@ function runSchemaLint(
   schema: SchemaOrBoolean,
   byKeyword: Map<string, KeywordDefinition>,
   mode: "warn" | "strict",
+  context: string | undefined,
   rules: { refSuppressesSiblings: boolean; resolveRef?: (ref: string) => unknown },
 ): SchemaLintIssue[] {
   // The full set of names the active dialect recognizes, including
@@ -190,7 +191,10 @@ function runSchemaLint(
       }
     }
   });
-  return issues;
+  // Stamped once here rather than at each `issues.push`: the context is
+  // the same for every issue this compile produces, and threading it
+  // through each construction site invites one of them to forget.
+  return context === undefined ? issues : issues.map((issue) => ({ ...issue, context }));
 }
 
 /**
@@ -352,6 +356,18 @@ export interface SchemaLintIssue {
   path: string;
   /** Human-readable explanation. */
   message: string;
+  /**
+   * What was being compiled, from {@link CompileOptions.label}, so
+   * `path` can be placed in the wider document. Absent when the caller
+   * set no label.
+   *
+   * Names where the schema was *first* compiled. A component reached
+   * from several operations compiles once and is reported once, against
+   * whichever operation got there first, since the later ones hit the
+   * compile cache. Treat it as a pointer to the schema, not as the
+   * complete set of operations affected.
+   */
+  context?: string;
 }
 
 /**
@@ -552,6 +568,24 @@ export interface CompileOptions {
   schemaLint?: "off" | "warn" | "strict";
 
   // --- 4. Schema-compile-specific extras ---
+
+  /**
+   * Names what is being compiled, for callers that compile many schemas
+   * out of one document.
+   *
+   * Paths in errors and lint issues are relative to the schema handed
+   * to this call, which is unambiguous for a single schema and not much
+   * help across a spec with dozens of operations: `"if" at
+   * "properties.amounts.allOf[1]" must be an object or boolean` says
+   * what is wrong without saying where to look. Set this to something
+   * that locates the schema in the wider document (`POST /things
+   * request body (application/json)`) and it prefixes thrown
+   * well-formedness errors and lands on {@link SchemaLintIssue.context}.
+   *
+   * The HTTP validator sets it per operation, so `createValidator`
+   * callers get this without asking.
+   */
+  label?: string;
 
   /** Additional external named schemas that `$ref` can resolve to. */
   external?: Map<string, SchemaOrBoolean>;
@@ -782,10 +816,16 @@ export function compileSchema(
   // because keyword value contracts are dialect-specific. Covers
   // `external` too, since those compile on `$ref` and a guarantee
   // holding for only part of the graph would be worse than none.
-  assertWellFormedSchema(schema, byKeyword);
+  assertWellFormedSchema(schema, byKeyword, options.label);
   if (options.external) {
     for (const [name, sub] of options.external) {
-      assertWellFormedSchema(sub, byKeyword, `external schema "${name}"`);
+      assertWellFormedSchema(
+        sub,
+        byKeyword,
+        options.label === undefined
+          ? `external schema "${name}"`
+          : `${options.label}: external schema "${name}"`,
+      );
     }
   }
 
@@ -914,7 +954,7 @@ export function compileSchema(
   const schemaLintIssues: readonly SchemaLintIssue[] =
     lintMode === "off"
       ? []
-      : runSchemaLint(schema, byKeyword, lintMode, {
+      : runSchemaLint(schema, byKeyword, lintMode, options.label, {
           refSuppressesSiblings: state.refSuppressesSiblings,
           // Lets the `required` rule see through `$ref` into component
           // schemas, which an operation-scoped compile cannot reach by
