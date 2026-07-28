@@ -178,13 +178,16 @@ Capabilities that the Ajv stack covers and oaverify does not.
   and `$id` base-URI rewrites natively. oaverify requires external /
   multi-file refs to be pre-inlined by `@oaverify/core/spec`'s `resolveSpec()`
   before compile, and accepts fragment-only refs thereafter.
-- **Full meta-schema validation.** Ajv can validate your schema
-  against the draft's meta-schema at compile time, catching both
-  unknown-keyword typos and wrong value shapes (e.g. `minimum: "5"`
-  when it should be a number). oaverify ships a narrower `strict` option
-  that catches unknown-keyword typos (`minimumx: 5`) and flags
-  partially-implemented features; it doesn't check value shapes
-  against the meta-schema.
+- **Full meta-schema validation.** Ajv can validate your schema against
+  the draft's meta-schema at compile time, catching every wrong value
+  shape in one pass. oaverify checks piecemeal instead: `strict` flags
+  unknown-keyword typos (`minimumx: 5`) and partially-implemented
+  features, each keyword rejects values it cannot use (`minimum: "5"`
+  throws `requires a finite number`), and a pre-pass rejects non-schema
+  values in schema-valued slots (`items: [ ... ]`, `if: null`). The gap
+  is the cases where a wrong value still compiles to _something_:
+  `type: "Boolean"` builds a validator nothing can satisfy rather than
+  failing at compile time.
 - **`$data` references.** Ajv's non-standard extension where one
   keyword's value comes from the data being validated
   (`{ minimum: { $data: "1/min" } }`). oaverify doesn't implement it. The

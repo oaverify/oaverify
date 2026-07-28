@@ -5,21 +5,21 @@ canonical reference is the
 [`ValidatorOptions`](../packages/validator/src/validator.ts) TSDoc;
 this page is a recipe-oriented overview.
 
-| Option                  | Effect                                                                                                                                                                       |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dialect`               | Force a specific schema dialect, bypassing version detection.                                                                                                                |
-| `formats`               | Extra string format validators merged on top of the built-ins.                                                                                                               |
-| `keywords`              | Register user-defined schema keywords (see below).                                                                                                                           |
-| `output`                | Result shape: `"flat"` (default; `{ valid, errors, truncated }`), `"tree"` (nested `{ valid, error, truncated }`), or `"predicate"` (bare boolean). Mirrors `compileSchema`. |
-| `maxErrors`             | Per-call total cap on leaf errors. Default `1` (fast-fail); pass `Number.POSITIVE_INFINITY` to collect every error.                                                          |
-| `maxDepth`              | Cap on recursive `$ref` validation depth; past the cap the payload fails with a `depth` error instead of exhausting the call stack. Unset by default; see below.             |
-| `strict`                | Compile-time schema lint mode: `"off"`, `"warn-partial"` (default), or `"strict"`. Issues surface via `validator.stats.strictIssues`.                                        |
-| `strictQueryParameters` | Reject undeclared query parameters. Default `false`.                                                                                                                         |
-| `validateSecurity`      | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                                             |
-| `ignoreUndocumented`    | Treat requests whose path the router can't match as valid (`{ valid: true }`) instead of a `route` error. Default `false`.                                                   |
-| `ignorePaths`           | Predicate `(path) => boolean`; returning `true` short-circuits validation to a valid result (`{ valid: true }`) before routing.                                              |
-| `onUnknownVersion`      | Policy for specs with missing/unsupported `openapi`: `"fallback31"` (default), `"warn"`, or `"throw"`.                                                                       |
-| `regexCompiler`         | Compiler for `pattern` keywords and `format: "regex"`. Defaults to `new RegExp(p, "u")` with a non-u fallback. Plug in `re2` or a safe-regex check for hardening; see below. |
+| Option                  | Effect                                                                                                                                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dialect`               | Force a specific schema dialect, bypassing version detection.                                                                                                                                                     |
+| `formats`               | Extra string format validators merged on top of the built-ins.                                                                                                                                                    |
+| `keywords`              | Register user-defined schema keywords (see below).                                                                                                                                                                |
+| `output`                | Result shape: `"flat"` (default; `{ valid, errors, truncated }`), `"tree"` (nested `{ valid, error, truncated }`), or `"predicate"` (bare boolean). Mirrors `compileSchema`.                                      |
+| `maxErrors`             | Per-call total cap on leaf errors. Default `1` (fast-fail); pass `Number.POSITIVE_INFINITY` to collect every error.                                                                                               |
+| `maxDepth`              | Cap on recursive `$ref` validation depth; past the cap the payload fails with a `depth` error instead of exhausting the call stack. Unset by default; see below.                                                  |
+| `strict`                | Compile-time schema lint mode: `"off"`, `"warn-partial"` (default), or `"strict"`. Issues surface via `validator.stats.strictIssues`. Lint only; a malformed schema throws regardless of this setting, see below. |
+| `strictQueryParameters` | Reject undeclared query parameters. Default `false`.                                                                                                                                                              |
+| `validateSecurity`      | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                                                                                  |
+| `ignoreUndocumented`    | Treat requests whose path the router can't match as valid (`{ valid: true }`) instead of a `route` error. Default `false`.                                                                                        |
+| `ignorePaths`           | Predicate `(path) => boolean`; returning `true` short-circuits validation to a valid result (`{ valid: true }`) before routing.                                                                                   |
+| `onUnknownVersion`      | Policy for specs with missing/unsupported `openapi`: `"fallback31"` (default), `"warn"`, or `"throw"`.                                                                                                            |
+| `regexCompiler`         | Compiler for `pattern` keywords and `format: "regex"`. Defaults to `new RegExp(p, "u")` with a non-u fallback. Plug in `re2` or a safe-regex check for hardening; see below.                                      |
 
 ## Custom keywords
 
@@ -60,6 +60,44 @@ problems may exist.
 throws on `0`, negative values, or non-integers. For a yes/no answer
 with no errors collected at all, build the validator with
 `output: "predicate"`.
+
+## Malformed schemas fail at construction
+
+`strict` grades schemas that are schemas. A document that is not one is
+rejected before linting runs, by a throw that no `strict` setting
+suppresses, including `"off"`.
+
+A schema-valued slot (`items`, `not`, `if`, each entry of `allOf` /
+`oneOf` / `prefixItems`, each value of `properties` / `$defs`, and so
+on) has to hold an object or a boolean. Anything else throws from
+`createValidator` / `compileSchema` with the path to the offending
+value:
+
+```
+"items" at "properties.events" must be an object or boolean; got an array.
+In JSON Schema 2020-12 the tuple form is "prefixItems"; an array-valued
+"items" is the draft-04 / Swagger 2.0 spelling.
+```
+
+The check runs on the parsed document, so it is about the value's type,
+not the source syntax. The two shapes it catches in practice:
+
+- **An array where a schema belongs.** `items: [ {...} ]` is the
+  draft-04 / Swagger 2.0 tuple form. 2020-12 spells it `prefixItems`.
+  Left alone this compiles to a schema with no keywords, so the array's
+  elements go unvalidated while the spec looks fine.
+- **A null slot.** Usually a YAML indentation slip: writing `if:` with
+  the intended subschema indented as a sibling rather than beneath it
+  leaves `if: null`. Writing the null outright has the same effect.
+
+Both are spec bugs that no runtime option should paper over, which is
+why the failure is a throw at construction rather than an entry in
+`strictIssues`. Catching it needs a `try` around `createValidator`, not
+a check on each request.
+
+This is a precondition rather than a lint rung: there is nothing to
+grade in a value that is not a schema, and validating a request against
+a schema whose meaning is unknown is worse than refusing to start.
 
 ## Hardening against untrusted regex patterns
 
