@@ -41,6 +41,29 @@ export interface BuildProgramOptions {
 }
 
 /**
+ * Set the exit code and let the process end on its own.
+ *
+ * `process.exit` terminates immediately, discarding whatever is still
+ * queued on stdout. When stdout is a pipe its writes are asynchronous,
+ * so any report larger than the pipe buffer (64 KiB) arrived truncated
+ * and the exit code stayed 0: `check --format json | jq` got
+ * valid-looking JSON that stopped mid-token (#510). Redirecting to a
+ * file was unaffected, because a file descriptor is written
+ * synchronously, which is what made this look like a formatting bug
+ * rather than a lost-output one.
+ *
+ * Node keeps the process alive while a pipe still has pending writes,
+ * so returning instead of exiting flushes the report first. Every write
+ * is covered, including the ones whose call sites do not await their
+ * sink.
+ *
+ * @internal
+ */
+export function defaultExit(code: number): void {
+  process.exitCode = code;
+}
+
+/**
  * Build the Commander program. Exported so tests can invoke the program
  * without spawning a child process; pass `{ io, exit }` to route all
  * side-effects through in-process collaborators. Commands write their
@@ -52,7 +75,7 @@ export interface BuildProgramOptions {
  */
 export function buildProgram(options: BuildProgramOptions = {}): Command {
   const io = options.io ?? defaultCommandIo();
-  const exit = options.exit ?? ((code) => process.exit(code));
+  const exit = options.exit ?? defaultExit;
 
   const program = new Command();
   program

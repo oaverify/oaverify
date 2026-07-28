@@ -331,6 +331,27 @@ jobs:
           # stream-check imports analyzeSpec from @oaverify/stream, so this
           # fails if that dependency is missing or stale in the tree.
           npx oaverify stream-check spec.yaml > /dev/null
+          # A report larger than the 64 KiB pipe buffer must survive being
+          # piped. `process.exit` used to drop the tail and still exit 0,
+          # so `check --format json | jq` got JSON that stopped mid-token
+          # (#510). Only reproducible against a real pipe in a real
+          # process, which is why it lives here and not in the unit tests.
+          node -e '
+            const s = {};
+            for (let i = 0; i < 400; i += 1) s["Unused" + i] = { type: "object", properties: { f: { type: "string" } } };
+            require("node:fs").writeFileSync("big.json", JSON.stringify({
+              openapi: "3.0.3", info: { title: "t", version: "1.0.0" },
+              paths: { "/ping": { get: { operationId: "ping", responses: { "200": { description: "ok" } } } } },
+              components: { schemas: s },
+            }));
+          '
+          npx oaverify check big.json --format json > direct.json
+          npx oaverify check big.json --format json | cat > piped.json
+          if ! cmp -s direct.json piped.json; then
+            echo "piped report differs from the redirected one: $(wc -c < piped.json) vs $(wc -c < direct.json) bytes" >&2
+            exit 1
+          fi
+          node -e 'JSON.parse(require("node:fs").readFileSync("piped.json","utf8"))'
       - name: smoke-import @oaverify/express4
         run: |
           set -euo pipefail

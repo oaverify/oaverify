@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildProgram } from "../src/cli.js";
+import { buildProgram, defaultExit } from "../src/cli.js";
 import { memoryIo, type MemoryIo } from "./fixtures.js";
 import { resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -370,5 +370,26 @@ describe("compile-schema output", () => {
     expect(res.exitCode).toBe(3);
     expect(mem.stderr.value).toContain("phone-number");
     expect(mem.stderr.value).toContain("built-in");
+  });
+});
+
+describe("default exit handler", () => {
+  // The bug this guards is process-level: `process.exit` discards
+  // whatever is still queued on a pipe, so a report over 64 KiB arrived
+  // truncated at exit 0 (#510). The end-to-end proof needs a real pipe
+  // and lives in the pack-smoke CI job; this pins the mechanism so a
+  // revert to `process.exit` fails here first.
+  it("sets the exit code instead of terminating", () => {
+    const before = process.exitCode;
+    try {
+      defaultExit(2);
+      expect(process.exitCode).toBe(2);
+      // Reaching this line at all is the other half of the assertion:
+      // `process.exit(2)` would have taken the test runner with it.
+      defaultExit(0);
+      expect(process.exitCode).toBe(0);
+    } finally {
+      process.exitCode = before;
+    }
   });
 });
