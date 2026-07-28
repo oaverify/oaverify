@@ -1291,9 +1291,7 @@ back to the manual pattern:
 
 ```ts
 app.use(async (req, res, next) => {
-  const result = validator.validateRequest({
-    /* ... */
-  });
+  const result = validator.validateRequest(httpRequestFromExpress(req));
   if (result.valid) return next();
   if (result.errors.some((e) => e.code === "route")) return next(); // unvalidated path, let routing continue
   // ... 4xx response as usual
