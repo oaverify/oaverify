@@ -134,6 +134,23 @@ export type RouteMatchResult =
     }
   | { readonly kind: "no-match" };
 
+/**
+ * One schema that could not be compiled, from
+ * {@link Validator.precompile} in `"collect"` mode.
+ *
+ * @public
+ */
+export interface PrecompileFailure {
+  /**
+   * What was being compiled, as `"POST /things"` for a request-side
+   * failure or `"GET /pets 200 response"` for a response-side one.
+   * The compiler's own message carries the finer location.
+   */
+  context: string;
+  /** The compiler's message, including the path within the schema. */
+  message: string;
+}
+
 export interface Validator {
   /**
    * Validate one HTTP request against the spec. Returns `{ valid: true }`
@@ -319,8 +336,17 @@ export interface Validator {
    * Idempotent. Not needed on the request path: the results land in the
    * same caches lazy compilation fills, so this changes when the work
    * happens, not how much.
+   *
+   * `onMalformed` decides what a malformed schema does. The default,
+   * `"throw"`, stops at the first one and is what a server wants:
+   * continuing would leave that operation compiled from nothing and
+   * silently unvalidated. `"collect"` records each failure, skips that
+   * operation, and carries on, which is what a tool inspecting the
+   * document wants: one bad `items` should not hide every other finding
+   * in the file. The failures are returned either way (empty when
+   * throwing, since a throw leaves nothing to return).
    */
-  precompile(): void;
+  precompile(options?: { onMalformed?: "throw" | "collect" }): readonly PrecompileFailure[];
   /**
    * Every operation the spec declares, as `{ method, pathPattern }`
    * pairs in route-specificity order (more literal segments first).
@@ -1323,35 +1349,66 @@ export function createValidator(
    * compiles is memoized in the same caches lazy compilation fills, so
    * calling it changes when the work happens, not how much.
    */
-  const precompile = (): void => {
+  const precompile = (options?: {
+    onMalformed?: "throw" | "collect";
+  }): readonly PrecompileFailure[] => {
+    const collect = options?.onMalformed === "collect";
+    const failures: PrecompileFailure[] = [];
+    // Each unit is compiled inside its own guard so one malformed schema
+    // costs its own operation and nothing else. Without it the first bad
+    // schema in a document hid every finding behind it (#515).
+    const attempt = (context: string, run: () => void): void => {
+      if (!collect) {
+        run();
+        return;
+      }
+      try {
+        run();
+      } catch (err) {
+        failures.push({ context, message: (err as Error).message });
+      }
+    };
+
     for (const route of router.routes()) {
       const match = router.match(route.method, route.pathPattern);
       if (match === undefined || match.kind !== "match") continue;
-      const cache = cacheFor(match);
+      const where = `${route.method} ${route.pathPattern}`;
+      let cache: OperationCache | undefined;
+      attempt(where, () => {
+        cache = cacheFor(match);
+      });
+      // The request side is compiled by `cacheFor`, so a failure there
+      // leaves no cache and no responses to drive.
+      if (cache === undefined) continue;
       // Request-side schemas are compiled by cacheFor. Response bodies
       // and headers are not, so drive their lazy getters here.
       for (const [status, response] of cache.responses) {
         for (const mediaType of response.bodySchemas.keys()) {
-          getResponseValidator(
-            response.bodyValidators,
-            response.bodySchemas,
-            mediaType,
-            "response",
-            response.context,
-          );
+          attempt(response.context, () => {
+            getResponseValidator(
+              response.bodyValidators,
+              response.bodySchemas,
+              mediaType,
+              "response",
+              response.context,
+            );
+          });
         }
         for (const name of response.headerSchemas.keys()) {
-          getResponseValidator(
-            response.headerValidators,
-            response.headerSchemas,
-            name,
-            undefined,
-            response.context,
-          );
+          attempt(response.context, () => {
+            getResponseValidator(
+              response.headerValidators,
+              response.headerSchemas,
+              name,
+              undefined,
+              response.context,
+            );
+          });
         }
         void status;
       }
     }
+    return failures;
   };
 
   // can't track from the value back to the literal overload.

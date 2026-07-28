@@ -118,7 +118,15 @@ oaverify check spec.yaml --only schema --fail-on warning --format json
 | 0    | clean                                              |
 | 1    | findings met `--fail-on`, or a domain check failed |
 | 2    | input could not be loaded, resolved, or compiled   |
-| 3    | CLI usage error                                    |
+
+`check` reports a malformed schema as a finding (`malformed-schema`)
+and carries on with the rest of the document, so one bad `items` does
+not hide every other finding in the file. The exit code still says the
+document cannot be compiled. The programmatic equivalent is
+`precompile({ onMalformed: "collect" })`; the default still throws,
+which is what a server wants, since continuing would leave that
+operation validating against nothing.
+| 3 | CLI usage error |
 
 Request strictness has no CLI surface: it changes how traffic is
 validated at runtime, which is a library setting.

@@ -266,7 +266,13 @@ the budget for the rest of the spec.
 | 0    | clean                                                                        |
 | 1    | a domain check failed: validation errors, or findings met a `--fail-on` gate |
 | 2    | the input could not be loaded, resolved, or compiled                         |
-| 3    | CLI usage error                                                              |
+
+A malformed schema exits 2 and is also reported as a `check` finding,
+with the code `malformed-schema`. `check` grades the rest of the
+document rather than stopping at the first one, so a run that exits 2
+still carries every other finding it could reach. Exit 2 outranks
+`--fail-on`: a document that cannot be compiled is not a gate result.
+| 3 | CLI usage error |
 
 One taxonomy across every command, rather than a per-command meaning.
 Note in particular that `check` does not vary its exit code by finding
