@@ -1,0 +1,17 @@
+openapi: 3.1.0
+info:
+  title: Detection case
+  version: "1.0.0"
+paths:
+  /things:
+    get:
+      operationId: sameId
+      responses:
+        "200":
+          description: ok
+  /others:
+    get:
+      operationId: sameId
+      responses:
+        "200":
+          description: ok

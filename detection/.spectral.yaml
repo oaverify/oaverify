@@ -1,0 +1,4 @@
+# Spectral's stock OpenAPI ruleset. Using the defaults rather than a
+# tuned one keeps the comparison about what each tool ships out of the
+# box, which is what a reader choosing between them actually gets.
+extends: ["spectral:oas"]

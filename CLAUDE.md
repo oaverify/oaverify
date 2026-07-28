@@ -169,13 +169,24 @@ reaching for `pnpm pack` directly.
   Adapter-package unit tests (`extract.test.ts`, `middleware.test.ts`,
   `render.test.ts`, fastify's `hook.test.ts`) still live in their
   packages and run on `pnpm test` from the root.
+- `detection/`: labelled corpus measuring which OpenAPI defects each
+  tool catches (oaverify vs ajv, Spectral, Redocly). Each case is a
+  minimal spec with one seeded defect; a tool scores only when it
+  reports _that_ defect, matched against declared signals. Run with
+  `cd detection && pnpm install && pnpm detect` (needs a prior root
+  `pnpm build`, since oaverify runs through its built CLI). Not a CI
+  gate: a matrix that turns red when Spectral ships a rule is noise.
+  The `style` and `control` classes exist so the corpus can show
+  oaverify losing and over-firing respectively; a result table without
+  them is marketing. Every scored cell is traceable through
+  `results/audit.md`.
 
-All three have their own `package.json` + `pnpm-workspace.yaml` (with
+All four have their own `package.json` + `pnpm-workspace.yaml` (with
 empty `packages:` list so pnpm treats them as isolated roots). Their
-external dev-dependencies (benchmark runners, competing validators,
-framework runtimes, `tsx`) are NOT in the main workspace install.
-`conformance/` and `performance/` are not type-checked in CI;
-`framework-tests/` is.
+external dev-dependencies (benchmark runners, competing validators and
+linters, framework runtimes, `tsx`) are NOT in the main workspace
+install. `conformance/`, `performance/` and `detection/` are not
+type-checked in CI; `framework-tests/` is.
 
 The root `.npmrc` sets `auto-install-peers=false` so the adapter
 packages' peer-dep declarations (`express`, `fastify`) do not
