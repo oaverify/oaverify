@@ -331,10 +331,15 @@ export async function checkCommand(
       // document compiled.
       validator.precompile();
       for (const issue of validator.stats.schemaLintIssues) {
+        // The path is relative to the schema that was compiled, which on
+        // a spec with many operations does not say where to look. The
+        // validator labels each compile with its operation, so prefer
+        // that when it is present.
+        const where = issue.path === "" ? "<root>" : issue.path;
         findings.push({
           class: "schema",
           code: issue.code,
-          location: issue.path === "" ? "<root>" : issue.path,
+          location: issue.context === undefined ? where : `${issue.context} -> ${where}`,
           message: issue.message,
         });
       }

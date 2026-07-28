@@ -18,7 +18,8 @@ oaverify refuses rather than guessing. No option turns this off, including
 
 ```ts
 createValidator(spec); // throws
-// "items" at "properties.events" must be an object or boolean; got an array.
+// GET /events 200 response body (application/json): "items" at
+// "properties.events" must be an object or boolean; got an array.
 // In JSON Schema 2020-12 the tuple form is "prefixItems"; an array-valued
 // "items" is the draft-04 / Swagger 2.0 spelling.
 ```
@@ -47,7 +48,27 @@ never thrown.
 ```ts
 const validator = createValidator(spec, { schemaLint: "strict" });
 validator.stats.schemaLintIssues;
-// [{ code: "unknown-keyword", keyword: "minimumx", path: "properties.age", message: ... }]
+// [{
+//   code: "unknown-keyword",
+//   keyword: "minimumx",
+//   path: "properties.age",
+//   context: "POST /users request body (application/json)",
+//   message: ...
+// }]
+```
+
+`path` is relative to the schema that was compiled, so it locates the
+keyword inside that schema and not inside your document. `context` names
+what was being compiled, which is what turns the two into an address you
+can act on. A schema reached from several operations compiles once and
+carries the label of whichever got there first, so read `context` as a
+pointer to the schema rather than the full list of operations affected.
+
+The same label prefixes malformed-schema errors:
+
+```
+POST /things request body (application/json): "items" at "properties.a"
+must be an object or boolean; got an array.
 ```
 
 | Mode               | Reports                                                                           |

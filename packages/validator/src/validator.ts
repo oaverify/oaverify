@@ -881,13 +881,19 @@ export function createValidator(
   };
 
   const compiledCache = new Map<SchemaOrBoolean, CompiledTreeSchema>();
+  // `label` names what is being compiled so errors and lint issues can
+  // be placed in the document. The cache is keyed by schema identity
+  // alone, so a schema reached from several operations keeps the label
+  // of whichever compiled it first; see SchemaLintIssue.context.
   const compile = (
     schema: SchemaOrBoolean,
     resolver: RefResolver = refResolver,
+    label?: string,
   ): CompiledTreeSchema => {
     const cached = compiledCache.get(schema);
     if (cached !== undefined) return cached;
     const c = compileSchema(schema, {
+      label,
       dialect,
       formats,
       refResolver: resolver,
@@ -927,6 +933,7 @@ export function createValidator(
   const compileForDirection = (
     schema: SchemaOrBoolean,
     direction: BodyDirection,
+    label?: string,
   ): CompiledTreeSchema =>
     compile(
       transformBodySchemaForDirection(
@@ -936,6 +943,7 @@ export function createValidator(
         directionTransformCache[direction],
       ),
       directionResolvers[direction],
+      label,
     );
 
   // Look up a response-side validator, compiling on first access and
@@ -948,12 +956,24 @@ export function createValidator(
     schemas: Map<string, SchemaOrBoolean>,
     key: string,
     direction?: BodyDirection,
+    context?: string,
   ): CompiledTreeSchema | undefined => {
     const hit = cache.get(key);
     if (hit !== undefined) return hit;
     const schema = schemas.get(key);
     if (schema === undefined) return undefined;
-    const c = direction === undefined ? compile(schema) : compileForDirection(schema, direction);
+    // `direction === undefined` is the header path; bodies carry a media
+    // type, headers a name.
+    const label =
+      context === undefined
+        ? undefined
+        : direction === undefined
+          ? `${context} header "${key}"`
+          : `${context} body (${key})`;
+    const c =
+      direction === undefined
+        ? compile(schema, refResolver, label)
+        : compileForDirection(schema, direction, label);
     cache.set(key, c);
     if (direction === "response") stats.responseBodiesCompiled += 1;
     return c;
@@ -969,7 +989,14 @@ export function createValidator(
   const cacheFor = (pathMatch: RouteMatch): OperationCache => {
     const existing = operationCache.get(pathMatch.operation);
     if (existing !== undefined) return existing;
-    const cache = buildOperationCache(pathMatch, { resolveRef, compile, compileForDirection });
+    const cache = buildOperationCache(pathMatch, {
+      resolveRef,
+      // The cache builder has no business choosing a ref resolver, so it
+      // sees a two-argument `compile` and the default resolver is bound
+      // here.
+      compile: (schema, label) => compile(schema, refResolver, label),
+      compileForDirection,
+    });
     if (securityMode !== "off") {
       cache.security = compileOperationSecurity(
         pathMatch.operation,
@@ -1132,6 +1159,8 @@ export function createValidator(
               responseCompiled.headerValidators,
               responseCompiled.headerSchemas,
               lowered,
+              undefined,
+              responseCompiled.context,
             );
             if (validator === undefined) continue;
             const value = deserialize(raw, {
@@ -1191,6 +1220,7 @@ export function createValidator(
               responseCompiled.bodySchemas,
               mt,
               "response",
+              responseCompiled.context,
             );
             if (validator !== undefined) {
               const r = validator.validate(res.body, ["body"]);
@@ -1307,10 +1337,17 @@ export function createValidator(
             response.bodySchemas,
             mediaType,
             "response",
+            response.context,
           );
         }
         for (const name of response.headerSchemas.keys()) {
-          getResponseValidator(response.headerValidators, response.headerSchemas, name);
+          getResponseValidator(
+            response.headerValidators,
+            response.headerSchemas,
+            name,
+            undefined,
+            response.context,
+          );
         }
         void status;
       }

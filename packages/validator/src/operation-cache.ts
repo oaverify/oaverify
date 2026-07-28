@@ -63,6 +63,13 @@ export interface ResponseCompiled {
    */
   bodySchemas: Map<string, SchemaOrBoolean>;
   bodyMediaTypes: ParsedMediaTypePattern[];
+  /**
+   * `GET /pets 200 response`, prefixed onto the labels of the body and
+   * header schemas compiled from this entry. Built here because this is
+   * where the operation and status are both in hand; the lazy compile
+   * happens later, with neither.
+   */
+  context: string;
   /** Header schemas keyed by lowercased name; compiled lazily. */
   headerSchemas: Map<string, SchemaOrBoolean>;
   /** Memoization caches for the lazy compiles. */
@@ -80,8 +87,53 @@ export interface ResponseCompiled {
  */
 export interface OperationCacheDeps {
   resolveRef: <T>(value: T | ReferenceObject | undefined) => T | undefined;
-  compile: (schema: SchemaOrBoolean) => CompiledTreeSchema;
-  compileForDirection: (schema: SchemaOrBoolean, direction: BodyDirection) => CompiledTreeSchema;
+  compile: (schema: SchemaOrBoolean, label?: string) => CompiledTreeSchema;
+  compileForDirection: (
+    schema: SchemaOrBoolean,
+    direction: BodyDirection,
+    label?: string,
+  ) => CompiledTreeSchema;
+}
+
+/**
+ * HTTP methods a `PathItem` can declare. Mirrors the `HttpMethod` union
+ * in `@oaverify/internal-core`, kept local for the same reason the
+ * router keeps its own copy: a constant array is not worth a symbol
+ * across the package boundary.
+ */
+const METHOD_KEYS = [
+  "get",
+  "put",
+  "post",
+  "delete",
+  "options",
+  "head",
+  "patch",
+  "trace",
+  "query",
+] as const;
+
+/**
+ * `POST /things`, for labelling the schemas an operation owns.
+ *
+ * `RouteMatch` carries the operation object and its path template but
+ * not the method, so the method is recovered by finding which slot on
+ * the `PathItem` holds this operation. Cheaper than threading a method
+ * argument through every caller of `cacheFor`, and it cannot drift out
+ * of sync with the operation actually being compiled.
+ *
+ * Falls back to the path alone if the operation is not reachable from
+ * its own `PathItem`, which a hand-built `RouteMatch` could manage.
+ *
+ * @internal
+ */
+export function operationLabel(pathMatch: RouteMatch): string {
+  for (const method of METHOD_KEYS) {
+    if (pathMatch.pathItem[method] === pathMatch.operation) {
+      return `${method.toUpperCase()} ${pathMatch.pathPattern}`;
+    }
+  }
+  return pathMatch.pathPattern;
 }
 
 /**
@@ -126,6 +178,7 @@ export function buildOperationCache(
     byKey.set(`${resolved.in}\0${resolved.name}`, resolved);
   }
   const parameters: ParameterObject[] = [...byKey.values()];
+  const operation = operationLabel(pathMatch);
   const knownQueryParameters = new Set<string>();
   for (const p of parameters) {
     if (p.in === "query") knownQueryParameters.add(p.name);
@@ -140,7 +193,7 @@ export function buildOperationCache(
     const contentSchema = firstContentSchema(p);
     const schema = contentSchema ?? p.schema;
     if (schema === undefined) continue;
-    const v = deps.compile(schema);
+    const v = deps.compile(schema, `${operation} ${p.in} parameter "${p.name}"`);
     const target =
       p.in === "path"
         ? pathParamValidators
@@ -156,7 +209,12 @@ export function buildOperationCache(
   const requestBody = deps.resolveRef<RequestBodyObject>(pathMatch.operation.requestBody);
   if (requestBody?.content) {
     for (const [mt, mto] of Object.entries(requestBody.content)) {
-      if (mto.schema) bodyValidators.set(mt, deps.compileForDirection(mto.schema, "request"));
+      if (mto.schema) {
+        bodyValidators.set(
+          mt,
+          deps.compileForDirection(mto.schema, "request", `${operation} request body (${mt})`),
+        );
+      }
     }
   }
 
@@ -180,6 +238,7 @@ export function buildOperationCache(
     }
     responses.set(status, {
       object: response,
+      context: `${operation} ${status} response`,
       headers: headersResolved,
       bodySchemas,
       bodyMediaTypes: compileMediaTypePatterns(bodySchemas.keys()),
