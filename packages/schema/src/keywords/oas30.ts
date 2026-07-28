@@ -37,33 +37,40 @@ import { OAS30_VOCAB } from "./vocabulary-uris.js";
  *
  * @public
  */
+/**
+ * OAS 3.0 `type` must be a single string naming one of six types. Two
+ * ways to get it wrong, with different consequences: an unknown name
+ * (`Boolean`) compiles to a validator nothing satisfies, while `null` is
+ * a real 2020-12 name that 3.0 lacks, so it compiles to a *working*
+ * validator quietly enforcing 3.1 semantics. The second gets its own
+ * message rather than a spelling guess.
+ */
+export function checkOas30TypeName(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return (
+      `must be a single string in OpenAPI 3.0; got ${JSON.stringify(value)}. ` +
+      `For nullability, add 'nullable: true' instead of 'type: ["X","null"]'.`
+    );
+  }
+  if ((OAS30_TYPE_NAMES as readonly string[]).includes(value)) return undefined;
+  const hint =
+    value === "null"
+      ? ` OpenAPI 3.0 has no 'null' type; use 'nullable: true' alongside the value's own type.`
+      : suggestTypeName(value, OAS30_TYPE_NAMES);
+  return (
+    `has unknown type name ${JSON.stringify(value)} for OpenAPI 3.0; ` +
+    `expected one of ${OAS30_TYPE_NAMES.map((t) => JSON.stringify(t)).join(", ")}.${hint}`
+  );
+}
+
 export const oas30TypeKeyword: KeywordDefinition = {
   keyword: "type",
   vocabulary: OAS30_VOCAB,
+  validateKeywordValue: (value) => checkOas30TypeName(value),
   compile(ctx: KeywordCompileContext): void {
-    if (typeof ctx.schema !== "string") {
-      throw new Error(
-        `OpenAPI 3.0 'type' must be a single string; got ${JSON.stringify(ctx.schema)}. ` +
-          `For nullability, add 'nullable: true' instead of 'type: ["X","null"]'.`,
-      );
-    }
-    // The shape check above is not enough on its own. A string still has
-    // to name a type OAS 3.0 has, and the two ways it can fail differ:
-    // an unknown name (`Boolean`) compiles to a validator nothing
-    // satisfies, while `null` is a real 2020-12 name that 3.0 does not
-    // have, so it compiles to a *working* validator enforcing the wrong
-    // contract. The second is the quieter bug, and gets its own hint.
-    if (!(OAS30_TYPE_NAMES as readonly string[]).includes(ctx.schema)) {
-      const hint =
-        ctx.schema === "null"
-          ? ` OpenAPI 3.0 has no 'null' type; use 'nullable: true' alongside the value's own type.`
-          : suggestTypeName(ctx.schema, OAS30_TYPE_NAMES);
-      throw new Error(
-        `OpenAPI 3.0 'type' has unknown type name ${JSON.stringify(ctx.schema)}; ` +
-          `expected one of ${OAS30_TYPE_NAMES.map((t) => JSON.stringify(t)).join(", ")}.${hint}`,
-      );
-    }
-    const declared = ctx.schema;
+    const reason = checkOas30TypeName(ctx.schema);
+    if (reason !== undefined) throw new Error(`keyword "type" ${reason}`);
+    const declared = ctx.schema as string;
     const nullable = ctx.parentSchema.nullable === true;
     const types = nullable ? [declared, "null"] : [declared];
 

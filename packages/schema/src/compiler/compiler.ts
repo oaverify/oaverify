@@ -774,18 +774,6 @@ export function compileSchema(
   schema: SchemaOrBoolean,
   options: CompileOptions,
 ): CompiledSchema | CompiledTreeSchema | CompiledPredicate {
-  // Before anything else: a malformed slot either compiles to a
-  // silently-weakened validator or throws an unlocated TypeError from
-  // inside codegen. Covers `external` too, since those are compiled on
-  // `$ref` and a guarantee that held for only part of the graph would
-  // be worse than none.
-  assertWellFormedSchema(schema);
-  if (options.external) {
-    for (const [name, sub] of options.external) {
-      assertWellFormedSchema(sub, `external schema "${name}"`);
-    }
-  }
-
   const byKeyword = buildKeywordMap(options.dialect.vocabularies);
   const ordered: KeywordDefinition[] = [...byKeyword.values()];
   if (options.keywords) {
@@ -798,6 +786,19 @@ export function compileSchema(
       const def = createCustomKeywordDefinition(name);
       byKeyword.set(name, def);
       ordered.push(def);
+    }
+  }
+
+  // Reject a malformed schema before compiling it: a bad slot either
+  // compiles to a silently-weakened validator or dies with an unlocated
+  // TypeError inside codegen. Runs after the keyword map is built,
+  // because keyword value contracts are dialect-specific. Covers
+  // `external` too, since those compile on `$ref` and a guarantee
+  // holding for only part of the graph would be worse than none.
+  assertWellFormedSchema(schema, byKeyword);
+  if (options.external) {
+    for (const [name, sub] of options.external) {
+      assertWellFormedSchema(sub, byKeyword, `external schema "${name}"`);
     }
   }
 

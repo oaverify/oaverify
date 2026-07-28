@@ -404,6 +404,32 @@ export interface KeywordCompileContext {
 }
 
 /**
+ * What {@link KeywordDefinition.validateKeywordValue} is told about the
+ * position it is checking. An object rather than positional arguments so
+ * later additions do not change the signature.
+ *
+ * @public
+ */
+export interface KeywordValueContext {
+  /** The keyword being checked, e.g. `"type"`. */
+  keyword: string;
+  /**
+   * Dotted path to the keyword's value, relative to the compiled schema
+   * (`"$defs.Amounts.type"`; `"type"` at the root). Points at the value
+   * itself rather than the schema holding it, since the value is what is
+   * wrong.
+   */
+  path: string;
+  /**
+   * The schema object holding the keyword. Present because a few
+   * keywords' contracts genuinely depend on a sibling: OAS 3.0 `type`
+   * reads `nullable`. Not an invitation to reach further; see the
+   * caveat on {@link KeywordDefinition.validateKeywordValue}.
+   */
+  parentSchema: SchemaObject;
+}
+
+/**
  * Definition of a single schema keyword that plugs into a {@link Vocabulary}.
  *
  * @public
@@ -415,6 +441,34 @@ export interface KeywordDefinition {
   vocabulary: string;
   /** Generate validation code for this keyword. */
   compile: (ctx: KeywordCompileContext) => void;
+  /**
+   * Check the schema-side value of this keyword before code generation.
+   *
+   * Return `undefined` to accept, or a short reason to reject. The
+   * compiler supplies the keyword name and the schema path, so the
+   * reason is the keyword-local half of the sentence:
+   *
+   * ```ts
+   * validateKeywordValue: (value) =>
+   *   Array.isArray(value) ? undefined : `requires an array; got ${typeof value}`,
+   * // keyword "myKeyword" at "properties.a.myKeyword" requires an array; got string
+   * ```
+   *
+   * This runs over every schema in the document, including subschemas
+   * no `$ref` reaches, so a keyword defining it is checked even where
+   * it is never compiled. Keep the same check in `compile` (or have
+   * both call one shared parser): `compile` can be reached through
+   * paths that did not go through the pre-pass, and a bare
+   * `ctx.schema as T` cast is how `required: "id"` came to iterate as
+   * the characters `"i"` and `"d"`.
+   *
+   * For keyword-local value contracts only. Anything needing to see an
+   * ancestor, a sibling keyword, or the whole document belongs in a
+   * lint pass, not here; this hook cannot see them, and a rule that
+   * pretends otherwise will be wrong under `not` and inside dead
+   * composition branches.
+   */
+  validateKeywordValue?: (value: unknown, context: KeywordValueContext) => string | undefined;
   /**
    * Reserved for declarative compile-time ordering. Currently unused;
    * keyword execution order comes from the vocabulary's `keywords`

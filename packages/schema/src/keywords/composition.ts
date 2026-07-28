@@ -1,4 +1,4 @@
-import { quoteString, stringArrayValue } from "../codegen/index.js";
+import { checkStringArray, quoteString, stringArrayValue } from "../codegen/index.js";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { propertyAbsent, propertyPresent } from "./object-validation.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
@@ -659,6 +659,16 @@ export const dependenciesKeyword: KeywordDefinition = {
 export const dependentRequiredKeyword: KeywordDefinition = {
   keyword: "dependentRequired",
   vocabulary: APPLICATOR_VOCAB,
+  validateKeywordValue: (value) => {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return `requires an object mapping property names to arrays; got ${value === null ? "null" : Array.isArray(value) ? "an array" : typeof value}`;
+    }
+    for (const [trigger, names] of Object.entries(value as Record<string, unknown>)) {
+      const reason = checkStringArray(names);
+      if (reason !== undefined) return `entry "${trigger}" ${reason}`;
+    }
+    return undefined;
+  },
   compile(ctx: KeywordCompileContext): void {
     const deps = ctx.schema as Record<string, unknown>;
     ctx.gen.if(

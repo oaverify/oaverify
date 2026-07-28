@@ -341,7 +341,9 @@ describe("3.0 support", () => {
         contentType: "application/json",
         body: { label: "x" },
       }),
-    ).toThrow(/OpenAPI 3\.0 'type' must be a single string/);
+    ).toThrow(
+      /keyword "type" at "properties\.label\.type" must be a single string in OpenAPI 3\.0/,
+    );
   });
 
   it("an explicit `dialect` option overrides the version dispatch", () => {

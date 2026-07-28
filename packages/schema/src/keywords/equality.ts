@@ -13,11 +13,31 @@ function isJsonPrimitive(v: JsonValue): v is string | number | boolean | null {
  *
  * @public
  */
+/**
+ * `enum` holds an array of arbitrary JSON values. An unchecked cast let
+ * a non-array through to `values.filter`, which died with
+ * `values.filter is not a function` -- an internal TypeError naming no
+ * schema and no path.
+ */
+export function checkEnumValues(value: unknown): string | undefined {
+  if (!Array.isArray(value)) {
+    return `requires an array of values; got ${value === null ? "null" : typeof value}`;
+  }
+  return undefined;
+}
+
+function parseEnumValues(value: unknown): JsonValue[] {
+  const reason = checkEnumValues(value);
+  if (reason !== undefined) throw new Error(`keyword "enum" ${reason}`);
+  return value as JsonValue[];
+}
+
 export const enumKeyword: KeywordDefinition = {
   keyword: "enum",
   vocabulary: CORE_VALIDATION_VOCAB,
+  validateKeywordValue: (value) => checkEnumValues(value),
   compile(ctx: KeywordCompileContext): void {
-    const values = ctx.schema as JsonValue[];
+    const values = parseEnumValues(ctx.schema);
     const valuesLit = JSON.stringify(values);
     const prims = values.filter(isJsonPrimitive);
     const objs = values.filter((v) => !isJsonPrimitive(v));

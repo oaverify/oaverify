@@ -119,7 +119,7 @@ describe("type: OpenAPI 3.0 has a smaller set", () => {
 
   it("keeps the existing array-shape message", () => {
     expect(() => compileOas30({ type: ["string", "null"] })).toThrow(
-      /'type' must be a single string.*nullable: true/s,
+      /keyword "type" must be a single string in OpenAPI 3\.0.*nullable: true/s,
     );
   });
 
@@ -157,7 +157,7 @@ describe("required and dependentRequired: array-of-strings", () => {
 
   it("guards dependentRequired the same way, naming the trigger", () => {
     expect(() => compile2020({ type: "object", dependentRequired: { card: "cvv" } })).toThrow(
-      /keyword "dependentRequired\.card" requires an array of strings; got string "cvv"/,
+      /keyword "dependentRequired" entry "card" requires an array of strings; got string "cvv"/,
     );
   });
 
@@ -166,5 +166,66 @@ describe("required and dependentRequired: array-of-strings", () => {
     expect(c.validate({ card: "x", cvv: "1" }).valid).toBe(true);
     expect(c.validate({ card: "x" }).valid).toBe(false);
     expect(c.validate({}).valid).toBe(true);
+  });
+});
+
+describe("keyword values are checked across the whole graph", () => {
+  // The per-keyword `compile` guards only fire where a keyword is
+  // actually compiled, which leaves subschemas no `$ref` reaches
+  // unchecked. The pre-pass walks everything, so a typo in a dead
+  // `$defs` entry is caught with the rest.
+  it("rejects a bad type in an unreferenced $defs entry", () => {
+    expect(() => compile2020({ type: "object", $defs: { Unused: { type: "Boolean" } } })).toThrow(
+      /keyword "type" at "\$defs\.Unused\.type" has unknown type name "Boolean"/,
+    );
+  });
+
+  it("rejects a bad required in an unreferenced $defs entry", () => {
+    expect(() => compile2020({ type: "object", $defs: { Unused: { required: "id" } } })).toThrow(
+      /keyword "required" at "\$defs\.Unused\.required" requires an array of strings/,
+    );
+  });
+
+  it("carries the path into nested positions", () => {
+    expect(() => compile2020({ properties: { a: { items: { type: "Strng" } } } })).toThrow(
+      /at "properties\.a\.items\.type"/,
+    );
+  });
+
+  it("omits the location when the keyword is at the root", () => {
+    // The path would just be the keyword name again.
+    expect(() => compile2020({ type: "Boolean" })).toThrow(/^keyword "type" has unknown type name/);
+  });
+
+  it("checks external schemas, naming which one", () => {
+    expect(() =>
+      compileSchema(
+        { $ref: "urn:a" } as SchemaOrBoolean,
+        {
+          dialect: jsonSchemaDialect,
+          external: new Map([["urn:a", { type: "Boolean" }]]),
+        } as never,
+      ),
+    ).toThrow(/external schema "urn:a": keyword "type" has unknown type name/);
+  });
+});
+
+describe("enum", () => {
+  it("rejects a non-array instead of dying inside codegen", () => {
+    // Was: TypeError "values.filter is not a function", from inside the
+    // enum keyword, naming no schema and no path.
+    expect(() => compile2020({ enum: 5 })).toThrow(
+      /keyword "enum" requires an array of values; got number/,
+    );
+    expect(() => compile2020({ properties: { a: { enum: null } } })).toThrow(
+      /keyword "enum" at "properties\.a\.enum" requires an array of values; got null/,
+    );
+  });
+
+  it("still accepts a well-formed enum, including empty", () => {
+    expect(() => compile2020({ enum: [] })).not.toThrow();
+    const c = compile2020({ enum: [1, "a", null] });
+    expect(c.validate(1).valid).toBe(true);
+    expect(c.validate("b").valid).toBe(false);
   });
 });
