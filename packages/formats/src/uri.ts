@@ -4,7 +4,19 @@
  * @packageDocumentation
  */
 
-const URI_RE = /^[A-Za-z][A-Za-z0-9+\-.]*:(?:\/\/[^\s]*)?[^\s]*$/;
+// Scheme, then anything without whitespace. `new URL` below does the
+// real parsing; this pre-filter only rejects the obvious non-URIs
+// cheaply.
+//
+// The authority part is deliberately not spelled out here. An earlier
+// `:(?:\/\/[^\s]*)?[^\s]*$` was exactly equivalent (`//` are themselves
+// non-space characters, so the optional group is fully subsumed by the
+// `[^\s]*` that follows it) while adding quadratic backtracking: two
+// adjacent unbounded `[^\s]*` over an input that ultimately fails the
+// `$`, e.g. `"A://" + "!".repeat(32000) + " "`, cost roughly 500ms of
+// event loop. Format validators run against untrusted request values,
+// so that was a usable DoS vector (CodeQL js/polynomial-redos).
+const URI_RE = /^[A-Za-z][A-Za-z0-9+\-.]*:[^\s]*$/;
 const URI_REFERENCE_RE = /^[^\s]*$/;
 
 /**
