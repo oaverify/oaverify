@@ -100,9 +100,10 @@ format \"email\""`). Selection options:
   `path: "auto"` drops the dotted-path prefix on leaves whose message
   already names its location (the `SELF_LOCATING_ERROR_CODES` family:
   missing parameter / body, unknown query key, content-type,
-  security), turning `query.persona missing required query parameter
-  "persona"` into `missing required query parameter "persona"` while
-  value errors keep their path. Default `"always"` keeps the prefix
+  security). A leaf that would read
+  `query.persona missing required query parameter "persona"`
+  becomes `missing required query parameter "persona"`, while value
+  errors keep their path. Default `"always"` keeps the prefix
   everywhere.
 
 - **`toJsonObject(err)`**: deep copy that round-trips losslessly
