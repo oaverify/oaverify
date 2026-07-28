@@ -18,10 +18,10 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@apidevtools/json-schema-ref-parser": "^15.4.0",
+    "@apidevtools/json-schema-ref-parser": "^15.5.0",
     "ajv": "^8.20.0",
-    "tinybench": "^6.0.2",
-    "tsx": "^4.23.0",
+    "tinybench": "^6.1.2",
+    "tsx": "^4.23.1",
     "typescript": "^5.7.3"
   },
   "engines": {
