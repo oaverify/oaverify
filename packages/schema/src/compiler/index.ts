@@ -8,7 +8,7 @@ export {
   type CompiledSchema,
   type CompiledTreeSchema,
   type FlatValidationResult,
-  type StrictIssue,
+  type SchemaLintIssue,
   type TreeValidationResult,
   type ValidationResult,
 } from "./compiler.js";

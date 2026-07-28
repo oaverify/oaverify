@@ -5,21 +5,21 @@ canonical reference is the
 [`ValidatorOptions`](../packages/validator/src/validator.ts) TSDoc;
 this page is a recipe-oriented overview.
 
-| Option                  | Effect                                                                                                                                                                                                            |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dialect`               | Force a specific schema dialect, bypassing version detection.                                                                                                                                                     |
-| `formats`               | Extra string format validators merged on top of the built-ins.                                                                                                                                                    |
-| `keywords`              | Register user-defined schema keywords (see below).                                                                                                                                                                |
-| `output`                | Result shape: `"flat"` (default; `{ valid, errors, truncated }`), `"tree"` (nested `{ valid, error, truncated }`), or `"predicate"` (bare boolean). Mirrors `compileSchema`.                                      |
-| `maxErrors`             | Per-call total cap on leaf errors. Default `1` (fast-fail); pass `Number.POSITIVE_INFINITY` to collect every error.                                                                                               |
-| `maxDepth`              | Cap on recursive `$ref` validation depth; past the cap the payload fails with a `depth` error instead of exhausting the call stack. Unset by default; see below.                                                  |
-| `strict`                | Compile-time schema lint mode: `"off"`, `"warn-partial"` (default), or `"strict"`. Issues surface via `validator.stats.strictIssues`. Lint only; a malformed schema throws regardless of this setting, see below. |
-| `strictQueryParameters` | Reject undeclared query parameters. Default `false`.                                                                                                                                                              |
-| `validateSecurity`      | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                                                                                  |
-| `ignoreUndocumented`    | Treat requests whose path the router can't match as valid (`{ valid: true }`) instead of a `route` error. Default `false`.                                                                                        |
-| `ignorePaths`           | Predicate `(path) => boolean`; returning `true` short-circuits validation to a valid result (`{ valid: true }`) before routing.                                                                                   |
-| `onUnknownVersion`      | Policy for specs with missing/unsupported `openapi`: `"fallback31"` (default), `"warn"`, or `"throw"`.                                                                                                            |
-| `regexCompiler`         | Compiler for `pattern` keywords and `format: "regex"`. Defaults to `new RegExp(p, "u")` with a non-u fallback. Plug in `re2` or a safe-regex check for hardening; see below.                                      |
+| Option                  | Effect                                                                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dialect`               | Force a specific schema dialect, bypassing version detection.                                                                                                                                                      |
+| `formats`               | Extra string format validators merged on top of the built-ins.                                                                                                                                                     |
+| `keywords`              | Register user-defined schema keywords (see below).                                                                                                                                                                 |
+| `output`                | Result shape: `"flat"` (default; `{ valid, errors, truncated }`), `"tree"` (nested `{ valid, error, truncated }`), or `"predicate"` (bare boolean). Mirrors `compileSchema`.                                       |
+| `maxErrors`             | Per-call total cap on leaf errors. Default `1` (fast-fail); pass `Number.POSITIVE_INFINITY` to collect every error.                                                                                                |
+| `maxDepth`              | Cap on recursive `$ref` validation depth; past the cap the payload fails with a `depth` error instead of exhausting the call stack. Unset by default; see below.                                                   |
+| `schemaLint`            | Schema lint mode: `"off"`, `"warn"` (default), or `"strict"`. Findings surface via `validator.stats.schemaLintIssues`; never throws. A malformed schema is rejected regardless, see [Strictness](./strictness.md). |
+| `strictQueryParameters` | Reject undeclared query parameters. Default `false`.                                                                                                                                                               |
+| `validateSecurity`      | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                                                                                   |
+| `ignoreUndocumented`    | Treat requests whose path the router can't match as valid (`{ valid: true }`) instead of a `route` error. Default `false`.                                                                                         |
+| `ignorePaths`           | Predicate `(path) => boolean`; returning `true` short-circuits validation to a valid result (`{ valid: true }`) before routing.                                                                                    |
+| `onUnknownVersion`      | Policy for specs with missing/unsupported `openapi`: `"fallback31"` (default), `"warn"`, or `"throw"`.                                                                                                             |
+| `regexCompiler`         | Compiler for `pattern` keywords and `format: "regex"`. Defaults to `new RegExp(p, "u")` with a non-u fallback. Plug in `re2` or a safe-regex check for hardening; see below.                                       |
 
 ## Custom keywords
 
@@ -63,9 +63,10 @@ with no errors collected at all, build the validator with
 
 ## Malformed schemas fail at construction
 
-`strict` grades schemas that are schemas. A document that is not one is
-rejected before linting runs, by a throw that no `strict` setting
-suppresses, including `"off"`.
+`schemaLint` grades schemas that are schemas. A document that is not one
+is rejected before linting runs, by a throw that no `schemaLint` setting
+suppresses, including `"off"`. See [Strictness](./strictness.md) for how
+the three classes of check relate.
 
 A schema-valued slot (`items`, `not`, `if`, each entry of `allOf` /
 `oneOf` / `prefixItems`, each value of `properties` / `$defs`, and so
@@ -113,7 +114,7 @@ than a spelling suggestion.
 
 These are spec bugs that no runtime option should paper over, which is
 why the failure is a throw at construction rather than an entry in
-`strictIssues`. Catching it needs a `try` around `createValidator`, not
+`schemaLintIssues`. Catching it needs a `try` around `createValidator`, not
 a check on each request.
 
 This is a precondition rather than a lint rung: there is nothing to

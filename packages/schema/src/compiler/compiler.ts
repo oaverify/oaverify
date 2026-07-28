@@ -37,7 +37,7 @@ const TREE_RUNTIME_HELPERS = /\b(?:createLeafError|createBranchError|wrapErrors)
  * keys. Callers opt into stricter behavior with `"strict"` or opt
  * out with `"off"`.
  */
-const DEFAULT_STRICT_MODE = "warn-partial" as const;
+const DEFAULT_SCHEMA_LINT_MODE = "warn" as const;
 
 /**
  * Sibling keys explicitly permitted alongside `$ref` under OAS 3.0
@@ -102,12 +102,12 @@ function structuralEqual(a: unknown, b: unknown): boolean {
   return true;
 }
 
-function runStrictLint(
+function runSchemaLint(
   schema: SchemaOrBoolean,
   byKeyword: Map<string, KeywordDefinition>,
-  mode: "warn-partial" | "strict",
+  mode: "warn" | "strict",
   rules: { refSuppressesSiblings: boolean },
-): StrictIssue[] {
+): SchemaLintIssue[] {
   // The full set of names the active dialect recognizes, including
   // `implements` entries on existing definitions (e.g. `if` implements
   // `then` + `else`; those don't have their own KeywordDefinition but
@@ -117,7 +117,7 @@ function runStrictLint(
     if (def.implements) for (const k of def.implements) known.add(k);
   }
 
-  const issues: StrictIssue[] = [];
+  const issues: SchemaLintIssue[] = [];
   walkSubschemas(schema, (node, path) => {
     if (typeof node !== "object" || node === null || Array.isArray(node)) return;
     const obj = node as Record<string, unknown>;
@@ -325,7 +325,7 @@ export interface CompileStats {
    * compile-blocking issues; strict mode only reports; the caller
    * decides whether to treat any entry as fatal.
    */
-  strictIssues: readonly StrictIssue[];
+  schemaLintIssues: readonly SchemaLintIssue[];
 }
 
 /**
@@ -334,7 +334,7 @@ export interface CompileStats {
  *
  * @public
  */
-export interface StrictIssue {
+export interface SchemaLintIssue {
   /**
    * - `"partial-feature"`: the schema uses a keyword flagged as
    *   partially-implemented (e.g. `$dynamicRef` without runtime
@@ -564,7 +564,7 @@ export interface CompileOptions {
   maxDepth?: number;
   /**
    * Compile-time schema linting. All modes collect their findings to
-   * {@link CompileStats.strictIssues} rather than throwing.
+   * {@link CompileStats.schemaLintIssues} rather than throwing.
    *
    * This grades schemas that *are* schemas. A document that is not a
    * schema at all -- a non-schema value in a schema-valued slot, say --
@@ -574,14 +574,14 @@ export interface CompileOptions {
    * and nothing else.
    *
    * - `"off"`: silence on everything (pre-v-strict behavior).
-   * - `"warn-partial"` (default): warn on keywords flagged as
+   * - `"warn"` (default): warn on keywords flagged as
    *   partially-implemented (currently `$dynamicRef`; its runtime
    *   dynamic-scope rebinding is not emitted).
    * - `"strict"`: warn on partial features AND unknown keys (keys not
    *   in the active dialect, not `x-*` extensions, not standard
    *   `$`-prefixed metadata). Catches typos like `minimumx: 5`.
    */
-  strict?: "off" | "warn-partial" | "strict";
+  schemaLint?: "off" | "warn" | "strict";
 
   // --- 4. Schema-compile-specific extras ---
 
@@ -979,18 +979,18 @@ export function compileSchema(
   const rootName = compileValidator(schema, state, topMode);
 
   const wholeSource = assembleSource(state, rootName);
-  const strictMode = options.strict ?? DEFAULT_STRICT_MODE;
-  const strictIssues: readonly StrictIssue[] =
-    strictMode === "off"
+  const lintMode = options.schemaLint ?? DEFAULT_SCHEMA_LINT_MODE;
+  const schemaLintIssues: readonly SchemaLintIssue[] =
+    lintMode === "off"
       ? []
-      : runStrictLint(schema, byKeyword, strictMode, {
+      : runSchemaLint(schema, byKeyword, lintMode, {
           refSuppressesSiblings: state.refSuppressesSiblings,
         });
   const stats: CompileStats = {
     functionCount: state.nextFn,
     unevaluatedTrackingEmitted: state.unevaluatedEmitted,
     emittedTreeRuntime: TREE_RUNTIME_HELPERS.test(wholeSource),
-    strictIssues,
+    schemaLintIssues,
   };
   if (predicate) {
     const factory = new Function(NAMES.DEPS, wholeSource) as (

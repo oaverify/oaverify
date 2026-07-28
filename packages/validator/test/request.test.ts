@@ -76,7 +76,7 @@ describe("validateRequest", () => {
     expect(vi.validateRequest({ method: "GET", path: "/nope" })?.code).toBe("route");
   });
 
-  it('strict: "strict" surfaces unknown-keyword issues through validator.stats', () => {
+  it('schemaLint: "strict" surfaces unknown-keyword issues through validator.stats', () => {
     const spec: OpenAPIDocument = {
       openapi: "3.1.0",
       info: { title: "t", version: "1" },
@@ -100,10 +100,10 @@ describe("validateRequest", () => {
         },
       },
     };
-    const vi = createValidator(spec, { strict: "strict" });
+    const vi = createValidator(spec, { schemaLint: "strict" });
     // Schemas compile lazily; first touch to the route triggers it.
     vi.validateRequest({ method: "POST", path: "/p", contentType: "application/json", body: "x" });
-    const unknown = vi.stats.strictIssues.find((i) => i.code === "unknown-keyword");
+    const unknown = vi.stats.schemaLintIssues.find((i) => i.code === "unknown-keyword");
     expect(unknown).toBeDefined();
     expect(unknown?.keyword).toBe("minLenght");
   });
@@ -150,7 +150,7 @@ describe("validateRequest", () => {
       contentType: "multipart/form-data",
       body: { file: Buffer.from("x") },
     });
-    const redundant = vi.stats.strictIssues.find(
+    const redundant = vi.stats.schemaLintIssues.find(
       (i) => i.code === "silent-rewrite/redundant-composition-branches",
     );
     expect(redundant).toBeDefined();

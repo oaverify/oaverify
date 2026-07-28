@@ -180,7 +180,7 @@ Capabilities that the Ajv stack covers and oaverify does not.
   before compile, and accepts fragment-only refs thereafter.
 - **Full meta-schema validation.** Ajv can validate your schema against
   the draft's meta-schema at compile time, catching every wrong value
-  shape in one pass. oaverify checks piecemeal instead: `strict` flags
+  shape in one pass. oaverify checks piecemeal instead: `schemaLint` flags
   unknown-keyword typos (`minimumx: 5`) and partially-implemented
   features, each keyword rejects values it cannot use (`minimum: "5"`,
   `type: "Boolean"`, `required: "id"` all throw, the last two with a

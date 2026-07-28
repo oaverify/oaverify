@@ -31,7 +31,7 @@ export {
   type CompileStats,
   type FlatValidationResult,
   type RegexCompiler,
-  type StrictIssue,
+  type SchemaLintIssue,
   type TreeValidationResult,
   type Validator,
   type ValidationResult,

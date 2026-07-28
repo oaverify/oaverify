@@ -135,7 +135,7 @@ describe("well-formedness: every schema-valued position", () => {
 
 describe("well-formedness: precondition, not a lint level", () => {
   it("throws in every strict mode including off", () => {
-    for (const strict of ["off", "warn-partial", "strict"] as const) {
+    for (const strict of ["off", "warn", "strict"] as const) {
       expect(
         () => compileWith({ type: "object", properties: { a: null } }, { strict }),
         strict,
