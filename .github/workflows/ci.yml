@@ -15,6 +15,16 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+# Every job here only reads the repository: checkout, install, build,
+# test. None writes a comment, a tag, a release, or an artifact, and
+# none needs an OIDC token. Declaring the floor once at the top means a
+# job added later starts read-only and has to opt into anything more,
+# rather than silently inheriting whatever the repository default
+# happens to be (CodeQL actions/missing-workflow-permissions).
+# Publishing lives in release.yml, which declares its own wider scopes.
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
