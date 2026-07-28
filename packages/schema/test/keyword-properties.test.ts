@@ -9,7 +9,7 @@ describe("properties keyword", () => {
     expect(v.validate({ name: "Ada", age: 30 }).valid).toBe(true);
     const r = v.validate({ name: 1, age: "x" });
     expect(r.valid).toBe(false);
-    const codes = (failure(r).error?.children ?? [failure(r).error!]).map((c) => c.code);
+    const codes = (failure(r).error.children ?? [failure(r).error]).map((c) => c.code);
     expect(codes.sort()).toEqual(["type", "type"]);
   });
 
@@ -21,7 +21,7 @@ describe("properties keyword", () => {
   it("children include path pointing at the offending property", () => {
     const v = compile({ properties: { email: { type: "string" } } });
     const r = v.validate({ email: 42 });
-    expect(failure(r).error?.path).toEqual(["email"]);
+    expect(failure(r).error.path).toEqual(["email"]);
   });
 
   it("property names and pattern sources with JS-hostile chars don't break codegen", () => {
@@ -39,11 +39,11 @@ describe("properties keyword", () => {
     expect(v.validate({ [evilName]: "hi${injected}" }).valid).toBe(true);
     // Missing property → required error with the hostile name intact.
     const missing = v.validate({});
-    expect(failure(missing).error?.code).toBe("required");
-    expect(failure(missing).error?.params?.missing).toBe(evilName);
+    expect(failure(missing).error.code).toBe("required");
+    expect(failure(missing).error.params?.missing).toBe(evilName);
     // Present but failing the pattern → pattern error, no source injection.
     const bad = v.validate({ [evilName]: "nope" });
-    expect(failure(bad).error?.code).toBe("pattern");
+    expect(failure(bad).error.code).toBe("pattern");
   });
 });
 
@@ -53,7 +53,7 @@ describe("patternProperties keyword", () => {
     expect(v.validate({ foo1: 1, foo2: 2, bar: "x" }).valid).toBe(true);
     const r = v.validate({ foo1: "not a number" });
     expect(r.valid).toBe(false);
-    expect(failure(r).error?.code).toBe("type");
+    expect(failure(r).error.code).toBe("type");
   });
 });
 
@@ -66,8 +66,8 @@ describe("additionalProperties keyword", () => {
     expect(v.validate({ a: "x" }).valid).toBe(true);
     const r = v.validate({ a: "x", b: 1 });
     expect(r.valid).toBe(false);
-    expect(failure(r).error?.code).toBe("additionalProperties");
-    expect(failure(r).error?.path).toEqual(["b"]);
+    expect(failure(r).error.code).toBe("additionalProperties");
+    expect(failure(r).error.path).toEqual(["b"]);
   });
 
   it("validates extras against the given schema", () => {

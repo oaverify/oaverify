@@ -23,8 +23,8 @@ describe("compileSchema", () => {
     const v = compileSchema(false, { dialect: emptyDialect, output: "tree" });
     const result = v.validate(1);
     expect(result.valid).toBe(false);
-    expect(failure(result).error?.code).toBe("false");
-    expect(failure(result).error?.children).toEqual([]);
+    expect(failure(result).error.code).toBe("false");
+    expect(failure(result).error.children).toEqual([]);
     expect(v.validate("x").valid).toBe(false);
   });
 
@@ -47,14 +47,14 @@ describe("compileSchema", () => {
   it("builds a path array at the root", () => {
     const result = compileSchema(false, { dialect: emptyDialect, output: "tree" }).validate(1);
     expect(result.valid).toBe(false);
-    expect(failure(result).error?.path).toEqual([]);
+    expect(failure(result).error.path).toEqual([]);
   });
 
   it("prepends startPath to every error path", () => {
     const v = compileSchema(false, { dialect: emptyDialect, output: "tree" });
     const result = v.validate(1, ["body"]);
     expect(result.valid).toBe(false);
-    expect(failure(result).error?.path).toEqual(["body"]);
+    expect(failure(result).error.path).toEqual(["body"]);
   });
 
   it("does not mutate the caller's startPath", () => {

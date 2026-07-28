@@ -38,8 +38,8 @@ describe("custom keywords", () => {
     expect(compiled.validate(21).valid).toBe(true);
     const bad = compiled.validate(10);
     expect(bad.valid).toBe(false);
-    expect(failure(bad).error?.code).toBe("divisibleBy");
-    expect(failure(bad).error?.message).toContain("divisibleBy");
+    expect(failure(bad).error.code).toBe("divisibleBy");
+    expect(failure(bad).error.message).toContain("divisibleBy");
   });
 
   it("passes data, schemaValue, and path to the validator", () => {
@@ -94,8 +94,8 @@ describe("custom keywords", () => {
     expect(compiled.validate("ok").valid).toBe(true);
     const bad = compiled.validate("has spaces");
     expect(bad.valid).toBe(false);
-    expect(failure(bad).error?.message).toBe("no spaces allowed");
-    expect(failure(bad).error?.params).toEqual({ reason: "whitespace" });
+    expect(failure(bad).error.message).toBe("no spaces allowed");
+    expect(failure(bad).error.params).toEqual({ reason: "whitespace" });
   });
 
   it("throws on a custom keyword that conflicts with a built-in", () => {

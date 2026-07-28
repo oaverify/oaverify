@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createValidator } from "../src/validator.js";
-import { petSpec } from "./fixtures.js";
+import { failure, petSpec } from "./fixtures.js";
 
 // These exercise the real (un-shimmed) validator: the `output` knob, the
 // flat default, and the per-call `maxErrors` total. The shimmed
@@ -20,8 +20,7 @@ describe("validator output modes", () => {
     const v = createValidator(petSpec());
     const r = v.validateRequest(badPost);
     expect(r.valid).toBe(false);
-    if (r.valid) return;
-    expect(Array.isArray(r.errors)).toBe(true);
+    expect(Array.isArray(failure(r).errors)).toBe(true);
     expect("error" in r).toBe(false);
     expect(v.output).toBe("flat");
   });
@@ -29,25 +28,22 @@ describe("validator output modes", () => {
   it("defaults to maxErrors: 1 as a per-call total across locations", () => {
     const v = createValidator(petSpec());
     const r = v.validateRequest(badPost);
-    if (r.valid) return;
-    expect(r.errors).toHaveLength(1);
-    expect(r.truncated).toBe(true);
+    expect(failure(r).errors).toHaveLength(1);
+    expect(failure(r).truncated).toBe(true);
   });
 
   it("collects every location's errors when uncapped", () => {
     const v = createValidator(petSpec(), { maxErrors: Number.POSITIVE_INFINITY });
     const r = v.validateRequest(badPost);
-    if (r.valid) return;
     // header + body problems both present.
-    expect(r.errors.length).toBeGreaterThan(1);
-    expect(r.truncated).toBe(false);
+    expect(failure(r).errors.length).toBeGreaterThan(1);
+    expect(failure(r).truncated).toBe(false);
   });
 
   it("caps the per-call total at an explicit maxErrors", () => {
     const v = createValidator(petSpec(), { maxErrors: 2 });
     const r = v.validateRequest(badPost);
-    if (r.valid) return;
-    expect(r.errors.length).toBeLessThanOrEqual(2);
+    expect(failure(r).errors.length).toBeLessThanOrEqual(2);
   });
 
   it("a valid request is { valid: true } with no error fields", () => {
@@ -70,9 +66,8 @@ describe("validator output modes", () => {
       });
       const r = v.validateRequest(badPost);
       expect(r.valid).toBe(false);
-      if (r.valid) return;
-      expect(r.error.code).toBe("request");
-      expect(r.error.children.length).toBeGreaterThan(0);
+      expect(failure(r).error.code).toBe("request");
+      expect(failure(r).error.children.length).toBeGreaterThan(0);
       expect("errors" in r).toBe(false);
       expect(v.output).toBe("tree");
     });
@@ -98,8 +93,7 @@ describe("validator output modes", () => {
   it("flat leaves carry their HTTP location in the path prefix", () => {
     const v = createValidator(petSpec(), { maxErrors: Number.POSITIVE_INFINITY });
     const r = v.validateRequest(badPost);
-    if (r.valid) return;
-    const locations = new Set(r.errors.map((e) => e.path[0]));
+    const locations = new Set(failure(r).errors.map((e) => e.path[0]));
     // body problems land under ["body", ...]; header problems elsewhere.
     expect(locations.has("body")).toBe(true);
   });
@@ -107,8 +101,7 @@ describe("validator output modes", () => {
   it("a route miss is a single route leaf in flat mode", () => {
     const v = createValidator(petSpec());
     const r = v.validateRequest({ method: "POST", path: "/nope" });
-    if (r.valid) return;
-    expect(r.errors).toHaveLength(1);
-    expect(r.errors[0]?.code).toBe("route");
+    expect(failure(r).errors).toHaveLength(1);
+    expect(failure(r).errors[0]?.code).toBe("route");
   });
 });

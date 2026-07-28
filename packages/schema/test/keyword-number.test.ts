@@ -8,8 +8,8 @@ describe("numeric keywords", () => {
     expect(v.validate(10).valid).toBe(false);
     expect(v.validate("nope").valid).toBe(true);
     const r = v.validate(10);
-    expect(failure(r).error?.code).toBe("multipleOf");
-    expect(failure(r).error?.params).toMatchObject({ multipleOf: 3, actual: 10 });
+    expect(failure(r).error.code).toBe("multipleOf");
+    expect(failure(r).error.params).toMatchObject({ multipleOf: 3, actual: 10 });
   });
 
   it("multipleOf tolerates IEEE-754 rounding on decimal divisors", () => {
@@ -42,24 +42,24 @@ describe("numeric keywords", () => {
     const max = compile({ maximum: 10 });
     expect(max.validate(10).valid).toBe(true);
     expect(max.validate(11).valid).toBe(false);
-    expect(failure(max.validate(11)).error?.code).toBe("maximum");
+    expect(failure(max.validate(11)).error.code).toBe("maximum");
 
     const ex = compile({ exclusiveMaximum: 10 });
     expect(ex.validate(9).valid).toBe(true);
     expect(ex.validate(10).valid).toBe(false);
-    expect(failure(ex.validate(10)).error?.code).toBe("exclusiveMaximum");
+    expect(failure(ex.validate(10)).error.code).toBe("exclusiveMaximum");
   });
 
   it("minimum / exclusiveMinimum enforce lower bounds", () => {
     const min = compile({ minimum: 0 });
     expect(min.validate(0).valid).toBe(true);
     expect(min.validate(-1).valid).toBe(false);
-    expect(failure(min.validate(-1)).error?.code).toBe("minimum");
+    expect(failure(min.validate(-1)).error.code).toBe("minimum");
 
     const ex = compile({ exclusiveMinimum: 0 });
     expect(ex.validate(1).valid).toBe(true);
     expect(ex.validate(0).valid).toBe(false);
-    expect(failure(ex.validate(0)).error?.code).toBe("exclusiveMinimum");
+    expect(failure(ex.validate(0)).error.code).toBe("exclusiveMinimum");
   });
 
   it("numeric bounds leave non-numbers alone", () => {

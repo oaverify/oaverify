@@ -14,17 +14,17 @@ describe("object validation keywords", () => {
     const v = compile({ required: ["a", "b", "c"] });
     const r = v.validate({ a: 1 });
     expect(r.valid).toBe(false);
-    expect(failure(r).error?.children).toHaveLength(2);
-    const codes = (failure(r).error?.children ?? []).map((c) => c.code);
+    expect(failure(r).error.children).toHaveLength(2);
+    const codes = (failure(r).error.children ?? []).map((c) => c.code);
     expect(codes).toEqual(["required", "required"]);
-    const missing = (failure(r).error?.children ?? []).map((c) => c.params["missing"]);
+    const missing = (failure(r).error.children ?? []).map((c) => c.params["missing"]);
     expect(missing).toEqual(["b", "c"]);
   });
 
   it("required emits path pointing at the missing key", () => {
     const v = compile({ required: ["email"] });
     const r = v.validate({});
-    expect(failure(r).error?.path).toEqual(["email"]);
+    expect(failure(r).error.path).toEqual(["email"]);
   });
 
   it("required passes when every key is present", () => {

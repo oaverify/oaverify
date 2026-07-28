@@ -7,7 +7,7 @@ describe("items keyword", () => {
     expect(v.validate([1, 2, 3]).valid).toBe(true);
     const r = v.validate([1, "two", 3]);
     expect(r.valid).toBe(false);
-    expect(failure(r).error?.path).toEqual([1]);
+    expect(failure(r).error.path).toEqual([1]);
   });
 
   it("applies only after prefixItems when both are present", () => {
@@ -39,7 +39,7 @@ describe("contains keyword", () => {
     const v = compile({ contains: { type: "number" } });
     expect(v.validate([1, "x"]).valid).toBe(true);
     expect(v.validate(["a", "b"]).valid).toBe(false);
-    expect(failure(v.validate(["a", "b"])).error?.code).toBe("contains");
+    expect(failure(v.validate(["a", "b"])).error.code).toBe("contains");
   });
 
   it("respects minContains / maxContains", () => {
@@ -47,7 +47,7 @@ describe("contains keyword", () => {
     expect(v.validate([1, 2]).valid).toBe(true);
     expect(v.validate([1]).valid).toBe(false);
     expect(v.validate([1, 2, 3, 4]).valid).toBe(false);
-    expect(failure(v.validate([1, 2, 3, 4])).error?.code).toBe("maxContains");
+    expect(failure(v.validate([1, 2, 3, 4])).error.code).toBe("maxContains");
   });
 
   it("minContains: 0 makes contains optional", () => {

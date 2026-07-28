@@ -14,8 +14,8 @@ describe("enum keyword", () => {
     const v = compile({ enum: [1, 2, 3] });
     const r = v.validate(4);
     expect(r.valid).toBe(false);
-    expect(failure(r).error?.code).toBe("enum");
-    expect(failure(r).error?.params).toMatchObject({ allowed: [1, 2, 3], actual: 4 });
+    expect(failure(r).error.code).toBe("enum");
+    expect(failure(r).error.params).toMatchObject({ allowed: [1, 2, 3], actual: 4 });
   });
 
   it("accepts object equality regardless of key order", () => {
@@ -39,7 +39,7 @@ describe("const keyword", () => {
   it("emits code 'const' with expected/actual params", () => {
     const v = compile({ const: 42 });
     const r = v.validate(7);
-    expect(failure(r).error?.code).toBe("const");
-    expect(failure(r).error?.params).toEqual({ expected: 42, actual: 7 });
+    expect(failure(r).error.code).toBe("const");
+    expect(failure(r).error.params).toEqual({ expected: 42, actual: 7 });
   });
 });

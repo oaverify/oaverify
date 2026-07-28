@@ -4,19 +4,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadSpecSync } from "../src/load.js";
 import { createFileReaderSync } from "../src/reader.js";
-
-/**
- * Narrow past a `$ref` union. OpenAPI containers type most members as
- * `ReferenceObject | T`; these specs are already resolved, so the ref
- * branch is unreachable -- but say so explicitly rather than casting,
- * so a genuinely unresolved ref fails loudly here.
- */
-function notRef<T extends object>(node: T): Exclude<T, { $ref: string }> {
-  if ("$ref" in node) {
-    throw new Error(`expected a resolved object, got $ref ${String(node.$ref)}`);
-  }
-  return node as Exclude<T, { $ref: string }>;
-}
+import { notRef } from "./helpers.js";
 
 // End-to-end against the real filesystem (the boot-time case loadSpecSync
 // exists for): a multi-file $ref graph on disk, plus the failure modes a

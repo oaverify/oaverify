@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect } from "../src/keywords/vocabulary.js";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import { failure } from "./helpers.js";
 
 const opts = { dialect: jsonSchemaDialect } as const;
 
@@ -13,9 +14,8 @@ describe("v3 default output", () => {
     const v = compileSchema({ type: "string" }, opts);
     const r = v.validate(42);
     expect(r.valid).toBe(false);
-    if (r.valid) return;
-    expect(Array.isArray(r.errors)).toBe(true);
-    expect(r.errors[0]?.code).toBe("type");
+    expect(Array.isArray(failure(r).errors)).toBe(true);
+    expect(failure(r).errors[0]?.code).toBe("type");
     // The tree field must not be present on a flat result.
     expect("error" in r).toBe(false);
   });
@@ -29,9 +29,8 @@ describe("v3 default output", () => {
     const v = compileSchema({ type: "object", required: ["a", "b", "c"] }, opts);
     const r = v.validate({});
     expect(r.valid).toBe(false);
-    if (r.valid) return;
-    expect(r.errors).toHaveLength(1);
-    expect(r.truncated).toBe(true);
+    expect(failure(r).errors).toHaveLength(1);
+    expect(failure(r).truncated).toBe(true);
   });
 
   it("reports truncated: false when the cap is not reached", () => {
@@ -39,9 +38,8 @@ describe("v3 default output", () => {
     const v = compileSchema({ type: "object", required: ["a"] }, { ...opts, maxErrors: 10 });
     const r = v.validate({});
     expect(r.valid).toBe(false);
-    if (r.valid) return;
-    expect(r.errors).toHaveLength(1);
-    expect(r.truncated).toBe(false);
+    expect(failure(r).errors).toHaveLength(1);
+    expect(failure(r).truncated).toBe(false);
   });
 
   it('output: "tree" returns the nested tree (and also defaults to maxErrors: 1)', () => {
@@ -54,10 +52,9 @@ describe("v3 default output", () => {
     );
     const r = v.validate({});
     expect(r.valid).toBe(false);
-    if (r.valid) return;
     // output and maxErrors are orthogonal: tree still fails fast by default.
-    expect(r.error.code).toBe("required");
-    expect(r.truncated).toBe(true);
+    expect(failure(r).error.code).toBe("required");
+    expect(failure(r).truncated).toBe(true);
     expect("errors" in r).toBe(false);
   });
 
@@ -67,10 +64,9 @@ describe("v3 default output", () => {
       { ...opts, output: "tree", maxErrors: Number.POSITIVE_INFINITY },
     );
     const r = v.validate({});
-    if (r.valid) return;
-    expect(r.error.code).toBe("schema");
-    expect(r.error.children).toHaveLength(3);
-    expect(r.truncated).toBe(false);
+    expect(failure(r).error.code).toBe("schema");
+    expect(failure(r).error.children).toHaveLength(3);
+    expect(failure(r).truncated).toBe(false);
   });
 
   it('output: "predicate" returns a bare boolean', () => {
@@ -85,9 +81,8 @@ describe("v3 default output", () => {
       { ...opts, maxErrors: Number.POSITIVE_INFINITY },
     );
     const r = v.validate({});
-    if (r.valid) return;
-    expect(r.errors).toHaveLength(3);
-    expect(r.truncated).toBe(false);
+    expect(failure(r).errors).toHaveLength(3);
+    expect(failure(r).truncated).toBe(false);
   });
 
   // A finite maxErrors must never change a valid/invalid verdict. Schemas

@@ -81,8 +81,8 @@ describe("subschema inlining", () => {
     expect(v.validate([1, 2, 3]).valid).toBe(true);
     const r = v.validate([1, "two", 3]);
     expect(r.valid).toBe(false);
-    expect(failure(r).error?.code).toBe("type");
-    expect(failure(r).error?.path).toEqual([1]);
+    expect(failure(r).error.code).toBe("type");
+    expect(failure(r).error.path).toEqual([1]);
   });
 
   it("inlining preserves validation behavior: property form", () => {
@@ -90,7 +90,7 @@ describe("subschema inlining", () => {
     expect(v.validate({ age: 5 }).valid).toBe(true);
     const r = v.validate({ age: "x" });
     expect(r.valid).toBe(false);
-    expect(failure(r).error?.path).toEqual(["age"]);
+    expect(failure(r).error.path).toEqual(["age"]);
   });
 
   it("inlining respects maxErrors: allocated paths still wear the budget cap", () => {

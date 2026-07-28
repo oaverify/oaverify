@@ -23,7 +23,7 @@ describe("type keyword", () => {
       for (const value of c.bad) {
         const r = v.validate(value);
         expect(r.valid, JSON.stringify(value)).toBe(false);
-        expect(failure(r).error?.code).toBe("type");
+        expect(failure(r).error.code).toBe("type");
       }
     });
   }
@@ -38,11 +38,11 @@ describe("type keyword", () => {
   it("carries expected and actual in params", () => {
     const v = compile({ type: "number" });
     const r = v.validate("x");
-    expect(failure(r).error?.params).toMatchObject({ expected: ["number"], actual: "string" });
+    expect(failure(r).error.params).toMatchObject({ expected: ["number"], actual: "string" });
   });
 
   it("path is empty at the root", () => {
     const v = compile({ type: "number" });
-    expect(failure(v.validate("x")).error?.path).toEqual([]);
+    expect(failure(v.validate("x")).error.path).toEqual([]);
   });
 });

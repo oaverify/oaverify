@@ -3,14 +3,6 @@ import { composeReaders, createMemoryReader } from "../src/reader.js";
 import { resolveJsonPointer, resolveSpec } from "../src/resolver.js";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 
-/** A schema known to be an object here, not a boolean. */
-function asObject(schema: unknown): Record<string, never> & Record<string, unknown> {
-  if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
-    throw new Error("expected a schema object");
-  }
-  return schema as Record<string, never> & Record<string, unknown>;
-}
-
 function collectInternalRefs(value: unknown, out: string[] = []): string[] {
   if (value === null || typeof value !== "object") return out;
   if (Array.isArray(value)) {
@@ -166,10 +158,8 @@ describe("resolveSpec", () => {
     expect(schemas.Plain?.type).toBe("object");
     expect(schemas.Plain?.$ref).toBeUndefined();
     const docRecord = document as unknown as SchemaOrBoolean;
-    const ext = ((asObject(docRecord).$defs ?? {}) as Record<string, unknown>).__ext__ as Record<
-      string,
-      unknown
-    >;
+    const ext = (docRecord as unknown as { $defs: Record<string, unknown> }).$defs
+      .__ext__ as Record<string, unknown>;
     expect(ext).toBeDefined();
     expect(Object.keys(ext)).toContain("loop.json");
     expect(Object.keys(ext)).not.toContain("plain.json");

@@ -35,7 +35,7 @@ describe("path sharing: correctness under stress", () => {
     const data = Array.from({ length: 100 }, (_, i) => `bad-${i}`);
     const r = v.validate(data);
     expect(r.valid).toBe(false);
-    const leaves = flattenLeaves(failure(r).error!);
+    const leaves = flattenLeaves(failure(r).error);
     // One leaf per item (type error)
     expect(leaves).toHaveLength(100);
     // Each leaf's path should be [i] for i in 0..99, in order
@@ -69,7 +69,7 @@ describe("path sharing: correctness under stress", () => {
       users: [{ addresses: [{ zip: "a" }, { zip: 2 }, { zip: "b" }] }, { addresses: [{ zip: 3 }] }],
     });
     expect(r.valid).toBe(false);
-    const leaves = flattenLeaves(failure(r).error!);
+    const leaves = flattenLeaves(failure(r).error);
     const paths = leaves.map((l) => l.path.join("."));
     expect(paths).toContain("users.0.addresses.1.zip");
     expect(paths).toContain("users.1.addresses.0.zip");
@@ -82,13 +82,13 @@ describe("path sharing: correctness under stress", () => {
     });
     // First call: error at ["x"]
     const r1 = v.validate({ x: "not a number" });
-    expect(failure(r1).error?.path).toEqual(["x"]);
+    expect(failure(r1).error.path).toEqual(["x"]);
     // Second call: same error, same path, not ["x", "x"] from shared leak
     const r2 = v.validate({ x: "still not a number" });
-    expect(failure(r2).error?.path).toEqual(["x"]);
+    expect(failure(r2).error.path).toEqual(["x"]);
     // Third call, a different shape
     const r3 = v.validate({ x: "bad" });
-    expect(failure(r3).error?.path).toEqual(["x"]);
+    expect(failure(r3).error.path).toEqual(["x"]);
   });
 
   it("preserves path in errors after the validation frame has exited", () => {
@@ -98,7 +98,7 @@ describe("path sharing: correctness under stress", () => {
     // pop unwound it).
     const v = compile({ type: "array", items: { type: "number" } });
     const r = v.validate(["a", "b", "c"]);
-    const leaves = flattenLeaves(failure(r).error!);
+    const leaves = flattenLeaves(failure(r).error);
     // Each leaf must have a CLOSED-OVER path, not a reference to a
     // mutated array.
     expect(leaves[0]?.path).toEqual([0]);
@@ -112,7 +112,7 @@ describe("path sharing: correctness under stress", () => {
     });
     // Re-run: fresh paths must not include the "extra" segments from above
     const r2 = v.validate(["x"]);
-    const leaves2 = flattenLeaves(failure(r2).error!);
+    const leaves2 = flattenLeaves(failure(r2).error);
     expect(leaves2[0]?.path).toEqual([0]);
   });
 
@@ -122,7 +122,7 @@ describe("path sharing: correctness under stress", () => {
       required: ["a", "b", "c"],
     });
     const r = v.validate({});
-    const leaves = flattenLeaves(failure(r).error!);
+    const leaves = flattenLeaves(failure(r).error);
     const missing = leaves.map((l) => l.path.join("."));
     expect(missing.sort()).toEqual(["a", "b", "c"]);
   });
@@ -134,7 +134,7 @@ describe("path sharing: correctness under stress", () => {
       additionalProperties: false,
     });
     const r = v.validate({ ok: "x", badKey: 1, anotherBad: 2 });
-    const leaves = flattenLeaves(failure(r).error!);
+    const leaves = flattenLeaves(failure(r).error);
     const bad = leaves.map((l) => l.path.join("."));
     expect(bad.sort()).toEqual(["anotherBad", "badKey"]);
   });
@@ -145,7 +145,7 @@ describe("path sharing: correctness under stress", () => {
       patternProperties: { "^_": { type: "number" } },
     });
     const r = v.validate({ _foo: "bad", _bar: "also bad" });
-    const leaves = flattenLeaves(failure(r).error!);
+    const leaves = flattenLeaves(failure(r).error);
     const keys = leaves.map((l) => l.path.join("."));
     expect(keys.sort()).toEqual(["_bar", "_foo"]);
   });
@@ -156,7 +156,7 @@ describe("path sharing: correctness under stress", () => {
       prefixItems: [{ type: "string" }, { type: "number" }, { type: "boolean" }],
     });
     const r = v.validate([1, "x", "y"]);
-    const leaves = flattenLeaves(failure(r).error!);
+    const leaves = flattenLeaves(failure(r).error);
     const paths = leaves.map((l) => l.path.join("."));
     expect(paths.sort()).toEqual(["0", "1", "2"]);
   });
@@ -168,7 +168,7 @@ describe("path sharing: correctness under stress", () => {
       unevaluatedProperties: false,
     });
     const r = v.validate({ known: "x", unknown1: 1, unknown2: 2 });
-    const leaves = flattenLeaves(failure(r).error!);
+    const leaves = flattenLeaves(failure(r).error);
     const keys = leaves.map((l) => l.path.join("."));
     expect(keys.sort()).toEqual(["unknown1", "unknown2"]);
   });
@@ -183,7 +183,7 @@ describe("path sharing: correctness under stress", () => {
     });
     const r = v.validate(["a", "b", "c", "d", "e"]);
     expect(failure(r).truncated).toBe(true);
-    const leaves = flattenLeaves(failure(r).error!);
+    const leaves = flattenLeaves(failure(r).error);
     expect(leaves).toHaveLength(3);
     expect(leaves[0]?.path).toEqual([0]);
     expect(leaves[1]?.path).toEqual([1]);
@@ -201,7 +201,7 @@ describe("path sharing: correctness under stress", () => {
       },
     });
     const r = v.validate({ a: "bad" });
-    const leaves = flattenLeaves(failure(r).error!);
+    const leaves = flattenLeaves(failure(r).error);
     const paths = leaves.map((l) => l.path.join(":"));
     // Must see a "missing" required error at path ["missing"]
     // AND an "a" type error at path ["a"]. No leak: no "missing:a" path.

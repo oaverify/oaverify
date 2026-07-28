@@ -5,12 +5,7 @@ import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import { compileSchema, jsonSchemaDialect } from "@oaverify/internal-schema";
 import { classify, ClassifierError } from "../src/classifier/index.js";
 import { createStreamValidator, type StreamVerdict } from "../src/index.js";
-
-/** Narrow a settled stream result to its error branch. */
-function asError(value: unknown): Error {
-  if (!(value instanceof Error)) throw new Error(`expected an Error, got ${typeof value}`);
-  return value;
-}
+import { asError } from "./helpers.js";
 
 const enc = new TextEncoder();
 

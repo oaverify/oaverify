@@ -3,6 +3,7 @@ import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import type { JsonPath } from "../src/options.js";
+import { first } from "./helpers.js";
 import {
   createStreamValidator,
   type StreamValidatorOptions,
@@ -10,17 +11,6 @@ import {
 } from "../src/index.js";
 
 const enc = new TextEncoder();
-
-/**
- * First element, asserted present. `const [e] = events` types `e` as
- * possibly-undefined, and these tests all mean "there is one and this is
- * it" -- so say that, and fail loudly if the stream produced nothing.
- */
-function first<T>(items: readonly T[]): T {
-  const [item] = items;
-  if (item === undefined) throw new Error("expected at least one event, got none");
-  return item;
-}
 
 // Feed `json` (optionally pre-split into chunks) through a validator with
 // the given value-event options and collect the `value` events. Returns
@@ -144,7 +134,7 @@ describe("value events", () => {
       };
       const { events, input } = await collectValues(schema, '{"code":"abc"}', true);
       expect(events.map((e) => e.key)).toEqual(["code"]);
-      expect(sliceParse(input, events[0]!)).toBe("abc");
+      expect(sliceParse(input, first(events))).toBe("abc");
     });
 
     it("reports a format-bearing string island under an asserting dialect", async () => {
@@ -164,7 +154,7 @@ describe("value events", () => {
       expect(events.map((e) => [e.key, e.type, e.value])).toEqual([
         ["ts", "string", "2026-06-19T00:00:00Z"],
       ]);
-      expect(sliceParse(input, events[0]!)).toBe("2026-06-19T00:00:00Z");
+      expect(sliceParse(input, first(events))).toBe("2026-06-19T00:00:00Z");
     });
 
     it("reports a format-string island in span-only mode (no capture)", async () => {
@@ -176,7 +166,7 @@ describe("value events", () => {
         openApiVersion: "3.1",
       });
       expect(events.map((e) => [e.key, e.type, e.value])).toEqual([["ts", "string", undefined]]);
-      expect(sliceParse(input, events[0]!)).toBe("2026-06-19T00:00:00Z");
+      expect(sliceParse(input, first(events))).toBe("2026-06-19T00:00:00Z");
     });
 
     it("does not fire for a scalar string nested inside a container island", async () => {
@@ -269,8 +259,8 @@ describe("value events", () => {
 
     it("omits the value (offsets only) when capture is off", async () => {
       const { events } = await collectValues(objectSchema, '{"s":"abc"}', { at: ["s"] });
-      expect(events[0]!.value).toBeUndefined();
-      expect(events[0]!.truncated).toBe(false);
+      expect(first(events).value).toBeUndefined();
+      expect(first(events).truncated).toBe(false);
     });
 
     it("drops the value and sets truncated past maxCaptureBytes, keeping the span", async () => {
@@ -332,8 +322,8 @@ describe("value events", () => {
       expect(verdict.valid).toBe(false);
       expect(verdict.violations.some((v) => v.code === "pattern")).toBe(true);
       // Capture itself was dropped over the cap; span still reported.
-      expect(events[0]!.truncated).toBe(true);
-      expect(events[0]!.value).toBeUndefined();
+      expect(first(events).truncated).toBe(true);
+      expect(first(events).value).toBeUndefined();
     });
 
     it("accumulates a captured value across chunk boundaries", async () => {
@@ -341,8 +331,8 @@ describe("value events", () => {
         at: ["id"],
         capture: true,
       });
-      expect(events[0]!.value).toBe("hello world");
-      expect(sliceParse(input, events[0]!)).toBe("hello world");
+      expect(first(events).value).toBe("hello world");
+      expect(sliceParse(input, first(events))).toBe("hello world");
     });
 
     it("does not fail the stream when a captured value exceeds the cap (soft limit)", async () => {

@@ -75,14 +75,14 @@ describe("maxDepth: boundary semantics", () => {
     const v = compile(recursive, { maxDepth: 2 });
     const r = v.validate(nestChild(5));
     expect(r.valid).toBe(false);
-    const depthLeaf = collectLeaves(failure(r).error!).find((l) => l.code === "depth");
+    const depthLeaf = collectLeaves(failure(r).error).find((l) => l.code === "depth");
     expect(depthLeaf?.params).toEqual({ limit: 2 });
   });
 
   it("maps the depth error to HTTP 400", () => {
     const v = compile(recursive, { maxDepth: 2 });
     const r = v.validate(nestChild(5));
-    expect(httpStatusFor(failure(r).error!)).toBe(400);
+    expect(httpStatusFor(failure(r).error)).toBe(400);
   });
 });
 

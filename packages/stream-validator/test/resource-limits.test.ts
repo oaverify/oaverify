@@ -4,12 +4,8 @@ import { describe, expect, it } from "vitest";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import type { RegexCompiler } from "@oaverify/internal-schema";
 import { compileSchema, jsonSchemaDialect, openapi31Dialect } from "@oaverify/internal-schema";
+import { asError } from "./helpers.js";
 
-/** Narrow a settled stream result to its error branch. */
-function asError(value: unknown): Error {
-  if (!(value instanceof Error)) throw new Error(`expected an Error, got ${typeof value}`);
-  return value;
-}
 import {
   BufferLimitError,
   createStreamValidator,
