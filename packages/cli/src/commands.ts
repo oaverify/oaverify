@@ -251,6 +251,20 @@ export interface CheckFinding {
   occurrences?: number;
 }
 
+/**
+ * Add a schema finding, collapsing a repeat of one already recorded.
+ * Keyed on code plus message, which already carries the path.
+ */
+function addSchemaFinding(into: Map<string, CheckFinding>, finding: CheckFinding): void {
+  const key = `${finding.code}\u0000${finding.message}`;
+  const already = into.get(key);
+  if (already === undefined) {
+    into.set(key, finding);
+    return;
+  }
+  already.occurrences = (already.occurrences ?? 1) + 1;
+}
+
 /** Check classes `--only` accepts. */
 export const CHECK_CLASSES = ["hygiene", "schema"] as const;
 export type CheckClass = (typeof CHECK_CLASSES)[number];
@@ -339,6 +353,11 @@ export async function checkCommand(
   // code plus message, which already carries the path.
   const schemaFindings = new Map<string, CheckFinding>();
 
+  // Set when at least one schema was malformed. The document is still
+  // graded, so the report is complete; the exit code says the grading
+  // ran against a document that cannot be compiled.
+  let malformed = false;
+
   if (classes.has("schema")) {
     try {
       const validator = createValidator(document, { schemaLint: "strict" });
@@ -346,20 +365,27 @@ export async function checkCommand(
       // nothing: no schema has been checked and schemaLintIssues is
       // empty. `check` is exactly the caller that wants the whole
       // document compiled.
-      validator.precompile();
+      //
+      // `collect` rather than the default `throw`: a tool inspecting a
+      // document wants every finding, and stopping at the first
+      // malformed schema hid the rest of the file behind it (#515). A
+      // server wants the opposite and gets it by default.
+      for (const failure of validator.precompile({ onMalformed: "collect" })) {
+        malformed = true;
+        addSchemaFinding(schemaFindings, {
+          class: "schema",
+          code: "malformed-schema",
+          location: failure.context,
+          message: failure.message,
+        });
+      }
       for (const issue of validator.stats.schemaLintIssues) {
         // The path is relative to the schema that was compiled, which on
         // a spec with many operations does not say where to look. The
         // validator labels each compile with its operation, so prefer
         // that when it is present.
         const where = issue.path === "" ? "<root>" : issue.path;
-        const key = `${issue.code}\u0000${issue.message}`;
-        const already = schemaFindings.get(key);
-        if (already !== undefined) {
-          already.occurrences = (already.occurrences ?? 1) + 1;
-          continue;
-        }
-        schemaFindings.set(key, {
+        addSchemaFinding(schemaFindings, {
           class: "schema",
           code: issue.code,
           location: issue.context === undefined ? where : `${issue.context} -> ${where}`,
@@ -367,9 +393,9 @@ export async function checkCommand(
         });
       }
     } catch (err) {
-      // A malformed schema throws rather than linting. Exit 2, same as a
-      // document that would not load: in both cases there is no validator
-      // to grade.
+      // Nothing survives building the validator at all: an unresolvable
+      // ref, a document that is not an OpenAPI object. Unlike a
+      // malformed schema, there is no partial result to report.
       io.stderr(`check: ${(err as Error).message}\n`);
       return { exitCode: 2 };
     }
@@ -391,6 +417,9 @@ export async function checkCommand(
     await sink(`\n${findings.length} finding(s)\n`);
   }
 
+  // A malformed schema outranks the gate: the document cannot be
+  // compiled, whatever the findings say.
+  if (malformed) return { exitCode: 2 };
   if (args.failOn === "warning" && findings.length > 0) return { exitCode: 1 };
   return { exitCode: 0 };
 }

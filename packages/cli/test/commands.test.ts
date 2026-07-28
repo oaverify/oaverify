@@ -305,6 +305,72 @@ describe("resolveCommand", () => {
     expect(findings[0]?.occurrences).toBeUndefined();
   });
 
+  it("check reports everything it found even when a schema is malformed", async () => {
+    // The abort used to discard findings it had already collected, so
+    // running fewer checks reported more: `--only hygiene` surfaced the
+    // unused component and the full run surfaced nothing (#515).
+    const spec = {
+      openapi: "3.1.0",
+      info: { title: "X", version: "1" },
+      components: { schemas: { NeverUsed: { type: "object" } } },
+      paths: {
+        "/things": {
+          get: {
+            responses: {
+              "200": {
+                description: "ok",
+                content: {
+                  "application/json": { schema: { type: "array", items: [{ type: "string" }] } },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const { io, stdout } = memoryIo([["spec.json", spec]]);
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], format: "json", options: textOpts },
+      io,
+    );
+    const { findings } = JSON.parse(stdout.value) as {
+      findings: { class: string; code: string }[];
+    };
+    expect(findings.map((f) => f.code).sort()).toEqual(["malformed-schema", "unused-component"]);
+    // Still exit 2: the document cannot be compiled, whatever else the
+    // report says.
+    expect(result.exitCode).toBe(2);
+  });
+
+  it("check exits 2 for a malformed schema even under --fail-on warning", async () => {
+    const { io } = memoryIo([
+      [
+        "spec.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1" },
+          paths: {
+            "/t": {
+              get: {
+                responses: {
+                  "200": {
+                    description: "ok",
+                    content: { "application/json": { schema: { items: [{ type: "string" }] } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    ]);
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], failOn: "warning", options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(2);
+  });
+
   it("check --fail-on warning exits 1 when findings exist, 0 when clean", async () => {
     const dirty = memoryIo([["spec.json", dirtySpec()]]);
     expect(
@@ -360,9 +426,14 @@ describe("resolveCommand", () => {
     expect(payload.findings.every((f) => f.class === "schema")).toBe(true);
   });
 
-  it("check exits 2 when the document cannot be compiled", async () => {
-    // Malformed is not a finding: there is no validator to grade.
-    const { io, stderr } = memoryIo([
+  it("check reports a malformed schema as a finding and exits 2", async () => {
+    // This used to go to stderr on the reasoning that a document which
+    // cannot be compiled has nothing to grade. That was wrong in the
+    // part that mattered: the rest of the document still grades, and
+    // discarding it meant a consumer could not tell an abort from a
+    // clean run (#515). The exit code still says the document cannot be
+    // compiled.
+    const { io, stdout } = memoryIo([
       [
         "spec.json",
         {
@@ -379,9 +450,68 @@ describe("resolveCommand", () => {
         },
       ],
     ]);
-    const result = await checkCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], format: "json", options: textOpts },
+      io,
+    );
     expect(result.exitCode).toBe(2);
-    expect(stderr.value).toContain("unknown type name");
+    const { findings } = JSON.parse(stdout.value) as {
+      findings: { code: string; message: string }[];
+    };
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.code).toBe("malformed-schema");
+    expect(findings[0]?.message).toContain("unknown type name");
+  });
+
+  it("check reports an unresolvable $ref as a finding too", async () => {
+    // Also raised while compiling an operation, so it is collected and
+    // located like any other compile failure rather than aborting the
+    // run. stderr stays for the case where the document cannot be read
+    // or parsed at all, where there is genuinely nothing to report.
+    const { io, stdout } = memoryIo([
+      [
+        "spec.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1" },
+          paths: {
+            "/p": {
+              get: {
+                responses: {
+                  "200": {
+                    description: "ok",
+                    content: {
+                      "application/json": { schema: { $ref: "#/components/schemas/Nope" } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    ]);
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], format: "json", options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(2);
+    const { findings } = JSON.parse(stdout.value) as {
+      findings: { code: string; message: string }[];
+    };
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.code).toBe("malformed-schema");
+    expect(findings[0]?.message).toContain("Nope");
+  });
+
+  it("check exits 2 on stderr when the document cannot be read", async () => {
+    const { io, stderr } = memoryIo([]);
+    const result = await checkCommand(
+      { spec: "missing.json", overlays: [], options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(2);
+    expect(stderr.value).toContain("check:");
   });
 });
 
