@@ -145,58 +145,67 @@ function namesOf(schemas: readonly Obj[]): Set<string> {
   return out;
 }
 
+/** The set of schemas constraining one instance position. */
+interface Instance {
+  readonly schemas: readonly Obj[];
+  /** The reachable names cannot be enumerated here; suppress flagging. */
+  readonly unknown: boolean;
+}
+
+const UNKNOWN_INSTANCE: Instance = { schemas: [], unknown: true };
+
 /**
- * Resolve an instance path from the document root to the set of schemas
- * constraining the instance at that position, following *every*
- * contributor rather than only the route the walk took to get there.
+ * Every schema constraining the instance one `step` below `cur`,
+ * following *every* contributor rather than only the route the walk
+ * took to get there.
  *
  * This is the whole point of the rule: a `required` under
  * `allOf[0].then.properties.x` and a declaration under `properties.x`
  * constrain the same child instance, so the first is satisfied by the
  * second.
+ *
+ * Stepping from the parent rather than re-resolving the whole path from
+ * the root is what keeps the walk cheap. The two are equivalent, since
+ * resolving a path is exactly these steps applied in order, and the
+ * re-resolving version made every node pay for its own depth (#511).
  */
-function schemasAt(
-  path: readonly Step[],
+function stepInstance(
+  cur: Instance,
+  step: Step,
   root: Obj,
   resolve: RequiredLintResolver | undefined,
-): { schemas: Obj[]; unknown: boolean } {
-  let cur = closure([root], root, resolve);
-  if (cur.unresolved) return { schemas: [], unknown: true };
+): Instance {
+  if (cur.unknown || step.k === "any") return UNKNOWN_INSTANCE;
+  const next: unknown[] = [];
 
-  for (const step of path) {
-    if (step.k === "any") return { schemas: [], unknown: true };
-    const next: unknown[] = [];
-
-    for (const s of cur.schemas) {
-      if (step.k === "prop") {
-        const props = s["properties"];
-        if (isObj(props) && Object.hasOwn(props, step.n)) next.push(props[step.n]);
-        // A pattern could match this name; which one is undecidable
-        // here, so stop claiming to know what the child can carry.
-        if (isObj(s["patternProperties"])) return { schemas: [], unknown: true };
-        const addl = s["additionalProperties"];
-        if (isObj(addl)) next.push(addl);
-      } else if (step.k === "items") {
-        for (const key of ["items", "contains", "unevaluatedItems"]) {
-          const v = s[key];
-          if (v !== undefined) next.push(v);
-        }
-        const prefix = s["prefixItems"];
-        if (Array.isArray(prefix)) next.push(...prefix);
-      } else {
-        for (const key of ["additionalProperties", "unevaluatedProperties"]) {
-          const v = s[key];
-          if (v !== undefined) next.push(v);
-        }
-        const patterns = s["patternProperties"];
-        if (isObj(patterns)) next.push(...Object.values(patterns));
+  for (const s of cur.schemas) {
+    if (step.k === "prop") {
+      const props = s["properties"];
+      if (isObj(props) && Object.hasOwn(props, step.n)) next.push(props[step.n]);
+      // A pattern could match this name; which one is undecidable
+      // here, so stop claiming to know what the child can carry.
+      if (isObj(s["patternProperties"])) return UNKNOWN_INSTANCE;
+      const addl = s["additionalProperties"];
+      if (isObj(addl)) next.push(addl);
+    } else if (step.k === "items") {
+      for (const key of ["items", "contains", "unevaluatedItems"]) {
+        const v = s[key];
+        if (v !== undefined) next.push(v);
       }
+      const prefix = s["prefixItems"];
+      if (Array.isArray(prefix)) next.push(...prefix);
+    } else {
+      for (const key of ["additionalProperties", "unevaluatedProperties"]) {
+        const v = s[key];
+        if (v !== undefined) next.push(v);
+      }
+      const patterns = s["patternProperties"];
+      if (isObj(patterns)) next.push(...Object.values(patterns));
     }
-
-    cur = closure(next, root, resolve);
-    if (cur.unresolved) return { schemas: [], unknown: true };
   }
-  return { schemas: cur.schemas, unknown: false };
+
+  const cl = closure(next, root, resolve);
+  return cl.unresolved ? UNKNOWN_INSTANCE : { schemas: cl.schemas, unknown: false };
 }
 
 /** The child instance a descent through `key` lands on, if any. */
@@ -266,15 +275,41 @@ export function collectRequiredIssues(
   // which names have been reported for a given schema object.
   const reported = new Map<Obj, Set<string>>();
 
-  const walk = (
-    node: unknown,
-    path: string,
-    instance: readonly Step[],
-    underNot: boolean,
-    onPath: Set<Obj>,
-  ): void => {
-    if (!isObj(node) || onPath.has(node)) return;
-    const here = new Set(onPath).add(node);
+  // Identity keys for the visited set below. Per call rather than
+  // module-level, so the numbering cannot grow without bound.
+  const ids = new WeakMap<Obj, number>();
+  let nextId = 0;
+  const idOf = (o: Obj): number => {
+    let id = ids.get(o);
+    if (id === undefined) {
+      id = nextId;
+      nextId += 1;
+      ids.set(o, id);
+    }
+    return id;
+  };
+  const keyOf = (node: Obj, cur: Instance): string =>
+    cur.unknown
+      ? `${idOf(node)}|?`
+      : `${idOf(node)}|${cur.schemas
+          .map(idOf)
+          .sort((a, b) => a - b)
+          .join(",")}`;
+
+  // What a node's subtree reports depends on the node and on the set of
+  // schemas constraining the instance it sits at, and on nothing else:
+  // a child's set is a function of the parent's set and the step taken.
+  // So a pair seen once needs no second visit. Guarding on the current
+  // path instead made a diamond `$ref` graph re-walk once per distinct
+  // path through it, which is exponential in depth (#511). This also
+  // subsumes the cycle guard: a recursive schema revisits the same pair.
+  const visited = new Set<string>();
+
+  const walk = (node: unknown, path: string, cur: Instance, underNot: boolean): void => {
+    if (!isObj(node)) return;
+    const key = keyOf(node, cur);
+    if (visited.has(key)) return;
+    visited.add(key);
 
     // Follow `$ref` so the walk reaches component schemas, which an
     // operation-scoped compile cannot see: only a body schema's *root*
@@ -283,14 +318,13 @@ export function collectRequiredIssues(
     const ref = node["$ref"];
     if (typeof ref === "string") {
       const target = resolveRef(ref, root, resolve);
-      if (isObj(target)) walk(target, path, instance, underNot, here);
+      if (isObj(target)) walk(target, path, cur, underNot);
     }
 
     const required = node["required"];
     if (!underNot && Array.isArray(required)) {
-      const at = schemasAt(instance, root, resolve);
-      if (!at.unknown) {
-        const available = namesOf(at.schemas);
+      if (!cur.unknown) {
+        const available = namesOf(cur.schemas);
         if (!available.has(ANY_PROPERTY)) {
           let seenNames = reported.get(node);
           if (seenNames === undefined) {
@@ -324,9 +358,8 @@ export function collectRequiredIssues(
       walk(
         v,
         childPath,
-        step === undefined ? instance : [...instance, step],
+        step === undefined ? cur : stepInstance(cur, step, root, resolve),
         underNot || key === "not",
-        here,
       );
     };
 
@@ -353,6 +386,12 @@ export function collectRequiredIssues(
     }
   };
 
-  walk(root, "", [], false, new Set());
+  const rootClosure = closure([root], root, resolve);
+  walk(
+    root,
+    "",
+    rootClosure.unresolved ? UNKNOWN_INSTANCE : { schemas: rootClosure.schemas, unknown: false },
+    false,
+  );
   return issues;
 }
