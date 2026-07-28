@@ -187,55 +187,32 @@ describe("strict mode: silent-rewrite/ref-siblings-oas30", () => {
   });
 });
 
-describe("strict mode: silent-rewrite/required-not-in-properties", () => {
+describe("schema lint: required-not-in-properties is withheld", () => {
   const lint = (schema: SchemaOrBoolean) =>
     compileSchema(schema, { dialect: jsonSchemaDialect }).stats.schemaLintIssues;
 
-  it("flags a required key not in properties (typo case)", () => {
-    const schema = {
+  // The rule ran at 2.6% signal (77 findings, 2 true positives across 13
+  // published specs) and is not emitted pending #477's ancestor-aware
+  // rewrite. Pinned as a test rather than left implicit, so its return is
+  // a deliberate change rather than an accident.
+  it("does not emit the code, including on the case it was written for", () => {
+    const typo = {
       type: "object",
       properties: { name: { type: "string" } },
       required: ["nam"],
     } as unknown as SchemaOrBoolean;
-    const issues = lint(schema).filter(
-      (i) => i.code === "silent-rewrite/required-not-in-properties",
-    );
-    expect(issues).toHaveLength(1);
-    expect(issues[0]?.keyword).toBe("required");
-    expect(issues[0]?.message).toContain('"nam"');
+    expect(
+      lint(typo).filter((i) => i.code === "silent-rewrite/required-not-in-properties"),
+    ).toEqual([]);
   });
 
-  it("does not flag when every required key appears in properties", () => {
-    const schema = {
-      type: "object",
-      properties: { name: { type: "string" }, age: { type: "number" } },
-      required: ["name", "age"],
-    } as unknown as SchemaOrBoolean;
-    const issues = lint(schema).filter(
-      (i) => i.code === "silent-rewrite/required-not-in-properties",
-    );
-    expect(issues).toEqual([]);
-  });
-
-  it("skips the check when schema mixes required with $ref / allOf / oneOf / anyOf", () => {
-    // Conservative: a composed schema may contribute the required key
-    // from elsewhere, so we don't flag false-positively.
-    const named = { type: "object", properties: { name: { type: "string" } } };
-    const schemas: SchemaOrBoolean[] = [
-      { allOf: [named], required: ["name"] },
-      {
-        $defs: { Named: named },
-        properties: { wrap: { $ref: "#/$defs/Named", required: ["name"] } },
-      },
-      { oneOf: [named], required: ["name"] },
-      { anyOf: [named], required: ["name"] },
-    ] as unknown as SchemaOrBoolean[];
-    for (const schema of schemas) {
-      const issues = lint(schema).filter(
-        (i) => i.code === "silent-rewrite/required-not-in-properties",
-      );
-      expect(issues).toEqual([]);
-    }
+  it("still emits the other schema-lint codes", () => {
+    // The withholding is per-rule, not a disabled class.
+    const issues = compileSchema({ minimumx: 5 } as unknown as SchemaOrBoolean, {
+      dialect: jsonSchemaDialect,
+      schemaLint: "strict",
+    }).stats.schemaLintIssues;
+    expect(issues.map((i) => i.code)).toContain("unknown-keyword");
   });
 });
 
