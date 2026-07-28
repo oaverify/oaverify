@@ -187,7 +187,7 @@ describe("strict mode: silent-rewrite/ref-siblings-oas30", () => {
   });
 });
 
-describe("schema lint: required-not-in-properties (ancestor-aware)", () => {
+describe("schema lint: required-not-in-properties (instance-position aware)", () => {
   const flagged = (schema: unknown) =>
     compileSchema(schema as SchemaOrBoolean, {
       dialect: jsonSchemaDialect,
@@ -280,6 +280,78 @@ describe("schema lint: required-not-in-properties (ancestor-aware)", () => {
     });
     expect(issues).toHaveLength(1);
     expect(issues[0]?.path).toContain("items");
+  });
+
+  it("sees a sibling that constrains the same child instance", () => {
+    // The names are declared by `properties.id`, and the `required`
+    // sits under `allOf[0].then.properties.id`. Both constrain the same
+    // child instance, so tracking only the walk's own ancestors would
+    // flag this: the declaration is on the other side of the
+    // composition.
+    expect(
+      flagged({
+        type: "object",
+        allOf: [
+          { if: { properties: { kind: {} } }, then: { properties: { id: { required: ["ssn"] } } } },
+        ],
+        properties: {
+          kind: { type: "string" },
+          id: { type: "object", properties: { ssn: { type: "string" } } },
+        },
+      }),
+    ).toEqual([]);
+  });
+
+  it("reaches a component behind a nested $ref", () => {
+    // Only a body schema's root `$ref` is unwrapped before compilation,
+    // so a rule that does not follow refs never visits this `required`
+    // at all. It is unsatisfiable: `Item` declares no `total`.
+    const issues = flagged({
+      type: "array",
+      items: { $ref: "#/$defs/Item" },
+      $defs: {
+        Item: { type: "object", properties: { id: { type: "string" } }, required: ["id", "total"] },
+      },
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('"total"');
+  });
+
+  it("does not flag a definition whose only use site supplies the name", () => {
+    // `Summary` requires `flag`, which its sibling in the composition
+    // declares. Reached through the ref, the instance can carry it.
+    expect(
+      flagged({
+        $defs: { Summary: { type: "object", properties: {}, required: ["flag"] } },
+        allOf: [{ $ref: "#/$defs/Summary" }],
+        properties: { flag: { type: "boolean" } },
+      }),
+    ).toEqual([]);
+  });
+
+  it("treats dependentSchemas as constraining the same instance", () => {
+    expect(
+      flagged({
+        type: "object",
+        properties: { a: { type: "string" }, b: { type: "string" } },
+        dependentSchemas: { a: { required: ["b"] } },
+      }),
+    ).toEqual([]);
+  });
+
+  it("terminates on a self-referential schema", () => {
+    expect(
+      flagged({
+        $defs: {
+          Node: {
+            type: "object",
+            properties: { child: { $ref: "#/$defs/Node" } },
+            required: ["child"],
+          },
+        },
+        allOf: [{ $ref: "#/$defs/Node" }],
+      }),
+    ).toEqual([]);
   });
 });
 

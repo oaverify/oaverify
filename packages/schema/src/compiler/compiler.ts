@@ -104,7 +104,7 @@ function runSchemaLint(
   schema: SchemaOrBoolean,
   byKeyword: Map<string, KeywordDefinition>,
   mode: "warn" | "strict",
-  rules: { refSuppressesSiblings: boolean },
+  rules: { refSuppressesSiblings: boolean; resolveRef?: (ref: string) => unknown },
 ): SchemaLintIssue[] {
   // The full set of names the active dialect recognizes, including
   // `implements` entries on existing definitions (e.g. `if` implements
@@ -119,7 +119,7 @@ function runSchemaLint(
   // Ancestor-aware, so it walks the graph itself rather than per-node:
   // the question is what property names are reachable at an instance
   // position, which a per-node visitor cannot see.
-  issues.push(...collectRequiredIssues(schema));
+  issues.push(...collectRequiredIssues(schema, rules.resolveRef));
   walkSubschemas(schema, (node, path) => {
     if (typeof node !== "object" || node === null || Array.isArray(node)) return;
     const obj = node as Record<string, unknown>;
@@ -319,15 +319,20 @@ export interface SchemaLintIssue {
    *   siblings are silently dropped; the validator runs the `$ref`
    *   target only.
    * - `"silent-rewrite/required-not-in-properties"`: a `required`
-   *   array names a key that doesn't appear in the same schema's
-   *   `properties`. Almost always a typo.
+   *   array names a property no schema reaching that instance position
+   *   declares, so the constraint can never be met. Almost always a
+   *   typo.
    *
-   *   Not currently emitted. The implementation ran at 2.6% signal (77
-   *   findings, 2 true positives across 13 published specs) because its
-   *   guard asked whether *this* object composes rather than which
-   *   property names are reachable at the instance location. Withheld
-   *   until #477 replaces the guard; the code stays declared so the
-   *   reintroduction does not have to re-widen this union.
+   *   The name is resolved against the *instance* position, not the
+   *   enclosing schema: in-place applicators (`allOf`, `then`,
+   *   `dependentSchemas`, …) share their parent's instance, and a
+   *   child instance collects every schema that reaches it, on either
+   *   side of a composition. `$ref` is followed, since an
+   *   operation-scoped compile reaches its components no other way.
+   *   Flagging is suppressed wherever the reachable names cannot be
+   *   enumerated: `additionalProperties` / `patternProperties` /
+   *   `unevaluatedProperties`, an unresolvable `$ref`, or a `not`
+   *   ancestor (where `required` is a negative constraint).
    * - `"silent-rewrite/redundant-composition-branches"`: an `oneOf` /
    *   `anyOf` array where two or more branches are structurally
    *   identical after compile-time rewrites (notably the validator's
@@ -911,6 +916,10 @@ export function compileSchema(
       ? []
       : runSchemaLint(schema, byKeyword, lintMode, {
           refSuppressesSiblings: state.refSuppressesSiblings,
+          // Lets the `required` rule see through `$ref` into component
+          // schemas, which an operation-scoped compile cannot reach by
+          // walking its own schema object.
+          resolveRef: (ref) => refResolver.resolve(ref),
         });
   const stats: CompileStats = {
     functionCount: state.nextFn,
