@@ -161,6 +161,25 @@ because keyword dispatch walks `Object.keys`. So `{ items: undefined }`
 is a declared `items` holding a non-schema, and throws. Build the
 object without the key to omit it.
 
+Keyword values are checked by the keyword that owns them, on the same
+"fail at compile time, name the fix" principle:
+
+```ts
+compileSchema({ type: "Boolean" }, { dialect });
+// Error: keyword "type" has unknown type name "Boolean"; expected one of
+// "null", "boolean", ... Did you mean "boolean"?
+
+compileSchema({ type: "object", required: "id" }, { dialect });
+// Error: keyword "required" requires an array of strings; got string "id"
+```
+
+Writing a keyword of your own, reach for the same guards rather than
+casting `ctx.schema`: `numberLiteral`, `nonNegativeIntegerLiteral`,
+`positiveNumberLiteral`, and `stringArrayValue` all validate before
+returning, and their messages name the keyword. An unchecked
+`ctx.schema as string[]` is how `required: "id"` came to iterate as the
+characters `"i"` and `"d"`.
+
 ## `$ref` and cycles
 
 `$ref` / `$dynamicRef` compile to function calls through a

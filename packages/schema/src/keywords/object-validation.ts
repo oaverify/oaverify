@@ -1,4 +1,4 @@
-import { nonNegativeIntegerLiteral, quoteString } from "../codegen/index.js";
+import { nonNegativeIntegerLiteral, quoteString, stringArrayValue } from "../codegen/index.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
 
@@ -139,7 +139,7 @@ export const requiredKeyword: KeywordDefinition = {
   keyword: "required",
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
-    const required = ctx.schema as string[];
+    const required = stringArrayValue(ctx.schema, "required");
     if (required.length === 0) return;
     if (required.length <= 8) {
       const emitCheck = (name: string): void => {

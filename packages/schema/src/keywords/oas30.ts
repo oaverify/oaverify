@@ -22,7 +22,11 @@
  */
 
 import { NAMES, numberLiteral, quoteString } from "../codegen/index.js";
-import { buildTypeMismatchCondition } from "./type-predicates.js";
+import {
+  buildTypeMismatchCondition,
+  OAS30_TYPE_NAMES,
+  suggestTypeName,
+} from "./type-predicates.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { OAS30_VOCAB } from "./vocabulary-uris.js";
 
@@ -41,6 +45,22 @@ export const oas30TypeKeyword: KeywordDefinition = {
       throw new Error(
         `OpenAPI 3.0 'type' must be a single string; got ${JSON.stringify(ctx.schema)}. ` +
           `For nullability, add 'nullable: true' instead of 'type: ["X","null"]'.`,
+      );
+    }
+    // The shape check above is not enough on its own. A string still has
+    // to name a type OAS 3.0 has, and the two ways it can fail differ:
+    // an unknown name (`Boolean`) compiles to a validator nothing
+    // satisfies, while `null` is a real 2020-12 name that 3.0 does not
+    // have, so it compiles to a *working* validator enforcing the wrong
+    // contract. The second is the quieter bug, and gets its own hint.
+    if (!(OAS30_TYPE_NAMES as readonly string[]).includes(ctx.schema)) {
+      const hint =
+        ctx.schema === "null"
+          ? ` OpenAPI 3.0 has no 'null' type; use 'nullable: true' alongside the value's own type.`
+          : suggestTypeName(ctx.schema, OAS30_TYPE_NAMES);
+      throw new Error(
+        `OpenAPI 3.0 'type' has unknown type name ${JSON.stringify(ctx.schema)}; ` +
+          `expected one of ${OAS30_TYPE_NAMES.map((t) => JSON.stringify(t)).join(", ")}.${hint}`,
       );
     }
     const declared = ctx.schema;

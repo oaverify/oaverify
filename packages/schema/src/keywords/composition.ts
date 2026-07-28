@@ -1,4 +1,4 @@
-import { quoteString } from "../codegen/index.js";
+import { quoteString, stringArrayValue } from "../codegen/index.js";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { propertyAbsent, propertyPresent } from "./object-validation.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
@@ -660,13 +660,16 @@ export const dependentRequiredKeyword: KeywordDefinition = {
   keyword: "dependentRequired",
   vocabulary: APPLICATOR_VOCAB,
   compile(ctx: KeywordCompileContext): void {
-    const deps = ctx.schema as Record<string, string[]>;
+    const deps = ctx.schema as Record<string, unknown>;
     ctx.gen.if(
       `typeof ${ctx.data} === "object" && ${ctx.data} !== null && !Array.isArray(${ctx.data})`,
       (g) => {
         for (const trigger of Object.keys(deps)) {
-          const required = deps[trigger];
-          if (required === undefined) continue;
+          const raw = deps[trigger];
+          if (raw === undefined) continue;
+          // Same trap as `required`: an unchecked cast lets a bare
+          // string through, and iterating it yields its characters.
+          const required = stringArrayValue(raw, `dependentRequired.${trigger}`);
           const triggerLit = quoteString(trigger);
           g.if(propertyPresent(ctx.data, triggerLit, trigger), (gi) => {
             for (const prop of required) {

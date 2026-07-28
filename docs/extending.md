@@ -36,8 +36,43 @@ Its TSDoc is the field-by-field reference: `gen`, `data` / `path` /
 `emitBudgetBreak`, and the hoisting helpers (`hoistConstant`,
 `scopeLocal`). Read it there rather than duplicating it here.
 
-Two cross-cutting behaviors are worth calling out because they change
+Three cross-cutting behaviors are worth calling out because they change
 how `compile` is written.
+
+### Validating `ctx.schema`
+
+`ctx.schema` is whatever the schema author wrote. It is not checked for
+you, so casting it is a bug waiting to happen:
+
+```ts
+const names = ctx.schema as string[]; // don't
+```
+
+A bare string survives that cast and then iterates as its own
+characters, which is exactly how `required: "id"` came to demand
+properties `"i"` and `"d"` while rejecting `{ "id": 1 }`. Nothing looks
+broken from outside; the validator just enforces a contract nobody
+wrote.
+
+Use the guards instead. Each validates, then returns a value safe to
+interpolate into generated source, and names the keyword in its error:
+
+| Helper                      | Requires                   |
+| --------------------------- | -------------------------- |
+| `numberLiteral`             | a finite number            |
+| `nonNegativeIntegerLiteral` | an integer >= 0            |
+| `positiveNumberLiteral`     | a finite number > 0        |
+| `stringArrayValue`          | an array of strings        |
+| `quoteString`               | (escapes a string literal) |
+
+```ts
+const names = stringArrayValue(ctx.schema, "myKeyword");
+```
+
+Prefer throwing at compile time over emitting a validator that cannot
+be satisfied. An author who wrote something impossible wants to hear it
+when they build the validator, not from a 400 on production traffic
+whose message points at the payload.
 
 ### Error budget (`maxErrors`)
 

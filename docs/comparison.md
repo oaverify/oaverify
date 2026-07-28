@@ -182,12 +182,14 @@ Capabilities that the Ajv stack covers and oaverify does not.
   the draft's meta-schema at compile time, catching every wrong value
   shape in one pass. oaverify checks piecemeal instead: `strict` flags
   unknown-keyword typos (`minimumx: 5`) and partially-implemented
-  features, each keyword rejects values it cannot use (`minimum: "5"`
-  throws `requires a finite number`), and a pre-pass rejects non-schema
-  values in schema-valued slots (`items: [ ... ]`, `if: null`). The gap
-  is the cases where a wrong value still compiles to _something_:
-  `type: "Boolean"` builds a validator nothing can satisfy rather than
-  failing at compile time.
+  features, each keyword rejects values it cannot use (`minimum: "5"`,
+  `type: "Boolean"`, `required: "id"` all throw, the last two with a
+  suggested correction), and a pre-pass rejects non-schema values in
+  schema-valued slots (`items: [ ... ]`, `if: null`). The gap is
+  coverage rather than kind: the checks live on the keywords that have
+  them, so a keyword nobody has gotten to yet still accepts whatever it
+  is handed, where Ajv's single meta-schema pass covers everything at
+  once.
 - **`$data` references.** Ajv's non-standard extension where one
   keyword's value comes from the data being validated
   (`{ minimum: { $data: "1/min" } }`). oaverify doesn't implement it. The
