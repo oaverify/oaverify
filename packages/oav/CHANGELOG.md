@@ -5,7 +5,20 @@
 
 ### ⚠ BREAKING CHANGES
 
-* `@aahoughton/oav` no longer exports the library. Import from `@aahoughton/oav-core` (or `@aahoughton/oav-core/schema`, `/spec`, `/formats`, `/overlay-spec`) instead, and take `@aahoughton/oav-yaml` for `createYamlFileReader`, `createSmartHttpReader`, `parseYamlString`, and `loadSpecSync`. Generated validators emitted by `compile-spec` / `compile-schema` now import `@aahoughton/oav-core` by default.
+* `@aahoughton/oav` is now **`oaverify`** (unscoped), and it is now a
+  CLI-only package. The binary is `oaverify`, not `oav`.
+* **The CLI package no longer exports the library.** `oaverify` (formerly
+  `@aahoughton/oav`) now ships only the `oaverify` binary. Import the library
+  from `@oaverify/core` (or `@oaverify/core/schema`, `/spec`, `/formats`,
+  `/overlay-spec`), and take `@oaverify/yaml` for `createYamlFileReader`,
+  `createSmartHttpReader`, `parseYamlString`, and `loadSpecSync`. Validators
+  emitted by `compile-spec` / `compile-schema` now import `@oaverify/core`
+  by default.
+* **Renamed from the `@aahoughton` scope.** npm `oav` belongs to
+  Microsoft's Azure/oav, the same problem domain, so the old name was
+  search-contaminated regardless of scope. The `@aahoughton/*` packages are
+  deprecated and will receive no further releases; they keep working at
+  3.8.0 / 1.1.0 indefinitely.
 
 ### Documentation
 
