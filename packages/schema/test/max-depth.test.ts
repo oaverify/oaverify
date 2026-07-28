@@ -130,13 +130,13 @@ describe("maxDepth: counter discipline", () => {
 
 describe("maxDepth: predicate mode", () => {
   it("guards recursion without an error tree", () => {
-    const v = compile(recursive, { maxDepth: 3, predicate: true });
+    const v = compile(recursive, { maxDepth: 3, output: "predicate" });
     expect(v.validate(nestChild(3))).toBe(true);
     expect(v.validate(nestChild(4))).toBe(false);
   });
 
   it("rejects a pathologically deep payload instead of overflowing", () => {
-    const v = compile(recursive, { maxDepth: 64, predicate: true });
+    const v = compile(recursive, { maxDepth: 64, output: "predicate" });
     expect(v.validate(nestChild(100_000))).toBe(false);
   });
 });

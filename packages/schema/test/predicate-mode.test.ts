@@ -6,7 +6,11 @@ import { jsonSchemaDialect, openapi31Dialect } from "../src/keywords/vocabulary.
 import { builtInFormats } from "@oaverify/internal-formats";
 
 const predicate = (schema: SchemaOrBoolean) =>
-  compileSchema(schema, { dialect: jsonSchemaDialect, predicate: true, formats: builtInFormats });
+  compileSchema(schema, {
+    dialect: jsonSchemaDialect,
+    output: "predicate",
+    formats: builtInFormats,
+  });
 
 const tree = (schema: SchemaOrBoolean) =>
   compileSchema(schema, { dialect: jsonSchemaDialect, formats: builtInFormats });
@@ -82,7 +86,7 @@ describe("predicate mode: leaf keywords (bucket A, via emitError)", () => {
   it("format (asserted under openapi31Dialect)", () => {
     const p = compileSchema(
       { format: "email" },
-      { dialect: openapi31Dialect, predicate: true, formats: { email: (s) => /@/.test(s) } },
+      { dialect: openapi31Dialect, output: "predicate", formats: { email: (s) => /@/.test(s) } },
     );
     expect(p.validate("a@b.c")).toBe(true);
     expect(p.validate("nope")).toBe(false);
@@ -363,7 +367,7 @@ describe("predicate mode: discriminator (OAS 3.1)", () => {
         },
       },
     } as const;
-    const p = compileSchema(schema, { dialect: openapi31Dialect, predicate: true });
+    const p = compileSchema(schema, { dialect: openapi31Dialect, output: "predicate" });
     expect(p.validate({ kind: "cat", meow: true })).toBe(true);
     expect(p.validate({ kind: "dog", bark: "woof" })).toBe(true);
     expect(p.validate({ kind: "cat", meow: "not-a-bool" })).toBe(false);
@@ -380,7 +384,7 @@ describe("predicate mode: option interactions", () => {
     expect(() =>
       compileSchema(
         { type: "number" },
-        { dialect: jsonSchemaDialect, predicate: true, maxErrors: 1 },
+        { dialect: jsonSchemaDialect, output: "predicate", maxErrors: 1 },
       ),
     ).toThrow(/predicate.*maxErrors|maxErrors.*predicate/i);
   });
@@ -390,7 +394,7 @@ describe("predicate mode: option interactions", () => {
       { type: "number" },
       {
         dialect: jsonSchemaDialect,
-        predicate: true,
+        output: "predicate",
         maxErrors: Number.POSITIVE_INFINITY,
       },
     );

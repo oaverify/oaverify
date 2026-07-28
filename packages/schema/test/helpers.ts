@@ -18,9 +18,9 @@ export function compile(
   overrides: Partial<CompileOptions> = {},
 ): ReturnType<typeof compileSchema> {
   // Only inject the tree default when the caller hasn't picked a mode,
-  // so `compile(schema, { predicate: true })` / `{ flat: true }` /
-  // `{ output: ... }` don't collide with a forced `output: "tree"`.
-  const picksMode = "output" in overrides || "flat" in overrides || "predicate" in overrides;
+  // so `compile(schema, { output: ... })` doesn't collide with a forced
+  // `output: "tree"`.
+  const picksMode = "output" in overrides;
   return compileSchema(schema, {
     dialect: jsonSchemaDialect,
     maxErrors: Number.POSITIVE_INFINITY,

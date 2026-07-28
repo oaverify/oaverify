@@ -280,14 +280,6 @@ export type TreeValidationResult =
     };
 
 /**
- * @deprecated Use {@link ValidationResult}. Kept as an alias for one
- * major; will be removed in v4.
- *
- * @public
- */
-export type FlatValidationResult = ValidationResult;
-
-/**
  * Compile-time statistics about the generated validator. Exposed so
  * tests can assert on compiler behavior (e.g. "did subschema inlining
  * fire?") without grepping the generated source.
@@ -422,15 +414,6 @@ export type CompiledPredicate = Omit<CompiledSchema, "validate"> & {
 };
 
 /**
- * @deprecated Use {@link CompiledSchema}, which returns a flat
- * {@link ValidationResult} by default. Kept as an alias for one major;
- * will be removed in v4.
- *
- * @public
- */
-export type CompiledFlatSchema = CompiledSchema;
-
-/**
  * Options accepted by {@link compileSchema}.
  *
  * @remarks
@@ -502,9 +485,7 @@ export interface CompileOptions {
    *   for error-reporting machinery (leaf allocation, path snapshot,
    *   params object, message string).
    *
-   * Defaults to `"flat"`. The deprecated `flat: true` / `predicate: true`
-   * booleans still work as aliases for `output: "flat"` / `"predicate"`;
-   * supplying both `output` and a conflicting legacy boolean throws.
+   * Defaults to `"flat"`.
    *
    * `output: "predicate"` is mutually exclusive with a finite
    * {@link CompileOptions.maxErrors}: a predicate short-circuits at the
@@ -589,20 +570,6 @@ export interface CompileOptions {
   external?: Map<string, SchemaOrBoolean>;
   /** Custom ref resolver; overrides the default (which resolves fragments within the root). */
   refResolver?: RefResolver;
-  /**
-   * @deprecated Use `output: "predicate"` (see
-   * {@link CompileOptions.output}). `predicate: true` remains a working
-   * alias for one major and will be removed in v4. Supplying it together
-   * with a conflicting `output` throws.
-   */
-  predicate?: boolean;
-  /**
-   * @deprecated Use `output: "flat"`. The bare `compileSchema(schema)`
-   * already returns a flat {@link ValidationResult}. `flat: true` remains
-   * a working alias for one major and will be removed in v4. Supplying it
-   * together with a conflicting `output` throws.
-   */
-  flat?: boolean;
   /**
    * Custom compiler for schema `pattern` keywords and the `format:
    * "regex"` assertion. Defaults to `new RegExp(pattern, "u")` with a
@@ -762,33 +729,9 @@ export function schemaUsesUnevaluated(schema: SchemaOrBoolean): boolean {
   return walk(schema);
 }
 
-/**
- * Resolve the output mode from `output` plus the deprecated `flat` /
- * `predicate` booleans. `output` is canonical and wins; a legacy boolean
- * is accepted as an alias but throws if it disagrees with an explicit
- * `output` (a contradiction the caller should resolve, not a default to
- * paper over). Absent everything, the v3 default is `"flat"`.
- */
+/** `output` selects the result shape; absent it, the default is `"flat"`. */
 function resolveOutputMode(options: CompileOptions): "flat" | "tree" | "predicate" {
-  const legacyPredicate = options.predicate === true;
-  const legacyFlat = options.flat === true;
-  if (legacyPredicate && legacyFlat) {
-    throw new Error(
-      "compileSchema: `flat: true` is mutually exclusive with `predicate: true`. " +
-        "A predicate collects no errors, so there is nothing to return as a flat list.",
-    );
-  }
-  const legacy = legacyPredicate ? "predicate" : legacyFlat ? "flat" : undefined;
-  if (options.output !== undefined) {
-    if (legacy !== undefined && legacy !== options.output) {
-      throw new Error(
-        `compileSchema: \`output: "${options.output}"\` conflicts with the deprecated ` +
-          `\`${legacy === "predicate" ? "predicate" : "flat"}: true\`. Pass only \`output\`.`,
-      );
-    }
-    return options.output;
-  }
-  return legacy ?? "flat";
+  return options.output ?? "flat";
 }
 
 /**
@@ -813,7 +756,7 @@ function resolveOutputMode(options: CompileOptions): "flat" | "tree" | "predicat
  */
 export function compileSchema(
   schema: SchemaOrBoolean,
-  options: CompileOptions & ({ output: "predicate" } | { predicate: true }),
+  options: CompileOptions & { output: "predicate" },
 ): CompiledPredicate;
 export function compileSchema(
   schema: SchemaOrBoolean,
@@ -821,7 +764,7 @@ export function compileSchema(
 ): CompiledTreeSchema;
 export function compileSchema(
   schema: SchemaOrBoolean,
-  options: CompileOptions & { output?: "flat" | undefined; predicate?: false | undefined },
+  options: CompileOptions & { output?: "flat" | undefined },
 ): CompiledSchema;
 export function compileSchema(
   schema: SchemaOrBoolean,
