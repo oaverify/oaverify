@@ -1,5 +1,32 @@
 # Changelog
 
+## [4.0.0](https://github.com/oaverify/oaverify/compare/stream-v1.1.0...stream-v4.0.0) (2026-07-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* `@aahoughton/oav-stream-validator` is now **`@oaverify/stream`**.
+* **Version jumps 1.1.0 -> 4.0.0.** The package was on an independent 1.x
+  line; it now shares one version with the rest of the suite. It imports the
+  schema and core internals throughout and is built for behavioral parity
+  with the core engine, so a core semantics change is a compatibility event
+  here whether or not this package's own source moved. Nothing about the
+  streaming API changed in this release beyond the rename.
+* **Renamed from the `@aahoughton` scope.** npm `oav` belongs to
+  Microsoft's Azure/oav, the same problem domain, so the old name was
+  search-contaminated regardless of scope. The `@aahoughton/*` packages are
+  deprecated and will receive no further releases; they keep working at
+  3.8.0 / 1.1.0 indefinitely.
+
+### Documentation
+
+* surface streaming and performance across the docs ([#461](https://github.com/oaverify/oaverify/issues/461)) ([91b7c6f](https://github.com/oaverify/oaverify/commit/91b7c6f4a3294e7da13963c0cbabab8f710a8fb4))
+
+
+### Chore
+
+* split the packages and rename to oaverify ([#480](https://github.com/oaverify/oaverify/issues/480)) ([a5ddcac](https://github.com/oaverify/oaverify/commit/a5ddcac565d64f3ddfc928bc0a62549ccd1f9f12))
+
 ## [1.1.0](https://github.com/aahoughton/oav/compare/oav-stream-validator-v1.0.0...oav-stream-validator-v1.1.0) (2026-06-25)
 
 

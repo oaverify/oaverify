@@ -1,5 +1,38 @@
 # Changelog
 
+## [4.0.0](https://github.com/oaverify/oaverify/compare/core-v3.8.0...core-v4.0.0) (2026-07-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* `@aahoughton/oav-core` is now **`@oaverify/core`**.
+* **The CLI package no longer exports the library.** `oaverify` (formerly
+  `@aahoughton/oav`) now ships only the `oaverify` binary. Import the library
+  from `@oaverify/core` (or `@oaverify/core/schema`, `/spec`, `/formats`,
+  `/overlay-spec`), and take `@oaverify/yaml` for `createYamlFileReader`,
+  `createSmartHttpReader`, `parseYamlString`, and `loadSpecSync`. Validators
+  emitted by `compile-spec` / `compile-schema` now import `@oaverify/core`
+  by default.
+* **`customKeywordVocabulary` changed value**, from
+  `https://oav.dev/vocab/custom-keywords` to
+  `https://github.com/oaverify/oaverify/vocab/custom-keywords`. Importing the
+  constant is unaffected; only code that hardcoded the literal string needs
+  updating.
+* **Renamed from the `@aahoughton` scope.** npm `oav` belongs to
+  Microsoft's Azure/oav, the same problem domain, so the old name was
+  search-contaminated regardless of scope. The `@aahoughton/*` packages are
+  deprecated and will receive no further releases; they keep working at
+  3.8.0 / 1.1.0 indefinitely.
+
+### Documentation
+
+* surface streaming and performance across the docs ([#461](https://github.com/oaverify/oaverify/issues/461)) ([91b7c6f](https://github.com/oaverify/oaverify/commit/91b7c6f4a3294e7da13963c0cbabab8f710a8fb4))
+
+
+### Chore
+
+* split the packages and rename to oaverify ([#480](https://github.com/oaverify/oaverify/issues/480)) ([a5ddcac](https://github.com/oaverify/oaverify/commit/a5ddcac565d64f3ddfc928bc0a62549ccd1f9f12))
+
 ## [3.8.0](https://github.com/aahoughton/oav/compare/oav-core-v3.7.0...oav-core-v3.8.0) (2026-07-06)
 
 

@@ -1,6 +1,6 @@
 {
   "name": "@oaverify/yaml",
-  "version": "3.8.0",
+  "version": "4.0.0",
   "description": "YAML readers for @oaverify/core: load hand-authored .yaml/.yml OpenAPI specs from disk or over HTTP, plus a synchronous loadSpecSync.",
   "keywords": [
     "oas",
