@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compile } from "./helpers.js";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 
 /**
  * The compiler short-circuits its evaluated-keys-tracking machinery
@@ -63,7 +64,7 @@ describe("unevaluated-tracking compile-time gating", () => {
     // external schema that does. The walker must pick that up from
     // `options.external` so the external's compiled function emits
     // the tracking machinery when it's reached through the ref.
-    const external = new Map<string, object>([
+    const external = new Map<string, SchemaOrBoolean>([
       [
         "ext://strict",
         {

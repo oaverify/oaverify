@@ -1,6 +1,7 @@
 import { collectLeaves, httpStatusFor, type OpenAPIDocument } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import { createValidator, leafAt, leafCodes, petSpec } from "./fixtures.js";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 
 describe("validateRequest", () => {
   const v = createValidator(petSpec());
@@ -91,7 +92,7 @@ describe("validateRequest", () => {
                   schema: {
                     type: "string",
                     minLenght: 3,
-                  } as unknown as OpenAPIDocument["components"],
+                  } as unknown as SchemaOrBoolean,
                 },
               },
             },
@@ -133,7 +134,7 @@ describe("validateRequest", () => {
                         ],
                       },
                     },
-                  } as unknown as OpenAPIDocument["components"],
+                  } as unknown as SchemaOrBoolean,
                 },
               },
             },
@@ -196,10 +197,10 @@ describe("validateRequest", () => {
       path: "/upload",
       contentType: "text/plain",
     });
-    const leaves = collectLeaves(err);
+    const leaves = collectLeaves(err!);
     expect(leaves).toHaveLength(1);
     expect(leaves[0]?.code).toBe("content-type");
-    expect(httpStatusFor(err)).toBe(415);
+    expect(httpStatusFor(err!)).toBe(415);
   });
 
   it("absent body + no Content-Type → body-required leaf (400), not content-type", () => {
@@ -225,10 +226,10 @@ describe("validateRequest", () => {
     };
     const sv = createValidator(spec);
     const err = sv.validateRequest({ method: "POST", path: "/x" });
-    const leaves = collectLeaves(err);
+    const leaves = collectLeaves(err!);
     expect(leaves).toHaveLength(1);
     expect(leaves[0]?.code).toBe("body");
-    expect(httpStatusFor(err)).toBe(400);
+    expect(httpStatusFor(err!)).toBe(400);
   });
 
   it("content-type gate short-circuits before parameter validation", () => {
@@ -244,7 +245,7 @@ describe("validateRequest", () => {
       body: "raw",
       // no X-Tenant header
     });
-    const leaves = collectLeaves(err);
+    const leaves = collectLeaves(err!);
     expect(leaves).toHaveLength(1);
     expect(leaves[0]?.code).toBe("content-type");
   });

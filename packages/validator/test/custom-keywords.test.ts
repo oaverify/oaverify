@@ -2,6 +2,7 @@ import { collectLeaves, type OpenAPIDocument, type ValidationError } from "@oave
 import { describe, expect, it } from "vitest";
 import type { CustomKeywordValidator } from "../src/index.js";
 import { createValidator } from "./fixtures.js";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 
 describe("custom keywords via createValidator", () => {
   function sku(): OpenAPIDocument {
@@ -19,7 +20,7 @@ describe("custom keywords via createValidator", () => {
                     type: "object",
                     required: ["sku"],
                     properties: {
-                      sku: { type: "string", skuPrefix: "OAV-" } as Record<string, unknown>,
+                      sku: { type: "string", skuPrefix: "OAV-" } as unknown as SchemaOrBoolean,
                     },
                   },
                 },

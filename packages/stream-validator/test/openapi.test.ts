@@ -74,16 +74,17 @@ describe("normalizeOas30", () => {
         responses: { NotFound: { description: "absent" } },
       },
     } as unknown as SchemaOrBoolean) as SchemaObject;
-    const components = out.components as Record<string, Record<string, unknown>>;
-    expect(components.schemas.Nb).toEqual({ type: ["integer", "null"] });
-    expect(components.schemas.Ex).toEqual({ exclusiveMinimum: 5 });
+    const components = (out as unknown as { components: Record<string, Record<string, unknown>> })
+      .components;
+    expect(components.schemas?.Nb).toEqual({ type: ["integer", "null"] });
+    expect(components.schemas?.Ex).toEqual({ exclusiveMinimum: 5 });
     // Non-schema component sub-objects pass through untouched.
-    expect(components.responses.NotFound).toEqual({ description: "absent" });
+    expect(components.responses?.NotFound).toEqual({ description: "absent" });
   });
 });
 
 describe("OpenAPI 3.0 verdict parity with @oaverify/internal-schema oas30Dialect", () => {
-  const cases: Array<{ schema: SchemaObject; values: unknown[] }> = [
+  const cases: Array<{ schema: SchemaOrBoolean; values: unknown[] }> = [
     { schema: { type: "string", nullable: true }, values: ["x", null, 1] },
     {
       schema: {
@@ -101,7 +102,7 @@ describe("OpenAPI 3.0 verdict parity with @oaverify/internal-schema oas30Dialect
         type: "object",
         properties: { x: { $ref: "#/definitions/S", maxLength: 1 } },
         definitions: { S: { type: "string" } },
-      },
+      } as unknown as SchemaOrBoolean,
       values: [{ x: "abc" }, { x: 5 }, {}],
     },
   ];
@@ -119,7 +120,9 @@ describe("island delegation resolves refs into definitions", () => {
   // The `kind` property is a oneOf island whose branches $ref into
   // `definitions`; the delegate must carry that container (not just
   // `$defs`) for the refs to resolve.
-  const schema: SchemaObject = {
+  // `definitions` is a draft-07 ref container, not a 2020-12 keyword,
+  // so SchemaObject does not model it.
+  const schema = {
     type: "object",
     properties: {
       kind: { oneOf: [{ $ref: "#/definitions/A" }, { $ref: "#/definitions/B" }] },

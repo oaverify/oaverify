@@ -32,11 +32,14 @@ export type TreeShim = Omit<TreeValidator, "validateRequest" | "validateResponse
 };
 
 export function createValidator(spec: OpenAPIDocument, options: ValidatorOptions = {}): TreeShim {
-  const v = createValidatorRaw(spec, {
+  // Annotated: `createValidator` is overloaded, and spreading `options`
+  // widens the argument enough that resolution falls back to the union
+  // of all three output shapes, making `r.error` below a type error.
+  const v: TreeValidator = createValidatorRaw(spec, {
     output: "tree",
     maxErrors: Number.POSITIVE_INFINITY,
     ...options,
-  });
+  } as ValidatorOptions & { output: "tree" });
   return Object.assign(Object.create(null) as object, v, {
     validateRequest: (req: HttpRequest): ValidationError | null => {
       const r = v.validateRequest(req);

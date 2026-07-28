@@ -12,6 +12,8 @@ import {
   validationVocabulary,
 } from "../src/index.js";
 import type { CustomKeywordValidator, Dialect } from "../src/index.js";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import { failure } from "./helpers.js";
 
 const baseDialect: Dialect = {
   id: "test-base",
@@ -24,7 +26,7 @@ describe("custom keywords", () => {
     const divisibleBy: CustomKeywordValidator = (data, schemaValue) =>
       typeof data !== "number" || data % (schemaValue as number) === 0;
     const compiled = compileSchema(
-      { type: "integer", divisibleBy: 7 } as unknown as Record<string, unknown>,
+      { type: "integer", divisibleBy: 7 } as unknown as SchemaOrBoolean,
       {
         dialect: baseDialect,
         output: "tree",
@@ -36,8 +38,8 @@ describe("custom keywords", () => {
     expect(compiled.validate(21).valid).toBe(true);
     const bad = compiled.validate(10);
     expect(bad.valid).toBe(false);
-    expect(bad.error?.code).toBe("divisibleBy");
-    expect(bad.error?.message).toContain("divisibleBy");
+    expect(failure(bad).error?.code).toBe("divisibleBy");
+    expect(failure(bad).error?.message).toContain("divisibleBy");
   });
 
   it("passes data, schemaValue, and path to the validator", () => {
@@ -57,7 +59,7 @@ describe("custom keywords", () => {
           a: { type: "string", myKw: { check: "a" } },
           b: { type: "string", myKw: { check: "b" } },
         },
-      } as unknown as Record<string, unknown>,
+      } as unknown as SchemaOrBoolean,
       {
         dialect: baseDialect,
         output: "tree",
@@ -81,7 +83,7 @@ describe("custom keywords", () => {
       return true;
     };
     const compiled = compileSchema(
-      { type: "string", noSpaces: true } as unknown as Record<string, unknown>,
+      { type: "string", noSpaces: true } as unknown as SchemaOrBoolean,
       {
         dialect: baseDialect,
         output: "tree",
@@ -92,8 +94,8 @@ describe("custom keywords", () => {
     expect(compiled.validate("ok").valid).toBe(true);
     const bad = compiled.validate("has spaces");
     expect(bad.valid).toBe(false);
-    expect(bad.error?.message).toBe("no spaces allowed");
-    expect(bad.error?.params).toEqual({ reason: "whitespace" });
+    expect(failure(bad).error?.message).toBe("no spaces allowed");
+    expect(failure(bad).error?.params).toEqual({ reason: "whitespace" });
   });
 
   it("throws on a custom keyword that conflicts with a built-in", () => {
@@ -114,18 +116,18 @@ describe("custom keywords", () => {
       {
         type: "array",
         items: { type: "string", alwaysBad: true },
-      } as unknown as Record<string, unknown>,
+      } as unknown as SchemaOrBoolean,
       { dialect: baseDialect, output: "tree", keywords: { alwaysBad: always }, maxErrors: 2 },
     );
     const res = compiled.validate(["a", "b", "c", "d", "e"]);
     expect(res.valid).toBe(false);
-    expect(res.truncated).toBe(true);
+    expect(failure(res).truncated).toBe(true);
     // Exactly two leaves collected before the cap kicked in.
     const leaves: number = (function count(e): number {
       if (!e) return 0;
       if (e.children.length === 0) return 1;
       return e.children.reduce((acc: number, c) => acc + count(c), 0);
-    })(res.error);
+    })(failure(res).error);
     expect(leaves).toBe(2);
   });
 

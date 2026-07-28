@@ -71,7 +71,7 @@ describe("peakBufferedBytes: a BUFFER island reports its span", () => {
     expect(peak).toBe(Buffer.byteLength(json));
     // Runtime peak is the actual input's span, never above the static
     // worst-case the analyzer predicts for the schema.
-    expect(peak).toBeLessThanOrEqual(analyzeStreamability(schema).peakBytes);
+    expect(peak).toBeLessThanOrEqual(Number(analyzeStreamability(schema).peakBytes));
   });
 
   it("a forced-buffer scalar (pattern) reports the string's span", async () => {

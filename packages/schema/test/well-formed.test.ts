@@ -15,18 +15,25 @@
  */
 import { describe, expect, it } from "vitest";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
-import { compileSchema } from "../src/compiler/compiler.js";
+import {
+  compileSchema,
+  type CompiledSchema,
+  type CompileOptions,
+} from "../src/compiler/compiler.js";
 import { assertWellFormedSchema } from "../src/compiler/well-formed.js";
 import { buildKeywordMap } from "../src/introspection.js";
 import { jsonSchemaDialect, oas30Dialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
 
-const compileWith = (schema: unknown, overrides: Record<string, unknown> = {}) =>
+// No caller overrides `output`, so this is always the flat default.
+// Annotated rather than inferred: without it the return type is the
+// union of all three shapes and every `.valid` below is a type error.
+const compileWith = (schema: unknown, overrides: Partial<CompileOptions> = {}): CompiledSchema =>
   compileSchema(
     schema as SchemaOrBoolean,
     {
       dialect: openapi31Dialect,
       ...overrides,
-    } as never,
+    } as CompileOptions & { output?: "flat" },
   );
 
 describe("well-formedness: unsound shapes", () => {
@@ -135,11 +142,11 @@ describe("well-formedness: every schema-valued position", () => {
 });
 
 describe("well-formedness: precondition, not a lint level", () => {
-  it("throws in every strict mode including off", () => {
-    for (const strict of ["off", "warn", "strict"] as const) {
+  it("throws in every schemaLint mode including off", () => {
+    for (const schemaLint of ["off", "warn", "strict"] as const) {
       expect(
-        () => compileWith({ type: "object", properties: { a: null } }, { strict }),
-        strict,
+        () => compileWith({ type: "object", properties: { a: null } }, { schemaLint }),
+        schemaLint,
       ).toThrow(/properties\.a/);
     }
   });
@@ -156,7 +163,11 @@ describe("well-formedness: precondition, not a lint level", () => {
     expect(() =>
       compileWith(
         { $ref: "urn:a" },
-        { external: new Map([["urn:a", { properties: { bad: null } }]]) },
+        {
+          external: new Map<string, SchemaOrBoolean>([
+            ["urn:a", { properties: { bad: null } } as unknown as SchemaOrBoolean],
+          ]),
+        },
       ),
     ).toThrow(/external schema "urn:a": schema at "properties\.bad".*got null/);
   });

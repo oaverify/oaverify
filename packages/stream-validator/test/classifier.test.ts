@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import { classify, ClassifierError } from "../src/classifier/index.js";
 
-function rootStrategy(schema: SchemaOrBoolean, opts = {}) {
-  return classify(schema, opts).root;
+// Tests deliberately pass draft-07 and unknown keywords (`dependencies`,
+// `frobnicate`) to check how the classifier treats them, so this takes a
+// looser type than `SchemaOrBoolean` rather than casting at every call.
+function rootStrategy(schema: SchemaOrBoolean | Record<string, unknown>, opts = {}) {
+  return classify(schema as SchemaOrBoolean, opts).root;
 }
 
 describe("classify: scalars and structure", () => {
@@ -160,7 +163,10 @@ describe("classify: compile-time fast-fail (REJECT)", () => {
 
   it("rejects an unknown keyword, naming it and the path", () => {
     try {
-      classify({ type: "object", properties: { a: { frobnicate: true } } });
+      classify({
+        type: "object",
+        properties: { a: { frobnicate: true } as unknown as SchemaOrBoolean },
+      });
       expect.unreachable("should throw");
     } catch (err) {
       expect(err).toBeInstanceOf(ClassifierError);

@@ -6,13 +6,14 @@ import {
   formatError,
   type ValidationError,
 } from "@oaverify/internal-core";
-import { compileSchema } from "../src/compiler/compiler.js";
+import { compileSchema, type CompiledTreeSchema } from "../src/compiler/compiler.js";
 import { appendErrors } from "../src/compiler/runtime.js";
 import { jsonSchemaDialect } from "../src/keywords/vocabulary.js";
+import { failure } from "./helpers.js";
 
 type Opts = { maxErrors?: number };
 
-function tree(schema: unknown, opts: Opts = {}): ReturnType<typeof compileSchema> {
+function tree(schema: unknown, opts: Opts = {}): CompiledTreeSchema {
   return compileSchema(schema as never, {
     dialect: jsonSchemaDialect,
     output: "tree",
@@ -108,7 +109,7 @@ describe("flat mode: valid data", () => {
   it("returns { valid: true } with no errors array", () => {
     const r = flat({ type: "object", required: ["a"] }).validate({ a: 1 });
     expect(r.valid).toBe(true);
-    expect(r.errors).toBeUndefined();
+    expect("errors" in r).toBe(false);
   });
 });
 
@@ -120,9 +121,9 @@ describe("flat mode: leaf-set parity with the tree (non-composition schemas)", (
       expect(t.valid).toBe(false);
       expect(f.valid).toBe(false);
       // Same set of leaf errors, ignoring tree nesting and order.
-      expect(bag(f.errors!)).toEqual(bag(collectLeaves(t.error!)));
+      expect(bag(failure(f).errors!)).toEqual(bag(collectLeaves(failure(t).error!)));
       // And flat genuinely carries no branch wrappers.
-      for (const e of f.errors!) expect(e.children).toEqual([]);
+      for (const e of failure(f).errors!) expect(e.children).toEqual([]);
     });
   }
 });
@@ -147,11 +148,11 @@ describe("flat mode: finite-maxErrors leaf-set parity with the tree (non-composi
         const f = flat(schema, { maxErrors }).validate(data);
         expect(t.valid).toBe(false);
         expect(f.valid).toBe(false);
-        expect(bag(f.errors!)).toEqual(bag(collectLeaves(t.error!)));
-        expect(f.errors!.length).toBeLessThanOrEqual(maxErrors);
-        expect(f.truncated).toBe(f.errors!.length === maxErrors);
-        if (t.truncated) expect(f.truncated).toBe(true);
-        for (const e of f.errors!) expect(e.children).toEqual([]);
+        expect(bag(failure(f).errors!)).toEqual(bag(collectLeaves(failure(t).error!)));
+        expect(failure(f).errors!.length).toBeLessThanOrEqual(maxErrors);
+        expect(failure(f).truncated).toBe(failure(f).errors!.length === maxErrors);
+        if (failure(t).truncated) expect(failure(f).truncated).toBe(true);
+        for (const e of failure(f).errors!) expect(e.children).toEqual([]);
       });
     }
   }
@@ -161,8 +162,8 @@ describe("flat mode: composition markers", () => {
   it("anyOf all-fail: branch leaves plus one anyOf marker", () => {
     const r = flat({ anyOf: [{ type: "string" }, { type: "number" }] }).validate(true);
     expect(r.valid).toBe(false);
-    expect(codesOf(r.errors!).filter((c) => c === "type")).toHaveLength(2);
-    const marker = r.errors!.find((e) => e.code === "anyOf");
+    expect(codesOf(failure(r).errors!).filter((c) => c === "type")).toHaveLength(2);
+    const marker = failure(r).errors!.find((e) => e.code === "anyOf");
     expect(marker).toBeDefined();
     expect(marker!.children).toEqual([]);
     expect(marker!.params).toMatchObject({ total: 2 });
@@ -171,14 +172,14 @@ describe("flat mode: composition markers", () => {
   it("anyOf one-match: valid, no errors", () => {
     const r = flat({ anyOf: [{ type: "string" }, { type: "number" }] }).validate("hi");
     expect(r.valid).toBe(true);
-    expect(r.errors).toBeUndefined();
+    expect("errors" in r).toBe(false);
   });
 
   it("oneOf zero-match: branch leaves plus one oneOf marker (matchCount 0)", () => {
     const r = flat({ oneOf: [{ type: "string" }, { type: "boolean" }] }).validate(42);
     expect(r.valid).toBe(false);
-    expect(codesOf(r.errors!).filter((c) => c === "type")).toHaveLength(2);
-    const marker = r.errors!.find((e) => e.code === "oneOf");
+    expect(codesOf(failure(r).errors!).filter((c) => c === "type")).toHaveLength(2);
+    const marker = failure(r).errors!.find((e) => e.code === "oneOf");
     expect(marker).toBeDefined();
     expect(marker!.params).toMatchObject({ total: 2, matchCount: 0 });
   });
@@ -187,8 +188,8 @@ describe("flat mode: composition markers", () => {
     // 4 satisfies both `type: number` and `multipleOf: 1`.
     const r = flat({ oneOf: [{ type: "number" }, { multipleOf: 1 }] }).validate(4);
     expect(r.valid).toBe(false);
-    expect(r.errors!.filter((e) => e.code !== "oneOf")).toHaveLength(0);
-    const marker = r.errors!.find((e) => e.code === "oneOf");
+    expect(failure(r).errors!.filter((e) => e.code !== "oneOf")).toHaveLength(0);
+    const marker = failure(r).errors!.find((e) => e.code === "oneOf");
     expect(marker!.params).toMatchObject({ matchCount: 2 });
   });
 
@@ -200,8 +201,8 @@ describe("flat mode: composition markers", () => {
     const r = flat(schema).validate({ v: true });
     expect(r.valid).toBe(false);
     // Both branch leaves and the marker sit at path ["v"].
-    for (const e of r.errors!) expect(e.path).toEqual(["v"]);
-    expect(r.errors!.find((e) => e.code === "anyOf")).toBeDefined();
+    for (const e of failure(r).errors!) expect(e.path).toEqual(["v"]);
+    expect(failure(r).errors!.find((e) => e.code === "anyOf")).toBeDefined();
   });
 });
 
@@ -256,19 +257,19 @@ describe("flat mode: maxErrors and startPath", () => {
       {},
     );
     expect(r.valid).toBe(false);
-    expect(r.errors).toHaveLength(2);
-    expect(r.truncated).toBe(true);
+    expect(failure(r).errors).toHaveLength(2);
+    expect(failure(r).truncated).toBe(true);
   });
 
   it("resets the budget between calls", () => {
     const v = flat({ required: ["a", "b"] }, { maxErrors: 1 });
-    expect(v.validate({}).errors).toHaveLength(1);
-    expect(v.validate({}).errors).toHaveLength(1);
+    expect(failure(v.validate({})).errors).toHaveLength(1);
+    expect(failure(v.validate({})).errors).toHaveLength(1);
   });
 
   it("prefixes leaf paths with startPath", () => {
     const r = flat({ type: "string" }).validate(1, ["body"]);
-    expect(r.errors![0]!.path).toEqual(["body"]);
+    expect(failure(r).errors![0]!.path).toEqual(["body"]);
   });
 });
 
@@ -279,7 +280,7 @@ describe("flat mode: record shape and renderer interop", () => {
       properties: { a: { type: "number" } },
       required: ["b"],
     }).validate({ a: "x" });
-    for (const e of r.errors!) {
+    for (const e of failure(r).errors!) {
       expect(e.children).toEqual([]);
       expect(typeof e.code).toBe("string");
       expect(Array.isArray(e.path)).toBe(true);
@@ -289,7 +290,7 @@ describe("flat mode: record shape and renderer interop", () => {
 
   it("composes with the tree renderers via a synthetic root wrap", () => {
     const r = flat({ type: "object", required: ["a", "b"] }).validate({});
-    const wrapped = createBranchError("schema", [], "schema validation failed", r.errors!);
+    const wrapped = createBranchError("schema", [], "schema validation failed", failure(r).errors!);
     expect(collectLeaves(wrapped)).toHaveLength(2);
     expect(() => formatError(wrapped, "flat")).not.toThrow();
   });

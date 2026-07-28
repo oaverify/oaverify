@@ -150,7 +150,6 @@ describe("validateRequests", () => {
         undefined as never,
         fakeRequest({ method: "GET", url: "/pets", headers: {} }),
         reply,
-        () => {},
       ),
     ).rejects.toBe(boom);
     expect(reply.code).not.toHaveBeenCalled();
@@ -196,7 +195,6 @@ describe("validateRequests", () => {
           body: {},
         }),
         reply,
-        () => {},
       ),
     ).rejects.toBe(boom);
   });

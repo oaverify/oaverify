@@ -31,7 +31,7 @@ describe("renderProblemDetails", () => {
       actual: "string",
     });
     const res = fakeRes();
-    renderProblemDetails(err, { req: fakeReq(), res, next: vi.fn() });
+    renderProblemDetails([err], { req: fakeReq(), res, next: vi.fn() });
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.type).toHaveBeenCalledWith("application/problem+json");
     const body = res.json.mock.calls[0]?.[0];
@@ -53,7 +53,7 @@ describe("renderProblemDetails", () => {
       allowed: ["GET", "POST"],
     });
     const res = fakeRes();
-    renderProblemDetails(err, { req: fakeReq(), res, next: vi.fn() });
+    renderProblemDetails([err], { req: fakeReq(), res, next: vi.fn() });
     expect(res.status).toHaveBeenCalledWith(405);
     expect(res.setHeader).toHaveBeenCalledWith("Allow", "GET, POST");
   });
@@ -63,7 +63,7 @@ describe("renderProblemDetails", () => {
       createLeafError("type", ["body", "age"], "must be number"),
     ]);
     const res = fakeRes();
-    renderProblemDetails(err, { req: fakeReq(), res, next: vi.fn() });
+    renderProblemDetails([err], { req: fakeReq(), res, next: vi.fn() });
     expect(res.setHeader).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(400);
   });

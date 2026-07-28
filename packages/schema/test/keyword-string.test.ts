@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compile } from "./helpers.js";
+import { compile, failure } from "./helpers.js";
 
 describe("string keywords", () => {
   it("maxLength / minLength count code points (emoji = 1)", () => {
@@ -70,13 +70,13 @@ describe("string keywords", () => {
     const max = compile({ maxLength: 2 });
     const res = max.validate("🦀🦀🦀"); // length 6, 3 code points
     expect(res.valid).toBe(false);
-    expect(res.error?.code).toBe("maxLength");
-    expect(res.error?.params).toMatchObject({ maxLength: 2, actual: 3 });
+    expect(failure(res).error?.code).toBe("maxLength");
+    expect(failure(res).error?.params).toMatchObject({ maxLength: 2, actual: 3 });
 
     const min = compile({ minLength: 5 });
     const res2 = min.validate("ab"); // length 2 < 5, skip-fail band
     expect(res2.valid).toBe(false);
-    expect(res2.error?.params).toMatchObject({ minLength: 5, actual: 2 });
+    expect(failure(res2).error?.params).toMatchObject({ minLength: 5, actual: 2 });
   });
 
   it("maxLength: 0 admits only the empty string", () => {
@@ -89,7 +89,7 @@ describe("string keywords", () => {
     const v = compile({ pattern: "^[a-z]+$" });
     expect(v.validate("abc").valid).toBe(true);
     expect(v.validate("abc1").valid).toBe(false);
-    expect(v.validate("abc1").error?.code).toBe("pattern");
+    expect(failure(v.validate("abc1")).error?.code).toBe("pattern");
   });
 
   it("pattern leaves non-strings alone", () => {
@@ -137,7 +137,7 @@ describe("string keywords", () => {
     );
     expect(v.validate("x@y").valid).toBe(true);
     expect(v.validate("nope").valid).toBe(false);
-    expect(v.validate("nope").error?.code).toBe("format");
+    expect(failure(v.validate("nope")).error?.code).toBe("format");
 
     const noValidator = schema.compileSchema(
       { format: "whatever" },

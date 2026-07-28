@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect } from "../src/keywords/vocabulary.js";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
 
 const opts = { dialect: jsonSchemaDialect } as const;
 
@@ -104,9 +105,12 @@ describe("v3 default output", () => {
       unevaluatedProperties: false,
     };
     const data = { foo: "ok", bar: 1 }; // bar is unevaluated -> invalid
-    expect(compileSchema(schema, { ...opts, maxErrors: 1 }).validate(data).valid).toBe(false);
+    // `schema` here carries `unevaluatedProperties`, which the inferred
+    // literal type does not narrow to SchemaObject cleanly.
+    const s = schema as unknown as SchemaOrBoolean;
+    expect(compileSchema(s, { ...opts, maxErrors: 1 }).validate(data).valid).toBe(false);
     expect(
-      compileSchema(schema, { ...opts, maxErrors: Number.POSITIVE_INFINITY }).validate(data).valid,
+      compileSchema(s, { ...opts, maxErrors: Number.POSITIVE_INFINITY }).validate(data).valid,
     ).toBe(false);
   });
 });

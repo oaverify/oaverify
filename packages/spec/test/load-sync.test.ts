@@ -5,6 +5,19 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadSpecSync } from "../src/load.js";
 import { createFileReaderSync } from "../src/reader.js";
 
+/**
+ * Narrow past a `$ref` union. OpenAPI containers type most members as
+ * `ReferenceObject | T`; these specs are already resolved, so the ref
+ * branch is unreachable -- but say so explicitly rather than casting,
+ * so a genuinely unresolved ref fails loudly here.
+ */
+function notRef<T extends object>(node: T): Exclude<T, { $ref: string }> {
+  if ("$ref" in node) {
+    throw new Error(`expected a resolved object, got $ref ${String(node.$ref)}`);
+  }
+  return node as Exclude<T, { $ref: string }>;
+}
+
 // End-to-end against the real filesystem (the boot-time case loadSpecSync
 // exists for): a multi-file $ref graph on disk, plus the failure modes a
 // load-at-boot caller has to reason about.
@@ -48,8 +61,11 @@ describe("loadSpecSync on disk", () => {
 
   it("resolves a multi-file $ref graph from local files (default reader)", () => {
     const { document, sources } = loadSpecSync({ entry: join(dir, "openapi.json") });
-    const schema =
-      document.paths?.["/pets"]?.post?.requestBody?.content?.["application/json"]?.schema;
+    const schema = (
+      notRef(document.paths?.["/pets"]?.post?.requestBody ?? {}) as {
+        content?: Record<string, { schema?: unknown }>;
+      }
+    ).content?.["application/json"]?.schema;
     expect(schema).toEqual({
       type: "object",
       required: ["name"],

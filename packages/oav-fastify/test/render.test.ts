@@ -31,7 +31,7 @@ describe("renderProblemDetails", () => {
       actual: "string",
     });
     const reply = fakeReply();
-    renderProblemDetails(err, { request: fakeRequest(), reply });
+    renderProblemDetails([err], { request: fakeRequest(), reply });
     expect(reply.code).toHaveBeenCalledWith(400);
     expect(reply.type).toHaveBeenCalledWith("application/problem+json");
     const body = reply.send.mock.calls[0]?.[0];
@@ -52,7 +52,7 @@ describe("renderProblemDetails", () => {
       allowed: ["GET", "POST"],
     });
     const reply = fakeReply();
-    renderProblemDetails(err, { request: fakeRequest(), reply });
+    renderProblemDetails([err], { request: fakeRequest(), reply });
     expect(reply.code).toHaveBeenCalledWith(405);
     expect(reply.header).toHaveBeenCalledWith("Allow", "GET, POST");
   });
@@ -62,7 +62,7 @@ describe("renderProblemDetails", () => {
       createLeafError("type", ["body", "age"], "must be number"),
     ]);
     const reply = fakeReply();
-    renderProblemDetails(err, { request: fakeRequest(), reply });
+    renderProblemDetails([err], { request: fakeRequest(), reply });
     expect(reply.header).not.toHaveBeenCalled();
     expect(reply.code).toHaveBeenCalledWith(400);
   });

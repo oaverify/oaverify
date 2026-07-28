@@ -1,8 +1,26 @@
 import { describe, expect, it } from "vitest";
 import type { PathItem } from "@oaverify/internal-core";
-import { createRouter, parseTemplate } from "../src/matcher.js";
+import {
+  createRouter,
+  parseTemplate,
+  type MethodNotAllowed,
+  type RouteMatch,
+} from "../src/matcher.js";
 
 const op = (id: string) => ({ operationId: id, responses: { "200": { description: "ok" } } });
+
+/**
+ * Narrow a match to the `"match"` branch. `router.match` returns
+ * `RouteMatch | MethodNotAllowed | undefined`, so `m?.operation` is a
+ * type error, and the optional-chaining workaround would let a 405 or a
+ * miss pass an assertion silently.
+ */
+function matched(m: RouteMatch | MethodNotAllowed | undefined): RouteMatch {
+  if (m?.kind !== "match") {
+    throw new Error(`expected a route match, got ${m === undefined ? "undefined" : m.kind}`);
+  }
+  return m;
+}
 
 describe("parseTemplate", () => {
   it("splits on slashes and identifies {param} segments", () => {
@@ -47,19 +65,19 @@ describe("router", () => {
 
   it("matches exact literal paths", () => {
     const m = r.match("get", "/pets");
-    expect(m?.operation.operationId).toBe("listPets");
-    expect(m?.pathParams).toEqual({});
+    expect(matched(m).operation.operationId).toBe("listPets");
+    expect(matched(m).pathParams).toEqual({});
   });
 
   it("matches template parameters and extracts them", () => {
     const m = r.match("get", "/pets/42");
-    expect(m?.operation.operationId).toBe("getPet");
-    expect(m?.pathParams).toEqual({ id: "42" });
+    expect(matched(m).operation.operationId).toBe("getPet");
+    expect(matched(m).pathParams).toEqual({ id: "42" });
   });
 
   it("picks the literal specificity winner over a template sibling", () => {
     const m = r.match("get", "/pets/mine");
-    expect(m?.operation.operationId).toBe("mine");
+    expect(matched(m).operation.operationId).toBe("mine");
   });
 
   it("enumerates declared (method, pathPattern) pairs, uppercased, in sort order", () => {
@@ -88,8 +106,8 @@ describe("router", () => {
   });
 
   it("matches methods independently on the same path", () => {
-    expect(r.match("get", "/pets")?.kind).toBe("match");
-    expect(r.match("post", "/pets")?.kind).toBe("match");
+    expect(matched(r.match("get", "/pets")).kind).toBe("match");
+    expect(matched(r.match("post", "/pets")).kind).toBe("match");
     // DELETE isn't declared on /pets → method-not-allowed, not a path miss.
     const m = r.match("delete", "/pets");
     expect(m?.kind).toBe("method-not-allowed");
@@ -97,7 +115,7 @@ describe("router", () => {
 
   it("decodes percent-encoded segments", () => {
     const m = r.match("get", "/pets/foo%2Fbar");
-    expect(m?.pathParams).toEqual({ id: "foo/bar" });
+    expect(matched(m).pathParams).toEqual({ id: "foo/bar" });
   });
 
   it("does not throw on malformed percent-encoding", () => {
@@ -106,16 +124,16 @@ describe("router", () => {
     // malformed token falls back to its raw form and captures cleanly.
     expect(() => r.match("get", "/pets/%E0%A4%A")).not.toThrow();
     const m = r.match("get", "/pets/%zz");
-    expect(m?.operation.operationId).toBe("getPet");
-    expect(m?.pathParams).toEqual({ id: "%zz" });
+    expect(matched(m).operation.operationId).toBe("getPet");
+    expect(matched(m).pathParams).toEqual({ id: "%zz" });
   });
 
   it("ignores trailing slashes", () => {
-    expect(r.match("get", "/pets/")?.operation.operationId).toBe("listPets");
+    expect(matched(r.match("get", "/pets/")).operation.operationId).toBe("listPets");
   });
 
   it("ignores query strings", () => {
-    expect(r.match("get", "/pets?limit=10")?.operation.operationId).toBe("listPets");
+    expect(matched(r.match("get", "/pets?limit=10")).operation.operationId).toBe("listPets");
   });
 
   it("returns undefined for unknown paths", () => {
@@ -124,19 +142,19 @@ describe("router", () => {
   });
 
   it("handles method casing", () => {
-    expect(r.match("GET", "/pets")?.operation.operationId).toBe("listPets");
-    expect(r.match("Get", "/pets")?.operation.operationId).toBe("listPets");
+    expect(matched(r.match("GET", "/pets")).operation.operationId).toBe("listPets");
+    expect(matched(r.match("Get", "/pets")).operation.operationId).toBe("listPets");
   });
 
   it("extracts multiple template params", () => {
     const m = r.match("get", "/pets/42/tags/vet");
-    expect(m?.pathParams).toEqual({ id: "42", tag: "vet" });
+    expect(matched(m).pathParams).toEqual({ id: "42", tag: "vet" });
   });
 
   it("routes HEAD to the GET operation when no explicit HEAD is declared", () => {
     // RFC 9110 §9.3.2: resources that answer GET must answer HEAD.
     const m = r.match("head", "/pets");
-    expect(m?.operation.operationId).toBe("listPets");
+    expect(matched(m).operation.operationId).toBe("listPets");
   });
 
   it("prefers an explicit HEAD operation over the GET fallback", () => {
@@ -144,7 +162,7 @@ describe("router", () => {
       "/pets": { get: op("listPets"), head: op("headPets") },
     };
     const r2 = createRouter(paths2);
-    expect(r2.match("head", "/pets")?.operation.operationId).toBe("headPets");
+    expect(matched(r2.match("head", "/pets")).operation.operationId).toBe("headPets");
   });
 
   it("does not invent a HEAD route when the path has no GET", () => {
@@ -158,13 +176,13 @@ describe("router", () => {
   it("matches path segments containing a literal colon", () => {
     const p: Record<string, PathItem> = { "/users/me:follow": { get: op("follow") } };
     const rc = createRouter(p);
-    expect(rc.match("get", "/users/me:follow")?.operation.operationId).toBe("follow");
+    expect(matched(rc.match("get", "/users/me:follow")).operation.operationId).toBe("follow");
   });
 
   it("decodes percent-encoded colons in request paths", () => {
     const p: Record<string, PathItem> = { "/users/me:follow": { get: op("follow") } };
     const rc = createRouter(p);
-    expect(rc.match("get", "/users/me%3Afollow")?.operation.operationId).toBe("follow");
+    expect(matched(rc.match("get", "/users/me%3Afollow")).operation.operationId).toBe("follow");
   });
 
   it("rejects two path templates that differ only in parameter names when methods overlap", () => {
@@ -186,11 +204,11 @@ describe("router", () => {
       "/orgs/{org}/attestations/{subject_digest}": { get: op("listByDigest") },
     });
     const del = rc.match("delete", "/orgs/acme/attestations/42");
-    expect(del?.operation.operationId).toBe("deleteById");
-    expect(del?.pathParams).toEqual({ org: "acme", attestation_id: "42" });
+    expect(matched(del).operation.operationId).toBe("deleteById");
+    expect(matched(del).pathParams).toEqual({ org: "acme", attestation_id: "42" });
     const get = rc.match("get", "/orgs/acme/attestations/sha256:abc");
-    expect(get?.operation.operationId).toBe("listByDigest");
-    expect(get?.pathParams).toEqual({ org: "acme", subject_digest: "sha256:abc" });
+    expect(matched(get).operation.operationId).toBe("listByDigest");
+    expect(matched(get).pathParams).toEqual({ org: "acme", subject_digest: "sha256:abc" });
   });
 
   it("flags GET-vs-explicit-HEAD as ambiguous on identical structure", () => {
@@ -214,11 +232,11 @@ describe("router", () => {
       "/repos/{owner}/{repo}/git/commits/{sha}.{diffType}": { get: op("commitDiff") },
     });
     const plain = rc.match("get", "/repos/foo/bar/git/commits/abc123");
-    expect(plain?.operation.operationId).toBe("commit");
-    expect(plain?.pathParams).toEqual({ owner: "foo", repo: "bar", sha: "abc123" });
+    expect(matched(plain).operation.operationId).toBe("commit");
+    expect(matched(plain).pathParams).toEqual({ owner: "foo", repo: "bar", sha: "abc123" });
     const diff = rc.match("get", "/repos/foo/bar/git/commits/abc123.diff");
-    expect(diff?.operation.operationId).toBe("commitDiff");
-    expect(diff?.pathParams).toEqual({
+    expect(matched(diff).operation.operationId).toBe("commitDiff");
+    expect(matched(diff).pathParams).toEqual({
       owner: "foo",
       repo: "bar",
       sha: "abc123",
@@ -231,13 +249,13 @@ describe("router", () => {
     // hono / find-my-way / werkzeug all share this rule).
     const rc = createRouter({ "/x/{x}.{y}": { get: op("xy") } });
     const m = rc.match("get", "/x/a.b.c");
-    expect(m?.pathParams).toEqual({ x: "a", y: "b.c" });
+    expect(matched(m).pathParams).toEqual({ x: "a", y: "b.c" });
   });
 
   it("compound segment with three params resolves to one capture per part", () => {
     const rc = createRouter({ "/v/{a}.{b}.{c}": { get: op("abc") } });
     const m = rc.match("get", "/v/x.y.z");
-    expect(m?.pathParams).toEqual({ a: "x", b: "y", c: "z" });
+    expect(matched(m).pathParams).toEqual({ a: "x", b: "y", c: "z" });
   });
 
   it("compound segment with non-matching literal separator returns 404", () => {
@@ -327,7 +345,7 @@ describe("slash trimming (js/polynomial-redos regression)", () => {
     expect(parseTemplate("///pets///")).toEqual([{ kind: "literal", value: "pets" }]);
     expect(parseTemplate("")).toEqual([]);
     expect(parseTemplate("///")).toEqual([]);
-    expect(r.match("get", "///pets/42///")?.pathParams).toEqual({ id: "42" });
+    expect(matched(r.match("get", "///pets/42///")).pathParams).toEqual({ id: "42" });
   });
 
   it("leaves interior slash runs alone (they are empty segments, not trimmed)", () => {
@@ -338,7 +356,8 @@ describe("slash trimming (js/polynomial-redos regression)", () => {
       { kind: "literal", value: "" },
       { kind: "literal", value: "b" },
     ]);
-    expect(r.match("get", "/pets//42")?.pathParams).toBeUndefined();
+    // An interior run splits into an empty token, so this must not match.
+    expect(r.match("get", "/pets//42")).toBeUndefined();
   });
 
   it("stays linear on a long interior slash run", () => {

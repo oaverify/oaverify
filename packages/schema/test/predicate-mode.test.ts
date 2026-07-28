@@ -218,7 +218,7 @@ describe("predicate mode: composition (bucket B, rewritten)", () => {
       {
         type: "object",
         dependencies: { a: { required: ["b"] } },
-      },
+      } as unknown as SchemaOrBoolean,
       {
         valid: [{}, { a: 1, b: 2 }],
         invalid: [{ a: 1 }],
@@ -231,7 +231,7 @@ describe("predicate mode: composition (bucket B, rewritten)", () => {
       {
         type: "object",
         dependencies: { a: ["b", "c"] },
-      },
+      } as unknown as SchemaOrBoolean,
       {
         valid: [{}, { a: 1, b: 2, c: 3 }],
         invalid: [{ a: 1 }, { a: 1, b: 2 }],
@@ -284,7 +284,7 @@ describe("predicate mode: $ref recursion", () => {
       },
       required: ["value"],
     } as const;
-    parity(schema, {
+    parity(schema as unknown as SchemaOrBoolean, {
       valid: [
         { value: 1 },
         { value: 1, children: [{ value: 2 }] },
@@ -367,7 +367,10 @@ describe("predicate mode: discriminator (OAS 3.1)", () => {
         },
       },
     } as const;
-    const p = compileSchema(schema, { dialect: openapi31Dialect, output: "predicate" });
+    const p = compileSchema(schema as unknown as SchemaOrBoolean, {
+      dialect: openapi31Dialect,
+      output: "predicate",
+    });
     expect(p.validate({ kind: "cat", meow: true })).toBe(true);
     expect(p.validate({ kind: "dog", bark: "woof" })).toBe(true);
     expect(p.validate({ kind: "cat", meow: "not-a-bool" })).toBe(false);
