@@ -137,6 +137,30 @@ changes a valid/invalid verdict; for schemas using
 disabled (every error is collected) so the cap can't suppress a real
 `unevaluated*` error.
 
+## Malformed schemas
+
+`compileSchema` checks the schema graph before compiling it. Every
+schema-valued slot has to hold an object or a boolean; anything else
+throws, with the dotted path to it:
+
+```ts
+compileSchema({ type: "array", items: [{ type: "string" }] }, { dialect });
+// Error: "items" at <root> must be an object or boolean; got an array.
+// In JSON Schema 2020-12 the tuple form is "prefixItems"; an array-valued
+// "items" is the draft-04 / Swagger 2.0 spelling.
+```
+
+The check covers `external` schemas too, and runs under every `strict`
+setting including `"off"`. `strict` selects how loudly to grade a
+schema; this decides whether there is a schema to grade. A slot holding
+an array would otherwise compile to a keyword-free subschema and drop
+its constraint silently, which is the failure worth being loud about.
+
+One JS-specific case: presence is `Object.hasOwn`, not `!== undefined`,
+because keyword dispatch walks `Object.keys`. So `{ items: undefined }`
+is a declared `items` holding a non-schema, and throws. Build the
+object without the key to omit it.
+
 ## `$ref` and cycles
 
 `$ref` / `$dynamicRef` compile to function calls through a

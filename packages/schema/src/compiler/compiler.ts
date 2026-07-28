@@ -23,6 +23,7 @@ import {
   walkSubschemas,
 } from "../subschema-positions.js";
 import { createDeps, type RegexCompiler, type ValidatorDeps } from "./runtime.js";
+import { assertWellFormedSchema } from "./well-formed.js";
 
 // Token scan fed into CompileStats.emittedTreeRuntime. Word-boundaried
 // so stray mentions inside string literals (e.g. an error message that
@@ -562,8 +563,15 @@ export interface CompileOptions {
    */
   maxDepth?: number;
   /**
-   * Compile-time schema linting. All modes collect to
+   * Compile-time schema linting. All modes collect their findings to
    * {@link CompileStats.strictIssues} rather than throwing.
+   *
+   * This grades schemas that *are* schemas. A document that is not a
+   * schema at all -- a non-schema value in a schema-valued slot, say --
+   * is rejected before linting runs, by a throw that no mode
+   * suppresses. Well-formedness is a precondition here, not the
+   * strictest rung of this ladder, so `"off"` silences lint findings
+   * and nothing else.
    *
    * - `"off"`: silence on everything (pre-v-strict behavior).
    * - `"warn-partial"` (default): warn on keywords flagged as
@@ -823,6 +831,18 @@ export function compileSchema(
   schema: SchemaOrBoolean,
   options: CompileOptions,
 ): CompiledSchema | CompiledTreeSchema | CompiledPredicate {
+  // Before anything else: a malformed slot either compiles to a
+  // silently-weakened validator or throws an unlocated TypeError from
+  // inside codegen. Covers `external` too, since those are compiled on
+  // `$ref` and a guarantee that held for only part of the graph would
+  // be worse than none.
+  assertWellFormedSchema(schema);
+  if (options.external) {
+    for (const [name, sub] of options.external) {
+      assertWellFormedSchema(sub, `external schema "${name}"`);
+    }
+  }
+
   const byKeyword = buildKeywordMap(options.dialect.vocabularies);
   const ordered: KeywordDefinition[] = [...byKeyword.values()];
   if (options.keywords) {
