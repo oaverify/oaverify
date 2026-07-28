@@ -1,0 +1,358 @@
+import {
+  SUBSCHEMA_ARRAY_POSITIONS,
+  SUBSCHEMA_MAP_POSITIONS,
+  SUBSCHEMA_SINGLE_POSITIONS,
+} from "../subschema-positions.js";
+import type { SchemaLintIssue } from "./compiler.js";
+
+/**
+ * Applicators that constrain the *same* instance as the schema holding
+ * them, so a `required` inside one may name a property declared by any
+ * of its siblings rather than alongside it.
+ *
+ * `dependentSchemas` belongs here too: its values apply to the enclosing
+ * object, conditionally on a key being present.
+ */
+const IN_PLACE = [
+  "allOf",
+  "anyOf",
+  "oneOf",
+  "if",
+  "then",
+  "else",
+  "not",
+  "dependentSchemas",
+] as const;
+const IN_PLACE_SET = new Set<string>(IN_PLACE);
+
+/** Sentinel for "this instance can carry names we cannot enumerate". */
+const ANY_PROPERTY = " any";
+
+/** Bounds the in-place closure on pathological or cyclic schemas. */
+const MAX_CLOSURE_DEPTH = 25;
+
+type Obj = Record<string, unknown>;
+
+/**
+ * Resolves a `$ref` to its target, or returns `undefined` when it
+ * cannot. Supplied by the compiler so the walk can see through refs it
+ * has no document to resolve against: in the HTTP pipeline each
+ * operation's body schema is compiled on its own, with `components`
+ * reachable only through the resolver.
+ */
+export type RequiredLintResolver = (ref: string) => unknown;
+
+/**
+ * One move from a schema's instance to a child instance. In-place
+ * applicators produce no step, since they do not change the instance.
+ *
+ * `any` marks a move we do not model precisely (a `propertyNames`
+ * subschema constrains key strings, for example); everything below it
+ * is treated as unknowable, which suppresses flagging.
+ */
+type Step = { k: "prop"; n: string } | { k: "items" } | { k: "addl" } | { k: "any" };
+
+const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Resolve one `$ref`, preferring the compiler's resolver (which knows
+ * about external schemas and the document the operation came from) and
+ * falling back to a plain in-document pointer walk.
+ */
+function resolveRef(ref: string, root: Obj, resolve: RequiredLintResolver | undefined): unknown {
+  if (resolve !== undefined) {
+    try {
+      const viaResolver = resolve(ref);
+      if (viaResolver !== undefined) return viaResolver;
+    } catch {
+      // An unresolvable ref is the caller's "cannot enumerate" case,
+      // not an error to raise from a lint pass.
+    }
+  }
+  if (!ref.startsWith("#/")) return undefined;
+  let target: unknown = root;
+  for (const raw of ref.slice(2).split("/")) {
+    const key = raw.replace(/~1/g, "/").replace(/~0/g, "~");
+    if (!isObj(target) || !(key in target)) return undefined;
+    target = target[key];
+  }
+  return target;
+}
+
+/**
+ * Every schema constraining the same instance as one of `seeds`: the
+ * seeds themselves, their in-place applicator branches, and their
+ * `$ref` targets, transitively.
+ *
+ * `unresolved` reports that a `$ref` could not be followed, which the
+ * caller treats as "cannot enumerate" rather than "contributes
+ * nothing" -- guessing the other way would invent findings.
+ */
+function closure(
+  seeds: readonly unknown[],
+  root: Obj,
+  resolve: RequiredLintResolver | undefined,
+): { schemas: Obj[]; unresolved: boolean } {
+  const schemas: Obj[] = [];
+  const seen = new Set<unknown>();
+  let unresolved = false;
+
+  const add = (node: unknown, depth: number): void => {
+    if (depth > MAX_CLOSURE_DEPTH) {
+      unresolved = true;
+      return;
+    }
+    if (!isObj(node) || seen.has(node)) return;
+    seen.add(node);
+    schemas.push(node);
+
+    const ref = node["$ref"];
+    if (typeof ref === "string") {
+      const target = resolveRef(ref, root, resolve);
+      if (isObj(target)) add(target, depth + 1);
+      else unresolved = true;
+    }
+
+    for (const kw of IN_PLACE) {
+      const v = node[kw];
+      if (v === undefined) continue;
+      if (Array.isArray(v)) {
+        for (const b of v) add(b, depth + 1);
+      } else if (kw === "dependentSchemas") {
+        if (isObj(v)) for (const b of Object.values(v)) add(b, depth + 1);
+      } else {
+        add(v, depth + 1);
+      }
+    }
+  };
+
+  for (const s of seeds) add(s, 0);
+  return { schemas, unresolved };
+}
+
+/** The property names an instance constrained by `schemas` could carry. */
+function namesOf(schemas: readonly Obj[]): Set<string> {
+  const out = new Set<string>();
+  for (const s of schemas) {
+    const props = s["properties"];
+    if (isObj(props)) for (const k of Object.keys(props)) out.add(k);
+    const addl = s["additionalProperties"];
+    if (addl === true || isObj(addl)) out.add(ANY_PROPERTY);
+    if (isObj(s["patternProperties"])) out.add(ANY_PROPERTY);
+    const unevaluated = s["unevaluatedProperties"];
+    if (unevaluated === true || isObj(unevaluated)) out.add(ANY_PROPERTY);
+  }
+  return out;
+}
+
+/**
+ * Resolve an instance path from the document root to the set of schemas
+ * constraining the instance at that position, following *every*
+ * contributor rather than only the route the walk took to get there.
+ *
+ * This is the whole point of the rule: a `required` under
+ * `allOf[0].then.properties.x` and a declaration under `properties.x`
+ * constrain the same child instance, so the first is satisfied by the
+ * second.
+ */
+function schemasAt(
+  path: readonly Step[],
+  root: Obj,
+  resolve: RequiredLintResolver | undefined,
+): { schemas: Obj[]; unknown: boolean } {
+  let cur = closure([root], root, resolve);
+  if (cur.unresolved) return { schemas: [], unknown: true };
+
+  for (const step of path) {
+    if (step.k === "any") return { schemas: [], unknown: true };
+    const next: unknown[] = [];
+
+    for (const s of cur.schemas) {
+      if (step.k === "prop") {
+        const props = s["properties"];
+        if (isObj(props) && Object.hasOwn(props, step.n)) next.push(props[step.n]);
+        // A pattern could match this name; which one is undecidable
+        // here, so stop claiming to know what the child can carry.
+        if (isObj(s["patternProperties"])) return { schemas: [], unknown: true };
+        const addl = s["additionalProperties"];
+        if (isObj(addl)) next.push(addl);
+      } else if (step.k === "items") {
+        for (const key of ["items", "contains", "unevaluatedItems"]) {
+          const v = s[key];
+          if (v !== undefined) next.push(v);
+        }
+        const prefix = s["prefixItems"];
+        if (Array.isArray(prefix)) next.push(...prefix);
+      } else {
+        for (const key of ["additionalProperties", "unevaluatedProperties"]) {
+          const v = s[key];
+          if (v !== undefined) next.push(v);
+        }
+        const patterns = s["patternProperties"];
+        if (isObj(patterns)) next.push(...Object.values(patterns));
+      }
+    }
+
+    cur = closure(next, root, resolve);
+    if (cur.unresolved) return { schemas: [], unknown: true };
+  }
+  return { schemas: cur.schemas, unknown: false };
+}
+
+/** The child instance a descent through `key` lands on, if any. */
+function stepFor(key: string, name?: string): Step | undefined {
+  if (IN_PLACE_SET.has(key)) return undefined;
+  switch (key) {
+    case "properties":
+      return { k: "prop", n: name as string };
+    case "items":
+    case "prefixItems":
+    case "contains":
+    case "unevaluatedItems":
+      return { k: "items" };
+    case "additionalProperties":
+    case "patternProperties":
+    case "unevaluatedProperties":
+      return { k: "addl" };
+    default:
+      // `propertyNames` constrains key strings; `$defs` / `definitions`
+      // are containers reached at their use sites via `$ref`, where the
+      // instance position is known. Neither can be placed.
+      return { k: "any" };
+  }
+}
+
+/**
+ * Flag `required` entries naming a property the instance can never
+ * carry.
+ *
+ * Replaces a guard that asked whether *this* object composes, which is
+ * the wrong question and failed in both directions: it over-fired on a
+ * `then` or `oneOf[i]` branch whose property is declared on a sibling
+ * sharing the instance, and suppressed itself on schemas that
+ * legitimately compose -- exactly where the unsatisfiable cases live.
+ * Measured at 2.6% signal (77 findings, 2 true positives) across 13
+ * published specs, which is why it was withheld in #501.
+ *
+ * The question here is instead "what property names are reachable at
+ * this *instance* position?". Each `required` is located by the path of
+ * child-instance moves leading to it (in-place applicators contribute
+ * no move, since they do not change the instance), and that path is
+ * then re-resolved from the root through *every* schema that reaches
+ * it. Tracking only the walk's own ancestors is not enough: under
+ * `allOf[0].then.properties.x`, the names available to `x` are declared
+ * by a `properties.x` on the other side of the composition.
+ *
+ * Three things suppress flagging outright:
+ *
+ * - Any contributor declaring `additionalProperties` /
+ *   `patternProperties` / `unevaluatedProperties`. The instance can
+ *   carry names we cannot enumerate, so absence proves nothing.
+ * - An unresolvable `$ref` anywhere in the closure, for the same reason.
+ * - A `not` ancestor. `required` under `not` is a *negative* constraint
+ *   ("must not have X"), and X need never be declared anywhere.
+ *
+ * @internal
+ */
+export function collectRequiredIssues(
+  root: unknown,
+  resolve?: RequiredLintResolver,
+): SchemaLintIssue[] {
+  if (!isObj(root)) return [];
+  const issues: SchemaLintIssue[] = [];
+
+  // A shared component is reached once per reference site. One
+  // underlying bug would otherwise report once per site, so remember
+  // which names have been reported for a given schema object.
+  const reported = new Map<Obj, Set<string>>();
+
+  const walk = (
+    node: unknown,
+    path: string,
+    instance: readonly Step[],
+    underNot: boolean,
+    onPath: Set<Obj>,
+  ): void => {
+    if (!isObj(node) || onPath.has(node)) return;
+    const here = new Set(onPath).add(node);
+
+    // Follow `$ref` so the walk reaches component schemas, which an
+    // operation-scoped compile cannot see: only a body schema's *root*
+    // ref is unwrapped before compilation, so every nested `$ref`
+    // target would go unvisited. The target shares this instance.
+    const ref = node["$ref"];
+    if (typeof ref === "string") {
+      const target = resolveRef(ref, root, resolve);
+      if (isObj(target)) walk(target, path, instance, underNot, here);
+    }
+
+    const required = node["required"];
+    if (!underNot && Array.isArray(required)) {
+      const at = schemasAt(instance, root, resolve);
+      if (!at.unknown) {
+        const available = namesOf(at.schemas);
+        if (!available.has(ANY_PROPERTY)) {
+          let seenNames = reported.get(node);
+          if (seenNames === undefined) {
+            seenNames = new Set<string>();
+            reported.set(node, seenNames);
+          }
+          for (const name of required) {
+            if (typeof name !== "string" || available.has(name)) continue;
+            if (seenNames.has(name)) continue;
+            seenNames.add(name);
+            issues.push({
+              code: "silent-rewrite/required-not-in-properties",
+              keyword: "required",
+              path,
+              message:
+                path.length === 0
+                  ? `required: "${name}" at <root> is not declared in properties reachable here (likely a typo)`
+                  : `required: "${name}" at "${path}" is not declared in properties reachable here (likely a typo)`,
+            });
+          }
+        }
+      }
+    }
+
+    // Descend using the shared position vocabulary rather than treating
+    // every object value as a map: `items` holds a schema directly while
+    // `properties` holds schemas one level down, and conflating them
+    // reads a schema's own keywords as if they were subschemas.
+    const descend = (v: unknown, childPath: string, key: string, name?: string): void => {
+      const step = stepFor(key, name);
+      walk(
+        v,
+        childPath,
+        step === undefined ? instance : [...instance, step],
+        underNot || key === "not",
+        here,
+      );
+    };
+
+    for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
+      const v = node[key];
+      if (v === undefined) continue;
+      descend(v, path === "" ? key : `${path}.${key}`, key);
+    }
+
+    for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
+      const v = node[key];
+      if (!Array.isArray(v)) continue;
+      for (const [i, item] of v.entries()) {
+        descend(item, path === "" ? `${key}[${i}]` : `${path}.${key}[${i}]`, key);
+      }
+    }
+
+    for (const key of [...SUBSCHEMA_MAP_POSITIONS, "dependentSchemas"]) {
+      const v = node[key];
+      if (!isObj(v)) continue;
+      for (const [name, sub] of Object.entries(v)) {
+        descend(sub, path === "" ? `${key}.${name}` : `${path}.${key}.${name}`, key, name);
+      }
+    }
+  };
+
+  walk(root, "", [], false, new Set());
+  return issues;
+}

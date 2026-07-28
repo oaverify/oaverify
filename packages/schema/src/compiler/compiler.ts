@@ -23,6 +23,7 @@ import {
   walkSubschemas,
 } from "../subschema-positions.js";
 import { createDeps, type RegexCompiler, type ValidatorDeps } from "./runtime.js";
+import { collectRequiredIssues } from "./required-lint.js";
 import { assertWellFormedSchema } from "./well-formed.js";
 
 // Token scan fed into CompileStats.emittedTreeRuntime. Word-boundaried
@@ -103,7 +104,7 @@ function runSchemaLint(
   schema: SchemaOrBoolean,
   byKeyword: Map<string, KeywordDefinition>,
   mode: "warn" | "strict",
-  rules: { refSuppressesSiblings: boolean },
+  rules: { refSuppressesSiblings: boolean; resolveRef?: (ref: string) => unknown },
 ): SchemaLintIssue[] {
   // The full set of names the active dialect recognizes, including
   // `implements` entries on existing definitions (e.g. `if` implements
@@ -115,6 +116,10 @@ function runSchemaLint(
   }
 
   const issues: SchemaLintIssue[] = [];
+  // Ancestor-aware, so it walks the graph itself rather than per-node:
+  // the question is what property names are reachable at an instance
+  // position, which a per-node visitor cannot see.
+  issues.push(...collectRequiredIssues(schema, rules.resolveRef));
   walkSubschemas(schema, (node, path) => {
     if (typeof node !== "object" || node === null || Array.isArray(node)) return;
     const obj = node as Record<string, unknown>;
@@ -161,24 +166,6 @@ function runSchemaLint(
         });
       }
     }
-
-    // silent-rewrite/required-not-in-properties is withheld pending
-    // #475 / #477.
-    //
-    // The guard asks "does *this* object compose?", which is the wrong
-    // question, and it fails in both directions at once. It over-fires
-    // on a `then` or `oneOf[i]` branch whose property is declared on an
-    // ancestor sharing the same instance, and it suppresses itself on
-    // schemas that legitimately compose -- which is exactly where the
-    // unsatisfiable cases live. Measured across 13 published OpenAPI
-    // 3.1 specs: 77 findings, 2 true positives. 2.6% signal.
-    //
-    // A rule nobody trusts gets switched off, which loses its true
-    // positives anyway, so emitting it is worse than withholding it.
-    // #477 replaces the guard with "what property names are reachable
-    // at this instance location?", which fixes both directions; the
-    // rule returns then. The code and message shape stay documented on
-    // SchemaLintIssue so the reintroduction is a revert, not a redesign.
 
     for (const key of COMPOSITION_BRANCH_KEYS) {
       const branches = obj[key];
@@ -332,15 +319,20 @@ export interface SchemaLintIssue {
    *   siblings are silently dropped; the validator runs the `$ref`
    *   target only.
    * - `"silent-rewrite/required-not-in-properties"`: a `required`
-   *   array names a key that doesn't appear in the same schema's
-   *   `properties`. Almost always a typo.
+   *   array names a property no schema reaching that instance position
+   *   declares, so the constraint can never be met. Almost always a
+   *   typo.
    *
-   *   Not currently emitted. The implementation ran at 2.6% signal (77
-   *   findings, 2 true positives across 13 published specs) because its
-   *   guard asked whether *this* object composes rather than which
-   *   property names are reachable at the instance location. Withheld
-   *   until #477 replaces the guard; the code stays declared so the
-   *   reintroduction does not have to re-widen this union.
+   *   The name is resolved against the *instance* position, not the
+   *   enclosing schema: in-place applicators (`allOf`, `then`,
+   *   `dependentSchemas`, …) share their parent's instance, and a
+   *   child instance collects every schema that reaches it, on either
+   *   side of a composition. `$ref` is followed, since an
+   *   operation-scoped compile reaches its components no other way.
+   *   Flagging is suppressed wherever the reachable names cannot be
+   *   enumerated: `additionalProperties` / `patternProperties` /
+   *   `unevaluatedProperties`, an unresolvable `$ref`, or a `not`
+   *   ancestor (where `required` is a negative constraint).
    * - `"silent-rewrite/redundant-composition-branches"`: an `oneOf` /
    *   `anyOf` array where two or more branches are structurally
    *   identical after compile-time rewrites (notably the validator's
@@ -924,6 +916,10 @@ export function compileSchema(
       ? []
       : runSchemaLint(schema, byKeyword, lintMode, {
           refSuppressesSiblings: state.refSuppressesSiblings,
+          // Lets the `required` rule see through `$ref` into component
+          // schemas, which an operation-scoped compile cannot reach by
+          // walking its own schema object.
+          resolveRef: (ref) => refResolver.resolve(ref),
         });
   const stats: CompileStats = {
     functionCount: state.nextFn,
