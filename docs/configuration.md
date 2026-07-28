@@ -90,7 +90,28 @@ not the source syntax. The two shapes it catches in practice:
   the intended subschema indented as a sibling rather than beneath it
   leaves `if: null`. Writing the null outright has the same effect.
 
-Both are spec bugs that no runtime option should paper over, which is
+Keyword values are checked the same way, by the keyword that owns them:
+
+```
+keyword "type" has unknown type name "Boolean"; expected one of "null",
+"boolean", "object", "array", "string", "number", "integer". Did you
+mean "boolean"?
+
+keyword "required" requires an array of strings; got string "id"
+```
+
+Both of those used to compile. `type: "Boolean"` produced a validator
+nothing could satisfy, so every request failed with `must be Boolean`,
+blaming the payload for a spec bug. `required: "id"` was quieter: the
+string iterated as its own characters, so the schema demanded
+properties `"i"` and `"d"` and rejected the `{ "id": ... }` it was meant
+to accept.
+
+Under OpenAPI 3.0 the legal type set is the same six minus `null`, and
+`type: "null"` is reported with a pointer to `nullable: true` rather
+than a spelling suggestion.
+
+These are spec bugs that no runtime option should paper over, which is
 why the failure is a throw at construction rather than an entry in
 `strictIssues`. Catching it needs a `try` around `createValidator`, not
 a check on each request.

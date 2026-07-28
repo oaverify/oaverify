@@ -1,5 +1,9 @@
 import { NAMES, quoteString } from "../codegen/index.js";
-import { buildTypeMismatchCondition } from "./type-predicates.js";
+import {
+  buildTypeMismatchCondition,
+  JSON_SCHEMA_TYPE_NAMES,
+  suggestTypeName,
+} from "./type-predicates.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
 
@@ -13,7 +17,7 @@ export const typeKeyword: KeywordDefinition = {
   keyword: "type",
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
-    const expected = Array.isArray(ctx.schema) ? (ctx.schema as string[]) : [ctx.schema as string];
+    const expected = assertTypeNames(ctx.schema);
     const condition = buildTypeMismatchCondition(ctx.data, expected);
     ctx.gen.if(condition, () => {
       const expectedLit = JSON.stringify(expected);
@@ -29,6 +33,46 @@ export const typeKeyword: KeywordDefinition = {
     });
   },
 };
+
+/**
+ * Validate `type`'s value before it reaches codegen.
+ *
+ * `typePredicate` returns `"false"` for a name it does not know, so an
+ * unrecognised one used to compile into a validator that rejects every
+ * payload. Nothing satisfies it, the failure surfaces at runtime on
+ * production traffic, and the message (`must be Boolean`) points at the
+ * payload rather than at the spec that is actually wrong. No author
+ * means that, so it is a compile error.
+ */
+function assertTypeNames(value: unknown): string[] {
+  const names = Array.isArray(value) ? value : [value];
+  if (names.length === 0) {
+    throw new Error(`keyword "type" requires at least one type name; got an empty array`);
+  }
+  for (const name of names) {
+    if (typeof name !== "string") {
+      throw new Error(
+        `keyword "type" requires a type name or array of type names; got ${describe(name)}`,
+      );
+    }
+    if (!(JSON_SCHEMA_TYPE_NAMES as readonly string[]).includes(name)) {
+      throw new Error(
+        `keyword "type" has unknown type name ${JSON.stringify(name)}; ` +
+          `expected one of ${JSON_SCHEMA_TYPE_NAMES.map((t) => JSON.stringify(t)).join(", ")}.` +
+          suggestTypeName(name, JSON_SCHEMA_TYPE_NAMES),
+      );
+    }
+  }
+  return names as string[];
+}
+
+function describe(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "an array";
+  if (typeof value === "string") return `string ${JSON.stringify(value)}`;
+  if (typeof value === "number") return `number ${String(value)}`;
+  return typeof value;
+}
 
 function formatTypeList(types: string[]): string {
   if (types.length === 1) return types[0] ?? "";

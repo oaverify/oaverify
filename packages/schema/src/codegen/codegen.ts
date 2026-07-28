@@ -325,6 +325,39 @@ export function booleanLiteral(value: unknown, keyword: string): string {
   return value ? "true" : "false";
 }
 
+/**
+ * Validate a schema-supplied array-of-strings keyword value (`required`,
+ * `enum`-adjacent name lists) before a keyword iterates it.
+ *
+ * The failure this prevents is quiet rather than loud. A bare string
+ * passes an unchecked `as string[]` cast and then iterates as its own
+ * characters: `required: "id"` becomes a demand for properties `"i"`
+ * and `"d"`, so the payload the author meant to accept is rejected and
+ * one they never imagined is not. Unlike a keyword that rejects
+ * everything, nothing about the running system looks wrong.
+ *
+ * @param value - The schema-supplied value (untrusted).
+ * @param keyword - The schema keyword being compiled, named in the error.
+ * @returns The value as a string array.
+ * @throws Error when `value` is not an array, or holds a non-string.
+ *
+ * @public
+ */
+export function stringArrayValue(value: unknown, keyword: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `keyword "${keyword}" requires an array of strings; got ${describeValue(value)}`,
+    );
+  }
+  const badAt = value.findIndex((v) => typeof v !== "string");
+  if (badAt !== -1) {
+    throw new Error(
+      `keyword "${keyword}" requires an array of strings; element ${badAt} is ${describeValue(value[badAt])}`,
+    );
+  }
+  return value as string[];
+}
+
 function describeValue(value: unknown): string {
   if (typeof value === "string") return `string ${JSON.stringify(value)}`;
   if (typeof value === "number") return `number ${String(value)}`;
