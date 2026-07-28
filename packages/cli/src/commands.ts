@@ -14,6 +14,7 @@ import {
   loadSpec,
   specOverlayVerbs,
   type DocumentReader,
+  type SpecHygieneIssue,
   type SpecOverlay,
 } from "@oaverify/internal-spec";
 import {
@@ -36,7 +37,13 @@ import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
  * @public
  */
 export interface CommandOptions {
-  format: OutputFormat;
+  /**
+   * How `validate` renders an error tree. Only that command reads it;
+   * `resolve` and `check` produce their own output and leave it unset.
+   * Distinct from `check --format`, which selects an envelope shape
+   * rather than an error renderer.
+   */
+  format?: OutputFormat;
   depth?: number;
   output?: string;
   quiet: boolean;
@@ -185,21 +192,10 @@ export async function resolveCommand(
   args: {
     spec: string;
     overlays: string[];
-    /** Run spec-hygiene lint passes and surface findings. Defaults to false. */
-    lint?: boolean;
-    /** Exit non-zero when any finding at or above <level> appears. Requires `lint`. */
-    failOn?: "warning";
-    /** `"text"` (default; document on stdout, findings on stderr) or `"json"` (one envelope). */
-    envelope?: "text" | "json";
     options: CommandOptions;
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
-  if (args.failOn !== undefined && args.lint !== true) {
-    io.stderr("error: --fail-on requires --lint\n");
-    return { exitCode: 3 };
-  }
-
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(io, args.overlays);
@@ -207,38 +203,170 @@ export async function resolveCommand(
     io.stderr(`resolve: ${(err as Error).message}\n`);
     return { exitCode: 3 };
   }
-  const { document, specHygieneIssues } = await loadSpec({
+  const { document } = await loadSpec({
     reader: io.reader,
     entry: args.spec,
     overlays: overlayDocs,
-    lint: args.lint === true,
   });
 
-  const sink = primarySink(io, args.options);
-  if (args.envelope === "json") {
-    // Single envelope: keeps the findings alongside the document for
-    // machine consumers without splitting across stdout/stderr.
-    const out = args.lint ? { document, specHygieneIssues } : { document };
-    await sink(JSON.stringify(out, null, 2) + "\n");
-  } else {
-    await sink(JSON.stringify(document, null, 2) + "\n");
-    if (args.lint && specHygieneIssues.length > 0) {
-      for (const w of specHygieneIssues) {
-        io.stderr(`warning [${w.code}] ${w.pointer}: ${w.message}\n`);
-      }
+  await primarySink(io, args.options)(JSON.stringify(document, null, 2) + "\n");
+  return { exitCode: 0 };
+}
+
+/**
+ * A single finding from `oaverify check`, normalised across the classes so
+ * one array can carry all of them.
+ *
+ * The CLI unifies where the programmatic API does not: `check` runs the
+ * classes together by construction, while an API caller reaches for one
+ * layer at a time and would have to filter a union to get back what they
+ * asked for. `class` is required so a consumer can re-split them.
+ *
+ * @public
+ */
+export interface CheckFinding {
+  /** Which check produced this. */
+  class: "hygiene" | "schema";
+  /** The class-specific code, e.g. `"unused-component"`, `"unknown-keyword"`. */
+  code: string;
+  /**
+   * Where it is. An RFC 6901 pointer for hygiene findings (they address
+   * the resolved document) and a dotted schema path for schema-lint
+   * findings (they address a position inside one schema). Kept as one
+   * field because a consumer wants "where" more than it wants the
+   * addressing scheme.
+   */
+  location: string;
+  message: string;
+}
+
+/** Check classes `--only` accepts. */
+export const CHECK_CLASSES = ["hygiene", "schema"] as const;
+export type CheckClass = (typeof CHECK_CLASSES)[number];
+
+/**
+ * Implement the `oaverify check <spec> ...` subcommand: answer "what is
+ * wrong with my spec?".
+ *
+ * The counterpart to `validate`, which answers "does this payload conform?".
+ * Two verbs, one question each: `check` is about the document, `validate`
+ * is about traffic.
+ *
+ * Three classes of problem exist (see docs/strictness.md); this command
+ * surfaces the two that are reportable:
+ *
+ * - **Malformed** schemas are fatal and cannot be collected: the document
+ *   cannot be compiled at all, so they surface as exit 2 with the compiler's
+ *   located message rather than as findings.
+ * - **hygiene**: unused components / tags / `$defs`, path-parameter
+ *   mismatches.
+ * - **schema**: partially-implemented keywords, unknown keywords.
+ *
+ * @returns 0 clean, 1 findings met `--fail-on`, 2 the document could not be
+ *          loaded or compiled, 3 usage error.
+ *
+ * @public
+ */
+export async function checkCommand(
+  args: {
+    spec: string;
+    overlays: string[];
+    /** Classes to run. Defaults to all of {@link CHECK_CLASSES}. */
+    only?: CheckClass[];
+    /** Exit non-zero when any finding at or above <level> appears. */
+    failOn?: "warning";
+    /** `"text"` (default) or `"json"`. */
+    format?: "text" | "json";
+    options: CommandOptions;
+  },
+  io: CommandIo = defaultCommandIo(),
+): Promise<CommandResult> {
+  const classes = new Set<CheckClass>(args.only ?? CHECK_CLASSES);
+
+  let overlayDocs: SpecOverlay[];
+  try {
+    overlayDocs = await readOverlays(io, args.overlays);
+  } catch (err) {
+    io.stderr(`check: ${(err as Error).message}\n`);
+    return { exitCode: 3 };
+  }
+
+  const findings: CheckFinding[] = [];
+
+  let document: OpenAPIDocument;
+  let specHygieneIssues: readonly SpecHygieneIssue[] = [];
+  try {
+    const loaded = await loadSpec({
+      reader: io.reader,
+      entry: args.spec,
+      overlays: overlayDocs,
+      lint: classes.has("hygiene"),
+    });
+    document = loaded.document;
+    specHygieneIssues = loaded.specHygieneIssues;
+  } catch (err) {
+    // The document could not be read, resolved, or parsed. Not a finding:
+    // there is nothing to report findings about.
+    io.stderr(`check: ${(err as Error).message}\n`);
+    return { exitCode: 2 };
+  }
+
+  if (classes.has("hygiene")) {
+    for (const issue of specHygieneIssues) {
+      findings.push({
+        class: "hygiene",
+        code: issue.code,
+        location: issue.pointer,
+        message: issue.message,
+      });
     }
   }
 
-  if (args.lint && args.failOn === "warning" && specHygieneIssues.length > 0) {
-    return { exitCode: 1 };
+  if (classes.has("schema")) {
+    try {
+      const validator = createValidator(document, { schemaLint: "strict" });
+      // Compilation is lazy, so without this the schema class inspects
+      // nothing: no schema has been checked and schemaLintIssues is
+      // empty. `check` is exactly the caller that wants the whole
+      // document compiled.
+      validator.precompile();
+      for (const issue of validator.stats.schemaLintIssues) {
+        findings.push({
+          class: "schema",
+          code: issue.code,
+          location: issue.path === "" ? "<root>" : issue.path,
+          message: issue.message,
+        });
+      }
+    } catch (err) {
+      // A malformed schema throws rather than linting. Exit 2, same as a
+      // document that would not load: in both cases there is no validator
+      // to grade.
+      io.stderr(`check: ${(err as Error).message}\n`);
+      return { exitCode: 2 };
+    }
   }
+
+  const sink = primarySink(io, args.options);
+  if (args.format === "json") {
+    await sink(JSON.stringify({ findings }, null, 2) + "\n");
+  } else if (findings.length === 0) {
+    await sink(`check: no findings (${[...classes].sort().join(", ")})\n`);
+  } else {
+    for (const f of findings) {
+      await sink(`${f.class} [${f.code}] ${f.location}: ${f.message}\n`);
+    }
+    await sink(`\n${findings.length} finding(s)\n`);
+  }
+
+  if (args.failOn === "warning" && findings.length > 0) return { exitCode: 1 };
   return { exitCode: 0 };
 }
 
 /**
  * Implement the `oaverify stream-check <spec> ...` subcommand: roll up the
  * streaming-buffer budget for every operation's request / response bodies
- * and print a per-operation table (or the `SpecBudget` JSON envelope). This
+ * and print a per-operation table (or the `SpecBudget` JSON payload). This
  * is the streamability analysis (`@oaverify/internal-stream-validator`) surfaced over a
  * whole resolved spec, so a deployer can see, before deploy, which bodies
  * stream and which buffer (and where).
@@ -252,7 +380,7 @@ export async function streamCheckCommand(
   args: {
     spec: string;
     overlays: string[];
-    envelope: "text" | "json";
+    format: "text" | "json";
     maxBufferedBytes?: number;
     failOnUnbounded: boolean;
     verbose: boolean;
@@ -279,7 +407,7 @@ export async function streamCheckCommand(
   );
 
   const sink = primarySink(io, args.options);
-  if (args.envelope === "json") {
+  if (args.format === "json") {
     await sink(JSON.stringify(budget, null, 2) + "\n");
   } else {
     await sink(renderStreamBudget(document, budget, { verbose: args.verbose }));
@@ -358,7 +486,7 @@ export async function validateCommand(
 
   // Silence on success; no bare-newline leak, matches Unix convention.
   if (err === null) return { exitCode: 0 };
-  const rendered = formatError(err, args.options.format, args.options.depth);
+  const rendered = formatError(err, args.options.format ?? "text", args.options.depth);
   await primarySink(io, args.options)(rendered + "\n");
   return { exitCode: 1 };
 }

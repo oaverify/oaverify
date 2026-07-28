@@ -74,6 +74,34 @@ whether your spec is well written.
 Both produce ordinary validation errors on the request, at request time.
 Neither appears in `schemaLintIssues`.
 
+## On the CLI
+
+Two verbs, one question each.
+
+```
+oaverify check <spec>       # is my spec good?
+oaverify validate <spec>    # does this payload conform?
+```
+
+`check` reports the first two classes above. Malformed schemas cannot be
+collected as findings -- there is no validator to grade -- so they exit 2
+with the compiler's located message. Lint findings are reported, and exit
+1 only when `--fail-on` asks for it.
+
+```
+oaverify check spec.yaml --only schema --fail-on warning --format json
+```
+
+| Exit | Meaning                                            |
+| ---- | -------------------------------------------------- |
+| 0    | clean                                              |
+| 1    | findings met `--fail-on`, or a domain check failed |
+| 2    | input could not be loaded, resolved, or compiled   |
+| 3    | CLI usage error                                    |
+
+Request strictness has no CLI surface: it changes how traffic is
+validated at runtime, which is a library setting.
+
 ## Which one do I want?
 
 - _"My spec has a typo and I want to know at build time."_ → `schemaLint: "strict"`.

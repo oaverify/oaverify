@@ -303,6 +303,25 @@ export interface Validator {
    */
   matchRoute(req: { method: string; path: string }): RouteMatchResult;
   /**
+   * Compile every operation's schemas now, rather than on first access.
+   *
+   * Compilation is lazy by default, and response bodies are lazier
+   * still, so a spec with hundreds of operations pays only for the
+   * pairings its traffic exercises. That is right for a server and wrong
+   * for a tool inspecting the whole document: until a schema compiles it
+   * has neither been checked for well-formedness nor contributed to
+   * {@link ValidatorStats.schemaLintIssues}.
+   *
+   * After this call, a malformed schema anywhere in the document has
+   * thrown (with its path), and `stats.schemaLintIssues` covers the
+   * whole document rather than the parts already touched.
+   *
+   * Idempotent. Not needed on the request path: the results land in the
+   * same caches lazy compilation fills, so this changes when the work
+   * happens, not how much.
+   */
+  precompile(): void;
+  /**
    * Every operation the spec declares, as `{ method, pathPattern }`
    * pairs in route-specificity order (more literal segments first).
    * `method` is uppercased (`"GET"`); `pathPattern` is the template as
@@ -1252,6 +1271,52 @@ export function createValidator(
   // The runtime methods return the `output`-dependent union; the
   // overloads above resolve the precise interface for callers. The cast
   // bridges the two: `outputMode` determines the real shape, which TS
+  /**
+   * Compile every operation's schemas up front, instead of on first
+   * access.
+   *
+   * Compilation is normally lazy, and response bodies are lazier still:
+   * a spec with hundreds of operations pays for only the pairings its
+   * traffic actually exercises. That is right for a server and wrong for
+   * a tool that wants to inspect the whole document, because until a
+   * schema compiles it has neither been checked for well-formedness nor
+   * contributed to {@link ValidatorStats.schemaLintIssues}.
+   *
+   * Call this to make both complete:
+   *
+   * - A malformed schema anywhere in the document throws here, with its
+   *   path, rather than on the first request that happens to reach it.
+   * - `stats.schemaLintIssues` afterwards covers the whole document
+   *   rather than the parts already touched.
+   *
+   * Idempotent, and unnecessary on the request path: everything it
+   * compiles is memoized in the same caches lazy compilation fills, so
+   * calling it changes when the work happens, not how much.
+   */
+  const precompile = (): void => {
+    for (const route of router.routes()) {
+      const match = router.match(route.method, route.pathPattern);
+      if (match === undefined || match.kind !== "match") continue;
+      const cache = cacheFor(match);
+      // Request-side schemas are compiled by cacheFor. Response bodies
+      // and headers are not, so drive their lazy getters here.
+      for (const [status, response] of cache.responses) {
+        for (const mediaType of response.bodySchemas.keys()) {
+          getResponseValidator(
+            response.bodyValidators,
+            response.bodySchemas,
+            mediaType,
+            "response",
+          );
+        }
+        for (const name of response.headerSchemas.keys()) {
+          getResponseValidator(response.headerValidators, response.headerSchemas, name);
+        }
+        void status;
+      }
+    }
+  };
+
   // can't track from the value back to the literal overload.
   return {
     validateRequest,
@@ -1260,6 +1325,7 @@ export function createValidator(
     validateFetchResponse,
     getOperation,
     matchRoute,
+    precompile,
     routes: router.routes(),
     detectedVersion,
     output: outputMode,

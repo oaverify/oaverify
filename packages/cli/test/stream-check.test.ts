@@ -40,7 +40,7 @@ const base = { spec: "spec.json", overlays: [], failOnUnbounded: false, verbose:
 describe("streamCheckCommand", () => {
   it("prints a per-operation table with island counts (text, non-verbose)", async () => {
     const { io: cmdIo, stdout } = io();
-    const res = await streamCheckCommand({ ...base, envelope: "text", options: textOpts }, cmdIo);
+    const res = await streamCheckCommand({ ...base, format: "text", options: textOpts }, cmdIo);
     expect(res.exitCode).toBe(0);
     expect(stdout.value).toContain('POST "/pets"');
     expect(stdout.value).toContain("buffer");
@@ -52,16 +52,13 @@ describe("streamCheckCommand", () => {
 
   it("lists each unbounded position under --verbose", async () => {
     const { io: cmdIo, stdout } = io();
-    await streamCheckCommand(
-      { ...base, envelope: "text", verbose: true, options: textOpts },
-      cmdIo,
-    );
+    await streamCheckCommand({ ...base, format: "text", verbose: true, options: textOpts }, cmdIo);
     expect(stdout.value).toContain("code  pattern  unbounded (needs maxLength)");
   });
 
-  it("emits the SpecBudget as JSON under --envelope json", async () => {
+  it("emits the SpecBudget as JSON under --format json", async () => {
     const { io: cmdIo, stdout } = io();
-    await streamCheckCommand({ ...base, envelope: "json", options: textOpts }, cmdIo);
+    await streamCheckCommand({ ...base, format: "json", options: textOpts }, cmdIo);
     const budget = JSON.parse(stdout.value);
     expect(budget.operations).toHaveLength(1);
     expect(budget.operations[0].bodies[0]).toMatchObject({
@@ -74,7 +71,7 @@ describe("streamCheckCommand", () => {
   it("shows the effective peak in the text output when --max-buffered-bytes binds", async () => {
     const { io: cmdIo, stdout } = io();
     await streamCheckCommand(
-      { ...base, envelope: "text", maxBufferedBytes: 1000, options: textOpts },
+      { ...base, format: "text", maxBufferedBytes: 1000, options: textOpts },
       cmdIo,
     );
     // The unbounded request body clamps to the cap; the table must surface it.
@@ -83,14 +80,14 @@ describe("streamCheckCommand", () => {
 
   it("does not show a cap suffix when no cap is set", async () => {
     const { io: cmdIo, stdout } = io();
-    await streamCheckCommand({ ...base, envelope: "text", options: textOpts }, cmdIo);
+    await streamCheckCommand({ ...base, format: "text", options: textOpts }, cmdIo);
     expect(stdout.value).not.toContain("capped to");
   });
 
   it("exits non-zero with --fail-on-unbounded when a body is unbounded", async () => {
     const { io: cmdIo } = io();
     const res = await streamCheckCommand(
-      { ...base, envelope: "text", failOnUnbounded: true, options: textOpts },
+      { ...base, format: "text", failOnUnbounded: true, options: textOpts },
       cmdIo,
     );
     expect(res.exitCode).toBe(1);
@@ -110,7 +107,7 @@ describe("streamCheckCommand", () => {
     };
     const { io: cmdIo } = memoryIo([["spec.json", bounded]]);
     const res = await streamCheckCommand(
-      { ...base, envelope: "text", failOnUnbounded: true, options: textOpts },
+      { ...base, format: "text", failOnUnbounded: true, options: textOpts },
       cmdIo,
     );
     expect(res.exitCode).toBe(0);
