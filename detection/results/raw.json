@@ -2,7 +2,7 @@
   "malformed/items-array": {
     "oaverify": {
       "findings": [],
-      "fatal": "check: \"items\" at <root> must be an object or boolean; got an array. In JSON Schema 2020-12 the tuple form is \"prefixItems\"; an array-valued \"items\" is the draft-04 / Swagger 2.0 spelling."
+      "fatal": "check: GET /things 200 response body (application/json): \"items\" at <root> must be an object or boolean; got an array. In JSON Schema 2020-12 the tuple form is \"prefixItems\"; an array-valued \"items\" is the draft-04 / Swagger 2.0 spelling."
     },
     "ajv": {
       "findings": [
@@ -98,7 +98,7 @@
   "malformed/type-boolean": {
     "oaverify": {
       "findings": [],
-      "fatal": "check: keyword \"type\" at \"properties.flag.type\" has unknown type name \"Boolean\"; expected one of \"null\", \"boolean\", \"object\", \"array\", \"string\", \"number\", \"integer\". Did you mean \"boolean\"?"
+      "fatal": "check: GET /things 200 response body (application/json): keyword \"type\" at \"properties.flag.type\" has unknown type name \"Boolean\"; expected one of \"null\", \"boolean\", \"object\", \"array\", \"string\", \"number\", \"integer\". Did you mean \"boolean\"?"
     },
     "ajv": {
       "findings": [
@@ -194,7 +194,7 @@
   "malformed/if-null": {
     "oaverify": {
       "findings": [],
-      "fatal": "check: \"if\" at <root> must be an object or boolean; got null."
+      "fatal": "check: GET /things 200 response body (application/json): \"if\" at <root> must be an object or boolean; got null."
     },
     "ajv": {
       "findings": [
@@ -208,7 +208,7 @@
     },
     "spectral": {
       "findings": [],
-      "fatal": "(node:13089) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nError running Spectral!\nUse --verbose flag to print the error stack.\nError #1: Cannot read properties of null (reading 'enum')"
+      "fatal": "(node:27781) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nError running Spectral!\nUse --verbose flag to print the error stack.\nError #1: Cannot read properties of null (reading 'enum')"
     },
     "redocly": {
       "findings": [
@@ -260,7 +260,7 @@
   "malformed/enum-scalar": {
     "oaverify": {
       "findings": [],
-      "fatal": "check: keyword \"enum\" at \"properties.status.enum\" requires an array of values; got number"
+      "fatal": "check: GET /things 200 response body (application/json): keyword \"enum\" at \"properties.status.enum\" requires an array of values; got number"
     },
     "ajv": {
       "findings": [
@@ -356,7 +356,7 @@
   "malformed/required-string": {
     "oaverify": {
       "findings": [],
-      "fatal": "check: keyword \"required\" requires an array of strings; got string \"id\""
+      "fatal": "check: GET /things 200 response body (application/json): keyword \"required\" requires an array of strings; got string \"id\""
     },
     "ajv": {
       "findings": [
@@ -452,7 +452,7 @@
   "malformed/properties-array": {
     "oaverify": {
       "findings": [],
-      "fatal": "check: \"properties\" at <root> must be an object mapping names to schemas; got an array."
+      "fatal": "check: GET /things 200 response body (application/json): \"properties\" at <root> must be an object mapping names to schemas; got an array."
     },
     "ajv": {
       "findings": [
@@ -551,7 +551,7 @@
         {
           "rule": "silent-rewrite/required-not-in-properties",
           "message": "required: \"nam\" at <root> is not declared in properties reachable here (likely a typo)",
-          "location": "<root>",
+          "location": "GET /things 200 response body (application/json) -> <root>",
           "severity": "warn"
         }
       ]
@@ -647,7 +647,7 @@
         {
           "rule": "silent-rewrite/required-not-in-properties",
           "message": "required: \"total\" at \"items\" is not declared in properties reachable here (likely a typo)",
-          "location": "items",
+          "location": "GET /things 200 response body (application/json) -> items",
           "severity": "warn"
         }
       ]
@@ -745,7 +745,14 @@
   },
   "lint/ref-siblings-oas30": {
     "oaverify": {
-      "findings": []
+      "findings": [
+        {
+          "rule": "silent-rewrite/ref-siblings-oas30",
+          "message": "OAS 3.0: \"required\" sibling of $ref at <root> is silently dropped (only description/summary survive)",
+          "location": "GET /things 200 response body (application/json) -> <root>",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": [
@@ -838,7 +845,7 @@
         {
           "rule": "silent-rewrite/redundant-composition-branches",
           "message": "oneOf[1] is structurally identical to oneOf[0] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec",
-          "location": "oneOf[1]",
+          "location": "GET /things 200 response body (application/json) -> oneOf[1]",
           "severity": "warn"
         }
       ]
@@ -921,7 +928,7 @@
         {
           "rule": "unknown-keyword",
           "message": "unknown keyword \"minLenght\" at \"properties.name\"",
-          "location": "properties.name",
+          "location": "GET /things 200 response body (application/json) -> properties.name",
           "severity": "warn"
         }
       ]

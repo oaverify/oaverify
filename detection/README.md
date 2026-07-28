@@ -93,11 +93,21 @@ Read these before quoting a number.
 
 ## What it found
 
-Building the corpus turned up a real bug in oaverify:
-`silent-rewrite/ref-siblings-oas30` never fires when the `$ref` sits at
-a body-schema root, because the validator unwraps root refs before the
-lint runs (#505). It fires correctly one level down. That is the same
-root-unwrap behaviour that hid a true positive from the `required` rule
-in #503, from the other side.
+`cases/lint/ref-siblings-oas30.yaml` was the one case oaverify should
+have caught and did not. Chasing it turned up a validation bug well
+past the missing warning: the body-schema transform followed a root
+`$ref` unconditionally, so under OpenAPI 3.1, where `$ref` siblings are
+part of the schema, `{ $ref: Pet, required: [name] }` at a body root
+silently stopped enforcing `required`. Fixed in #505.
 
-Finding that was worth more than the table.
+Worth recording how that went, because the corpus nearly buried it. The
+first diagnosis was wrong, and a probe written to test it appeared to
+clear oaverify: the request came back invalid, which looked like the
+sibling being enforced. It was a `content-type` error, and the schema
+had never been compiled. The second probe printed the error codes
+instead of the verdict, and the real behaviour showed up immediately.
+
+Assert on the reason, not the verdict. A test that only checks
+`valid === false` passes for any reason at all, including the fix being
+absent, and one of the tests shipped with that fix had to be rewritten
+for exactly that.
