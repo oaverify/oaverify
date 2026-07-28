@@ -172,7 +172,7 @@ reaching for `pnpm pack` directly.
 - `detection/`: labelled corpus measuring which OpenAPI defects each
   tool catches (oaverify vs ajv, Spectral, Redocly). Each case is a
   minimal spec with one seeded defect; a tool scores only when it
-  reports *that* defect, matched against declared signals. Run with
+  reports _that_ defect, matched against declared signals. Run with
   `cd detection && pnpm install && pnpm detect` (needs a prior root
   `pnpm build`, since oaverify runs through its built CLI). Not a CI
   gate: a matrix that turns red when Spectral ships a rule is noise.
