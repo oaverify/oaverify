@@ -217,6 +217,94 @@ describe("resolveCommand", () => {
     expect(stdout.value).toContain("/components/schemas/Orphan");
   });
 
+  it("check reports a shared component's defect once, with a count", async () => {
+    // Schemas compile per operation, so a component reached from three
+    // of them produced three identical findings. One defect, one edit
+    // (#520). Without the collapse the ref-following lint (#513) turns
+    // a real improvement into a wall of near-duplicate lines.
+    const shared = {
+      openapi: "3.0.3",
+      info: { title: "X", version: "1" },
+      components: {
+        schemas: {
+          Wrapper: {
+            type: "object",
+            properties: { inner: { $ref: "#/components/schemas/Inner", readOnly: true } },
+          },
+          Inner: { type: "object", properties: { z: { type: "string" } } },
+        },
+      },
+      paths: Object.fromEntries(
+        ["/a", "/b", "/c"].map((p) => [
+          p,
+          {
+            get: {
+              responses: {
+                "200": {
+                  description: "ok",
+                  content: {
+                    "application/json": {
+                      schema: {
+                        type: "object",
+                        properties: { w: { $ref: "#/components/schemas/Wrapper" } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ]),
+      ),
+    };
+    const { io, stdout } = memoryIo([["spec.json", shared]]);
+    await checkCommand(
+      { spec: "spec.json", overlays: [], only: ["schema"], format: "json", options: textOpts },
+      io,
+    );
+    const { findings } = JSON.parse(stdout.value) as {
+      findings: { code: string; occurrences?: number }[];
+    };
+    const siblings = findings.filter((f) => f.code === "silent-rewrite/ref-siblings-oas30");
+    expect(siblings).toHaveLength(1);
+    expect(siblings[0]?.occurrences).toBe(3);
+  });
+
+  it("check leaves a single occurrence uncounted", async () => {
+    const { io, stdout } = memoryIo([
+      [
+        "spec.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1" },
+          paths: {
+            "/a": {
+              get: {
+                responses: {
+                  "200": {
+                    description: "ok",
+                    content: {
+                      "application/json": {
+                        schema: { type: "object", properties: {}, required: ["nope"] },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    ]);
+    await checkCommand(
+      { spec: "spec.json", overlays: [], only: ["schema"], format: "json", options: textOpts },
+      io,
+    );
+    const { findings } = JSON.parse(stdout.value) as { findings: { occurrences?: number }[] };
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.occurrences).toBeUndefined();
+  });
+
   it("check --fail-on warning exits 1 when findings exist, 0 when clean", async () => {
     const dirty = memoryIo([["spec.json", dirtySpec()]]);
     expect(

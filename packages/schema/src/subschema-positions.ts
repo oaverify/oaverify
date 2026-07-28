@@ -78,34 +78,19 @@ export function pathForRef(ref: string): string {
 }
 
 /**
- * Options for {@link walkSubschemas}.
- *
- * @public
- */
-export interface WalkSubschemasOptions {
-  /**
-   * Follow `$ref` to its target and walk that too, reporting it under
-   * the document path the pointer names.
-   *
-   * Off by default, which walks only what is structurally present.
-   * Supply this when the schema is one operation's slice of a larger
-   * document and its components arrive through a resolver, or the walk
-   * sees an arbitrary fraction of what will actually be compiled: on
-   * Asana, 1 of 278 component schemas (#513).
-   *
-   * Each ref target is walked once per call, so a component reached
-   * from several places is reported against the first path that reaches
-   * it. Return `undefined` for a ref that cannot be resolved; that is a
-   * separate error with its own message.
-   */
-  resolveRef?: (ref: string) => SchemaOrBoolean | undefined;
-}
-
-/**
  * Walk every subschema reachable from `root`, in pre-order, descending
  * through every schema-valued key the JSON Schema 2020-12 vocabulary
  * (plus the keys OpenAPI adds on top) declares. Boolean schemas and
  * `$ref` nodes are visited but not descended.
+ *
+ * Pass `resolveRef` to follow `$ref` and walk its target too, reported
+ * under the document path the pointer names. Without it the walk covers
+ * only what is structurally present, which is what a caller holding a
+ * self-contained schema wants. A caller holding one operation's slice
+ * of a larger document wants the resolver, or it sees an arbitrary
+ * fraction of what will be compiled: on Asana, 1 of 278 component
+ * schemas (#513). Each ref target is walked once per call, which also
+ * stops a recursive component looping.
  *
  * Intended for tooling (linters, introspection, tree rewriters) that
  * would otherwise re-derive the set of schema-valued keys and risk
@@ -119,9 +104,8 @@ export interface WalkSubschemasOptions {
 export function walkSubschemas(
   root: SchemaOrBoolean,
   visit: SubschemaVisitor,
-  options?: WalkSubschemasOptions,
+  resolveRef?: (ref: string) => SchemaOrBoolean | undefined,
 ): void {
-  const resolveRef = options?.resolveRef;
   // Only ref targets are deduped, never structural positions: the same
   // schema object appearing under two keys is two places a reader may
   // need to fix, and each deserves its own path. A ref target is one

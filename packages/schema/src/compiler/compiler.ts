@@ -124,9 +124,6 @@ function runSchemaLint(
   // Follow refs, or the rules below see one operation's inline schema
   // plus at most the component named directly as its body: on Asana,
   // 1 of 278 component schemas (#513).
-  const walkOptions = {
-    resolveRef: (ref: string) => rules.resolveRef?.(ref) as SchemaOrBoolean | undefined,
-  };
   walkSubschemas(
     schema,
     (node, path) => {
@@ -199,7 +196,7 @@ function runSchemaLint(
         }
       }
     },
-    walkOptions,
+    (ref) => rules.resolveRef?.(ref) as SchemaOrBoolean | undefined,
   );
   // Stamped once here rather than at each `issues.push`: the context is
   // the same for every issue this compile produces, and threading it

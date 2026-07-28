@@ -238,6 +238,17 @@ export interface CheckFinding {
    */
   location: string;
   message: string;
+  /**
+   * How many operations reported this same defect, when more than one.
+   * Absent for a single occurrence.
+   *
+   * Schemas compile per operation, so a component reached from several
+   * of them is checked several times and produces one finding each. They
+   * are one defect and one edit. `location` names the first operation
+   * that reached it; the rest are collapsed into this count rather than
+   * printed again.
+   */
+  occurrences?: number;
 }
 
 /** Check classes `--only` accepts. */
@@ -322,6 +333,12 @@ export async function checkCommand(
     }
   }
 
+  // One defect reached from several operations is one thing to fix, and
+  // printing it once per operation buries the rest of the report: on
+  // Asana 101 schema findings are 28 distinct defects (#520). Keyed on
+  // code plus message, which already carries the path.
+  const schemaFindings = new Map<string, CheckFinding>();
+
   if (classes.has("schema")) {
     try {
       const validator = createValidator(document, { schemaLint: "strict" });
@@ -336,7 +353,13 @@ export async function checkCommand(
         // validator labels each compile with its operation, so prefer
         // that when it is present.
         const where = issue.path === "" ? "<root>" : issue.path;
-        findings.push({
+        const key = `${issue.code}\u0000${issue.message}`;
+        const already = schemaFindings.get(key);
+        if (already !== undefined) {
+          already.occurrences = (already.occurrences ?? 1) + 1;
+          continue;
+        }
+        schemaFindings.set(key, {
           class: "schema",
           code: issue.code,
           location: issue.context === undefined ? where : `${issue.context} -> ${where}`,
@@ -352,6 +375,8 @@ export async function checkCommand(
     }
   }
 
+  findings.push(...schemaFindings.values());
+
   const sink = primarySink(io, args.options);
   if (args.format === "json") {
     await sink(JSON.stringify({ findings }, null, 2) + "\n");
@@ -359,7 +384,9 @@ export async function checkCommand(
     await sink(`check: no findings (${[...classes].sort().join(", ")})\n`);
   } else {
     for (const f of findings) {
-      await sink(`${f.class} [${f.code}] ${f.location}: ${f.message}\n`);
+      const also =
+        f.occurrences === undefined ? "" : ` (and ${f.occurrences - 1} more operation(s))`;
+      await sink(`${f.class} [${f.code}] ${f.location}${also}: ${f.message}\n`);
     }
     await sink(`\n${findings.length} finding(s)\n`);
   }
