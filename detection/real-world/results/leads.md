@@ -1,0 +1,415 @@
+# Differential leads
+
+Noisy by construction. Nothing here is a finding until it has been
+minimized to a hand-written document; the filters below are keyword
+heuristics over four tools' prose and they misjudge both ways.
+
+## oaverify silent, a comparator flagged something schema-shaped
+
+121 specs.
+
+- `audited-appstatusv2.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/IndividualIdentity from id # @ `components.schemas.IndividualProducer`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/IndividualIdentity from id # @ `components.schemas.IndividualParty`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/EntityIdentity from id # @ `components.schemas.EntityProducer`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/EntityIdentity from id # @ `components.schemas.EntityParty`
+- `audited-activatedannuityincomev1.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/policyNumber from id # @ `components.schemas.ActivatedAnnuityIncomeResponse`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/DataDetail from id # @ `components.schemas.BulkActivatedAnnuityIncomeNotificationRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ActivatedAnnuityIncomeResponse from id # @ `paths./v1/policies/{policyNumber}/income-activation.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/BulkActivatedAnnuityIncomeRequest from id # @ `paths./v1/income-activation/bulk-searches.post.requestBody.application/json`
+- `audited-appstatusv3.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/IndividualIdentity from id # @ `components.schemas.IndividualProducer`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/IndividualIdentity from id # @ `components.schemas.IndividualParty`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/EntityIdentity from id # @ `components.schemas.EntityProducer`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/EntityIdentity from id # @ `components.schemas.EntityParty`
+- `audited-fundtransfer.yaml`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "required" at "#/allOf/0/if/properties/transactionAmounts" (strictTypes) @ `components.schemas.FundTransferRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/FundTransferItem from id # @ `components.schemas.FundTransferFunds`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/FundSegment from id # @ `components.schemas.FundTransferItem`
+  - **ajv** `ajv/compile`: strict mode: required property "requestedAmount" is not defined at "#/oneOf/0/not/anyOf/0" (strictRequired) @ `components.schemas.FundSegment`
+- `audited-paperlessreplacements1.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/messageInformation from id # @ `components.schemas.replacements`
+  - **ajv** `ajv/compile`: strict mode: required property "subTypeCode" is not defined at "#/allOf/0/then" (strictRequired) @ `components.schemas.arrangement`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/nameBase from id # @ `components.schemas.insurer`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "required" at "#/properties/product" (strictTypes) @ `components.schemas.policy`
+- `audited-systematicwithdrawalprogramsetup.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/IndividualIdentity from id # @ `components.schemas.IndividualParty`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/EntityIdentity from id # @ `components.schemas.EntityParty`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#/allOf/0/then/not/properties/systematicProgram" (strictTypes) @ `components.schemas.SubmitSystematicWithdrawalRequest`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#/allOf/0/then/not/properties/systematicProgram" (strictTypes) @ `components.schemas.SubmitSystematicRMDRequest`
+- `audited-onetimewithdrawalquote1.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/FundDistribution from id # @ `components.schemas.OneTimePartialWithdrawalQuoteRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Producer from id # @ `components.schemas.FullSurrenderQuoteRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/IndividualIdentity from id # @ `components.schemas.PayeeOrBeneficiaryRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/IndividualParty from id # @ `components.schemas.PartyRequest`
+- `guru-1password.com_events-3.0.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.Client`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.Cursor`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Cursor from id # @ `components.schemas.CursorCollection`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.Details`
+- `audited-systematicwithdrawalprogramupdate.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/IndividualIdentity from id # @ `components.schemas.IndividualParty`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/EntityIdentity from id # @ `components.schemas.EntityParty`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#/allOf/0/then/not/properties/systematicProgram" (strictTypes) @ `components.schemas.UpdateSystematicWithdrawalRequest`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#/allOf/0/then/not/properties/systematicProgram" (strictTypes) @ `components.schemas.UpdateSystematicRMDRequest`
+- `guru-6-dot-authentiqio.appspot.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "required" at "#" (strictTypes) @ `components.schemas.AuthentiqID`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "required" at "#" (strictTypes) @ `components.schemas.Claims`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "required" at "#" (strictTypes) @ `components.schemas.Error`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "required" at "#" (strictTypes) @ `components.schemas.PushToken`
+- `guru-1password.local_connect-3.0.2.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/GeneratorRecipe from id # @ `components.schemas.Field`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Item from id # @ `components.schemas.FullItem`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/APIRequest from id # @ `paths./activity.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ErrorResponse from id # @ `paths./activity.get.responses.401.application/json`
+- `guru-ably.io_platform-3.0.1.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ChannelStatus from id # @ `components.schemas.ChannelDetails`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Occupancy from id # @ `components.schemas.ChannelStatus`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Recipient from id # @ `components.schemas.DeviceDetails`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Push from id # @ `components.schemas.Extras`
+- `guru-abstractapi.com_geolocation-3.0.1.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/inline_response_200 from id # @ `paths./v1/.get.responses.200.application/json`
+- `guru-adyen.com_BalanceControlService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Amount from id # @ `components.schemas.BalanceTransferRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Amount from id # @ `components.schemas.BalanceTransferResponse`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/BalanceTransferResponse from id # @ `paths./balanceTransfer.post.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/BalanceTransferRequest from id # @ `paths./balanceTransfer.post.requestBody.application/json`
+- `guru-adobe.com_aem-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/BundleDataProp from id # @ `components.schemas.BundleData`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/BundleData from id # @ `components.schemas.BundleInfo`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/KeystoreItems from id # @ `components.schemas.KeystoreInfo`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/KeystoreChainItems from id # @ `components.schemas.KeystoreItems`
+- `guru-adyen.com_AccountService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.Account`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.AccountHolderDetails`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/AccountEvent from id # @ `components.schemas.AccountHolderStatus`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.AccountPayoutState`
+- `guru-adyen.com_BinLookupService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.CardBin`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Amount from id # @ `components.schemas.CostEstimateRequest`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.CostEstimateResponse`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.Recurring`
+- `guru-adyen.com_CheckoutUtilityService-3.0.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "required" at "#" (strictTypes) @ `components.schemas.CheckoutUtilityRequest`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.CheckoutUtilityResponse`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/CheckoutUtilityResponse from id # @ `paths./originKeys.post.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/CheckoutUtilityRequest from id # @ `paths./originKeys.post.requestBody.application/json`
+- `guru-adyen.com_DataProtectionService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/SubjectErasureResponse from id # @ `paths./requestSubjectErasure.post.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ServiceError from id # @ `paths./requestSubjectErasure.post.responses.400.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ServiceError from id # @ `paths./requestSubjectErasure.post.responses.401.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ServiceError from id # @ `paths./requestSubjectErasure.post.responses.403.application/json`
+- `guru-adyen.com_FundService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/DetailBalance from id # @ `components.schemas.AccountDetailBalance`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.AccountHolderBalanceResponse`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/TransactionListForAccount from id # @ `components.schemas.AccountHolderTransactionListRequest`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.AccountHolderTransactionListResponse`
+- `guru-adyen.com_HopService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/FieldType from id # @ `components.schemas.ErrorFieldType`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/CollectInformation from id # @ `components.schemas.GetOnboardingUrlRequest`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.GetOnboardingUrlResponse`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.GetPciUrlResponse`
+- `guru-adyen.com_CheckoutService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.AccountInfo`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.AchDetails`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-deprecatedInVersion" @ `components.schemas.AdditionalData3DSecure`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-enum" @ `components.schemas.AdditionalDataCommon`
+- `guru-adyen.com_NotificationConfigurationService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/NotificationConfigurationDetails from id # @ `components.schemas.CreateNotificationConfigurationRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/FieldType from id # @ `components.schemas.ErrorFieldType`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.GenericResponse`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.GetNotificationConfigurationListResponse`
+- `guru-adyen.com_MarketPayNotificationService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.AccountCloseNotification`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.AccountCreateNotification`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.AccountFundsBelowThresholdNotification`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/LocalDate from id # @ `components.schemas.AccountFundsBelowThresholdNotificationContent`
+- `guru-adyen.com_PaymentService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.AccountInfo`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-enum" @ `components.schemas.AdditionalDataCommon`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.AdjustAuthorisationRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/CommonField from id # @ `components.schemas.ApplicationInfo`
+- `guru-adyen.com_StoredValueService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.ServiceError`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Amount from id # @ `components.schemas.StoredValueBalanceCheckRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Amount from id # @ `components.schemas.StoredValueBalanceCheckResponse`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Amount from id # @ `components.schemas.StoredValueBalanceMergeRequest`
+- `guru-adyen.com_PayoutService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.BankAccount`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.FraudCheckResultWrapper`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/FraudCheckResultWrapper from id # @ `components.schemas.FraudResult`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Address from id # @ `components.schemas.FundSource`
+- `guru-adyen.com_RecurringService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.BankAccount`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Permit from id # @ `components.schemas.CreatePermitRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/PermitResult from id # @ `components.schemas.CreatePermitResult`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "x-addedInVersion" @ `components.schemas.DisableRequest`
+- `guru-adyen.com_TestCardService-3.1.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "required" at "#" (strictTypes) @ `components.schemas.AvsAddress`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "required" at "#" (strictTypes) @ `components.schemas.CreateTestCardRangesRequest`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "required" at "#" (strictTypes) @ `components.schemas.CreateTestCardRangesResult`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.ServiceError`
+- `guru-amadeus.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.AircraftEquipment`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.Collection_Meta`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.Collection_Meta_Link`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "required" at "#" (strictTypes) @ `components.schemas.CurrencyEntry`
+- `guru-amazonaws.com_AWSMigrationHub-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ProgressUpdateStream from id # @ `components.schemas.AssociateCreatedArtifactRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ProgressUpdateStream from id # @ `components.schemas.AssociateDiscoveredResourceRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ProgressUpdateStream from id # @ `components.schemas.CreateProgressUpdateStreamRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ProgressUpdateStream from id # @ `components.schemas.DeleteProgressUpdateStreamRequest`
+- `guru-api.ebay.com_sell-account-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/CompactCustomPolicyResponse from id # @ `components.schemas.CustomPolicyResponse`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Amount from id # @ `components.schemas.Deposit`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ErrorParameter from id # @ `components.schemas.Error`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/CategoryType from id # @ `components.schemas.FulfillmentPolicy`
+- `guru-api.gov.uk_vehicle-enquiry-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Errors from id # @ `components.schemas.ErrorResponse`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Vehicle from id # @ `paths./v1/vehicles.post.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ErrorResponse from id # @ `paths./v1/vehicles.post.responses.400.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ErrorResponse from id # @ `paths./v1/vehicles.post.responses.404.application/json`
+- `guru-api2pdf.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ApiResponseSuccess from id # @ `paths./chrome/html.post.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ApiResponseFailure from id # @ `paths./chrome/html.post.responses.401.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ChromeHtmlToPdfRequest from id # @ `paths./chrome/html.post.requestBody.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ApiResponseSuccess from id # @ `paths./chrome/url.get.responses.200.application/json`
+- `guru-apidapp.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Empty from id # @ `paths./.options.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Empty from id # @ `paths./.x-amazon-apigateway-any-method.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Empty from id # @ `paths./account.options.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Empty from id # @ `paths./account.post.responses.200.application/json`
+- `guru-api2cart.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Basket_Item from id # @ `components.schemas.Basket`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Basket_Item_Option from id # @ `components.schemas.Basket_Item`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Image from id # @ `components.schemas.Brand`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Order_ShippingMethod from id # @ `components.schemas.Carrier`
+- `guru-agco-ats.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/AuthorizationCodes.Shared.Models.AuthorizationCodeDefinition from id # @ `components.schemas.API.IPagedResponse_AuthorizationCodes.Shared.Models.AuthorizationCodeDefinition_`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/AuthorizationCodes.Shared.Models.AuthorizationCode from id # @ `components.schemas.API.IPagedResponse_AuthorizationCodes.Shared.Models.AuthorizationCode_`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/AuthorizationCodes.Shared.Models.CategoryUserReport from id # @ `components.schemas.API.IPagedResponse_AuthorizationCodes.Shared.Models.CategoryUserReport_`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/AuthorizationCodes.Shared.Models.Category from id # @ `components.schemas.API.IPagedResponse_AuthorizationCodes.Shared.Models.Category_`
+- `guru-apigee.local_registry-3.0.3.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ApiDeployment from id # @ `components.schemas.ListApiDeploymentRevisionsResponse`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ApiDeployment from id # @ `components.schemas.ListApiDeploymentsResponse`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ApiSpec from id # @ `components.schemas.ListApiSpecRevisionsResponse`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ApiSpec from id # @ `components.schemas.ListApiSpecsResponse`
+- `guru-apis.guru-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ApiVersion from id # @ `components.schemas.API`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/APIs from id # @ `paths./list.json.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Metrics from id # @ `paths./metrics.json.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/API from id # @ `paths./specs/{provider}/{api}.json.get.responses.200.application/json`
+- `guru-apispot.io_whois-3.0.2.yaml`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.ArrayOfBatch`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.Batch`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ArrayOfBatch from id # @ `paths./batch.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Batch from id # @ `paths./batch.post.responses.200.application/json`
+- `guru-archive.org_search-3.0.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.Error`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Hit from id # @ `components.schemas.OrganicResult`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Cursor from id # @ `components.schemas.ScrapeResult`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Field from id # @ `paths./search/v1/fields.get.responses.200.application/javascript`
+- `guru-arespass.net-3.0.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "xml" @ `components.schemas.about`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "xml" @ `components.schemas.ec`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/about from id # @ `paths./about.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/about from id # @ `paths./about.get.responses.200.application/x-yaml`
+- `guru-asuarez.dev_searchly-3.0.1.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/APIResponseSimilarity from id # @ `paths./similarity/by_content.post.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/APIResponseSimilarity from id # @ `paths./similarity/by_song.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/APIResponseSong from id # @ `paths./song/search.get.responses.200.application/json`
+- `guru-art19.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ClassificationInclusion from id # @ `paths./classification_inclusions.get.responses.200.application/vnd.api+json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ClassificationInclusion from id # @ `paths./classification_inclusions/{id}.get.responses.200.application/vnd.api+json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Classification from id # @ `paths./classifications.get.responses.200.application/vnd.api+json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Classification from id # @ `paths./classifications/{id}.get.responses.200.application/vnd.api+json`
+- `guru-autodealerdata.com-3.0.2.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/BasicModelStats from id # @ `components.schemas.BasicModelStatsResp`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/BucketEntry from id # @ `components.schemas.BucketResp`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/DealershipData from id # @ `components.schemas.DealershipDataPaginated`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/DealershipDataPaginated from id # @ `components.schemas.DealershipDataPaginatedResp`
+- `guru-axesso.de-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/BuyRecommendationResponse from id # @ `paths./amz/amazon-lookup-buy-recommendations.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ProductDetailsResponse from id # @ `paths./amz/amazon-lookup-product.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/KeywordSearchResponse from id # @ `paths./amz/amazon-search-by-keyword.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/SortOptionResponse from id # @ `paths./amz/sort-options.get.responses.200.application/json`
+- `guru-betfair.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.AllRequestTypesExample`
+  - **ajv** `ajv/compile`: strict mode: missing type "object" for keyword "properties" at "#" (strictTypes) @ `components.schemas.AllResponseTypesExample`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/RequestMessage from id # @ `components.schemas.AuthenticationMessage`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ResponseMessage from id # @ `components.schemas.ConnectionMessage`
+- `guru-bhagavadgita.io-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ChapterSchema from id # @ `paths./api/v1/chapters.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ChapterSchema from id # @ `paths./api/v1/chapters/{chapter_number}.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/VerseSchema from id # @ `paths./api/v1/chapters/{chapter_number}/verses.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/VerseSchema from id # @ `paths./api/v1/chapters/{chapter_number}/verses/{verse_number}.get.responses.200.application/json`
+- `guru-alertersystem.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "externalDocs" @ `components.schemas.AlertService-post`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "externalDocs" @ `components.schemas.AlertService-put`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "externalDocs" @ `components.schemas.AlertService.jsonld-post`
+  - **ajv** `ajv/compile`: strict mode: unknown keyword: "externalDocs" @ `components.schemas.AlertService.jsonld-put`
+- `guru-bintable.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ResponseItem from id # @ `paths./balance.get.responses.200.*/*`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ResponseItem from id # @ `paths./{bin}.get.responses.200.application/json`
+- `guru-billingo.hu-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Country from id # @ `components.schemas.Address`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Currency from id # @ `components.schemas.BankAccount`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/BankAccount from id # @ `components.schemas.BankAccountList`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Currency from id # @ `components.schemas.ConversationRate`
+- `guru-botschaft.local-3.0.2.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ValidationError from id # @ `components.schemas.HTTPValidationError`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Config from id # @ `paths./config.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/HTTPValidationError from id # @ `paths./config.get.responses.422.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/HTTPValidationError from id # @ `paths./discord.get.responses.422.application/json`
+- `guru-canada-holidays.ca-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Holiday from id # @ `paths./api/v1/holidays.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Holiday from id # @ `paths./api/v1/holidays/{holidayId}.get.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Error from id # @ `paths./api/v1/holidays/{holidayId}.get.responses.400.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Province from id # @ `paths./api/v1/provinces.get.responses.200.application/json`
+- `guru-chaingateway.io-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/clearAddress from id # @ `paths./clearAddress.post.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/clearAddressRequest from id # @ `paths./clearAddress.post.requestBody.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/deleteAddress from id # @ `paths./deleteAddress.post.responses.200.application/json`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/deleteAddressRequest from id # @ `paths./deleteAddress.post.requestBody.application/json`
+- `guru-circleci.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Artifact from id # @ `components.schemas.Artifacts`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Lifecycle from id # @ `components.schemas.Build`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/CommitDetails from id # @ `components.schemas.BuildDetail`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Outcome from id # @ `components.schemas.BuildSummary`
+- `guru-clever-cloud.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Plan from id # @ `components.schemas.Addon`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Flavor from id # @ `components.schemas.AppInstance`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Flavor from id # @ `components.schemas.Application`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/URL from id # @ `components.schemas.Avatar`
+- `guru-climatekuul.com-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/airtravelMultilegRequest from id # @ `paths./airtravelMultileg.post.requestBody.application/json`
+- `guru-combell.com-3.0.1.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/Addon from id # @ `components.schemas.AccountDetail`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/AntiSpamTypes from id # @ `components.schemas.AntiSpam`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ValidationErrorMessage from id # @ `components.schemas.BadRequestResponse`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/AdditionalValidationAttribute from id # @ `components.schemas.CreateSslCertificateRequest`
+- `guru-conjur.local-3.0.0.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/paths/~~1authn-jwt~~1%7Bservice_id%7D~~1%7Baccount%7D~~1authenticate/post/requestBody/content/application~1x-www-form-urlencoded/schema fr @ `paths./authn-jwt/{service_id}/{account}/{id}/authenticate.post.requestBody.application/x-www-form-urlencoded`
+  - **ajv** `ajv/compile`: can't resolve reference #/paths/~~1authn~~1%7Baccount%7D~~1login/get/responses/200/content/text~~1plain/schema from id # @ `paths./authn-ldap/{service_id}/{account}/{login}/authenticate.post.requestBody.text/plain`
+  - **ajv** `ajv/compile`: can't resolve reference #/paths/~~1authn~~1%7Baccount%7D~~1login/get/responses/200/content/text~~1plain/schema from id # @ `paths./authn/{account}/{login}/authenticate.post.requestBody.text/plain`
+  - **ajv** `ajv/compile`: can't resolve reference #/paths/~~1policies~~1%7Baccount%7D~~1policy~~1%7Bidentifier%7D/put/requestBody/content/text~1yaml/schema from id # @ `paths./policies/{account}/policy/{identifier}.patch.requestBody.application/x-yaml`
+- `guru-configcat.com-3.0.1.yaml`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/AuditLogType from id # @ `components.schemas.AuditLogItemModel`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/FlagReference from id # @ `components.schemas.CodeReferenceRequest`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/ProductModel from id # @ `components.schemas.ConfigModel`
+  - **ajv** `ajv/compile`: can't resolve reference #/components/schemas/IntegrationLinkModel from id # @ `components.schemas.ConfigSettingValueModel`
+
+## oaverify findings no comparator locates, by rule
+
+### `unused-component` (1902 findings, 55 specs)
+
+- `guru-airbyte.local_config-3.0.0.yaml`: components.schemas.DbMigrationState is declared but no operation reaches it
+- `guru-airbyte.local_config-3.0.0.yaml`: components.schemas.ResourceId is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.AnalysisArchiveTransitionHistory is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.AnalysisUpdateEval is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.AnalysisUpdateNotification is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.AnalysisUpdateNotificationData is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.AnalysisUpdateNotificationPayload is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.Annotations is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.BaseNotificationData is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.ContentResponse is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.GenericNotificationPayload is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.ImageAnalysisReport is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.ImageContentDeleteResponse is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.ImageFilter is declared but no operation reaches it
+- `guru-anchore.io-3.0.0.yaml`: components.schemas.LocalAnalysisSource is declared but no operation reaches it
+
+### `silent-rewrite/ref-siblings-oas30` (1351 findings, 9 specs)
+
+- `guru-apache.org-3.0.3.yaml`: OAS 3.0: "nullable" sibling of $ref at "properties.sla_miss" is silently dropped (only description/summary survive)
+- `guru-apache.org-3.0.3.yaml`: OAS 3.0: "nullable" sibling of $ref at "properties.state" is silently dropped (only description/summary survive)
+- `guru-apache.org-3.0.3.yaml`: OAS 3.0: "nullable" sibling of $ref at "properties.trigger" is silently dropped (only description/summary survive)
+- `guru-apache.org-3.0.3.yaml`: OAS 3.0: "nullable" sibling of $ref at "properties.triggerer_job" is silently dropped (only description/summary survive)
+- `guru-apache.org-3.0.3.yaml`: OAS 3.0: "readOnly" sibling of $ref at "properties.state" is silently dropped (only description/summary survive)
+- `guru-apache.org-3.0.3.yaml`: OAS 3.0: "nullable" sibling of $ref at "properties.execution_timeout" is silently dropped (only description/summary survive)
+- `guru-apache.org-3.0.3.yaml`: OAS 3.0: "nullable" sibling of $ref at "properties.retry_delay" is silently dropped (only description/summary survive)
+- `guru-apache.org-3.0.3.yaml`: OAS 3.0: "nullable" sibling of $ref at "allOf[1].properties.dag_run_timeout" is silently dropped (only description/summary survive)
+- `guru-bunq.com-3.0.0.yaml`: OAS 3.0: "readOnly" sibling of $ref at "properties.label_user_creator" is silently dropped (only description/summary survive)
+- `guru-bunq.com-3.0.0.yaml`: OAS 3.0: "type" sibling of $ref at "properties.label_user_creator" is silently dropped (only description/summary survive)
+- `guru-bunq.com-3.0.0.yaml`: OAS 3.0: "writeOnly" sibling of $ref at "properties.label_user_creator" is silently dropped (only description/summary survive)
+- `guru-bunq.com-3.0.0.yaml`: OAS 3.0: "readOnly" sibling of $ref at "properties.Id" is silently dropped (only description/summary survive)
+- `guru-bunq.com-3.0.0.yaml`: OAS 3.0: "type" sibling of $ref at "properties.Id" is silently dropped (only description/summary survive)
+- `guru-bunq.com-3.0.0.yaml`: OAS 3.0: "writeOnly" sibling of $ref at "properties.Id" is silently dropped (only description/summary survive)
+- `guru-bunq.com-3.0.0.yaml`: OAS 3.0: "readOnly" sibling of $ref at "properties.label_user_creator" is silently dropped (only description/summary survive)
+
+### `silent-rewrite/required-not-in-properties` (333 findings, 37 specs)
+
+- `audited-appstatusv1.yaml`: required: "isActionNeeded" at "properties.policies.items.allOf[0]" is not declared in properties reachable here (likely a typo)
+- `audited-appstatusv1.yaml`: required: "signedDate" at "properties.policies.items.allOf[0]" is not declared in properties reachable here (likely a typo)
+- `audited-appstatusv1.yaml`: required: "isActionNeeded" at "properties.applicationStatuses.items" is not declared in properties reachable here (likely a typo)
+- `audited-appstatusv1.yaml`: required: "signedDate" at "properties.applicationStatuses.items" is not declared in properties reachable here (likely a typo)
+- `audited-producertrainingv1.yaml`: required: "status" at <root> is not declared in properties reachable here (likely a typo)
+- `guru-airbyte.local_config-3.0.0.yaml`: required: "json_schema" at "properties.catalog.properties.streams.items.properties.stream" is not declared in properties reachable here (likely a typo)
+- `guru-airbyte.local_config-3.0.0.yaml`: required: "json_schema" at "properties.syncCatalog.properties.streams.items.properties.stream" is not declared in properties reachable here (likely a typo)
+- `guru-airbyte.local_config-3.0.0.yaml`: required: "json_schema" at "properties.syncCatalog.properties.streams.items.properties.stream" is not declared in properties reachable here (likely a typo)
+- `guru-airbyte.local_config-3.0.0.yaml`: required: "json_schema" at "properties.syncCatalog.properties.streams.items.properties.stream" is not declared in properties reachable here (likely a typo)
+- `guru-airbyte.local_config-3.0.0.yaml`: required: "json_schema" at "properties.syncCatalog.properties.streams.items.properties.stream" is not declared in properties reachable here (likely a typo)
+- `guru-airbyte.local_config-3.0.0.yaml`: required: "json_schema" at "properties.syncCatalog.properties.streams.items.properties.stream" is not declared in properties reachable here (likely a typo)
+- `guru-airbyte.local_config-3.0.0.yaml`: required: "json_schema" at "properties.connections.items.properties.syncCatalog.properties.streams.items.properties.stream" is not declared in properties reachable here (likely a typo)
+- `guru-airbyte.local_config-3.0.0.yaml`: required: "json_schema" at "properties.syncCatalog.properties.streams.items.properties.stream" is not declared in properties reachable here (likely a typo)
+- `guru-airbyte.local_config-3.0.0.yaml`: required: "dockerImageag" at <root> is not declared in properties reachable here (likely a typo)
+- `guru-airbyte.local_config-3.0.0.yaml`: required: "json_schema" at "properties.catalog.properties.streams.items.properties.stream" is not declared in properties reachable here (likely a typo)
+
+### `unused-tag` (100 findings, 27 specs)
+
+- `guru-airbyte.local_config-3.0.0.yaml`: tag "deployment" is declared but no operation references it
+- `guru-anchore.io-3.0.0.yaml`: tag "Image Content" is declared but no operation references it
+- `guru-anchore.io-3.0.0.yaml`: tag "Vulnerabilities" is declared but no operation references it
+- `guru-anchore.io-3.0.0.yaml`: tag "Policy Evaluation" is declared but no operation references it
+- `guru-anchore.io-3.0.0.yaml`: tag "Services" is declared but no operation references it
+- `guru-anchore.io-3.0.0.yaml`: tag "Queries" is declared but no operation references it
+- `guru-appwrite.io_client-3.0.0.yaml`: tag "health" is declared but no operation references it
+- `guru-appwrite.io_client-3.0.0.yaml`: tag "projects" is declared but no operation references it
+- `guru-appwrite.io_client-3.0.0.yaml`: tag "users" is declared but no operation references it
+- `guru-biapi.pro-3.0.0.yaml`: tag "Documents" is declared but no operation references it
+- `guru-biapi.pro-3.0.0.yaml`: tag "OIDC" is declared but no operation references it
+- `guru-biapi.pro-3.0.0.yaml`: tag "Payments" is declared but no operation references it
+- `guru-biapi.pro-3.0.0.yaml`: tag "Recipients" is declared but no operation references it
+- `guru-biapi.pro-3.0.0.yaml`: tag "Service" is declared but no operation references it
+- `guru-biapi.pro-3.0.0.yaml`: tag "Terms" is declared but no operation references it
+
+### `unknown-keyword` (85 findings, 7 specs)
+
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "definitions" at <root>
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "properties.options"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "properties.properties"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "properties.validation"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "definitions.pushFieldValidation.properties.ref"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "definitions.pushOptionProperty.properties.options"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "definitions.pushOptionProperty.properties.properties"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "definitions.pushValidationInfo.properties.information"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "definitions.pushValidationInfo.properties.warnings"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "definitions" at <root>
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "properties.accountId"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "properties.transactions"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "definitions.bankTransactionLine.allOf[0].properties.counterparty"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "definitions.bankTransactionLine.allOf[0].properties.description"
+- `guru-codat.io_bank-feeds-3.1.0.yaml`: unknown keyword "nullable" at "definitions.bankTransactionLine.allOf[0].properties.reference"
+
+### `silent-rewrite/redundant-composition-branches` (25 findings, 5 specs)
+
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[1] is structurally identical to oneOf[0] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[1] is structurally identical to oneOf[0] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[2] is structurally identical to oneOf[1] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[3] is structurally identical to oneOf[1] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[4] is structurally identical to oneOf[1] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[5] is structurally identical to oneOf[1] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[6] is structurally identical to oneOf[1] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[2] is structurally identical to oneOf[1] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[3] is structurally identical to oneOf[1] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[4] is structurally identical to oneOf[1] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[5] is structurally identical to oneOf[1] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-apple.com_app-store-connect-3.0.1.yaml`: oneOf[6] is structurally identical to oneOf[1] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-dnd5eapi.co-3.0.1.yaml`: oneOf[1] is structurally identical to oneOf[0] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-digitalocean.com-3.0.0.yaml`: anyOf[1] is structurally identical to anyOf[0] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+- `guru-digitalocean.com-3.0.0.yaml`: anyOf[3] is structurally identical to anyOf[0] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec
+
+### `path-param-undeclared` (1 findings, 1 specs)
+
+- `guru-clicksend.com-3.0.0.yaml`: path template "/uploads?convert={convert}" references "{convert}" but neither the operation nor its path item declares a path parameter named "convert"
