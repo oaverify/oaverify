@@ -22,7 +22,7 @@ import {
   translateOverlay,
   type OverlayDocument,
 } from "@oaverify/internal-overlay-spec";
-import { createValidator } from "@oaverify/internal-validator";
+import { checkDocumentExamples, createValidator } from "@oaverify/internal-validator";
 import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
 import type * as Esbuild from "esbuild";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
@@ -237,7 +237,7 @@ export interface CheckFinding {
    * problem with a different remedy, and a consumer re-splitting the
    * array should not have to match on `code` to find it.
    */
-  class: "hygiene" | "schema" | "malformed" | "conformance";
+  class: "hygiene" | "schema" | "malformed" | "conformance" | "examples";
   /**
    * What this means for you, independent of which check found it.
    *
@@ -295,7 +295,7 @@ function addSchemaFinding(into: Map<string, CheckFinding>, finding: CheckFinding
  * *run*; see {@link CheckFinding.class} for the classes a finding can be
  * *reported* under, which additionally includes `"malformed"`.
  */
-export const CHECK_CLASSES = ["hygiene", "schema", "conformance"] as const;
+export const CHECK_CLASSES = ["hygiene", "schema", "conformance", "examples"] as const;
 export type CheckClass = (typeof CHECK_CLASSES)[number];
 
 /**
@@ -505,6 +505,30 @@ export async function checkCommand(
         severity: "error",
         code: issue.code,
         location: issue.location,
+        message: issue.message,
+      });
+    }
+  }
+
+  if (classes.has("examples")) {
+    // Its own class, and its own pass over the document as written,
+    // rather than a rule inside the schema class. The schema class
+    // reads whatever the validator compiled, and body schemas are
+    // compiled per direction (`readOnly` rewritten to `false` on the
+    // request leg), so a component example that is a correct response
+    // would be reported as invalid there. An example describes the
+    // schema as authored, so it is checked against the schema as
+    // authored.
+    //
+    // Separate class also gives the cost its own switch: this is the
+    // one check that compiles schemas of its own accord, so
+    // `--only hygiene,schema` opts out of it.
+    for (const issue of checkDocumentExamples(document)) {
+      findings.push({
+        class: "examples",
+        severity: "warning",
+        code: issue.code,
+        location: issue.pointer,
         message: issue.message,
       });
     }

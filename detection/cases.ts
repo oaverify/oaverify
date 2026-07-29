@@ -172,8 +172,8 @@ export const CASES: readonly DetectionCase[] = [
     class: "style",
     defect: "declared example does not satisfy its own schema",
     signals: ["example"],
-    oaverify: "misses",
-    note: "The deliberately deferred `check --examples`.",
+    oaverify: "catches",
+    note: "Media Type Object example, reported by the `examples` class (#552).",
   },
 
   // ---- structural: not a valid OpenAPI document at all ----

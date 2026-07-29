@@ -18,7 +18,7 @@
 | `style/unused-component` | style | yes | - | yes | yes |
 | `style/undeclared-path-param` | style | yes | - | yes | yes |
 | `style/undefined-security-scheme` | style | - | - | yes | yes |
-| `style/example-contradicts-schema` | style | - | - | yes | yes |
+| `style/example-contradicts-schema` | style | yes | - | yes | yes |
 | `structural/missing-info-version` | structural | yes | - | yes | yes |
 | `structural/response-missing-description` | structural | yes | - | yes | yes |
 | `structural/parameter-schema-and-content` | structural | yes | - | yes | - |
@@ -37,6 +37,6 @@
 | malformed (6) | 6/6 | 4/6 | 5/6 | 5/6 |
 | lint (7) | 7/7 | 5/7 | 2/7 | 4/7 |
 | structural (8) | 6/8 | 2/8 | 7/8 | 5/8 |
-| style (6) | 2/6 | 0/6 | 6/6 | 6/6 |
+| style (6) | 3/6 | 0/6 | 6/6 | 6/6 |
 | control false positives (4) | 0 | 0 | 0 | 0 |
-| total findings raised | 23 | 19 | 170 | 182 |
+| total findings raised | 24 | 19 | 170 | 182 |

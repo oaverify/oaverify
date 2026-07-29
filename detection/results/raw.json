@@ -1720,7 +1720,14 @@
   },
   "style/example-contradicts-schema": {
     "oaverify": {
-      "findings": []
+      "findings": [
+        {
+          "rule": "example-invalid",
+          "message": "oaverify rejects \"example\" against its schema: count: must be integer (example: {\"count\":\"not-an-integer\"})",
+          "location": "/paths/~1things/get/responses/200/content/application~1json/example",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": []
