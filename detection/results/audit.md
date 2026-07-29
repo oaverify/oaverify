@@ -1,37 +1,37 @@
 # Detection audit
 
 ## `malformed/items-array` (malformed)
-- **oaverify**: (fatal) check: GET /things 200 response body (application/json): "items" at <root> must be an object or boolean; got an array. In JSON Schema 2020-12 the tuple form is "prefixItems"; an array-valued "items" is the draft-04 / Swagger 2.0 spelling.
+- **oaverify**: malformed-schema: GET /things 200 response body (application/json): "items" at <root> must be an object or boolean; got an array. In JSON Schema 2020-12 the tuple form is "prefixItems"; an array-valued "items" is the draft-04 / Swagger 2.0 spelling. [GET /things 200 response]
 - **ajv**: ajv/compile: strict mode: "items" is 1-tuple, but minItems or maxItems/additionalItems are not specified or different at path "#" [paths./things.get.responses.200.application/json]
 - **spectral**: oas3-schema: "items" property must be a valid Schema Object. [paths//things/get/responses/200/content/application/json/schema/items]
 - **redocly**: struct: Expected type `Schema` (object) but got `array` [#/paths/~1things/get/responses/200/content/application~1json/schema/items]
 
 ## `malformed/type-boolean` (malformed)
-- **oaverify**: (fatal) check: GET /things 200 response body (application/json): keyword "type" at "properties.flag.type" has unknown type name "Boolean"; expected one of "null", "boolean", "object", "array", "string", "number", "integer". Did you mean "boolean"?
+- **oaverify**: malformed-schema: GET /things 200 response body (application/json): keyword "type" at "properties.flag.type" has unknown type name "Boolean"; expected one of "null", "boolean", "object", "array", "string", "number", "integer". Did you mean "boolean"? [GET /things 200 response]
 - ajv: no matching finding (1 raised)
 - **spectral**: oas3-schema: "type" property must be equal to one of the allowed values: "array", "boolean", "integer", "null", "number", "object", "string". Did you mean "boolean"?. [paths//things/get/responses/200/content/application/json/schema/properties/flag/type]
 - **redocly**: struct: `type` can be one of the following only: "object", "array", "string", "number", "integer", "boolean", "null". [#/paths/~1things/get/responses/200/content/application~1json/schema/properties/flag/type]
 
 ## `malformed/if-null` (malformed)
-- **oaverify**: (fatal) check: GET /things 200 response body (application/json): "if" at <root> must be an object or boolean; got null.
+- **oaverify**: malformed-schema: GET /things 200 response body (application/json): "if" at <root> must be an object or boolean; got null. [GET /things 200 response]
 - ajv: no matching finding (1 raised)
 - spectral: no matching finding (1 raised)
 - redocly: no matching finding (7 raised)
 
 ## `malformed/enum-scalar` (malformed)
-- **oaverify**: (fatal) check: GET /things 200 response body (application/json): keyword "enum" at "properties.status.enum" requires an array of values; got number
+- **oaverify**: malformed-schema: GET /things 200 response body (application/json): keyword "enum" at "properties.status.enum" requires an array of values; got number [GET /things 200 response]
 - **ajv**: ajv/compile: schema is invalid: data/properties/status/enum must be array [paths./things.get.responses.200.application/json]
 - **spectral**: oas3-schema: "enum" property must be array. [paths//things/get/responses/200/content/application/json/schema/properties/status/enum]
 - **redocly**: struct: Expected type `array` but got `integer`. [#/paths/~1things/get/responses/200/content/application~1json/schema/properties/status/enum]
 
 ## `malformed/required-string` (malformed)
-- **oaverify**: (fatal) check: GET /things 200 response body (application/json): keyword "required" requires an array of strings; got string "id"
+- **oaverify**: malformed-schema: GET /things 200 response body (application/json): keyword "required" requires an array of strings; got string "id" [GET /things 200 response]
 - **ajv**: ajv/compile: schema is invalid: data/required must be array [paths./things.get.responses.200.application/json]
 - **spectral**: oas3-schema: "required" property must be array. [paths//things/get/responses/200/content/application/json/schema/required]
 - **redocly**: struct: Expected type `array` but got `string`. [#/paths/~1things/get/responses/200/content/application~1json/schema/required]
 
 ## `malformed/properties-array` (malformed)
-- **oaverify**: (fatal) check: GET /things 200 response body (application/json): "properties" at <root> must be an object mapping names to schemas; got an array.
+- **oaverify**: malformed-schema: GET /things 200 response body (application/json): "properties" at <root> must be an object mapping names to schemas; got an array. [GET /things 200 response]
 - **ajv**: ajv/compile: schema is invalid: data/properties must be object [paths./things.get.responses.200.application/json]
 - **spectral**: oas3-schema: "properties" property must be object. [paths//things/get/responses/200/content/application/json/schema/properties]
 - **redocly**: struct: Expected type `SchemaProperties` (object) but got `array` [#/paths/~1things/get/responses/200/content/application~1json/schema/properties]
@@ -121,7 +121,7 @@
 - **redocly**: struct: The field `description` must be present on this level. [#/paths/~1things/get/responses/200]
 
 ## `structural/dangling-ref` (structural)
-- **oaverify**: (fatal) check: JSON pointer /components/schemas/DoesNotExist not found (at components)
+- **oaverify**: malformed-schema: JSON pointer /components/schemas/DoesNotExist not found (at components) [GET /things 200 response]
 - **ajv**: ajv/compile: can't resolve reference #/components/schemas/DoesNotExist from id # [paths./things.get.responses.200.application/json]
 - **spectral**: invalid-ref: '#/components/schemas/DoesNotExist' does not exist [paths//things/get/responses/200/content/application/json/schema/$ref]
 - **redocly**: no-unresolved-refs: Can't resolve $ref [#/paths/~1things/get/responses/200/content/application~1json/schema]

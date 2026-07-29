@@ -1,8 +1,14 @@
 {
   "malformed/items-array": {
     "oaverify": {
-      "findings": [],
-      "fatal": "check: GET /things 200 response body (application/json): \"items\" at <root> must be an object or boolean; got an array. In JSON Schema 2020-12 the tuple form is \"prefixItems\"; an array-valued \"items\" is the draft-04 / Swagger 2.0 spelling."
+      "findings": [
+        {
+          "rule": "malformed-schema",
+          "message": "GET /things 200 response body (application/json): \"items\" at <root> must be an object or boolean; got an array. In JSON Schema 2020-12 the tuple form is \"prefixItems\"; an array-valued \"items\" is the draft-04 / Swagger 2.0 spelling.",
+          "location": "GET /things 200 response",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": [
@@ -97,8 +103,14 @@
   },
   "malformed/type-boolean": {
     "oaverify": {
-      "findings": [],
-      "fatal": "check: GET /things 200 response body (application/json): keyword \"type\" at \"properties.flag.type\" has unknown type name \"Boolean\"; expected one of \"null\", \"boolean\", \"object\", \"array\", \"string\", \"number\", \"integer\". Did you mean \"boolean\"?"
+      "findings": [
+        {
+          "rule": "malformed-schema",
+          "message": "GET /things 200 response body (application/json): keyword \"type\" at \"properties.flag.type\" has unknown type name \"Boolean\"; expected one of \"null\", \"boolean\", \"object\", \"array\", \"string\", \"number\", \"integer\". Did you mean \"boolean\"?",
+          "location": "GET /things 200 response",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": [
@@ -193,8 +205,14 @@
   },
   "malformed/if-null": {
     "oaverify": {
-      "findings": [],
-      "fatal": "check: GET /things 200 response body (application/json): \"if\" at <root> must be an object or boolean; got null."
+      "findings": [
+        {
+          "rule": "malformed-schema",
+          "message": "GET /things 200 response body (application/json): \"if\" at <root> must be an object or boolean; got null.",
+          "location": "GET /things 200 response",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": [
@@ -208,7 +226,7 @@
     },
     "spectral": {
       "findings": [],
-      "fatal": "(node:90661) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nError running Spectral!\nUse --verbose flag to print the error stack.\nError #1: Cannot read properties of null (reading 'enum')"
+      "fatal": "(node:23006) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nError running Spectral!\nUse --verbose flag to print the error stack.\nError #1: Cannot read properties of null (reading 'enum')"
     },
     "redocly": {
       "findings": [
@@ -259,8 +277,14 @@
   },
   "malformed/enum-scalar": {
     "oaverify": {
-      "findings": [],
-      "fatal": "check: GET /things 200 response body (application/json): keyword \"enum\" at \"properties.status.enum\" requires an array of values; got number"
+      "findings": [
+        {
+          "rule": "malformed-schema",
+          "message": "GET /things 200 response body (application/json): keyword \"enum\" at \"properties.status.enum\" requires an array of values; got number",
+          "location": "GET /things 200 response",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": [
@@ -355,8 +379,14 @@
   },
   "malformed/required-string": {
     "oaverify": {
-      "findings": [],
-      "fatal": "check: GET /things 200 response body (application/json): keyword \"required\" requires an array of strings; got string \"id\""
+      "findings": [
+        {
+          "rule": "malformed-schema",
+          "message": "GET /things 200 response body (application/json): keyword \"required\" requires an array of strings; got string \"id\"",
+          "location": "GET /things 200 response",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": [
@@ -451,8 +481,14 @@
   },
   "malformed/properties-array": {
     "oaverify": {
-      "findings": [],
-      "fatal": "check: GET /things 200 response body (application/json): \"properties\" at <root> must be an object mapping names to schemas; got an array."
+      "findings": [
+        {
+          "rule": "malformed-schema",
+          "message": "GET /things 200 response body (application/json): \"properties\" at <root> must be an object mapping names to schemas; got an array.",
+          "location": "GET /things 200 response",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": [
@@ -1863,8 +1899,14 @@
   },
   "structural/dangling-ref": {
     "oaverify": {
-      "findings": [],
-      "fatal": "check: JSON pointer /components/schemas/DoesNotExist not found (at components)"
+      "findings": [
+        {
+          "rule": "malformed-schema",
+          "message": "JSON pointer /components/schemas/DoesNotExist not found (at components)",
+          "location": "GET /things 200 response",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": [
