@@ -15,7 +15,7 @@ export const customKeywordVocabulary = "https://github.com/oaverify/oaverify/voc
 
 /**
  * Failure detail a {@link CustomKeywordValidator} may return to customize
- * the emitted {@link import("@oaverify/internal-core").ValidationError}. Omitted fields
+ * the emitted `@oaverify/core` `ValidationError`. Omitted fields
  * take sensible defaults: `message` becomes
  * `"value failed custom keyword \"<name>\""`; `params` defaults to `{}`.
  *

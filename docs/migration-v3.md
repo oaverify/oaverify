@@ -80,8 +80,10 @@ compileSchema(schema, { dialect, output: "predicate" });
 ```
 
 The v2 `flat: true` / `predicate: true` booleans survived v3 as deprecated
-aliases and were removed in v4. If you are coming from v2 and land on v4,
-go straight to `output`.
+aliases and are removed in v5. If you are coming from v2, go straight
+to `output`, then read
+[`docs/migration-v5.md`](./migration-v5.md) for the current CLI and
+linting names.
 
 ## 4. Result type renames
 
@@ -93,7 +95,8 @@ go straight to `output`.
 | `CompiledFlatSchema`      | `CompiledSchema` (now the flat default)   |
 
 `FlatValidationResult` and `CompiledFlatSchema` survived v3 as deprecated
-aliases and were removed in v4; use `ValidationResult` and `CompiledSchema`.
+aliases and are removed in v5; use `ValidationResult` and
+`CompiledSchema`.
 If you imported `ValidationResult` expecting the tree shape, switch to
 `TreeValidationResult`.
 

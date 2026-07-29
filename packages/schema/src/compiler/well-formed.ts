@@ -64,7 +64,7 @@ function hintFor(key: string, value: unknown): string {
  * Without this, a malformed slot fails in one of two ways, both bad. A
  * shape the compiler can index into but not interpret is dropped
  * silently: an array-valued `items` compiles as a keyword-free schema,
- * so the array's elements go entirely unvalidated and no strict mode
+ * so the array's elements go entirely unvalidated and no schema-lint mode
  * reports it. A shape it cannot index into throws a raw `TypeError`
  * from deep inside codegen (`Cannot read properties of null (reading
  * '$id')`), naming no schema, path, or file.

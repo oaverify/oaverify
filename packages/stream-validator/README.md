@@ -91,7 +91,7 @@ streams without materializing. Everything that genuinely needs the whole
 value (object/array `enum` / `const`, `dependentSchemas`, `discriminator`,
 `contains`, `uniqueItems`, a composition with a non-forward branch, or
 `format` under an OpenAPI dialect) is a **BUFFER island**: the subtree is
-materialized and delegated to `@oaverify/internal-schema`'s in-memory validator,
+materialized and delegated to `@oaverify/core/schema`'s in-memory validator,
 bounded by `maxBufferedBytes`. Only a REJECT keyword
 (`unevaluatedProperties` / `unevaluatedItems`), an unknown keyword, or an
 unresolvable `$ref` fails fast at construction.

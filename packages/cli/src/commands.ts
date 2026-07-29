@@ -113,7 +113,7 @@ export function defaultCommandIo(): CommandIo {
 /**
  * Read and shape-check one `--overlay` file. Accepts a standard
  * OpenAPI Overlay 1.0 document (routed through
- * {@link @oaverify/internal-overlay-spec!translateOverlay}) or a typed
+ * `@oaverify/core/overlay-spec`'s `translateOverlay`) or a typed
  * {@link SpecOverlay} (every key a recognised verb). Anything else
  * throws with the offending path and keys instead of being cast and
  * silently mis-applied (#448).
@@ -455,7 +455,7 @@ export async function checkCommand(
  * Implement the `oaverify stream-check <spec> ...` subcommand: roll up the
  * streaming-buffer budget for every operation's request / response bodies
  * and print a per-operation table (or the `SpecBudget` JSON payload). This
- * is the streamability analysis (`@oaverify/internal-stream-validator`) surfaced over a
+ * is the streamability analysis (`@oaverify/stream`) surfaced over a
  * whole resolved spec, so a deployer can see, before deploy, which bodies
  * stream and which buffer (and where).
  *

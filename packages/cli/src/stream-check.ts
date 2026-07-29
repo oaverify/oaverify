@@ -3,7 +3,7 @@
  * streamability table over a {@link SpecBudget}, surfacing where each
  * request / response body buffers and the unbounded positions that drive
  * the cost. The machine-readable form is the `SpecBudget` JSON itself
- * (`--envelope json`).
+ * (`--format json`).
  *
  * @packageDocumentation
  */

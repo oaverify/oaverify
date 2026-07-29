@@ -1,6 +1,6 @@
 # Extending the compiler
 
-Recipes for adding to `@oaverify/internal-schema`: new keywords, new string formats,
+Recipes for adding to `@oaverify/core/schema`: new keywords, new string formats,
 new output formats. The canonical contract for each lives in TSDoc on
 the relevant type; this page is the worked procedure.
 
@@ -158,7 +158,7 @@ the first failure, so there's nothing to count).
 
 ## Add a new output format
 
-Output-format dispatch lives in `@oaverify/internal-core` (not the CLI) so library
+Output-format dispatch lives in `@oaverify/core` (not the CLI) so library
 consumers can render by format name too. Programmatic callers can also
 pass a renderer function directly (`formatError(err, (e) => ...)`)
 without forking the switch.

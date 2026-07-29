@@ -1,6 +1,6 @@
 /**
  * Translator from OpenAPI Overlay 1.0 spec-format documents to
- * `@oaverify/internal-spec`'s typed `SpecOverlay`. The runtime does not ship a
+ * `@oaverify/core/spec`'s typed `SpecOverlay`. The runtime does not ship a
  * JSONPath engine; it matches `target` strings against a closed set
  * of shapes documented in this package's README and throws a
  * locating error on anything outside that set.
@@ -59,7 +59,7 @@ export interface OverlayDocument {
  * string, an `info` object, and an `actions` array. Envelope-level
  * only; per-action validation happens in {@link translateOverlay},
  * which throws a locating error on malformed actions. Pairs with
- * `@oaverify/internal-spec`'s `isSpecOverlay` for callers discriminating an overlay
+ * `@oaverify/core/spec`'s `isSpecOverlay` for callers discriminating an overlay
  * file of unknown format.
  *
  * @public
@@ -77,7 +77,7 @@ export function isOverlayDocument(value: unknown): value is OverlayDocument {
 
 /**
  * Translate one OpenAPI Overlay document into a typed
- * {@link @oaverify/internal-spec!SpecOverlay}. Pure: returns a fresh overlay; the
+ * `SpecOverlay`. Pure: returns a fresh overlay; the
  * input document is not mutated.
  *
  * @throws {@link UnrecognisedTargetError} when any action's `target`

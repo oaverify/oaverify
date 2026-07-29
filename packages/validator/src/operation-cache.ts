@@ -113,7 +113,7 @@ export interface OperationCacheDeps {
 
 /**
  * HTTP methods a `PathItem` can declare. Mirrors the `HttpMethod` union
- * in `@oaverify/internal-core`, kept local for the same reason the
+ * in `@oaverify/core`, kept local for the same reason the
  * router keeps its own copy: a constant array is not worth a symbol
  * across the package boundary.
  */
@@ -308,7 +308,8 @@ export function buildOperationCache(
  * header) against the spec. Returns the target object with any siblings
  * on the reference itself dropped: per OAS, siblings of a Reference
  * are ignored. Follows chains with a depth guard to catch cycles.
- * External refs must be inlined upstream by `@oaverify/internal-spec.resolveSpec()`.
+ * External refs must be inlined upstream by `resolveSpec()` from
+ * `@oaverify/core/spec`.
  *
  * Lifted to module scope so it can be exercised independently of
  * `createValidator`.
@@ -328,7 +329,7 @@ export function resolveOperationRef<T>(
     if (typeof ref !== "string") return current as T;
     if (!ref.startsWith("#")) {
       throw new Error(
-        `external ref "${ref}" not resolved; run @oaverify/internal-spec's resolveSpec() over the document before passing it to createValidator()`,
+        `external ref "${ref}" not resolved; run resolveSpec() from @oaverify/core/spec over the document before passing it to createValidator()`,
       );
     }
     current = resolveJsonPointer(spec, ref.slice(1));

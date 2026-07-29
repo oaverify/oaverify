@@ -18,7 +18,7 @@ import { validateEmail, validateIdnEmail } from "./email.js";
 import { validateHostname, validateIdnHostname } from "./hostname.js";
 import { validateIpv4, validateIpv6 } from "./ip.js";
 // Note: validateRegex is intentionally not imported into builtInFormats.
-// @oaverify/internal-schema's createDeps auto-registers a `regex` format that shares the
+// @oaverify/core/schema auto-registers a `regex` format that shares the
 // pattern-keyword compile path (and the regexCompiler hook). The standalone
 // validateRegex export still lives in ./misc.ts as a u-mode utility.
 import { validateUuid } from "./misc.js";
@@ -34,14 +34,14 @@ import {
 
 /**
  * Every built-in format validator, keyed by its JSON Schema format name.
- * Hand to {@link @oaverify/internal-schema!compileSchema#formats | compileSchema's formats
- * option} to get out-of-the-box format validation.
+ * Hand to `compileSchema`'s `formats` option to get out-of-the-box
+ * format validation.
  *
- * `regex` is intentionally absent: `@oaverify/internal-schema` registers its own
- * `regex` validator inside `createDeps` so it routes through the same
- * compiler as the `pattern` keyword (and honors the `regexCompiler`
- * option). Override by setting `formats: { regex: yourFn, ... }` if you
- * want a different policy.
+ * `regex` is intentionally absent: `@oaverify/core/schema` registers
+ * its own `regex` validator inside the compiler dependencies so it
+ * routes through the same compiler as the `pattern` keyword and honors
+ * the `regexCompiler` option. Override by setting
+ * `formats: { regex: yourFn, ... }` if you want a different policy.
  *
  * @public
  *
@@ -104,8 +104,8 @@ export interface AjvFormatDef {
  *
  * @example
  * ```ts
- * import { createValidator } from "oaverify";
- * import { fromAjvFormats } from "oaverify/formats";
+ * import { createValidator } from "@oaverify/core";
+ * import { fromAjvFormats } from "@oaverify/core/formats";
  *
  * const validator = createValidator(spec, {
  *   formats: fromAjvFormats(myAjvFormats),

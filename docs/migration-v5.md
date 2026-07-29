@@ -1,9 +1,9 @@
 # Migrating to v5
 
-v5 is mostly a naming and reporting release. The compiler's semantics
-are unchanged; what moved is what things are called, what the CLI
-verbs are, and which malformed schemas are now caught instead of
-silently accepted.
+v5 is mostly a naming and reporting release. Most application changes
+are mechanical: option names, result type names, and CLI verbs. Two
+validation-path fixes can change outcomes on unchanged specs, and
+malformed schemas that were previously missed are now reported.
 
 Two changes can alter validation outcomes on a spec you did not edit,
 and both are listed first because they are the ones worth reading

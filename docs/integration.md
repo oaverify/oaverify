@@ -593,7 +593,7 @@ const patched = applySpecOverlay(base, overlayDoc);
 
 The translator does not ship a JSONPath engine. It recognises a
 closed set of `target` shapes (full list in the
-[`@oaverify/internal-overlay-spec` README](../packages/overlay-spec/README.md))
+[`@oaverify/core/overlay-spec` README](../packages/overlay-spec/README.md))
 and throws `UnrecognisedTargetError` on anything outside the set,
 with the offending target string in the message. No partial
 application: a single malformed action aborts the translation.

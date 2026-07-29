@@ -31,7 +31,7 @@ export type NormalizedAction =
 
 /**
  * The HTTP methods that OpenAPI Overlay path targets are expected to
- * use. Mirrors {@link @oaverify/internal-core!HttpMethod} but kept local so the
+ * use. Mirrors `@oaverify/core`'s `HttpMethod` but kept local so the
  * recogniser doesn't depend on a runtime constant.
  */
 const HTTP_METHODS: ReadonlySet<HttpMethod> = new Set([
