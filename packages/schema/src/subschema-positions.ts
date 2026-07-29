@@ -63,8 +63,34 @@ export type SubschemaVisitor = (schema: SchemaOrBoolean, path: string) => void |
  * anchor, an external URI) is shown as written, since there is no
  * document path to give.
  *
- * Shared by every pass that follows refs, so a reader sees one address
- * format whichever check produced the message.
+ * ## Which passes use this, and why not all of them
+ *
+ * Three passes follow `$ref`, and they do not address a ref target the
+ * same way. That is deliberate, and the rule is which question the
+ * pass answers:
+ *
+ * - **Where is this defined?** {@link walkSubschemas} and
+ *   `assertWellFormedSchema` reset the path to `pathForRef(ref)` on
+ *   entering a target, so a finding inside a shared component is
+ *   reported once, at its definition. A malformed `items` is one edit
+ *   in one place however many operations reach it, and naming the
+ *   route that got there first would send the reader somewhere they
+ *   cannot fix it.
+ *
+ * - **Where does this apply?** `collectRequiredIssues` keeps the
+ *   use-site path across a ref, because its finding is not a property
+ *   of the target alone. The rule asks which property names are
+ *   reachable at an *instance* position, and a component says
+ *   different things at different use sites: the names available to it
+ *   come from every schema constraining that position, including ones
+ *   on the other side of a composition the target cannot see. Resetting
+ *   to the definition would name a location where the finding may not
+ *   even hold.
+ *
+ * So a reader can see one defect addressed two ways, and both are
+ * right. Before changing a pass to match another, check which of the
+ * two questions it answers; the required lint's correctness depends on
+ * its answer.
  *
  * @internal
  */
