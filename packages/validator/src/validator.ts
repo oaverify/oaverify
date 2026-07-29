@@ -50,6 +50,7 @@ import {
 } from "./from-fetch.js";
 import {
   buildOperationCache,
+  operationLabel,
   resolveOperationRef,
   type OperationCache,
 } from "./operation-cache.js";
@@ -142,9 +143,11 @@ export type RouteMatchResult =
  */
 export interface PrecompileFailure {
   /**
-   * What was being compiled, as `"POST /things"` for a request-side
-   * failure or `"GET /pets 200 response"` for a response-side one.
-   * The compiler's own message carries the finer location.
+   * What was being compiled, named down to the individual schema:
+   * `'POST /things query parameter "q"'`, `"POST /things request body
+   * (application/json)"`, `"GET /pets 200 response"`, or
+   * `"POST /things security"`. The compiler's own message carries the
+   * path within that schema.
    */
   context: string;
   /** The compiler's message, including the path within the schema. */
@@ -340,11 +343,19 @@ export interface Validator {
    * `onMalformed` decides what a malformed schema does. The default,
    * `"throw"`, stops at the first one and is what a server wants:
    * continuing would leave that operation compiled from nothing and
-   * silently unvalidated. `"collect"` records each failure, skips that
-   * operation, and carries on, which is what a tool inspecting the
-   * document wants: one bad `items` should not hide every other finding
-   * in the file. The failures are returned either way (empty when
-   * throwing, since a throw leaves nothing to return).
+   * silently unvalidated. `"collect"` records each failure, skips the
+   * schema that failed, and carries on, which is what a tool inspecting
+   * the document wants: one bad `items` should not hide every other
+   * finding in the document. The failures are returned either way (empty
+   * when throwing, since a throw leaves nothing to return).
+   *
+   * Collect mode skips one schema, not one operation: every other
+   * parameter, request body, and response in the same operation is still
+   * compiled and still contributes to
+   * {@link ValidatorStats.schemaLintIssues}. The operation's cache is
+   * discarded rather than memoized when any of its schemas failed, so a
+   * later request rebuilds it and throws instead of validating against a
+   * cache that is missing a validator (#527).
    */
   precompile(options?: { onMalformed?: "throw" | "collect" }): readonly PrecompileFailure[];
   /**
@@ -1012,9 +1023,17 @@ export function createValidator(
 
   const securityMode = normalizeSecurityMode(options.validateSecurity);
 
-  const cacheFor = (pathMatch: RouteMatch): OperationCache => {
-    const existing = operationCache.get(pathMatch.operation);
-    if (existing !== undefined) return existing;
+  /**
+   * Compile one operation's request side. `onCompileError` turns each
+   * schema into its own guarded unit; see
+   * {@link OperationCacheDeps.onCompileError}. The result is not
+   * memoized, since a cache built with a collector may be missing
+   * validators.
+   */
+  const buildCache = (
+    pathMatch: RouteMatch,
+    onCompileError?: (context: string, err: unknown) => void,
+  ): OperationCache => {
     const cache = buildOperationCache(pathMatch, {
       resolveRef,
       // The cache builder has no business choosing a ref resolver, so it
@@ -1022,15 +1041,33 @@ export function createValidator(
       // here.
       compile: (schema, label) => compile(schema, refResolver, label),
       compileForDirection,
+      onCompileError,
     });
     if (securityMode !== "off") {
-      cache.security = compileOperationSecurity(
-        pathMatch.operation,
-        spec,
-        resolveRef,
-        securityMode,
-      );
+      const build = (): void => {
+        cache.security = compileOperationSecurity(
+          pathMatch.operation,
+          spec,
+          resolveRef,
+          securityMode,
+        );
+      };
+      if (onCompileError === undefined) build();
+      else {
+        try {
+          build();
+        } catch (err) {
+          onCompileError(`${operationLabel(pathMatch)} security`, err);
+        }
+      }
     }
+    return cache;
+  };
+
+  const cacheFor = (pathMatch: RouteMatch): OperationCache => {
+    const existing = operationCache.get(pathMatch.operation);
+    if (existing !== undefined) return existing;
+    const cache = buildCache(pathMatch);
     operationCache.set(pathMatch.operation, cache);
     return cache;
   };
@@ -1374,11 +1411,29 @@ export function createValidator(
       if (match === undefined || match.kind !== "match") continue;
       const where = `${route.method} ${route.pathPattern}`;
       let cache: OperationCache | undefined;
-      attempt(where, () => {
+      if (!collect) {
         cache = cacheFor(match);
-      });
-      // The request side is compiled by `cacheFor`, so a failure there
-      // leaves no cache and no responses to drive.
+      } else {
+        // Each request-side schema is its own guarded unit, so one bad
+        // parameter costs itself rather than the operation. Previously
+        // the whole build was one unit: a malformed parameter left no
+        // cache, the response loops below were skipped, and every
+        // finding in the operation was lost with no sign in the output
+        // that it had been graded at all (#527).
+        const before = failures.length;
+        attempt(where, () => {
+          cache = buildCache(match, (context, err) => {
+            failures.push({ context, message: (err as Error).message });
+          });
+        });
+        if (cache === undefined) continue;
+        // A cache missing the validators that failed must never serve a
+        // request, where the skipped schema would go unvalidated. Only a
+        // clean build is memoized; a degraded one is used to drive the
+        // response side here and then dropped, so a later request
+        // rebuilds and throws as it should.
+        if (failures.length === before) operationCache.set(match.operation, cache);
+      }
       if (cache === undefined) continue;
       // Request-side schemas are compiled by cacheFor. Response bodies
       // and headers are not, so drive their lazy getters here.
