@@ -23,6 +23,7 @@ import {
   walkSubschemas,
 } from "../subschema-positions.js";
 import { createDeps, type RegexCompiler, type ValidatorDeps } from "./runtime.js";
+import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
 import { assertWellFormedSchema } from "./well-formed.js";
 
@@ -193,6 +194,12 @@ function runSchemaLint(
               : `unknown keyword "${key}" at "${path}"`,
         });
       }
+
+      // Always-on alongside silent-rewrite/*: the analysis is a parse of
+      // the pattern source, bounded by its length, so it costs nothing a
+      // server would notice on its first request.
+      const patternIssue = collectPatternLengthIssue(obj, path);
+      if (patternIssue !== undefined) issues.push(patternIssue);
 
       // silent-rewrite/* checks are always-on (any non-"off" mode).
       if (rules.refSuppressesSiblings && typeof obj.$ref === "string") {
@@ -394,6 +401,17 @@ export interface SchemaLintIssue {
    *   compiled validator is unaffected and this never blocks
    *   construction; the text the author meant to write is simply
    *   absent from the document.
+   * - `"unsatisfiable/pattern-length"`: a `pattern` whose match length
+   *   cannot overlap the sibling `minLength` / `maxLength` bounds, so
+   *   no string validates at that position. Usually a quantifier typo
+   *   (`(9)`, a group matching the literal `9`, for `{9}`).
+   *
+   *   The match length is computed analytically, and the analysis
+   *   returns "unknown" for anything it does not model
+   *   (backreferences, property escapes, a malformed pattern) rather
+   *   than guessing. Reported only where `type` is exactly `"string"`,
+   *   since otherwise a non-string instance can still validate and the
+   *   position is not dead.
    */
   code:
     | "partial-feature"
@@ -401,7 +419,8 @@ export interface SchemaLintIssue {
     | "annotation-value-type"
     | "silent-rewrite/ref-siblings-oas30"
     | "silent-rewrite/required-not-in-properties"
-    | "silent-rewrite/redundant-composition-branches";
+    | "silent-rewrite/redundant-composition-branches"
+    | "unsatisfiable/pattern-length";
   /** The offending keyword / key name as written in the schema. */
   keyword: string;
   /** Dotted path from the root schema to the subschema holding the key. */

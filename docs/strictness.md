@@ -71,11 +71,11 @@ POST /things request body (application/json): "items" at "properties.a"
 must be an object or boolean; got an array.
 ```
 
-| Mode               | Reports                                                                                                                           |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `"off"`            | Nothing                                                                                                                           |
-| `"warn"` (default) | Keywords oaverify implements only partially (currently `$dynamicRef`), wrong-typed annotation values, and silent-rewrite warnings |
-| `"strict"`         | The above, plus unrecognised keywords (`minimumx: 5`)                                                                             |
+| Mode               | Reports                                                                                                                                                         |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `"off"`            | Nothing                                                                                                                                                         |
+| `"warn"` (default) | Keywords oaverify implements only partially (currently `$dynamicRef`), wrong-typed annotation values, and the `silent-rewrite/*` and `unsatisfiable/*` warnings |
+| `"strict"`         | The above, plus unrecognised keywords (`minimumx: 5`)                                                                                                           |
 
 `schemaLintIssues` is a live array: it grows as schemas compile, and
 response-body schemas compile lazily on first use, so read it after the
@@ -87,6 +87,22 @@ left empty, which parses to `null`. It is a lint finding rather than a
 malformed-schema error because annotations emit no validation code, so
 the compiled validator is unaffected. What is lost is the text the
 author meant to write, which no other check would notice.
+
+The `unsatisfiable/*` family reports a position no instance can
+validate at, which is almost always a typo. `unsatisfiable/pattern-length`
+is the current member: a `pattern` whose match length cannot overlap the
+sibling `minLength` / `maxLength`, as in `pattern: '(^[a-zA-Z0-9](9)$)'`
+alongside `minLength: 9`, where `(9)` is a group matching the literal
+`9` and `{9}` was meant. Match length is computed by parsing the
+pattern. Where the parse cannot model a construct (backreferences,
+`\p{...}` property escapes, a malformed pattern) the rule says nothing
+rather than guess, and where the analysis is imprecise it errs wide, so
+a finding means the position is provably dead. It also says nothing
+about a pattern that compiles only under the no-flag `RegExp` fallback,
+since that fallback reads the length of some constructs differently
+(`\01` is one octal escape there, two characters under `u`). For the same reason it
+fires only where `type` is exactly `"string"`: with another type
+admitted, a non-string instance still validates.
 
 ## Request strictness: how tolerant validation is of traffic
 
