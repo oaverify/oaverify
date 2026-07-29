@@ -278,11 +278,13 @@ export type CheckClass = (typeof CHECK_CLASSES)[number];
  * is about traffic.
  *
  * Three classes of problem exist (see docs/strictness.md); this command
- * surfaces the two that are reportable:
+ * surfaces all of them as findings:
  *
- * - **Malformed** schemas are fatal and cannot be collected: the document
- *   cannot be compiled at all, so they surface as exit 2 with the compiler's
- *   located message rather than as findings.
+ * - **malformed**: a schema the compiler cannot interpret at all. Fatal
+ *   for the operation that holds it, so the run exits 2 whatever the
+ *   gate says, and reported alongside the rest rather than instead of
+ *   it: one bad `items` should not hide every other finding in the
+ *   document (#515).
  * - **hygiene**: unused components / tags / `$defs`, path-parameter
  *   mismatches.
  * - **schema**: partially-implemented keywords, unknown keywords.
