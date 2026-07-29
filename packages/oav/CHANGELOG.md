@@ -2,24 +2,23 @@
 
 ## [5.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v4.0.0...oaverify-v5.0.0) (2026-07-29)
 
-
 ### ⚠ BREAKING CHANGES
 
-* **cli:** a usage error (unknown command, unknown option, missing argument) exits 3 rather than Commander's 1.
+* **Spec quality moved from `resolve --lint` to `check`.** `resolve` stitches a multi-file document and prints it; `check` answers whether the spec is good. `oaverify resolve spec.yaml --lint --fail-on warning` becomes `oaverify check spec.yaml --fail-on warning` ([#502](https://github.com/oaverify/oaverify/issues/502)).
+* **A usage error exits 3.** An unknown command, unknown option, or missing argument returned Commander's 1, which the exit-code tables document as "a domain check failed", so a CI script reading that saw a spec with findings where it had a typo in the command name. `--help` still exits 0 ([#533](https://github.com/oaverify/oaverify/issues/533)).
 
 ### Features
 
-* **cli:** add --version ([#526](https://github.com/oaverify/oaverify/issues/526)) ([8df026a](https://github.com/oaverify/oaverify/commit/8df026a4689d840bb360df53739ef84fa5c3a508))
+* **`check`**: spec hygiene, schema lint, and malformed-schema findings in one report, with `--only`, `--fail-on`, and `--format text|json`. Findings for a component reached from several operations are reported once with an occurrence count ([#502](https://github.com/oaverify/oaverify/issues/502))
+* **`--version`** ([#526](https://github.com/oaverify/oaverify/issues/526))
 
+### Notes
 
-### Bug Fixes
-
-* **cli:** exit 3 on a usage error, and split check's exit 2 ([#533](https://github.com/oaverify/oaverify/issues/533)) ([f64c9a9](https://github.com/oaverify/oaverify/commit/f64c9a9309d90f76e357cf0ecb823345c32a951d))
-
-
-### Documentation
-
-* refresh release docs and tsdoc ([#535](https://github.com/oaverify/oaverify/issues/535)) ([3958943](https://github.com/oaverify/oaverify/commit/39589432cef11d2b079b8b889dba1a00636d1852))
+Validation semantics come from `@oaverify/core`, which had three
+outcome-changing fixes in this release. If you gate CI on this binary,
+read [its notes](https://github.com/oaverify/oaverify/blob/main/CHANGELOG.md)
+and [docs/migration-v5.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v5.md)
+before moving the gate.
 
 ## [4.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v3.8.0...oaverify-v4.0.0) (2026-07-28)
 

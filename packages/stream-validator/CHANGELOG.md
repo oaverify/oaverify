@@ -2,19 +2,19 @@
 
 ## [5.0.0](https://github.com/oaverify/oaverify/compare/stream-v4.0.0...stream-v5.0.0) (2026-07-29)
 
+### Chore
 
-### ⚠ BREAKING CHANGES
+* Version bump only, to stay in lockstep with the `@oaverify/core` release group. The streaming API and the analyzer are unchanged since 4.0.0.
 
-* **cli:** add a check verb for spec validity ([#502](https://github.com/oaverify/oaverify/issues/502))
+### Notes
 
-### Features
-
-* **cli:** add a check verb for spec validity ([#502](https://github.com/oaverify/oaverify/issues/502)) ([09481f1](https://github.com/oaverify/oaverify/commit/09481f1f7798a45c3f027453d8fadb33a4fbecfd)), closes [#476](https://github.com/oaverify/oaverify/issues/476)
-
-
-### Documentation
-
-* refresh release docs and tsdoc ([#535](https://github.com/oaverify/oaverify/issues/535)) ([3958943](https://github.com/oaverify/oaverify/commit/39589432cef11d2b079b8b889dba1a00636d1852))
+The streaming engine delegates buffered subtrees to the core schema
+compiler, so core's changes reach this package even though its own
+source did not move. Three of them can change outcomes: malformed
+schemas behind a `$ref` now throw, `$ref` siblings are applied at body
+roots, and `dialect` now overrides the version the document declares.
+See [core's notes](https://github.com/oaverify/oaverify/blob/main/CHANGELOG.md)
+and [docs/migration-v5.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v5.md).
 
 ## [4.0.0](https://github.com/oaverify/oaverify/compare/stream-v1.1.0...stream-v4.0.0) (2026-07-28)
 
