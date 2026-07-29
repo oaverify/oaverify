@@ -112,6 +112,13 @@ document, so one bad `items` does not hide every other finding in the
 file. Lint findings are reported, and exit 1 only when `--fail-on` asks
 for it.
 
+Each finding carries the class that produced it, so `--format json`
+output can be re-split: `"malformed"`, `"schema"`, or `"hygiene"`.
+`--only` selects which checks _run_ and takes `hygiene` / `schema`. A
+malformed schema is found by compiling, which is what the `schema` check
+does, so it cannot be asked for on its own and appears whenever that
+check runs.
+
 ```
 oaverify check spec.yaml --only schema --fail-on warning --format json
 ```

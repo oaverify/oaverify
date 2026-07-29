@@ -269,7 +269,10 @@ the budget for the rest of the spec.
 | 3    | CLI usage error                                                              |
 
 A malformed schema exits 2 and is also reported as a `check` finding,
-with the code `malformed-schema`. `check` grades the rest of the
+under the class `malformed` with the code `malformed-schema`. It is a
+reported class rather than a selectable one: `--only` takes `hygiene` /
+`schema`, and a malformed schema is found by compiling, which is what
+the `schema` check does. `check` grades the rest of the
 document rather than stopping at the first one, so a run that exits 2
 still carries every other finding it could reach. Exit 2 outranks
 `--fail-on`: a document that cannot be compiled is not a gate result.
