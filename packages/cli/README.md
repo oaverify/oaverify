@@ -273,17 +273,24 @@ the budget for the rest of the spec.
 | ---- | ---------------------------------------------------------------------------- |
 | 0    | clean                                                                        |
 | 1    | a domain check failed: validation errors, or findings met a `--fail-on` gate |
-| 2    | the input could not be loaded, resolved, or compiled                         |
+| 2    | the input could not be read, resolved, or parsed                             |
 | 3    | CLI usage error                                                              |
+| 4    | `check` graded the document and at least one schema is malformed             |
 
-A malformed schema exits 2 and is also reported as a `check` finding,
-under the class `malformed` with the code `malformed-schema`. It is a
-reported class rather than a selectable one: `--only` takes `hygiene` /
-`schema`, and a malformed schema is found by compiling, which is what
-the `schema` check does. `check` grades the rest of the
-document rather than stopping at the first one, so a run that exits 2
-still carries every other finding it could reach. Exit 2 outranks
-`--fail-on`: a document that cannot be compiled is not a gate result.
+Exit 2 means there is no report to read: the file could not be opened,
+a `$ref` would not resolve, the YAML would not parse. It means the same
+thing in every command that loads a spec.
+
+Exit 4 is `check`-only and means the opposite: the document was graded
+in full and the report on stdout is complete, but one or more findings
+make it uncompilable. Those are reported under the class `malformed`
+with the code `malformed-schema`. `malformed` is a reported class
+rather than a selectable one: `--only` takes `hygiene` / `schema`, and
+a malformed schema is found by compiling, which is what the `schema`
+check does. `check` grades the rest of the document rather than
+stopping at the first one, so a run that exits 4 still carries every
+other finding it could reach. Exit 4 outranks `--fail-on`: a document
+that cannot be compiled is not a gate result.
 
 One taxonomy across every command, rather than a per-command meaning.
 Note in particular that `check` does not vary its exit code by finding

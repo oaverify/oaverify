@@ -339,10 +339,10 @@ describe("resolveCommand", () => {
     expect(findings.map((f) => f.code).sort()).toEqual(["malformed-schema", "unused-component"]);
     // Still exit 2: the document cannot be compiled, whatever else the
     // report says.
-    expect(result.exitCode).toBe(2);
+    expect(result.exitCode).toBe(4);
   });
 
-  it("check exits 2 for a malformed schema even under --fail-on warning", async () => {
+  it("check exits 4 for a malformed schema even under --fail-on warning", async () => {
     const { io } = memoryIo([
       [
         "spec.json",
@@ -368,7 +368,7 @@ describe("resolveCommand", () => {
       { spec: "spec.json", overlays: [], failOn: "warning", options: textOpts },
       io,
     );
-    expect(result.exitCode).toBe(2);
+    expect(result.exitCode).toBe(4);
   });
 
   it("check --fail-on warning exits 1 when findings exist, 0 when clean", async () => {
@@ -426,7 +426,7 @@ describe("resolveCommand", () => {
     expect(payload.findings.every((f) => f.class === "schema")).toBe(true);
   });
 
-  it("check reports a malformed schema as a finding and exits 2", async () => {
+  it("check reports a malformed schema as a finding and exits 4", async () => {
     // This used to go to stderr on the reasoning that a document which
     // cannot be compiled has nothing to grade. That was wrong in the
     // part that mattered: the rest of the document still grades, and
@@ -454,7 +454,7 @@ describe("resolveCommand", () => {
       { spec: "spec.json", overlays: [], format: "json", options: textOpts },
       io,
     );
-    expect(result.exitCode).toBe(2);
+    expect(result.exitCode).toBe(4);
     const { findings } = JSON.parse(stdout.value) as {
       findings: { class: string; code: string; message: string }[];
     };
@@ -492,7 +492,7 @@ describe("resolveCommand", () => {
       { spec: "spec.json", overlays: [], only: ["schema"], format: "json", options: textOpts },
       io,
     );
-    expect(result.exitCode).toBe(2);
+    expect(result.exitCode).toBe(4);
     const { findings } = JSON.parse(stdout.value) as { findings: { class: string }[] };
     expect(findings.map((f) => f.class)).toEqual(["malformed"]);
   });
@@ -529,7 +529,7 @@ describe("resolveCommand", () => {
       { spec: "spec.json", overlays: [], format: "json", options: textOpts },
       io,
     );
-    expect(result.exitCode).toBe(2);
+    expect(result.exitCode).toBe(4);
     const { findings } = JSON.parse(stdout.value) as {
       findings: { code: string; message: string }[];
     };
@@ -546,6 +546,45 @@ describe("resolveCommand", () => {
     );
     expect(result.exitCode).toBe(2);
     expect(stderr.value).toContain("check:");
+  });
+
+  it("separates 2 (no report) from 4 (graded, a schema is fatal)", async () => {
+    // The whole point of the split: a script has to be able to tell
+    // "I could not open your file" from "here is a complete report and
+    // one of its findings is fatal". Both answered 2 before.
+    const unreadable = memoryIo([]);
+    const cannotRead = await checkCommand(
+      { spec: "missing.json", overlays: [], format: "json", options: textOpts },
+      unreadable.io,
+    );
+    expect(cannotRead.exitCode).toBe(2);
+    expect(unreadable.stdout.value).toBe("");
+
+    const bad = memoryIo([
+      [
+        "spec.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1" },
+          paths: {
+            "/p": {
+              get: {
+                parameters: [{ name: "q", in: "query", schema: { type: "Strng" } }],
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        },
+      ],
+    ]);
+    const graded = await checkCommand(
+      { spec: "spec.json", overlays: [], format: "json", options: textOpts },
+      bad.io,
+    );
+    expect(graded.exitCode).toBe(4);
+    // Exit 4 always carries a report; exit 2 never does.
+    const payload = JSON.parse(bad.stdout.value) as { findings: unknown[] };
+    expect(payload.findings.length).toBeGreaterThan(0);
   });
 });
 

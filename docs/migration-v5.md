@@ -28,7 +28,7 @@ pass `strict`, the upgrade is likely a version bump and nothing else.
 | `$ref` with siblings at a body root | siblings dropped                              | siblings applied (3.1)                            |
 | Malformed schema behind a `$ref`    | compiled, constraint silently dropped         | throws, with the path                             |
 | Overlay `extend*` argument          | the whole component object                    | `Partial` of it                                   |
-| `CheckFinding.class`                | `"hygiene" \| "schema"`                       | adds `"malformed"`                                |
+| Exit on an unknown command          | `1`                                           | `3`, as documented                                |
 
 ## 1. `strict` is now `schemaLint`
 
@@ -113,9 +113,14 @@ oaverify check spec.yaml --fail-on warning
 `resolve` goes back to stitching and printing. Removed from it:
 `--lint`, `--fail-on`, `--envelope`.
 
-`check` emits one findings array, each entry carrying a required
-`class` so a consumer can re-split what the command ran together.
-`--only` takes a comma-separated subset of `hygiene`, `schema`.
+`check` is a new command rather than a renamed one, so there is nothing
+to port beyond the invocation above. It emits one findings array, each
+entry carrying a required `class` (`hygiene`, `schema`, or `malformed`)
+so a consumer can re-split what the command ran together, and `--only`
+takes a comma-separated subset of `hygiene`, `schema`. Its output shape
+and its exit codes are documented in
+[the CLI README](../packages/cli/README.md#exit-codes); read them as new
+surface, not as a diff against `resolve --lint`.
 
 **`check` does not validate your document against the OpenAPI
 meta-schema.** It reports schema-level and hygiene problems. For
@@ -249,48 +254,19 @@ findings: fewer false positives, and true positives that v4 missed. If
 you gate CI on `--fail-on warning`, run `check` once before upgrading
 the gate.
 
-## 8. `CheckFinding` reports malformed schemas under their own class
+## 8. A usage error exits 3, as the tables always promised
 
-`CheckFinding.class` is now `"hygiene" | "schema" | "malformed"`. A
-malformed schema was previously reported as `"schema"`, which meant
-telling the two apart required matching on
-`code === "malformed-schema"`.
+`oaverify bogus-command` exited **1** in v4: the handler passed
+Commander's own exit code straight through, and 1 is documented as "a
+domain check failed". A CI script reading that saw a spec with findings
+where it actually had a typo in the command name.
 
-```jsonc
-// v5
-{ "class": "malformed", "code": "malformed-schema", "location": "...", "message": "..." }
+Commander's failures are all argv problems (unknown command, unknown
+option, missing argument), so they now take 3. `--help` still exits 0.
+
+```bash
+# v4
+oaverify bogus-command; echo $?   # 1
+# v5
+oaverify bogus-command; echo $?   # 3
 ```
-
-`--only` still takes `hygiene` / `schema`: those are the checks that
-can be _run_, and a malformed schema is found by compiling, which is
-what the `schema` check does. Exit code 2 for a malformed schema is
-unchanged.
-
-Two related reporting changes, neither breaking a type:
-
-- `CheckFinding.occurrences` appears when one defect was reached from
-  several operations. A shared component compiles per operation, so it
-  would otherwise be printed once per operation; `location` names the
-  first operation that reached it and the rest are counted.
-- `PrecompileFailure.context` (and so `CheckFinding.location` for
-  malformed findings) now names the individual schema, as
-  `POST /things query parameter "q"` rather than `POST /things`.
-
-## 9. `check` grades the whole document
-
-Not a breaking change to any type, but it changes what a run prints.
-
-`check` reports a malformed schema as a finding and carries on, so one
-bad `items` no longer hides every other finding in the file. It still
-exits 2, and that outranks `--fail-on`: a document that will not
-compile is not a gate result.
-
-The programmatic equivalent is `precompile({ onMalformed: "collect" })`.
-The default still throws, which is what a server wants, since
-continuing would leave that operation validating against nothing.
-
-Because the schema lint now follows `$ref` as well, a spec that
-reported a handful of findings in v4 may report many more in v5: it was
-previously seeing one operation's inline schema plus at most the
-component named directly as its body. On Asana that was 1 of 278
-component schemas.
