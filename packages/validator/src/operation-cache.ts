@@ -93,6 +93,22 @@ export interface OperationCacheDeps {
     direction: BodyDirection,
     label?: string,
   ) => CompiledTreeSchema;
+  /**
+   * Report a request-side schema that would not compile, instead of
+   * letting the throw abort the build.
+   *
+   * Omitted, one malformed schema aborts the operation, which is what a
+   * server wants: an operation missing a validator validates against
+   * nothing. Supplied, each parameter and each request body media type
+   * is compiled under its own guard and a failure costs only that unit,
+   * so a document-inspecting tool sees every defect in the operation
+   * rather than the first (#527).
+   *
+   * A cache built this way is missing the validators that failed, so the
+   * caller must not memoize it for request validation. `precompile`
+   * memoizes only when nothing was reported.
+   */
+  onCompileError?: (context: string, err: unknown) => void;
 }
 
 /**
@@ -184,6 +200,23 @@ export function buildOperationCache(
     if (p.in === "query") knownQueryParameters.add(p.name);
   }
 
+  // Compile one unit. Without a collector this is a plain call and a
+  // throw propagates, aborting the build. With one, the failure is
+  // recorded against its own label and the unit is skipped, leaving the
+  // rest of the operation to compile.
+  const guarded = (
+    context: string,
+    run: () => CompiledTreeSchema,
+  ): CompiledTreeSchema | undefined => {
+    if (deps.onCompileError === undefined) return run();
+    try {
+      return run();
+    } catch (err) {
+      deps.onCompileError(context, err);
+      return undefined;
+    }
+  };
+
   const pathParamValidators = new Map<string, CompiledTreeSchema>();
   const queryParamValidators = new Map<string, CompiledTreeSchema>();
   const headerParamValidators = new Map<string, CompiledTreeSchema>();
@@ -193,7 +226,9 @@ export function buildOperationCache(
     const contentSchema = firstContentSchema(p);
     const schema = contentSchema ?? p.schema;
     if (schema === undefined) continue;
-    const v = deps.compile(schema, `${operation} ${p.in} parameter "${p.name}"`);
+    const context = `${operation} ${p.in} parameter "${p.name}"`;
+    const v = guarded(context, () => deps.compile(schema, context));
+    if (v === undefined) continue;
     const target =
       p.in === "path"
         ? pathParamValidators
@@ -210,10 +245,11 @@ export function buildOperationCache(
   if (requestBody?.content) {
     for (const [mt, mto] of Object.entries(requestBody.content)) {
       if (mto.schema) {
-        bodyValidators.set(
-          mt,
-          deps.compileForDirection(mto.schema, "request", `${operation} request body (${mt})`),
+        const context = `${operation} request body (${mt})`;
+        const v = guarded(context, () =>
+          deps.compileForDirection(mto.schema as SchemaOrBoolean, "request", context),
         );
+        if (v !== undefined) bodyValidators.set(mt, v);
       }
     }
   }
