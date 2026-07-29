@@ -315,6 +315,12 @@ export function collectRequiredIssues(
     // operation-scoped compile cannot see: only a body schema's *root*
     // ref is unwrapped before compilation, so every nested `$ref`
     // target would go unvisited. The target shares this instance.
+    //
+    // `path` deliberately does NOT reset to `pathForRef(ref)` here,
+    // unlike the well-formedness and `walkSubschemas` passes. This rule
+    // reports where a `required` *applies*, and a component says
+    // different things at different use sites, so the definition is the
+    // wrong address for it. See the addressing rule on `pathForRef`.
     const ref = node["$ref"];
     if (typeof ref === "string") {
       const target = resolveRef(ref, root, resolve);

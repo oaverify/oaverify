@@ -54,9 +54,16 @@ schema  silent-rewrite/required-not-in-properties
   required: "signedDate" is not declared in properties reachable here
 ```
 
-A schema reached through a `$ref` is addressed by the component it came
-from (`components.schemas.Pet.properties.tags`) rather than by the route
-that reached it.
+Most findings about a schema reached through a `$ref` are addressed by
+the component it came from (`components.schemas.Pet.properties.tags`)
+rather than by the route that reached it, because they are one edit at
+one definition however many operations reach it.
+
+`silent-rewrite/required-not-in-properties` is the exception, and the
+example above shows it: it keeps the path from the operation. That rule
+reports which property names are reachable at an instance position, and
+a shared component says different things at different use sites, so the
+definition would be the wrong place to send you.
 
 Schemas compile per operation, so a component several operations share
 would otherwise be reported once per operation. `check` prints it once

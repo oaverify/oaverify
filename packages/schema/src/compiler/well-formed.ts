@@ -143,6 +143,11 @@ export function assertWellFormedSchema(
         // An unresolvable `$ref` is its own error, raised by the
         // compiler with its own message. Not this pass's business.
       }
+      // Reset to the target's document path: well-formedness is a
+      // property of the schema itself, so it is one edit at one
+      // definition however many references reach it. See the addressing
+      // rule on `pathForRef` for why the required lint does the
+      // opposite.
       if (target !== undefined) go(target, pathForRef(ref));
     }
 
