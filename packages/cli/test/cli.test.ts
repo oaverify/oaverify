@@ -393,3 +393,28 @@ describe("default exit handler", () => {
     }
   });
 });
+
+describe("--version", () => {
+  // Commander writes its own version output and throws a
+  // `commander.version` success exit, which the binary translates to
+  // exit 0. Registration is what matters here.
+  it("is registered when the binary supplies a version", async () => {
+    const program = buildProgram({ version: "9.9.9-test" });
+    let printed = "";
+    program.configureOutput({ writeOut: (str) => (printed += str) });
+    await expect(program.parseAsync(["--version"], { from: "user" })).rejects.toMatchObject({
+      code: "commander.version",
+    });
+    expect(printed.trim()).toBe("9.9.9-test");
+  });
+
+  it("is absent when no version is supplied", async () => {
+    // Better to have no `--version` than one answering with something
+    // that could drift from the installed package. The binary reads its
+    // own package.json, so in practice it is always supplied.
+    const program = buildProgram({});
+    await expect(program.parseAsync(["--version"], { from: "user" })).rejects.toMatchObject({
+      code: "commander.unknownOption",
+    });
+  });
+});

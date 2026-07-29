@@ -305,6 +305,15 @@ jobs:
             exit 1
           fi
           npx oaverify --help > /dev/null
+          # --version reads the installed package.json relative to the
+          # bin, so this proves the path resolves inside the tarball
+          # layout and not just in the repo (#518).
+          INSTALLED="$(node -p "require('oaverify/package.json').version")"
+          REPORTED="$(npx oaverify --version)"
+          if [ "$INSTALLED" != "$REPORTED" ]; then
+            echo "oaverify --version said '$REPORTED', installed version is '$INSTALLED'" >&2
+            exit 1
+          fi
           cat > spec.yaml <<'YAML'
           openapi: 3.1.0
           info: { title: t, version: "1" }
