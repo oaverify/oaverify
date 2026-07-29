@@ -593,6 +593,40 @@ describe("annotation value types", () => {
     });
   });
 
+  it("checks object-typed annotations by type, not by shape", () => {
+    // `xml` and `externalDocs` are `type: object` in the OpenAPI spec,
+    // so a string there is the wrong type and is reported. Whether
+    // `xml.name` is a legal XML name is the document meta-schema's job:
+    // duplicating a fragment of it here would be a second source of
+    // truth for OpenAPI's own rules.
+    const bad = compileSchema(
+      { type: "string", xml: "elementName" } as unknown as SchemaOrBoolean,
+      { dialect: openapi31Dialect },
+    ).stats.schemaLintIssues;
+    expect(bad[0]).toMatchObject({ code: "annotation-value-type", keyword: "xml" });
+
+    const shapeNotChecked = compileSchema(
+      { type: "string", xml: { notARealXmlField: true } } as unknown as SchemaOrBoolean,
+      { dialect: openapi31Dialect },
+    ).stats.schemaLintIssues;
+    expect(shapeNotChecked).toEqual([]);
+  });
+
+  it("does not accept null or an array for an object-typed annotation", () => {
+    // `typeof null === "object"` and `typeof [] === "object"`, so a bare
+    // typeof check would pass both. Neither is a JSON object.
+    for (const value of [null, []]) {
+      const issues = compileSchema(
+        { type: "string", externalDocs: value } as unknown as SchemaOrBoolean,
+        { dialect: openapi31Dialect },
+      ).stats.schemaLintIssues;
+      expect(
+        issues.map((i) => i.keyword),
+        JSON.stringify(value),
+      ).toContain("externalDocs");
+    }
+  });
+
   it("leaves annotations alone where any value is legal", () => {
     // Not an omission: `default`, `example` and `examples` carry
     // instance values, so null is a legitimate thing to write there.

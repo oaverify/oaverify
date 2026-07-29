@@ -548,6 +548,11 @@ export interface KeywordDefinition {
    * meant to write is silently gone, but every instance still validates
    * identically.
    *
+   * The JSON type only, never the shape. `xml: "name"` is the wrong
+   * type and is reported; whether `xml.name` is a legal XML name is the
+   * document meta-schema's job, and duplicating a fragment of it here
+   * would be a second source of truth for OpenAPI's own rules.
+   *
    * That inertness is why this is reported through
    * {@link CompileOptions.schemaLint} rather than
    * `validateKeywordValue`. Well-formedness rejects schemas that would
@@ -555,7 +560,7 @@ export interface KeywordDefinition {
    * array-valued `items`); a mistyped annotation is a document
    * conformance defect and must not block validator construction.
    */
-  annotationValueType?: "string" | "boolean";
+  annotationValueType?: "string" | "boolean" | "object";
 }
 
 /**

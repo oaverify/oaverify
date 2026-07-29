@@ -100,6 +100,17 @@ function structuralEqual(a: unknown, b: unknown): boolean {
   return true;
 }
 
+/**
+ * Does an annotation's value have the declared JSON type?
+ *
+ * Not a bare `typeof`: that reports `"object"` for `null` and for an
+ * array, and an annotation declared as an object means a JSON object.
+ */
+function isAnnotationValueType(value: unknown, expected: "string" | "boolean" | "object"): boolean {
+  if (expected !== "object") return typeof value === expected;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function runSchemaLint(
   schema: SchemaOrBoolean,
   byKeyword: Map<string, KeywordDefinition>,
@@ -147,7 +158,10 @@ function runSchemaLint(
         // lie. Blocking construction over it would harden the runtime
         // path for a defect the runtime cannot observe. Runs in "warn"
         // as well as "strict" because the value is never intentional.
-        if (def?.annotationValueType !== undefined && typeof obj[key] !== def.annotationValueType) {
+        if (
+          def?.annotationValueType !== undefined &&
+          !isAnnotationValueType(obj[key], def.annotationValueType)
+        ) {
           const got = obj[key] === null ? "null" : typeof obj[key];
           issues.push({
             code: "annotation-value-type",

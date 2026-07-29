@@ -23,7 +23,7 @@ import type { KeywordDefinition } from "./types.js";
 function annotationKeyword(
   name: string,
   vocabulary: string = META_DATA_VOCAB,
-  valueType?: "string" | "boolean",
+  valueType?: "string" | "boolean" | "object",
 ): KeywordDefinition {
   return {
     keyword: name,
@@ -121,7 +121,7 @@ export const exampleKeyword = annotationKeyword("example", OPENAPI_META_DATA_VOC
  *
  * @public
  */
-export const xmlKeyword = annotationKeyword("xml", OPENAPI_META_DATA_VOCAB);
+export const xmlKeyword = annotationKeyword("xml", OPENAPI_META_DATA_VOCAB, "object");
 
 /**
  * OpenAPI Schema Object's `externalDocs` annotation: pointer to
@@ -130,7 +130,11 @@ export const xmlKeyword = annotationKeyword("xml", OPENAPI_META_DATA_VOCAB);
  *
  * @public
  */
-export const externalDocsKeyword = annotationKeyword("externalDocs", OPENAPI_META_DATA_VOCAB);
+export const externalDocsKeyword = annotationKeyword(
+  "externalDocs",
+  OPENAPI_META_DATA_VOCAB,
+  "object",
+);
 
 /**
  * JSON Schema 2020-12 `contentEncoding`: declares the encoding (e.g.
