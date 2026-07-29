@@ -1,5 +1,53 @@
 # Changelog
 
+## [5.0.0](https://github.com/oaverify/oaverify/compare/core-v4.0.0...core-v5.0.0) (2026-07-29)
+
+A naming and reporting release. Most of the upgrade is mechanical:
+option names, result type names, and CLI verbs, each of which
+TypeScript or a failed command points at directly. Three changes can
+alter validation outcomes on a spec you did not edit, and those are the
+ones to read first: malformed schemas behind a `$ref` now throw
+(below), `$ref` siblings are applied at body roots (below), and
+`dialect` now overrides the version the document declares (below).
+
+[**docs/migration-v5.md**](https://github.com/oaverify/oaverify/blob/main/docs/migration-v5.md)
+is the upgrade guide, with before/after for every item here. The
+section numbers below point into it.
+
+These notes cover what changed for a 4.0.0 user. Surfaces introduced
+during this release cycle and then corrected before it shipped are not
+listed: `check`, `CheckFinding`, `precompile`'s `onMalformed` mode, and
+the finding-collapse `occurrences` field all ship for the first time in
+5.0.0, so their intermediate fixes are not upgrade material.
+
+### ⚠ BREAKING CHANGES
+
+* **`strict` is now `schemaLint`** ([#495](https://github.com/oaverify/oaverify/issues/495)). `strict: "warn-partial"` becomes `schemaLint: "warn"`; `strictIssues` becomes `schemaLintIssues`, and `StrictIssue` becomes `SchemaLintIssue`. `strictQueryParameters` and `validateSecurity` keep their names. (§1)
+* **The v2 deprecated aliases are gone** ([#497](https://github.com/oaverify/oaverify/issues/497)). The `flat` / `predicate` booleans on `CompileOptions`, `FlatValidationResult`, and `CompiledFlatSchema` were documented for removal in v4 and survived it. Use `output: "flat" | "predicate"`, `ValidationResult`, and `CompiledSchema`. The `{ predicate: true }` overload and the two mutual-exclusion guards go with them. (§2)
+* **Spec quality moved from `oaverify resolve --lint` to `oaverify check`** ([#502](https://github.com/oaverify/oaverify/issues/502)). `resolve` stitches a document; `check` answers whether the spec is good. `oaverify resolve spec.yaml --lint --fail-on warning` becomes `oaverify check spec.yaml --fail-on warning`. (§3)
+* **Overlay `extend*` verbs take a `Partial` of the component** ([#509](https://github.com/oaverify/oaverify/issues/509)). `extendSchemas`, `extendParameters`, and the rest previously required a complete component object where only the changed fields were meaningful. (§4)
+* **`$ref` siblings are applied at request and response body roots** ([#508](https://github.com/oaverify/oaverify/issues/508)). Under 3.1 a body schema written as `{ $ref, required: [...] }` had its siblings dropped at the root while they applied everywhere else. They now apply, so a constraint the spec declares and v4 ignored is enforced. **This can turn a passing request into a failing one.** (§5)
+* **Malformed schemas behind a `$ref` now throw** ([#492](https://github.com/oaverify/oaverify/issues/492), [#494](https://github.com/oaverify/oaverify/issues/494), [#522](https://github.com/oaverify/oaverify/issues/522)). The well-formedness guard ran only on the schema handed to the compiler, so components reached through the resolver were compiled unchecked. An array-valued `items` inside a component compiled to a keyword-free schema and the array's elements went entirely unvalidated while the spec looked fine. Illegal `type` names and a string-valued `required` are rejected on the same path. No option suppresses this, including `schemaLint: "off"`. **This can turn a spec that built into one that throws.** Run `oaverify check` against your spec on v5 to find them all at once. (§6)
+* **`required-not-in-properties` was rewritten** ([#501](https://github.com/oaverify/oaverify/issues/501), [#503](https://github.com/oaverify/oaverify/issues/503)). The rule asked whether the object composes, which over-fired on composition branches and suppressed itself exactly where the real cases live: 2.6% signal across 13 published specs. It now asks what property names are reachable at the instance position. The code is unchanged, so a filter keyed on `silent-rewrite/required-not-in-properties` keeps working; expect a different set of findings. (§7)
+* **A CLI usage error exits 3** ([#533](https://github.com/oaverify/oaverify/issues/533)). An unknown command, unknown option, or missing argument returned Commander's 1, which the exit-code tables document as "a domain check failed". A CI script reading that saw a spec with findings where it had a typo. `--help` still exits 0. (§8)
+* **`dialect` overrides the version the document declares** ([#538](https://github.com/oaverify/oaverify/issues/538)). The option was documented as forcing a dialect and was consulted only where version detection failed, so on a spec declaring a recognised `openapi` version it was read and discarded, and a custom `Dialect` had no way in. It now takes precedence. **If you pass `dialect` alongside a well-versioned spec, the option now does something.** `detectedVersion` still reports what the document declares. (§9)
+
+### Features
+
+* **`oaverify check`**, a verb for spec quality: hygiene, schema lint, and malformed-schema findings in one report, with `--only`, `--fail-on`, and `--format text|json` ([#502](https://github.com/oaverify/oaverify/issues/502))
+* **`oaverify --version`** ([#526](https://github.com/oaverify/oaverify/issues/526))
+* **`validateKeywordValue` on `KeywordDefinition`**, so a custom keyword can reject its own malformed value at compile time with a located error instead of failing obscurely at runtime ([#498](https://github.com/oaverify/oaverify/issues/498))
+* **Lint findings carry operation context**, naming what was being compiled when the finding was produced ([#507](https://github.com/oaverify/oaverify/issues/507))
+* **Schema lint follows `$ref`** ([#523](https://github.com/oaverify/oaverify/issues/523)). Rules other than `required-not-in-properties` saw one operation's inline schema plus at most the component named directly as its body: on one published spec, 1 of 278 components. Expect more findings on the same document.
+
+### Bug Fixes
+
+* **Polynomial backtracking removed from the router and the `uri` format** ([#487](https://github.com/oaverify/oaverify/issues/487)). Both patterns were reachable from request input.
+
+### Documentation
+
+* [**docs/migration-v5.md**](https://github.com/oaverify/oaverify/blob/main/docs/migration-v5.md), the v4 to v5 upgrade guide ([#530](https://github.com/oaverify/oaverify/issues/530))
+
 ## [4.0.0](https://github.com/oaverify/oaverify/compare/core-v3.8.0...core-v4.0.0) (2026-07-28)
 
 

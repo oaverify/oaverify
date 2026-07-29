@@ -1,5 +1,25 @@
 # Changelog
 
+## [5.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v4.0.0...oaverify-v5.0.0) (2026-07-29)
+
+### ⚠ BREAKING CHANGES
+
+* **Spec quality moved from `resolve --lint` to `check`.** `resolve` stitches a multi-file document and prints it; `check` answers whether the spec is good. `oaverify resolve spec.yaml --lint --fail-on warning` becomes `oaverify check spec.yaml --fail-on warning` ([#502](https://github.com/oaverify/oaverify/issues/502)).
+* **A usage error exits 3.** An unknown command, unknown option, or missing argument returned Commander's 1, which the exit-code tables document as "a domain check failed", so a CI script reading that saw a spec with findings where it had a typo in the command name. `--help` still exits 0 ([#533](https://github.com/oaverify/oaverify/issues/533)).
+
+### Features
+
+* **`check`**: spec hygiene, schema lint, and malformed-schema findings in one report, with `--only`, `--fail-on`, and `--format text|json`. Findings for a component reached from several operations are reported once with an occurrence count ([#502](https://github.com/oaverify/oaverify/issues/502))
+* **`--version`** ([#526](https://github.com/oaverify/oaverify/issues/526))
+
+### Notes
+
+Validation semantics come from `@oaverify/core`, which had three
+outcome-changing fixes in this release. If you gate CI on this binary,
+read [its notes](https://github.com/oaverify/oaverify/blob/main/CHANGELOG.md)
+and [docs/migration-v5.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v5.md)
+before moving the gate.
+
 ## [4.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v3.8.0...oaverify-v4.0.0) (2026-07-28)
 
 
