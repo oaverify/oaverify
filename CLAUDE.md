@@ -128,6 +128,7 @@ pnpm build                        # tsup: @oaverify/core + @oaverify/stream + th
 pnpm test                         # vitest for everything
 pnpm vitest run packages/schema   # run a single package's tests (path filter)
 pnpm lint                         # oxlint + oxfmt --check + check:deps
+pnpm lint:type-aware              # oxlint --type-aware (NOT part of `pnpm lint`; CI runs it)
 pnpm check:deps                   # assert the @oaverify/internal-* dependency graph (see below)
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)
@@ -137,6 +138,20 @@ pnpm oaverify <args>              # run the built CLI (e.g. pnpm oaverify stream
 `pnpm test` uses vitest with workspace aliases from `vitest.config.ts` so
 tests run against `packages/*/src` directly; no need to build before
 testing.
+
+**`pnpm lint` is not the whole lint gate.** CI runs `pnpm lint:type-aware`
+as a separate step (`.github/workflows/ci.yml`), and `pnpm lint` does not
+include it. It enables oxlint's type-aware rules, which need type
+information and so catch a class the plain pass cannot see:
+`typescript(no-misused-spread)` on `[...str].length` is the one that has
+actually bitten, and the fix was to use the existing `countCodePoints`
+helper rather than suppress it. A green `pnpm lint` locally and a red
+`lint` job in CI is this, every time. Before committing, run the four
+that CI runs:
+
+```bash
+pnpm test && pnpm typecheck && pnpm lint && pnpm lint:type-aware
+```
 
 `pnpm oaverify` runs `packages/oav/dist/cli.js`, so it needs a prior `pnpm build`
 (which builds `@oaverify/core`, `@oaverify/stream`, and the CLI). The
