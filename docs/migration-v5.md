@@ -1,19 +1,21 @@
 # Migrating to v5
 
 v5 is mostly a naming and reporting release. Most application changes
-are mechanical: option names, result type names, and CLI verbs. Two
+are mechanical: option names, result type names, and CLI verbs. Three
 validation-path fixes can change outcomes on unchanged specs, and
 malformed schemas that were previously missed are now reported.
 
-Two changes can alter validation outcomes on a spec you did not edit,
-and both are listed first because they are the ones worth reading
-before you upgrade: the well-formedness guard now follows `$ref`
-(section 6), and `$ref` siblings are now applied at body roots
-(section 5). Everything else is a rename, a removal, or a CLI change
-that TypeScript or a failed command will point at directly.
+Those three are the ones worth reading before you upgrade: the
+well-formedness guard now follows `$ref` (section 6), `$ref` siblings
+are now applied at body roots (section 5), and `dialect` now overrides
+the version the document declares (section 9). The first two apply to
+every caller; the third only if you pass `dialect`. Everything else is
+a rename, a removal, or a CLI change that TypeScript or a failed
+command will point at directly.
 
-If you use the framework adapters with the default renderer and never
-pass `strict`, the upgrade is likely a version bump and nothing else.
+If you use the framework adapters with the default renderer, never pass
+`strict`, and never pass `dialect`, the upgrade is likely a version bump
+and nothing else.
 
 ## At a glance
 
@@ -29,6 +31,7 @@ pass `strict`, the upgrade is likely a version bump and nothing else.
 | Malformed schema behind a `$ref`    | compiled, constraint silently dropped         | throws, with the path                             |
 | Overlay `extend*` argument          | the whole component object                    | `Partial` of it                                   |
 | Exit on an unknown command          | `1`                                           | `3`, as documented                                |
+| `dialect` on a versioned spec       | ignored                                       | overrides the declared version                    |
 
 ## 1. `strict` is now `schemaLint`
 
@@ -270,3 +273,32 @@ oaverify bogus-command; echo $?   # 1
 # v5
 oaverify bogus-command; echo $?   # 3
 ```
+
+## 9. `dialect` overrides the version the document declares
+
+`dialect` was documented as forcing a specific dialect and only took
+effect where version detection failed. On a spec that declared a
+recognised `openapi` version the option was read and discarded, so a
+custom `Dialect` had no way in at all.
+
+```ts
+const spec = { openapi: "3.1.0" /* ... */ };
+
+// v4: compiled under the 3.1 dialect. The option is ignored.
+// v5: compiles under the 3.0 dialect, as asked.
+createValidator(spec, { dialect: oas30Dialect });
+```
+
+This can change validation outcomes if you were passing `dialect`
+alongside a well-versioned spec, because the option now does something.
+The 3.0 and 3.1 dialects disagree on `nullable` (3.0 keyword, 3.1
+annotation), `type` arrays (3.1 only), boolean `exclusiveMinimum` /
+`exclusiveMaximum` (3.0 spelling), and `$ref` siblings. Passing a
+dialect that contradicts the document is now load-bearing, so drop the
+option if you did not mean it.
+
+Unaffected: passing `dialect` to compile a spec with a missing,
+malformed, or wrong-major `openapi` field. That escape hatch is
+unchanged, warning included. `validator.detectedVersion` is also
+unchanged: detection still runs, and it keeps reporting what the
+document declares rather than what compiled.

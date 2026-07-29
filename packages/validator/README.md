@@ -96,7 +96,7 @@ the upstream test suites live in
 
 | Option                  | Effect                                                                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `dialect`               | Force a specific `Dialect`, bypassing version detection.                                                                                               |
+| `dialect`               | Force a specific `Dialect`. Wins over the detected version; `detectedVersion` still reports what the document declares.                                |
 | `formats`               | Extra string format validators merged with `@oaverify/core/formats`.                                                                                   |
 | `keywords`              | User-registered schema keywords (see below).                                                                                                           |
 | `output`                | Result shape: `"flat"` (default), `"tree"`, or `"predicate"`. Mirrors `compileSchema`.                                                                 |

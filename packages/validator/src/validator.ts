@@ -548,6 +548,12 @@ export interface ValidatorOptions {
    * `oas30Dialect` for 3.0). Pass this option to plug in a custom
    * {@link Dialect} or force a specific built-in.
    *
+   * Takes precedence over the detected version, so a 3.1 document
+   * compiled with `oas30Dialect` gets 3.0 semantics (`nullable` becomes
+   * load-bearing, `type` arrays are rejected). Detection still runs:
+   * {@link Validator.detectedVersion} reports what the document
+   * declares, which this option does not change.
+   *
    * Setting `dialect` is also the universal escape hatch for the
    * category-error checks that normally throw at construction: a
    * missing/non-string `openapi` field or a wrong major version
@@ -868,9 +874,15 @@ export function createValidator(
   //       (unless `dialect` is set, which is the universal override)
   //   (3) valid 3.x major but unknown minor (e.g. "3.7.0"): forward
   //       compat, governed by `onUnknownVersion`
+  //
+  // `dialect` outranks all three. It used to be consulted only where
+  // detection failed, so on a spec that declared a version it was read
+  // and discarded, and a custom Dialect had no way in at all (#534).
+  // Detection still runs and still fills `detectedVersion`: the option
+  // decides what compiles, not what the document says it is.
   const detectedVersion = detectOpenAPIVersion(spec);
   const dialect: Dialect = (() => {
-    if (detectedVersion !== undefined) return dialectFor(detectedVersion);
+    if (detectedVersion !== undefined) return options.dialect ?? dialectFor(detectedVersion);
 
     // Classify the reason detection failed so we can distinguish
     // category errors from unknown-minor forward-compat.

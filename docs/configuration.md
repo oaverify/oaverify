@@ -7,7 +7,7 @@ this page is a recipe-oriented overview.
 
 | Option                  | Effect                                                                                                                                                                                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `dialect`               | Force a specific schema dialect, bypassing version detection.                                                                                                                                                      |
+| `dialect`               | Force a specific schema dialect. Wins over the version the document declares; detection still runs, so `validator.detectedVersion` is unchanged.                                                                   |
 | `formats`               | Extra string format validators merged on top of the built-ins.                                                                                                                                                     |
 | `keywords`              | Register user-defined schema keywords (see below).                                                                                                                                                                 |
 | `output`                | Result shape: `"flat"` (default; `{ valid, errors, truncated }`), `"tree"` (nested `{ valid, error, truncated }`), or `"predicate"` (bare boolean). Mirrors `compileSchema`.                                       |
