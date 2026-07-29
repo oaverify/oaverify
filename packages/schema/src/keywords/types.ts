@@ -480,7 +480,7 @@ export interface KeywordDefinition {
   /**
    * Names of keywords whose semantics this keyword subsumes. The
    * dispatcher treats them as already-handled when this keyword is
-   * present, so the strict-mode unknown-key check doesn't flag them
+   * present, so the `schemaLint: "strict"` unknown-key check doesn't flag them
    * and the per-keyword inliner doesn't emit duplicate code.
    *
    * Use when a custom keyword semantically replaces a built-in pair:

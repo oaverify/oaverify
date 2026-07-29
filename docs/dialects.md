@@ -8,7 +8,7 @@ dialects, and where the per-version tests live.
 
 ## Dispatch
 
-`@oaverify/internal-validator` buckets the spec's `openapi` string at construction
+The validator buckets the spec's `openapi` string at construction
 via `detectOpenAPIVersion` and picks a dialect with a one-liner inside
 `createValidator`: `dialectFor(version)`. The check runs once at
 construction, so adding a version adds zero per-request cost.

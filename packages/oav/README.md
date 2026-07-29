@@ -5,9 +5,9 @@
 [![license: MIT](https://img.shields.io/npm/l/oaverify)](https://github.com/oaverify/oaverify/blob/main/LICENSE)
 
 The command-line tool for [oaverify](https://github.com/oaverify/oaverify):
-validate requests, responses, and examples against an OpenAPI 3.0 /
-3.1 / 3.2 document, resolve multi-file specs, report streaming budgets,
-and compile standalone validators.
+validate requests and responses against an OpenAPI 3.0 / 3.1 / 3.2
+document, check spec quality, resolve multi-file specs, report
+streaming budgets, and compile standalone validators.
 
 This package ships the `oaverify` binary and nothing else. The library API
 lives in
@@ -41,13 +41,14 @@ the other commands do not need it.
 
 ## Commands
 
-| Command          | What it does                                                 |
-| ---------------- | ------------------------------------------------------------ |
-| `validate`       | Check a request, response, or body against the spec          |
-| `resolve`        | Stitch a multi-file document and print the result            |
-| `stream-check`   | Report the per-operation streaming buffer budget             |
-| `compile-spec`   | Emit a standalone HTTP validator module for a whole document |
-| `compile-schema` | Emit a standalone validator module for a single JSON Schema  |
+| Command          | What it does                                                  |
+| ---------------- | ------------------------------------------------------------- |
+| `validate`       | Check a request, response, or body against the spec           |
+| `check`          | Report spec hygiene, schema-lint, and malformed-schema issues |
+| `resolve`        | Stitch a multi-file document and print the result             |
+| `stream-check`   | Report the per-operation streaming buffer budget              |
+| `compile-spec`   | Emit a standalone HTTP validator module for a whole document  |
+| `compile-schema` | Emit a standalone validator module for a single JSON Schema   |
 
 Full flags and output shapes are in
 [`packages/cli/README.md`](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md).

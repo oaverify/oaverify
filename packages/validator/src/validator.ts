@@ -90,7 +90,7 @@ function dialectFor(version: OpenAPIVersion): Dialect {
 
 /**
  * The HTTP validator (flat output, the default). `validateRequest` /
- * `validateResponse` return a {@link oaverify/schema!ValidationResult}:
+ * `validateResponse` return `@oaverify/core/schema`'s `ValidationResult`:
  * `{ valid: true }` or `{ valid: false, errors, truncated }` with a flat
  * list of leaf errors. Compile with `output: "tree"` for a
  * {@link TreeValidator} (nested {@link ValidationError} tree) or
@@ -375,9 +375,9 @@ export interface Validator {
   readonly routes: readonly RouteInfo[];
   /**
    * The OpenAPI version detected from the spec's `openapi` field, or
-   * `undefined` when the field was missing/malformed and the validator
-   * fell back to its default dialect (see
-   * {@link ValidatorOptions.onUnknownVersion}).
+   * `undefined` when the field was missing, malformed, unsupported, or
+   * accepted only because an explicit {@link ValidatorOptions.dialect}
+   * bypassed version detection.
    */
   readonly detectedVersion: OpenAPIVersion | undefined;
   /**
@@ -431,7 +431,7 @@ type OutputDependentMethods =
 /**
  * The HTTP validator built with `output: "tree"`. Identical to
  * {@link Validator} except `validateRequest` / `validateResponse` return
- * a {@link oaverify/schema!TreeValidationResult} (a nested
+ * `@oaverify/core/schema`'s `TreeValidationResult` (a nested
  * {@link ValidationError} tree under `error`) instead of the flat default.
  *
  * @public
@@ -522,7 +522,7 @@ export interface ValidatorStats {
  *
  * @remarks
  * Ordering convention (shared with
- * {@link oaverify/schema!CompileOptions}):
+ * `@oaverify/core/schema`'s `CompileOptions`):
  *
  *   1. Compile essentials: `dialect`.
  *   2. Shared extension points: `formats`, `keywords`.
@@ -585,13 +585,13 @@ export interface ValidatorOptions {
 
   /**
    * What `validateRequest` / `validateResponse` return. Mirrors
-   * {@link oaverify/schema!CompileOptions.output}:
+   * `@oaverify/core/schema`'s `CompileOptions.output`:
    *
    * - `"flat"` (default): a
-   *   {@link oaverify/schema!ValidationResult}: `{ valid }` plus,
+   *   `ValidationResult`: `{ valid }` plus,
    *   on failure, a flat `errors` leaf list and `truncated`. The
    *   constructed validator has type {@link Validator}.
-   * - `"tree"`: a {@link oaverify/schema!TreeValidationResult}: a
+   * - `"tree"`: a `TreeValidationResult`: a
    *   nested {@link ValidationError} tree under `error`. Type
    *   {@link TreeValidator}.
    * - `"predicate"`: a bare `boolean`. Type {@link PredicateValidator};
@@ -769,8 +769,7 @@ export interface ValidatorOptions {
    * thrown. Defaults to `false`.
    *
    * The same engine runs from
-   * {@link oaverify/spec!resolveSpec} and
-   * {@link oaverify/spec!loadSpec}; pick whichever layer is
+   * `resolveSpec` and `loadSpec` from `@oaverify/core/spec`; pick whichever layer is
    * natural for your flow. Running it in both places lints twice for
    * no benefit.
    */

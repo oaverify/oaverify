@@ -251,7 +251,8 @@ export const openapiMetaDataVocabulary: Vocabulary = {
  * The JSON Schema 2020-12 Content vocabulary: `contentEncoding`,
  * `contentMediaType`, `contentSchema`. The spec marks the content
  * vocabulary as not required to validate; oaverify treats all three as
- * pure annotations so schemas using them lint clean in strict mode.
+ * pure annotations so schemas using them lint clean under
+ * `schemaLint: "strict"`.
  *
  * @public
  */

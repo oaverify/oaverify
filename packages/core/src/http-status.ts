@@ -53,7 +53,7 @@ export const DEFAULT_HTTP_STATUS_MAP: HttpStatusMap = {
  * 415 → 401 → 500 → 400:
  *
  * ```ts
- * import { httpStatusFor } from "oaverify";
+ * import { httpStatusFor } from "@oaverify/core";
  *
  * const result = validator.validateRequest(httpRequest);
  * if (!result.valid) {

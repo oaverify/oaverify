@@ -182,11 +182,11 @@ Throws inside the compiler:
   `format` validation error against the value.
 
 `pattern` and `format: "regex"` use the same compiler policy: one
-`regexCompiler` covers both, and there's no second hook to keep in
-sync. `format: "regex"` is auto-registered by `@oaverify/internal-schema` and no
-longer ships from `@oaverify/internal-formats`'s `builtInFormats`; a user-supplied
-entry in `formats` still overrides it if you want a different policy
-for the format than for `pattern`.
+`regexCompiler` covers both, and there is no second hook to keep in
+sync. `format: "regex"` is auto-registered by `@oaverify/core/schema`
+and is not part of `@oaverify/core/formats`'s `builtInFormats`; a
+user-supplied entry in `formats` still overrides it if you want a
+different policy for the format than for `pattern`.
 
 ## Guarding against deeply nested payloads
 

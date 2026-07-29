@@ -144,7 +144,7 @@ function runSchemaLint(
         if (mode !== "strict") continue;
         if (known.has(key)) continue;
         // `x-*` extensions are tolerated by OpenAPI convention; accept
-        // them in strict mode too.
+        // them in `schemaLint: "strict"` too.
         if (key.startsWith("x-")) continue;
         issues.push({
           code: "unknown-keyword",
@@ -206,12 +206,12 @@ function runSchemaLint(
 
 /**
  * Result of a default-mode `validate()` call: a flat list of leaf
- * errors under `errors`. This is the v3 default (`output: "flat"`),
+ * errors under `errors`. This is the default (`output: "flat"`),
  * shaped to match ajv's zero-config result. Every failing leaf keyword
  * (`type`, `required`, `minimum`, …) is its own record, plus a childless
  * marker leaf for each failed composition keyword (`anyOf` / `oneOf`);
  * no `"schema"` branch wrappers. Each record is a {@link ValidationError}
- * with an empty `children`, so the `@oaverify/internal-core` renderers consume it
+ * with an empty `children`, so the `@oaverify/core` renderers consume it
  * unchanged. For the nested error tree, compile with `output: "tree"`
  * and see {@link TreeValidationResult}.
  *
@@ -233,8 +233,8 @@ export type ValidationResult =
       /**
        * `true` when the configured `maxErrors` cap was reached, meaning
        * the list may be incomplete: validation returns as soon as the
-       * budget drains, without checking the remaining keywords. Under
-       * the v3 default (`maxErrors: 1`) every failing result therefore
+       * budget drains, without checking the remaining keywords. With
+       * the default `maxErrors: 1`, every failing result therefore
        * reports `truncated: true`. `false` means the cap was never hit
        * and the list is complete.
        */
@@ -246,7 +246,7 @@ export type ValidationResult =
  * nested {@link ValidationError} tree under `error`, with `"schema"`
  * branch nodes mirroring the schema's composition structure. The opt-in
  * counterpart to the flat {@link ValidationResult} default. The HTTP
- * validator in `@oaverify/internal-validator` compiles in this mode so it can nest
+ * validator in `@oaverify/core` compiles in this mode so it can nest
  * per-location subtrees (`body`, `query`, …) under one root.
  *
  * A discriminated union on `valid`: a successful result carries no error
@@ -301,16 +301,17 @@ export interface CompileStats {
    */
   emittedTreeRuntime: boolean;
   /**
-   * Warnings produced by {@link CompileOptions.schemaLint}. Empty unless
-   * strict mode is active and found something to flag. Never contains
-   * compile-blocking issues; strict mode only reports; the caller
-   * decides whether to treat any entry as fatal.
+   * Findings produced by {@link CompileOptions.schemaLint}. Empty when
+   * `schemaLint: "off"` is set or the active mode found nothing to
+   * flag. Never contains compile-blocking issues; schema lint only
+   * reports, and the caller decides whether to treat any entry as
+   * fatal.
    */
   schemaLintIssues: readonly SchemaLintIssue[];
 }
 
 /**
- * A single finding from strict-mode schema linting (see
+ * A single finding from schema linting (see
  * {@link CompileOptions.schemaLint}).
  *
  * @public
@@ -487,7 +488,7 @@ export interface CompileOptions {
    *   numbers on the rejection benchmark.
    * - `"tree"`: a {@link TreeValidationResult}: `{ valid }` plus, on
    *   failure, a single nested {@link ValidationError} tree under `error`
-   *   and `truncated`. The rich diagnostic shape; what `@oaverify/internal-validator`
+   *   and `truncated`. The rich diagnostic shape; what `@oaverify/core`
    *   compiles in so it can nest per-location subtrees.
    * - `"predicate"`: a {@link CompiledPredicate} whose `validate(data)`
    *   returns a bare `boolean`. No {@link ValidationError} tree is ever
@@ -564,7 +565,7 @@ export interface CompileOptions {
    * strictest rung of this ladder, so `"off"` silences lint findings
    * and nothing else.
    *
-   * - `"off"`: silence on everything (pre-v-strict behavior).
+   * - `"off"`: silence on everything.
    * - `"warn"` (default): warn on keywords flagged as
    *   partially-implemented (currently `$dynamicRef`; its runtime
    *   dynamic-scope rebinding is not emitted).
@@ -840,7 +841,7 @@ export function compileSchema(
   const predicate = mode === "predicate";
   const flat = mode === "flat";
 
-  // v3 default: fast-fail (stop at the first error), matching ajv's
+  // Default: fast-fail (stop at the first error), matching ajv's
   // `allErrors: false`. Predicate mode never counts errors, so its
   // effective cap is irrelevant; keep it uncapped so the explicit-cap
   // conflict check below only fires on a caller-supplied value.
