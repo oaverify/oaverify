@@ -225,8 +225,18 @@ export async function resolveCommand(
  * @public
  */
 export interface CheckFinding {
-  /** Which check produced this. */
-  class: "hygiene" | "schema";
+  /**
+   * Which check produced this, matching the three-class model in
+   * docs/strictness.md.
+   *
+   * Not the same set as {@link CHECK_CLASSES}, which is what `--only`
+   * selects. A malformed schema is found by compiling, which is what the
+   * `schema` class does, so it cannot be requested on its own; it is
+   * reported under its own class because it is a different kind of
+   * problem with a different remedy, and a consumer re-splitting the
+   * array should not have to match on `code` to find it.
+   */
+  class: "hygiene" | "schema" | "malformed";
   /** The class-specific code, e.g. `"unused-component"`, `"unknown-keyword"`. */
   code: string;
   /**
@@ -265,7 +275,11 @@ function addSchemaFinding(into: Map<string, CheckFinding>, finding: CheckFinding
   already.occurrences = (already.occurrences ?? 1) + 1;
 }
 
-/** Check classes `--only` accepts. */
+/**
+ * Check classes `--only` accepts. These are the checks that can be
+ * *run*; see {@link CheckFinding.class} for the classes a finding can be
+ * *reported* under, which additionally includes `"malformed"`.
+ */
 export const CHECK_CLASSES = ["hygiene", "schema"] as const;
 export type CheckClass = (typeof CHECK_CLASSES)[number];
 
@@ -375,7 +389,7 @@ export async function checkCommand(
       for (const failure of validator.precompile({ onMalformed: "collect" })) {
         malformed = true;
         addSchemaFinding(schemaFindings, {
-          class: "schema",
+          class: "malformed",
           code: "malformed-schema",
           location: failure.context,
           message: failure.message,

@@ -456,11 +456,45 @@ describe("resolveCommand", () => {
     );
     expect(result.exitCode).toBe(2);
     const { findings } = JSON.parse(stdout.value) as {
-      findings: { code: string; message: string }[];
+      findings: { class: string; code: string; message: string }[];
     };
     expect(findings).toHaveLength(1);
     expect(findings[0]?.code).toBe("malformed-schema");
     expect(findings[0]?.message).toContain("unknown type name");
+    // Its own class, not "schema": malformed and schema-lint are
+    // different problems with different remedies, and a consumer
+    // re-splitting the array should not have to match on `code`.
+    expect(findings[0]?.class).toBe("malformed");
+  });
+
+  it("check surfaces malformed findings under --only schema", async () => {
+    // "malformed" is a reported class, not a selectable one: a malformed
+    // schema is found by compiling, which is what the schema class does.
+    // Asking for `schema` therefore still surfaces it.
+    const { io, stdout } = memoryIo([
+      [
+        "spec.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1" },
+          paths: {
+            "/p": {
+              get: {
+                parameters: [{ name: "q", in: "query", schema: { type: "Strng" } }],
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        },
+      ],
+    ]);
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], only: ["schema"], format: "json", options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(2);
+    const { findings } = JSON.parse(stdout.value) as { findings: { class: string }[] };
+    expect(findings.map((f) => f.class)).toEqual(["malformed"]);
   });
 
   it("check reports an unresolvable $ref as a finding too", async () => {
