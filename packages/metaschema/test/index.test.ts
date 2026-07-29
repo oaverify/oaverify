@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { detectOpenAPIVersion } from "@oaverify/internal-core";
 import {
   METASCHEMA_REVISIONS,
   metaschemaFor,
@@ -16,8 +17,43 @@ describe("metaschemaVersionOf", () => {
     expect(metaschemaVersionOf({ openapi: "3.2.0" })).toBe("3.2");
   });
 
-  it("accepts a bare minor version", () => {
+  it("handles a pre-release the way the validator does", () => {
+    expect(metaschemaVersionOf({ openapi: "3.2.0-rc1" })).toBe("3.2");
+  });
+
+  it("routes a same-minor malformed version string to that minor's schema", () => {
+    // "3.1" and "3.1.x" are not valid `openapi` values: the published
+    // schema constrains the field by pattern (`^3\.1\.\d+(-.+)?$`).
+    // Routing them to the 3.1 schema anyway is deliberate. The schema
+    // then reports the pattern failure with a located error naming the
+    // offending string, which is a better diagnostic than this function
+    // declining to dispatch and the caller reporting "unknown version"
+    // about a document that plainly says 3.1.
     expect(metaschemaVersionOf({ openapi: "3.1" })).toBe("3.1");
+    expect(metaschemaVersionOf({ openapi: "3.1.x" })).toBe("3.1");
+  });
+
+  it("matches detectOpenAPIVersion wherever both have an answer", () => {
+    // The point of delegating rather than re-implementing: two
+    // detectors disagreeing about what a document *is* would be a
+    // miserable bug to find, and the validator dispatches on the other
+    // one.
+    for (const openapi of [
+      "3.0.0",
+      "3.0.3",
+      "3.1.0",
+      "3.1",
+      "3.2.0",
+      "3.2.0-rc1",
+      "3.10.0",
+      "4.0.0",
+      "2.0",
+    ]) {
+      const doc = { openapi };
+      const detected = detectOpenAPIVersion(doc);
+      const vendored = metaschemaVersionOf(doc);
+      if (vendored !== undefined) expect(vendored, openapi).toBe(detected);
+    }
   });
 
   it("returns undefined rather than guessing", () => {
@@ -34,9 +70,18 @@ describe("metaschemaVersionOf", () => {
   });
 
   it("does not match a longer version that merely starts with a known one", () => {
-    // "3.10" is not "3.1". Without the delimiter check a prefix match
-    // would route a hypothetical 3.10 document to the 3.1 schema.
+    // "3.10" is not "3.1". A prefix match would route a hypothetical
+    // 3.10 document to the 3.1 schema.
     expect(metaschemaVersionOf({ openapi: "3.10.0" })).toBeUndefined();
+  });
+
+  it("serves a schema for every version it claims to dispatch", () => {
+    // The membership test and the lookup table are separate statements
+    // of the same fact; this is what stops them drifting.
+    for (const v of VERSIONS) {
+      expect(metaschemaVersionOf({ openapi: `${v}.0` }), v).toBe(v);
+      expect(metaschemaFor(v), v).toBeDefined();
+    }
   });
 });
 

@@ -13,13 +13,29 @@ compile or validate anything, and it has no workspace dependencies.
 
 ## Contents
 
-| Export                          | Purpose                                                          |
-| ------------------------------- | ---------------------------------------------------------------- |
-| `MetaschemaVersion`             | `"3.0" \| "3.1" \| "3.2"`                                        |
-| `metaschemaFor(version)`        | the pinned document for a version                                |
-| `metaschemaVersionOf(document)` | minor version from a document's `openapi` string, or `undefined` |
-| `METASCHEMA_REVISIONS`          | which upstream revision each schema came from                    |
-| `metaschemaUrl(version)`        | the source URL for a pinned revision                             |
+| Export                          | Purpose                                                     |
+| ------------------------------- | ----------------------------------------------------------- |
+| `MetaschemaVersion`             | `"3.0" \| "3.1" \| "3.2"`                                   |
+| `metaschemaFor(version)`        | the pinned document for a version                           |
+| `metaschemaVersionOf(document)` | which vendored schema applies to a document, or `undefined` |
+| `METASCHEMA_REVISIONS`          | which upstream revision each schema came from               |
+| `metaschemaUrl(version)`        | the source URL for a pinned revision                        |
+
+## Version detection
+
+`metaschemaVersionOf` delegates to `detectOpenAPIVersion` from
+`@oaverify/internal-core` rather than matching the `openapi` string
+itself. A second detector would drift from the one the validator
+dispatches on, and two detectors disagreeing about what a document _is_
+would be a miserable bug to find. This adds only the question that
+detector cannot answer: whether a schema is vendored for the version it
+found.
+
+One deliberate consequence: a same-minor but malformed version string
+(`3.1`, `3.1.x`) dispatches to the 3.1 schema, which then reports the
+`pattern` failure with a located error naming the offending value. That
+beats declining to dispatch and reporting "unknown version" about a
+document that plainly says 3.1.
 
 ## Pinned, not fetched
 

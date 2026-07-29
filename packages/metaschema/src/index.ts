@@ -31,6 +31,8 @@
  * @packageDocumentation
  */
 
+import { detectOpenAPIVersion, type OpenAPIVersion } from "@oaverify/internal-core";
+
 import oas30 from "./vendor/oas-3.0.json" with { type: "json" };
 import oas31 from "./vendor/oas-3.1.json" with { type: "json" };
 import oas32 from "./vendor/oas-3.2.json" with { type: "json" };
@@ -41,9 +43,22 @@ import oas32 from "./vendor/oas-3.2.json" with { type: "json" };
  * `openapi` by pattern (`^3\.1\.\d+(-.+)?$`), so 3.1.0 and 3.1.1 are
  * the same document shape.
  *
+ * A subset of {@link OpenAPIVersion} rather than a re-spelling of it.
+ * They happen to coincide today. They are different questions, though:
+ * one is "can the validator handle this document", the other is "have we
+ * vendored a schema for it". A version supported before its schema is
+ * vendored is expressible here rather than being a contradiction.
+ *
  * @public
  */
-export type MetaschemaVersion = "3.0" | "3.1" | "3.2";
+export type MetaschemaVersion = Extract<OpenAPIVersion, "3.0" | "3.1" | "3.2">;
+
+/**
+ * The versions {@link metaschemaFor} can serve, as a value, so the
+ * membership test in {@link metaschemaVersionOf} cannot drift from the
+ * documents actually vendored.
+ */
+const VENDORED: readonly MetaschemaVersion[] = ["3.0", "3.1", "3.2"];
 
 /**
  * Which upstream revision each vendored schema was taken from.
@@ -62,8 +77,8 @@ export const METASCHEMA_REVISIONS: Readonly<Record<MetaschemaVersion, string>> =
   // by a semantically equivalent `ParameterLocation` refactor. The 3.0
   // line is closed, so this pin is expected to age well.
   "3.0": "2024-10-18",
-  "3.1": "2025-02-13",
-  "3.2": "2025-09-17",
+  "3.1": "2025-11-23",
+  "3.2": "2025-11-23",
 });
 
 /**
@@ -102,34 +117,39 @@ export function metaschemaFor(version: MetaschemaVersion): unknown {
 }
 
 /**
- * Read the minor version off a document's `openapi` string.
+ * Which vendored meta-schema applies to a document, if any.
  *
- * Returns `undefined` for anything not recognised, including Swagger
- * 2.0 and a 3.3 that does not exist yet. Callers decide what to do with
- * that; guessing a schema for an unknown version would validate the
- * document against rules it never claimed to follow, and every error
- * downstream of that guess would be noise.
+ * Version detection is {@link detectOpenAPIVersion}, deliberately: a
+ * second detector here would drift from the one the validator dispatches
+ * on, and the two disagreeing about what a document *is* would be a
+ * miserable bug to find. This adds only the question that detector
+ * cannot answer, which is whether a schema is vendored for the version
+ * it found.
+ *
+ * `undefined` covers three different situations on purpose: no
+ * recognisable `openapi` string (Swagger 2.0, a malformed value), a 3.x
+ * line we do not support, and a supported version with no vendored
+ * schema. A caller wanting to tell them apart should call
+ * {@link detectOpenAPIVersion} itself. Guessing a schema for an
+ * unrecognised version would validate the document against rules it
+ * never claimed to follow, and every error downstream of that guess
+ * would be noise.
  *
  * @param document - A parsed OpenAPI document.
  * @returns The matching {@link MetaschemaVersion}, or `undefined`.
  *
  * @example
  * ```ts
- * metaschemaVersionOf({ openapi: "3.1.0" }); // "3.1"
- * metaschemaVersionOf({ swagger: "2.0" });   // undefined
+ * metaschemaVersionOf({ openapi: "3.1.0" });    // "3.1"
+ * metaschemaVersionOf({ openapi: "3.2.0-rc1" }); // "3.2"
+ * metaschemaVersionOf({ swagger: "2.0" });      // undefined
  * ```
  *
  * @public
  */
 export function metaschemaVersionOf(document: unknown): MetaschemaVersion | undefined {
-  if (typeof document !== "object" || document === null) return undefined;
-  const declared = (document as { openapi?: unknown }).openapi;
-  if (typeof declared !== "string") return undefined;
-  // Match on the minor version only. The schema itself re-checks the
-  // full string via `pattern`, so a malformed "3.1" or "3.1.x" is
-  // reported by the schema with a located error rather than being
-  // rejected here with a worse one.
-  const m = /^(3\.[012])(?:\.|$)/.exec(declared);
-  const minor = m?.[1];
-  return minor === "3.0" || minor === "3.1" || minor === "3.2" ? minor : undefined;
+  const detected = detectOpenAPIVersion(document);
+  return detected !== undefined && (VENDORED as readonly string[]).includes(detected)
+    ? (detected as MetaschemaVersion)
+    : undefined;
 }

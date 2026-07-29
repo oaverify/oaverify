@@ -73,7 +73,11 @@ importers:
 
   packages/formats: {}
 
-  packages/metaschema: {}
+  packages/metaschema:
+    dependencies:
+      '@oaverify/internal-core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/oav:
     dependencies:
