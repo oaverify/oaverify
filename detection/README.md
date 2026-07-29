@@ -13,6 +13,20 @@ So this corpus is labelled instead. Each case is a minimal OpenAPI
 document carrying exactly one seeded defect, and a tool scores only when
 it reports _that_ defect.
 
+## Why some cells are deliberately empty
+
+The corpus is only worth reading if it can show oaverify losing, so two
+`structural` cases exist to record exactly that:
+`dangling-discriminator-mapping` and `undeclared-server-variable`. Both
+need a graph walk. Document conformance validates a node against a
+subschema and cannot ask whether a name resolves, so no amount of
+meta-schema coverage reaches them, and `misses` is the correct entry
+rather than a gap to close.
+
+The `style` class carries the same load in the other direction: six
+cases oaverify mostly does not report, because they are opinions rather
+than defects.
+
 ## Run
 
 ```bash

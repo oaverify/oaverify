@@ -226,7 +226,7 @@
     },
     "spectral": {
       "findings": [],
-      "fatal": "(node:23006) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nError running Spectral!\nUse --verbose flag to print the error stack.\nError #1: Cannot read properties of null (reading 'enum')"
+      "fatal": "npm warn Unknown env config \"npm-globalconfig\". This will error in a future major version of npm. See `npm help npmrc` for supported config options.\nnpm warn Unknown env config \"verify-deps-before-run\". This will error in a future major version of npm. See `npm help npmrc` for supported config options.\nnpm warn Unknown env config \"auto-install-peers\". This will error in a future major version of n"
     },
     "redocly": {
       "findings": [
@@ -1054,9 +1054,94 @@
       ]
     }
   },
+  "lint/annotation-null-description": {
+    "oaverify": {
+      "findings": [
+        {
+          "rule": "annotation-value-type",
+          "message": "\"description\" at \"properties.statusDate\" should be a string; got null",
+          "location": "GET /things 200 response body (application/json) -> properties.statusDate",
+          "severity": "warn"
+        }
+      ]
+    },
+    "ajv": {
+      "findings": [
+        {
+          "rule": "ajv/compile",
+          "message": "schema is invalid: data/properties/statusDate/description must be string",
+          "location": "paths./things.get.responses.200.application/json",
+          "severity": "error"
+        }
+      ]
+    },
+    "spectral": {
+      "findings": [],
+      "fatal": "npm warn Unknown env config \"npm-globalconfig\". This will error in a future major version of npm. See `npm help npmrc` for supported config options.\nnpm warn Unknown env config \"verify-deps-before-run\". This will error in a future major version of npm. See `npm help npmrc` for supported config options.\nnpm warn Unknown env config \"auto-install-peers\". This will error in a future major version of n"
+    },
+    "redocly": {
+      "findings": [
+        {
+          "rule": "no-empty-servers",
+          "message": "Servers must be present.",
+          "location": "#/openapi",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-summary",
+          "message": "Operation object should contain `summary` field.",
+          "location": "#/paths/~1things/get/summary",
+          "severity": "error"
+        },
+        {
+          "rule": "struct",
+          "message": "Expected type `string` but got `null`.",
+          "location": "#/paths/~1things/get/responses/200/content/application~1json/schema/properties/statusDate/description",
+          "severity": "error"
+        },
+        {
+          "rule": "security-defined",
+          "message": "Every operation should have security defined on it or on the root level.",
+          "location": "#/paths/~1things/get",
+          "severity": "error"
+        },
+        {
+          "rule": "info-license",
+          "message": "Info object should contain `license` field.",
+          "location": "#/info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-4xx-response",
+          "message": "Operation must have at least one `4XX` response.",
+          "location": "#/paths/~1things/get/responses",
+          "severity": "warn"
+        }
+      ]
+    }
+  },
   "lint/prefixitems-in-30": {
     "oaverify": {
-      "findings": []
+      "findings": [
+        {
+          "rule": "additionalProperties",
+          "message": "additional property \"prefixItems\" is not allowed",
+          "location": "/paths/~1things/get/responses/200/content/application~1json/schema/prefixItems",
+          "severity": "warn"
+        },
+        {
+          "rule": "required",
+          "message": "must have required property \"$ref\"",
+          "location": "/paths/~1things/get/responses/200/content/application~1json/schema/$ref",
+          "severity": "warn"
+        },
+        {
+          "rule": "required",
+          "message": "must have required property \"$ref\"",
+          "location": "/paths/~1things/get/responses/200/$ref",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": [
@@ -1723,7 +1808,14 @@
   },
   "structural/missing-info-version": {
     "oaverify": {
-      "findings": []
+      "findings": [
+        {
+          "rule": "required",
+          "message": "must have required property \"version\"",
+          "location": "/info/version",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": []
@@ -1811,7 +1903,14 @@
   },
   "structural/response-missing-description": {
     "oaverify": {
-      "findings": []
+      "findings": [
+        {
+          "rule": "required",
+          "message": "must have required property \"description\"",
+          "location": "/paths/~1things/get/responses/200/description",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": []
@@ -1886,6 +1985,450 @@
           "rule": "info-license",
           "message": "Info object should contain `license` field.",
           "location": "#/info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-4xx-response",
+          "message": "Operation must have at least one `4XX` response.",
+          "location": "#/paths/~1things/get/responses",
+          "severity": "warn"
+        }
+      ]
+    }
+  },
+  "structural/parameter-schema-and-content": {
+    "oaverify": {
+      "findings": [
+        {
+          "rule": "oneOf",
+          "message": "must match exactly one of 2 schemas (matched 2)",
+          "location": "/paths/~1things/get/parameters/0",
+          "severity": "warn"
+        }
+      ]
+    },
+    "ajv": {
+      "findings": []
+    },
+    "spectral": {
+      "findings": [
+        {
+          "rule": "oas3-api-servers",
+          "message": "OpenAPI \"servers\" must be present and non-empty array.",
+          "location": "",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-contact",
+          "message": "Info object must have \"contact\" object.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-description",
+          "message": "Info \"description\" must be present and non-empty string.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-description",
+          "message": "Operation \"description\" must be present and non-empty string.",
+          "location": "paths//things/get",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-tags",
+          "message": "Operation must have non-empty \"tags\" array.",
+          "location": "paths//things/get",
+          "severity": "warn"
+        },
+        {
+          "rule": "oas3-schema",
+          "message": "\"0\" property must match exactly one schema in oneOf.",
+          "location": "paths//things/get/parameters/0",
+          "severity": "error"
+        }
+      ]
+    },
+    "redocly": {
+      "findings": [
+        {
+          "rule": "no-empty-servers",
+          "message": "Servers must be present.",
+          "location": "#/openapi",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-summary",
+          "message": "Operation object should contain `summary` field.",
+          "location": "#/paths/~1things/get/summary",
+          "severity": "error"
+        },
+        {
+          "rule": "security-defined",
+          "message": "Every operation should have security defined on it or on the root level.",
+          "location": "#/paths/~1things/get",
+          "severity": "error"
+        },
+        {
+          "rule": "info-license",
+          "message": "Info object should contain `license` field.",
+          "location": "#/info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-4xx-response",
+          "message": "Operation must have at least one `4XX` response.",
+          "location": "#/paths/~1things/get/responses",
+          "severity": "warn"
+        }
+      ]
+    }
+  },
+  "structural/license-identifier-and-url": {
+    "oaverify": {
+      "findings": [
+        {
+          "rule": "not",
+          "message": "must NOT match the schema",
+          "location": "/info/license",
+          "severity": "warn"
+        }
+      ]
+    },
+    "ajv": {
+      "findings": []
+    },
+    "spectral": {
+      "findings": [
+        {
+          "rule": "oas3-api-servers",
+          "message": "OpenAPI \"servers\" must be present and non-empty array.",
+          "location": "",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-contact",
+          "message": "Info object must have \"contact\" object.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-description",
+          "message": "Info \"description\" must be present and non-empty string.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "oas3-schema",
+          "message": "\"license\" property must not be valid.",
+          "location": "info/license",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-description",
+          "message": "Operation \"description\" must be present and non-empty string.",
+          "location": "paths//things/get",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-tags",
+          "message": "Operation must have non-empty \"tags\" array.",
+          "location": "paths//things/get",
+          "severity": "warn"
+        }
+      ]
+    },
+    "redocly": {
+      "findings": [
+        {
+          "rule": "no-empty-servers",
+          "message": "Servers must be present.",
+          "location": "#/openapi",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-summary",
+          "message": "Operation object should contain `summary` field.",
+          "location": "#/paths/~1things/get/summary",
+          "severity": "error"
+        },
+        {
+          "rule": "security-defined",
+          "message": "Every operation should have security defined on it or on the root level.",
+          "location": "#/paths/~1things/get",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-4xx-response",
+          "message": "Operation must have at least one `4XX` response.",
+          "location": "#/paths/~1things/get/responses",
+          "severity": "warn"
+        }
+      ]
+    }
+  },
+  "structural/path-param-not-required": {
+    "oaverify": {
+      "findings": [
+        {
+          "rule": "const",
+          "message": "must equal the expected constant",
+          "location": "/paths/~1things~1{thingId}/get/parameters/0/required",
+          "severity": "warn"
+        }
+      ]
+    },
+    "ajv": {
+      "findings": []
+    },
+    "spectral": {
+      "findings": [
+        {
+          "rule": "oas3-api-servers",
+          "message": "OpenAPI \"servers\" must be present and non-empty array.",
+          "location": "",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-contact",
+          "message": "Info object must have \"contact\" object.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-description",
+          "message": "Info \"description\" must be present and non-empty string.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-description",
+          "message": "Operation \"description\" must be present and non-empty string.",
+          "location": "paths//things/{thingId}/get",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-tags",
+          "message": "Operation must have non-empty \"tags\" array.",
+          "location": "paths//things/{thingId}/get",
+          "severity": "warn"
+        },
+        {
+          "rule": "path-params",
+          "message": "Path parameter \"thingId\" must have \"required\" property that is set to \"true\".",
+          "location": "paths//things/{thingId}/get/parameters/0",
+          "severity": "error"
+        },
+        {
+          "rule": "oas3-schema",
+          "message": "\"required\" property must be equal to constant.",
+          "location": "paths//things/{thingId}/get/parameters/0/required",
+          "severity": "error"
+        }
+      ]
+    },
+    "redocly": {
+      "findings": [
+        {
+          "rule": "no-empty-servers",
+          "message": "Servers must be present.",
+          "location": "#/openapi",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-summary",
+          "message": "Operation object should contain `summary` field.",
+          "location": "#/paths/~1things~1{thingId}/get/summary",
+          "severity": "error"
+        },
+        {
+          "rule": "security-defined",
+          "message": "Every operation should have security defined on it or on the root level.",
+          "location": "#/paths/~1things~1{thingId}/get",
+          "severity": "error"
+        },
+        {
+          "rule": "info-license",
+          "message": "Info object should contain `license` field.",
+          "location": "#/info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-4xx-response",
+          "message": "Operation must have at least one `4XX` response.",
+          "location": "#/paths/~1things~1{thingId}/get/responses",
+          "severity": "warn"
+        }
+      ]
+    }
+  },
+  "structural/dangling-discriminator-mapping": {
+    "oaverify": {
+      "findings": []
+    },
+    "ajv": {
+      "findings": [
+        {
+          "rule": "ajv/compile",
+          "message": "strict mode: unknown keyword: \"discriminator\"",
+          "location": "paths./things.get.responses.200.application/json",
+          "severity": "error"
+        }
+      ]
+    },
+    "spectral": {
+      "findings": [
+        {
+          "rule": "oas3-api-servers",
+          "message": "OpenAPI \"servers\" must be present and non-empty array.",
+          "location": "",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-contact",
+          "message": "Info object must have \"contact\" object.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-description",
+          "message": "Info \"description\" must be present and non-empty string.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-description",
+          "message": "Operation \"description\" must be present and non-empty string.",
+          "location": "paths//things/get",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-tags",
+          "message": "Operation must have non-empty \"tags\" array.",
+          "location": "paths//things/get",
+          "severity": "warn"
+        }
+      ]
+    },
+    "redocly": {
+      "findings": [
+        {
+          "rule": "no-empty-servers",
+          "message": "Servers must be present.",
+          "location": "#/openapi",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-summary",
+          "message": "Operation object should contain `summary` field.",
+          "location": "#/paths/~1things/get/summary",
+          "severity": "error"
+        },
+        {
+          "rule": "no-unresolved-refs",
+          "message": "Can't resolve $ref",
+          "location": "#/paths/~1things/get/responses/200/content/application~1json/schema/discriminator/mapping/dog",
+          "severity": "error"
+        },
+        {
+          "rule": "no-unresolved-refs",
+          "message": "Can't resolve $ref",
+          "location": "#/paths/~1things/get/responses/200/content/application~1json/schema/discriminator/mapping/dog",
+          "severity": "error"
+        },
+        {
+          "rule": "security-defined",
+          "message": "Every operation should have security defined on it or on the root level.",
+          "location": "#/paths/~1things/get",
+          "severity": "error"
+        },
+        {
+          "rule": "info-license",
+          "message": "Info object should contain `license` field.",
+          "location": "#/info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-4xx-response",
+          "message": "Operation must have at least one `4XX` response.",
+          "location": "#/paths/~1things/get/responses",
+          "severity": "warn"
+        }
+      ]
+    }
+  },
+  "structural/undeclared-server-variable": {
+    "oaverify": {
+      "findings": []
+    },
+    "ajv": {
+      "findings": []
+    },
+    "spectral": {
+      "findings": [
+        {
+          "rule": "info-contact",
+          "message": "Info object must have \"contact\" object.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-description",
+          "message": "Info \"description\" must be present and non-empty string.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "oas3-server-variables",
+          "message": "Not all server's variables are described with \"variables\" object. Missed: region.",
+          "location": "servers/0",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-description",
+          "message": "Operation \"description\" must be present and non-empty string.",
+          "location": "paths//things/get",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-tags",
+          "message": "Operation must have non-empty \"tags\" array.",
+          "location": "paths//things/get",
+          "severity": "warn"
+        }
+      ]
+    },
+    "redocly": {
+      "findings": [
+        {
+          "rule": "no-undefined-server-variable",
+          "message": "The `region` variable is not defined in the `variables` objects.",
+          "location": "#/servers/0/url",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-summary",
+          "message": "Operation object should contain `summary` field.",
+          "location": "#/paths/~1things/get/summary",
+          "severity": "error"
+        },
+        {
+          "rule": "security-defined",
+          "message": "Every operation should have security defined on it or on the root level.",
+          "location": "#/paths/~1things/get",
+          "severity": "error"
+        },
+        {
+          "rule": "info-license",
+          "message": "Info object should contain `license` field.",
+          "location": "#/info",
+          "severity": "warn"
+        },
+        {
+          "rule": "no-server-example.com",
+          "message": "Server `url` should not point to example.com or localhost.",
+          "location": "#/servers/0/url",
           "severity": "warn"
         },
         {

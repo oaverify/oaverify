@@ -1,0 +1,27 @@
+openapi: 3.1.0
+info:
+  title: Detection case
+  version: "1.0.0"
+paths:
+  /things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Cat"
+                discriminator:
+                  propertyName: kind
+                  mapping:
+                    dog: "#/components/schemas/Dog"
+components:
+  schemas:
+    Cat:
+      type: object
+      properties:
+        kind:
+          type: string
