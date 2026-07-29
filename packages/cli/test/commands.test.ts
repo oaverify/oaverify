@@ -217,6 +217,113 @@ describe("resolveCommand", () => {
     expect(stdout.value).toContain("/components/schemas/Orphan");
   });
 
+  it("check reports document conformance against the meta-schema for the declared version", async () => {
+    // The defect this whole class exists for: a null `description` on a
+    // Response Object. It is not a schema, so the schema classes cannot
+    // reach it, and it is legal YAML, so parsing does not.
+    const spec = {
+      openapi: "3.1.0",
+      info: { title: "X", version: "1.0.0" },
+      paths: { "/t": { get: { responses: { "202": { description: null } } } } },
+    };
+    const { io, stdout } = memoryIo([["spec.json", spec]]);
+    const result = await checkCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
+    expect(result.exitCode).toBe(0);
+    expect(stdout.value).toContain("conformance [type]");
+    expect(stdout.value).toContain("/paths/~1t/get/responses/202/description");
+  });
+
+  it("check --only conformance runs neither hygiene nor the schema compile", async () => {
+    const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], only: ["conformance"], options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(0);
+    expect(stdout.value).not.toContain("hygiene [");
+    expect(stdout.value).not.toContain("schema [");
+  });
+
+  it("check labels every finding with a severity", async () => {
+    const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
+    await checkCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
+    // Severity leads each line, and the summary breaks the total down.
+    expect(stdout.value).toMatch(/^(warning|error|fatal)\s+\w+ \[/m);
+    expect(stdout.value).toMatch(/finding\(s\): /);
+  });
+
+  it("check --fail-on error gates on specification violations and ignores the rest", async () => {
+    // The capability severity exists to provide. An unused component is
+    // legal; before this there was no way to say "break the build on
+    // things that are actually wrong" without also breaking it on that.
+    const tidyOnly = {
+      openapi: "3.1.0",
+      info: { title: "X", version: "1.0.0" },
+      paths: { "/t": { get: { responses: { "200": { description: "ok" } } } } },
+      components: { schemas: { Orphan: { type: "string" } } },
+    };
+    const { io } = memoryIo([["spec.json", tidyOnly]]);
+    expect(
+      (
+        await checkCommand(
+          { spec: "spec.json", overlays: [], failOn: "error", options: textOpts },
+          io,
+        )
+      ).exitCode,
+    ).toBe(0);
+
+    const { io: io2 } = memoryIo([["spec.json", tidyOnly]]);
+    expect(
+      (
+        await checkCommand(
+          { spec: "spec.json", overlays: [], failOn: "warning", options: textOpts },
+          io2,
+        )
+      ).exitCode,
+    ).toBe(1);
+  });
+
+  it("check --fail-on warning still means any finding at all", async () => {
+    // Backward compatibility, asserted rather than assumed. Introducing
+    // severity must not quietly demote existing findings below an
+    // existing gate; anyone with --fail-on warning in CI keeps the
+    // behaviour they had.
+    const { io } = memoryIo([["spec.json", dirtySpec()]]);
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], failOn: "warning", options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(1);
+  });
+
+  it("check --fail-on error fires on a path parameter that is never declared", async () => {
+    // A hygiene finding that is a specification violation, so it gates
+    // at error even though its class is shared with tidiness codes.
+    // This is the case that proves class and severity are independent.
+    const spec = {
+      openapi: "3.1.0",
+      info: { title: "X", version: "1.0.0" },
+      paths: { "/t/{id}": { get: { responses: { "200": { description: "ok" } } } } },
+    };
+    const { io } = memoryIo([["spec.json", spec]]);
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], failOn: "error", options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(1);
+  });
+
+  it("check stays quiet about conformance for a version it has no schema for", async () => {
+    // Swagger 2.0 is not "non-conformant"; it is unknown. Reporting
+    // failures against a guessed schema would be worse than silence.
+    const { io, stdout } = memoryIo([["spec.json", { swagger: "2.0", info: {}, paths: {} }]]);
+    await checkCommand(
+      { spec: "spec.json", overlays: [], only: ["conformance"], options: textOpts },
+      io,
+    );
+    expect(stdout.value).not.toContain("conformance [");
+  });
+
   it("check reports a shared component's defect once, with a count", async () => {
     // Schemas compile per operation, so a component reached from three
     // of them produced three identical findings. One defect, one edit

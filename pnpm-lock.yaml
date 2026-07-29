@@ -50,6 +50,9 @@ importers:
       '@oaverify/internal-formats':
         specifier: workspace:*
         version: link:../formats
+      '@oaverify/internal-metaschema':
+        specifier: workspace:*
+        version: link:../metaschema
       '@oaverify/internal-overlay-spec':
         specifier: workspace:*
         version: link:../overlay-spec
@@ -78,6 +81,9 @@ importers:
       '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
+      '@oaverify/internal-schema':
+        specifier: workspace:*
+        version: link:../schema
 
   packages/oav:
     dependencies:

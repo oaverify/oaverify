@@ -104,20 +104,70 @@ oaverify check <spec>       # is my spec good?
 oaverify validate <spec>    # does this payload conform?
 ```
 
-`check` reports the first two classes above, plus spec hygiene (unused
-components, path-parameter mismatches), which is a separate check rather
-than one of the three. A malformed schema is reported as a finding with
-the code `malformed-schema`, and `check` carries on with the rest of the
-document, so one bad `items` does not hide every other finding in the
-file. Lint findings are reported, and exit 1 only when `--fail-on` asks
-for it.
+`check` reports the classes above, plus spec hygiene (unused components,
+path-parameter mismatches) and document conformance. A malformed schema
+is reported as a finding with the code `malformed-schema`, and `check`
+carries on with the rest of the document, so one bad `items` does not
+hide every other finding in the file.
 
-Each finding carries the class that produced it, so `--format json`
-output can be re-split: `"malformed"`, `"schema"`, or `"hygiene"`.
-`--only` selects which checks _run_ and takes `hygiene` / `schema`. A
-malformed schema is found by compiling, which is what the `schema` check
-does, so it cannot be asked for on its own and appears whenever that
-check runs.
+### Class and severity are different questions
+
+Every finding carries both, and neither implies the other.
+
+**Class** says which pass produced it, and is what `--only` selects:
+
+| Class         | Question it answers                               |
+| ------------- | ------------------------------------------------- |
+| `conformance` | Is this a legal OpenAPI document for its version? |
+| `hygiene`     | Is the document internally consistent?            |
+| `schema`      | Are the schemas what the author meant?            |
+| `malformed`   | Reported, never selected; see below.              |
+
+**Severity** says what it means for you, and is what `--fail-on` gates on:
+
+| Severity  | Meaning                                                 |
+| --------- | ------------------------------------------------------- |
+| `fatal`   | The document cannot be compiled into a validator.       |
+| `error`   | Legal to parse, but violates the OpenAPI specification. |
+| `warning` | Legal, and probably not what the author meant.          |
+
+They are separate because they cut across each other. `hygiene` holds
+both `path-param-undeclared`, which is a specification violation, and
+`unused-tag`, which is housekeeping. Before severity existed, gating on
+findings meant gating on both or neither.
+
+```
+oaverify check spec.yaml --fail-on error    # break the build on what is actually wrong
+oaverify check spec.yaml --fail-on warning  # break the build on anything at all
+```
+
+`--only` takes `hygiene` / `schema` / `conformance`. A malformed schema
+is found by compiling, which is what the `schema` check does, so it
+cannot be asked for on its own and appears whenever that check runs.
+
+### Document conformance
+
+`conformance` validates the document against the JSON Schema OpenAPI
+publishes for the version it declares, pinned and vendored rather than
+fetched. The rules are OpenAPI's, so they do not drift from the spec the
+way a hand-maintained rule set does. This is what catches a null
+`description` on a Response Object, a typo'd field name, or an invalid
+parameter location: defects that are neither schemas nor inconsistencies.
+
+Two limits worth knowing:
+
+- **It cannot follow references.** A schema validates a node against a
+  subschema and cannot ask whether a name resolves, so a dangling `$ref`,
+  a duplicate `operationId`, a discriminator mapping pointing at nothing,
+  an undeclared server variable, and a security requirement naming a
+  scheme that does not exist all pass. Some are covered by `hygiene`; the
+  rest are out of scope, and pairing with a linter remains the answer for
+  them.
+- **Schema Object coverage differs by version.** 3.1 and 3.2 decline to
+  validate Schema Objects (their meta-schemas stub the slot, deferring to
+  a swappable dialect), so `conformance` and the schema classes are
+  disjoint. 3.0 describes the Schema Object in full, so on 3.0 they
+  overlap and one defect can be reported by both.
 
 ```
 oaverify check spec.yaml --only schema --fail-on warning --format json

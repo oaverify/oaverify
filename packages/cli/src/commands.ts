@@ -23,6 +23,7 @@ import {
   type OverlayDocument,
 } from "@oaverify/internal-overlay-spec";
 import { createValidator } from "@oaverify/internal-validator";
+import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
 import type * as Esbuild from "esbuild";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { analyzeSpec } from "@oaverify/stream";
@@ -236,7 +237,21 @@ export interface CheckFinding {
    * problem with a different remedy, and a consumer re-splitting the
    * array should not have to match on `code` to find it.
    */
-  class: "hygiene" | "schema" | "malformed";
+  class: "hygiene" | "schema" | "malformed" | "conformance";
+  /**
+   * What this means for you, independent of which check found it.
+   *
+   * Separate from `class` on purpose. Class says which pass produced a
+   * finding; severity says whether it breaks anything. Conflating them
+   * is what made `--fail-on` useless: `path-param-undeclared` violates
+   * the OpenAPI spec and `unused-tag` is housekeeping, but both are
+   * `hygiene`, so gating on the class meant gating on both or neither.
+   *
+   * - `"fatal"`: the document cannot be compiled into a validator.
+   * - `"error"`: legal to parse, but violates the OpenAPI specification.
+   * - `"warning"`: legal, and probably not what the author meant.
+   */
+  severity: CheckSeverity;
   /** The class-specific code, e.g. `"unused-component"`, `"unknown-keyword"`. */
   code: string;
   /**
@@ -280,8 +295,35 @@ function addSchemaFinding(into: Map<string, CheckFinding>, finding: CheckFinding
  * *run*; see {@link CheckFinding.class} for the classes a finding can be
  * *reported* under, which additionally includes `"malformed"`.
  */
-export const CHECK_CLASSES = ["hygiene", "schema"] as const;
+export const CHECK_CLASSES = ["hygiene", "schema", "conformance"] as const;
 export type CheckClass = (typeof CHECK_CLASSES)[number];
+
+/**
+ * Severities `--fail-on` accepts, ordered least to most serious. A
+ * threshold fires on its own level and everything above it, so
+ * `--fail-on error` gates on specification violations and ignores the
+ * rest.
+ *
+ * No `info` level, deliberately. Adding one and putting the tidiness
+ * codes in it would have changed what `--fail-on warning` does: it
+ * historically meant "any finding at all", and demoting
+ * `unused-component` below the threshold would silently stop an
+ * existing CI gate from firing. `warning` is also the honest level for
+ * those codes: declaring a component nothing reaches is legal, and
+ * probably not what the author meant, which is what warning means here.
+ * An `info` level can be added when something actually belongs in it.
+ */
+export const CHECK_SEVERITIES = ["warning", "error", "fatal"] as const;
+export type CheckSeverity = (typeof CHECK_SEVERITIES)[number];
+
+/**
+ * Hygiene codes that are specification violations rather than
+ * housekeeping. OpenAPI requires every path-template placeholder to have
+ * a matching parameter declaration, so these are not a matter of taste;
+ * the rest of the hygiene codes (unused components, tags, `$defs`) name
+ * things that are legal and merely dead.
+ */
+const HYGIENE_ERRORS = new Set(["path-param-undeclared", "path-param-unused"]);
 
 /**
  * Implement the `oaverify check <spec> ...` subcommand: answer "what is
@@ -291,8 +333,11 @@ export type CheckClass = (typeof CHECK_CLASSES)[number];
  * Two verbs, one question each: `check` is about the document, `validate`
  * is about traffic.
  *
- * Three classes of problem exist (see docs/strictness.md); this command
- * surfaces all of them as findings:
+ * Findings carry a `class` (which pass found it, and what `--only`
+ * selects) and a `severity` (what it means for you, and what `--fail-on`
+ * gates on). The two cut across each other: `hygiene` holds both a
+ * specification violation and pure housekeeping. See
+ * docs/strictness.md.
  *
  * - **malformed**: a schema the compiler cannot interpret at all. Fatal
  *   for the operation that holds it, so the run exits 2 whatever the
@@ -302,6 +347,10 @@ export type CheckClass = (typeof CHECK_CLASSES)[number];
  * - **hygiene**: unused components / tags / `$defs`, path-parameter
  *   mismatches.
  * - **schema**: partially-implemented keywords, unknown keywords.
+ * - **conformance**: the document does not satisfy the JSON Schema
+ *   OpenAPI publishes for the version it declares. Structural only; it
+ *   cannot follow references, so cross-reference defects are out of
+ *   scope (see docs/strictness.md).
  *
  * @returns 0 clean, 1 findings met `--fail-on`, 2 the document could not be
  *          read at all (nothing was graded, nothing printed), 3 usage error,
@@ -323,8 +372,13 @@ export async function checkCommand(
     overlays: string[];
     /** Classes to run. Defaults to all of {@link CHECK_CLASSES}. */
     only?: CheckClass[];
-    /** Exit non-zero when any finding at or above <level> appears. */
-    failOn?: "warning";
+    /**
+     * Exit non-zero when any finding at or above this severity appears.
+     * `"warning"` is the floor and keeps its historical meaning of "any
+     * finding at all"; `"error"` is the new capability, gating on
+     * specification violations while ignoring the rest.
+     */
+    failOn?: CheckSeverity;
     /** `"text"` (default) or `"json"`. */
     format?: "text" | "json";
     options: CommandOptions;
@@ -365,6 +419,7 @@ export async function checkCommand(
     for (const issue of specHygieneIssues) {
       findings.push({
         class: "hygiene",
+        severity: HYGIENE_ERRORS.has(issue.code) ? "error" : "warning",
         code: issue.code,
         location: issue.pointer,
         message: issue.message,
@@ -399,6 +454,7 @@ export async function checkCommand(
         malformed = true;
         addSchemaFinding(schemaFindings, {
           class: "malformed",
+          severity: "fatal",
           code: "malformed-schema",
           location: failure.context,
           message: failure.message,
@@ -412,6 +468,7 @@ export async function checkCommand(
         const where = issue.path === "" ? "<root>" : issue.path;
         addSchemaFinding(schemaFindings, {
           class: "schema",
+          severity: "warning",
           code: issue.code,
           location: issue.context === undefined ? where : `${issue.context} -> ${where}`,
           message: issue.message,
@@ -426,6 +483,28 @@ export async function checkCommand(
     }
   }
 
+  if (classes.has("conformance")) {
+    // Structural conformance against the meta-schema OpenAPI publishes
+    // for the version this document declares. Deliberately separate
+    // from the schema class: that one asks whether oaverify understood
+    // your schemas, this one asks whether the document is legal OpenAPI
+    // at all. A document can fail either without failing the other.
+    //
+    // The pass stubs the Schema Object on every version, so there is no
+    // overlap with the malformed / schema classes to deduplicate. See
+    // the reasoning on `stubSchemaObject`.
+    const conformance = checkDocumentConformance(document);
+    for (const issue of conformance.issues) {
+      findings.push({
+        class: "conformance",
+        severity: "error",
+        code: issue.code,
+        location: issue.location,
+        message: issue.message,
+      });
+    }
+  }
+
   findings.push(...schemaFindings.values());
 
   const sink = primarySink(io, args.options);
@@ -437,9 +516,20 @@ export async function checkCommand(
     for (const f of findings) {
       const also =
         f.occurrences === undefined ? "" : ` (and ${f.occurrences - 1} more operation(s))`;
-      await sink(`${f.class} [${f.code}] ${f.location}${also}: ${f.message}\n`);
+      // Severity leads, because it is what decides whether you act now.
+      // Class follows, because it says which pass to look at. Padded so
+      // the classes line up when several severities are present.
+      await sink(
+        `${f.severity.padEnd(7)} ${f.class} [${f.code}] ${f.location}${also}: ${f.message}\n`,
+      );
     }
-    await sink(`\n${findings.length} finding(s)\n`);
+    // A bare total does not say whether to act. The breakdown does, and
+    // it is the whole reason severity exists as a field.
+    const bySeverity = CHECK_SEVERITIES.filter((sev) => findings.some((f) => f.severity === sev))
+      .reverse()
+      .map((sev) => `${findings.filter((f) => f.severity === sev).length} ${sev}`)
+      .join(", ");
+    await sink(`\n${findings.length} finding(s): ${bySeverity}\n`);
   }
 
   // A malformed schema outranks the gate: the document cannot be
@@ -447,7 +537,11 @@ export async function checkCommand(
   // which means the document could not be read and nothing was printed;
   // here the report is complete and one of its findings is fatal.
   if (malformed) return { exitCode: 4 };
-  if (args.failOn === "warning" && findings.length > 0) return { exitCode: 1 };
+  if (args.failOn !== undefined) {
+    const threshold = CHECK_SEVERITIES.indexOf(args.failOn);
+    const hit = findings.some((f) => CHECK_SEVERITIES.indexOf(f.severity) >= threshold);
+    if (hit) return { exitCode: 1 };
+  }
   return { exitCode: 0 };
 }
 
