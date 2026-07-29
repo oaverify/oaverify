@@ -474,3 +474,64 @@ describe("strict mode: silent-rewrite/redundant-composition-branches", () => {
     expect(issues).toEqual([]);
   });
 });
+
+// The lint walk follows `$ref` (#523) to reach component schemas an
+// operation-scoped compile cannot see. Its resolver is not the one
+// codegen uses: it is called without a base URI, so a relative ref under
+// an `$id` is unresolvable to it and resolvable to the compiler. Lint is
+// advisory, so a pointer it cannot follow costs coverage of that subtree.
+// The compile still has to succeed (#536).
+describe("a $ref the lint walk cannot follow", () => {
+  // draft2020-12/refRemote.json, "base URI change". `folderInteger.json`
+  // resolves against the nested `$id`, which the lint resolver drops.
+  const baseUriChange = {
+    $id: "http://localhost:1234/draft2020-12/",
+    items: { $id: "baseUriChange/", items: { $ref: "folderInteger.json" } },
+  } as unknown as SchemaOrBoolean;
+  const external = new Map<string, SchemaOrBoolean>([
+    [
+      "http://localhost:1234/draft2020-12/baseUriChange/folderInteger.json",
+      { type: "integer" } as unknown as SchemaOrBoolean,
+    ],
+  ]);
+
+  it("does not fail the compile", () => {
+    const compiled = compileSchema(baseUriChange, {
+      dialect: jsonSchemaDialect,
+      external,
+      schemaLint: "warn",
+    });
+    expect(compiled.validate([[1]]).valid).toBe(true);
+    expect(compiled.validate([["not an integer"]]).valid).toBe(false);
+  });
+
+  it("reaches the same verdict whether or not lint runs", () => {
+    const compileWith = (schemaLint: "off" | "warn" | "strict") =>
+      compileSchema(baseUriChange, { dialect: jsonSchemaDialect, external, schemaLint });
+    const off = compileWith("off");
+    for (const mode of ["warn", "strict"] as const) {
+      const compiled = compileWith(mode);
+      for (const data of [[[1]], [["x"]], [[true]]]) {
+        expect(compiled.validate(data).valid).toBe(off.validate(data).valid);
+      }
+    }
+  });
+
+  it("still follows a ref it can resolve", () => {
+    // Absolute target, so the lint resolver reaches it. The typo lives
+    // only in the external document, which the structural walk never
+    // visits: flagging it proves the ref was followed, not just tolerated.
+    const schema = {
+      $id: "http://localhost:1234/root.json",
+      properties: { a: { $ref: "http://localhost:1234/target.json" } },
+    } as unknown as SchemaOrBoolean;
+    const issues = compileSchema(schema, {
+      dialect: jsonSchemaDialect,
+      external: new Map<string, SchemaOrBoolean>([
+        ["http://localhost:1234/target.json", { minimumx: 5 } as unknown as SchemaOrBoolean],
+      ]),
+      schemaLint: "strict",
+    }).stats.schemaLintIssues;
+    expect(issues.map((i) => i.keyword)).toContain("minimumx");
+  });
+});
