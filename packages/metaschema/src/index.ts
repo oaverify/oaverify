@@ -57,11 +57,12 @@ export type MetaschemaVersion = "3.0" | "3.1" | "3.2";
  * @public
  */
 export const METASCHEMA_REVISIONS: Readonly<Record<MetaschemaVersion, string>> = Object.freeze({
+  // Each is the newest revision published at the time of pinning.
   // Two revisions have ever been published for 3.0, and they differ only
   // by a semantically equivalent `ParameterLocation` refactor. The 3.0
   // line is closed, so this pin is expected to age well.
-  "3.0": "2021-09-28",
-  "3.1": "2022-10-07",
+  "3.0": "2024-10-18",
+  "3.1": "2025-02-13",
   "3.2": "2025-09-17",
 });
 
@@ -77,11 +78,19 @@ export function metaschemaUrl(version: MetaschemaVersion): string {
 
 // `unknown` rather than a schema type: these are vendored documents, and
 // typing them as SchemaObject would invite edits. They are inputs.
-const BY_VERSION: Readonly<Record<MetaschemaVersion, unknown>> = Object.freeze({
+//
+// Deliberately NOT `Object.freeze`d, which costs 101KB. `Object.freeze`
+// is a call, so a bundler has to preserve it, and preserving it retains
+// every JSON import it references. Measured with esbuild: importing
+// `metaschemaVersionOf` alone, which touches no schema at all, pulled
+// 101,593 bytes with the freeze and 514 without it. `Readonly<>` gives
+// the guarantee that matters here (nobody reassigns a slot by accident)
+// at compile time and at no runtime cost.
+const BY_VERSION: Readonly<Record<MetaschemaVersion, unknown>> = {
   "3.0": oas30,
   "3.1": oas31,
   "3.2": oas32,
-});
+};
 
 /**
  * The pinned meta-schema for an OpenAPI minor version.

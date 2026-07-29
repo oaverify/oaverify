@@ -1,7 +1,7 @@
 {
-  "$id": "https://spec.openapis.org/oas/3.1/schema/2022-10-07",
+  "$id": "https://spec.openapis.org/oas/3.1/schema/2025-02-13",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "The description of OpenAPI v3.1.x documents without schema validation, as defined by https://spec.openapis.org/oas/v3.1.0",
+  "description": "The description of OpenAPI v3.1.x Documents without Schema Object validation",
   "type": "object",
   "properties": {
     "openapi": {
@@ -13,8 +13,8 @@
     },
     "jsonSchemaDialect": {
       "type": "string",
-      "format": "uri",
-      "default": "https://spec.openapis.org/oas/3.1/dialect/base"
+      "format": "uri-reference",
+      "default": "https://spec.openapis.org/oas/3.1/dialect/2024-11-10"
     },
     "servers": {
       "type": "array",
@@ -33,7 +33,7 @@
     "webhooks": {
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/$defs/path-item-or-reference"
+        "$ref": "#/$defs/path-item"
       }
     },
     "components": {
@@ -55,23 +55,32 @@
       "$ref": "#/$defs/external-documentation"
     }
   },
-  "required": ["openapi", "info"],
+  "required": [
+    "openapi",
+    "info"
+  ],
   "anyOf": [
     {
-      "required": ["paths"]
+      "required": [
+        "paths"
+      ]
     },
     {
-      "required": ["components"]
+      "required": [
+        "components"
+      ]
     },
     {
-      "required": ["webhooks"]
+      "required": [
+        "webhooks"
+      ]
     }
   ],
   "$ref": "#/$defs/specification-extensions",
   "unevaluatedProperties": false,
   "$defs": {
     "info": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#info-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#info-object",
       "type": "object",
       "properties": {
         "title": {
@@ -85,7 +94,7 @@
         },
         "termsOfService": {
           "type": "string",
-          "format": "uri"
+          "format": "uri-reference"
         },
         "contact": {
           "$ref": "#/$defs/contact"
@@ -97,12 +106,15 @@
           "type": "string"
         }
       },
-      "required": ["title", "version"],
+      "required": [
+        "title",
+        "version"
+      ],
       "$ref": "#/$defs/specification-extensions",
       "unevaluatedProperties": false
     },
     "contact": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#contact-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#contact-object",
       "type": "object",
       "properties": {
         "name": {
@@ -110,7 +122,7 @@
         },
         "url": {
           "type": "string",
-          "format": "uri"
+          "format": "uri-reference"
         },
         "email": {
           "type": "string",
@@ -121,7 +133,7 @@
       "unevaluatedProperties": false
     },
     "license": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#license-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#license-object",
       "type": "object",
       "properties": {
         "name": {
@@ -132,14 +144,18 @@
         },
         "url": {
           "type": "string",
-          "format": "uri"
+          "format": "uri-reference"
         }
       },
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "dependentSchemas": {
         "identifier": {
           "not": {
-            "required": ["url"]
+            "required": [
+              "url"
+            ]
           }
         }
       },
@@ -147,12 +163,11 @@
       "unevaluatedProperties": false
     },
     "server": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#server-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#server-object",
       "type": "object",
       "properties": {
         "url": {
-          "type": "string",
-          "format": "uri-reference"
+          "type": "string"
         },
         "description": {
           "type": "string"
@@ -164,12 +179,14 @@
           }
         }
       },
-      "required": ["url"],
+      "required": [
+        "url"
+      ],
       "$ref": "#/$defs/specification-extensions",
       "unevaluatedProperties": false
     },
     "server-variable": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#server-variable-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#server-variable-object",
       "type": "object",
       "properties": {
         "enum": {
@@ -186,12 +203,14 @@
           "type": "string"
         }
       },
-      "required": ["default"],
+      "required": [
+        "default"
+      ],
       "$ref": "#/$defs/specification-extensions",
       "unevaluatedProperties": false
     },
     "components": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#components-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#components-object",
       "type": "object",
       "properties": {
         "schemas": {
@@ -251,7 +270,7 @@
         "pathItems": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/path-item-or-reference"
+            "$ref": "#/$defs/path-item"
           }
         }
       },
@@ -267,7 +286,7 @@
       "unevaluatedProperties": false
     },
     "paths": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#paths-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#paths-object",
       "type": "object",
       "patternProperties": {
         "^/": {
@@ -278,9 +297,13 @@
       "unevaluatedProperties": false
     },
     "path-item": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#path-item-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#path-item-object",
       "type": "object",
       "properties": {
+        "$ref": {
+          "type": "string",
+          "format": "uri-reference"
+        },
         "summary": {
           "type": "string"
         },
@@ -327,20 +350,8 @@
       "$ref": "#/$defs/specification-extensions",
       "unevaluatedProperties": false
     },
-    "path-item-or-reference": {
-      "if": {
-        "type": "object",
-        "required": ["$ref"]
-      },
-      "then": {
-        "$ref": "#/$defs/reference"
-      },
-      "else": {
-        "$ref": "#/$defs/path-item"
-      }
-    },
     "operation": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#operation-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#operation-object",
       "type": "object",
       "properties": {
         "tags": {
@@ -400,7 +411,7 @@
       "unevaluatedProperties": false
     },
     "external-documentation": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#external-documentation-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#external-documentation-object",
       "type": "object",
       "properties": {
         "description": {
@@ -408,22 +419,29 @@
         },
         "url": {
           "type": "string",
-          "format": "uri"
+          "format": "uri-reference"
         }
       },
-      "required": ["url"],
+      "required": [
+        "url"
+      ],
       "$ref": "#/$defs/specification-extensions",
       "unevaluatedProperties": false
     },
     "parameter": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#parameter-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#parameter-object",
       "type": "object",
       "properties": {
         "name": {
           "type": "string"
         },
         "in": {
-          "enum": ["query", "header", "path", "cookie"]
+          "enum": [
+            "query",
+            "header",
+            "path",
+            "cookie"
+          ]
         },
         "description": {
           "type": "string"
@@ -445,13 +463,20 @@
           "maxProperties": 1
         }
       },
-      "required": ["name", "in"],
+      "required": [
+        "name",
+        "in"
+      ],
       "oneOf": [
         {
-          "required": ["schema"]
+          "required": [
+            "schema"
+          ]
         },
         {
-          "required": ["content"]
+          "required": [
+            "content"
+          ]
         }
       ],
       "if": {
@@ -460,7 +485,9 @@
             "const": "query"
           }
         },
-        "required": ["in"]
+        "required": [
+          "in"
+        ]
       },
       "then": {
         "properties": {
@@ -497,7 +524,7 @@
               "$ref": "#/$defs/parameter/dependentSchemas/schema/$defs/styles-for-cookie"
             },
             {
-              "$ref": "#/$defs/parameter/dependentSchemas/schema/$defs/styles-for-form"
+              "$ref": "#/$defs/styles-for-form"
             }
           ],
           "$defs": {
@@ -508,22 +535,27 @@
                     "const": "path"
                   }
                 },
-                "required": ["in"]
+                "required": [
+                  "in"
+                ]
               },
               "then": {
                 "properties": {
-                  "name": {
-                    "pattern": "[^/#?]+$"
-                  },
                   "style": {
                     "default": "simple",
-                    "enum": ["matrix", "label", "simple"]
+                    "enum": [
+                      "matrix",
+                      "label",
+                      "simple"
+                    ]
                   },
                   "required": {
                     "const": true
                   }
                 },
-                "required": ["required"]
+                "required": [
+                  "required"
+                ]
               }
             },
             "styles-for-header": {
@@ -533,7 +565,9 @@
                     "const": "header"
                   }
                 },
-                "required": ["in"]
+                "required": [
+                  "in"
+                ]
               },
               "then": {
                 "properties": {
@@ -551,13 +585,20 @@
                     "const": "query"
                   }
                 },
-                "required": ["in"]
+                "required": [
+                  "in"
+                ]
               },
               "then": {
                 "properties": {
                   "style": {
                     "default": "form",
-                    "enum": ["form", "spaceDelimited", "pipeDelimited", "deepObject"]
+                    "enum": [
+                      "form",
+                      "spaceDelimited",
+                      "pipeDelimited",
+                      "deepObject"
+                    ]
                   },
                   "allowReserved": {
                     "default": false,
@@ -573,37 +614,15 @@
                     "const": "cookie"
                   }
                 },
-                "required": ["in"]
+                "required": [
+                  "in"
+                ]
               },
               "then": {
                 "properties": {
                   "style": {
                     "default": "form",
                     "const": "form"
-                  }
-                }
-              }
-            },
-            "styles-for-form": {
-              "if": {
-                "properties": {
-                  "style": {
-                    "const": "form"
-                  }
-                },
-                "required": ["style"]
-              },
-              "then": {
-                "properties": {
-                  "explode": {
-                    "default": true
-                  }
-                }
-              },
-              "else": {
-                "properties": {
-                  "explode": {
-                    "default": false
                   }
                 }
               }
@@ -617,7 +636,9 @@
     "parameter-or-reference": {
       "if": {
         "type": "object",
-        "required": ["$ref"]
+        "required": [
+          "$ref"
+        ]
       },
       "then": {
         "$ref": "#/$defs/reference"
@@ -627,7 +648,7 @@
       }
     },
     "request-body": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#request-body-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#request-body-object",
       "type": "object",
       "properties": {
         "description": {
@@ -641,14 +662,18 @@
           "type": "boolean"
         }
       },
-      "required": ["content"],
+      "required": [
+        "content"
+      ],
       "$ref": "#/$defs/specification-extensions",
       "unevaluatedProperties": false
     },
     "request-body-or-reference": {
       "if": {
         "type": "object",
-        "required": ["$ref"]
+        "required": [
+          "$ref"
+        ]
       },
       "then": {
         "$ref": "#/$defs/reference"
@@ -658,7 +683,7 @@
       }
     },
     "content": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#fixed-fields-10",
+      "$comment": "https://spec.openapis.org/oas/v3.1#fixed-fields-10",
       "type": "object",
       "additionalProperties": {
         "$ref": "#/$defs/media-type"
@@ -668,7 +693,7 @@
       }
     },
     "media-type": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#media-type-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#media-type-object",
       "type": "object",
       "properties": {
         "schema": {
@@ -692,7 +717,7 @@
       "unevaluatedProperties": false
     },
     "encoding": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#encoding-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#encoding-object",
       "type": "object",
       "properties": {
         "contentType": {
@@ -707,7 +732,12 @@
         },
         "style": {
           "default": "form",
-          "enum": ["form", "spaceDelimited", "pipeDelimited", "deepObject"]
+          "enum": [
+            "form",
+            "spaceDelimited",
+            "pipeDelimited",
+            "deepObject"
+          ]
         },
         "explode": {
           "type": "boolean"
@@ -722,39 +752,13 @@
           "$ref": "#/$defs/specification-extensions"
         },
         {
-          "$ref": "#/$defs/encoding/$defs/explode-default"
+          "$ref": "#/$defs/styles-for-form"
         }
       ],
-      "unevaluatedProperties": false,
-      "$defs": {
-        "explode-default": {
-          "if": {
-            "properties": {
-              "style": {
-                "const": "form"
-              }
-            },
-            "required": ["style"]
-          },
-          "then": {
-            "properties": {
-              "explode": {
-                "default": true
-              }
-            }
-          },
-          "else": {
-            "properties": {
-              "explode": {
-                "default": false
-              }
-            }
-          }
-        }
-      }
+      "unevaluatedProperties": false
     },
     "responses": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#responses-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#responses-object",
       "type": "object",
       "properties": {
         "default": {
@@ -768,10 +772,21 @@
       },
       "minProperties": 1,
       "$ref": "#/$defs/specification-extensions",
-      "unevaluatedProperties": false
+      "unevaluatedProperties": false,
+      "if": {
+        "$comment": "either default, or at least one response code property must exist",
+        "patternProperties": {
+          "^[1-5](?:[0-9]{2}|XX)$": false
+        }
+      },
+      "then": {
+        "required": [
+          "default"
+        ]
+      }
     },
     "response": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#response-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#response-object",
       "type": "object",
       "properties": {
         "description": {
@@ -793,14 +808,18 @@
           }
         }
       },
-      "required": ["description"],
+      "required": [
+        "description"
+      ],
       "$ref": "#/$defs/specification-extensions",
       "unevaluatedProperties": false
     },
     "response-or-reference": {
       "if": {
         "type": "object",
-        "required": ["$ref"]
+        "required": [
+          "$ref"
+        ]
       },
       "then": {
         "$ref": "#/$defs/reference"
@@ -810,17 +829,19 @@
       }
     },
     "callbacks": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#callback-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#callback-object",
       "type": "object",
       "$ref": "#/$defs/specification-extensions",
       "additionalProperties": {
-        "$ref": "#/$defs/path-item-or-reference"
+        "$ref": "#/$defs/path-item"
       }
     },
     "callbacks-or-reference": {
       "if": {
         "type": "object",
-        "required": ["$ref"]
+        "required": [
+          "$ref"
+        ]
       },
       "then": {
         "$ref": "#/$defs/reference"
@@ -830,7 +851,7 @@
       }
     },
     "example": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#example-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#example-object",
       "type": "object",
       "properties": {
         "summary": {
@@ -842,11 +863,14 @@
         "value": true,
         "externalValue": {
           "type": "string",
-          "format": "uri"
+          "format": "uri-reference"
         }
       },
       "not": {
-        "required": ["value", "externalValue"]
+        "required": [
+          "value",
+          "externalValue"
+        ]
       },
       "$ref": "#/$defs/specification-extensions",
       "unevaluatedProperties": false
@@ -854,7 +878,9 @@
     "example-or-reference": {
       "if": {
         "type": "object",
-        "required": ["$ref"]
+        "required": [
+          "$ref"
+        ]
       },
       "then": {
         "$ref": "#/$defs/reference"
@@ -864,7 +890,7 @@
       }
     },
     "link": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#link-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#link-object",
       "type": "object",
       "properties": {
         "operationRef": {
@@ -887,10 +913,14 @@
       },
       "oneOf": [
         {
-          "required": ["operationRef"]
+          "required": [
+            "operationRef"
+          ]
         },
         {
-          "required": ["operationId"]
+          "required": [
+            "operationId"
+          ]
         }
       ],
       "$ref": "#/$defs/specification-extensions",
@@ -899,7 +929,9 @@
     "link-or-reference": {
       "if": {
         "type": "object",
-        "required": ["$ref"]
+        "required": [
+          "$ref"
+        ]
       },
       "then": {
         "$ref": "#/$defs/reference"
@@ -909,7 +941,7 @@
       }
     },
     "header": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#header-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#header-object",
       "type": "object",
       "properties": {
         "description": {
@@ -934,10 +966,14 @@
       },
       "oneOf": [
         {
-          "required": ["schema"]
+          "required": [
+            "schema"
+          ]
         },
         {
-          "required": ["content"]
+          "required": [
+            "content"
+          ]
         }
       ],
       "dependentSchemas": {
@@ -961,7 +997,9 @@
     "header-or-reference": {
       "if": {
         "type": "object",
-        "required": ["$ref"]
+        "required": [
+          "$ref"
+        ]
       },
       "then": {
         "$ref": "#/$defs/reference"
@@ -971,7 +1009,7 @@
       }
     },
     "tag": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#tag-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#tag-object",
       "type": "object",
       "properties": {
         "name": {
@@ -984,12 +1022,14 @@
           "$ref": "#/$defs/external-documentation"
         }
       },
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "$ref": "#/$defs/specification-extensions",
       "unevaluatedProperties": false
     },
     "reference": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#reference-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#reference-object",
       "type": "object",
       "properties": {
         "$ref": {
@@ -1002,26 +1042,36 @@
         "description": {
           "type": "string"
         }
-      },
-      "unevaluatedProperties": false
+      }
     },
     "schema": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#schema-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#schema-object",
       "$dynamicAnchor": "meta",
-      "type": ["object", "boolean"]
+      "type": [
+        "object",
+        "boolean"
+      ]
     },
     "security-scheme": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#security-scheme-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#security-scheme-object",
       "type": "object",
       "properties": {
         "type": {
-          "enum": ["apiKey", "http", "mutualTLS", "oauth2", "openIdConnect"]
+          "enum": [
+            "apiKey",
+            "http",
+            "mutualTLS",
+            "oauth2",
+            "openIdConnect"
+          ]
         },
         "description": {
           "type": "string"
         }
       },
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "allOf": [
         {
           "$ref": "#/$defs/specification-extensions"
@@ -1051,7 +1101,9 @@
                 "const": "apiKey"
               }
             },
-            "required": ["type"]
+            "required": [
+              "type"
+            ]
           },
           "then": {
             "properties": {
@@ -1059,10 +1111,17 @@
                 "type": "string"
               },
               "in": {
-                "enum": ["query", "header", "cookie"]
+                "enum": [
+                  "query",
+                  "header",
+                  "cookie"
+                ]
               }
             },
-            "required": ["name", "in"]
+            "required": [
+              "name",
+              "in"
+            ]
           }
         },
         "type-http": {
@@ -1072,7 +1131,9 @@
                 "const": "http"
               }
             },
-            "required": ["type"]
+            "required": [
+              "type"
+            ]
           },
           "then": {
             "properties": {
@@ -1080,7 +1141,9 @@
                 "type": "string"
               }
             },
-            "required": ["scheme"]
+            "required": [
+              "scheme"
+            ]
           }
         },
         "type-http-bearer": {
@@ -1094,7 +1157,10 @@
                 "pattern": "^[Bb][Ee][Aa][Rr][Ee][Rr]$"
               }
             },
-            "required": ["type", "scheme"]
+            "required": [
+              "type",
+              "scheme"
+            ]
           },
           "then": {
             "properties": {
@@ -1111,7 +1177,9 @@
                 "const": "oauth2"
               }
             },
-            "required": ["type"]
+            "required": [
+              "type"
+            ]
           },
           "then": {
             "properties": {
@@ -1119,7 +1187,9 @@
                 "$ref": "#/$defs/oauth-flows"
               }
             },
-            "required": ["flows"]
+            "required": [
+              "flows"
+            ]
           }
         },
         "type-oidc": {
@@ -1129,16 +1199,20 @@
                 "const": "openIdConnect"
               }
             },
-            "required": ["type"]
+            "required": [
+              "type"
+            ]
           },
           "then": {
             "properties": {
               "openIdConnectUrl": {
                 "type": "string",
-                "format": "uri"
+                "format": "uri-reference"
               }
             },
-            "required": ["openIdConnectUrl"]
+            "required": [
+              "openIdConnectUrl"
+            ]
           }
         }
       }
@@ -1146,7 +1220,9 @@
     "security-scheme-or-reference": {
       "if": {
         "type": "object",
-        "required": ["$ref"]
+        "required": [
+          "$ref"
+        ]
       },
       "then": {
         "$ref": "#/$defs/reference"
@@ -1179,17 +1255,20 @@
           "properties": {
             "authorizationUrl": {
               "type": "string",
-              "format": "uri"
+              "format": "uri-reference"
             },
             "refreshUrl": {
               "type": "string",
-              "format": "uri"
+              "format": "uri-reference"
             },
             "scopes": {
               "$ref": "#/$defs/map-of-strings"
             }
           },
-          "required": ["authorizationUrl", "scopes"],
+          "required": [
+            "authorizationUrl",
+            "scopes"
+          ],
           "$ref": "#/$defs/specification-extensions",
           "unevaluatedProperties": false
         },
@@ -1198,17 +1277,20 @@
           "properties": {
             "tokenUrl": {
               "type": "string",
-              "format": "uri"
+              "format": "uri-reference"
             },
             "refreshUrl": {
               "type": "string",
-              "format": "uri"
+              "format": "uri-reference"
             },
             "scopes": {
               "$ref": "#/$defs/map-of-strings"
             }
           },
-          "required": ["tokenUrl", "scopes"],
+          "required": [
+            "tokenUrl",
+            "scopes"
+          ],
           "$ref": "#/$defs/specification-extensions",
           "unevaluatedProperties": false
         },
@@ -1217,17 +1299,20 @@
           "properties": {
             "tokenUrl": {
               "type": "string",
-              "format": "uri"
+              "format": "uri-reference"
             },
             "refreshUrl": {
               "type": "string",
-              "format": "uri"
+              "format": "uri-reference"
             },
             "scopes": {
               "$ref": "#/$defs/map-of-strings"
             }
           },
-          "required": ["tokenUrl", "scopes"],
+          "required": [
+            "tokenUrl",
+            "scopes"
+          ],
           "$ref": "#/$defs/specification-extensions",
           "unevaluatedProperties": false
         },
@@ -1236,28 +1321,32 @@
           "properties": {
             "authorizationUrl": {
               "type": "string",
-              "format": "uri"
+              "format": "uri-reference"
             },
             "tokenUrl": {
               "type": "string",
-              "format": "uri"
+              "format": "uri-reference"
             },
             "refreshUrl": {
               "type": "string",
-              "format": "uri"
+              "format": "uri-reference"
             },
             "scopes": {
               "$ref": "#/$defs/map-of-strings"
             }
           },
-          "required": ["authorizationUrl", "tokenUrl", "scopes"],
+          "required": [
+            "authorizationUrl",
+            "tokenUrl",
+            "scopes"
+          ],
           "$ref": "#/$defs/specification-extensions",
           "unevaluatedProperties": false
         }
       }
     },
     "security-requirement": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#security-requirement-object",
+      "$comment": "https://spec.openapis.org/oas/v3.1#security-requirement-object",
       "type": "object",
       "additionalProperties": {
         "type": "array",
@@ -1267,7 +1356,7 @@
       }
     },
     "specification-extensions": {
-      "$comment": "https://spec.openapis.org/oas/v3.1.0#specification-extensions",
+      "$comment": "https://spec.openapis.org/oas/v3.1#specification-extensions",
       "patternProperties": {
         "^x-": true
       }
@@ -1287,6 +1376,32 @@
       "type": "object",
       "additionalProperties": {
         "type": "string"
+      }
+    },
+    "styles-for-form": {
+      "if": {
+        "properties": {
+          "style": {
+            "const": "form"
+          }
+        },
+        "required": [
+          "style"
+        ]
+      },
+      "then": {
+        "properties": {
+          "explode": {
+            "default": true
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "explode": {
+            "default": false
+          }
+        }
       }
     }
   }

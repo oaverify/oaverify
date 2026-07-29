@@ -113,3 +113,35 @@ describe("metaschemaUrl", () => {
     for (const v of VERSIONS) expect(metaschemaUrl(v)).toContain(`/oas/${v}/schema/`);
   });
 });
+
+describe("bundle cost", () => {
+  it("does not retain the vendored documents when only the dispatch is imported", async () => {
+    // `metaschemaVersionOf` reads a string off a document and touches no
+    // schema, so a consumer importing only it should not pay for 100KB
+    // of JSON. That is not automatic: any side-effecting top-level call
+    // that references the imports (an `Object.freeze` over the lookup
+    // table is the easy mistake) forces a bundler to retain all three.
+    //
+    // Measured rather than asserted structurally, because the failure
+    // mode is invisible in the source: the module still looks fine, the
+    // types are unchanged, and every other test passes.
+    const { build } = await import("esbuild");
+    const entry = new URL("../src/index.ts", import.meta.url).pathname;
+    const result = await build({
+      stdin: {
+        contents: `export { metaschemaVersionOf } from ${JSON.stringify(entry)};`,
+        resolveDir: new URL("../src/", import.meta.url).pathname,
+        loader: "ts",
+      },
+      bundle: true,
+      format: "esm",
+      target: "es2022",
+      write: false,
+      logLevel: "silent",
+    });
+    const bytes = result.outputFiles[0]!.contents.byteLength;
+    // The three documents are ~100KB together. A generous ceiling: this
+    // is guarding against retaining them at all, not against drift.
+    expect(bytes).toBeLessThan(10_000);
+  });
+});

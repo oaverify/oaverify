@@ -31,6 +31,27 @@ refresh the file, re-run the tests, review what moved.
 `https://spec.openapis.org/oas/3.1/schema/latest` returns 404, so dated
 URLs are the only addressing available in any case.
 
+## Bundle cost
+
+The three documents are ~100KB together. A consumer importing only
+`metaschemaVersionOf`, which reads a string off a document and touches no
+schema, should not pay for them, and does not: esbuild drops all three.
+
+That is not automatic. Any side-effecting top-level call that references
+the lookup table forces a bundler to retain everything it points at. An
+`Object.freeze` over the version map is the easy version of that mistake,
+and it costs the whole 100KB (measured: 101,593 bytes retained with the
+freeze, 514 without). `Readonly<>` gives the guarantee that matters at
+compile time and at no runtime cost. `test/index.test.ts` bundles the
+module and asserts the ceiling, because the failure mode is invisible in
+the source.
+
+The separate consequence, for whoever wires this into a build: keep it
+off `@oaverify/core`'s main entry. `metaschemaFor` genuinely needs all
+three, so anything reaching it pays in full. That belongs in the CLI
+tarball, where `check` lives, rather than in the library every framework
+adapter depends on.
+
 ## The Schema Object, and why 3.0 is different
 
 How much of the Schema Object a meta-schema covers decides how this
