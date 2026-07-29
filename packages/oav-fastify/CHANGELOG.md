@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.0.0](https://github.com/oaverify/oaverify/compare/fastify-v4.0.0...fastify-v5.0.0) (2026-07-29)
+
+
+### Chore
+
+* **fastify:** Synchronize oaverify versions
+
 ## [4.0.0](https://github.com/oaverify/oaverify/compare/fastify-v3.8.0...fastify-v4.0.0) (2026-07-28)
 
 

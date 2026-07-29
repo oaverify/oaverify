@@ -1,5 +1,26 @@
 # Changelog
 
+## [5.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v4.0.0...oaverify-v5.0.0) (2026-07-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cli:** a usage error (unknown command, unknown option, missing argument) exits 3 rather than Commander's 1.
+
+### Features
+
+* **cli:** add --version ([#526](https://github.com/oaverify/oaverify/issues/526)) ([8df026a](https://github.com/oaverify/oaverify/commit/8df026a4689d840bb360df53739ef84fa5c3a508))
+
+
+### Bug Fixes
+
+* **cli:** exit 3 on a usage error, and split check's exit 2 ([#533](https://github.com/oaverify/oaverify/issues/533)) ([f64c9a9](https://github.com/oaverify/oaverify/commit/f64c9a9309d90f76e357cf0ecb823345c32a951d))
+
+
+### Documentation
+
+* refresh release docs and tsdoc ([#535](https://github.com/oaverify/oaverify/issues/535)) ([3958943](https://github.com/oaverify/oaverify/commit/39589432cef11d2b079b8b889dba1a00636d1852))
+
 ## [4.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v3.8.0...oaverify-v4.0.0) (2026-07-28)
 
 

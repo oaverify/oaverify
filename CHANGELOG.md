@@ -1,5 +1,63 @@
 # Changelog
 
+## [5.0.0](https://github.com/oaverify/oaverify/compare/core-v4.0.0...core-v5.0.0) (2026-07-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **validator:** dialect overrides the version the document declares ([#538](https://github.com/oaverify/oaverify/issues/538))
+* **cli:** a usage error (unknown command, unknown option, missing argument) exits 3 rather than Commander's 1.
+* **cli:** `CheckFinding.class` gains `"malformed"`, and a malformed schema is now reported under it instead of `"schema"`. A consumer switching on `class` in `check --format json` output sees a value it did not before.
+* **schema:** run the well-formedness guard on $ref targets ([#522](https://github.com/oaverify/oaverify/issues/522))
+* **spec:** overlay extend verbs take a Partial of the component ([#509](https://github.com/oaverify/oaverify/issues/509))
+* **validator:** apply $ref siblings at request and response body roots ([#508](https://github.com/oaverify/oaverify/issues/508))
+* **cli:** add a check verb for spec validity ([#502](https://github.com/oaverify/oaverify/issues/502))
+* **schema:** withhold required-not-in-properties pending its rewrite ([#501](https://github.com/oaverify/oaverify/issues/501))
+* remove the v4-overdue deprecated aliases ([#497](https://github.com/oaverify/oaverify/issues/497))
+* rename strict to schemaLint ([#495](https://github.com/oaverify/oaverify/issues/495))
+
+### Features
+
+* **cli:** add --version ([#526](https://github.com/oaverify/oaverify/issues/526)) ([8df026a](https://github.com/oaverify/oaverify/commit/8df026a4689d840bb360df53739ef84fa5c3a508))
+* **cli:** add a check verb for spec validity ([#502](https://github.com/oaverify/oaverify/issues/502)) ([09481f1](https://github.com/oaverify/oaverify/commit/09481f1f7798a45c3f027453d8fadb33a4fbecfd)), closes [#476](https://github.com/oaverify/oaverify/issues/476)
+* **cli:** report malformed schemas under their own finding class ([#529](https://github.com/oaverify/oaverify/issues/529)) ([0ad1b7a](https://github.com/oaverify/oaverify/commit/0ad1b7a52e747b968f2455c1d24cec5a9f1e8c7e))
+* **schema:** add validateKeywordValue to KeywordDefinition ([#498](https://github.com/oaverify/oaverify/issues/498)) ([fc9ff17](https://github.com/oaverify/oaverify/commit/fc9ff1787d65fea5161ab1ec1ebbf4b8f5bbaffc))
+* **validator:** carry operation context into compile-time schema output ([#507](https://github.com/oaverify/oaverify/issues/507)) ([e132131](https://github.com/oaverify/oaverify/commit/e132131658cd1b14168e048c422e2ae13eea2f91))
+
+
+### Bug Fixes
+
+* **cli:** exit 3 on a usage error, and split check's exit 2 ([#533](https://github.com/oaverify/oaverify/issues/533)) ([f64c9a9](https://github.com/oaverify/oaverify/commit/f64c9a9309d90f76e357cf0ecb823345c32a951d))
+* **cli:** flush stdout before exiting ([#524](https://github.com/oaverify/oaverify/issues/524)) ([425224c](https://github.com/oaverify/oaverify/commit/425224c14b5473f57f1d8ac8ea01341c383186ad))
+* **cli:** report every finding when a schema is malformed ([#525](https://github.com/oaverify/oaverify/issues/525)) ([a6a818f](https://github.com/oaverify/oaverify/commit/a6a818fec1a387db3b25df045d58d11ba60a5fe1))
+* remove polynomial backtracking from the router and uri format ([#487](https://github.com/oaverify/oaverify/issues/487)) ([3bb065e](https://github.com/oaverify/oaverify/commit/3bb065e37686c4667a913cd8006f257734a40504))
+* **schema:** a ref the lint walk cannot follow no longer fails the compile ([#537](https://github.com/oaverify/oaverify/issues/537)) ([d4bbfc9](https://github.com/oaverify/oaverify/commit/d4bbfc922f0a8f1bd061f2eccb858249fcd23d07))
+* **schema:** follow $ref in the schema lint walk ([#523](https://github.com/oaverify/oaverify/issues/523)) ([9333521](https://github.com/oaverify/oaverify/commit/9333521557537c3004a47cc6cb0ff1fc17155528))
+* **schema:** make required-not-in-properties ancestor-aware ([#503](https://github.com/oaverify/oaverify/issues/503)) ([4e5dce1](https://github.com/oaverify/oaverify/commit/4e5dce1b3de642ca5309ad9cbe7addc7304deb67))
+* **schema:** make the required-lint walk linear in the $ref graph ([#521](https://github.com/oaverify/oaverify/issues/521)) ([bf1b81e](https://github.com/oaverify/oaverify/commit/bf1b81e1bdeb938063e2871b27bb7348547eabfe))
+* **schema:** reject illegal type names and non-array required ([#494](https://github.com/oaverify/oaverify/issues/494)) ([2411096](https://github.com/oaverify/oaverify/commit/24110960182969f756354fd228fbfaa24fda5b39)), closes [#474](https://github.com/oaverify/oaverify/issues/474) [#490](https://github.com/oaverify/oaverify/issues/490)
+* **schema:** reject non-schema values in schema-valued slots ([#492](https://github.com/oaverify/oaverify/issues/492)) ([17d367b](https://github.com/oaverify/oaverify/commit/17d367b938e92dbe3766c8b57708d21d0163e78d)), closes [#473](https://github.com/oaverify/oaverify/issues/473)
+* **schema:** run the well-formedness guard on $ref targets ([#522](https://github.com/oaverify/oaverify/issues/522)) ([8bbb043](https://github.com/oaverify/oaverify/commit/8bbb0439af98a91002a42ec0f8dd2a41c55ae3db))
+* **schema:** withhold required-not-in-properties pending its rewrite ([#501](https://github.com/oaverify/oaverify/issues/501)) ([c0dee06](https://github.com/oaverify/oaverify/commit/c0dee0694a6f4850d39f0a1099b64f78e3fa78fd))
+* **spec:** overlay extend verbs take a Partial of the component ([#509](https://github.com/oaverify/oaverify/issues/509)) ([789377d](https://github.com/oaverify/oaverify/commit/789377dd86286c264e2e7ab7c7cf9dcc954cc9a1))
+* **validator:** apply $ref siblings at request and response body roots ([#508](https://github.com/oaverify/oaverify/issues/508)) ([61edd74](https://github.com/oaverify/oaverify/commit/61edd74a9fccb679a4672222c8d743c1cc257589))
+* **validator:** dialect overrides the version the document declares ([#538](https://github.com/oaverify/oaverify/issues/538)) ([7345a3d](https://github.com/oaverify/oaverify/commit/7345a3d6f3c76a57052087afc0335e393eff1c05))
+* **validator:** guard each schema in precompile collect mode ([#527](https://github.com/oaverify/oaverify/issues/527)) ([e7c7035](https://github.com/oaverify/oaverify/commit/e7c703545b61dfd2027bc68e0df8a92572da0db5))
+
+
+### Documentation
+
+* add the v4 to v5 migration guide ([#530](https://github.com/oaverify/oaverify/issues/530)) ([309c85c](https://github.com/oaverify/oaverify/commit/309c85ce2384eabca017f71e99da5633fcea8dc9))
+* correct the malformed-schema story and the stale strict links ([#528](https://github.com/oaverify/oaverify/issues/528)) ([c35bc05](https://github.com/oaverify/oaverify/commit/c35bc053320fbb48e63843037e9fc17070efa4e8))
+* refresh release docs and tsdoc ([#535](https://github.com/oaverify/oaverify/issues/535)) ([3958943](https://github.com/oaverify/oaverify/commit/39589432cef11d2b079b8b889dba1a00636d1852))
+* **schema:** write down the ref-addressing rule ([#532](https://github.com/oaverify/oaverify/issues/532)) ([8b06295](https://github.com/oaverify/oaverify/commit/8b06295a2b8cb0efc7c92a40d4107e352084f451))
+
+
+### Refactoring
+
+* remove the v4-overdue deprecated aliases ([#497](https://github.com/oaverify/oaverify/issues/497)) ([0b44793](https://github.com/oaverify/oaverify/commit/0b44793d8bb0ee06ac62b87fcd29cc025fe78d17))
+* rename strict to schemaLint ([#495](https://github.com/oaverify/oaverify/issues/495)) ([ea17a41](https://github.com/oaverify/oaverify/commit/ea17a41dd05362dc1adb7978ce7b8b7963943405))
+
 ## [4.0.0](https://github.com/oaverify/oaverify/compare/core-v3.8.0...core-v4.0.0) (2026-07-28)
 
 

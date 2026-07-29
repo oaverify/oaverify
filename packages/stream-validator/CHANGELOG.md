@@ -1,5 +1,21 @@
 # Changelog
 
+## [5.0.0](https://github.com/oaverify/oaverify/compare/stream-v4.0.0...stream-v5.0.0) (2026-07-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cli:** add a check verb for spec validity ([#502](https://github.com/oaverify/oaverify/issues/502))
+
+### Features
+
+* **cli:** add a check verb for spec validity ([#502](https://github.com/oaverify/oaverify/issues/502)) ([09481f1](https://github.com/oaverify/oaverify/commit/09481f1f7798a45c3f027453d8fadb33a4fbecfd)), closes [#476](https://github.com/oaverify/oaverify/issues/476)
+
+
+### Documentation
+
+* refresh release docs and tsdoc ([#535](https://github.com/oaverify/oaverify/issues/535)) ([3958943](https://github.com/oaverify/oaverify/commit/39589432cef11d2b079b8b889dba1a00636d1852))
+
 ## [4.0.0](https://github.com/oaverify/oaverify/compare/stream-v1.1.0...stream-v4.0.0) (2026-07-28)
 
 
