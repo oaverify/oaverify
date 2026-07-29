@@ -624,6 +624,13 @@ describe("annotation value types", () => {
         issues.map((i) => i.keyword),
         JSON.stringify(value),
       ).toContain("externalDocs");
+      // And the message names the JSON type it actually got. A bare
+      // typeof would say "object" for both, which tells the author
+      // nothing about what they wrote.
+      const issue = issues.find((i) => i.keyword === "externalDocs");
+      expect(issue?.message, JSON.stringify(value)).toContain(
+        Array.isArray(value) ? "array" : "null",
+      );
     }
   });
 

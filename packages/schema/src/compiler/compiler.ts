@@ -162,7 +162,11 @@ function runSchemaLint(
           def?.annotationValueType !== undefined &&
           !isAnnotationValueType(obj[key], def.annotationValueType)
         ) {
-          const got = obj[key] === null ? "null" : typeof obj[key];
+          // Not bare `typeof`: it reports "object" for both null and an
+          // array, which are exactly the two values an object-typed
+          // annotation is most likely to be wrongly given.
+          const value = obj[key];
+          const got = Array.isArray(value) ? "array" : value === null ? "null" : typeof value;
           issues.push({
             code: "annotation-value-type",
             keyword: key,

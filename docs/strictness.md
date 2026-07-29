@@ -71,18 +71,18 @@ POST /things request body (application/json): "items" at "properties.a"
 must be an object or boolean; got an array.
 ```
 
-| Mode               | Reports                                                                           |
-| ------------------ | --------------------------------------------------------------------------------- |
-| `"off"`            | Nothing                                                                           |
-| `"warn"` (default) | Keywords oaverify implements only partially (currently `$dynamicRef`)             |
-| `"strict"`         | The above, plus unrecognised keywords (`minimumx: 5`) and silent-rewrite warnings |
+| Mode               | Reports                                                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `"off"`            | Nothing                                                                                                                           |
+| `"warn"` (default) | Keywords oaverify implements only partially (currently `$dynamicRef`), wrong-typed annotation values, and silent-rewrite warnings |
+| `"strict"`         | The above, plus unrecognised keywords (`minimumx: 5`)                                                                             |
 
 `schemaLintIssues` is a live array: it grows as schemas compile, and
 response-body schemas compile lazily on first use, so read it after the
 requests you care about rather than immediately after construction.
 
-`schemaLint` also reports `annotation-value-type`: an annotation
-carrying a value of the wrong type, most often a YAML `description:`
+The `annotation-value-type` row of that table is worth expanding: it
+flags an annotation carrying a value of the wrong type, most often a YAML `description:`
 left empty, which parses to `null`. It is a lint finding rather than a
 malformed-schema error because annotations emit no validation code, so
 the compiled validator is unaffected. What is lost is the text the
