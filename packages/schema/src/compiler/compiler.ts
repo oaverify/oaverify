@@ -33,7 +33,7 @@ import { assertWellFormedSchema } from "./well-formed.js";
 const TREE_RUNTIME_HELPERS = /\b(?:createLeafError|createBranchError|wrapErrors)\b/;
 
 /**
- * Default mode for {@link CompileOptions.strict}. Warns on partially-
+ * Default mode for {@link CompileOptions.schemaLint}. Warns on partially-
  * implemented keywords (currently `$dynamicRef`); silent on unknown
  * keys. Callers opt into stricter behavior with `"strict"` or opt
  * out with `"off"`.
@@ -301,7 +301,7 @@ export interface CompileStats {
    */
   emittedTreeRuntime: boolean;
   /**
-   * Warnings produced by {@link CompileOptions.strict}. Empty unless
+   * Warnings produced by {@link CompileOptions.schemaLint}. Empty unless
    * strict mode is active and found something to flag. Never contains
    * compile-blocking issues; strict mode only reports; the caller
    * decides whether to treat any entry as fatal.
@@ -311,7 +311,7 @@ export interface CompileStats {
 
 /**
  * A single finding from strict-mode schema linting (see
- * {@link CompileOptions.strict}).
+ * {@link CompileOptions.schemaLint}).
  *
  * @public
  */

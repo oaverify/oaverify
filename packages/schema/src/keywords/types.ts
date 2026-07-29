@@ -531,7 +531,7 @@ export interface KeywordDefinition {
    * Short explanation when this keyword is only partially supported:
    * the compiler accepts and dispatches it, but the emitted validation
    * doesn't fully match the spec. Surfaced via the compile-time strict
-   * mode (see {@link CompileOptions.strict}) so users know they're
+   * mode (see {@link CompileOptions.schemaLint}) so users know they're
    * getting degraded semantics rather than a silent fallback.
    *
    * Example: `$dynamicRef` sets `partial` because the implementation

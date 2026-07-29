@@ -104,10 +104,13 @@ oaverify check <spec>       # is my spec good?
 oaverify validate <spec>    # does this payload conform?
 ```
 
-`check` reports the first two classes above. Malformed schemas cannot be
-collected as findings -- there is no validator to grade -- so they exit 2
-with the compiler's located message. Lint findings are reported, and exit
-1 only when `--fail-on` asks for it.
+`check` reports the first two classes above, plus spec hygiene (unused
+components, path-parameter mismatches), which is a separate check rather
+than one of the three. A malformed schema is reported as a finding with
+the code `malformed-schema`, and `check` carries on with the rest of the
+document, so one bad `items` does not hide every other finding in the
+file. Lint findings are reported, and exit 1 only when `--fail-on` asks
+for it.
 
 ```
 oaverify check spec.yaml --only schema --fail-on warning --format json
@@ -118,15 +121,14 @@ oaverify check spec.yaml --only schema --fail-on warning --format json
 | 0    | clean                                              |
 | 1    | findings met `--fail-on`, or a domain check failed |
 | 2    | input could not be loaded, resolved, or compiled   |
+| 3    | CLI usage error                                    |
 
-`check` reports a malformed schema as a finding (`malformed-schema`)
-and carries on with the rest of the document, so one bad `items` does
-not hide every other finding in the file. The exit code still says the
-document cannot be compiled. The programmatic equivalent is
+A malformed schema still exits 2, since the document cannot be
+compiled, and that outranks `--fail-on`: a document that will not
+compile is not a gate result. The programmatic equivalent is
 `precompile({ onMalformed: "collect" })`; the default still throws,
 which is what a server wants, since continuing would leave that
 operation validating against nothing.
-| 3 | CLI usage error |
 
 Request strictness has no CLI surface: it changes how traffic is
 validated at runtime, which is a library setting.
