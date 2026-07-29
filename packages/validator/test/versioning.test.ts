@@ -6,7 +6,8 @@
  *   with sibling `nullable`, boolean `exclusiveMaximum` / `exclusiveMinimum`,
  *   and `$ref`-suppresses-siblings semantics.
  * - The QUERY method (new in 3.2) routes and validates like any other.
- * - An explicit `vocabularies` option overrides the version dispatch.
+ * - An explicit `dialect` option overrides the version dispatch, both
+ *   where detection succeeded and as the escape hatch where it did not.
  */
 
 import { describe, expect, it } from "vitest";
