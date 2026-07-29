@@ -14,6 +14,7 @@
       "@oaverify/internal-schema/internals": ["./packages/schema/src/internals.ts"],
       "@oaverify/internal-formats": ["./packages/formats/src/index.ts"],
       "@oaverify/internal-spec": ["./packages/spec/src/index.ts"],
+      "@oaverify/internal-spec/internals": ["./packages/spec/src/internals.ts"],
       "@oaverify/internal-router": ["./packages/router/src/index.ts"],
       "@oaverify/internal-validator": ["./packages/validator/src/index.ts"],
       "@oaverify/internal-validator/internals": ["./packages/validator/src/internals.ts"],
