@@ -535,3 +535,143 @@ describe("a $ref the lint walk cannot follow", () => {
     expect(issues.map((i) => i.keyword)).toContain("minimumx");
   });
 });
+
+describe("annotation value types", () => {
+  const lint = (schema: SchemaOrBoolean, mode?: "off" | "warn" | "strict") =>
+    compileSchema(schema, { dialect: jsonSchemaDialect, schemaLint: mode }).stats.schemaLintIssues;
+
+  it("flags a null description, the shape a YAML author writes by accident", () => {
+    // `description:` with nothing after it parses to null, and the text
+    // the author meant to write is simply gone. Nothing else in the
+    // pipeline sees this: annotations emit no code, so the compiled
+    // validator is byte-identical either way.
+    const issues = lint({ type: "string", description: null } as unknown as SchemaOrBoolean);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({
+      code: "annotation-value-type",
+      keyword: "description",
+    });
+    expect(issues[0]?.message).toContain("string");
+    expect(issues[0]?.message).toContain("null");
+  });
+
+  it("does not block construction", () => {
+    // The whole reason this is a lint issue rather than a well-formedness
+    // error. A mistyped annotation cannot change what the validator
+    // accepts, so refusing to build would harden the runtime path
+    // against a defect the runtime cannot observe.
+    const compiled = compileSchema(
+      { type: "string", description: null } as unknown as SchemaOrBoolean,
+      {
+        dialect: jsonSchemaDialect,
+      },
+    );
+    expect(compiled.validate("ok").valid).toBe(true);
+    expect(compiled.validate(5).valid).toBe(false);
+  });
+
+  it("fires in warn as well as strict", () => {
+    // A null description is never intentional, so it does not wait for
+    // an opt-in the way an unknown keyword does.
+    expect(lint({ description: null } as unknown as SchemaOrBoolean, "warn")).toHaveLength(1);
+    expect(lint({ description: null } as unknown as SchemaOrBoolean, "strict")).toHaveLength(1);
+    expect(lint({ description: null } as unknown as SchemaOrBoolean, "off")).toEqual([]);
+  });
+
+  it("checks the annotations whose type is part of their contract", () => {
+    expect(lint({ title: null } as unknown as SchemaOrBoolean)[0]).toMatchObject({
+      code: "annotation-value-type",
+      keyword: "title",
+    });
+    expect(lint({ deprecated: "yes" } as unknown as SchemaOrBoolean)[0]).toMatchObject({
+      code: "annotation-value-type",
+      keyword: "deprecated",
+    });
+    expect(lint({ readOnly: 1 } as unknown as SchemaOrBoolean)[0]).toMatchObject({
+      code: "annotation-value-type",
+      keyword: "readOnly",
+    });
+  });
+
+  it("checks object-typed annotations by type, not by shape", () => {
+    // `xml` and `externalDocs` are `type: object` in the OpenAPI spec,
+    // so a string there is the wrong type and is reported. Whether
+    // `xml.name` is a legal XML name is the document meta-schema's job:
+    // duplicating a fragment of it here would be a second source of
+    // truth for OpenAPI's own rules.
+    const bad = compileSchema(
+      { type: "string", xml: "elementName" } as unknown as SchemaOrBoolean,
+      { dialect: openapi31Dialect },
+    ).stats.schemaLintIssues;
+    expect(bad[0]).toMatchObject({ code: "annotation-value-type", keyword: "xml" });
+
+    const shapeNotChecked = compileSchema(
+      { type: "string", xml: { notARealXmlField: true } } as unknown as SchemaOrBoolean,
+      { dialect: openapi31Dialect },
+    ).stats.schemaLintIssues;
+    expect(shapeNotChecked).toEqual([]);
+  });
+
+  it("does not accept null or an array for an object-typed annotation", () => {
+    // `typeof null === "object"` and `typeof [] === "object"`, so a bare
+    // typeof check would pass both. Neither is a JSON object.
+    for (const value of [null, []]) {
+      const issues = compileSchema(
+        { type: "string", externalDocs: value } as unknown as SchemaOrBoolean,
+        { dialect: openapi31Dialect },
+      ).stats.schemaLintIssues;
+      expect(
+        issues.map((i) => i.keyword),
+        JSON.stringify(value),
+      ).toContain("externalDocs");
+      // And the message names the JSON type it actually got. A bare
+      // typeof would say "object" for both, which tells the author
+      // nothing about what they wrote.
+      const issue = issues.find((i) => i.keyword === "externalDocs");
+      expect(issue?.message, JSON.stringify(value)).toContain(
+        Array.isArray(value) ? "array" : "null",
+      );
+    }
+  });
+
+  it("leaves annotations alone where any value is legal", () => {
+    // Not an omission: `default`, `example` and `examples` carry
+    // instance values, so null is a legitimate thing to write there.
+    // Flagging them would be a false positive on correct schemas.
+    expect(lint({ type: "string", default: null } as unknown as SchemaOrBoolean)).toEqual([]);
+    expect(lint({ type: "string", example: null } as unknown as SchemaOrBoolean)).toEqual([]);
+    expect(lint({ type: "string", examples: [null] } as unknown as SchemaOrBoolean)).toEqual([]);
+  });
+
+  it("says nothing about correctly-typed annotations", () => {
+    const issues = lint({
+      type: "string",
+      title: "A name",
+      description: "The name of the thing",
+      deprecated: false,
+      readOnly: true,
+    } as unknown as SchemaOrBoolean);
+    expect(issues).toEqual([]);
+  });
+
+  it("finds them inside a nested schema, not just at the root", () => {
+    const issues = lint({
+      type: "object",
+      properties: { statusDate: { type: "string", description: null } },
+    } as unknown as SchemaOrBoolean);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.path).toContain("statusDate");
+  });
+
+  it("applies under the OpenAPI dialects too", () => {
+    for (const dialect of [openapi31Dialect, oas30Dialect]) {
+      const issues = compileSchema(
+        { type: "string", description: null } as unknown as SchemaOrBoolean,
+        {
+          dialect,
+        },
+      ).stats.schemaLintIssues;
+      expect(issues.map((i) => i.code)).toContain("annotation-value-type");
+    }
+  });
+});

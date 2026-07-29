@@ -100,6 +100,17 @@ function structuralEqual(a: unknown, b: unknown): boolean {
   return true;
 }
 
+/**
+ * Does an annotation's value have the declared JSON type?
+ *
+ * Not a bare `typeof`: that reports `"object"` for `null` and for an
+ * array, and an annotation declared as an object means a JSON object.
+ */
+function isAnnotationValueType(value: unknown, expected: "string" | "boolean" | "object"): boolean {
+  if (expected !== "object") return typeof value === expected;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function runSchemaLint(
   schema: SchemaOrBoolean,
   byKeyword: Map<string, KeywordDefinition>,
@@ -138,6 +149,32 @@ function runSchemaLint(
             keyword: key,
             path,
             message: `"${key}" is partially supported: ${def.partial}`,
+          });
+          continue;
+        }
+        // Reported here rather than in the well-formedness pass because
+        // an annotation emits no code: a mistyped one is a document
+        // conformance defect, not a schema that would make the validator
+        // lie. Blocking construction over it would harden the runtime
+        // path for a defect the runtime cannot observe. Runs in "warn"
+        // as well as "strict" because the value is never intentional.
+        if (
+          def?.annotationValueType !== undefined &&
+          !isAnnotationValueType(obj[key], def.annotationValueType)
+        ) {
+          // Not bare `typeof`: it reports "object" for both null and an
+          // array, which are exactly the two values an object-typed
+          // annotation is most likely to be wrongly given.
+          const value = obj[key];
+          const got = Array.isArray(value) ? "array" : value === null ? "null" : typeof value;
+          issues.push({
+            code: "annotation-value-type",
+            keyword: key,
+            path,
+            message:
+              path.length === 0
+                ? `"${key}" at <root> should be a ${def.annotationValueType}; got ${got}`
+                : `"${key}" at "${path}" should be a ${def.annotationValueType}; got ${got}`,
           });
           continue;
         }
@@ -351,10 +388,17 @@ export interface SchemaLintIssue {
    *   `format: binary` opaque-body bypass). The compiled validator's
    *   semantics differ from the source spec: identical branches
    *   collapse, changing the match-count behavior.
+   * - `"annotation-value-type"`: an annotation keyword carries a value
+   *   of the wrong type (`description: null` from a YAML key left
+   *   empty, `deprecated: "true"`). Annotations emit no code, so the
+   *   compiled validator is unaffected and this never blocks
+   *   construction; the text the author meant to write is simply
+   *   absent from the document.
    */
   code:
     | "partial-feature"
     | "unknown-keyword"
+    | "annotation-value-type"
     | "silent-rewrite/ref-siblings-oas30"
     | "silent-rewrite/required-not-in-properties"
     | "silent-rewrite/redundant-composition-branches";
