@@ -39,7 +39,7 @@ against it. Everything else here builds artifacts (`resolve`,
 ## Commands
 
 ```bash
-oaverify check <spec>                                         # conformance + hygiene + schema findings
+oaverify check <spec>                                         # conformance + hygiene + schema + example findings
 oaverify check <spec> --only conformance                      # one class only
 oaverify check <spec> --fail-on error                         # CI gate: exit 1 on spec violations
 oaverify check <spec> --fail-on warning                       # CI gate: exit 1 on any finding
@@ -116,7 +116,7 @@ below for the expected shape.
 | `--format text\|json\|summary`                | validate                                         | Error rendering. Default `text`. `summary` is one line per leaf; `flat` is its deprecated alias.                                        |
 | `--depth <n>`                                 | validate                                         | Truncate error tree depth (text format).                                                                                                |
 | `--overlay <file>`                            | resolve / validate / compile-spec / stream-check | Repeatable; applies overlays in order. Accepts a standard OpenAPI Overlay 1.0 document or a typed `SpecOverlay`; anything else exits 3. |
-| `--only <classes>`                            | check                                            | Comma-separated subset of `conformance`, `hygiene`, `schema`. Default: all.                                                             |
+| `--only <classes>`                            | check                                            | Comma-separated subset of `conformance`, `hygiene`, `schema`, `examples`. Default: all.                                                 |
 | `--fail-on <level>`                           | check                                            | Non-zero exit on any finding at or above `<level>`: `warning` (any finding), `error` (specification violations), `fatal`.               |
 | `--format text\|json`                         | check / stream-check                             | check: one finding per line, or `{ findings }`. stream-check: per-operation table, or the `SpecBudget`.                                 |
 | `--dialect 2020-12\|openapi-3.1\|openapi-3.0` | compile-schema / compile-spec                    | Schema dialect. Defaults: 2020-12 (compile-schema), auto-detect from `openapi` field (compile-spec).                                    |

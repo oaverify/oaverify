@@ -104,6 +104,72 @@ since that fallback reads the length of some constructs differently
 fires only where `type` is exactly `"string"`: with another type
 admitted, a non-string instance still validates.
 
+## Examples: do the documented examples match their schemas
+
+`check` validates the examples in the document against the schemas they
+illustrate, and reports failures under the `examples` class.
+
+Covered: Schema Object and Media Type Object examples reachable from
+`paths`, `webhooks`, `components.schemas`, `components.parameters`,
+`components.headers`, `components.requestBodies`,
+`components.responses`, `components.pathItems`, and callbacks (both on
+an operation and under `components.callbacks`).
+
+Two surfaces, one pass:
+
+- **Schema Object** `example` (3.0, singular) and `examples` (3.1, an
+  array of literal values), the JSON Schema annotations.
+- **Media Type Object** `example` and `examples` (a map of Example
+  Objects), which sit beside `schema:` under a content entry.
+
+Both are annotations, so nothing at runtime looks at them. What ships
+instead is a documented example contradicting the contract it
+illustrates, carried into generated docs, SDK fixtures and mock servers
+as though it were conformant.
+
+```
+warning examples [example-invalid]
+  /components/schemas/Thing/properties/count/example:
+  oaverify rejects "example" against its schema: must be integer (example: "not-an-integer")
+```
+
+The wording is deliberate. The finding reports this validator's verdict
+on the example, which is usually a defect in the example and
+occasionally a defect in oaverify (see below).
+
+Findings are located by RFC 6901 pointer, so a shared component is
+reported once, at its own definition, rather than once per operation
+that reaches it.
+
+The check runs the schema's own compiled validator over the value, which
+gets `format`, `enum`, `required` and every other keyword for free.
+Two consequences worth knowing:
+
+- Schemas are compiled **as authored**. Request and response bodies are
+  normally compiled per direction, with `readOnly` properties rewritten
+  to reject on the request leg and `writeOnly` on the response leg. An
+  example describes the schema its author wrote, not a direction
+  variant, so this pass never applies that rewrite. Checking examples
+  against the direction variant would report a component example that is
+  a perfectly good response as invalid.
+- A finding means _this validator_ rejects the example. Usually that is
+  a defect in the example; occasionally it is a defect in oaverify (see
+  [#553](https://github.com/oaverify/oaverify/issues/553)). Either way it
+  is worth knowing, because a real request shaped like that example
+  would be rejected too.
+
+It declines rather than guesses in three places: a Schema Object
+`examples` that is not an array (the 3.0 Example Object map shape under
+a 3.1 `openapi:`, which is document structure rather than schema
+semantics, see
+[#491](https://github.com/oaverify/oaverify/issues/491)); an Example
+Object carrying `externalValue`, which oaverify does not fetch; and a
+schema that will not compile.
+
+This is the one class that compiles schemas of its own accord, so it is
+also the one with a cost worth naming: on a 278-component document it
+adds roughly 60ms. `--only hygiene,schema,conformance` opts out.
+
 ## Request strictness: how tolerant validation is of traffic
 
 These change what counts as a valid request. They say nothing about
@@ -144,6 +210,7 @@ Every finding carries both, and neither implies the other.
 | `conformance` | Is this a legal OpenAPI document for its version? |
 | `hygiene`     | Is the document internally consistent?            |
 | `schema`      | Are the schemas what the author meant?            |
+| `examples`    | Do the documented examples satisfy their schemas? |
 | `malformed`   | Reported, never selected; see below.              |
 
 **Severity** says what it means for you, and is what `--fail-on` gates on:

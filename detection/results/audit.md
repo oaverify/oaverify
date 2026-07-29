@@ -109,7 +109,7 @@
 - **redocly**: security-defined: There is no `notDefinedAnywhere` security scheme defined. [#/paths/~1things/get/security/0/notDefinedAnywhere]
 
 ## `style/example-contradicts-schema` (style)
-- oaverify: no matching finding (0 raised)
+- **oaverify**: example-invalid: oaverify rejects "example" against its schema: count: must be integer (example: {"count":"not-an-integer"}) [/paths/~1things/get/responses/200/content/application~1json/example]
 - ajv: no matching finding (0 raised)
 - **spectral**: oas3-valid-media-example: "count" property type must be integer [paths//things/get/responses/200/content/application/json/example/count]
 - **redocly**: no-invalid-media-type-examples: Example value must conform to the schema: `count` property type must be integer. [#/paths/~1things/get/responses/200/content/application~1json/example/count]
