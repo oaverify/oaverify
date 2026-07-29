@@ -10,6 +10,8 @@
     "conformance/JSON-Schema-Test-Suite/",
     "CHANGELOG.md",
     "conformance/json-schema-results.json",
-    "detection/results/"
+    "detection/results/",
+    "packages/metaschema/src/vendor/",
+    "packages/metaschema/scripts/oas-3.0-upstream.json"
   ]
 }

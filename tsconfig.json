@@ -5,6 +5,7 @@
     { "path": "./packages/schema" },
     { "path": "./packages/formats" },
     { "path": "./packages/spec" },
+    { "path": "./packages/metaschema" },
     { "path": "./packages/overlay-spec" },
     { "path": "./packages/router" },
     { "path": "./packages/validator" },
