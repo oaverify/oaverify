@@ -225,14 +225,19 @@ per package:
 string) => boolean>` shaped for `compileSchema`'s `formats` option. A
   leaf alongside `core`: no workspace dependencies.
 - **`@oaverify/internal-metaschema`**: the published OpenAPI meta-schemas,
-  pinned per version, plus `metaschemaVersionOf()` dispatch. No workspace
-  dependencies and no compiling; it holds documents. The nugget: 3.1/3.2
+  pinned per version, plus `metaschemaVersionOf()` dispatch. Holds
+  documents; compiles and validates nothing, and nothing consumes it yet
+  (the `check` wiring is separate). Version detection delegates to
+  `core`'s `detectOpenAPIVersion` so it cannot drift from what the
+  validator dispatches on. The nugget: 3.1/3.2
   stub the Schema Object (`$dynamicRef` to a swappable dialect) so they
   are disjoint from the well-formedness pass, while 3.0 describes it in
   full (a 3.0 Schema Object is not JSON Schema), so for 3.0 the two
   overlap and a reporting surface needs a precedence rule. 3.0 is
   generated from the checked-in upstream draft-04 document by
-  `scripts/convert-oas30.mjs`, never hand-edited.
+  `scripts/convert-oas30.mjs`, never hand-edited. Keep it off
+  `@oaverify/core`'s entries: `metaschemaFor` reaches all three
+  documents, so anything importing it pays ~100KB.
 - **`@oaverify/internal-spec`**: `DocumentReader` (file/http/memory/composite) plus
   `resolveSpec()`, which inlines external `$ref`s and leaves circular
   ones as internal refs. `applyOverlays()` is the extension system.
@@ -290,7 +295,7 @@ cli           → validator → router
               → stream-validator (the published @oaverify/stream)
 overlay-spec  → spec → core
               → core
-metaschema    (no workspace dependencies; vendored documents + dispatch)
+metaschema    → core   (vendored documents + dispatch; nothing consumes it yet)
 express4      → validator → ... (same as cli's chain)
               → core
               (peer: express ^4)

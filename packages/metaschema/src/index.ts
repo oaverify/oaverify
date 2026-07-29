@@ -3,28 +3,41 @@
  * dispatch that picks one for a document.
  *
  * OpenAPI publishes a JSON Schema describing conformant documents of
- * each version. Compiling it and validating a user's document against
- * it is document conformance for free: the rules come from OpenAPI
- * rather than from hand-written checks that drift from the spec.
+ * each version. Compiling it and validating a user's document against it
+ * gives document conformance whose rules are OpenAPI's rather than
+ * independently hand-written here, so they do not drift from the spec the
+ * way a hand-maintained rule set does.
+ *
+ * With one qualification, since it is easy to read that as stronger than
+ * it is. 3.1 and 3.2 are vendored byte-identical to the published
+ * documents. **3.0 is derived from one**: it is published as draft-04 and
+ * the compiler implements 2020-12, so `scripts/convert-oas30.mjs`
+ * translates it. The translation is three mechanical edits and refuses
+ * anything it does not understand, but the artifact is our output rather
+ * than OpenAPI's, and a bug there would be ours.
+ *
+ * Nothing here compiles or validates. This package holds the documents
+ * and answers which one applies; the surface that reports findings is
+ * separate.
  *
  * How much of the **Schema Object** a meta-schema covers depends on the
- * version, and it decides how this pass divides with the compiler's
- * well-formedness pass:
+ * version, and it decides how a caller should combine these documents
+ * with the compiler's well-formedness pass:
  *
  * - **3.1 / 3.2** stub it entirely (`type: ["object", "boolean"]`,
  *   reached through `$dynamicRef` so a dialect can be swapped in) and
  *   say so in their own `description`: they describe documents
  *   *"without schema validation"*. 3.1 aligned the Schema Object with
  *   JSON Schema 2020-12, so there was nothing left to restate. The two
- *   passes are disjoint.
+ *   are disjoint.
  * - **3.0** describes it in full, because a 3.0 Schema Object is a
  *   bespoke subset rather than JSON Schema, so OpenAPI had to spell out
- *   all 35 fields. Here the two passes **overlap**: both have an
+ *   all 35 fields. Here the two **overlap**: both have an
  *   opinion about `type: Boolean` or an array-valued `items`. A caller
  *   reporting both needs a precedence rule, or the same defect is
  *   printed twice.
  *
- * The overlap is not a defect in either pass. It follows from 3.0's
+ * The overlap is not a defect in either place. It follows from 3.0's
  * Schema Object not being JSON Schema, and it means 3.0 documents get
  * *more* from the meta-schema than 3.1 documents do.
  *
@@ -127,10 +140,15 @@ export function metaschemaFor(version: MetaschemaVersion): unknown {
  * it found.
  *
  * `undefined` covers three different situations on purpose: no
- * recognisable `openapi` string (Swagger 2.0, a malformed value), a 3.x
+ * recognisable `major.minor` prefix (Swagger 2.0, a non-string), a 3.x
  * line we do not support, and a supported version with no vendored
  * schema. A caller wanting to tell them apart should call
- * {@link detectOpenAPIVersion} itself. Guessing a schema for an
+ * {@link detectOpenAPIVersion} itself.
+ *
+ * Note that a malformed value is not automatically one of those. `3.1`
+ * and `3.1.x` are not valid `openapi` strings, and both still dispatch
+ * to the 3.1 schema, which reports the `pattern` failure with a located
+ * error naming the offending value. Guessing a schema for an
  * unrecognised version would validate the document against rules it
  * never claimed to follow, and every error downstream of that guess
  * would be noise.

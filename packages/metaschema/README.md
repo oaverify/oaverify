@@ -5,11 +5,24 @@ plus the dispatch that picks one for a document.
 
 OpenAPI publishes a JSON Schema describing conformant documents of each
 version. Compiling it and validating a user's document against it gives
-document conformance without hand-written rules: the rules come from
-OpenAPI, so they cannot drift from the spec.
+document conformance whose rules are OpenAPI's rather than independently
+hand-written here, so they do not drift from the spec the way a
+hand-maintained rule set does.
+
+One qualification, because that is easy to read as stronger than it is:
+3.1 and 3.2 are vendored byte-identical to the published documents, but
+**3.0 is derived from one** rather than being one. It is published as
+draft-04, so it goes through a translation (see below). Three mechanical
+edits, and the script refuses anything it does not understand, but the
+artifact is our output and a bug in it would be ours.
 
 This package holds the schemas and the version dispatch only. It does not
-compile or validate anything, and it has no workspace dependencies.
+compile or validate anything, and **nothing consumes it yet**: the
+`check` wiring lands separately, so no user-visible document
+conformance exists on the strength of this package alone.
+
+Its one workspace dependency is `@oaverify/internal-core`, for
+`detectOpenAPIVersion`.
 
 ## Contents
 
@@ -70,22 +83,23 @@ adapter depends on.
 
 ## The Schema Object, and why 3.0 is different
 
-How much of the Schema Object a meta-schema covers decides how this
-package divides with the compiler's well-formedness pass.
+How much of the Schema Object a meta-schema covers decides how a caller
+should combine these documents with the compiler's well-formedness pass.
+(This package runs neither; it holds the documents.)
 
 **3.1 and 3.2** stub it: `$defs.schema` is `type: ["object", "boolean"]`,
 reached through `$dynamicRef` so a dialect can be swapped in. Their own
 `description` says they describe documents _"without schema
 validation"_. 3.1 aligned the Schema Object with JSON Schema 2020-12, so
-there was nothing left to restate. The two passes are disjoint.
+there was nothing left to restate. The two are disjoint.
 
 **3.0** describes it in full: 35 fields, `type` constrained to an enum,
 `items` required to be a Schema or Reference. A 3.0 Schema Object is a
 bespoke subset rather than JSON Schema, so OpenAPI had to spell it out.
-Here the two passes **overlap**, and a caller reporting findings from
+Here the two **overlap**, and a caller reporting findings from
 both needs a precedence rule or the same defect is printed twice.
 
-The overlap is not a defect in either pass. It follows from 3.0's Schema
+The overlap is not a defect in either place. It follows from 3.0's Schema
 Object not being JSON Schema, and it means 3.0 documents get _more_ out
 of the meta-schema than 3.1 documents do.
 
@@ -132,6 +146,9 @@ expected to age well.
 
 The 3.1 schema's anchor topology (four `$dynamicRef`, one
 `$dynamicAnchor`, zero external `$ref`) is identical across every
-published revision. That stability is structural: the anchor exists to be
+published revision. 3.2 has five `$dynamicRef` sites rather than four,
+and the same single anchor and zero external refs; the count that matters
+is the anchor, since one anchor is what makes static resolution
+unambiguous. That stability is structural: the anchor exists to be
 a swappable placeholder, so it cannot gain structure without the
 dialect-swap contract itself changing.
