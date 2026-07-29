@@ -13,6 +13,29 @@ So this corpus is labelled instead. Each case is a minimal OpenAPI
 document carrying exactly one seeded defect, and a tool scores only when
 it reports _that_ defect.
 
+## Why some cells are deliberately empty
+
+The corpus is only worth reading if it can show oaverify losing, so two
+`structural` cases exist to record exactly that:
+`dangling-discriminator-mapping` and `undeclared-server-variable`. Both
+need a graph walk. Document conformance validates a node against a
+subschema and cannot ask whether a name resolves, so no amount of
+meta-schema coverage reaches them, and `misses` is the correct entry
+rather than a gap to close.
+
+The `style` class carries the same load in the other direction: six
+cases oaverify mostly does not report. "Mostly" is doing real work
+there. Some are conventions (a missing `operationId`), and oaverify
+having no opinion is the point. But it catches two, and one of those,
+`undeclared-path-param`, is a specification violation rather than a
+matter of taste: a path template naming a variable the operation never
+declares means unvalidated input reaches the handler. `check` reports it
+at `error` severity for exactly that reason.
+
+So read the empty cells in `style` as "outside oaverify's scope", not as
+"not a real problem". The class name predates the severity field and is
+the looser of the two labels.
+
 ## Run
 
 ```bash

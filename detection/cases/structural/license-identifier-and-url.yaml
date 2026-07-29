@@ -1,0 +1,15 @@
+openapi: 3.1.0
+info:
+  title: Detection case
+  version: "1.0.0"
+  license:
+    name: MIT
+    identifier: MIT
+    url: https://example.com/license
+paths:
+  /things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: ok

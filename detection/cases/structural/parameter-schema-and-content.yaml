@@ -1,0 +1,20 @@
+openapi: 3.1.0
+info:
+  title: Detection case
+  version: "1.0.0"
+paths:
+  /things:
+    get:
+      operationId: listThings
+      parameters:
+        - name: filter
+          in: query
+          schema:
+            type: string
+          content:
+            application/json:
+              schema:
+                type: string
+      responses:
+        "200":
+          description: ok

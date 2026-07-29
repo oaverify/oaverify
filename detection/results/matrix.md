@@ -11,15 +11,21 @@
 | `lint/ref-siblings-oas30` | lint | yes | - | yes | - |
 | `lint/redundant-oneof` | lint | yes | - | - | - |
 | `lint/unknown-keyword` | lint | yes | yes | - | yes |
-| `lint/prefixitems-in-30` | lint | - | yes | yes | yes |
+| `lint/annotation-null-description` | lint | yes | yes | - | yes |
+| `lint/prefixitems-in-30` | lint | yes | yes | yes | yes |
 | `style/missing-operationid` | style | - | - | yes | yes |
 | `style/duplicate-operationid` | style | - | - | yes | yes |
 | `style/unused-component` | style | yes | - | yes | yes |
 | `style/undeclared-path-param` | style | yes | - | yes | yes |
 | `style/undefined-security-scheme` | style | - | - | yes | yes |
 | `style/example-contradicts-schema` | style | - | - | yes | yes |
-| `structural/missing-info-version` | structural | - | - | yes | yes |
-| `structural/response-missing-description` | structural | - | - | yes | yes |
+| `structural/missing-info-version` | structural | yes | - | yes | yes |
+| `structural/response-missing-description` | structural | yes | - | yes | yes |
+| `structural/parameter-schema-and-content` | structural | yes | - | yes | - |
+| `structural/license-identifier-and-url` | structural | yes | - | yes | - |
+| `structural/path-param-not-required` | structural | yes | - | yes | - |
+| `structural/dangling-discriminator-mapping` | structural | - | yes | - | yes |
+| `structural/undeclared-server-variable` | structural | - | - | yes | yes |
 | `structural/dangling-ref` | structural | yes | yes | yes | yes |
 | `control/clean` | control | - | - | - | - |
 | `control/required-on-sibling` | control | - | - | - | - |
@@ -29,8 +35,8 @@
 | class | oaverify | ajv | spectral | redocly |
 | --- | --- | --- | --- | --- |
 | malformed (6) | 6/6 | 4/6 | 5/6 | 5/6 |
-| lint (6) | 5/6 | 4/6 | 2/6 | 3/6 |
-| structural (3) | 1/3 | 1/3 | 3/3 | 3/3 |
+| lint (7) | 7/7 | 5/7 | 2/7 | 4/7 |
+| structural (8) | 6/8 | 2/8 | 7/8 | 5/8 |
 | style (6) | 2/6 | 0/6 | 6/6 | 6/6 |
 | control false positives (4) | 0 | 0 | 0 | 0 |
-| total findings raised | 14 | 17 | 140 | 149 |
+| total findings raised | 23 | 19 | 170 | 182 |

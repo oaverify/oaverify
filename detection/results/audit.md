@@ -66,8 +66,14 @@
 - spectral: no matching finding (5 raised)
 - **redocly**: struct: Property `minLenght` is not expected here. [#/paths/~1things/get/responses/200/content/application~1json/schema/properties/name/minLenght]
 
+## `lint/annotation-null-description` (lint)
+- **oaverify**: annotation-value-type: "description" at "properties.statusDate" should be a string; got null [GET /things 200 response body (application/json) -> properties.statusDate]
+- **ajv**: ajv/compile: schema is invalid: data/properties/statusDate/description must be string [paths./things.get.responses.200.application/json]
+- spectral: no matching finding (1 raised)
+- **redocly**: struct: Expected type `string` but got `null`. [#/paths/~1things/get/responses/200/content/application~1json/schema/properties/statusDate/description]
+
 ## `lint/prefixitems-in-30` (lint)
-- oaverify: no matching finding (0 raised)
+- **oaverify**: additionalProperties: additional property "prefixItems" is not allowed [/paths/~1things/get/responses/200/content/application~1json/schema/prefixItems]
 - **ajv**: ajv/compile: strict mode: unknown keyword: "prefixItems" [paths./things.get.responses.200.application/json]
 - **spectral**: oas3-schema: Property "prefixItems" is not expected to be here. [paths//things/get/responses/200/content/application/json/schema/prefixItems]
 - **redocly**: struct: Property `prefixItems` is not expected here. [#/paths/~1things/get/responses/200/content/application~1json/schema/prefixItems]
@@ -109,16 +115,46 @@
 - **redocly**: no-invalid-media-type-examples: Example value must conform to the schema: `count` property type must be integer. [#/paths/~1things/get/responses/200/content/application~1json/example/count]
 
 ## `structural/missing-info-version` (structural)
-- oaverify: no matching finding (0 raised)
+- **oaverify**: required: must have required property "version" [/info/version]
 - ajv: no matching finding (0 raised)
 - **spectral**: oas3-schema: "info" property must have required property "version". [info]
 - **redocly**: struct: The field `version` must be present on this level. [#/info]
 
 ## `structural/response-missing-description` (structural)
-- oaverify: no matching finding (0 raised)
+- **oaverify**: required: must have required property "description" [/paths/~1things/get/responses/200/description]
 - ajv: no matching finding (0 raised)
 - **spectral**: info-description: Info "description" must be present and non-empty string. [info]
 - **redocly**: struct: The field `description` must be present on this level. [#/paths/~1things/get/responses/200]
+
+## `structural/parameter-schema-and-content` (structural)
+- **oaverify**: oneOf: must match exactly one of 2 schemas (matched 2) [/paths/~1things/get/parameters/0]
+- ajv: no matching finding (0 raised)
+- **spectral**: oas3-schema: "0" property must match exactly one schema in oneOf. [paths//things/get/parameters/0]
+- redocly: no matching finding (5 raised)
+
+## `structural/license-identifier-and-url` (structural)
+- **oaverify**: not: must NOT match the schema [/info/license]
+- ajv: no matching finding (0 raised)
+- **spectral**: oas3-schema: "license" property must not be valid. [info/license]
+- redocly: no matching finding (4 raised)
+
+## `structural/path-param-not-required` (structural)
+- **oaverify**: const: must equal the expected constant [/paths/~1things~1{thingId}/get/parameters/0/required]
+- ajv: no matching finding (0 raised)
+- **spectral**: path-params: Path parameter "thingId" must have "required" property that is set to "true". [paths//things/{thingId}/get/parameters/0]
+- redocly: no matching finding (5 raised)
+
+## `structural/dangling-discriminator-mapping` (structural)
+- oaverify: no matching finding (0 raised)
+- **ajv**: ajv/compile: strict mode: unknown keyword: "discriminator" [paths./things.get.responses.200.application/json]
+- spectral: no matching finding (5 raised)
+- **redocly**: no-unresolved-refs: Can't resolve $ref [#/paths/~1things/get/responses/200/content/application~1json/schema/discriminator/mapping/dog]
+
+## `structural/undeclared-server-variable` (structural)
+- oaverify: no matching finding (0 raised)
+- ajv: no matching finding (0 raised)
+- **spectral**: oas3-server-variables: Not all server's variables are described with "variables" object. Missed: region. [servers/0]
+- **redocly**: no-undefined-server-variable: The `region` variable is not defined in the `variables` objects. [#/servers/0/url]
 
 ## `structural/dangling-ref` (structural)
 - **oaverify**: malformed-schema: JSON pointer /components/schemas/DoesNotExist not found (at components) [GET /things 200 response]

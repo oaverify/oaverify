@@ -137,6 +137,27 @@ sibling numeric `minimum`, which marks a keyword in use; a `type:
 boolean` node is a field description. `test/convert-oas30.test.ts`
 covers both directions.
 
+## Checking the pins
+
+```bash
+node scripts/check-drift.mjs
+```
+
+Re-fetches each pinned URL and compares it to the vendored copy (for
+3.0, to the checked-in upstream input rather than the converted output).
+A dated URL is supposed to be immutable, so a mismatch means either that
+assumption is wrong or a vendored file was hand-edited.
+
+It does **not** detect a newer revision being published, and it says so
+when it passes. There is no index to enumerate: `latest` 404s, directory
+listings 404, and the upstream repository does not carry the dated
+files. Probing a hand-written list of candidate dates only finds dates
+you already guessed, which is how the 3.1 pin was originally set two
+revisions behind. Staying current is a manual check.
+
+Not wired into CI: a job that turns red because a third party published
+something is noise, the same reasoning that keeps `detection/` out.
+
 ## Upstream stability
 
 The 3.0 schema has two published revisions, `2021-09-28` and
