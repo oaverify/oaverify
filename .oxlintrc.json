@@ -26,7 +26,7 @@
         "examples/**",
         "performance/**",
         "conformance/**",
-        "scripts/**"
+        "**/scripts/**"
       ],
       "rules": {
         "no-console": "off"

@@ -11,6 +11,7 @@ const PACKAGES = [
   "formats",
   "spec",
   "overlay-spec",
+  "metaschema",
   "router",
   "validator",
   "stream-validator",

@@ -73,6 +73,8 @@ importers:
 
   packages/formats: {}
 
+  packages/metaschema: {}
+
   packages/oav:
     dependencies:
       '@oaverify/core':

@@ -46,7 +46,14 @@ function tsupRewriteKeys(): string[] {
 // so it is wired into the resolution tables (for typecheck / tests) but
 // deliberately not bundled into any oaverify tarball. Update this list when
 // adding or removing a published package.
+// `@oaverify/internal-metaschema` is here for a different reason than the
+// rest: it is not consumed by anything yet. It ships the pinned OpenAPI
+// meta-schemas and the version dispatch over them, and the `check`
+// wiring that will import it lands separately. Move it out of this list
+// in the same change that adds the import, or the bundle will resolve
+// the specifier at runtime instead of rewriting it.
 const NOT_IN_OAV_BUNDLE = [
+  "@oaverify/internal-metaschema",
   "@oaverify/internal-oav-express4",
   "@oaverify/internal-oav-express5",
   "@oaverify/internal-oav-fastify",
