@@ -81,6 +81,13 @@ must be an object or boolean; got an array.
 response-body schemas compile lazily on first use, so read it after the
 requests you care about rather than immediately after construction.
 
+`schemaLint` also reports `annotation-value-type`: an annotation
+carrying a value of the wrong type, most often a YAML `description:`
+left empty, which parses to `null`. It is a lint finding rather than a
+malformed-schema error because annotations emit no validation code, so
+the compiled validator is unaffected. What is lost is the text the
+author meant to write, which no other check would notice.
+
 ## Request strictness: how tolerant validation is of traffic
 
 These change what counts as a valid request. They say nothing about

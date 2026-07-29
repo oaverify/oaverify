@@ -141,6 +141,25 @@ function runSchemaLint(
           });
           continue;
         }
+        // Reported here rather than in the well-formedness pass because
+        // an annotation emits no code: a mistyped one is a document
+        // conformance defect, not a schema that would make the validator
+        // lie. Blocking construction over it would harden the runtime
+        // path for a defect the runtime cannot observe. Runs in "warn"
+        // as well as "strict" because the value is never intentional.
+        if (def?.annotationValueType !== undefined && typeof obj[key] !== def.annotationValueType) {
+          const got = obj[key] === null ? "null" : typeof obj[key];
+          issues.push({
+            code: "annotation-value-type",
+            keyword: key,
+            path,
+            message:
+              path.length === 0
+                ? `"${key}" at <root> should be a ${def.annotationValueType}; got ${got}`
+                : `"${key}" at "${path}" should be a ${def.annotationValueType}; got ${got}`,
+          });
+          continue;
+        }
         if (mode !== "strict") continue;
         if (known.has(key)) continue;
         // `x-*` extensions are tolerated by OpenAPI convention; accept
@@ -351,10 +370,17 @@ export interface SchemaLintIssue {
    *   `format: binary` opaque-body bypass). The compiled validator's
    *   semantics differ from the source spec: identical branches
    *   collapse, changing the match-count behavior.
+   * - `"annotation-value-type"`: an annotation keyword carries a value
+   *   of the wrong type (`description: null` from a YAML key left
+   *   empty, `deprecated: "true"`). Annotations emit no code, so the
+   *   compiled validator is unaffected and this never blocks
+   *   construction; the text the author meant to write is simply
+   *   absent from the document.
    */
   code:
     | "partial-feature"
     | "unknown-keyword"
+    | "annotation-value-type"
     | "silent-rewrite/ref-siblings-oas30"
     | "silent-rewrite/required-not-in-properties"
     | "silent-rewrite/redundant-composition-branches";

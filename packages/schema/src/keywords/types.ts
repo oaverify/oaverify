@@ -539,6 +539,23 @@ export interface KeywordDefinition {
    * runtime dynamic scope.
    */
   partial?: string;
+  /**
+   * The JSON type this keyword's value must have, for keywords whose
+   * value type is part of their contract but whose violation cannot
+   * change validation semantics. Annotation keywords
+   * emit no code, so a wrong-typed value is inert: a YAML
+   * `description:` left empty parses to `null` and the text the author
+   * meant to write is silently gone, but every instance still validates
+   * identically.
+   *
+   * That inertness is why this is reported through
+   * {@link CompileOptions.schemaLint} rather than
+   * `validateKeywordValue`. Well-formedness rejects schemas that would
+   * make the validator lie about traffic (`type: Boolean`, an
+   * array-valued `items`); a mistyped annotation is a document
+   * conformance defect and must not block validator construction.
+   */
+  annotationValueType?: "string" | "boolean";
 }
 
 /**

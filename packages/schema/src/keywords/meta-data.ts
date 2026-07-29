@@ -11,11 +11,25 @@
 import { CONTENT_VOCAB, META_DATA_VOCAB, OPENAPI_META_DATA_VOCAB } from "./vocabulary-uris.js";
 import type { KeywordDefinition } from "./types.js";
 
-function annotationKeyword(name: string, vocabulary: string = META_DATA_VOCAB): KeywordDefinition {
+/**
+ * `valueType` declares the type the keyword's value must have. Reported
+ * through `schemaLint`, not well-formedness: a mistyped annotation
+ * cannot change what the validator accepts, so it must not block
+ * construction. See {@link KeywordDefinition.annotationValueType}.
+ *
+ * Omitted where any value is legal (`default`, `example`, `examples`),
+ * which is a statement about the keyword, not an omission.
+ */
+function annotationKeyword(
+  name: string,
+  vocabulary: string = META_DATA_VOCAB,
+  valueType?: "string" | "boolean",
+): KeywordDefinition {
   return {
     keyword: name,
     vocabulary,
     annotation: true,
+    ...(valueType === undefined ? {} : { annotationValueType: valueType }),
     compile(): void {
       // intentionally empty: pure annotation
     },
@@ -30,7 +44,7 @@ function annotationKeyword(name: string, vocabulary: string = META_DATA_VOCAB): 
  *
  * @public
  */
-export const titleKeyword = annotationKeyword("title");
+export const titleKeyword = annotationKeyword("title", META_DATA_VOCAB, "string");
 
 /**
  * `description`: a longer human-readable explanation of the schema.
@@ -39,7 +53,7 @@ export const titleKeyword = annotationKeyword("title");
  *
  * @public
  */
-export const descriptionKeyword = annotationKeyword("description");
+export const descriptionKeyword = annotationKeyword("description", META_DATA_VOCAB, "string");
 
 /**
  * `default`: a suggested default value for the schema. Preserved as
@@ -58,7 +72,7 @@ export const defaultKeyword = annotationKeyword("default");
  *
  * @public
  */
-export const deprecatedKeyword = annotationKeyword("deprecated");
+export const deprecatedKeyword = annotationKeyword("deprecated", META_DATA_VOCAB, "boolean");
 
 /**
  * `readOnly`: flags a property the client MUST NOT send on request
@@ -69,7 +83,7 @@ export const deprecatedKeyword = annotationKeyword("deprecated");
  *
  * @public
  */
-export const readOnlyKeyword = annotationKeyword("readOnly");
+export const readOnlyKeyword = annotationKeyword("readOnly", META_DATA_VOCAB, "boolean");
 
 /**
  * `writeOnly`: flags a property the server MUST NOT send on response
@@ -80,7 +94,7 @@ export const readOnlyKeyword = annotationKeyword("readOnly");
  *
  * @public
  */
-export const writeOnlyKeyword = annotationKeyword("writeOnly");
+export const writeOnlyKeyword = annotationKeyword("writeOnly", META_DATA_VOCAB, "boolean");
 
 /**
  * `examples`: an array of example values the schema author supplies
@@ -126,7 +140,7 @@ export const externalDocsKeyword = annotationKeyword("externalDocs", OPENAPI_MET
  *
  * @public
  */
-export const contentEncodingKeyword = annotationKeyword("contentEncoding", CONTENT_VOCAB);
+export const contentEncodingKeyword = annotationKeyword("contentEncoding", CONTENT_VOCAB, "string");
 
 /**
  * JSON Schema 2020-12 `contentMediaType`: declares the media type
@@ -135,7 +149,11 @@ export const contentEncodingKeyword = annotationKeyword("contentEncoding", CONTE
  *
  * @public
  */
-export const contentMediaTypeKeyword = annotationKeyword("contentMediaType", CONTENT_VOCAB);
+export const contentMediaTypeKeyword = annotationKeyword(
+  "contentMediaType",
+  CONTENT_VOCAB,
+  "string",
+);
 
 /**
  * JSON Schema 2020-12 `contentSchema`: schema describing the structure
