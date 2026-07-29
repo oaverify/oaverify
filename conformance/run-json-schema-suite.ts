@@ -116,10 +116,6 @@ function runFile(path: string): FileResult {
         dialect: jsonSchemaDialect,
         formats: builtInFormats,
         external: remoteSchemas as Map<string, never>,
-        // OAV_FLAT=1 runs the whole suite in flat-collection mode; the
-        // validity check below is mode-agnostic (both shapes carry
-        // `.valid`), so a clean run proves flat never changes accept/reject.
-        ...(process.env.OAV_FLAT === "1" ? { flat: true } : {}),
       });
       validate = compiled.validate;
     } catch (err) {
