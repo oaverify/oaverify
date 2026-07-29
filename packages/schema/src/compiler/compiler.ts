@@ -976,7 +976,23 @@ export function compileSchema(
           // Lets the `required` rule see through `$ref` into component
           // schemas, which an operation-scoped compile cannot reach by
           // walking its own schema object.
-          resolveRef: (ref) => refResolver.resolve(ref),
+          //
+          // Resolution failure is not an error here. This resolver is
+          // called without the base URI codegen threads through scope,
+          // so a relative ref under an `$id` is unresolvable to the lint
+          // and resolvable to the compiler that already emitted a call
+          // to it. Lint is advisory (see CompileStats.schemaLintIssues),
+          // so a pointer it cannot follow costs coverage of that subtree.
+          // Rethrowing would fail a compile over a schema that is fine
+          // (#536). Codegen resolves the same refs itself and reports a
+          // genuinely broken one from there.
+          resolveRef: (ref) => {
+            try {
+              return refResolver.resolve(ref);
+            } catch {
+              return undefined;
+            }
+          },
         });
   const stats: CompileStats = {
     functionCount: state.nextFn,
