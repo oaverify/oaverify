@@ -24,8 +24,17 @@ meta-schema coverage reaches them, and `misses` is the correct entry
 rather than a gap to close.
 
 The `style` class carries the same load in the other direction: six
-cases oaverify mostly does not report, because they are opinions rather
-than defects.
+cases oaverify mostly does not report. "Mostly" is doing real work
+there. Some are conventions (a missing `operationId`), and oaverify
+having no opinion is the point. But it catches two, and one of those,
+`undeclared-path-param`, is a specification violation rather than a
+matter of taste: a path template naming a variable the operation never
+declares means unvalidated input reaches the handler. `check` reports it
+at `error` severity for exactly that reason.
+
+So read the empty cells in `style` as "outside oaverify's scope", not as
+"not a real problem". The class name predates the severity field and is
+the looser of the two labels.
 
 ## Run
 
