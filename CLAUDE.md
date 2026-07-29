@@ -331,12 +331,13 @@ contract". Two gotchas the docs can't enforce, worth keeping in view:
 
 The zero-config default is `output: "flat"` + `maxErrors: 1` (Ajv
 parity). `output` (`"flat" | "tree" | "predicate"`) selects the result
-shape; the deprecated `flat` / `predicate` booleans are aliases that
-throw on conflict. `maxErrors` defaults to `1` and is orthogonal to
-`output`. User-facing docs are in
+shape; the `flat` / `predicate` boolean aliases were removed in v5
+(#497). `maxErrors` defaults to `1` and is orthogonal to `output`.
+User-facing docs are in
 [docs/configuration.md](./docs/configuration.md),
-[docs/extending.md](./docs/extending.md), and the v3
-[migration guide](./docs/migration-v3.md).
+[docs/extending.md](./docs/extending.md), and the
+[v5](./docs/migration-v5.md) / [v3](./docs/migration-v3.md) migration
+guides.
 
 Codegen is specialized so `maxErrors: Infinity` emits source identical
 to the un-budgeted path (zero overhead). The one gotcha for keyword
