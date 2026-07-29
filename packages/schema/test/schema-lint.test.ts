@@ -593,6 +593,49 @@ describe("annotation value types", () => {
     });
   });
 
+  it("flags an examples that is not an array", () => {
+    // 2020-12 requires `examples` to hold an array. The shape that hits
+    // this is a 3.0 Example Object map left unconverted in a document
+    // upgraded to 3.1: inert, since nothing reading 2020-12 `examples`
+    // sees those values, and invisible to the document meta-schema,
+    // which stubs the Schema Object from 3.1 on (#555).
+    const issues = lint({
+      type: "string",
+      examples: { standardCode: { value: "ABC" } },
+    } as unknown as SchemaOrBoolean);
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ code: "annotation-value-type", keyword: "examples" });
+    expect(issues[0]?.message).toContain("should be an array");
+    expect(issues[0]?.message).toContain("got object");
+  });
+
+  it("accepts an examples array whatever its members are", () => {
+    // Only the keyword's own type is constrained; the members are
+    // arbitrary values by definition.
+    expect(
+      lint({ type: "string", examples: ["a", 1, null, { any: "thing" }] } as SchemaOrBoolean),
+    ).toEqual([]);
+  });
+
+  it("leaves example and default alone, where any value is legal", () => {
+    expect(lint({ example: null, default: null } as unknown as SchemaOrBoolean)).toEqual([]);
+  });
+
+  it("reads the article correctly for vowel-initial types", () => {
+    // Generated output is read by people; the template said "a object"
+    // until the array arm made the seam obvious.
+    // `xml` is OpenAPI-vocabulary, so it needs that dialect to be a
+    // known annotation at all.
+    const objectTyped = compileSchema({ xml: "name" } as unknown as SchemaOrBoolean, {
+      dialect: openapi31Dialect,
+    }).stats.schemaLintIssues;
+    expect(objectTyped[0]?.message).toContain("should be an object");
+    expect(lint({ title: null } as unknown as SchemaOrBoolean)[0]?.message).toContain(
+      "should be a string",
+    );
+  });
+
   it("checks object-typed annotations by type, not by shape", () => {
     // `xml` and `externalDocs` are `type: object` in the OpenAPI spec,
     // so a string there is the wrong type and is reported. Whether

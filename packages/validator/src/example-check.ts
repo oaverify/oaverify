@@ -207,7 +207,11 @@ export function checkDocumentExamples(
    * turns up anyway under a 3.1 `openapi:`, and its wrapper objects
    * cannot satisfy the schema they sit in, so validating them would
    * report a confusing type error rather than the real problem, which
-   * is document structure (#491).
+   * is that the keyword is the wrong type.
+   *
+   * That is reported by the `annotation-value-type` schema lint, which
+   * names the actual defect. Two findings for one mistake would be
+   * worse than one, and this would be the less useful of the two.
    */
   const checkSchemaNodeExamples = (node: Record<string, unknown>, pointer: string): void => {
     const hasExample = Object.prototype.hasOwnProperty.call(node, "example");

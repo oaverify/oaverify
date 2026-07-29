@@ -107,7 +107,20 @@ function structuralEqual(a: unknown, b: unknown): boolean {
  * Not a bare `typeof`: that reports `"object"` for `null` and for an
  * array, and an annotation declared as an object means a JSON object.
  */
-function isAnnotationValueType(value: unknown, expected: "string" | "boolean" | "object"): boolean {
+/**
+ * "an object" / "an array", "a string" / "a boolean". Generated output
+ * is read by people, and the template produced "a object" before the
+ * array arm made the seam obvious.
+ */
+function article(word: string): string {
+  return /^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`;
+}
+
+function isAnnotationValueType(
+  value: unknown,
+  expected: "string" | "boolean" | "object" | "array",
+): boolean {
+  if (expected === "array") return Array.isArray(value);
   if (expected !== "object") return typeof value === expected;
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -174,8 +187,8 @@ function runSchemaLint(
             path,
             message:
               path.length === 0
-                ? `"${key}" at <root> should be a ${def.annotationValueType}; got ${got}`
-                : `"${key}" at "${path}" should be a ${def.annotationValueType}; got ${got}`,
+                ? `"${key}" at <root> should be ${article(def.annotationValueType)}; got ${got}`
+                : `"${key}" at "${path}" should be ${article(def.annotationValueType)}; got ${got}`,
           });
           continue;
         }
