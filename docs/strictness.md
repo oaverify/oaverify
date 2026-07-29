@@ -127,12 +127,17 @@ oaverify check spec.yaml --only schema --fail-on warning --format json
 | ---- | -------------------------------------------------- |
 | 0    | clean                                              |
 | 1    | findings met `--fail-on`, or a domain check failed |
-| 2    | input could not be loaded, resolved, or compiled   |
+| 2    | input could not be read, resolved, or parsed       |
 | 3    | CLI usage error                                    |
+| 4    | graded, and at least one schema is malformed       |
 
-A malformed schema still exits 2, since the document cannot be
-compiled, and that outranks `--fail-on`: a document that will not
-compile is not a gate result. The programmatic equivalent is
+The 2-versus-4 split is the one worth scripting against. Exit 2 means
+there is no report to read, and it means the same thing in every
+command that loads a spec. Exit 4 means the report on stdout is
+complete and one of its findings makes the document uncompilable.
+
+Exit 4 outranks `--fail-on`: a document that will not compile is not a
+gate result. The programmatic equivalent is
 `precompile({ onMalformed: "collect" })`; the default still throws,
 which is what a server wants, since continuing would leave that
 operation validating against nothing.

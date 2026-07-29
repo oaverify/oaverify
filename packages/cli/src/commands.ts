@@ -304,7 +304,16 @@ export type CheckClass = (typeof CHECK_CLASSES)[number];
  * - **schema**: partially-implemented keywords, unknown keywords.
  *
  * @returns 0 clean, 1 findings met `--fail-on`, 2 the document could not be
- *          loaded or compiled, 3 usage error.
+ *          read at all (nothing was graded, nothing printed), 3 usage error,
+ *          4 the document was graded and at least one schema is malformed.
+ *
+ * The 2-versus-4 split is what a script can act on. Exit 2 means there
+ * is no report to read, and it means the same thing in every command
+ * that loads a spec. Exit 4 means the report on stdout is complete and
+ * one or more of its findings makes the document uncompilable, which is
+ * a different remedy: read the findings, fix the schema. Before this
+ * split both answered 2, so a caller could not tell "I could not open
+ * your file" from "here are 43 findings, one of them fatal".
  *
  * @public
  */
@@ -434,8 +443,10 @@ export async function checkCommand(
   }
 
   // A malformed schema outranks the gate: the document cannot be
-  // compiled, whatever the findings say.
-  if (malformed) return { exitCode: 2 };
+  // compiled, whatever the findings say. Distinct from the exit 2 above,
+  // which means the document could not be read and nothing was printed;
+  // here the report is complete and one of its findings is fatal.
+  if (malformed) return { exitCode: 4 };
   if (args.failOn === "warning" && findings.length > 0) return { exitCode: 1 };
   return { exitCode: 0 };
 }

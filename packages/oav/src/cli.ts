@@ -54,15 +54,21 @@ try {
   // `buildProgram` wires `exitOverride()` so Commander throws rather
   // than calling `process.exit` directly. That includes "success"
   // exits like `--help` / `--version` (exitCode 0) and argv parse
-  // errors (non-zero). Honor the attached exitCode when present
-  // rather than surfacing these as exit 3.
+  // errors (non-zero).
   const e = err as { code?: string; exitCode?: number; message?: string };
   if (
     typeof e.exitCode === "number" &&
     typeof e.code === "string" &&
     e.code.startsWith("commander.")
   ) {
-    process.exit(e.exitCode);
+    // Commander's success exits keep their 0. Its failures are all argv
+    // problems (unknown command, unknown option, missing argument), so
+    // they take 3, the documented usage code, rather than Commander's
+    // own 1. Honouring its exitCode verbatim meant `oaverify
+    // bogus-command` exited 1, which the exit tables promise means "a
+    // domain check failed": a CI script reading that saw a spec with
+    // findings where it had a typo in the command name.
+    process.exit(e.exitCode === 0 ? 0 : 3);
   }
   process.stderr.write(`error: ${(err as Error).message}\n`);
   process.exit(3);
