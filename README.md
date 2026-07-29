@@ -377,8 +377,11 @@ Other 3.2 document-level additions (`additionalOperations`,
 
 Override via `createValidator(spec, { dialect })` to force or customize
 one of the built-in dialects (`jsonSchemaDialect`, `openapi31Dialect`,
-`oas30Dialect`). Unknown / missing `openapi` strings fall back to the
-3.1 dialect by default; configure with
+`oas30Dialect`). The option wins over the version the document declares,
+so a 3.1 spec compiled with `oas30Dialect` gets 3.0 semantics;
+`validator.detectedVersion` still reports what the document says.
+Unknown / missing `openapi` strings fall back to the 3.1 dialect by
+default; configure with
 `onUnknownVersion: "throw" | "warn" | "fallback31"`.
 
 **Swagger 2.0 specs** aren't supported directly: `createValidator`

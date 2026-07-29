@@ -6,12 +6,13 @@
  *   with sibling `nullable`, boolean `exclusiveMaximum` / `exclusiveMinimum`,
  *   and `$ref`-suppresses-siblings semantics.
  * - The QUERY method (new in 3.2) routes and validates like any other.
- * - An explicit `vocabularies` option overrides the version dispatch.
+ * - An explicit `dialect` option overrides the version dispatch, both
+ *   where detection succeeded and as the escape hatch where it did not.
  */
 
 import { describe, expect, it } from "vitest";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
-import { jsonSchemaDialect } from "@oaverify/internal-schema";
+import { jsonSchemaDialect, oas30Dialect, openapi31Dialect } from "@oaverify/internal-schema";
 import { createValidator } from "./fixtures.js";
 
 function spec32(): OpenAPIDocument {
@@ -346,15 +347,76 @@ describe("3.0 support", () => {
     );
   });
 
-  it("an explicit `dialect` option overrides the version dispatch", () => {
-    // The override path skips version detection entirely and uses the
-    // caller's dialect even if the spec declares a different version.
-    const spec: OpenAPIDocument = {
-      openapi: "3.0.3",
-      info: { title: "Old", version: "1" },
-      paths: {},
-    };
-    expect(() => createValidator(spec, { dialect: jsonSchemaDialect })).not.toThrow();
+  describe("an explicit `dialect` option overrides the version dispatch", () => {
+    // Asserting `not.toThrow()` on an empty-paths spec was the whole of
+    // this case before #534, and it passed while the option was being
+    // read and discarded. These compile a schema whose meaning differs
+    // between dialects, so the verdict says which one actually ran.
+    const specWithNullable = (openapi: string): OpenAPIDocument =>
+      ({
+        openapi,
+        info: { title: "t", version: "1" },
+        paths: {
+          "/x": {
+            post: {
+              requestBody: {
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      // OAS 3.0 spelling. Under 3.1 it is an unknown
+                      // annotation and null fails `type: "string"`.
+                      properties: { label: { type: "string", nullable: true } },
+                    },
+                  },
+                },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      }) as OpenAPIDocument;
+
+    // The shim returns `ValidationError | null`; null is a clean pass.
+    const postNull = (v: ReturnType<typeof createValidator>) =>
+      v.validateRequest({
+        method: "POST",
+        path: "/x",
+        contentType: "application/json",
+        body: { label: null },
+      }) === null;
+
+    it("applies the forced dialect's semantics, not the declared version's", () => {
+      // Declared 3.1, forced to 3.0: `nullable` becomes load-bearing.
+      expect(postNull(createValidator(specWithNullable("3.1.0"), { dialect: oas30Dialect }))).toBe(
+        true,
+      );
+      // And the reverse, so this cannot pass by both dialects agreeing.
+      expect(
+        postNull(createValidator(specWithNullable("3.0.3"), { dialect: openapi31Dialect })),
+      ).toBe(false);
+    });
+
+    it("leaves detection alone: `detectedVersion` still reports the document", () => {
+      // The option decides what compiles, not what the spec says it is.
+      const v = createValidator(specWithNullable("3.1.0"), { dialect: oas30Dialect });
+      expect(v.detectedVersion).toBe("3.1");
+    });
+
+    it("does not warn: overriding a version that resolved cleanly is not an escape hatch", () => {
+      const chunks: string[] = [];
+      const v = createValidator(specWithNullable("3.1.0"), {
+        dialect: oas30Dialect,
+        warn: (msg) => chunks.push(msg),
+      });
+      expect(chunks).toEqual([]);
+      expect(v.warnings).toEqual([]);
+    });
+
+    it("still dispatches on the declared version when no dialect is passed", () => {
+      expect(postNull(createValidator(specWithNullable("3.0.3")))).toBe(true);
+      expect(postNull(createValidator(specWithNullable("3.1.0")))).toBe(false);
+    });
   });
 });
 
