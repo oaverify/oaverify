@@ -77,6 +77,160 @@ export function rewriteInternalRefTarget(
   return `#/$defs/__ext__/${encoded}${fragmentAfterHash.startsWith("/") ? fragmentAfterHash : `/${fragmentAfterHash}`}`;
 }
 
+/**
+ * Canonical identity of an external target: the URI plus its fragment.
+ * Two `$ref`s spelled differently but denoting the same schema share
+ * this key, which is what makes hoisting dedupe rather than duplicate.
+ */
+export function targetKey(uri: string, fragment: string): string {
+  return `${uri}#${fragment.replace(/^\//, "")}`;
+}
+
+/** Component-name character set OpenAPI allows: `^[a-zA-Z0-9._-]+$`. */
+function sanitizeName(raw: string): string {
+  const cleaned = raw.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^_+|_+$/g, "");
+  return cleaned === "" ? "Schema" : cleaned;
+}
+
+/**
+ * Short, stable discriminator appended when a derived name collides.
+ * Derived from the canonical target rather than from encounter order, so
+ * an unrelated change to traversal order cannot rename a component and
+ * churn every diagnostic that mentions it.
+ */
+function stableSuffix(key: string): string {
+  // FNV-1a, 32-bit. Not cryptographic; it only has to be stable and
+  // spread well enough that two colliding names differ.
+  let hash = 0x81_1c_9d_c5;
+  for (let i = 0; i < key.length; i += 1) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 0x01_00_01_93) >>> 0;
+  }
+  return hash.toString(36).slice(0, 6);
+}
+
+/**
+ * Name to give a hoisted external schema.
+ *
+ * A fragment naming a component (`x.yaml#/components/schemas/Pet`) is
+ * the common case and keeps its own name (`Pet`), which is what makes
+ * the output readable and what a reader of the original files expects.
+ * Otherwise the file's basename carries the meaning, optionally with the
+ * fragment tail appended.
+ */
+export function deriveComponentName(uri: string, fragment: string): string {
+  const tail = fragment.replace(/^\//, "").split("/").filter(Boolean);
+  const fromComponents =
+    tail.length >= 3 && tail[0] === "components" && tail[1] === "schemas" ? tail.at(-1) : undefined;
+  if (fromComponents !== undefined) return sanitizeName(fromComponents);
+
+  const base = (uri.split("/").pop() ?? uri).replace(/\.(ya?ml|json)$/i, "");
+  if (tail.length === 0) return sanitizeName(base);
+  return sanitizeName(`${base}_${tail.join("_")}`);
+}
+
+/**
+ * Assigns each external schema target a unique `components.schemas`
+ * name, and remembers the assignment so every `$ref` to that target
+ * lands on the same component.
+ *
+ * `reserved` seeds the names already taken by the entry document's own
+ * components, so hoisting can never shadow a schema the author wrote.
+ */
+export class HoistNames {
+  private readonly byTarget = new Map<string, string>();
+  private readonly taken: Set<string>;
+
+  constructor(reserved: Iterable<string>) {
+    this.taken = new Set(reserved);
+  }
+
+  /**
+   * Bind a target to a name the author already chose.
+   *
+   * Used when a `components.schemas` entry is itself nothing but a
+   * `$ref` to an external file: the target belongs in that slot, under
+   * that name. Without this, hoisting would invent a second component
+   * and leave the author's name as a pointer to it, adding a level of
+   * indirection nobody wrote.
+   */
+  bind(uri: string, fragment: string, name: string): void {
+    const key = targetKey(uri, fragment);
+    if (this.byTarget.has(key)) return;
+    this.byTarget.set(key, name);
+    this.taken.add(name);
+  }
+
+  /** Name for a target, assigning one on first request. */
+  nameFor(uri: string, fragment: string): string {
+    const key = targetKey(uri, fragment);
+    const existing = this.byTarget.get(key);
+    if (existing !== undefined) return existing;
+
+    const base = deriveComponentName(uri, fragment);
+    let name = base;
+    if (this.taken.has(name)) name = `${base}_${stableSuffix(key)}`;
+    // Two different targets whose derived names *and* hashes collide is
+    // vanishingly unlikely; widen deterministically rather than loop
+    // forever if it happens.
+    let widen = 2;
+    while (this.taken.has(name)) {
+      name = `${base}_${stableSuffix(key)}_${widen}`;
+      widen += 1;
+    }
+    this.taken.add(name);
+    this.byTarget.set(key, name);
+    return name;
+  }
+
+  /** Has this target already been assigned a name? */
+  has(uri: string, fragment: string): boolean {
+    return this.byTarget.has(targetKey(uri, fragment));
+  }
+
+  /** Every assignment made, as `canonical target -> component name`. */
+  entries(): ReadonlyMap<string, string> {
+    return this.byTarget;
+  }
+}
+
+/** The internal `$ref` a hoisted schema target is addressed by. */
+export function hoistedRef(name: string): string {
+  return `#/components/schemas/${name}`;
+}
+
+/**
+ * Merge hoisted schemas into `components.schemas`, preserving whatever
+ * the entry document already declared. Mutates `resolved` in place.
+ */
+export function mergeHoistedSchemas(resolved: object, hoisted: Mutable): void {
+  if (Object.keys(hoisted).length === 0) return;
+  const rootObj = resolved as Mutable;
+  const components = (rootObj.components ?? {}) as Mutable;
+  const schemas = (components.schemas ?? {}) as Mutable;
+  rootObj.components = { ...components, schemas: { ...schemas, ...hoisted } };
+}
+
+/** The entry document's `components.schemas` map, or an empty one. */
+export function componentSchemaSlots(doc: unknown): Mutable {
+  if (typeof doc !== "object" || doc === null) return {};
+  const components = (doc as Mutable).components;
+  if (typeof components !== "object" || components === null) return {};
+  const schemas = (components as Mutable).schemas;
+  if (typeof schemas !== "object" || schemas === null || Array.isArray(schemas)) return {};
+  return schemas as Mutable;
+}
+
+/** Names already used by the entry document's `components.schemas`. */
+export function existingSchemaNames(doc: unknown): string[] {
+  if (typeof doc !== "object" || doc === null) return [];
+  const components = (doc as Mutable).components;
+  if (typeof components !== "object" || components === null) return [];
+  const schemas = (components as Mutable).schemas;
+  if (typeof schemas !== "object" || schemas === null) return [];
+  return Object.keys(schemas as Mutable);
+}
+
 /** Cycle-detection key for a (uri, fragment) pair. */
 export function cycleKey(targetUri: string, fragment: string): string {
   return targetUri + "#" + fragment;

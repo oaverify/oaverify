@@ -72,9 +72,12 @@ const PATH_TEMPLATE_RE = /\{([^{}]+)\}/g;
  * Lint a resolved OpenAPI document for spec-hygiene issues.
  *
  * Pure: the document is not mutated. Run after
- * {@link resolveSpec | resolveSpec} so external `$ref`s are inlined and
- * circular ones live under `$defs.__ext__/<encoded-uri>` (the lint skips
- * these resolver-inserted entries).
+ * {@link resolveSpec | resolveSpec} so external `$ref`s are resolved:
+ * schema targets hoisted into `components.schemas`, other objects
+ * inlined, and a circular non-schema ref left under
+ * `$defs.__ext__/<encoded-uri>` (the lint skips those resolver-inserted
+ * entries). Hoisted schemas are ordinary components and are linted as
+ * such, so one referenced by nothing is reported unused like any other.
  *
  * The four checks:
  *

@@ -54,7 +54,11 @@ describe("loadSpecSync on disk", () => {
         content?: Record<string, { schema?: unknown }>;
       }
     ).content?.["application/json"]?.schema;
-    expect(schema).toEqual({
+    // The external schema is hoisted to a component and the use site
+    // holds a ref to it, so the schema keeps an address instead of being
+    // copied per reference.
+    expect(schema).toEqual({ $ref: "#/components/schemas/pet" });
+    expect(document.components?.schemas?.pet).toEqual({
       type: "object",
       required: ["name"],
       properties: { name: { type: "string" } },

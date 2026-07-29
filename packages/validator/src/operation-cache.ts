@@ -308,8 +308,10 @@ export function buildOperationCache(
  * header) against the spec. Returns the target object with any siblings
  * on the reference itself dropped: per OAS, siblings of a Reference
  * are ignored. Follows chains with a depth guard to catch cycles.
- * External refs must be inlined upstream by `resolveSpec()` from
- * `@oaverify/core/spec`.
+ * External refs must be resolved upstream by `resolveSpec()` from
+ * `@oaverify/core/spec`, which hoists schema targets into
+ * `components.schemas` and inlines the rest; either way nothing external
+ * survives for this to follow.
  *
  * Lifted to module scope so it can be exercised independently of
  * `createValidator`.
