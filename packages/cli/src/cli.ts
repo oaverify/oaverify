@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { KNOWN_OUTPUT_FORMATS, isOutputFormat, type OutputFormat } from "@oaverify/internal-core";
 import {
   CHECK_CLASSES,
+  CHECK_SEVERITIES,
   checkCommand,
   compileSchemaCommand,
   compileSpecCommand,
@@ -10,6 +11,7 @@ import {
   streamCheckCommand,
   validateCommand,
   type CheckClass,
+  type CheckSeverity,
   type CommandIo,
   type ValidateMode,
 } from "./commands.js";
@@ -122,7 +124,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
 
   program
     .command("check <spec>")
-    .description("Report what is wrong with a spec: hygiene and schema-lint findings.")
+    .description(
+      "Report what is wrong with a spec: document conformance, hygiene, and schema findings.",
+    )
     .option(
       "--overlay <file...>",
       "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
@@ -143,12 +147,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .option(
       "--fail-on <level>",
-      "non-zero exit when any finding at or above <level> appears (only 'warning' for now)",
-      (value: string): "warning" => {
-        if (value !== "warning") {
-          throw new Error(`unknown level: ${value} (expected "warning")`);
+      `non-zero exit when any finding at or above <level> appears: ${CHECK_SEVERITIES.join(", ")}`,
+      (value: string): CheckSeverity => {
+        if (!(CHECK_SEVERITIES as readonly string[]).includes(value)) {
+          throw new Error(`unknown level: ${value} (expected ${CHECK_SEVERITIES.join(", ")})`);
         }
-        return value;
+        return value as CheckSeverity;
       },
     )
     .option(
@@ -170,7 +174,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
         opts: {
           overlay: string[];
           only?: CheckClass[];
-          failOn?: "warning";
+          failOn?: CheckSeverity;
           format: "text" | "json";
           output?: string;
           quiet: boolean;

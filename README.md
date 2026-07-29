@@ -168,8 +168,8 @@ config, streaming validation, and pre-deploy buffer budgets.
   handler.
 - Mount request-validation middleware in Express 4, Express 5, or
   Fastify.
-- Report spec hygiene, malformed schemas, and schema-lint findings in
-  CI with `oaverify check`.
+- Report document conformance, spec hygiene, malformed schemas, and
+  schema-lint findings in CI with `oaverify check`, gated by severity.
 - Validate large JSON bodies as bytes arrive with `@oaverify/stream`.
 - Estimate per-operation streaming buffer budgets before deployment
   with `analyzeSpec` or `oaverify stream-check`.

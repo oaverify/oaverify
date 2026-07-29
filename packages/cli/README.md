@@ -39,8 +39,9 @@ against it. Everything else here builds artifacts (`resolve`,
 ## Commands
 
 ```bash
-oaverify check <spec>                                         # hygiene + schema-lint findings
-oaverify check <spec> --only schema                           # one class only
+oaverify check <spec>                                         # conformance + hygiene + schema findings
+oaverify check <spec> --only conformance                      # one class only
+oaverify check <spec> --fail-on error                         # CI gate: exit 1 on spec violations
 oaverify check <spec> --fail-on warning                       # CI gate: exit 1 on any finding
 oaverify check <spec> --format json                           # { findings: [...] }, each classed
 ```
@@ -49,10 +50,13 @@ Schema findings are located by the operation they were compiled for,
 then the path within that schema:
 
 ```
-schema  silent-rewrite/required-not-in-properties
+warning schema  silent-rewrite/required-not-in-properties
   GET /policies 200 response body (application/json) -> properties.items.allOf[0]
   required: "signedDate" is not declared in properties reachable here
 ```
+
+Severity leads each line, because it is what decides whether to act now;
+the class follows, because it says which pass to look at.
 
 Most findings about a schema reached through a `$ref` are addressed by
 the component it came from (`components.schemas.Pet.properties.tags`)
@@ -112,8 +116,8 @@ below for the expected shape.
 | `--format text\|json\|summary`                | validate                                         | Error rendering. Default `text`. `summary` is one line per leaf; `flat` is its deprecated alias.                                        |
 | `--depth <n>`                                 | validate                                         | Truncate error tree depth (text format).                                                                                                |
 | `--overlay <file>`                            | resolve / validate / compile-spec / stream-check | Repeatable; applies overlays in order. Accepts a standard OpenAPI Overlay 1.0 document or a typed `SpecOverlay`; anything else exits 3. |
-| `--only <classes>`                            | check                                            | Comma-separated subset of `hygiene`, `schema`. Default: all.                                                                            |
-| `--fail-on <level>`                           | check                                            | Non-zero exit on any finding at or above `<level>`. Currently only `warning`.                                                           |
+| `--only <classes>`                            | check                                            | Comma-separated subset of `conformance`, `hygiene`, `schema`. Default: all.                                                             |
+| `--fail-on <level>`                           | check                                            | Non-zero exit on any finding at or above `<level>`: `warning` (any finding), `error` (specification violations), `fatal`.               |
 | `--format text\|json`                         | check / stream-check                             | check: one finding per line, or `{ findings }`. stream-check: per-operation table, or the `SpecBudget`.                                 |
 | `--dialect 2020-12\|openapi-3.1\|openapi-3.0` | compile-schema / compile-spec                    | Schema dialect. Defaults: 2020-12 (compile-schema), auto-detect from `openapi` field (compile-spec).                                    |
 | `--requests-only`                             | compile-spec                                     | Skip response-validator emit. Smaller output.                                                                                           |
@@ -285,9 +289,9 @@ Exit 4 is `check`-only and means the opposite: the document was graded
 in full and the report on stdout is complete, but one or more findings
 make it uncompilable. Those are reported under the class `malformed`
 with the code `malformed-schema`. `malformed` is a reported class
-rather than a selectable one: `--only` takes `hygiene` / `schema`, and
-a malformed schema is found by compiling, which is what the `schema`
-check does. `check` grades the rest of the document rather than
+rather than a selectable one: `--only` takes `conformance` / `hygiene` /
+`schema`, and a malformed schema is found by compiling, which is what
+the `schema` check does. `check` grades the rest of the document rather than
 stopping at the first one, so a run that exits 4 still carries every
 other finding it could reach. Exit 4 outranks `--fail-on`: a document
 that cannot be compiled is not a gate result.

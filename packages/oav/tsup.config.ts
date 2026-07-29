@@ -48,6 +48,19 @@ const oavCoreRewrite: Record<string, string> = {
 const bundledWorkspace: Record<string, string> = {
   "@oaverify/internal-cli": resolve(repoRoot, "packages", "cli", "src", "index.ts"),
   "@oaverify/internal-router": resolve(repoRoot, "packages", "router", "src", "index.ts"),
+  // Bundled rather than rewritten to a `@oaverify/core` subpath on
+  // purpose. It carries ~100KB of vendored OpenAPI meta-schemas, and
+  // `metaschemaFor` reaches all three, so anything importing it pays in
+  // full. Only `check` needs them, so they belong in this tarball rather
+  // than in the library every framework adapter depends on.
+  "@oaverify/internal-metaschema": resolve(repoRoot, "packages", "metaschema", "src", "index.ts"),
+  "@oaverify/internal-metaschema/conformance": resolve(
+    repoRoot,
+    "packages",
+    "metaschema",
+    "src",
+    "conformance.ts",
+  ),
 };
 
 // esbuild resolves aliases before external-matching, but only for

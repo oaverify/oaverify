@@ -15,6 +15,7 @@
       "@oaverify/internal-spec": ["./packages/spec/src/index.ts"],
       "@oaverify/internal-spec/internals": ["./packages/spec/src/internals.ts"],
       "@oaverify/internal-metaschema": ["./packages/metaschema/src/index.ts"],
+      "@oaverify/internal-metaschema/conformance": ["./packages/metaschema/src/conformance.ts"],
       "@oaverify/internal-overlay-spec": ["./packages/overlay-spec/src/index.ts"],
       "@oaverify/internal-router": ["./packages/router/src/index.ts"],
       "@oaverify/internal-validator": ["./packages/validator/src/index.ts"],
