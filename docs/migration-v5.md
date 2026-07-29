@@ -120,7 +120,9 @@ oaverify check spec.yaml --fail-on warning
 to port beyond the invocation above. It emits one findings array, each
 entry carrying a required `class` (`hygiene`, `schema`, or `malformed`)
 so a consumer can re-split what the command ran together, and `--only`
-takes a comma-separated subset of `hygiene`, `schema`. Its output shape
+takes a comma-separated subset of `hygiene`, `schema`. Both sets have
+grown since 5.0; see [the strictness guide](./strictness.md#on-the-cli)
+for the current ones. Its output shape
 and its exit codes are documented in
 [the CLI README](../packages/cli/README.md#exit-codes); read them as new
 surface, not as a diff against `resolve --lint`.

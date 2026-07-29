@@ -41,14 +41,14 @@ the other commands do not need it.
 
 ## Commands
 
-| Command          | What it does                                                  |
-| ---------------- | ------------------------------------------------------------- |
-| `validate`       | Check a request, response, or body against the spec           |
-| `check`          | Report spec hygiene, schema-lint, and malformed-schema issues |
-| `resolve`        | Stitch a multi-file document and print the result             |
-| `stream-check`   | Report the per-operation streaming buffer budget              |
-| `compile-spec`   | Emit a standalone HTTP validator module for a whole document  |
-| `compile-schema` | Emit a standalone validator module for a single JSON Schema   |
+| Command          | What it does                                                 |
+| ---------------- | ------------------------------------------------------------ |
+| `validate`       | Check a request, response, or body against the spec          |
+| `check`          | Report document conformance, spec hygiene, and schema issues |
+| `resolve`        | Stitch a multi-file document and print the result            |
+| `stream-check`   | Report the per-operation streaming buffer budget             |
+| `compile-spec`   | Emit a standalone HTTP validator module for a whole document |
+| `compile-schema` | Emit a standalone validator module for a single JSON Schema  |
 
 Full flags and output shapes are in
 [`packages/cli/README.md`](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md).

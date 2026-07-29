@@ -490,9 +490,14 @@ export async function checkCommand(
     // your schemas, this one asks whether the document is legal OpenAPI
     // at all. A document can fail either without failing the other.
     //
-    // The pass stubs the Schema Object on every version, so there is no
-    // overlap with the malformed / schema classes to deduplicate. See
-    // the reasoning on `stubSchemaObject`.
+    // Overlap with the schema classes depends on the version. 3.1 and
+    // 3.2 stub the Schema Object upstream, so this pass and the
+    // compiler's well-formedness pass are disjoint. 3.0 describes it in
+    // full, so one defect there can be reported by both. Deduplicating
+    // needs the two to address findings the same way, which is #517:
+    // malformed findings are located by operation, these by RFC 6901
+    // pointer. See the note in metaschema/src/conformance.ts for why
+    // stubbing 3.0 to match is not an option.
     const conformance = checkDocumentConformance(document);
     for (const issue of conformance.issues) {
       findings.push({

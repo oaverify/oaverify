@@ -124,7 +124,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
 
   program
     .command("check <spec>")
-    .description("Report what is wrong with a spec: hygiene and schema-lint findings.")
+    .description(
+      "Report what is wrong with a spec: document conformance, hygiene, and schema findings.",
+    )
     .option(
       "--overlay <file...>",
       "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
