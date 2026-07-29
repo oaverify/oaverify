@@ -125,10 +125,17 @@ and its exit codes are documented in
 [the CLI README](../packages/cli/README.md#exit-codes); read them as new
 surface, not as a diff against `resolve --lint`.
 
-**`check` does not validate your document against the OpenAPI
-meta-schema.** It reports schema-level and hygiene problems. For
-document conformance, pair it with `redocly lint` or `vacuum`; see
-[the integration guide](./integration.md).
+**In 5.0, `check` did not validate your document against the OpenAPI
+meta-schema.** It reported schema-level and hygiene problems only, and
+the advice was to pair it with `redocly lint` or `vacuum` for document
+conformance.
+
+That changed after 5.0: `check` now has a `conformance` class that
+validates the document against the JSON Schema OpenAPI publishes for the
+version it declares. It is still structural, so it cannot follow
+references, and cross-reference defects (a dangling `$ref`, a duplicate
+`operationId`, an undeclared server variable) remain a reason to pair
+with a linter. See [the strictness guide](./strictness.md#document-conformance).
 
 ### `stream-check --envelope` is now `--format`
 

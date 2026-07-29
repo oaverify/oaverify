@@ -199,9 +199,16 @@ validated at runtime, which is a library setting.
 
 - _"My spec has a typo and I want to know at build time."_ → `schemaLint: "strict"`.
 - _"I want unexpected query parameters rejected."_ → `strictQueryParameters: true`.
-- _"I want to be told my spec is not valid OpenAPI."_ → none of these. oaverify
-  validates schemas, not documents. Pair it with `redocly lint` or `vacuum`;
-  see [the integration guide](./integration.md).
+- _"I want to be told my spec is not valid OpenAPI."_ →
+  `oaverify check --only conformance`, or `--fail-on error` in CI. It
+  validates the document against the JSON Schema OpenAPI publishes for
+  the version it declares.
+- _"I want to be told my `$ref` points at nothing, or my `operationId`s
+  collide."_ → conformance cannot answer that: a schema validates a node
+  against a subschema and cannot ask whether a name resolves. `check`
+  covers some of it under `hygiene` (undeclared path parameters, unused
+  components). For the rest, pair with `redocly lint` or `vacuum`; see
+  [the integration guide](./integration.md).
 
 ## For contributors: naming
 

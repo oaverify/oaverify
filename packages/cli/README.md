@@ -39,8 +39,9 @@ against it. Everything else here builds artifacts (`resolve`,
 ## Commands
 
 ```bash
-oaverify check <spec>                                         # hygiene + schema-lint findings
-oaverify check <spec> --only schema                           # one class only
+oaverify check <spec>                                         # conformance + hygiene + schema findings
+oaverify check <spec> --only conformance                      # one class only
+oaverify check <spec> --fail-on error                         # CI gate: exit 1 on spec violations
 oaverify check <spec> --fail-on warning                       # CI gate: exit 1 on any finding
 oaverify check <spec> --format json                           # { findings: [...] }, each classed
 ```
