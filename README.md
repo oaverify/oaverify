@@ -91,6 +91,37 @@ report and rely on the exit code with `--quiet`.)
 See [`docs/modules.md`](https://github.com/oaverify/oaverify/blob/main/docs/modules.md)
 for what each one exports.
 
+## Bundle cost
+
+These are the figures for **embedding the library** in an application.
+The `oaverify` command-line tool is a separate package and is not
+included here; the sizes of the standalone validators its
+`compile-schema` and `compile-spec` commands emit are documented in
+[packages/cli/README.md](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md#bundle-size).
+
+Measured with esbuild (`--bundle --minify`, ESM) against the published
+`dist`, then `gzip -n`:
+
+| Import                                              | Entry point                |     Raw | Gzipped |
+| --------------------------------------------------- | -------------------------- | ------: | ------: |
+| `compileSchema`, `jsonSchemaDialect`                | `@oaverify/core/schema`    |  68,790 |  19,258 |
+| the same, plus `builtInFormats`                     | `+ @oaverify/core/formats` |  72,636 |  20,485 |
+| `createValidator` (request/response HTTP validator) | `@oaverify/core`           | 106,663 |  31,229 |
+
+Bytes. `@oaverify/core` carries no runtime dependencies, so these figures
+are the complete cost of the import.
+
+Not included, because they are separate packages or separate entry
+points: YAML parsing (`@oaverify/yaml`), the streaming engine
+(`@oaverify/stream`), the framework adapters, the spec loader
+(`@oaverify/core/spec`), and the OpenAPI meta-schemas. See
+[Install](#install) for what pulls in what.
+
+If size is a constraint, measure the imports you actually use rather
+than relying on these numbers. They move with the version, and adding
+one import to an entry point can move them by more than the table
+suggests.
+
 ## Quick start
 
 ### Express
