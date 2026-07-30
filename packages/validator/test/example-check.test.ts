@@ -673,6 +673,63 @@ describe("checkDocumentExamples", () => {
     });
   });
 
+  describe("every reason, not only the first (#579)", () => {
+    /** Wrong in four independent ways, as real examples usually are. */
+    const fourWays = withJsonBody({
+      schema: {
+        type: "object",
+        required: ["when", "form", "amount", "taxId"],
+        properties: {
+          when: { type: "string", format: "date" },
+          form: { type: "string", enum: ["ACH", "CHECK"] },
+        },
+      },
+      example: { when: 20260116, form: "EFT" },
+    });
+
+    it("reports all of them in one finding", () => {
+      const issues = checkDocumentExamples(fourWays);
+
+      expect(issues).toHaveLength(1);
+      const message = issues[0]?.message ?? "";
+      expect(message).toContain("when: must be string");
+      expect(message).toContain("form: must be one of the allowed values");
+      expect(message).toContain('must have required property "amount"');
+      expect(message).toContain('must have required property "taxId"');
+      expect(message).not.toContain("more");
+    });
+
+    it("caps the list and says how many it dropped", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({
+          schema: {
+            type: "object",
+            required: ["a", "b", "c", "d", "e", "f", "g"],
+          },
+          example: {},
+        }),
+      );
+
+      expect(issues).toHaveLength(1);
+      // Five spelled out, the remaining two counted.
+      expect(issues[0]?.message).toContain("; and 2 more");
+      expect(issues[0]?.message).not.toContain('property "g"');
+    });
+
+    it("reports one reason per defect where branches restate it", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({
+          schema: { anyOf: [{ type: "string" }, { type: "string", format: "date" }] },
+          example: 42,
+        }),
+      );
+
+      expect(issues).toHaveLength(1);
+      const message = issues[0]?.message ?? "";
+      expect(message.match(/must be string/g)).toHaveLength(1);
+    });
+  });
+
   it("declines a schema that will not compile rather than guessing", () => {
     const issues = checkDocumentExamples(
       withJsonBody({ schema: { $ref: "#/components/schemas/Missing", example: "anything" } }),

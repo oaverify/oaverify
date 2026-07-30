@@ -86,6 +86,38 @@ function echoValue(value: unknown): string {
 }
 
 /**
+ * How many distinct reasons one finding spells out before summarising
+ * the rest as a count. Five fits a terminal line and covers most bad
+ * examples whole; past that the author has enough to work with.
+ */
+const REASON_LIMIT = 5;
+
+/**
+ * One reason per failing leaf, deduplicated and capped.
+ *
+ * Deduplication is by rendered text rather than by error identity. A
+ * composition keyword reports the same leaf once per branch it tried,
+ * so `anyOf: [{type: string}, {type: string, format: date}]` against a
+ * number yields two identical `must be string` lines. Those are one
+ * defect to the author.
+ *
+ * The tail names how many were dropped, so a cap is visible rather than
+ * silent truncation.
+ */
+function joinReasons(errors: readonly { path: readonly (string | number)[]; message: string }[]) {
+  const seen = new Set<string>();
+  for (const error of errors) {
+    const where = error.path.length === 0 ? "" : `${error.path.join(".")}: `;
+    seen.add(`${where}${error.message}`);
+  }
+  if (seen.size === 0) return "does not validate";
+  const reasons = [...seen];
+  const shown = reasons.slice(0, REASON_LIMIT).join("; ");
+  const dropped = reasons.length - REASON_LIMIT;
+  return dropped > 0 ? `${shown}; and ${dropped} more` : shown;
+}
+
+/**
  * Validates one example value against a schema, returning a short
  * reason when it fails and `undefined` when it validates.
  */
@@ -150,7 +182,13 @@ export function checkDocumentExamples(
         // issues nobody reads on every compile.
         schemaLint: "off",
         output: "flat",
-        maxErrors: 1,
+        // Uncapped, against the zero-config default of 1. An example is
+        // usually wrong in several independent ways, and a budget of 1
+        // costs the author one fix-and-recheck round per defect with no
+        // sign of how many remain (#579). Rendering is capped instead,
+        // at REASON_LIMIT, so the finding stays readable and the count
+        // of what was dropped is exact.
+        maxErrors: Number.POSITIVE_INFINITY,
       });
     } catch {
       compiled.set(schema, null);
@@ -167,10 +205,7 @@ export function checkDocumentExamples(
         return undefined;
       }
       if (result.valid) return undefined;
-      const first = result.errors[0];
-      if (first === undefined) return "does not validate";
-      const where = first.path.length === 0 ? "" : `${first.path.join(".")}: `;
-      return `${where}${first.message}`;
+      return joinReasons(result.errors);
     };
     compiled.set(schema, check);
     return check;

@@ -163,6 +163,24 @@ Findings are located by RFC 6901 pointer, so a shared component is
 reported once, at its own definition, rather than once per operation
 that reaches it.
 
+One finding covers one example, and spells out every way that example
+fails rather than stopping at the first:
+
+```
+warning examples [example-invalid]
+  /paths/~1withdrawals/post/requestBody/content/application~1json/examples/Broken/value:
+  oaverify rejects "examples.Broken" against its schema:
+  effectiveDate: must be string; payeeOrBeneficiary.0.paymentForm: must be one of the
+  allowed values; payeeOrBeneficiary.0.taxId: must have required property "taxId"
+  (example: {"effectiveDate":20260116,"payeeOrBeneficiary":[{"paymentFor...)
+```
+
+Past five reasons the rest are summarised as `and N more`, so the list
+stays readable and a cap is never silent. This is the one place `check`
+departs from the zero-config `maxErrors: 1` default: an example is
+usually wrong in several independent ways, and a budget of one costs the
+author a fix-and-recheck round per defect.
+
 The check runs the schema's own compiled validator over the value, which
 gets `format`, `enum`, `required` and every other keyword for free.
 Two consequences worth knowing:
