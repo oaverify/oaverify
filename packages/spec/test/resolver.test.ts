@@ -459,6 +459,58 @@ describe("resolveSpec", () => {
   });
 });
 
+describe("non-schema cycles land somewhere legal (#559)", () => {
+  // Schema cycles hoist into `components.schemas`. A cycle among
+  // non-schema objects has no components section to go to, so it is
+  // materialised under an `x-` extension: OpenAPI allows those on the
+  // root and allows nothing else there, and the previous home (a root
+  // `$defs`) made `check` report the resolver's own output as
+  // non-conformant.
+  const cyclic = () =>
+    createMemoryReader(
+      new Map<string, unknown>([
+        [
+          "main.json",
+          {
+            openapi: "3.1.0",
+            info: { title: "X", version: "1" },
+            paths: {
+              "/a": {
+                get: { operationId: "a", responses: { "200": { $ref: "resp.json" } } },
+              },
+            },
+          },
+        ],
+        ["resp.json", { description: "a", headers: { "X-B": { $ref: "header.json" } } }],
+        [
+          "header.json",
+          {
+            description: "b",
+            schema: { type: "string" },
+            "x-loop": { $ref: "resp.json" },
+          },
+        ],
+      ]),
+    );
+
+  it("uses an x- extension rather than a root $defs", async () => {
+    const { document } = await resolveSpec({ reader: cyclic(), entry: "main.json" });
+    expect((document as unknown as { $defs?: unknown }).$defs).toBeUndefined();
+    const bucket = (document as unknown as Record<string, unknown>)["x-oaverify-externals"];
+    expect(bucket).toBeDefined();
+    expect(Object.keys(bucket as Record<string, unknown>)).toContain("resp.json");
+  });
+
+  it("leaves every ref into the bucket resolvable", async () => {
+    const { document } = await resolveSpec({ reader: cyclic(), entry: "main.json" });
+    const refs = collectInternalRefs(document);
+    expect(refs.some((r) => r.startsWith("#/x-oaverify-externals/"))).toBe(true);
+    for (const ref of refs) {
+      expect(resolveJsonPointer(document, ref.slice(1)), ref).toBeDefined();
+    }
+  });
+});
+
 describe("hoisting external schemas (#553, #556)", () => {
   const petSpec = (extra: Record<string, unknown> = {}) =>
     new Map<string, unknown>([

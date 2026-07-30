@@ -40,7 +40,21 @@ export function baseDirOf(uri: string): string {
   return dirname(uri);
 }
 
-/** Encode a URI for use as a `$defs.__ext__` key (JSON-pointer-safe). */
+/**
+ * Root field the resolver materialises circular non-schema externals
+ * under.
+ *
+ * An `x-` extension because OpenAPI allows those on the root object and
+ * allows nothing else there: the previous home, a root `$defs`, is not a
+ * legal OpenAPI field, so `check` reported the resolver's own output as
+ * non-conformant on any spec that reached this path (#559).
+ *
+ * Only non-schema cycles land here. External *schema* targets are hoisted
+ * into `components.schemas` and addressed by name.
+ */
+export const EXTERNALS_FIELD = "x-oaverify-externals";
+
+/** Encode a URI for use as an {@link EXTERNALS_FIELD} key (JSON-pointer-safe). */
 export function encodeUri(uri: string): string {
   return uri.replace(/~/g, "~0").replace(/\//g, "~1");
 }
@@ -56,7 +70,7 @@ export function encodeFragment(fragment: string): string {
  */
 export function makeStitchRef(targetUri: string, fragment: string): { $ref: string } {
   return {
-    $ref: `#/$defs/__ext__/${encodeUri(targetUri)}${fragment ? `/${encodeFragment(fragment)}` : ""}`,
+    $ref: `#/${EXTERNALS_FIELD}/${encodeUri(targetUri)}${fragment ? `/${encodeFragment(fragment)}` : ""}`,
   };
 }
 
@@ -72,9 +86,9 @@ export function rewriteInternalRefTarget(
 ): string {
   const encoded = encodeUri(externalSourceUri);
   if (fragmentAfterHash === "" || fragmentAfterHash === "/") {
-    return `#/$defs/__ext__/${encoded}`;
+    return `#/${EXTERNALS_FIELD}/${encoded}`;
   }
-  return `#/$defs/__ext__/${encoded}${fragmentAfterHash.startsWith("/") ? fragmentAfterHash : `/${fragmentAfterHash}`}`;
+  return `#/${EXTERNALS_FIELD}/${encoded}${fragmentAfterHash.startsWith("/") ? fragmentAfterHash : `/${fragmentAfterHash}`}`;
 }
 
 /**
@@ -255,12 +269,10 @@ export function cycleKey(targetUri: string, fragment: string): string {
 
 /**
  * Merge the stitched external documents into the resolved root's
- * `$defs.__ext__`, preserving any pre-existing `$defs` on the entry
- * document. Mutates `resolved` in place.
+ * {@link EXTERNALS_FIELD}. Mutates `resolved` in place.
  */
 export function mergeStitchedExternals(resolved: object, stitched: Mutable): void {
   const rootObj = resolved as Mutable;
-  const prevDefs = (rootObj.$defs ?? {}) as Mutable;
-  const prevExt = (prevDefs.__ext__ ?? {}) as Mutable;
-  rootObj.$defs = { ...prevDefs, __ext__: { ...prevExt, ...stitched } };
+  const prev = (rootObj[EXTERNALS_FIELD] ?? {}) as Mutable;
+  rootObj[EXTERNALS_FIELD] = { ...prev, ...stitched };
 }
