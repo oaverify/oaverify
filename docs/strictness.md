@@ -160,11 +160,10 @@ Two consequences worth knowing:
 
 It declines rather than guesses in three places: a Schema Object
 `examples` that is not an array (the 3.0 Example Object map shape under
-a 3.1 `openapi:`, which is document structure rather than schema
-semantics, see
-[#491](https://github.com/oaverify/oaverify/issues/491)); an Example
-Object carrying `externalValue`, which oaverify does not fetch; and a
-schema that will not compile.
+a 3.1 `openapi:`, reported by the `annotation-value-type` schema lint
+instead, which names the real defect); an Example Object carrying
+`externalValue`, which oaverify does not fetch; and a schema that will
+not compile.
 
 This is the one class that compiles schemas of its own accord, so it is
 also the one with a cost worth naming: on a 278-component document it

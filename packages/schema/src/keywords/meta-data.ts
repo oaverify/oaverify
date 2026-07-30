@@ -17,13 +17,15 @@ import type { KeywordDefinition } from "./types.js";
  * cannot change what the validator accepts, so it must not block
  * construction. See {@link KeywordDefinition.annotationValueType}.
  *
- * Omitted where any value is legal (`default`, `example`, `examples`),
- * which is a statement about the keyword, not an omission.
+ * Omitted where any value is legal (`default`, `example`), which is a
+ * statement about the keyword, not an omission. `examples` is not in
+ * that group: its *members* are unconstrained, but 2020-12 requires the
+ * keyword itself to hold an array.
  */
 function annotationKeyword(
   name: string,
   vocabulary: string = META_DATA_VOCAB,
-  valueType?: "string" | "boolean" | "object",
+  valueType?: "string" | "boolean" | "object" | "array",
 ): KeywordDefinition {
   return {
     keyword: name,
@@ -101,9 +103,17 @@ export const writeOnlyKeyword = annotationKeyword("writeOnly", META_DATA_VOCAB, 
  * for documentation and tooling. Annotation-only; emits no validation
  * code. Supersedes OpenAPI 3.0's singular {@link exampleKeyword}.
  *
+ * The members are unconstrained, but 2020-12 requires the keyword to
+ * hold an array, so a non-array value is reported through `schemaLint`.
+ * The shape that hits this in practice is a 3.0 Example Object map
+ * (`examples: { name: { value: ... } }`) left unconverted in a document
+ * upgraded to 3.1: inert, since nothing reading 2020-12 `examples` will
+ * ever see those values, and invisible to the document meta-schema,
+ * which stubs the Schema Object from 3.1 on (#555).
+ *
  * @public
  */
-export const examplesKeyword = annotationKeyword("examples");
+export const examplesKeyword = annotationKeyword("examples", META_DATA_VOCAB, "array");
 
 /**
  * OpenAPI-specific annotation: `example` (singular). Deprecated in

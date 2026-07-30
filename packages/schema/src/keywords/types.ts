@@ -560,7 +560,7 @@ export interface KeywordDefinition {
    * array-valued `items`); a mistyped annotation is a document
    * conformance defect and must not block validator construction.
    */
-  annotationValueType?: "string" | "boolean" | "object";
+  annotationValueType?: "string" | "boolean" | "object" | "array";
 }
 
 /**
