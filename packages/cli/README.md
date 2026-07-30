@@ -79,6 +79,32 @@ schema [silent-rewrite/ref-siblings-oas30] GET /a 200 response body (application
   -> components.schemas.Wrapper.properties.inner (and 2 more operation(s)): OAS 3.0: ...
 ```
 
+### Which grammar a finding's location uses
+
+Two grammars, and the class tells you which you get. Worth knowing
+before writing a consumer that maps findings back to source:
+
+| Class         | Grammar                     | Example                                                              |
+| ------------- | --------------------------- | -------------------------------------------------------------------- |
+| `conformance` | RFC 6901 JSON pointer       | `/paths/~1pets/post/responses/202/description`                       |
+| `examples`    | RFC 6901 JSON pointer       | `/components/schemas/Cusip/examples/0`                               |
+| `hygiene`     | RFC 6901 JSON pointer       | `/tags/0`                                                            |
+| `redos`       | RFC 6901 JSON pointer       | `/components/schemas/Email/properties/emailAddress/pattern`          |
+| `schema`      | operation, then schema path | `GET /pets 200 response body (application/json) -> properties.items` |
+| `malformed`   | operation                   | `GET /pets 200 response`                                             |
+
+The split follows what each pass has in hand. The first four walk the
+document and know the node's address. The last two report on compiled
+artifacts, which are compiled per operation, so the operation is the
+address they can always give; a `$ref`-reached schema additionally
+carries the component path, as above.
+
+One consequence: a defect that both a document pass and a compile pass
+can see is reported twice, in both grammars. A `description: null` is
+the common one, reported by `conformance/type` at its pointer and by
+`schema/annotation-value-type` at its operation. Giving every class a
+pointer is [#517](https://github.com/oaverify/oaverify/issues/517).
+
 ```bash
 
 oaverify resolve <spec>                                       # stitch a multi-file spec
