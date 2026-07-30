@@ -170,8 +170,9 @@ fails rather than stopping at the first:
 warning examples [example-invalid]
   /paths/~1withdrawals/post/requestBody/content/application~1json/examples/Broken/value:
   oaverify rejects "examples.Broken" against its schema:
-  effectiveDate: must be string; payeeOrBeneficiary.0.paymentForm: must be one of the
-  allowed values; payeeOrBeneficiary.0.taxId: must have required property "taxId"
+  effectiveDate: must be string (actual: integer); payeeOrBeneficiary.0.paymentForm:
+  must be one of the allowed values (actual: "EFT", allowed: ["DTCC","ACH","CHECK"]);
+  payeeOrBeneficiary.0.taxId: must have required property "taxId"
   (example: {"effectiveDate":20260116,"payeeOrBeneficiary":[{"paymentFor...)
 ```
 
@@ -180,6 +181,12 @@ stays readable and a cap is never silent. This is the one place `check`
 departs from the zero-config `maxErrors: 1` default: an example is
 usually wrong in several independent ways, and a budget of one costs the
 author a fix-and-recheck round per defect.
+
+`enum`, `const` and `type` failures carry the offending value and the
+set that was permitted, because their message is a bare assertion and
+recovering either otherwise means following the `$ref` chain to the
+schema by hand. The bounded keywords already name their bound. Long
+values and long enums are truncated with `...`.
 
 The check runs the schema's own compiled validator over the value, which
 gets `format`, `enum`, `required` and every other keyword for free.

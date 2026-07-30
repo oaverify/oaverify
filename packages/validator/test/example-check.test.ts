@@ -730,6 +730,57 @@ describe("checkDocumentExamples", () => {
     });
   });
 
+  describe("names the value and the set where the message cannot (#580)", () => {
+    it("gives an enum failure the actual value and the allowed set", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({
+          schema: { type: "string", enum: ["ACH", "CHECK"] },
+          example: "EFT",
+        }),
+      );
+
+      expect(issues[0]?.message).toContain('(actual: "EFT", allowed: ["ACH","CHECK"])');
+    });
+
+    it("gives a const failure both sides too", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({ schema: { const: "fixed" }, example: "other" }),
+      );
+
+      expect(issues[0]?.message).toContain('(actual: "other", expected: "fixed")');
+    });
+
+    it("names the type that turned up, which the assertion does not", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({ schema: { type: "string" }, example: 42 }),
+      );
+
+      expect(issues[0]?.message).toContain("must be string (actual: integer)");
+    });
+
+    it("adds nothing where the message already names its bound", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({ schema: { type: "string", minLength: 4 }, example: "ab" }),
+      );
+
+      expect(issues[0]?.message).not.toContain("actual:");
+    });
+
+    it("truncates an enum too long to spell out", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({
+          schema: { type: "string", enum: Array.from({ length: 60 }, (_, i) => `value-${i}`) },
+          example: "nope",
+        }),
+      );
+
+      const message = issues[0]?.message ?? "";
+      expect(message).toContain('actual: "nope"');
+      expect(message).toContain("...");
+      expect(message.length).toBeLessThan(400);
+    });
+  });
+
   it("declines a schema that will not compile rather than guessing", () => {
     const issues = checkDocumentExamples(
       withJsonBody({ schema: { $ref: "#/components/schemas/Missing", example: "anything" } }),
