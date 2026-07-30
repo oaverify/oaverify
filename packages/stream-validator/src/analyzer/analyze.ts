@@ -351,7 +351,11 @@ function hasComplexValueEquality(node: SchemaObject): boolean {
 // (`contains`, asserting `format`, `uniqueItems`, complex `enum`/`const`).
 // Relying on the classifier's `strategyOf` alone would miss these and
 // under-report buffering.
-function nodeKind(
+//
+// Exported for `test/analyzer-spine-drift.test.ts`, which pins the
+// agreement with the spine. Not re-exported from the package entry
+// points: the analyzer stays engine-free, and this is not public API.
+export function nodeKind(
   node: SchemaObject,
   cls: Classification,
   formatAsserts: boolean,
