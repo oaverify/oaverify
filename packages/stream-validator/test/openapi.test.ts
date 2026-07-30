@@ -62,6 +62,22 @@ describe("normalizeOas30", () => {
     expect(out.properties?.a).toEqual({ type: ["integer", "null"] });
   });
 
+  it("keeps __proto__ schema-map entries as own properties", () => {
+    const out = normalizeOas30({
+      type: "object",
+      properties: JSON.parse(`{"__proto__":{"type":"string","nullable":true}}`),
+      components: {
+        schemas: JSON.parse(`{"__proto__":{"type":"integer","nullable":true}}`),
+      },
+    } as unknown as SchemaOrBoolean) as SchemaObject;
+    expect(Object.hasOwn(out.properties ?? {}, "__proto__")).toBe(true);
+    expect(out.properties?.["__proto__"]).toEqual({ type: ["string", "null"] });
+    const components = (out as unknown as { components: Record<string, Record<string, unknown>> })
+      .components;
+    expect(Object.hasOwn(components.schemas ?? {}, "__proto__")).toBe(true);
+    expect(components.schemas?.["__proto__"]).toEqual({ type: ["integer", "null"] });
+  });
+
   it("normalizes components.schemas reached by an inline body's $ref", () => {
     const out = normalizeOas30({
       type: "object",

@@ -20,7 +20,7 @@
  * @packageDocumentation
  */
 
-import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import { setSpecKey, type SchemaObject, type SchemaOrBoolean } from "@oaverify/internal-core";
 import {
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
@@ -47,7 +47,7 @@ function normalizeComponents(components: Record<string, unknown>): Record<string
   if (!isObjectSchema(schemas)) return components;
   const out: Record<string, unknown> = {};
   for (const [name, sub] of Object.entries(schemas)) {
-    out[name] = normalizeOas30(sub as SchemaOrBoolean);
+    setSpecKey(out, name, normalizeOas30(sub as SchemaOrBoolean));
   }
   return { ...components, schemas: out };
 }
@@ -82,15 +82,20 @@ export function normalizeOas30(schema: SchemaOrBoolean): SchemaOrBoolean {
   for (const [key, val] of Object.entries(schema)) {
     if (key === "nullable") continue; // folded into `type` below
     if (key === "components" && isObjectSchema(val))
-      out[key] = normalizeComponents(val as Record<string, unknown>);
-    else if (SINGLE.has(key)) out[key] = normalizeOas30(val as SchemaOrBoolean);
+      setSpecKey(out, key, normalizeComponents(val as Record<string, unknown>));
+    else if (SINGLE.has(key)) setSpecKey(out, key, normalizeOas30(val as SchemaOrBoolean));
     else if (ARRAY.has(key))
-      out[key] = Array.isArray(val) ? val.map((v) => normalizeOas30(v as SchemaOrBoolean)) : val;
+      setSpecKey(
+        out,
+        key,
+        Array.isArray(val) ? val.map((v) => normalizeOas30(v as SchemaOrBoolean)) : val,
+      );
     else if (MAP.has(key) && isObjectSchema(val)) {
       const m: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(val)) m[k] = normalizeOas30(v as SchemaOrBoolean);
-      out[key] = m;
-    } else out[key] = val;
+      for (const [k, v] of Object.entries(val))
+        setSpecKey(m, k, normalizeOas30(v as SchemaOrBoolean));
+      setSpecKey(out, key, m);
+    } else setSpecKey(out, key, val);
   }
 
   // nullable: true -> add "null" to the type.

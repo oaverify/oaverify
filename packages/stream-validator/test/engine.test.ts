@@ -64,6 +64,20 @@ describe("createStreamValidator: byte-exact echo", () => {
     const verdict = await validator.result;
     expect(verdict.valid).toBe(true);
   });
+
+  it("materializes a __proto__ member as an own property inside buffered islands", async () => {
+    const schema: SchemaOrBoolean = {
+      type: "array",
+      contains: {
+        type: "object",
+        required: ["__proto__"],
+        properties: JSON.parse(`{"__proto__":{"type":"string"}}`),
+      },
+    };
+    const { echoed, validator } = await runValid(schema, `[{"__proto__":"ok"}]`, 3);
+    expect(echoed.toString("utf8")).toBe(`[{"__proto__":"ok"}]`);
+    await expect(validator.result).resolves.toMatchObject({ valid: true });
+  });
 });
 
 describe("createStreamValidator: terminate policy (default)", () => {

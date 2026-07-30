@@ -7,6 +7,7 @@
  * @packageDocumentation
  */
 
+import { setSpecKey } from "@oaverify/internal-core";
 import type { JsonEventHandler } from "../tokenizer/index.js";
 
 /**
@@ -39,7 +40,7 @@ export class ValueBuilder implements JsonEventHandler {
       return;
     }
     if (Array.isArray(top.container)) top.container.push(v);
-    else (top.container as Record<string, unknown>)[top.key as string] = v;
+    else setSpecKey(top.container as Record<string, unknown>, top.key as string, v);
   }
 
   onStartObject(): void {

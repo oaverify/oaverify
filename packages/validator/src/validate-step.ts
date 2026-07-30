@@ -59,7 +59,7 @@ export function validateParameter(
 
   switch (p.in) {
     case "path":
-      raw = match.pathParams[p.name];
+      raw = getOwn(match.pathParams, p.name);
       validator = cache.pathParamValidators.get(p.name);
       pathPrefix = ["path", p.name];
       code = "path-param";

@@ -33,7 +33,7 @@ import {
   type Dialect,
   type RefResolver,
 } from "@oaverify/internal-schema";
-import { classifyUnknownVersion } from "@oaverify/internal-core";
+import { classifyUnknownVersion, setSpecKey } from "@oaverify/internal-core";
 import type {
   HeaderObject,
   OpenAPIDocument,
@@ -295,6 +295,8 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     `const __outputMode = ${JSON.stringify(outputMode)};`,
     `const __maxErrors = ${maxErrorsLiteral};`,
     "",
+    renderOwnHelper(),
+    "",
     ...(usesHeaderHelper ? [renderHeaderHelper(), ""] : []),
     renderValidateRequestTree(),
     "",
@@ -361,7 +363,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     requestBodyRequired = requestBody.required === true;
     for (const [mediaType, media] of Object.entries(requestBody.content ?? {})) {
       if (media.schema !== undefined) {
-        bodyValidators[mediaType] = named(media.schema);
+        setSpecKey(bodyValidators, mediaType, named(media.schema));
       }
     }
   }
@@ -381,7 +383,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
       const bodyVs: Record<string, string> = {};
       for (const [mediaType, media] of Object.entries(resp.content ?? {})) {
         if (media.schema !== undefined) {
-          bodyVs[mediaType] = named(media.schema);
+          setSpecKey(bodyVs, mediaType, named(media.schema));
         }
       }
       const headers: Record<
@@ -392,13 +394,13 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
         const hdr = resolveRef<HeaderObject>(hdrRaw as HeaderObject | ReferenceObject);
         if (hdr === undefined) continue;
         const schema = (hdr.schema ?? firstContentSchema(hdr)) as SchemaOrBoolean | undefined;
-        headers[headerName] = {
+        setSpecKey(headers, headerName, {
           required: hdr.required === true,
           schema: hdr.schema ?? undefined,
           validator: schema !== undefined ? named(schema) : null,
-        };
+        });
       }
-      responses[statusKey] = { bodyValidators: bodyVs, headers };
+      setSpecKey(responses, statusKey, { bodyValidators: bodyVs, headers });
     }
   }
   const hasResponseHeaders = Object.values(responses).some(
@@ -474,7 +476,7 @@ function firstContentSchema(p: ParameterObject | HeaderObject): SchemaOrBoolean 
 
 function toPlaceholderMap(m: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(m)) out[k] = `__REF:${v}__`;
+  for (const [k, v] of Object.entries(m)) setSpecKey(out, k, `__REF:${v}__`);
   return out;
 }
 
@@ -492,17 +494,17 @@ function mapResponsesToPlaceholders(
     const headerOut: Record<string, { required: boolean; schema: unknown; __validator: string }> =
       {};
     for (const [name, h] of Object.entries(r.headers)) {
-      headerOut[name] = {
+      setSpecKey(headerOut, name, {
         required: h.required,
         schema: h.schema,
         __validator: h.validator === null ? "__NULL__" : `__REF:${h.validator}__`,
-      };
+      });
     }
-    out[status] = {
+    setSpecKey(out, status, {
       bodyValidators: toPlaceholderMap(r.bodyValidators),
       bodyMediaTypes: compileMediaTypePatterns(Object.keys(r.bodyValidators)),
       headers: headerOut,
-    };
+    });
   }
   return out;
 }
@@ -523,7 +525,7 @@ function stringifySecuritySchemes(
   const resolved: Record<string, SecuritySchemeObject> = {};
   for (const [name, r] of Object.entries(raw)) {
     const s = resolveRef<SecuritySchemeObject>(r as SecuritySchemeObject | ReferenceObject);
-    if (s !== undefined) resolved[name] = s;
+    if (s !== undefined) setSpecKey(resolved, name, s);
   }
   return JSON.stringify(resolved, null, 2);
 }
@@ -597,12 +599,22 @@ function resolveDialect(
 
 const HTTP_METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace", "query"];
 
+function renderOwnHelper(): string {
+  return `function __own(bag, name) {
+  if (bag === undefined) return undefined;
+  return Object.hasOwn(bag, name) ? bag[name] : undefined;
+}
+`;
+}
+
 function renderHeaderHelper(): string {
   return `function __readHeader(headers, name) {
   if (headers === undefined) return undefined;
   const lowered = name.toLowerCase();
-  const direct = headers[lowered];
-  if (direct !== undefined) return direct;
+  if (Object.hasOwn(headers, lowered)) {
+    const direct = headers[lowered];
+    if (direct !== undefined) return direct;
+  }
   for (const [key, value] of Object.entries(headers)) {
     if (key.toLowerCase() === lowered) return value;
   }
@@ -729,12 +741,12 @@ function __validateParameter(p, req, match) {
 }
 
 function __readParamRaw(p, req, match) {
-  if (p.in === "path") return match.pathParams[p.name];
-  if (p.in === "query") return (req.query ?? {})[p.name];
+  if (p.in === "path") return __own(match.pathParams, p.name);
+  if (p.in === "query") return __own(req.query, p.name);
   if (p.in === "header") {
     return __readHeader(req.headers, p.name);
   }
-  if (p.in === "cookie") return (req.cookies ?? {})[p.name];
+  if (p.in === "cookie") return __own(req.cookies, p.name);
   return undefined;
 }
 `;

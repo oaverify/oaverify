@@ -32,7 +32,12 @@
  * @packageDocumentation
  */
 
-import type { PathSegment, SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import {
+  setSpecKey,
+  type PathSegment,
+  type SchemaObject,
+  type SchemaOrBoolean,
+} from "@oaverify/internal-core";
 import type { RegexCompiler } from "@oaverify/internal-schema";
 import type { Strategy } from "../classifier/strategy.js";
 import type { JsonEventHandler } from "../tokenizer/index.js";
@@ -1736,7 +1741,7 @@ function stripComposition(s: SchemaObject): SchemaObject {
   for (const [k, v] of Object.entries(s)) {
     if (k === "allOf" || k === "anyOf" || k === "oneOf" || k === "not" || k === "if") continue;
     if (k === "then" || k === "else") continue; // partners of `if`
-    out[k] = v;
+    setSpecKey(out, k, v);
   }
   return out as SchemaObject;
 }

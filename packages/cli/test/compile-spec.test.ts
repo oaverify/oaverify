@@ -174,6 +174,61 @@ function collectLeafCodes(err: ValidationError): string[] {
 }
 
 describe("compile-spec: equivalence vs createValidator", () => {
+  it("does not satisfy required parameters from inherited record members", async () => {
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "Prototype names", version: "1" },
+      paths: {
+        "/header": {
+          get: {
+            parameters: [
+              { name: "constructor", in: "header", required: true, schema: { type: "string" } },
+            ],
+            responses: { "204": { description: "ok" } },
+          },
+        },
+        "/query": {
+          get: {
+            parameters: [
+              { name: "constructor", in: "query", required: true, schema: { type: "string" } },
+            ],
+            responses: { "204": { description: "ok" } },
+          },
+        },
+        "/cookie": {
+          get: {
+            parameters: [
+              { name: "constructor", in: "cookie", required: true, schema: { type: "string" } },
+            ],
+            responses: { "204": { description: "ok" } },
+          },
+        },
+        "/path": {
+          get: {
+            parameters: [
+              { name: "constructor", in: "path", required: true, schema: { type: "string" } },
+            ],
+            responses: { "204": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const aot = await buildAot(spec);
+
+    const cases = [
+      { req: { method: "GET", path: "/header", headers: {} }, code: "header-param" },
+      { req: { method: "GET", path: "/query", query: {} }, code: "query-param" },
+      { req: { method: "GET", path: "/cookie", cookies: {} }, code: "cookie-param" },
+      { req: { method: "GET", path: "/path" }, code: "path-param" },
+    ] as const;
+
+    for (const { req, code } of cases) {
+      expect(() => aot.validateRequest(req)).not.toThrow();
+      const errors = flatErrors(aot.validateRequest(req));
+      expect(errors.map((e) => e.code)).toEqual([code]);
+    }
+  });
+
   it("matches runtime output on the petstore matrix", async () => {
     // The emitted (AOT) module mirrors the validator's tree output, so
     // compare against a tree-mode, uncapped runtime validator.
