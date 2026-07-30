@@ -44,10 +44,36 @@ npm install @oaverify/stream
 | `overlay-petstore-schema.ts`   | `petstore.yaml`       | Extend the `Pet` component with a deployment-required field                         |
 | `overlay-petstore-endpoint.ts` | `petstore.yaml`       | Require an `X-Tenant` header on `POST /pets` via an endpoint overlay                |
 | `spec-digest.ts`               | `uploads.yaml`        | Derive middleware config (multer limits, required headers) from the spec at startup |
+| `spec-check.ts`                | `catalog.yaml`        | Check the spec itself: every example validated against the schema it illustrates    |
+| `fetch-handler.ts`             | `petstore.yaml`       | Web Standards `Request`/`Response` handler: Next.js, Hono, Bun, Deno                |
 
 See [`docs/overlays.md`](../docs/overlays.md) for a walk-through of the overlay
 shape and when to use each section (`extendSchemas`, `replaceSchemas`,
 `overrides`, `addPaths`).
+
+`spec-check.ts` covers the one check class available as a library call.
+The other four (`hygiene`, `schema`, `conformance`, `redos`) are composed
+only by `oaverify check`, because the conformance meta-schemas and the
+ReDoS detector are dependencies `@oaverify/core` does not carry. The file
+shows both halves: the library call, and the CLI invocations for the rest.
+See [`docs/strictness.md`](../docs/strictness.md).
+
+### Why there is no Express or Fastify example here
+
+The framework adapters are the most likely first contact with the
+library, so their absence from this directory is deliberate rather than
+an oversight. These examples run against the main workspace, which does
+not install `express` (the root `.npmrc` sets `auto-install-peers=false`
+so adapter peer deps stay out of the main lockfile, #295), and
+`pnpm typecheck` type-checks this directory. An adapter example here
+would neither run nor type-check without undoing that.
+
+The adapter recipes live in
+[`docs/integration.md`](../docs/integration.md), and
+[`framework-tests/`](../framework-tests), which owns the framework
+runtimes, exercises all three adapters against real servers.
+`fetch-handler.ts` is the runnable middleware-shaped example, since the
+Web Standards path needs no adapter package and no peer dependency.
 
 ### Streaming
 
