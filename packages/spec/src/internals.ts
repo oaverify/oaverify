@@ -19,5 +19,10 @@
  * @packageDocumentation
  */
 
-export { createFileReaderSync, composeReadersSync, type SyncDocumentReader } from "./reader.js";
+export {
+  composeReadersSync,
+  createFileReaderSync,
+  fetchInit,
+  type SyncDocumentReader,
+} from "./reader.js";
 export { resolveSpecSync, type ResolveSpecSyncOptions } from "./resolver-sync.js";

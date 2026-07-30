@@ -4,6 +4,8 @@ export {
   createHttpReader,
   createMemoryReader,
   type DocumentReader,
+  type FileReaderOptions,
+  type HttpReaderOptions,
 } from "./reader.js";
 export {
   resolveJsonPointer,
