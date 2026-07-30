@@ -219,6 +219,21 @@ export interface KeywordCompileContext {
    */
   readonly unevaluatedTracking: boolean;
   /**
+   * Hand this keyword's {@link KeywordDefinition.implements} entries
+   * back, so they compile as if this keyword had not claimed them.
+   *
+   * For a keyword that specialises sibling keywords but cannot always do
+   * so. `discriminator` implements `oneOf` / `anyOf` to route to a
+   * single branch, and calls this when it cannot build a routing table:
+   * without it the composition that is the normative constraint would be
+   * suppressed and never run, rejecting every payload (#561).
+   *
+   * Call it before emitting anything, and emit nothing after: the
+   * declined keywords will produce the code for this position.
+   */
+  declineImplements(): void;
+
+  /**
    * Emit an error-push statement directly into the current code
    * generator. Pick the right `kind` based on where the error
    * expression came from:

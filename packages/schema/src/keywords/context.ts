@@ -626,6 +626,9 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
     gen: inputs.gen,
     schema: inputs.schema,
     parentSchema: inputs.parentSchema,
+    // Replaced by the compiler, which owns the `implements` bookkeeping;
+    // a no-op for anyone building a context directly.
+    declineImplements: () => {},
     data: inputs.data,
     path: inputs.path,
     pathSegments,

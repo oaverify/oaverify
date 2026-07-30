@@ -24,7 +24,7 @@
 | `structural/parameter-schema-and-content` | structural | yes | - | yes | - |
 | `structural/license-identifier-and-url` | structural | yes | - | yes | - |
 | `structural/path-param-not-required` | structural | yes | - | yes | - |
-| `structural/dangling-discriminator-mapping` | structural | - | yes | - | yes |
+| `structural/dangling-discriminator-mapping` | structural | yes | yes | - | yes |
 | `structural/undeclared-server-variable` | structural | - | - | yes | yes |
 | `structural/dangling-ref` | structural | yes | yes | yes | yes |
 | `control/clean` | control | - | - | - | - |
@@ -36,7 +36,7 @@
 | --- | --- | --- | --- | --- |
 | malformed (6) | 6/6 | 4/6 | 5/6 | 5/6 |
 | lint (7) | 7/7 | 5/7 | 2/7 | 4/7 |
-| structural (8) | 6/8 | 2/8 | 7/8 | 5/8 |
+| structural (8) | 7/8 | 2/8 | 7/8 | 5/8 |
 | style (6) | 3/6 | 0/6 | 6/6 | 6/6 |
 | control false positives (4) | 0 | 0 | 0 | 0 |
-| total findings raised | 24 | 19 | 170 | 182 |
+| total findings raised | 25 | 19 | 170 | 182 |

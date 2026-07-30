@@ -104,6 +104,26 @@ since that fallback reads the length of some constructs differently
 fires only where `type` is exactly `"string"`: with another type
 admitted, a non-string instance still validates.
 
+The `silent-rewrite/*` family reports a constraint the validator does
+not enforce as written. `silent-rewrite/discriminator-unroutable` is
+worth calling out because of what oaverify does about it: a
+`discriminator` whose values cannot be matched to the sibling `oneOf` /
+`anyOf` branches is **ignored**, and the composition validates every
+branch instead.
+
+That is the verdict OpenAPI asks for. A discriminator is an aid to
+branch selection and error quality; the composition beside it is what
+decides validity. Rejecting every payload because the aid could not be
+interpreted is the one outcome the spec does not sanction, and it is
+what happened to any spec whose branches carry no `$ref`: a pre-bundled
+document keeps `mapping` values naming the files the bundle absorbed.
+
+Two things stay as they were. A value outside a _working_ mapping still
+fails, because no schema can be selected for it and the spec expects
+that. And a working discriminator still routes to one branch, so its
+error names that branch's problem rather than "none of N schemas
+matched".
+
 ## Examples: do the documented examples match their schemas
 
 `check` validates the examples in the document against the schemas they

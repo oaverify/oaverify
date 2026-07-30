@@ -1,4 +1,5 @@
 import { quoteString } from "../codegen/index.js";
+import { computeDiscriminatorRoutes } from "./discriminator-routes.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { APPLICATOR_VOCAB } from "./vocabulary-uris.js";
 
@@ -22,36 +23,29 @@ export const discriminatorKeyword: KeywordDefinition = {
   compile(ctx: KeywordCompileContext): void {
     const disc = ctx.schema as { propertyName: string; mapping?: Record<string, string> };
     const propertyName = disc.propertyName;
-    const mapping = disc.mapping ?? {};
     const branches = ctx.parentSchema.oneOf ?? ctx.parentSchema.anyOf;
     if (!branches) return;
 
-    const nameToIndex = new Map<string, number>();
-    branches.forEach((branch, i) => {
-      if (typeof branch === "object" && branch !== null) {
-        const ref = (branch as { $ref?: string }).$ref;
-        if (ref !== undefined) {
-          const last = ref.split("/").pop();
-          if (last !== undefined) nameToIndex.set(last, i);
-        }
-      }
-    });
-    for (const [mapName, refPath] of Object.entries(mapping)) {
-      const last = refPath.split("/").pop();
-      if (last !== undefined) {
-        const fromRef = nameToIndex.get(last);
-        if (fromRef !== undefined) nameToIndex.set(mapName, fromRef);
-      }
-      const direct = branches.findIndex((b) => {
-        if (typeof b !== "object" || b === null) return false;
-        const ref = (b as { $ref?: string }).$ref;
-        return ref === refPath;
-      });
-      if (direct >= 0) nameToIndex.set(mapName, direct);
+    const { routes, usable } = computeDiscriminatorRoutes(disc, branches);
+    if (!usable) {
+      // Nothing to route with, or a routing table only partly usable.
+      // Hand `oneOf` / `anyOf` back and let the composition decide.
+      //
+      // OpenAPI treats `discriminator` as an aid to branch selection and
+      // error quality; the composition beside it is what says whether an
+      // instance is valid. Rejecting every payload because the aid could
+      // not be interpreted is the one outcome the spec does not sanction,
+      // and it is what happened to any spec whose branches arrived
+      // without `$ref`s: pre-bundled documents keep mapping values
+      // naming files the bundle absorbed (#561). The dead mapping is
+      // reported by `silent-rewrite/discriminator-unroutable` so the
+      // author still learns their routing table is not being used.
+      ctx.declineImplements();
+      return;
     }
 
     const discFns: Array<{ value: string; fn: string }> = [];
-    for (const [value, index] of nameToIndex) {
+    for (const [value, index] of routes) {
       const branch = branches[index];
       if (branch === undefined) continue;
       const fn = ctx.compileSubschema(branch);

@@ -23,6 +23,7 @@ import {
   walkSubschemas,
 } from "../subschema-positions.js";
 import { createDeps, type RegexCompiler, type ValidatorDeps } from "./runtime.js";
+import { computeDiscriminatorRoutes } from "../keywords/discriminator-routes.js";
 import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
 import { assertWellFormedSchema } from "./well-formed.js";
@@ -206,6 +207,32 @@ function runSchemaLint(
               ? `unknown keyword "${key}" at <root>`
               : `unknown keyword "${key}" at "${path}"`,
         });
+      }
+
+      // A discriminator that cannot route is reported here rather than
+      // from the keyword's compile: the compiler hands `oneOf` / `anyOf`
+      // back and carries on (#561), so without this the author would
+      // never learn their routing table is unused.
+      const branchesForDisc = obj["oneOf"] ?? obj["anyOf"];
+      if (obj["discriminator"] !== undefined && Array.isArray(branchesForDisc)) {
+        const { deadMappingKeys, usable } = computeDiscriminatorRoutes(
+          obj["discriminator"],
+          branchesForDisc,
+        );
+        if (!usable) {
+          const reason =
+            deadMappingKeys.length > 0
+              ? `mapping value(s) ${deadMappingKeys.map((k) => JSON.stringify(k)).join(", ")} name no branch`
+              : "no branch carries a $ref to match a mapping value against";
+          issues.push({
+            code: "silent-rewrite/discriminator-unroutable",
+            keyword: "discriminator",
+            path,
+            message:
+              `"discriminator" at ${path.length === 0 ? "<root>" : `"${path}"`} cannot select a branch: ${reason}. ` +
+              `The discriminator is ignored and the composition validates every branch instead.`,
+          });
+        }
       }
 
       // Always-on alongside silent-rewrite/*: the analysis is a parse of
@@ -414,6 +441,13 @@ export interface SchemaLintIssue {
    *   compiled validator is unaffected and this never blocks
    *   construction; the text the author meant to write is simply
    *   absent from the document.
+   * - `"silent-rewrite/discriminator-unroutable"`: a `discriminator`
+   *   whose values cannot be matched to the sibling `oneOf` / `anyOf`
+   *   branches, either because no branch carries a `$ref` or because a
+   *   `mapping` value names none of them. The discriminator is ignored
+   *   and the composition validates every branch, which is the verdict
+   *   the spec asks for; the routing table the author wrote is not
+   *   being used.
    * - `"unsatisfiable/pattern-length"`: a `pattern` whose match length
    *   cannot overlap the sibling `minLength` / `maxLength` bounds, so
    *   no string validates at that position. Usually a quantifier typo
@@ -433,6 +467,7 @@ export interface SchemaLintIssue {
     | "silent-rewrite/ref-siblings-oas30"
     | "silent-rewrite/required-not-in-properties"
     | "silent-rewrite/redundant-composition-branches"
+    | "silent-rewrite/discriminator-unroutable"
     | "unsatisfiable/pattern-length";
   /** The offending keyword / key name as written in the schema. */
   keyword: string;
@@ -1414,9 +1449,15 @@ function compileSchemaKeywords(
       },
       scopeLocals,
     });
-    kw.compile(ctx);
+    // `declineImplements` lets a keyword hand its `implements` entries
+    // back, so they compile normally. `discriminator` needs it: when it
+    // cannot build a routing table it must not suppress the `oneOf` /
+    // `anyOf` beside it, or the composition that is the normative
+    // constraint never runs and every payload is rejected (#561).
+    let declined = false;
+    kw.compile({ ...ctx, declineImplements: () => void (declined = true) });
     seen.add(kw.keyword);
-    if (kw.implements) for (const impl of kw.implements) seen.add(impl);
+    if (kw.implements && !declined) for (const impl of kw.implements) seen.add(impl);
   }
 }
 
