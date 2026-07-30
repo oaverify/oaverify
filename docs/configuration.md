@@ -188,6 +188,77 @@ and is not part of `@oaverify/core/formats`'s `builtInFormats`; a
 user-supplied entry in `formats` still overrides it if you want a
 different policy for the format than for `pattern`.
 
+## Resolving untrusted specs
+
+The regex hardening above addresses what a spec's `pattern` strings can
+do to the validator. Resolution is the other half: a `$ref` is a file
+read or an outbound HTTP request, and `resolveSpec` hoists external
+schema targets into `components.schemas`, so whatever a ref names tends
+to end up in the resolved document, and from there in a response body
+or a log.
+
+The readers do none of this by default. `createFileReader(cwd)` uses
+`cwd` as a resolution root, not a sandbox: `../` escapes it and an
+absolute path is honored. `createHttpReader()` fetches any `http(s)`
+URI it is handed. That is the right default for a first-party spec on
+disk, and the wrong one for a spec you accepted from a user.
+
+Four opt-in controls close it. Contracts live on the types; see
+{@link FileReaderOptions} and {@link HttpReaderOptions}.
+
+```ts
+import {
+  composeReaders,
+  createFileReader,
+  createHttpReader,
+  resolveSpec,
+} from "@oaverify/core/spec";
+
+const reader = composeReaders([
+  createFileReader("/srv/uploads/tenant-42", { confine: true }),
+  createHttpReader({
+    allowUri: (uri) => uri.startsWith("https://specs.internal.example/"),
+    redirects: "error",
+    timeoutMs: 5_000,
+    maxBytes: 2_000_000,
+  }),
+]);
+
+const { document } = await resolveSpec({ entry: "openapi.json", reader });
+```
+
+`confine` refuses any path that resolves outside the base directory.
+`allowUri` is called with every URI before the request and refuses it on
+`false`. `timeoutMs` bounds a hanging endpoint. `maxBytes` rejects an
+oversized body, counted in UTF-8 bytes.
+
+`redirects` deserves its own note, because `allowUri` without it is not
+the control it looks like. `fetch` follows redirects by default and
+`allowUri` never sees the hop, so an approved host that answers `302`
+can still send the reader to an internal address. Set
+`redirects: "error"` whenever the allowlist is what you are relying on.
+It stays `"follow"` by default so that an existing caller behind a
+redirecting endpoint keeps working.
+
+If you use `@oaverify/yaml`, its readers need the same options.
+`createYamlFileReader` and `createSmartHttpReader` compose _ahead_ of
+the JSON-only readers and claim the URI first, so hardening only the
+core readers is bypassed by a `.yaml` extension:
+
+```ts
+const reader = composeReaders([
+  createYamlFileReader("/srv/uploads/tenant-42", { confine: true }),
+  createSmartHttpReader({ allowUri, redirects: "error" }),
+  createFileReader("/srv/uploads/tenant-42", { confine: true }),
+  createHttpReader({ allowUri, redirects: "error" }),
+]);
+```
+
+The `oaverify` CLI composes a file reader and an HTTP reader by
+default, so `oaverify check ./local-spec.yaml` will follow an `http(s)`
+`$ref` found inside that local file. Reaching the network does not
+require having pointed the CLI at a URL.
+
 ## Guarding against deeply nested payloads
 
 Recursive schemas (a `$ref` that points back at an ancestor, common

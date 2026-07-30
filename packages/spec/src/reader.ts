@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { resolve as resolvePath } from "node:path";
+import { resolve as resolvePath, sep } from "node:path";
 
 /**
  * Opaque reader that turns a URI into a parsed JSON-compatible value.
@@ -20,10 +20,46 @@ function hasYamlExtension(uri: string): boolean {
   return lower.endsWith(".yaml") || lower.endsWith(".yml");
 }
 
+/**
+ * Resolve a decoded `$ref` path against the reader's root, enforcing
+ * containment when asked.
+ *
+ * The `root + sep` comparison is what keeps `/a/spec` from admitting
+ * `/a/spec-other`: a bare `startsWith(root)` would treat any sibling
+ * directory whose name extends the root as inside it.
+ */
+function resolveReadPath(root: string, decoded: string, uri: string, confine: boolean): string {
+  const path = resolvePath(root, decoded);
+  if (confine && path !== root && !path.startsWith(root + sep)) {
+    throw new Error(`${uri}: refusing to read outside ${root}`);
+  }
+  return path;
+}
+
 const YAML_HINT =
   "@oaverify/core does not parse YAML directly. Install @oaverify/yaml " +
   "and compose createYamlFileReader() / createSmartHttpReader() ahead of the " +
   "JSON-only readers from @oaverify/core/spec.";
+
+/**
+ * Options for {@link createFileReader} and {@link createFileReaderSync}.
+ *
+ * @public
+ */
+export interface FileReaderOptions {
+  /**
+   * Refuse to read any path that resolves outside the reader's base
+   * directory, whether by `../` traversal or by an absolute path.
+   *
+   * Off by default, because the base directory has never confined
+   * reads and multi-file specs legitimately `$ref` across sibling
+   * directories. Turn it on whenever the spec is untrusted: a `$ref` is
+   * a file read, and `resolveSpec` hoists what it reads into the
+   * resolved document, where it typically reaches a response body or a
+   * log.
+   */
+  confine?: boolean;
+}
 
 /**
  * Read files from the local filesystem. JSON only; `.yaml` / `.yml`
@@ -31,18 +67,29 @@ const YAML_HINT =
  * `@oaverify/yaml`'s `createYamlFileReader` via
  * {@link composeReaders} for YAML support.
  *
+ * The base directory is a resolution root, not a sandbox, unless
+ * {@link FileReaderOptions.confine} is set.
+ *
  * @param cwd - Optional base directory. Defaults to `process.cwd()`.
+ * @param options - Optional containment controls. See {@link FileReaderOptions}.
  * @returns A {@link DocumentReader}.
  *
  * @example
  * ```ts
  * const reader = createFileReader("/abs/spec");
  * await reader.read("openapi.json");
+ *
+ * // Untrusted spec: refuse anything outside /abs/spec.
+ * const confined = createFileReader("/abs/spec", { confine: true });
  * ```
  *
  * @public
  */
-export function createFileReader(cwd: string = process.cwd()): DocumentReader {
+export function createFileReader(
+  cwd: string = process.cwd(),
+  options: FileReaderOptions = {},
+): DocumentReader {
+  const root = resolvePath(cwd);
   return {
     canRead(uri) {
       // Anything that isn't HTTP or memory; YAML paths we still claim
@@ -59,12 +106,51 @@ export function createFileReader(cwd: string = process.cwd()): DocumentReader {
       // isn't a valid escape passes through so it can match a literal
       // filename that actually contains one.
       const decoded = stripped.replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
-      const path = resolvePath(cwd, decoded);
+      const path = resolveReadPath(root, decoded, uri, options.confine === true);
       if (hasYamlExtension(path)) throw new Error(`${uri}: ${YAML_HINT}`);
       const raw = await readFile(path, "utf8");
       return JSON.parse(raw);
     },
   };
+}
+
+/**
+ * Options for {@link createHttpReader}.
+ *
+ * All four are inert by default, so an existing caller's behavior is
+ * unchanged. Reach for them when the spec is untrusted: a `$ref` is an
+ * outbound request, and `resolveSpec` hoists what it fetches into the
+ * resolved document.
+ *
+ * @public
+ */
+export interface HttpReaderOptions {
+  /**
+   * Called with every URI before the request. Return false to refuse it.
+   * Use for a scheme or host allowlist.
+   *
+   * An allowlist alone does not survive a redirect. `fetch` follows
+   * redirects by default and this callback never sees the hop, so an
+   * approved host that responds 302 can still send the reader to an
+   * internal address. Pair it with `redirects: "error"` when the
+   * allowlist is the control you are relying on.
+   */
+  allowUri?: (uri: string) => boolean;
+  /**
+   * How to treat an HTTP redirect. `"follow"` (the default) matches
+   * `fetch`'s own default and every release through 5.1.0. `"error"`
+   * refuses the response instead, which is what closes the
+   * {@link HttpReaderOptions.allowUri} bypass above.
+   */
+  redirects?: "follow" | "error";
+  /** Per-request timeout in milliseconds. Default: no timeout. */
+  timeoutMs?: number;
+  /**
+   * Reject a response body larger than this many bytes. Counted as
+   * UTF-8 bytes, so it matches what crossed the wire rather than the
+   * JS string length. Default: unbounded.
+   */
+  maxBytes?: number;
 }
 
 /**
@@ -84,18 +170,48 @@ export function createFileReader(cwd: string = process.cwd()): DocumentReader {
  *
  * @public
  */
-export function createHttpReader(): DocumentReader {
+export function createHttpReader(options: HttpReaderOptions = {}): DocumentReader {
   return {
     canRead(uri) {
       return /^https?:/i.test(uri);
     },
     async read(uri) {
       if (hasYamlExtension(uri)) throw new Error(`${uri}: ${YAML_HINT}`);
-      const res = await fetch(uri);
+      if (options.allowUri?.(uri) === false) {
+        throw new Error(`${uri}: refused by allowUri`);
+      }
+      // With no controls set, call `fetch` exactly as before: no init
+      // argument at all, so the default path is indistinguishable from
+      // the pre-option behavior rather than merely equivalent to it.
+      const init = fetchInit(options);
+      const res = init === undefined ? await fetch(uri) : await fetch(uri, init);
       if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${uri}`);
       const text = await res.text();
+      if (options.maxBytes !== undefined && byteLength(text) > options.maxBytes) {
+        throw new Error(`${uri}: response exceeds maxBytes (${options.maxBytes})`);
+      }
       return JSON.parse(text);
     },
+  };
+}
+
+function byteLength(text: string): number {
+  return new TextEncoder().encode(text).length;
+}
+
+/**
+ * Build the `fetch` init for the transport-level controls, or
+ * `undefined` when none are set. Shared by this package's HTTP reader
+ * and `@oaverify/yaml`'s.
+ *
+ * @internal
+ */
+export function fetchInit(options: HttpReaderOptions): RequestInit | undefined {
+  const wantsRedirectError = options.redirects === "error";
+  if (!wantsRedirectError && options.timeoutMs === undefined) return undefined;
+  return {
+    ...(wantsRedirectError && { redirect: "error" as const }),
+    ...(options.timeoutMs !== undefined && { signal: AbortSignal.timeout(options.timeoutMs) }),
   };
 }
 
@@ -200,7 +316,11 @@ export interface SyncDocumentReader {
  * boot-time / CLI loads, not per-request; use the async
  * {@link createFileReader} for non-blocking contexts.
  */
-export function createFileReaderSync(cwd: string = process.cwd()): SyncDocumentReader {
+export function createFileReaderSync(
+  cwd: string = process.cwd(),
+  options: FileReaderOptions = {},
+): SyncDocumentReader {
+  const root = resolvePath(cwd);
   return {
     canRead(uri) {
       return !/^(https?|memory):/i.test(uri);
@@ -208,7 +328,7 @@ export function createFileReaderSync(cwd: string = process.cwd()): SyncDocumentR
     read(uri) {
       const stripped = uri.replace(/^file:\/\//, "");
       const decoded = stripped.replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
-      const path = resolvePath(cwd, decoded);
+      const path = resolveReadPath(root, decoded, uri, options.confine === true);
       if (hasYamlExtension(path)) throw new Error(`${uri}: ${YAML_HINT}`);
       const raw = readFileSync(path, "utf8");
       return JSON.parse(raw);
