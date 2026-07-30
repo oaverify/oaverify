@@ -79,6 +79,12 @@ describe("validateResponse", () => {
     );
     expect(leafAt(invalid, "header.X-Count")).toBeDefined();
 
+    const mixedCase = sv.validateResponse(
+      { method: "GET", path: "/items" },
+      { status: 200, headers: { "X-COUNT": "1" } },
+    );
+    expect(mixedCase).toBeNull();
+
     // Regression for #255: a runtime response with required headers
     // declared in the spec but no `headers` object at all used to slip
     // past validation entirely. Treat absent `headers` as `{}`.

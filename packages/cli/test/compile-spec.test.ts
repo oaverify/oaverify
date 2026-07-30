@@ -63,7 +63,14 @@ const petstore: OpenAPIDocument = {
           required: true,
           content: { "application/json": { schema: { $ref: "#/components/schemas/Pet" } } },
         },
-        responses: { "201": { description: "created" } },
+        responses: {
+          "201": {
+            description: "created",
+            headers: {
+              "X-Request-Id": { required: true, schema: { type: "string", minLength: 1 } },
+            },
+          },
+        },
       },
     },
   },
@@ -191,6 +198,16 @@ describe("compile-spec: equivalence vs createValidator", () => {
         },
       },
       {
+        name: "valid POST /pets with mixed-case required header",
+        req: {
+          method: "POST",
+          path: "/pets",
+          contentType: "application/json",
+          headers: { "X-TENANT": "acme" },
+          body: { name: "Fido" },
+        },
+      },
+      {
         name: "invalid POST /pets (missing required `name`)",
         req: {
           method: "POST",
@@ -248,6 +265,22 @@ describe("compile-spec: equivalence vs createValidator", () => {
       }
       expect(equivalent(a, b), c.name).toBe(true);
     }
+  });
+
+  it("matches emitted response headers case-insensitively", async () => {
+    const aot = await buildAot(petstore);
+    expect(
+      aot.validateResponse(
+        {
+          method: "POST",
+          path: "/pets",
+          contentType: "application/json",
+          headers: { "x-tenant": "acme" },
+          body: { name: "Fido" },
+        },
+        { status: 201, headers: { "X-REQUEST-ID": "req-1" } },
+      ),
+    ).toEqual({ valid: true });
   });
 
   it("detectedVersion matches the spec's openapi bucket", async () => {

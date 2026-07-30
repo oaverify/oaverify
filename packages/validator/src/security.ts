@@ -8,6 +8,7 @@ import {
   type SecuritySchemeObject,
   type ValidationError,
 } from "@oaverify/internal-core";
+import { getHeaderValue } from "./headers.js";
 
 /**
  * Shape-only security check precompiled from a single OpenAPI security
@@ -197,8 +198,8 @@ function apiKeyCheck(name: string, scheme: SecuritySchemeObject): CompiledScheme
   };
 }
 
-function getHeader(req: HttpRequest, lowered: string): string | undefined {
-  const raw = req.headers?.[lowered];
+function getHeader(req: HttpRequest, name: string): string | undefined {
+  const raw = getHeaderValue(req.headers, name);
   if (raw === undefined) return undefined;
   return Array.isArray(raw) ? raw[0] : raw;
 }
