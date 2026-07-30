@@ -9,6 +9,9 @@
     "baseUrl": ".",
     "paths": {
       "@oaverify/internal-core": ["./packages/core/src/index.ts"],
+      "@oaverify/internal-core/prototype-properties": [
+        "./packages/core/src/prototype-properties.ts"
+      ],
       "@oaverify/internal-schema": ["./packages/schema/src/index.ts"],
       "@oaverify/internal-schema/internals": ["./packages/schema/src/internals.ts"],
       "@oaverify/internal-formats": ["./packages/formats/src/index.ts"],

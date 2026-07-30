@@ -9,7 +9,11 @@ import {
   type ValidationError,
   setSpecKey,
 } from "@oaverify/internal-core";
-import { getHeaderValue, getOwn } from "./headers.js";
+import {
+  isHeaderObjectPrototypePropertyName,
+  isObjectPrototypePropertyName,
+} from "@oaverify/internal-core/prototype-properties";
+import { getHeaderValue, getHeaderValueFast, getOwn } from "./headers.js";
 
 /**
  * Shape-only security check precompiled from a single OpenAPI security
@@ -154,7 +158,7 @@ function bearerCheck(name: string): CompiledSchemeCheck {
   return {
     scheme: name,
     check: (req) => {
-      const auth = getHeader(req, "authorization");
+      const auth = getHeader(req, "authorization", false);
       if (auth === undefined) return `missing "Authorization: Bearer ..." header`;
       if (!/^bearer\s+\S/i.test(auth)) return `"Authorization" is not a Bearer token`;
       return null;
@@ -166,7 +170,7 @@ function basicCheck(name: string): CompiledSchemeCheck {
   return {
     scheme: name,
     check: (req) => {
-      const auth = getHeader(req, "authorization");
+      const auth = getHeader(req, "authorization", false);
       if (auth === undefined) return `missing "Authorization: Basic ..." header`;
       const m = /^basic\s+(\S+)$/i.exec(auth);
       if (!m) return `"Authorization" is not a Basic credential`;
@@ -189,18 +193,22 @@ function apiKeyCheck(name: string, scheme: SecuritySchemeObject): CompiledScheme
       check: () => `apiKey scheme "${name}" is missing required "name" or "in"`,
     };
   }
+  const readOwn =
+    keyIn === "header"
+      ? isHeaderObjectPrototypePropertyName(keyName)
+      : isObjectPrototypePropertyName(keyName);
   return {
     scheme: name,
     check: (req) => {
-      const v = pickApiKey(req, keyIn, keyName);
+      const v = pickApiKey(req, keyIn, keyName, readOwn);
       if (v === undefined || v === "") return `missing ${keyIn} "${keyName}"`;
       return null;
     },
   };
 }
 
-function getHeader(req: HttpRequest, name: string): string | undefined {
-  const raw = getHeaderValue(req.headers, name);
+function getHeader(req: HttpRequest, name: string, readOwn: boolean): string | undefined {
+  const raw = readOwn ? getHeaderValue(req.headers, name) : getHeaderValueFast(req.headers, name);
   if (raw === undefined) return undefined;
   return Array.isArray(raw) ? raw[0] : raw;
 }
@@ -209,16 +217,17 @@ function pickApiKey(
   req: HttpRequest,
   loc: "header" | "query" | "cookie",
   name: string,
+  readOwn: boolean,
 ): string | undefined {
   // `getHeader` lowercases internally; doing it again here would turn
   // "valueOf" into "valueof" and mask the inherited-member bug rather
   // than fix it.
-  if (loc === "header") return getHeader(req, name);
+  if (loc === "header") return getHeader(req, name, readOwn);
   if (loc === "query") {
-    const q = getOwn(req.query, name);
+    const q = readOwn ? getOwn(req.query, name) : req.query?.[name];
     return Array.isArray(q) ? q[0] : q;
   }
-  return getOwn(req.cookies, name);
+  return readOwn ? getOwn(req.cookies, name) : req.cookies?.[name];
 }
 
 function tryBase64Decode(s: string): string | undefined {

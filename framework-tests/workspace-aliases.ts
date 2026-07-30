@@ -13,10 +13,14 @@ const rootDir = resolve(here, "..");
 const PACKAGES = ["core", "validator", "oav-express4", "oav-express5", "oav-fastify"] as const;
 
 export function workspaceAliases(): Record<string, string> {
-  return Object.fromEntries(
-    PACKAGES.map((pkg) => [
+  return Object.fromEntries([
+    [
+      "@oaverify/internal-core/prototype-properties",
+      resolve(rootDir, "packages", "core", "src", "prototype-properties.ts"),
+    ],
+    ...PACKAGES.map((pkg) => [
       `@oaverify/internal-${pkg}`,
       resolve(rootDir, "packages", pkg, "src", "index.ts"),
     ]),
-  );
+  ]);
 }

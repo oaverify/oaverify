@@ -59,6 +59,24 @@ function requiredPathParamSpec(name: string): OpenAPIDocument {
   };
 }
 
+function mixedRequiredQueryParamSpec(): OpenAPIDocument {
+  return {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/ping": {
+        get: {
+          parameters: [
+            { name: "id", in: "query", required: true },
+            { name: "constructor", in: "query", required: true },
+          ],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+}
+
 const EMPTY_REQUEST = {
   method: "GET",
   path: "/ping",
@@ -92,6 +110,15 @@ describe("inherited Object.prototype members never satisfy a presence check", ()
       expect(JSON.stringify(error)).toContain("missing required");
     });
   }
+});
+
+describe("mixed ordinary and prototype-member parameters stay guarded", () => {
+  it("does not let a safe sibling put a hazardous query parameter on the fast path", () => {
+    const v = createValidator(mixedRequiredQueryParamSpec());
+    const error = v.validateRequest({ ...EMPTY_REQUEST, query: { id: "sent" } });
+    expect(error).not.toBeNull();
+    expect(error?.children?.[0]?.message).toBe('missing required query parameter "constructor"');
+  });
 });
 
 describe("a parameter named after a prototype member still works when supplied", () => {

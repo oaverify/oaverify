@@ -13,7 +13,12 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Bench } from "tinybench";
 import { createValidator } from "../packages/validator/src/index.ts";
-import type { HttpRequest, HttpResponse, OpenAPIDocument } from "../packages/core/src/index.ts";
+import type {
+  HttpRequest,
+  HttpResponse,
+  OpenAPIDocument,
+  SchemaOrBoolean,
+} from "../packages/core/src/index.ts";
 
 const args = process.argv.slice(2);
 const numArg = (name: string, dflt: number): number => {
@@ -63,13 +68,13 @@ const widgetSchema = {
       items: { type: "string", minLength: 1 },
     },
   },
-} as const;
+} satisfies SchemaOrBoolean;
 
 const content = {
   "application/json": { schema: widgetSchema },
   "application/vnd.oav.widget+json; version=1": { schema: widgetSchema },
   "application/*": { schema: widgetSchema },
-} as const;
+} satisfies Record<string, { schema: SchemaOrBoolean }>;
 
 const spec: OpenAPIDocument = {
   openapi: "3.1.0",
@@ -113,7 +118,6 @@ const reqValid: HttpRequest = {
   method: "POST",
   path: "/widgets/w-123",
   contentType: "application/vnd.oav.widget+json; version=1; charset=utf-8",
-  pathParams: {},
   body,
 };
 
@@ -133,6 +137,37 @@ const resWrongContentType: HttpResponse = {
   contentType: "text/csv",
 };
 
+function queryParamCase(count: number): { name: string; validate: () => void } {
+  const parameters = Array.from({ length: count }, (_, i) => ({
+    name: `q${i}`,
+    in: "query" as const,
+    required: true,
+  }));
+  const doc: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: `${count} query params`, version: "1.0.0" },
+    paths: {
+      "/search": {
+        get: {
+          parameters,
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+  const v = createValidator(doc);
+  const query: Record<string, string> = {};
+  for (let i = 0; i < count; i += 1) query[`q${i}`] = String(i);
+  const req: HttpRequest = { method: "GET", path: "/search", query };
+  if (!v.validateRequest(req).valid) throw new Error(`${count} query params preflight failed`);
+  return {
+    name: `validateRequest ${count} query params`,
+    validate: () => {
+      v.validateRequest(req);
+    },
+  };
+}
+
 if (!validator.validateRequest(reqValid).valid) throw new Error("valid request preflight failed");
 if (validator.validateRequest(reqWrongContentType).valid) {
   throw new Error("wrong-content-type request preflight failed");
@@ -143,6 +178,8 @@ if (!validator.validateResponse(reqValid, resValid).valid) {
 if (validator.validateResponse(reqValid, resWrongContentType).valid) {
   throw new Error("wrong-content-type response preflight failed");
 }
+
+const queryCases = [4, 8, 32].map(queryParamCase);
 
 const bench = new Bench({ time });
 bench
@@ -158,6 +195,9 @@ bench
   .add("validateResponse wrong content-type", () => {
     validator.validateResponse(reqValid, resWrongContentType);
   });
+for (const queryCase of queryCases) {
+  bench.add(queryCase.name, queryCase.validate);
+}
 
 await bench.run();
 
