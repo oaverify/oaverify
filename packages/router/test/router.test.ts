@@ -75,6 +75,21 @@ describe("router", () => {
     expect(matched(m).pathParams).toEqual({ id: "42" });
   });
 
+  it("stores a __proto__ template parameter as an own capture", () => {
+    const router = createRouter({ "/items/{__proto__}": { get: op("getItem") } });
+    const params = matched(router.match("get", "/items/abc")).pathParams;
+    expect(Object.hasOwn(params, "__proto__")).toBe(true);
+    expect(params["__proto__"]).toBe("abc");
+  });
+
+  it("stores a __proto__ compound parameter as an own capture", () => {
+    const router = createRouter({ "/items/{__proto__}.{ext}": { get: op("getItem") } });
+    const params = matched(router.match("get", "/items/abc.json")).pathParams;
+    expect(Object.hasOwn(params, "__proto__")).toBe(true);
+    expect(params["__proto__"]).toBe("abc");
+    expect(params.ext).toBe("json");
+  });
+
   it("picks the literal specificity winner over a template sibling", () => {
     const m = r.match("get", "/pets/mine");
     expect(matched(m).operation.operationId).toBe("mine");

@@ -1,4 +1,9 @@
-import type { HttpMethod, OperationObject, PathItem } from "@oaverify/internal-core";
+import {
+  setSpecKey,
+  type HttpMethod,
+  type OperationObject,
+  type PathItem,
+} from "@oaverify/internal-core";
 
 /**
  * Decode a single path token, tolerating malformed percent-encoding.
@@ -427,7 +432,8 @@ export function createRouter(paths: Record<string, PathItem>): Router {
               break;
             }
           } else if (seg.kind === "template") {
-            (params ??= {})[seg.name] = tok;
+            params ??= {};
+            setSpecKey(params, seg.name, tok);
           } else {
             const m = seg.regex.exec(tok);
             if (m === null) {
@@ -436,7 +442,7 @@ export function createRouter(paths: Record<string, PathItem>): Router {
             }
             params ??= {};
             for (let j = 0; j < seg.names.length; j += 1) {
-              params[seg.names[j]!] = m[j + 1]!;
+              setSpecKey(params, seg.names[j]!, m[j + 1]!);
             }
           }
         }

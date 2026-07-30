@@ -44,6 +44,21 @@ function requiredParamSpec(name: string, location: (typeof LOCATIONS)[number]): 
   };
 }
 
+function requiredPathParamSpec(name: string): OpenAPIDocument {
+  return {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/ping": {
+        get: {
+          parameters: [{ name, in: "path", required: true }],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+}
+
 const EMPTY_REQUEST = {
   method: "GET",
   path: "/ping",
@@ -69,6 +84,13 @@ describe("inherited Object.prototype members never satisfy a presence check", ()
         expect(JSON.stringify(error)).toContain("missing required");
       });
     }
+
+    it(`required path parameter "${member}" is unsatisfied when absent`, () => {
+      const v = createValidator(requiredPathParamSpec(member));
+      const error = v.validateRequest({ ...EMPTY_REQUEST });
+      expect(error).not.toBeNull();
+      expect(JSON.stringify(error)).toContain("missing required");
+    });
   }
 });
 

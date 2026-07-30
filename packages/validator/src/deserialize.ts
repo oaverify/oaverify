@@ -1,4 +1,10 @@
-import type { ParameterObject, ParameterStyle, SchemaObject } from "@oaverify/internal-core";
+import {
+  getOwn,
+  setSpecKey,
+  type ParameterObject,
+  type ParameterStyle,
+  type SchemaObject,
+} from "@oaverify/internal-core";
 
 /**
  * Deserialize a raw parameter string (from URL/header/cookie) into the
@@ -50,13 +56,13 @@ export function deserialize(
     if (explode) {
       const pairs = raw.split("&").map((kv) => kv.split("="));
       const out: Record<string, unknown> = {};
-      for (const pair of pairs) out[pair[0] ?? ""] = pair[1] ?? "";
+      for (const pair of pairs) setSpecKey(out, pair[0] ?? "", pair[1] ?? "");
       return out;
     }
     const parts = raw.split(",");
     const out: Record<string, unknown> = {};
     for (let i = 0; i < parts.length - 1; i += 2) {
-      out[parts[i] ?? ""] = parts[i + 1] ?? "";
+      setSpecKey(out, parts[i] ?? "", parts[i + 1] ?? "");
     }
     return out;
   }
@@ -194,7 +200,7 @@ export function matchParsedMediaType(
     if (!typeMatch || !subtypeMatch) continue;
     let paramsMatch = true;
     for (const [k, v] of parsed.paramEntries) {
-      if (concrete.params[k] !== v) {
+      if (getOwn(concrete.params, k) !== v) {
         paramsMatch = false;
         break;
       }
@@ -225,7 +231,7 @@ function parseMediaType(
       .slice(eq + 1)
       .trim()
       .replace(/^"(.*)"$/, "$1");
-    if (k !== "") params[k] = v;
+    if (k !== "") setSpecKey(params, k, v);
   }
   return { type, subtype, params };
 }

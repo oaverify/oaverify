@@ -13,7 +13,7 @@
  * @packageDocumentation
  */
 
-import type { ParameterObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import { setSpecKey, type ParameterObject, type SchemaOrBoolean } from "@oaverify/internal-core";
 
 /**
  * Peek at the `type` keyword of a schema, returning the first string
@@ -88,7 +88,7 @@ export function assembleDeepObject(
   for (const [k, v] of Object.entries(query)) {
     if (!k.startsWith(prefix) || !k.endsWith("]")) continue;
     const propName = k.slice(prefix.length, -1);
-    out[propName] = Array.isArray(v) ? v[0] : v;
+    setSpecKey(out, propName, Array.isArray(v) ? v[0] : v);
     any = true;
   }
   return any ? out : undefined;
@@ -110,9 +110,9 @@ export function assembleFormExplodedObject(
   const out: Record<string, unknown> = {};
   let any = false;
   for (const [propName, propSchema] of Object.entries(props)) {
-    if (!Object.prototype.hasOwnProperty.call(query, propName)) continue;
+    if (!Object.hasOwn(query, propName)) continue;
     const raw = query[propName];
-    out[propName] = coerceQueryScalar(Array.isArray(raw) ? raw[0] : raw, propSchema);
+    setSpecKey(out, propName, coerceQueryScalar(Array.isArray(raw) ? raw[0] : raw, propSchema));
     any = true;
   }
   return any ? out : undefined;

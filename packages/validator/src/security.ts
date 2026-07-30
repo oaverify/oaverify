@@ -7,6 +7,7 @@ import {
   type SecurityRequirementObject,
   type SecuritySchemeObject,
   type ValidationError,
+  setSpecKey,
 } from "@oaverify/internal-core";
 import { getHeaderValue, getOwn } from "./headers.js";
 
@@ -82,7 +83,7 @@ export function compileOperationSecurity(
   const schemes = document.components?.securitySchemes ?? {};
   const resolvedSchemes: Record<string, SecuritySchemeObject | undefined> = {};
   for (const [name, raw] of Object.entries(schemes)) {
-    resolvedSchemes[name] = resolveRef<SecuritySchemeObject>(raw);
+    setSpecKey(resolvedSchemes, name, resolveRef<SecuritySchemeObject>(raw));
   }
 
   return effective.map((req) => compileRequirement(req, resolvedSchemes, mode));
