@@ -391,6 +391,13 @@ where supported. Command-specific flags include `check --only`,
 surface, the `.http` file format, and both compile commands' output
 contracts.
 
+Every command shares one exit-code taxonomy, tabulated in
+[the CLI README](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md#exit-codes).
+The rule worth reading before you script around it: stdout carries the
+report and the exit code summarises it. `check` exits `4` when a schema
+is malformed, and still prints every finding it reached, so treating
+non-zero as an opaque error throws away a complete payload.
+
 ## Versions
 
 `createValidator` reads the spec's `openapi` string once at construction

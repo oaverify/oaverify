@@ -673,6 +673,114 @@ describe("checkDocumentExamples", () => {
     });
   });
 
+  describe("every reason, not only the first (#579)", () => {
+    /** Wrong in four independent ways, as real examples usually are. */
+    const fourWays = withJsonBody({
+      schema: {
+        type: "object",
+        required: ["when", "form", "amount", "taxId"],
+        properties: {
+          when: { type: "string", format: "date" },
+          form: { type: "string", enum: ["ACH", "CHECK"] },
+        },
+      },
+      example: { when: 20260116, form: "EFT" },
+    });
+
+    it("reports all of them in one finding", () => {
+      const issues = checkDocumentExamples(fourWays);
+
+      expect(issues).toHaveLength(1);
+      const message = issues[0]?.message ?? "";
+      expect(message).toContain("when: must be string");
+      expect(message).toContain("form: must be one of the allowed values");
+      expect(message).toContain('must have required property "amount"');
+      expect(message).toContain('must have required property "taxId"');
+      expect(message).not.toContain("more");
+    });
+
+    it("caps the list and says how many it dropped", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({
+          schema: {
+            type: "object",
+            required: ["a", "b", "c", "d", "e", "f", "g"],
+          },
+          example: {},
+        }),
+      );
+
+      expect(issues).toHaveLength(1);
+      // Five spelled out, the remaining two counted.
+      expect(issues[0]?.message).toContain("; and 2 more");
+      expect(issues[0]?.message).not.toContain('property "g"');
+    });
+
+    it("reports one reason per defect where branches restate it", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({
+          schema: { anyOf: [{ type: "string" }, { type: "string", format: "date" }] },
+          example: 42,
+        }),
+      );
+
+      expect(issues).toHaveLength(1);
+      const message = issues[0]?.message ?? "";
+      expect(message.match(/must be string/g)).toHaveLength(1);
+    });
+  });
+
+  describe("names the value and the set where the message cannot (#580)", () => {
+    it("gives an enum failure the actual value and the allowed set", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({
+          schema: { type: "string", enum: ["ACH", "CHECK"] },
+          example: "EFT",
+        }),
+      );
+
+      expect(issues[0]?.message).toContain('(actual: "EFT", allowed: ["ACH","CHECK"])');
+    });
+
+    it("gives a const failure both sides too", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({ schema: { const: "fixed" }, example: "other" }),
+      );
+
+      expect(issues[0]?.message).toContain('(actual: "other", expected: "fixed")');
+    });
+
+    it("names the type that turned up, which the assertion does not", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({ schema: { type: "string" }, example: 42 }),
+      );
+
+      expect(issues[0]?.message).toContain("must be string (actual: integer)");
+    });
+
+    it("adds nothing where the message already names its bound", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({ schema: { type: "string", minLength: 4 }, example: "ab" }),
+      );
+
+      expect(issues[0]?.message).not.toContain("actual:");
+    });
+
+    it("truncates an enum too long to spell out", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({
+          schema: { type: "string", enum: Array.from({ length: 60 }, (_, i) => `value-${i}`) },
+          example: "nope",
+        }),
+      );
+
+      const message = issues[0]?.message ?? "";
+      expect(message).toContain('actual: "nope"');
+      expect(message).toContain("...");
+      expect(message.length).toBeLessThan(400);
+    });
+  });
+
   it("declines a schema that will not compile rather than guessing", () => {
     const issues = checkDocumentExamples(
       withJsonBody({ schema: { $ref: "#/components/schemas/Missing", example: "anything" } }),

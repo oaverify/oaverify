@@ -24,6 +24,41 @@ export interface RefResolver {
   resolve(ref: string, fromBaseUri?: string): SchemaOrBoolean;
 }
 
+/** How to name a rejected value in the message, without echoing it. */
+function describeShape(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "an array";
+  const type = typeof value;
+  return type === "object" ? "an object with no resolve method" : `a ${type}`;
+}
+
+/**
+ * Reject a `refResolver` that is not one, at the point it was passed.
+ *
+ * A bare function is the shape a caller reaches for first, and it fails
+ * far from the mistake: `state.refResolver.resolve is not a function`,
+ * raised inside codegen, naming an internal field and not the option.
+ * It also fails per schema, so a caller compiling many schemas in a
+ * loop reads it as a problem with the schemas. In the audit that
+ * produced this, it swallowed 19 of 30 before the cause was found.
+ *
+ * @param resolver - The `refResolver` option as passed.
+ *
+ * @internal
+ */
+export function assertRefResolver(resolver: unknown): void {
+  if (
+    typeof resolver === "object" &&
+    resolver !== null &&
+    typeof (resolver as RefResolver).resolve === "function"
+  ) {
+    return;
+  }
+  throw new TypeError(
+    `refResolver must be an object with a resolve(ref) method; received ${describeShape(resolver)}`,
+  );
+}
+
 /**
  * Build a {@link RefResolver} that resolves references against a given
  * {@link ResolvedGraph}.
