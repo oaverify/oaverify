@@ -145,7 +145,7 @@
 - redocly: no matching finding (5 raised)
 
 ## `structural/dangling-discriminator-mapping` (structural)
-- oaverify: no matching finding (0 raised)
+- **oaverify**: silent-rewrite/discriminator-unroutable: "discriminator" at <root> cannot select a branch: mapping value(s) "dog" name no branch. The discriminator is ignored and the composition validates every branch instead. [GET /things 200 response body (application/json) -> <root>]
 - **ajv**: ajv/compile: strict mode: unknown keyword: "discriminator" [paths./things.get.responses.200.application/json]
 - spectral: no matching finding (5 raised)
 - **redocly**: no-unresolved-refs: Can't resolve $ref [#/paths/~1things/get/responses/200/content/application~1json/schema/discriminator/mapping/dog]

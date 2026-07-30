@@ -2272,7 +2272,14 @@
   },
   "structural/dangling-discriminator-mapping": {
     "oaverify": {
-      "findings": []
+      "findings": [
+        {
+          "rule": "silent-rewrite/discriminator-unroutable",
+          "message": "\"discriminator\" at <root> cannot select a branch: mapping value(s) \"dog\" name no branch. The discriminator is ignored and the composition validates every branch instead.",
+          "location": "GET /things 200 response body (application/json) -> <root>",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": [
