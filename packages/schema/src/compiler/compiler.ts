@@ -10,6 +10,7 @@ import type { CompileMode, Dialect, KeywordDefinition } from "../keywords/types.
 import { createKeywordContext, emitPushStatement } from "../keywords/context.js";
 import { createCustomKeywordDefinition, type CustomKeywordValidator } from "../keywords/custom.js";
 import {
+  assertRefResolver,
   createRefResolver,
   resolve,
   SchemaRegistry,
@@ -914,6 +915,10 @@ export function compileSchema(
   schema: SchemaOrBoolean,
   options: CompileOptions,
 ): CompiledSchema | CompiledTreeSchema | CompiledPredicate {
+  // Before anything else, so a bad option is reported as a bad option
+  // rather than as a TypeError from inside codegen, once per schema.
+  if (options.refResolver !== undefined) assertRefResolver(options.refResolver);
+
   const byKeyword = buildKeywordMap(options.dialect.vocabularies);
   const ordered: KeywordDefinition[] = [...byKeyword.values()];
   if (options.keywords) {
