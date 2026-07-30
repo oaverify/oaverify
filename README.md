@@ -517,7 +517,7 @@ validation, response interception, upload helpers), see
 See [CONTRIBUTING.md](https://github.com/oaverify/oaverify/blob/main/CONTRIBUTING.md) for branch / PR / release flow.
 Development workflow (lint / typecheck / test / build) and the
 conformance and performance sub-packages are described there and in
-[CLAUDE.md](https://github.com/oaverify/oaverify/blob/main/CLAUDE.md).
+[AGENTS.md](https://github.com/oaverify/oaverify/blob/main/AGENTS.md).
 
 ## License
 

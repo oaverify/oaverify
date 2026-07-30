@@ -124,6 +124,26 @@ correctness of the choice is on you. Put `ctx.emitBudgetBreak()` at
 the tail of hot loops (array items, property keys, applicator
 branches) so they stop once the cap is exhausted.
 
+### Verdict safety under a finite budget
+
+A finite `maxErrors` must never change a valid/invalid verdict. It caps
+how many errors are _reported_ and nothing else. Honoring that is what
+makes the short-circuit conditional rather than unconditional.
+
+The short-circuit is unsafe under evaluated-key tracking. A cap can
+exhaust mid-evaluation and either starve a real error or truncate a
+sub-validator's evaluated-key set, which flips an `unevaluated*`
+verdict. So `CompileState.gated` is
+`finite maxErrors && !unevaluatedTracking`: a schema using
+`unevaluatedProperties` / `unevaluatedItems` collects every error and
+the cap is not enforced. `unevaluated*` never appears in OpenAPI, so
+the HTTP fast path is unaffected.
+
+Codegen is specialized so that `maxErrors: Infinity` emits source
+identical to the un-budgeted path, at zero overhead. Relatedly,
+`contains` tests membership with a predicate sub-validator, so its
+discarded per-item errors never charge the budget.
+
 ### Predicate mode
 
 `compileSchema(schema, { output: "predicate" })` compiles a `{ validate:
