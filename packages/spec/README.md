@@ -167,14 +167,13 @@ external `$ref` receives the content under the name its author chose.
 External refs in non-schema positions (Response, Parameter, Path Item
 Objects) are inlined. Resolving an already-resolved document is a no-op.
 
-One limitation worth knowing before you feed resolved output to a
-conformance checker: a cycle among **non-schema** objects is still
-materialised under a root `$defs.__ext__`, and OpenAPI does not allow
-`$defs` on the document root, so `oaverify check` reports it. Schema
-cycles, which is what a recursive schema in its own file produces and by
-far the common case, now get a legal `components.schemas` address
-instead. See [#559](https://github.com/oaverify/oaverify/issues/559) for
-the remainder.
+A cycle among **non-schema** objects has no components section to be
+hoisted into, so it is materialised under the root extension field
+`x-oaverify-externals`, keyed by encoded source URI. OpenAPI allows `x-`
+fields on the root object and allows nothing else there, so resolved
+output stays conformant. Schema cycles, which is what a recursive schema
+in its own file produces and by far the common case, get an ordinary
+`components.schemas` address instead.
 
 Circular external references are rewritten to internal anchors
 during resolution, so the final document is always self-contained.

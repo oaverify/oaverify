@@ -75,9 +75,16 @@ const PATH_TEMPLATE_RE = /\{([^{}]+)\}/g;
  * {@link resolveSpec | resolveSpec} so external `$ref`s are resolved:
  * schema targets hoisted into `components.schemas`, other objects
  * inlined, and a circular non-schema ref left under
- * `$defs.__ext__/<encoded-uri>` (the lint skips those resolver-inserted
- * entries). Hoisted schemas are ordinary components and are linted as
- * such, so one referenced by nothing is reported unused like any other.
+ * {@link EXTERNALS_FIELD}. Hoisted schemas are ordinary components and
+ * are linted as such, so one referenced by nothing is reported unused
+ * like any other.
+ *
+ * The lint walks the whole resolved document, the externals field
+ * included: a `$defs` inside stitched content is reported exactly as one
+ * anywhere else would be. That is deliberate rather than overlooked.
+ * Those entries came from a file the author wrote, so a dead one is
+ * still worth knowing about; only the resolver's own bookkeeping keys
+ * are skipped.
  *
  * The four checks:
  *
@@ -329,7 +336,14 @@ function findUnreachableDefs(document: OpenAPIDocument): SpecHygieneIssue[] {
 
   const issues: SpecHygieneIssue[] = [];
   walkForDefs(document, "", (defsPointer, name) => {
-    if (name.startsWith("__ext__/")) return; // resolver-injected; always referenced
+    // The resolver's own bookkeeping, not something an author wrote:
+    // always referenced by construction. Kept for a document resolved by
+    // an older oaverify, whose stitched externals sat under
+    // `$defs.__ext__`; current output puts them in an `x-` field, which
+    // is not a `$defs` map and so never produces a name here. Content
+    // *inside* the externals field is still walked, and a dead `$defs`
+    // there is reported like any other.
+    if (name.startsWith("__ext__/")) return;
     const target = `${defsPointer}/${encodePointerSegment(name)}`;
     if (refsHit(allRefs, target)) return;
     issues.push({
