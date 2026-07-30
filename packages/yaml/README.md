@@ -58,6 +58,17 @@ const { document } = await loadSpec({ reader, entry: "https://api.example.com/op
 It handles JSON as well as YAML, so it replaces `@oaverify/core`'s
 `createHttpReader` in the chain rather than sitting alongside it.
 
+## Reader controls
+
+The YAML readers mirror the file and HTTP reader options from
+`@oaverify/core/spec`. Use `confine` on `createYamlFileReader` for
+untrusted local specs, and apply the same `allowUri`, `redirects`,
+`timeoutMs`, and `maxBytes` controls to `createSmartHttpReader` that you
+would apply to `createHttpReader`. See the
+[reader-controls recipe](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md#resolving-untrusted-specs);
+the option contracts are the TSDoc on `FileReaderOptions` and
+`HttpReaderOptions`.
+
 ## Parsing a string
 
 For sources that never touch a reader (an inlined spec, a database

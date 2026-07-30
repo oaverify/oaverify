@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -25,6 +25,34 @@ function scratch(): { root: string; sibling: string } {
   return { root, sibling };
 }
 
+function streamingBody(chunks: string[]): {
+  body: ReadableStream<Uint8Array>;
+  closed: () => boolean;
+  pulls: () => number;
+} {
+  const enc = new TextEncoder();
+  let i = 0;
+  let closed = false;
+  let pulls = 0;
+  return {
+    body: new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        const chunk = chunks[i];
+        i += 1;
+        if (chunk === undefined) {
+          closed = true;
+          controller.close();
+          return;
+        }
+        controller.enqueue(enc.encode(chunk));
+      },
+    }),
+    closed: () => closed,
+    pulls: () => pulls,
+  };
+}
+
 describe("createYamlFileReader confine", () => {
   it("rejects a ../ escape", async () => {
     const { root } = scratch();
@@ -44,6 +72,20 @@ describe("createYamlFileReader confine", () => {
     const { root } = scratch();
     const reader = createYamlFileReader(root, { confine: true });
     await expect(reader.read("main.yaml")).resolves.toEqual({ in: "root" });
+  });
+
+  it("rejects a symlink that resolves outside the root", async () => {
+    const { root } = scratch();
+    symlinkSync(join(root, "..", "outside.yaml"), join(root, "outside-link.yaml"));
+    const reader = createYamlFileReader(root, { confine: true });
+    await expect(reader.read("outside-link.yaml")).rejects.toThrow(/refusing to read outside/);
+  });
+
+  it("accepts a symlink that resolves inside the root", async () => {
+    const { root } = scratch();
+    symlinkSync(join(root, "main.yaml"), join(root, "main-link.yaml"));
+    const reader = createYamlFileReader(root, { confine: true });
+    await expect(reader.read("main-link.yaml")).resolves.toEqual({ in: "root" });
   });
 
   it("reads through ../ by default", async () => {
@@ -85,6 +127,23 @@ describe("createSmartHttpReader controls", () => {
     await expect(
       createSmartHttpReader({ maxBytes: 32 }).read("https://host.test/spec.yaml"),
     ).rejects.toThrow(/exceeds maxBytes \(32\)/);
+  });
+
+  it("maxBytes stops reading once the streamed response exceeds the limit", async () => {
+    const streamed = streamingBody(["in: ", "xxxxxxxx", "\ntail: unread\n"]);
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve(
+        new Response(streamed.body, {
+          status: 200,
+          headers: { "content-type": "application/yaml" },
+        }),
+      ),
+    ) as typeof fetch;
+    await expect(
+      createSmartHttpReader({ maxBytes: 8 }).read("https://host.test/spec.yaml"),
+    ).rejects.toThrow(/exceeds maxBytes \(8\)/);
+    expect(streamed.closed()).toBe(false);
+    expect(streamed.pulls()).toBeLessThan(4);
   });
 
   it("passes redirect: error to fetch only when asked", async () => {

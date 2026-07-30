@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFileSync, realpathSync } from "node:fs";
+import { readFile, realpath } from "node:fs/promises";
 import { resolve as resolvePath, sep } from "node:path";
 
 /**
@@ -20,18 +20,66 @@ function hasYamlExtension(uri: string): boolean {
   return lower.endsWith(".yaml") || lower.endsWith(".yml");
 }
 
+// The `root + sep` comparison is what keeps `/a/spec` from admitting
+// `/a/spec-other`: a bare `startsWith(root)` would treat any sibling
+// directory whose name extends the root as inside it.
+function outsideRoot(root: string, path: string): boolean {
+  return path !== root && !path.startsWith(root + sep);
+}
+
+function isMissingPath(err: unknown): boolean {
+  const code = (err as NodeJS.ErrnoException).code;
+  return code === "ENOENT" || code === "ENOTDIR";
+}
+
 /**
  * Resolve a decoded `$ref` path against the reader's root, enforcing
  * containment when asked.
  *
- * The `root + sep` comparison is what keeps `/a/spec` from admitting
- * `/a/spec-other`: a bare `startsWith(root)` would treat any sibling
- * directory whose name extends the root as inside it.
+ * @internal
  */
-function resolveReadPath(root: string, decoded: string, uri: string, confine: boolean): string {
+export async function resolveReadPath(
+  root: string,
+  decoded: string,
+  uri: string,
+  confine: boolean,
+): Promise<string> {
   const path = resolvePath(root, decoded);
-  if (confine && path !== root && !path.startsWith(root + sep)) {
+  if (!confine) return path;
+  if (outsideRoot(root, path)) {
     throw new Error(`${uri}: refusing to read outside ${root}`);
+  }
+  try {
+    const [realRoot, realPath] = await Promise.all([realpath(root), realpath(path)]);
+    if (outsideRoot(realRoot, realPath)) {
+      throw new Error(`${uri}: refusing to read outside ${root}`);
+    }
+  } catch (err) {
+    if (!isMissingPath(err)) throw err;
+  }
+  return path;
+}
+
+/** @internal */
+export function resolveReadPathSync(
+  root: string,
+  decoded: string,
+  uri: string,
+  confine: boolean,
+): string {
+  const path = resolvePath(root, decoded);
+  if (!confine) return path;
+  if (outsideRoot(root, path)) {
+    throw new Error(`${uri}: refusing to read outside ${root}`);
+  }
+  try {
+    const realRoot = realpathSync(root);
+    const realPath = realpathSync(path);
+    if (outsideRoot(realRoot, realPath)) {
+      throw new Error(`${uri}: refusing to read outside ${root}`);
+    }
+  } catch (err) {
+    if (!isMissingPath(err)) throw err;
   }
   return path;
 }
@@ -48,8 +96,10 @@ const YAML_HINT =
  */
 export interface FileReaderOptions {
   /**
-   * Refuse to read any path that resolves outside the reader's base
-   * directory, whether by `../` traversal or by an absolute path.
+   * Refuse to read any path that is outside the reader's base
+   * directory, both before and after resolving real paths. A symlink
+   * that resolves inside the base directory is allowed; a symlink that
+   * resolves outside it is refused.
    *
    * Off by default, because the base directory has never confined
    * reads and multi-file specs legitimately `$ref` across sibling
@@ -106,7 +156,7 @@ export function createFileReader(
       // isn't a valid escape passes through so it can match a literal
       // filename that actually contains one.
       const decoded = stripped.replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
-      const path = resolveReadPath(root, decoded, uri, options.confine === true);
+      const path = await resolveReadPath(root, decoded, uri, options.confine === true);
       if (hasYamlExtension(path)) throw new Error(`${uri}: ${YAML_HINT}`);
       const raw = await readFile(path, "utf8");
       return JSON.parse(raw);
@@ -146,9 +196,9 @@ export interface HttpReaderOptions {
   /** Per-request timeout in milliseconds. Default: no timeout. */
   timeoutMs?: number;
   /**
-   * Reject a response body larger than this many bytes. Counted as
-   * UTF-8 bytes, so it matches what crossed the wire rather than the
-   * JS string length. Default: unbounded.
+   * Reject a response body larger than this many bytes while the body
+   * is still streaming, before parsing it. Counted as streamed response
+   * bytes rather than JS string length. Default: unbounded.
    */
   maxBytes?: number;
 }
@@ -186,17 +236,10 @@ export function createHttpReader(options: HttpReaderOptions = {}): DocumentReade
       const init = fetchInit(options);
       const res = init === undefined ? await fetch(uri) : await fetch(uri, init);
       if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${uri}`);
-      const text = await res.text();
-      if (options.maxBytes !== undefined && byteLength(text) > options.maxBytes) {
-        throw new Error(`${uri}: response exceeds maxBytes (${options.maxBytes})`);
-      }
+      const text = await responseText(res, uri, options.maxBytes);
       return JSON.parse(text);
     },
   };
-}
-
-function byteLength(text: string): number {
-  return new TextEncoder().encode(text).length;
 }
 
 /**
@@ -213,6 +256,46 @@ export function fetchInit(options: HttpReaderOptions): RequestInit | undefined {
     ...(wantsRedirectError && { redirect: "error" as const }),
     ...(options.timeoutMs !== undefined && { signal: AbortSignal.timeout(options.timeoutMs) }),
   };
+}
+
+/**
+ * Read a response body, enforcing {@link HttpReaderOptions.maxBytes}
+ * while bytes are still streaming in.
+ *
+ * @internal
+ */
+export async function responseText(
+  res: Response,
+  uri: string,
+  maxBytes: number | undefined,
+): Promise<string> {
+  if (maxBytes === undefined) return res.text();
+  const body = res.body;
+  if (body === null) return "";
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw new Error(`${uri}: response exceeds maxBytes (${maxBytes})`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(out);
 }
 
 /**
@@ -328,7 +411,7 @@ export function createFileReaderSync(
     read(uri) {
       const stripped = uri.replace(/^file:\/\//, "");
       const decoded = stripped.replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
-      const path = resolveReadPath(root, decoded, uri, options.confine === true);
+      const path = resolveReadPathSync(root, decoded, uri, options.confine === true);
       if (hasYamlExtension(path)) throw new Error(`${uri}: ${YAML_HINT}`);
       const raw = readFileSync(path, "utf8");
       return JSON.parse(raw);

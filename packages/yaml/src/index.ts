@@ -22,7 +22,7 @@
 
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { resolve as resolvePath, sep } from "node:path";
+import { resolve as resolvePath } from "node:path";
 import {
   loadSpecSync as loadSpecSyncCore,
   type DocumentReader,
@@ -35,24 +35,12 @@ import {
   composeReadersSync,
   createFileReaderSync,
   fetchInit,
+  resolveReadPath,
+  resolveReadPathSync,
+  responseText,
   type SyncDocumentReader,
 } from "@oaverify/internal-spec/internals";
 import { parse as parseYaml } from "yaml";
-
-/**
- * Mirror of the containment check in `@oaverify/core/spec`'s file
- * readers. Duplicated rather than imported because it is four lines and
- * the alternative is exporting a path helper from the core package's
- * public surface. Keep the two in step; the behavior is covered by the
- * `confine` tests in both packages.
- */
-function confinedPath(root: string, decoded: string, uri: string, confine: boolean): string {
-  const path = resolvePath(root, decoded);
-  if (confine && path !== root && !path.startsWith(root + sep)) {
-    throw new Error(`${uri}: refusing to read outside ${root}`);
-  }
-  return path;
-}
 
 function decodePercent(s: string): string {
   return s.replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
@@ -98,7 +86,7 @@ export function createYamlFileReader(
       // `%` that isn't a valid escape passes through so it can match
       // a literal filename that actually contains one.
       const decoded = decodePercent(stripped);
-      const path = confinedPath(root, decoded, uri, options.confine === true);
+      const path = await resolveReadPath(root, decoded, uri, options.confine === true);
       const raw = await readFile(path, "utf8");
       return parseYaml(raw);
     },
@@ -157,13 +145,7 @@ export function createSmartHttpReader(options: HttpReaderOptions = {}): Document
       const init = fetchInit(options);
       const res = init === undefined ? await fetch(uri) : await fetch(uri, init);
       if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${uri}`);
-      const text = await res.text();
-      if (
-        options.maxBytes !== undefined &&
-        new TextEncoder().encode(text).length > options.maxBytes
-      ) {
-        throw new Error(`${uri}: response exceeds maxBytes (${options.maxBytes})`);
-      }
+      const text = await responseText(res, uri, options.maxBytes);
       const contentType = res.headers.get("content-type") ?? "";
       const mime = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
       if (isYamlMime(mime)) return parseYaml(text);
@@ -226,7 +208,7 @@ function createYamlFileReaderSync(
     read(uri) {
       const stripped = uri.replace(/^file:\/\//, "");
       const decoded = decodePercent(stripped);
-      const path = confinedPath(root, decoded, uri, options.confine === true);
+      const path = resolveReadPathSync(root, decoded, uri, options.confine === true);
       return parseYaml(readFileSync(path, "utf8"));
     },
   };
