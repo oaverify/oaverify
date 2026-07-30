@@ -259,6 +259,53 @@ describe("error shape", () => {
     expect(versionIssues).toHaveLength(1);
   });
 
+  describe("the Reference branch of a 3.0 oneOf is not advice (#581)", () => {
+    /** An inline Response Object with one field wrong, under 3.0. */
+    const badResponse = () => {
+      const doc = minimal("3.0.3");
+      (doc.paths["/things"].get.responses as Record<string, unknown>)["200"] = {
+        description: null,
+      };
+      return doc;
+    };
+
+    it("reports the defect without telling the author to add a $ref", () => {
+      const r = checkDocumentConformance(badResponse());
+
+      expect(r.issues).toEqual([
+        {
+          code: "type",
+          location: "/paths/~1things/get/responses/200/description",
+          message: expect.any(String),
+        },
+      ]);
+    });
+
+    it("says the same thing 3.1 does about the same document", () => {
+      const under = (version: string) => {
+        const doc = badResponse();
+        doc.openapi = version;
+        return checkDocumentConformance(doc)
+          .issues.map((i) => `${i.code} ${i.location}`)
+          .sort();
+      };
+
+      expect(under("3.0.3")).toEqual(under("3.1.0"));
+    });
+
+    it("still reports a Reference Object that really is one and is malformed", () => {
+      // `$ref` present, so the author is plainly reaching for the
+      // Reference branch, and its own rules apply.
+      const doc = minimal("3.0.3");
+      (doc.paths["/things"].get.responses as Record<string, unknown>)["200"] = { $ref: 42 };
+      const r = checkDocumentConformance(doc);
+
+      expect(r.issues.some((i) => i.location === "/paths/~1things/get/responses/200/$ref")).toBe(
+        true,
+      );
+    });
+  });
+
   it("surfaces a composition keyword when it has no failing branch to blame", () => {
     // The known weak spot, asserted rather than hidden. A parameter with
     // both `schema` and `content` matches two `oneOf` branches, so the

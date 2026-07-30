@@ -131,6 +131,54 @@ function toPointer(path: readonly (string | number)[]): string {
 }
 
 /**
+ * Is this leaf the Reference branch of a `oneOf` complaining that the
+ * instance is not a Reference Object?
+ *
+ * `required` with `missing: "$ref"`, raised on the object the `oneOf`
+ * itself sits on. Nothing else in any of the three meta-schemas demands
+ * a `$ref`, and the position check keeps a `$ref` requirement nested
+ * deeper inside a branch from matching.
+ */
+function isNotAReferenceLeaf(
+  leaf: ValidationError,
+  oneOfPath: readonly ValidationError["path"][number][],
+): boolean {
+  return (
+    leaf.code === "required" &&
+    leaf.params["missing"] === "$ref" &&
+    leaf.path.length === oneOfPath.length + 1 &&
+    oneOfPath.every((segment, index) => leaf.path[index] === segment)
+  );
+}
+
+/**
+ * Children of a node, minus the ones that restate a branch the author
+ * never took.
+ *
+ * OAS 3.0 spells out every object it can `$ref`, and discriminates the
+ * two with `oneOf: [Object, Reference]`. So an inline Response Object
+ * with one field wrong fails both branches, and the Reference branch
+ * contributes `must have required property "$ref"` next to the real
+ * finding. "Add a `$ref`" is never the advice: the author wrote an
+ * inline object and got a field wrong.
+ *
+ * 3.1 and 3.2 discriminate on the presence of `$ref` and report only
+ * the branch the instance is reaching for. This brings 3.0 to the same
+ * output, at the reporting layer rather than by rewriting the
+ * meta-schema, which the package TSDoc explains is not an option.
+ *
+ * The filter never empties a node: if every child looked like the
+ * Reference branch, they are all kept, because a node reported with
+ * nothing underneath would be worse than the noise.
+ */
+function reportableChildren(error: ValidationError): readonly ValidationError[] {
+  const children = error.children ?? [];
+  if (error.code !== "oneOf" || children.length < 2) return children;
+  const kept = children.filter((child) => !isNotAReferenceLeaf(child, error.path));
+  return kept.length > 0 ? kept : children;
+}
+
+/**
  * Flatten an error tree to the nodes worth reporting.
  *
  * The frontier, not every node: a `required` failure nested under an
@@ -148,7 +196,7 @@ function toPointer(path: readonly (string | number)[]): string {
  * `required` leaves that make up almost all real findings.
  */
 function collectLeaves(error: ValidationError, into: ConformanceIssue[]): void {
-  const children = error.children ?? [];
+  const children = reportableChildren(error);
   if (children.length > 0) {
     for (const child of children) collectLeaves(child, into);
     return;
