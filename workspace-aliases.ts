@@ -27,6 +27,10 @@ export function workspaceAliases(rootDir: string): Record<string, string> {
   // before the base `@oaverify/internal-<pkg>` alias.
   const subpathEntries: Array<[string, string]> = [
     [
+      "@oaverify/internal-core/prototype-properties",
+      resolve(rootDir, "packages", "core", "src", "prototype-properties.ts"),
+    ],
+    [
       "@oaverify/internal-metaschema/conformance",
       resolve(rootDir, "packages", "metaschema", "src", "conformance.ts"),
     ],

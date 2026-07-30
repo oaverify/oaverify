@@ -10,6 +10,9 @@
     "baseUrl": ".",
     "paths": {
       "@oaverify/internal-core": ["../packages/core/src/index.ts"],
+      "@oaverify/internal-core/prototype-properties": [
+        "../packages/core/src/prototype-properties.ts"
+      ],
       "@oaverify/internal-validator": ["../packages/validator/src/index.ts"],
       "@oaverify/internal-oav-express4": ["../packages/oav-express4/src/index.ts"],
       "@oaverify/internal-oav-express5": ["../packages/oav-express5/src/index.ts"],

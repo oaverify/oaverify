@@ -7,7 +7,7 @@ import {
 import type { RouteMatch } from "@oaverify/internal-router";
 import type { CompiledTreeSchema } from "@oaverify/internal-schema";
 import { deserialize, matchParsedMediaType } from "./deserialize.js";
-import { getHeaderValue, getOwn } from "./headers.js";
+import { getHeaderValue, getHeaderValueFast, getOwn } from "./headers.js";
 import type { OperationCache } from "./operation-cache.js";
 import { assembleObjectQueryParam } from "./query-assembly.js";
 
@@ -59,7 +59,9 @@ export function validateParameter(
 
   switch (p.in) {
     case "path":
-      raw = getOwn(match.pathParams, p.name);
+      raw = cache.requestParameterReadsRequireOwnProperties
+        ? getOwn(match.pathParams, p.name)
+        : match.pathParams[p.name];
       validator = cache.pathParamValidators.get(p.name);
       pathPrefix = ["path", p.name];
       code = "path-param";
@@ -91,17 +93,23 @@ export function validateParameter(
         if (r.valid || r.error === undefined) return null;
         return r.error;
       }
-      raw = getOwn(req.query, p.name);
+      raw = cache.requestParameterReadsRequireOwnProperties
+        ? getOwn(req.query, p.name)
+        : req.query?.[p.name];
       break;
     }
     case "header":
-      raw = getHeaderValue(req.headers, p.name);
+      raw = cache.requestParameterReadsRequireOwnProperties
+        ? getHeaderValue(req.headers, p.name)
+        : getHeaderValueFast(req.headers, p.name);
       validator = cache.headerParamValidators.get(p.name);
       pathPrefix = ["header", p.name];
       code = "header-param";
       break;
     case "cookie":
-      raw = getOwn(req.cookies, p.name);
+      raw = cache.requestParameterReadsRequireOwnProperties
+        ? getOwn(req.cookies, p.name)
+        : req.cookies?.[p.name];
       validator = cache.cookieParamValidators.get(p.name);
       pathPrefix = ["cookie", p.name];
       code = "cookie-param";

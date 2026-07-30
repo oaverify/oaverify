@@ -7,6 +7,10 @@ import type {
   SchemaOrBoolean,
 } from "@oaverify/internal-core";
 import { resolveJsonPointer } from "@oaverify/internal-core";
+import {
+  isHeaderObjectPrototypePropertyName,
+  isObjectPrototypePropertyName,
+} from "@oaverify/internal-core/prototype-properties";
 import type { RouteMatch } from "@oaverify/internal-router";
 import type { CompiledTreeSchema } from "@oaverify/internal-schema";
 import type { BodyDirection } from "./body-schema-transform.js";
@@ -26,6 +30,13 @@ export interface OperationCache {
   headerParamValidators: Map<string, CompiledTreeSchema>;
   cookieParamValidators: Map<string, CompiledTreeSchema>;
   parameters: ParameterObject[];
+  /**
+   * True when at least one spec-declared request parameter name can
+   * collide with `Object.prototype` on its lookup bag. The request hot
+   * path branches on this once per parameter instead of paying an
+   * own-property check for every safe operation.
+   */
+  requestParameterReadsRequireOwnProperties: boolean;
   /**
    * Names of every declared `in: "query"` parameter, precomputed for
    * the `strictQueryParameters` unknown-key check so the hot path
@@ -75,6 +86,8 @@ export interface ResponseCompiled {
   /** Memoization caches for the lazy compiles. */
   bodyValidators: Map<string, CompiledTreeSchema>;
   headerValidators: Map<string, CompiledTreeSchema>;
+  /** True when any response header lookup key can hit `Object.prototype`. */
+  headerReadsRequireOwnProperties: boolean;
 }
 
 /**
@@ -196,8 +209,16 @@ export function buildOperationCache(
   const parameters: ParameterObject[] = [...byKey.values()];
   const operation = operationLabel(pathMatch);
   const knownQueryParameters = new Set<string>();
+  let requestParameterReadsRequireOwnProperties = false;
   for (const p of parameters) {
     if (p.in === "query") knownQueryParameters.add(p.name);
+    if (
+      p.in === "header"
+        ? isHeaderObjectPrototypePropertyName(p.name)
+        : isObjectPrototypePropertyName(p.name)
+    ) {
+      requestParameterReadsRequireOwnProperties = true;
+    }
   }
 
   // Compile one unit. Without a collector this is a plain call and a
@@ -262,6 +283,7 @@ export function buildOperationCache(
     const bodySchemas = new Map<string, SchemaOrBoolean>();
     const headerSchemas = new Map<string, SchemaOrBoolean>();
     const headersResolved = new Map<string, { name: string; object: HeaderObject }>();
+    let headerReadsRequireOwnProperties = false;
     for (const [mt, mto] of Object.entries(response.content ?? {})) {
       if (mto.schema) bodySchemas.set(mt, mto.schema);
     }
@@ -269,6 +291,7 @@ export function buildOperationCache(
       const hdr = deps.resolveRef<HeaderObject>(rawHdr);
       if (hdr === undefined) continue;
       const lower = name.toLowerCase();
+      if (isObjectPrototypePropertyName(lower)) headerReadsRequireOwnProperties = true;
       headersResolved.set(lower, { name, object: hdr });
       if (hdr.schema) headerSchemas.set(lower, hdr.schema);
     }
@@ -281,12 +304,14 @@ export function buildOperationCache(
       headerSchemas,
       bodyValidators: new Map(),
       headerValidators: new Map(),
+      headerReadsRequireOwnProperties,
     });
   }
 
   return {
     parameters,
     knownQueryParameters,
+    requestParameterReadsRequireOwnProperties,
     pathParamValidators,
     queryParamValidators,
     headerParamValidators,

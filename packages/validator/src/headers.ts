@@ -26,4 +26,25 @@ export function getHeaderValue(
   return undefined;
 }
 
+/**
+ * Fast path for spec-declared header names that cannot collide with
+ * `Object.prototype` after lowercasing. Keeps case-insensitive fallback
+ * for hand-built records.
+ *
+ * @internal
+ */
+export function getHeaderValueFast(
+  headers: Record<string, string | string[]> | undefined,
+  name: string,
+): string | string[] | undefined {
+  if (headers === undefined) return undefined;
+  const lowered = name.toLowerCase();
+  const direct = headers[lowered];
+  if (direct !== undefined) return direct;
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === lowered) return value;
+  }
+  return undefined;
+}
+
 export { getOwn } from "@oaverify/internal-core";

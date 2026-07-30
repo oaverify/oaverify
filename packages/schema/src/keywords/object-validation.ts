@@ -1,3 +1,4 @@
+import { isObjectPrototypePropertyName } from "@oaverify/internal-core/prototype-properties";
 import {
   checkStringArray,
   nonNegativeIntegerLiteral,
@@ -10,28 +11,6 @@ import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
 function isObjectGuard(dataExpr: string): string {
   return `typeof ${dataExpr} === "object" && ${dataExpr} !== null && !Array.isArray(${dataExpr})`;
 }
-
-/**
- * Property names that live on `Object.prototype` (plus `__proto__`). For
- * these, `data[key] !== undefined` is `true` even when the object does
- * not own the key (it's inherited), so a presence check on one of these
- * names MUST use `hasOwnProperty`. Every other name is safe to check with
- * the cheaper `!== undefined`. From `Object.getOwnPropertyNames(Object.prototype)`.
- */
-const INHERITED_PROPERTY_NAMES = new Set([
-  "constructor",
-  "hasOwnProperty",
-  "isPrototypeOf",
-  "propertyIsEnumerable",
-  "toLocaleString",
-  "toString",
-  "valueOf",
-  "__proto__",
-  "__defineGetter__",
-  "__defineSetter__",
-  "__lookupGetter__",
-  "__lookupSetter__",
-]);
 
 /**
  * JS expression: property `keyExpr` is present on `dataExpr`.
@@ -49,7 +28,7 @@ const INHERITED_PROPERTY_NAMES = new Set([
  * `ownProperties`-style strict option has one place to switch.
  */
 export function propertyPresent(dataExpr: string, keyExpr: string, keyName?: string): string {
-  if (keyName === undefined || INHERITED_PROPERTY_NAMES.has(keyName)) {
+  if (keyName === undefined || isObjectPrototypePropertyName(keyName)) {
     return `Object.prototype.hasOwnProperty.call(${dataExpr}, ${keyExpr})`;
   }
   return `${dataExpr}[${keyExpr}] !== undefined`;
@@ -57,7 +36,7 @@ export function propertyPresent(dataExpr: string, keyExpr: string, keyName?: str
 
 /** Negation of {@link propertyPresent}: property `keyExpr` is absent. */
 export function propertyAbsent(dataExpr: string, keyExpr: string, keyName?: string): string {
-  if (keyName === undefined || INHERITED_PROPERTY_NAMES.has(keyName)) {
+  if (keyName === undefined || isObjectPrototypePropertyName(keyName)) {
     return `!Object.prototype.hasOwnProperty.call(${dataExpr}, ${keyExpr})`;
   }
   return `${dataExpr}[${keyExpr}] === undefined`;
@@ -185,7 +164,7 @@ export const requiredKeyword: KeywordDefinition = {
     // `data[_req] === undefined`; otherwise fall back to `hasOwnProperty`
     // for the whole loop. Keeps `required` consistent with `properties`
     // (an `undefined`-valued safe property is "absent" in both).
-    const absent = required.every((k) => !INHERITED_PROPERTY_NAMES.has(k))
+    const absent = required.every((k) => !isObjectPrototypePropertyName(k))
       ? `${ctx.data}[_req] === undefined`
       : `!Object.prototype.hasOwnProperty.call(${ctx.data}, _req)`;
     if (ctx.predicate) {

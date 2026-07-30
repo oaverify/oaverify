@@ -37,7 +37,7 @@ import {
   type ValidationResult,
 } from "@oaverify/internal-schema";
 import { deserialize, matchParsedMediaType, matchResponseKey } from "./deserialize.js";
-import { getHeaderValue } from "./headers.js";
+import { getHeaderValue, getHeaderValueFast } from "./headers.js";
 import { reshapeResult, toFetchResult } from "./reshape.js";
 import {
   createDirectionResolver,
@@ -1214,7 +1214,9 @@ export function createValidator(
           for (const [lowered, entry] of responseCompiled.headers) {
             const hdr = entry.object;
             const name = entry.name;
-            const raw = getHeaderValue(headers, name);
+            const raw = responseCompiled.headerReadsRequireOwnProperties
+              ? getHeaderValue(headers, name)
+              : getHeaderValueFast(headers, name);
             if (hdr.required && (raw === undefined || raw === "")) {
               children.push(
                 createLeafError(

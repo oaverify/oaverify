@@ -46,6 +46,13 @@ const oavCoreRewrite: Record<string, string> = {
 // `@oaverify/internal-cli` + `@oaverify/internal-router`: private workspace packages bundled
 // into this tarball (no external runtime counterpart).
 const bundledWorkspace: Record<string, string> = {
+  "@oaverify/internal-core/prototype-properties": resolve(
+    repoRoot,
+    "packages",
+    "core",
+    "src",
+    "prototype-properties.ts",
+  ),
   "@oaverify/internal-cli": resolve(repoRoot, "packages", "cli", "src", "index.ts"),
   "@oaverify/internal-router": resolve(repoRoot, "packages", "router", "src", "index.ts"),
   // Bundled rather than rewritten to a `@oaverify/core` subpath on
