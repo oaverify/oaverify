@@ -7,7 +7,7 @@ import {
 import type { RouteMatch } from "@oaverify/internal-router";
 import type { CompiledTreeSchema } from "@oaverify/internal-schema";
 import { deserialize, matchParsedMediaType } from "./deserialize.js";
-import { getHeaderValue } from "./headers.js";
+import { getHeaderValue, getOwn } from "./headers.js";
 import type { OperationCache } from "./operation-cache.js";
 import { assembleObjectQueryParam } from "./query-assembly.js";
 
@@ -91,7 +91,7 @@ export function validateParameter(
         if (r.valid || r.error === undefined) return null;
         return r.error;
       }
-      raw = req.query?.[p.name];
+      raw = getOwn(req.query, p.name);
       break;
     }
     case "header":
@@ -101,7 +101,7 @@ export function validateParameter(
       code = "header-param";
       break;
     case "cookie":
-      raw = req.cookies?.[p.name];
+      raw = getOwn(req.cookies, p.name);
       validator = cache.cookieParamValidators.get(p.name);
       pathPrefix = ["cookie", p.name];
       code = "cookie-param";
