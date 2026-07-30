@@ -20,6 +20,7 @@
 
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { type RefResolver } from "@oaverify/internal-schema";
+import { setSpecKey } from "@oaverify/internal-core";
 import {
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
@@ -187,10 +188,10 @@ function transformInner(
     const rejected = new Set<string>();
     for (const [name, propSchema] of Object.entries(props as Record<string, SchemaOrBoolean>)) {
       if (hasDirectionalFlag(propSchema, rejectAttr, refResolver, new Set())) {
-        newProps[name] = false;
+        setSpecKey(newProps, name, false);
         rejected.add(name);
       } else {
-        newProps[name] = transformInner(propSchema, direction, refResolver, cache);
+        setSpecKey(newProps, name, transformInner(propSchema, direction, refResolver, cache));
       }
     }
     clone.properties = newProps;
@@ -220,7 +221,7 @@ function transformInner(
     if (v !== null && typeof v === "object" && !Array.isArray(v)) {
       const m: Record<string, SchemaOrBoolean> = {};
       for (const [kk, vv] of Object.entries(v as Record<string, SchemaOrBoolean>)) {
-        m[kk] = transformInner(vv, direction, refResolver, cache);
+        setSpecKey(m, kk, transformInner(vv, direction, refResolver, cache));
       }
       clone[k] = m;
     }

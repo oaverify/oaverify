@@ -16,6 +16,7 @@
  */
 
 import type { HttpRequest, HttpResponse } from "@oaverify/internal-core";
+import { getOwn, setSpecKey } from "@oaverify/internal-core";
 
 /**
  * Options shared by the `validateFetchRequest` family and
@@ -161,13 +162,16 @@ function headersToRecord(h: Headers): Record<string, string | string[]> {
   const out: Record<string, string | string[]> = {};
   for (const [key, value] of h.entries()) {
     const lower = key.toLowerCase();
-    const prior = out[lower];
+    // Own-property read and write: a request header literally named
+    // "constructor" would otherwise read the inherited function as a
+    // prior value and produce [Function, value].
+    const prior = getOwn(out, lower);
     if (prior === undefined) {
-      out[lower] = value;
+      setSpecKey(out, lower, value);
     } else if (Array.isArray(prior)) {
       prior.push(value);
     } else {
-      out[lower] = [prior, value];
+      setSpecKey(out, lower, [prior, value]);
     }
   }
   return out;
@@ -177,7 +181,7 @@ function objectFromSearchParams(params: URLSearchParams): Record<string, string 
   const out: Record<string, string | string[]> = {};
   for (const key of new Set(params.keys())) {
     const values = params.getAll(key);
-    out[key] = values.length === 1 ? (values[0] ?? "") : values;
+    setSpecKey(out, key, values.length === 1 ? (values[0] ?? "") : values);
   }
   return out;
 }
@@ -216,7 +220,7 @@ async function readBody(
       const resolved = await Promise.all(
         values.map(async (v) => (v instanceof Blob ? new Uint8Array(await v.arrayBuffer()) : v)),
       );
-      out[name] = resolved.length === 1 ? resolved[0] : resolved;
+      setSpecKey(out, name, resolved.length === 1 ? resolved[0] : resolved);
     }
     return out;
   }

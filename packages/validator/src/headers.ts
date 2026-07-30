@@ -26,14 +26,4 @@ export function getHeaderValue(
   return undefined;
 }
 
-/**
- * Own-property read for a framework-supplied query or cookie record.
- * Same reason as the `Object.hasOwn` guard in {@link getHeaderValue}: an
- * inherited member must never satisfy a presence check.
- *
- * @internal
- */
-export function getOwn<T>(bag: Record<string, T> | undefined, name: string): T | undefined {
-  if (bag === undefined) return undefined;
-  return Object.hasOwn(bag, name) ? bag[name] : undefined;
-}
+export { getOwn } from "@oaverify/internal-core";

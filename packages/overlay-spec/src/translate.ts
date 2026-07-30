@@ -13,6 +13,7 @@ import type {
   ResponseOverride,
   SpecOverlay,
 } from "@oaverify/internal-spec";
+import { setSpecKey } from "@oaverify/internal-core";
 import {
   type FilterExpr,
   type PathToken,
@@ -398,16 +399,16 @@ function applyPathLevel(
       );
       setOperationOverride(overlay, pathKey, k as HttpMethod, opOverride);
     } else {
-      pathItemFields[k] = v;
+      setSpecKey(pathItemFields, k, v);
     }
   }
   if (Object.keys(pathItemFields).length === 0) return;
   const overrides = ensureOverrides(overlay);
   const existing = overrides[pathKey] ?? {};
-  overrides[pathKey] = {
+  setSpecKey(overrides, pathKey, {
     ...existing,
     pathItem: { ...existing.pathItem, ...pathItemFields },
-  };
+  });
 }
 
 function applyOperationLevel(
@@ -481,9 +482,13 @@ function mergeOperationOverride(
               `overlay action payload field \`responses["${status}"]\` must be an object`,
             );
           }
-          patches[status] = mergeResponseOverride(
-            patches[status] ?? {},
-            r as Record<string, JsonValue | undefined>,
+          setSpecKey(
+            patches,
+            status,
+            mergeResponseOverride(
+              patches[status] ?? {},
+              r as Record<string, JsonValue | undefined>,
+            ),
           );
         }
         next.patchResponses = patches;
@@ -655,7 +660,7 @@ function applyOperationResponses(
     // partial update. Wholesale-replace-per-status would drop them.
     const payload = asObject(target, action.value);
     const patches = opOverride.patchResponses ?? {};
-    patches[status] = mergeResponseOverride(patches[status] ?? {}, payload);
+    setSpecKey(patches, status, mergeResponseOverride(patches[status] ?? {}, payload));
     opOverride.patchResponses = patches;
   }
   setOperationOverride(overlay, pathKey, method, opOverride);
