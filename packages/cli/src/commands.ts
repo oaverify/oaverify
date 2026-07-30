@@ -30,6 +30,7 @@ import { analyzeSpec } from "@oaverify/stream";
 import { emitStandalone, type StandaloneDialect } from "./emit-standalone.js";
 import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
+import { checkDocumentRedos } from "./redos-check.js";
 import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
 
 /**
@@ -237,7 +238,7 @@ export interface CheckFinding {
    * problem with a different remedy, and a consumer re-splitting the
    * array should not have to match on `code` to find it.
    */
-  class: "hygiene" | "schema" | "malformed" | "conformance" | "examples";
+  class: "hygiene" | "schema" | "malformed" | "conformance" | "examples" | "redos";
   /**
    * What this means for you, independent of which check found it.
    *
@@ -295,7 +296,7 @@ function addSchemaFinding(into: Map<string, CheckFinding>, finding: CheckFinding
  * *run*; see {@link CheckFinding.class} for the classes a finding can be
  * *reported* under, which additionally includes `"malformed"`.
  */
-export const CHECK_CLASSES = ["hygiene", "schema", "conformance", "examples"] as const;
+export const CHECK_CLASSES = ["hygiene", "schema", "conformance", "examples", "redos"] as const;
 export type CheckClass = (typeof CHECK_CLASSES)[number];
 
 /**
@@ -526,6 +527,24 @@ export async function checkCommand(
     for (const issue of checkDocumentExamples(document)) {
       findings.push({
         class: "examples",
+        severity: "warning",
+        code: issue.code,
+        location: issue.pointer,
+        message: issue.message,
+      });
+    }
+  }
+
+  if (classes.has("redos")) {
+    // Its own class because it is the only check that reaches for a
+    // third-party analyser: `redos-detector` is a CLI dependency, kept
+    // out of the library so `@oaverify/core` stays dependency-free (see
+    // redos-check.ts). Runs by default like every other class; `--only`
+    // is how a caller who has already hardened with `regexCompiler`, or
+    // who finds the analysis slow on a very large document, opts out.
+    for (const issue of checkDocumentRedos(document)) {
+      findings.push({
+        class: "redos",
         severity: "warning",
         code: issue.code,
         location: issue.pointer,

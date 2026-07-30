@@ -125,7 +125,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command("check <spec>")
     .description(
-      "Report what is wrong with a spec: document conformance, hygiene, and schema findings.",
+      "Report what is wrong with a spec: conformance, hygiene, schema, example and ReDoS findings.",
     )
     .option(
       "--overlay <file...>",

@@ -41,6 +41,11 @@ export {
 // builder; exposed so tests can exercise it without constructing a
 // full validator.
 export { resolveOperationRef } from "./operation-cache.js";
+// The shared OpenAPI schema-position traversal. Internal rather than
+// public: it is a tool for building checks over a document, not part of
+// the request/response validation surface, and it should not become
+// semver-covered by accident.
+export { escapePointer, walkDocumentSchemas, type DocumentWalkHooks } from "./document-walk.js";
 
 // Fetch-adapter primitives: extract an `HttpRequest` / `HttpResponse`
 // from a Web Standards `Request` / `Response`. `oaverify compile-spec`'s

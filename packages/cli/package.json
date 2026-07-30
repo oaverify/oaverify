@@ -21,7 +21,8 @@
     "@oaverify/internal-spec": "workspace:*",
     "@oaverify/internal-validator": "workspace:*",
     "@oaverify/stream": "workspace:*",
-    "commander": "15.0.0"
+    "commander": "15.0.0",
+    "redos-detector": "^6.1.4"
   },
   "engines": {
     "node": ">=20"

@@ -53,11 +53,7 @@ import {
   type Dialect,
   type RefResolver,
 } from "@oaverify/internal-schema";
-import {
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
-} from "@oaverify/internal-schema/internals";
+import { escapePointer, walkDocumentSchemas } from "./document-walk.js";
 
 /**
  * One example that its schema rejects.
@@ -73,16 +69,8 @@ export interface ExampleIssue {
   message: string;
 }
 
-/** HTTP methods that hold an Operation Object under a Path Item. */
-const METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"] as const;
-
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
-
-/** RFC 6901: `~` becomes `~0`, `/` becomes `~1`. */
-function escapePointer(token: string): string {
-  return token.replace(/~/g, "~0").replace(/\//g, "~1");
-}
 
 /** Keeps a finding readable when the example is a large object. */
 const VALUE_ECHO_LIMIT = 60;
@@ -241,42 +229,6 @@ export function checkDocumentExamples(
   };
 
   /**
-   * Walk a schema and its subschemas, checking examples at each node.
-   *
-   * `$ref` is not followed: the target is walked at its own definition,
-   * so following it here would report the same defect once per
-   * reference. Uses the compiler's own position constants so the walk
-   * cannot drift from what counts as a subschema.
-   */
-  const walkSchema = (schema: unknown, pointer: string, seen: Set<unknown>): void => {
-    if (!isObj(schema) || seen.has(schema)) return;
-    seen.add(schema);
-
-    checkSchemaNodeExamples(schema, pointer);
-
-    for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
-      if (key in schema) walkSchema(schema[key], `${pointer}/${key}`, seen);
-    }
-    for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
-      const arr = schema[key];
-      if (!Array.isArray(arr)) continue;
-      for (const [i, sub] of arr.entries()) walkSchema(sub, `${pointer}/${key}/${i}`, seen);
-    }
-    for (const key of SUBSCHEMA_MAP_POSITIONS) {
-      const map = schema[key];
-      if (!isObj(map)) continue;
-      for (const [name, sub] of Object.entries(map)) {
-        walkSchema(sub, `${pointer}/${key}/${escapePointer(name)}`, seen);
-      }
-    }
-  };
-
-  const seenSchemas = new Set<unknown>();
-  const walkSchemaRoot = (schema: unknown, pointer: string): void => {
-    walkSchema(schema, pointer, seenSchemas);
-  };
-
-  /**
    * `example` / `examples` sitting *beside* a `schema` rather than
    * inside it, validated against that schema.
    *
@@ -321,159 +273,13 @@ export function checkDocumentExamples(
     }
   };
 
-  const walkContent = (content: unknown, pointer: string): void => {
-    if (!isObj(content)) return;
-    for (const [mediaTypeName, mediaType] of Object.entries(content)) {
-      if (!isObj(mediaType)) continue;
-      const at = `${pointer}/${escapePointer(mediaTypeName)}`;
-      if (mediaType["schema"] !== undefined) walkSchemaRoot(mediaType["schema"], `${at}/schema`);
-      checkExamplesBesideSchema(mediaType, at);
-      // A Header Object is legal at `encoding.<property>.headers.<name>`
-      // and carries examples like any other. Caught in review of #560:
-      // the common parameter and response-header places were covered and
-      // this one was not.
-      const encoding = mediaType["encoding"];
-      if (!isObj(encoding)) continue;
-      for (const [property, entry] of Object.entries(encoding)) {
-        if (!isObj(entry)) continue;
-        const headers = entry["headers"];
-        if (!isObj(headers)) continue;
-        for (const [headerName, header] of Object.entries(headers)) {
-          walkParameterLike(
-            header,
-            `${at}/encoding/${escapePointer(property)}/headers/${escapePointer(headerName)}`,
-          );
-        }
-      }
-    }
-  };
-
-  /** Parameter and Header Objects have the same shape here. */
-  const walkParameterLike = (param: unknown, pointer: string): void => {
-    if (!isObj(param)) return;
-    if (param["schema"] !== undefined) walkSchemaRoot(param["schema"], `${pointer}/schema`);
-    if (param["content"] !== undefined) walkContent(param["content"], `${pointer}/content`);
-    // The parameter's own `example` / `examples`, which sit beside
-    // `schema` rather than inside it. Missing these was the one finding
-    // `redocly lint` reported on the audited corpus that oaverify did
-    // not (#560).
-    checkExamplesBesideSchema(param, pointer);
-  };
-
-  const walkParameterList = (params: unknown, pointer: string): void => {
-    if (!Array.isArray(params)) return;
-    for (const [i, p] of params.entries()) walkParameterLike(p, `${pointer}/${i}`);
-  };
-
-  const walkResponse = (response: unknown, pointer: string): void => {
-    if (!isObj(response)) return;
-    if (response["content"] !== undefined) walkContent(response["content"], `${pointer}/content`);
-    const headers = response["headers"];
-    if (isObj(headers)) {
-      for (const [name, header] of Object.entries(headers)) {
-        walkParameterLike(header, `${pointer}/headers/${escapePointer(name)}`);
-      }
-    }
-  };
-
-  const walkRequestBody = (body: unknown, pointer: string): void => {
-    if (!isObj(body)) return;
-    if (body["content"] !== undefined) walkContent(body["content"], `${pointer}/content`);
-  };
-
-  const walkOperation = (operation: unknown, pointer: string): void => {
-    if (!isObj(operation)) return;
-    walkParameterList(operation["parameters"], `${pointer}/parameters`);
-    if (operation["requestBody"] !== undefined) {
-      walkRequestBody(operation["requestBody"], `${pointer}/requestBody`);
-    }
-    const responses = operation["responses"];
-    if (isObj(responses)) {
-      for (const [status, response] of Object.entries(responses)) {
-        walkResponse(response, `${pointer}/responses/${escapePointer(status)}`);
-      }
-    }
-    // A callback is a map of runtime expressions to Path Items, so its
-    // request and response content carries examples like any other
-    // operation's.
-    walkCallbacks(operation["callbacks"], `${pointer}/callbacks`);
-  };
-
-  const walkCallbacks = (callbacks: unknown, pointer: string): void => {
-    if (!isObj(callbacks)) return;
-    for (const [name, callback] of Object.entries(callbacks)) {
-      if (!isObj(callback)) continue;
-      const at = `${pointer}/${escapePointer(name)}`;
-      for (const [expression, item] of Object.entries(callback)) {
-        walkPathItem(item, `${at}/${escapePointer(expression)}`);
-      }
-    }
-  };
-
-  const walkPathItem = (item: unknown, pointer: string): void => {
-    if (!isObj(item)) return;
-    walkParameterList(item["parameters"], `${pointer}/parameters`);
-    for (const method of METHODS) {
-      if (item[method] !== undefined) walkOperation(item[method], `${pointer}/${method}`);
-    }
-  };
-
-  const doc = document as unknown as Record<string, unknown>;
-
-  for (const container of ["paths", "webhooks"] as const) {
-    const entries = doc[container];
-    if (!isObj(entries)) continue;
-    for (const [name, item] of Object.entries(entries)) {
-      walkPathItem(item, `/${container}/${escapePointer(name)}`);
-    }
-  }
-
-  const components = doc["components"];
-  if (isObj(components)) {
-    const schemas = components["schemas"];
-    if (isObj(schemas)) {
-      for (const [name, schema] of Object.entries(schemas)) {
-        walkSchemaRoot(schema, `/components/schemas/${escapePointer(name)}`);
-      }
-    }
-    for (const section of ["parameters", "headers"] as const) {
-      const entries = components[section];
-      if (!isObj(entries)) continue;
-      for (const [name, entry] of Object.entries(entries)) {
-        walkParameterLike(entry, `/components/${section}/${escapePointer(name)}`);
-      }
-    }
-    const requestBodies = components["requestBodies"];
-    if (isObj(requestBodies)) {
-      for (const [name, entry] of Object.entries(requestBodies)) {
-        walkRequestBody(entry, `/components/requestBodies/${escapePointer(name)}`);
-      }
-    }
-    const responses = components["responses"];
-    if (isObj(responses)) {
-      for (const [name, entry] of Object.entries(responses)) {
-        walkResponse(entry, `/components/responses/${escapePointer(name)}`);
-      }
-    }
-    const pathItems = components["pathItems"];
-    if (isObj(pathItems)) {
-      for (const [name, entry] of Object.entries(pathItems)) {
-        walkPathItem(entry, `/components/pathItems/${escapePointer(name)}`);
-      }
-    }
-    const callbacks = components["callbacks"];
-    if (isObj(callbacks)) {
-      for (const [name, entry] of Object.entries(callbacks)) {
-        if (!isObj(entry)) continue;
-        for (const [expression, item] of Object.entries(entry)) {
-          walkPathItem(
-            item,
-            `/components/callbacks/${escapePointer(name)}/${escapePointer(expression)}`,
-          );
-        }
-      }
-    }
-  }
+  // One traversal, shared with the CLI's ReDoS check so a container
+  // cannot be covered by one and missed by the other.
+  walkDocumentSchemas(document, {
+    onSchemaNode: checkSchemaNodeExamples,
+    onMediaType: checkExamplesBesideSchema,
+    onParameterLike: checkExamplesBesideSchema,
+  });
 
   return issues;
 }

@@ -24,6 +24,11 @@ export {
   type ValidatorStats,
 } from "./validator.js";
 export { combineValidators, type CombineOptions } from "./combine.js";
+// `document-walk.ts` is deliberately NOT exported here. It is a tool for
+// building checks over a document, not part of the request/response
+// validation surface this entry point is for, and exporting it made a new
+// traversal helper semver-covered by accident. It lives on
+// `@oaverify/core/validator/internals` instead.
 export {
   checkDocumentExamples,
   type CheckDocumentExamplesOptions,

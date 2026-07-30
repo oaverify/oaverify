@@ -59,7 +59,8 @@
     "@oaverify/core": "workspace:*",
     "@oaverify/stream": "workspace:*",
     "@oaverify/yaml": "workspace:*",
-    "commander": "^15.0.0"
+    "commander": "^15.0.0",
+    "redos-detector": "^6.1.4"
   },
   "devDependencies": {
     "@oaverify/internal-cli": "workspace:*",
