@@ -23,6 +23,9 @@ export {
   composeReadersSync,
   createFileReaderSync,
   fetchInit,
+  resolveReadPath,
+  resolveReadPathSync,
+  responseText,
   type SyncDocumentReader,
 } from "./reader.js";
 export { resolveSpecSync, type ResolveSpecSyncOptions } from "./resolver-sync.js";

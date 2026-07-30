@@ -227,10 +227,14 @@ const reader = composeReaders([
 const { document } = await resolveSpec({ entry: "openapi.json", reader });
 ```
 
-`confine` refuses any path that resolves outside the base directory.
+`confine` refuses any path that falls outside the base directory, both
+before and after resolving real paths. A symlink that resolves inside
+the base directory is allowed; one that resolves outside it is refused.
 `allowUri` is called with every URI before the request and refuses it on
 `false`. `timeoutMs` bounds a hanging endpoint. `maxBytes` rejects an
-oversized body, counted in UTF-8 bytes.
+oversized response while the body is still streaming, before parsing it.
+There is no equivalent byte limit for local file reads, so a `$ref` to a
+large local file is not capped by these reader options.
 
 `redirects` deserves its own note, because `allowUri` without it is not
 the control it looks like. `fetch` follows redirects by default and
@@ -248,16 +252,18 @@ core readers is bypassed by a `.yaml` extension:
 ```ts
 const reader = composeReaders([
   createYamlFileReader("/srv/uploads/tenant-42", { confine: true }),
-  createSmartHttpReader({ allowUri, redirects: "error" }),
+  createSmartHttpReader({ allowUri, redirects: "error", timeoutMs: 5_000, maxBytes: 2_000_000 }),
   createFileReader("/srv/uploads/tenant-42", { confine: true }),
-  createHttpReader({ allowUri, redirects: "error" }),
+  createHttpReader({ allowUri, redirects: "error", timeoutMs: 5_000, maxBytes: 2_000_000 }),
 ]);
 ```
 
 The `oaverify` CLI composes a file reader and an HTTP reader by
 default, so `oaverify check ./local-spec.yaml` will follow an `http(s)`
 `$ref` found inside that local file. Reaching the network does not
-require having pointed the CLI at a URL.
+require having pointed the CLI at a URL. The CLI does not expose flags
+for `confine`, `allowUri`, `redirects`, `timeoutMs`, or `maxBytes`; use
+programmatic readers when those controls are required.
 
 ## Guarding against deeply nested payloads
 
