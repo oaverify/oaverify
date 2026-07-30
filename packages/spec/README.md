@@ -29,8 +29,9 @@ const { document, sources } = await loadSpec({
 });
 ```
 
-`document` has every external `$ref` inlined; `sources` lists every
-file that was loaded along the way.
+`document` has every external `$ref` resolved, with schema targets
+hoisted into `components.schemas` and referenced internally (see below);
+`sources` lists every file that was loaded along the way.
 
 For custom composition (e.g. validate between resolve and overlay, or
 load overlays yourself), call the primitives directly:
@@ -157,11 +158,23 @@ errors on duplicates. `extendSchemas` wraps in `allOf`.
 
 ## `$ref` semantics
 
-`resolveSpec` inlines external `$ref`s (references to separate files
-or HTTP URIs). Internal references (`#/components/...`) are left alone;
-the validator and schema compiler follow them at runtime via a
-ref-resolution cache keyed on schema identity, so self-recursive
-schemas compile to normal recursive calls.
+`resolveSpec` produces one self-contained document. External `$ref`s in
+schema positions are **hoisted**: the target lands in
+`components.schemas` under a readable name and every use site becomes an
+internal `$ref` to it, so the schema keeps an address rather than being
+copied at each reference. A component whose value was nothing but an
+external `$ref` receives the content under the name its author chose.
+External refs in non-schema positions (Response, Parameter, Path Item
+Objects) are inlined. Resolving an already-resolved document is a no-op.
+
+One limitation worth knowing before you feed resolved output to a
+conformance checker: a cycle among **non-schema** objects is still
+materialised under a root `$defs.__ext__`, and OpenAPI does not allow
+`$defs` on the document root, so `oaverify check` reports it. Schema
+cycles, which is what a recursive schema in its own file produces and by
+far the common case, now get a legal `components.schemas` address
+instead. See [#559](https://github.com/oaverify/oaverify/issues/559) for
+the remainder.
 
 Circular external references are rewritten to internal anchors
 during resolution, so the final document is always self-contained.

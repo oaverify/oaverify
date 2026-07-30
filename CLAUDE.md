@@ -254,8 +254,15 @@ string) => boolean>` shaped for `compileSchema`'s `formats` option. A
   `@oaverify/core`'s entries: `metaschemaFor` reaches all three
   documents, so anything importing it pays ~100KB.
 - **`@oaverify/internal-spec`**: `DocumentReader` (file/http/memory/composite) plus
-  `resolveSpec()`, which inlines external `$ref`s and leaves circular
-  ones as internal refs. `applyOverlays()` is the extension system.
+  `resolveSpec()`, which **hoists** external schema targets into
+  `components.schemas` and leaves an internal `$ref` at each use site,
+  so a schema keeps an address instead of being copied per reference.
+  That address is what the `discriminator` matches its branches by
+  (#553) and what gives a recursive external schema a legal home
+  (#556); it also means a schema used by N operations is stored once.
+  External refs in non-schema positions (Response, Parameter, Path Item
+  Objects) still inline, and a cycle among _those_ still stitches under
+  `$defs.__ext__`. `applyOverlays()` is the extension system.
 - **`@oaverify/internal-overlay-spec`**: OpenAPI Overlay 1.0 -> typed `SpecOverlay`.
   Closed-form recogniser, not a JSONPath engine; unrecognised target
   shapes throw with the offending string. Subpath `@oaverify/core/overlay-spec`.

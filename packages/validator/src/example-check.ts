@@ -120,8 +120,10 @@ export interface CheckDocumentExamplesOptions {
  * reached from many operations costs one compile and yields one finding
  * per bad example rather than one per reference.
  *
- * @param document - A resolved document (external `$ref`s already
- *   inlined). Internal `$ref`s are resolved through the document.
+ * @param document - A resolved document: external `$ref`s already
+ *   resolved, with schema targets hoisted into `components.schemas`.
+ *   Internal `$ref`s are resolved through the document, so a hoisted
+ *   schema is checked once at its component rather than at each use.
  *
  * @public
  */

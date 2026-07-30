@@ -28,7 +28,8 @@ export interface LoadSpecOptions {
 
 /**
  * Load, resolve, and (optionally) overlay an OpenAPI spec in the one
- * step. Runs `resolveSpec` to inline external `$ref`s, then applies
+ * step. Runs `resolveSpec` to resolve external `$ref`s (hoisting schema
+ * targets into `components.schemas`, inlining the rest), then applies
  * each overlay in order to the resolved document.
  *
  * This is the recommended entrypoint for consumers; use

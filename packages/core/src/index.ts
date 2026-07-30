@@ -88,3 +88,9 @@ export type {
   ServerObject,
   TagObject,
 } from "./types.js";
+export {
+  isSubschemaKey,
+  SUBSCHEMA_ARRAY_POSITIONS,
+  SUBSCHEMA_MAP_POSITIONS,
+  SUBSCHEMA_SINGLE_POSITIONS,
+} from "./subschema-positions.js";
