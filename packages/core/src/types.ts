@@ -491,6 +491,11 @@ export interface HttpRequest {
   method: string;
   path: string;
   query?: Record<string, string | string[]>;
+  /**
+   * HTTP headers. Header names are matched case-insensitively; adapter
+   * helpers normalize keys to lowercase at the framework boundary for the
+   * fastest lookup path.
+   */
   headers?: Record<string, string | string[]>;
   cookies?: Record<string, string>;
   contentType?: string;
@@ -513,6 +518,11 @@ export interface HttpRequest {
  */
 export interface HttpResponse {
   status: number;
+  /**
+   * HTTP response headers. Header names are matched case-insensitively;
+   * adapter helpers normalize keys to lowercase at the framework boundary
+   * for the fastest lookup path.
+   */
   headers?: Record<string, string | string[]>;
   contentType?: string;
   /** See {@link HttpRequest.body}. */

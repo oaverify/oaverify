@@ -51,6 +51,16 @@ describe("security validation: bearer (http / bearer)", () => {
     ).toBeNull();
   });
 
+  it("matches the Authorization header case-insensitively", () => {
+    expect(
+      v.validateRequest({
+        method: "GET",
+        path: "/ping",
+        headers: { Authorization: "Bearer abc.def.ghi" },
+      }),
+    ).toBeNull();
+  });
+
   it("is case-insensitive on the scheme keyword", () => {
     expect(
       v.validateRequest({
@@ -138,6 +148,9 @@ describe("security validation: apiKey", () => {
     expect(v.validateRequest({ method: "GET", path: "/ping" })?.code).toBe("request");
     expect(
       v.validateRequest({ method: "GET", path: "/ping", headers: { "x-api-key": "abc" } }),
+    ).toBeNull();
+    expect(
+      v.validateRequest({ method: "GET", path: "/ping", headers: { "X-API-KEY": "abc" } }),
     ).toBeNull();
   });
 

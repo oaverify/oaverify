@@ -18,6 +18,18 @@ describe("validateRequest", () => {
     ).toBeNull();
   });
 
+  it("matches request header parameters case-insensitively", () => {
+    expect(
+      v.validateRequest({
+        method: "POST",
+        path: "/pets",
+        contentType: "application/json",
+        headers: { "X-TENANT": "t1" },
+        body: { name: "Fido" },
+      }),
+    ).toBeNull();
+  });
+
   it("errors for a body that violates its schema", () => {
     const err = v.validateRequest({
       method: "POST",

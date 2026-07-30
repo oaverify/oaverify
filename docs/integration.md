@@ -48,7 +48,7 @@ interface HttpRequest {
   method: string; // uppercase verb
   path: string; // pathname only, no query
   query?: Record<string, string | string[]>;
-  headers?: Record<string, string | string[]>; // lowercased keys
+  headers?: Record<string, string | string[]>; // adapters lowercase; matching is case-insensitive
   contentType?: string; // may carry "; charset=utf-8"
   body?: unknown; // already-parsed
   cookies?: Record<string, string>;
@@ -57,7 +57,7 @@ interface HttpRequest {
 interface HttpResponse {
   status: number;
   contentType?: string;
-  headers?: Record<string, string | string[]>;
+  headers?: Record<string, string | string[]>; // matched case-insensitively
   body?: unknown;
 }
 ```

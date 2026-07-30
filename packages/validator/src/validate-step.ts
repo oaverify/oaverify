@@ -7,6 +7,7 @@ import {
 import type { RouteMatch } from "@oaverify/internal-router";
 import type { CompiledTreeSchema } from "@oaverify/internal-schema";
 import { deserialize, matchParsedMediaType } from "./deserialize.js";
+import { getHeaderValue } from "./headers.js";
 import type { OperationCache } from "./operation-cache.js";
 import { assembleObjectQueryParam } from "./query-assembly.js";
 
@@ -94,7 +95,7 @@ export function validateParameter(
       break;
     }
     case "header":
-      raw = req.headers?.[p.name.toLowerCase()] ?? req.headers?.[p.name];
+      raw = getHeaderValue(req.headers, p.name);
       validator = cache.headerParamValidators.get(p.name);
       pathPrefix = ["header", p.name];
       code = "header-param";
