@@ -1,9 +1,9 @@
 {
-  ".": "5.0.0",
-  "packages/oav": "5.0.0",
-  "packages/yaml": "5.0.0",
-  "packages/oav-express4": "5.0.0",
-  "packages/oav-express5": "5.0.0",
-  "packages/oav-fastify": "5.0.0",
-  "packages/stream-validator": "5.0.0"
+  ".": "5.1.0",
+  "packages/oav": "5.1.0",
+  "packages/yaml": "5.1.0",
+  "packages/oav-express4": "5.1.0",
+  "packages/oav-express5": "5.1.0",
+  "packages/oav-fastify": "5.1.0",
+  "packages/stream-validator": "5.1.0"
 }

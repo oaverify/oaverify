@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.1.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.0.0...oaverify-v5.1.0) (2026-07-30)
+
+
+### Features
+
+* **check:** report a pattern with a proven ambiguity ([#569](https://github.com/oaverify/oaverify/issues/569)) ([f0913a7](https://github.com/oaverify/oaverify/commit/f0913a76c91518edaaa5530b03c684c28787ed4c)), closes [#563](https://github.com/oaverify/oaverify/issues/563)
+* **cli:** document conformance as a check class, with severity ([#546](https://github.com/oaverify/oaverify/issues/546)) ([b9132d8](https://github.com/oaverify/oaverify/commit/b9132d87ad9ff7ff6dd6cde7a86ec33722ed50ce))
+
 ## [5.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v4.0.0...oaverify-v5.0.0) (2026-07-29)
 
 ### ⚠ BREAKING CHANGES

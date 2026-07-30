@@ -1,5 +1,36 @@
 # Changelog
 
+## [5.1.0](https://github.com/oaverify/oaverify/compare/core-v5.0.0...core-v5.1.0) (2026-07-30)
+
+
+### Features
+
+* **check:** report a pattern with a proven ambiguity ([#569](https://github.com/oaverify/oaverify/issues/569)) ([f0913a7](https://github.com/oaverify/oaverify/commit/f0913a76c91518edaaa5530b03c684c28787ed4c)), closes [#563](https://github.com/oaverify/oaverify/issues/563)
+* **check:** validate documented examples against their schemas ([#554](https://github.com/oaverify/oaverify/issues/554)) ([3de31b9](https://github.com/oaverify/oaverify/commit/3de31b927ef97d9f5873974ce26c7ecc69f0746e)), closes [#541](https://github.com/oaverify/oaverify/issues/541) [#552](https://github.com/oaverify/oaverify/issues/552)
+* **cli:** document conformance as a check class, with severity ([#546](https://github.com/oaverify/oaverify/issues/546)) ([b9132d8](https://github.com/oaverify/oaverify/commit/b9132d87ad9ff7ff6dd6cde7a86ec33722ed50ce))
+* **metaschema:** pin the published OpenAPI meta-schemas per version ([#544](https://github.com/oaverify/oaverify/issues/544)) ([708e96f](https://github.com/oaverify/oaverify/commit/708e96f5d80b934006e87362b5d505caccb48a60))
+* **schema:** report a pattern that cannot satisfy its length bounds ([#551](https://github.com/oaverify/oaverify/issues/551)) ([f382a57](https://github.com/oaverify/oaverify/commit/f382a57c158d7e3e739fd2d9af6b82b2400255cf)), closes [#542](https://github.com/oaverify/oaverify/issues/542)
+* **schema:** report wrong-typed annotation values through schemaLint ([#547](https://github.com/oaverify/oaverify/issues/547)) ([ca1ed00](https://github.com/oaverify/oaverify/commit/ca1ed0035a951b375c723c348eab0a911db0ec6c))
+* **spec:** hoist external schemas into components instead of inlining them ([#562](https://github.com/oaverify/oaverify/issues/562)) ([a735fb8](https://github.com/oaverify/oaverify/commit/a735fb81f2814ff30e51f66aec275b0564747ffc))
+
+
+### Bug Fixes
+
+* **check:** validate Parameter, Header and Encoding-header examples ([#564](https://github.com/oaverify/oaverify/issues/564)) ([aa4fb9a](https://github.com/oaverify/oaverify/commit/aa4fb9a24aecf405ca0325ebcfe5d8b1f5d7d33c)), closes [#560](https://github.com/oaverify/oaverify/issues/560)
+* **schema:** fall back to the composition when a discriminator cannot route ([#565](https://github.com/oaverify/oaverify/issues/565)) ([0236abe](https://github.com/oaverify/oaverify/commit/0236abe05f35ba3b6a5c99c24aa9be8420370f31)), closes [#561](https://github.com/oaverify/oaverify/issues/561)
+* **schema:** report a Schema Object examples that is not an array ([#557](https://github.com/oaverify/oaverify/issues/557)) ([f5cdd3a](https://github.com/oaverify/oaverify/commit/f5cdd3ab0c5ec365f413dbf0f05b093363201842)), closes [#555](https://github.com/oaverify/oaverify/issues/555)
+* **spec:** materialise non-schema cycles under an x- extension, not a root $defs ([#566](https://github.com/oaverify/oaverify/issues/566)) ([b6c74e7](https://github.com/oaverify/oaverify/commit/b6c74e729717843938da8e2d647ab0cfef9f4c6c)), closes [#559](https://github.com/oaverify/oaverify/issues/559)
+* **validator:** match headers case-insensitively ([#575](https://github.com/oaverify/oaverify/issues/575)) ([8107595](https://github.com/oaverify/oaverify/commit/8107595c454e17e54088f4f06e9de57afb25a281))
+
+
+### Documentation
+
+* convert CLAUDE.md to AGENTS.md and correct the stale package tour ([#574](https://github.com/oaverify/oaverify/issues/574)) ([a440aca](https://github.com/oaverify/oaverify/commit/a440acac86db3af28d7d3cf5887a70728906bcf5))
+* **examples:** add spec-check and Fetch-handler examples ([#576](https://github.com/oaverify/oaverify/issues/576)) ([556018e](https://github.com/oaverify/oaverify/commit/556018e01e8a5cbd37cccc85e1a09b0d0783a506))
+* record that pnpm lint is not the whole lint gate ([#558](https://github.com/oaverify/oaverify/issues/558)) ([8871dcd](https://github.com/oaverify/oaverify/commit/8871dcdaf6377d3f7616db9c94c68eddd8874bbc))
+* report bundle cost in kilobytes ([#568](https://github.com/oaverify/oaverify/issues/568)) ([5405961](https://github.com/oaverify/oaverify/commit/540596111d08f5d48b9846e6b702ab97ad521e1d))
+* report the bundle cost of embedding the library ([#567](https://github.com/oaverify/oaverify/issues/567)) ([b716694](https://github.com/oaverify/oaverify/commit/b7166947f480281d9ab15e1da14e626c1e40cce0))
+
 ## [5.0.0](https://github.com/oaverify/oaverify/compare/core-v4.0.0...core-v5.0.0) (2026-07-29)
 
 A naming and reporting release. Most of the upgrade is mechanical:
