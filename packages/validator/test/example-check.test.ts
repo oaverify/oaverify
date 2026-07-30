@@ -363,6 +363,165 @@ describe("checkDocumentExamples", () => {
     });
   });
 
+  describe("Parameter and Header Object examples (#560)", () => {
+    // These sit beside `schema` rather than inside it, the same shape a
+    // Media Type Object has. Redocly reported one of these on asana that
+    // oaverify missed, which is how the gap was found.
+    it("reports a parameter's own example", () => {
+      const issues = checkDocumentExamples(
+        doc({
+          paths: {
+            "/a": {
+              get: {
+                operationId: "a",
+                parameters: [
+                  { name: "limit", in: "query", schema: { type: "integer" }, example: "no" },
+                ],
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        }),
+      );
+      expect(issues).toHaveLength(1);
+      expect(issues[0]?.pointer).toBe("/paths/~1a/get/parameters/0/example");
+    });
+
+    it("reports a parameter's examples map, skipping externalValue", () => {
+      const issues = checkDocumentExamples(
+        doc({
+          paths: {
+            "/a": {
+              get: {
+                operationId: "a",
+                parameters: [
+                  {
+                    name: "limit",
+                    in: "query",
+                    schema: { type: "integer" },
+                    examples: {
+                      bad: { value: "no" },
+                      good: { value: 5 },
+                      remote: { externalValue: "https://example.com/e.json" },
+                    },
+                  },
+                ],
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        }),
+      );
+      expect(issues.map((i) => i.pointer)).toEqual([
+        "/paths/~1a/get/parameters/0/examples/bad/value",
+      ]);
+    });
+
+    it("reports a response header's own example", () => {
+      const issues = checkDocumentExamples(
+        doc({
+          paths: {
+            "/a": {
+              get: {
+                operationId: "a",
+                responses: {
+                  "200": {
+                    description: "ok",
+                    headers: { "X-Count": { schema: { type: "integer" }, example: "no" } },
+                  },
+                },
+              },
+            },
+          },
+        }),
+      );
+      expect(issues).toHaveLength(1);
+      expect(issues[0]?.pointer).toBe("/paths/~1a/get/responses/200/headers/X-Count/example");
+    });
+
+    it("does not double-report when a parameter uses content instead of schema", () => {
+      // A parameter carries `schema` or `content`, never both. With
+      // `content`, the examples belong to the media type beneath it.
+      const issues = checkDocumentExamples(
+        doc({
+          paths: {
+            "/a": {
+              get: {
+                operationId: "a",
+                parameters: [
+                  {
+                    name: "filter",
+                    in: "query",
+                    content: {
+                      "application/json": { schema: { type: "integer" }, example: "no" },
+                    },
+                  },
+                ],
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        }),
+      );
+      expect(issues.map((i) => i.pointer)).toEqual([
+        "/paths/~1a/get/parameters/0/content/application~1json/example",
+      ]);
+    });
+
+    it("reports a header example inside an Encoding Object", () => {
+      // `encoding.<property>.headers.<name>` is a legal Header Object
+      // position. Caught in review: the branch covered parameters and
+      // response headers and missed this one.
+      const issues = checkDocumentExamples(
+        doc({
+          paths: {
+            "/upload": {
+              post: {
+                operationId: "upload",
+                requestBody: {
+                  content: {
+                    "multipart/form-data": {
+                      schema: { type: "object", properties: { file: { type: "string" } } },
+                      encoding: {
+                        file: {
+                          headers: { "X-Part": { schema: { type: "integer" }, example: "no" } },
+                        },
+                      },
+                    },
+                  },
+                },
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        }),
+      );
+      expect(issues.map((i) => i.pointer)).toEqual([
+        "/paths/~1upload/post/requestBody/content/multipart~1form-data/encoding/file/headers/X-Part/example",
+      ]);
+    });
+
+    it("is silent on a valid parameter example", () => {
+      expect(
+        checkDocumentExamples(
+          doc({
+            paths: {
+              "/a": {
+                get: {
+                  operationId: "a",
+                  parameters: [
+                    { name: "limit", in: "query", schema: { type: "integer" }, example: 5 },
+                  ],
+                  responses: { "200": { description: "ok" } },
+                },
+              },
+            },
+          }),
+        ),
+      ).toEqual([]);
+    });
+  });
+
   describe("containers the walk must not miss", () => {
     it("descends into operation callbacks", () => {
       const issues = checkDocumentExamples(

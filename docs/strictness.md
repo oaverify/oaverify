@@ -119,8 +119,10 @@ Two surfaces, one pass:
 
 - **Schema Object** `example` (3.0, singular) and `examples` (3.1, an
   array of literal values), the JSON Schema annotations.
-- **Media Type Object** `example` and `examples` (a map of Example
-  Objects), which sit beside `schema:` under a content entry.
+- **Media Type Object**, **Parameter Object** and **Header Object**
+  `example` and `examples` (a map of Example Objects), which sit beside
+  `schema:` rather than inside it. Header Objects include the ones under
+  `encoding.<property>.headers`.
 
 Both are annotations, so nothing at runtime looks at them. What ships
 instead is a documented example contradicting the contract it

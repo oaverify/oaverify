@@ -277,28 +277,34 @@ export function checkDocumentExamples(
   };
 
   /**
-   * Media Type Object `example` / `examples`, validated against the
-   * sibling `schema`.
+   * `example` / `examples` sitting *beside* a `schema` rather than
+   * inside it, validated against that schema.
    *
-   * `examples` here is a map of Example Objects, not an array of
-   * literals. An entry carrying `externalValue` names a payload
-   * oaverify does not fetch, so it is skipped rather than reported
-   * against a value nobody read.
+   * Three OpenAPI objects have this shape and share this code: Media
+   * Type, Parameter and Header. `examples` here is a map of Example
+   * Objects, not the array of literals a Schema Object takes. An entry
+   * carrying `externalValue` names a payload oaverify does not fetch, so
+   * it is skipped rather than reported against a value nobody read.
+   *
+   * A Parameter or Header Object carries either `schema` or `content`,
+   * never both. With `content`, the examples belong to the media type
+   * objects beneath it and are checked there, which is why this returns
+   * early when there is no sibling `schema`.
    */
-  const checkMediaTypeExamples = (mediaType: Record<string, unknown>, pointer: string): void => {
-    const schema = mediaType["schema"];
+  const checkExamplesBesideSchema = (host: Record<string, unknown>, pointer: string): void => {
+    const schema = host["schema"];
     if (schema === undefined) return;
     const check = checkerFor(schema);
     if (check === null) return;
 
-    if (Object.prototype.hasOwnProperty.call(mediaType, "example")) {
-      const reason = check(mediaType["example"]);
+    if (Object.prototype.hasOwnProperty.call(host, "example")) {
+      const reason = check(host["example"]);
       if (reason !== undefined) {
-        report(`${pointer}/example`, '"example"', mediaType["example"], reason);
+        report(`${pointer}/example`, '"example"', host["example"], reason);
       }
     }
 
-    const examples = mediaType["examples"];
+    const examples = host["examples"];
     if (!isObj(examples)) return;
     for (const [name, entry] of Object.entries(examples)) {
       if (!isObj(entry)) continue;
@@ -321,7 +327,24 @@ export function checkDocumentExamples(
       if (!isObj(mediaType)) continue;
       const at = `${pointer}/${escapePointer(mediaTypeName)}`;
       if (mediaType["schema"] !== undefined) walkSchemaRoot(mediaType["schema"], `${at}/schema`);
-      checkMediaTypeExamples(mediaType, at);
+      checkExamplesBesideSchema(mediaType, at);
+      // A Header Object is legal at `encoding.<property>.headers.<name>`
+      // and carries examples like any other. Caught in review of #560:
+      // the common parameter and response-header places were covered and
+      // this one was not.
+      const encoding = mediaType["encoding"];
+      if (!isObj(encoding)) continue;
+      for (const [property, entry] of Object.entries(encoding)) {
+        if (!isObj(entry)) continue;
+        const headers = entry["headers"];
+        if (!isObj(headers)) continue;
+        for (const [headerName, header] of Object.entries(headers)) {
+          walkParameterLike(
+            header,
+            `${at}/encoding/${escapePointer(property)}/headers/${escapePointer(headerName)}`,
+          );
+        }
+      }
     }
   };
 
@@ -330,6 +353,11 @@ export function checkDocumentExamples(
     if (!isObj(param)) return;
     if (param["schema"] !== undefined) walkSchemaRoot(param["schema"], `${pointer}/schema`);
     if (param["content"] !== undefined) walkContent(param["content"], `${pointer}/content`);
+    // The parameter's own `example` / `examples`, which sit beside
+    // `schema` rather than inside it. Missing these was the one finding
+    // `redocly lint` reported on the audited corpus that oaverify did
+    // not (#560).
+    checkExamplesBesideSchema(param, pointer);
   };
 
   const walkParameterList = (params: unknown, pointer: string): void => {
