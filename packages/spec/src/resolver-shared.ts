@@ -11,6 +11,7 @@
  * @packageDocumentation
  */
 
+import { setSpecKey } from "@oaverify/internal-core";
 import { dirname, isAbsolute, posix, resolve as resolvePath } from "node:path";
 
 /** Mutable object view used while walking parsed JSON documents. */
@@ -276,3 +277,5 @@ export function mergeStitchedExternals(resolved: object, stitched: Mutable): voi
   const prev = (rootObj[EXTERNALS_FIELD] ?? {}) as Mutable;
   rootObj[EXTERNALS_FIELD] = { ...prev, ...stitched };
 }
+
+export { setSpecKey };

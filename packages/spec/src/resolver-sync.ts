@@ -15,6 +15,7 @@ import {
   type Mutable,
   resolveRelative,
   rewriteInternalRefTarget,
+  setSpecKey,
   targetKey,
 } from "./resolver-shared.js";
 import { isSubschemaKey } from "@oaverify/internal-core";
@@ -130,7 +131,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       const out: Mutable = {};
       let changed = false;
       for (const [key, target] of Object.entries(mapping as Mutable)) {
-        out[key] = target;
+        setSpecKey(out, key, target);
         if (typeof target !== "string") continue;
 
         let candidate: string;
@@ -161,7 +162,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
 
         const named = targets.get(candidate);
         if (named === undefined) continue;
-        out[key] = hoistedRef(names.nameFor(named.uri, named.fragment));
+        setSpecKey(out, key, hoistedRef(names.nameFor(named.uri, named.fragment)));
         changed = true;
       }
       if (changed) node["mapping"] = out;
@@ -204,7 +205,11 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
         // OpenAPI 3.1 allows siblings alongside `$ref`; they survive.
         for (const key of Object.keys(obj)) {
           if (key === "$ref") continue;
-          out[key] = walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, true);
+          setSpecKey(
+            out,
+            key,
+            walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, true),
+          );
         }
         return out;
       }
@@ -235,7 +240,11 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       const siblings: Mutable = {};
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
-        siblings[key] = walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, false);
+        setSpecKey(
+          siblings,
+          key,
+          walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, false),
+        );
       }
       if (Object.keys(siblings).length === 0) return inlined;
       return inlined !== null && typeof inlined === "object" && !Array.isArray(inlined)
@@ -248,14 +257,22 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       const siblings: Mutable = { $ref: rewritten };
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
-        siblings[key] = walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, false);
+        setSpecKey(
+          siblings,
+          key,
+          walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, false),
+        );
       }
       return siblings;
     }
 
     const out: Mutable = {};
     for (const key of Object.keys(obj)) {
-      out[key] = walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, inSchema);
+      setSpecKey(
+        out,
+        key,
+        walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, inSchema),
+      );
     }
     return out;
   };
@@ -293,7 +310,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     if (mapOfSchemas && typeof value === "object" && value !== null && !Array.isArray(value)) {
       const out: Mutable = {};
       for (const [name, sub] of Object.entries(value as Mutable)) {
-        out[name] = walk(sub, currentBase, stitchingUri, externalSourceUri, true);
+        setSpecKey(out, name, walk(sub, currentBase, stitchingUri, externalSourceUri, true));
       }
       return out;
     }
@@ -314,7 +331,8 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     if (target === undefined) continue;
     const name = names.nameFor(target.uri, target.fragment);
     if (Object.hasOwn(hoisted, name)) continue;
-    hoisted[name] = true; // placeholder: claims the slot before walking
+    // placeholder: claims the slot before walking
+    setSpecKey(hoisted, name, true);
     let targetDoc = docs.get(target.uri);
     if (targetDoc === undefined) {
       targetDoc = reader.read(target.uri);
@@ -322,7 +340,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     }
     const content =
       target.fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, target.fragment);
-    hoisted[name] = walk(content, baseDirOf(target.uri), null, target.uri, true);
+    setSpecKey(hoisted, name, walk(content, baseDirOf(target.uri), null, target.uri, true));
   }
   fixUpDiscriminatorMappings();
   mergeHoistedSchemas(resolved, hoisted);
@@ -344,7 +362,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       const inlined = walk(targetDoc, baseDirOf(uri), uri, uri, false);
       visiting.clear();
       for (const v of savedVisiting) visiting.add(v);
-      stitched[uri] = inlined;
+      setSpecKey(stitched, uri, inlined);
     }
     mergeStitchedExternals(resolved, stitched);
   }

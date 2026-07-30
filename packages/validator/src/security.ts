@@ -8,7 +8,7 @@ import {
   type SecuritySchemeObject,
   type ValidationError,
 } from "@oaverify/internal-core";
-import { getHeaderValue } from "./headers.js";
+import { getHeaderValue, getOwn } from "./headers.js";
 
 /**
  * Shape-only security check precompiled from a single OpenAPI security
@@ -95,7 +95,7 @@ function compileRequirement(
 ): CompiledSecurityRequirement {
   const compiled: CompiledSchemeCheck[] = [];
   for (const name of Object.keys(req)) {
-    const scheme = schemes[name];
+    const scheme = getOwn(schemes, name);
     compiled.push(compileSchemeCheck(name, scheme, mode));
   }
   return { schemes: compiled };
@@ -209,12 +209,15 @@ function pickApiKey(
   loc: "header" | "query" | "cookie",
   name: string,
 ): string | undefined {
-  if (loc === "header") return getHeader(req, name.toLowerCase());
+  // `getHeader` lowercases internally; doing it again here would turn
+  // "valueOf" into "valueof" and mask the inherited-member bug rather
+  // than fix it.
+  if (loc === "header") return getHeader(req, name);
   if (loc === "query") {
-    const q = req.query?.[name];
+    const q = getOwn(req.query, name);
     return Array.isArray(q) ? q[0] : q;
   }
-  return req.cookies?.[name];
+  return getOwn(req.cookies, name);
 }
 
 function tryBase64Decode(s: string): string | undefined {

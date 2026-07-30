@@ -14,6 +14,7 @@ import {
   type Mutable,
   resolveRelative,
   rewriteInternalRefTarget,
+  setSpecKey,
   targetKey,
 } from "./resolver-shared.js";
 import { isSubschemaKey } from "@oaverify/internal-core";
@@ -158,7 +159,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       const out: Mutable = {};
       let changed = false;
       for (const [key, target] of Object.entries(mapping as Mutable)) {
-        out[key] = target;
+        setSpecKey(out, key, target);
         if (typeof target !== "string") continue;
 
         let candidate: string;
@@ -189,7 +190,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
 
         const named = targets.get(candidate);
         if (named === undefined) continue;
-        out[key] = hoistedRef(names.nameFor(named.uri, named.fragment));
+        setSpecKey(out, key, hoistedRef(names.nameFor(named.uri, named.fragment)));
         changed = true;
       }
       if (changed) node["mapping"] = out;
@@ -232,7 +233,11 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
         // OpenAPI 3.1 allows siblings alongside `$ref`; they survive.
         for (const key of Object.keys(obj)) {
           if (key === "$ref") continue;
-          out[key] = await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, true);
+          setSpecKey(
+            out,
+            key,
+            await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, true),
+          );
         }
         return out;
       }
@@ -263,13 +268,10 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       const siblings: Mutable = {};
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
-        siblings[key] = await walkChild(
-          obj,
+        setSpecKey(
+          siblings,
           key,
-          currentBase,
-          stitchingUri,
-          externalSourceUri,
-          false,
+          await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, false),
         );
       }
       if (Object.keys(siblings).length === 0) return inlined;
@@ -283,13 +285,10 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       const siblings: Mutable = { $ref: rewritten };
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
-        siblings[key] = await walkChild(
-          obj,
+        setSpecKey(
+          siblings,
           key,
-          currentBase,
-          stitchingUri,
-          externalSourceUri,
-          false,
+          await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, false),
         );
       }
       return siblings;
@@ -297,7 +296,11 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
 
     const out: Mutable = {};
     for (const key of Object.keys(obj)) {
-      out[key] = await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, inSchema);
+      setSpecKey(
+        out,
+        key,
+        await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, inSchema),
+      );
     }
     return out;
   };
@@ -335,7 +338,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     if (mapOfSchemas && typeof value === "object" && value !== null && !Array.isArray(value)) {
       const out: Mutable = {};
       for (const [name, sub] of Object.entries(value as Mutable)) {
-        out[name] = await walk(sub, currentBase, stitchingUri, externalSourceUri, true);
+        setSpecKey(out, name, await walk(sub, currentBase, stitchingUri, externalSourceUri, true));
       }
       return out;
     }
@@ -356,7 +359,8 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     if (target === undefined) continue;
     const name = names.nameFor(target.uri, target.fragment);
     if (Object.hasOwn(hoisted, name)) continue;
-    hoisted[name] = true; // placeholder: claims the slot before walking
+    // placeholder: claims the slot before walking
+    setSpecKey(hoisted, name, true);
     let targetDoc = docs.get(target.uri);
     if (targetDoc === undefined) {
       targetDoc = await reader.read(target.uri);
@@ -364,7 +368,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     }
     const content =
       target.fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, target.fragment);
-    hoisted[name] = await walk(content, baseDirOf(target.uri), null, target.uri, true);
+    setSpecKey(hoisted, name, await walk(content, baseDirOf(target.uri), null, target.uri, true));
   }
   fixUpDiscriminatorMappings();
   mergeHoistedSchemas(resolved, hoisted);
@@ -386,7 +390,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       const inlined = await walk(targetDoc, baseDirOf(uri), uri, uri, false);
       visiting.clear();
       for (const v of savedVisiting) visiting.add(v);
-      stitched[uri] = inlined;
+      setSpecKey(stitched, uri, inlined);
     }
     mergeStitchedExternals(resolved, stitched);
   }

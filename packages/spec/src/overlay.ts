@@ -23,6 +23,7 @@ import type {
   ServerObject,
   TagObject,
 } from "@oaverify/internal-core";
+import { setSpecKey } from "@oaverify/internal-core";
 
 /**
  * Per-operation override recipe used inside {@link SpecOverlay.overrides}.
@@ -546,7 +547,7 @@ function applyDocumentMetadata(doc: OpenAPIDocument, overlay: SpecOverlay): Open
       if (value === undefined) {
         delete next[key];
       } else {
-        next[key] = value;
+        setSpecKey(next as unknown as Record<string, unknown>, key, value);
       }
     }
   }
@@ -585,7 +586,7 @@ function applyDocumentPaths(doc: OpenAPIDocument, overlay: SpecOverlay): OpenAPI
       if (paths[path] !== undefined) {
         throw new Error(`overlay conflict: path ${path} already exists in the base document`);
       }
-      paths[path] = item;
+      setSpecKey(paths, path, item);
     }
   }
 
@@ -606,7 +607,7 @@ function applyDocumentPaths(doc: OpenAPIDocument, overlay: SpecOverlay): OpenAPI
         if (item === undefined) {
           throw new Error(`overlay override targets unknown path ${path}`);
         }
-        paths[path] = applyPathOverride(item, override);
+        setSpecKey(paths, path, applyPathOverride(item, override));
       }
     }
   }
@@ -626,7 +627,7 @@ function applyDocumentWebhooks(doc: OpenAPIDocument, overlay: SpecOverlay): Open
       if (webhooks[name] !== undefined) {
         throw new Error(`overlay conflict: webhook ${name} already exists in the base document`);
       }
-      webhooks[name] = item;
+      setSpecKey(webhooks, name, item);
     }
   }
 
@@ -680,7 +681,7 @@ function walkPathsForModify(
 ): Record<string, PathItem> {
   const out: Record<string, PathItem> = {};
   for (const [path, item] of Object.entries(paths)) {
-    out[path] = applyOpModifyToPathItem(path, item, entry);
+    setSpecKey(out, path, applyOpModifyToPathItem(path, item, entry));
   }
   return out;
 }
@@ -692,10 +693,10 @@ function walkWebhooksForModify(
   const out: Record<string, PathItem | ReferenceObject> = {};
   for (const [name, item] of Object.entries(webhooks)) {
     if ("$ref" in item) {
-      out[name] = item;
+      setSpecKey(out, name, item);
       continue;
     }
-    out[name] = applyOpModifyToPathItem(name, item, entry);
+    setSpecKey(out, name, applyOpModifyToPathItem(name, item, entry));
   }
   return out;
 }
@@ -734,7 +735,7 @@ function applyModifyParameters(
   if (doc.paths) {
     const paths: Record<string, PathItem> = {};
     for (const [path, item] of Object.entries(doc.paths)) {
-      paths[path] = applyParamModifyToPathItem(item, entry);
+      setSpecKey(paths, path, applyParamModifyToPathItem(item, entry));
     }
     next.paths = paths;
   }
@@ -742,10 +743,10 @@ function applyModifyParameters(
     const webhooks: Record<string, PathItem | ReferenceObject> = {};
     for (const [name, item] of Object.entries(doc.webhooks)) {
       if ("$ref" in item) {
-        webhooks[name] = item;
+        setSpecKey(webhooks, name, item);
         continue;
       }
-      webhooks[name] = applyParamModifyToPathItem(item, entry);
+      setSpecKey(webhooks, name, applyParamModifyToPathItem(item, entry));
     }
     next.webhooks = webhooks;
   }
@@ -893,21 +894,25 @@ function applyComponents(doc: OpenAPIDocument, overlay: SpecOverlay): OpenAPIDoc
       // Schemas use allOf-extend, not shallow-merge.
       for (const [name, extension] of Object.entries(b.extend ?? {})) {
         const existing = entries[name];
-        entries[name] = existing === undefined ? extension : { allOf: [existing, extension] };
+        setSpecKey(
+          entries,
+          name,
+          existing === undefined ? extension : { allOf: [existing, extension] },
+        );
       }
     } else {
       for (const [name, extension] of Object.entries(b.extend ?? {})) {
         const existing = entries[name];
         if (existing === undefined || typeof existing !== "object") {
-          entries[name] = extension;
+          setSpecKey(entries, name, extension);
         } else {
-          entries[name] = { ...(existing as object), ...(extension as object) };
+          setSpecKey(entries, name, { ...(existing as object), ...(extension as object) });
         }
       }
     }
 
     for (const [name, replacement] of Object.entries(b.replace ?? {})) {
-      entries[name] = replacement;
+      setSpecKey(entries, name, replacement);
     }
 
     for (const name of b.remove ?? []) {
@@ -1087,7 +1092,14 @@ function capitalize(s: string): string {
 
 function applyPathOverride(item: PathItem, override: PathOverride): PathItem {
   const next: PathItem = { ...item };
-  if (override.pathItem) Object.assign(next, override.pathItem);
+  // `Object.assign` would use [[Set]] and so fire the inherited
+  // `__proto__` setter on an overlay carrying that key. Object spread
+  // below and `setSpecKey` both create own data properties instead.
+  if (override.pathItem) {
+    for (const [key, value] of Object.entries(override.pathItem)) {
+      setSpecKey(next as Record<string, unknown>, key, value);
+    }
+  }
   if (override.operations) {
     const methods =
       "*" in override.operations ? METHODS : (Object.keys(override.operations) as HttpMethod[]);
@@ -1189,7 +1201,7 @@ function applyOperationOverride(op: OperationObject, override: OperationOverride
         // Status not on the operation yet: treat the patch as the
         // initial response. Matches OpenAPI Overlay 1.0 merge
         // semantics, which create on missing rather than erroring.
-        responses[status] = applyResponseOverride({}, patch);
+        setSpecKey(responses, status, applyResponseOverride({}, patch));
         continue;
       }
       if ("$ref" in existing) {
@@ -1197,7 +1209,7 @@ function applyOperationOverride(op: OperationObject, override: OperationOverride
           `overlay patchResponses cannot patch reference-object response (status ${status})`,
         );
       }
-      responses[status] = applyResponseOverride(existing, patch);
+      setSpecKey(responses, status, applyResponseOverride(existing, patch));
     }
     next.responses = responses;
   }
@@ -1278,14 +1290,14 @@ function applyResponseOverride(
     for (const [mediaType, patch] of Object.entries(override.content)) {
       const existing = content[mediaType];
       if (existing === undefined) {
-        content[mediaType] = patch;
+        setSpecKey(content, mediaType, patch);
         continue;
       }
       const merged: MediaTypeObject = { ...existing, ...patch };
       if (patch.schema !== undefined && existing.schema !== undefined) {
         merged.schema = { allOf: [existing.schema, patch.schema] };
       }
-      content[mediaType] = merged;
+      setSpecKey(content, mediaType, merged);
     }
     next.content = content;
   }

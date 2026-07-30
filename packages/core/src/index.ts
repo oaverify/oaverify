@@ -94,3 +94,4 @@ export {
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
 } from "./subschema-positions.js";
+export { getOwn, setSpecKey } from "./own-key.js";
