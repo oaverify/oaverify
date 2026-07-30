@@ -118,6 +118,30 @@ const FIXTURES: ReadonlyArray<{
   },
   { label: "complex const", schema: { const: { a: 1 } } as SchemaObject, expected: "buffer" },
 
+  // Presence, not definedness. The in-memory engine dispatches keywords
+  // over `Object.keys`, so an explicitly-undefined keyword is present to
+  // it. Both sides must agree with that, or the analyzer under-reports a
+  // budget for a schema the engine will materialize. Not reachable from
+  // parsed JSON or YAML; reachable from a hand-built schema object.
+  {
+    label: "explicitly-undefined contains",
+    schema: { type: "array", contains: undefined } as unknown as SchemaObject,
+    expected: "buffer",
+  },
+  {
+    label: "explicitly-undefined const",
+    schema: { const: undefined } as unknown as SchemaObject,
+    expected: "stream",
+  },
+  // Inherited, so not a keyword. The spine read this as a present
+  // `contains` while `in` was the presence test, which is the read the
+  // own-key sweep (#583, #586) removed everywhere else.
+  {
+    label: "inherited contains is not a keyword",
+    schema: Object.create({ contains: { type: "string" } }) as SchemaObject,
+    expected: "stream",
+  },
+
   // Buffer triggers the spine names alongside them.
   {
     label: "dependentSchemas",
