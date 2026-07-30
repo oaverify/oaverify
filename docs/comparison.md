@@ -13,25 +13,32 @@ stronger OpenAPI 2.0 / 3.0 story than 3.1+. `openapi-request-validator`
 and `openapi-response-validator` are smaller request/response pieces.
 Spec validators and parsers such as `@seriousme/openapi-schema-validator`
 and `@scalar/openapi-parser` validate the OpenAPI document at
-build/load time; they don't sit in the request path.
+build/load time; they don't sit in the request path. Document linters
+(Spectral, Redocly) also work at build time, on style and structure
+rather than on traffic.
 
-This document spends most of its space on Ajv and
-`express-openapi-validator` because they are the closest comparison for
-oaverify's core surface: schema validation plus HTTP-layer request/response
-checks. The broader ecosystem matters, but the same decision usually
+oaverify covers both halves, and splits them across two verbs:
+`oaverify check` asks what is wrong with a document, `oaverify validate`
+asks whether a payload conforms. So the closest comparison depends on
+which half you care about. This document spends most of its space on Ajv
+and `express-openapi-validator` because they are the closest comparison
+for the traffic half; the [Defect detection](#defect-detection) section
+covers the document half, where the comparison is against linters
+instead. The broader ecosystem matters, but the same decision usually
 comes down to the shape of integration you want.
 
 ## Ecosystem map
 
-| Tool family                                    | Best fit                                                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Ajv                                            | JSON Schema validation, many drafts, maximum ecosystem maturity                       |
-| `express-openapi-validator`                    | Existing Express apps that want one middleware to validate requests/responses         |
-| `openapi-backend`                              | OperationId routing, auth handlers, validation, and mocking together                  |
-| `openapi-enforcer` / middleware                | OpenAPI 2.0 / 3.0 services that want validation plus serialization/mocking            |
-| `openapi-request-validator` / response sibling | Lower-level request or response checks around your own routing                        |
-| Spec validators/parsers                        | Validating the OpenAPI document, resolving refs, linting, or tooling                  |
-| oaverify                                       | HTTP-aware validation, streamability budgets, overlays, and standalone validator emit |
+| Tool family                                    | Best fit                                                                         |
+| ---------------------------------------------- | -------------------------------------------------------------------------------- |
+| Ajv                                            | JSON Schema validation, many drafts, maximum ecosystem maturity                  |
+| `express-openapi-validator`                    | Existing Express apps that want one middleware to validate requests/responses    |
+| `openapi-backend`                              | OperationId routing, auth handlers, validation, and mocking together             |
+| `openapi-enforcer` / middleware                | OpenAPI 2.0 / 3.0 services that want validation plus serialization/mocking       |
+| `openapi-request-validator` / response sibling | Lower-level request or response checks around your own routing                   |
+| Spec validators/parsers                        | Validating the OpenAPI document, resolving refs, or tooling                      |
+| Spectral / Redocly                             | Linting an OpenAPI document for style and structure, with large default rulesets |
+| oaverify                                       | HTTP-aware validation, spec checking, streamability budgets, overlays, AOT emit  |
 
 This document is about behavior and capabilities. For raw numbers
 and methodology see [`performance/README.md`](../performance/README.md);
@@ -148,6 +155,56 @@ Full methodology, the synthetic shape definitions, the `--spec` mode for
 real-world OpenAPI documents, and the raw host-stamped JSON live in
 [`performance/README.md`](../performance/README.md).
 
+## Defect detection
+
+The performance tables above measure the traffic half. This measures the
+document half: given a spec with one seeded defect, which tools report
+_that_ defect. Each case is a minimal document; a tool scores only when
+its output matches the case's declared signal, and every scored cell is
+traceable to the finding that scored it in
+[`detection/results/audit.md`](../detection/results/audit.md).
+
+Ajv 8.20, Spectral CLI 6.15, Redocly CLI 2.4, default rulesets:
+
+| class                       | oaverify | ajv | spectral | redocly |
+| --------------------------- | -------- | --- | -------- | ------- |
+| malformed (6)               | 6/6      | 4/6 | 5/6      | 5/6     |
+| lint (7)                    | 7/7      | 5/7 | 2/7      | 4/7     |
+| structural (8)              | 7/8      | 2/8 | 7/8      | 5/8     |
+| style (6)                   | 3/6      | 0/6 | 6/6      | 6/6     |
+| control false positives (4) | 0        | 0   | 0        | 0       |
+| total findings raised       | 25       | 19  | 170      | 182     |
+
+Read the rows, not a total. `style` is where oaverify loses and is meant
+to: operationId conventions and undefined security schemes are outside
+what it claims to check, and the class exists so the corpus can show
+that. `control` holds four clean documents where any finding is a false
+positive; every tool scores 0, which is the result you want from a
+control.
+
+The last row is the one worth dwelling on. Across 27 seeded-defect cases
+plus 4 controls, oaverify raises 25 findings and catches 23 of the 27
+defects; Spectral raises 170 findings to catch 20, Redocly 182 to catch 20. Linters with broad default rulesets
+report a great deal that nobody seeded, which is reasonable behavior for
+a linter and a different job from answering "will this spec validate
+traffic the way its author intended".
+
+Caveats, because this table is easy to over-read:
+
+- **Not a ranking, and the tools are not interchangeable.** Spectral and
+  Redocly are document linters. Ajv does not lint specs at all, so the
+  comparable operation is compiling each schema the document carries with
+  `strict` and `strictRequired` on. That is the only reason Ajv appears
+  in a spec-linting table.
+- **Not a CI gate.** A matrix that turns red when Spectral ships a rule
+  is noise, so it is run on demand rather than per-commit. The numbers
+  move with the tool versions above.
+- **A miss can be a wording mismatch** rather than a real blind spot,
+  where a tool reports the defect without the signal the case declares.
+
+Methodology, the case format, and the reasoning behind each class live in
+[`detection/README.md`](../detection/README.md).
+
 ## Where Ajv (+ express-openapi-validator) does more
 
 Capabilities that the Ajv stack covers and oaverify does not.
@@ -178,18 +235,29 @@ Capabilities that the Ajv stack covers and oaverify does not.
   and `$id` base-URI rewrites natively. oaverify requires external /
   multi-file refs to be pre-inlined by `@oaverify/core/spec`'s `resolveSpec()`
   before compile, and accepts fragment-only refs thereafter.
-- **Full meta-schema validation.** Ajv can validate your schema against
-  the draft's meta-schema at compile time, catching every wrong value
-  shape in one pass. oaverify checks piecemeal instead: `schemaLint` flags
-  unknown-keyword typos (`minimumx: 5`) and partially-implemented
-  features, each keyword rejects values it cannot use (`minimum: "5"`,
-  `type: "Boolean"`, `required: "id"` all throw, the last two with a
-  suggested correction), and a pre-pass rejects non-schema values in
-  schema-valued slots (`items: [ ... ]`, `if: null`). The gap is
-  coverage rather than kind: the checks live on the keywords that have
-  them, so a keyword nobody has gotten to yet still accepts whatever it
-  is handed, where Ajv's single meta-schema pass covers everything at
-  once.
+- **Single-pass meta-schema validation of a schema.** Ajv validates your
+  schema against the draft's meta-schema at compile time, so one pass
+  covers every keyword uniformly, including keywords Ajv itself has no
+  special handling for. oaverify arrives at schema defects by several
+  narrower routes instead: `schemaLint` flags unknown-keyword typos
+  (`minimumx: 5`) and partially-implemented features, each keyword
+  rejects values it cannot use (`minimum: "5"`, `type: "Boolean"`,
+  `required: "id"` all throw, the last two with a suggested correction), a
+  pre-pass rejects non-schema values in schema-valued slots
+  (`items: [ ... ]`, `if: null`), and `oaverify check`'s `conformance`
+  class validates the whole document against the pinned OpenAPI
+  meta-schema.
+
+  What Ajv buys here is uniformity. Its guarantee is structural: every
+  keyword is checked because the meta-schema describes them all, so a
+  keyword nobody has thought about is still covered. In
+  oaverify a check lives on the keyword that has one, so an
+  unexercised corner can accept what it is handed. On measured coverage
+  oaverify comes out ahead (6/6 `malformed` and 7/7 `lint` cases against
+  Ajv's 4/6 and 5/7; see [Defect detection](#defect-detection)), and Ajv's
+  property is still the one you would want if you were betting on the
+  case nobody has written a test for.
+
 - **`$data` references.** Ajv's non-standard extension where one
   keyword's value comes from the data being validated
   (`{ minimum: { $data: "1/min" } }`). oaverify doesn't implement it. The
@@ -216,6 +284,37 @@ Capabilities that the Ajv stack covers and oaverify does not.
 Capabilities oaverify has that Ajv (alone or with
 `express-openapi-validator`) doesn't.
 
+- **Spec checking as a first-class verb.** `oaverify check <spec>` answers
+  "what is wrong with this document" across five classes: `conformance`
+  (is it a legal OpenAPI document for its version, against the pinned
+  meta-schema), `schema` (will the schemas compile, and do they lint
+  clean), `hygiene` (unused components, path-template placeholders with no
+  matching parameter declaration), `examples` (does every `example` and
+  `examples` entry satisfy the schema it illustrates), and `redos` (can a
+  `pattern` be made to backtrack). Findings carry a class and a severity
+  as separate fields, because they cut across each other: `hygiene` holds
+  both a specification violation and pure housekeeping. `--only` selects
+  classes, `--fail-on warning|error|fatal` is the CI gate. Ajv validates
+  schemas, not documents, and `express-openapi-validator` reports document
+  problems only as a side effect of failing to build. See
+  [`strictness.md`](./strictness.md) for the class model and
+  [Defect detection](#defect-detection) for measured coverage.
+- **ReDoS detection on spec patterns.** The `redos` class reports a
+  `pattern` whose ambiguity is _proven_ rather than heuristically
+  suspected, and echoes a witness input that the pattern matches more than
+  one way, so the finding carries its own evidence. Separately,
+  `createValidator` accepts a `regexCompiler` so you can route every
+  pattern in the spec through `re2` or another complexity-bounded engine
+  at runtime. Neither Ajv nor `express-openapi-validator` inspects
+  patterns for catastrophic backtracking.
+- **Bounded recursion depth.** Recursive schemas validate on the native JS
+  call stack in both oaverify and Ajv, so a deeply nested payload can
+  exhaust it (empirically around 5k frames on a default Node stack).
+  oaverify's `maxDepth` (`CompileOptions` / `ValidatorOptions`) instruments
+  only `$ref` back-edges and emits a `depth` error leaf, turning a
+  `RangeError` crash into a 400. Unset, codegen is byte-identical to the
+  un-instrumented path, so the guard costs nothing when unused. Ajv has no
+  equivalent option.
 - **Streaming body validation.** The separate
   `@oaverify/stream` package validates a JSON body
   against its operation schema as it streams, echoing the input bytes
@@ -346,6 +445,9 @@ operation handlers should be driven by the spec. Pick
 `openapi-enforcer` when its OpenAPI 2.0 / 3.0 validation,
 serialization, and mocking model fits your service.
 
+Pick Spectral or Redocly when you want broad style and convention linting
+of the document with a large ruleset out of the box.
+
 Pick oaverify when you want a structured error tree, streaming validation of
 large bodies with a design-time buffer budget you can check before
 deploy, overlays over specs you don't own, an OpenAPI 3.0 dialect built
@@ -354,6 +456,14 @@ HTTP stack, or standalone OpenAPI HTTP validator output for
 edge/serverless deployments. It also fits compile-heavy workloads: the
 benchmarks show one to two orders of magnitude faster schema compile
 than Ajv; see the Performance section above.
+
+For the document rather than the traffic, pick oaverify when the question
+is whether a spec will validate the way its author intended: `oaverify
+check` gates on document conformance, schema compilation, hygiene,
+examples that contradict their schema, and provably ambiguous patterns,
+with a class-and-severity model built for CI rather than a style ruleset.
+Reach for a linter alongside it when you also want naming and convention
+rules.
 
 For benchmark numbers rather than feature comparisons, see
 [`performance/README.md`](../performance/README.md).
