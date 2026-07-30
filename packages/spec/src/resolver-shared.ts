@@ -86,9 +86,26 @@ export function targetKey(uri: string, fragment: string): string {
   return `${uri}#${fragment.replace(/^\//, "")}`;
 }
 
+/**
+ * Trim leading and trailing underscores without a regex.
+ *
+ * `/^_+|_+$/` reads better and is a polynomial-ReDoS hazard on
+ * library input (`js/polynomial-redos`): the name derives from a URI in
+ * the user's spec, so a filename of many underscores drives the
+ * backtracking. Scanning from each end is linear and needs no
+ * justification.
+ */
+function trimUnderscores(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && value[start] === "_") start += 1;
+  while (end > start && value[end - 1] === "_") end -= 1;
+  return value.slice(start, end);
+}
+
 /** Component-name character set OpenAPI allows: `^[a-zA-Z0-9._-]+$`. */
 function sanitizeName(raw: string): string {
-  const cleaned = raw.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^_+|_+$/g, "");
+  const cleaned = trimUnderscores(raw.replace(/[^a-zA-Z0-9._-]/g, "_"));
   return cleaned === "" ? "Schema" : cleaned;
 }
 
