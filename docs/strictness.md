@@ -189,7 +189,50 @@ not compile.
 
 This is the one class that compiles schemas of its own accord, so it is
 also the one with a cost worth naming: on a 278-component document it
-adds roughly 60ms. `--only hygiene,schema,conformance` opts out.
+adds roughly 60ms. Omit `examples` from `--only` to opt out of it, and
+note that a `--only` list omits everything it does not name, so
+`--only hygiene,schema,conformance` drops the `redos` class as well.
+
+## Patterns: can a regex be made to backtrack
+
+`check` reports a `pattern` with a proven ambiguity under the `redos`
+class, code `ambiguous-pattern`:
+
+```
+warning redos [ambiguous-pattern] /components/schemas/Thing/properties/id/pattern:
+  "^(a+)+$" is ambiguous. An input of the form `aaaa` matches more than one way.
+  A backtracking engine can be made to explore every way of matching, so a
+  crafted value may cost superlinear time; whether it does depends on the engine
+  running the pattern. Rewrite to remove the ambiguity, or compile patterns with
+  a linear-time engine (the regexCompiler option).
+```
+
+**This is a weaker claim than the `unsatisfiable/*` family makes, on
+purpose.** Those mean a position is provably dead. This means the pattern
+is provably _ambiguous_: some input matches by more than one route,
+which is the precondition for catastrophic backtracking. Whether a given
+engine turns that into observable cost varies. Measured on the corpus:
+`^.+/.+$` is quadratic on V8 (33ms at 6,000 characters, and it does not
+return at scale), while other ambiguous patterns there stay flat at
+every input size tried. The finding names the ambiguity, which is what
+was proven, and the witness so you can see it.
+
+It is still worth knowing about a flat one, because a spec is consumed
+by more than your runtime: SDK generators, mock servers, gateways and
+other validators mostly use backtracking engines, and they do not share
+V8's optimisations.
+
+Two things follow from the analysis being the expensive part of this
+check, and from the finding being about the document rather than about
+your deployment:
+
+- The rule fires whether or not you have configured `regexCompiler`.
+  A linear-time engine such as `re2` removes the risk for _your_
+  process; it does not change the document. It also does not support
+  backreferences or lookaround, so it is not a free swap.
+- `--only hygiene,schema,conformance,examples` opts out. This is the one
+  check that reaches for a third-party analyser, which is why it is
+  its own class.
 
 ## Request strictness: how tolerant validation is of traffic
 
@@ -232,6 +275,7 @@ Every finding carries both, and neither implies the other.
 | `hygiene`     | Is the document internally consistent?            |
 | `schema`      | Are the schemas what the author meant?            |
 | `examples`    | Do the documented examples satisfy their schemas? |
+| `redos`       | Can a `pattern` be made to backtrack?             |
 | `malformed`   | Reported, never selected; see below.              |
 
 **Severity** says what it means for you, and is what `--fail-on` gates on:
@@ -252,9 +296,9 @@ oaverify check spec.yaml --fail-on error    # break the build on what is actuall
 oaverify check spec.yaml --fail-on warning  # break the build on anything at all
 ```
 
-`--only` takes `hygiene` / `schema` / `conformance`. A malformed schema
-is found by compiling, which is what the `schema` check does, so it
-cannot be asked for on its own and appears whenever that check runs.
+`--only` takes the selectable classes from the table above. A malformed
+schema is found by compiling, which is what the `schema` check does, so
+it cannot be asked for on its own and appears whenever that check runs.
 
 ### Document conformance
 
