@@ -1084,26 +1084,56 @@ export function createValidator(
     return cache;
   };
 
-  const validateRequestTree = (req: HttpRequest): ValidationError | null => {
-    if (options.ignorePaths?.(req.path) === true) return null;
+  /**
+   * Resolve a request to its route, applying the path filters and the
+   * 404-vs-405 distinction. Request and response validation share this so
+   * the two stay in step; changing how `ignorePaths` and
+   * `ignoreUndocumented` interact, or which error a route miss produces,
+   * is a single edit.
+   *
+   * `"skip"` means a filter opted the path out and validation should
+   * report no error at all, which is distinct from `"error"` carrying a
+   * `route` or `method` leaf.
+   */
+  const resolveRoute = (
+    req: HttpRequest,
+  ):
+    | { kind: "skip" }
+    | { kind: "error"; error: ValidationError }
+    | { kind: "match"; match: RouteMatch } => {
+    if (options.ignorePaths?.(req.path) === true) return { kind: "skip" };
     const match = router.match(req.method, req.path);
     if (match === undefined) {
-      if (options.ignoreUndocumented === true) return null;
-      return createLeafError(
-        "route",
-        [],
-        `no route matches ${req.method.toUpperCase()} ${req.path}`,
-        { method: req.method, path: req.path },
-      );
+      if (options.ignoreUndocumented === true) return { kind: "skip" };
+      return {
+        kind: "error",
+        error: createLeafError(
+          "route",
+          [],
+          `no route matches ${req.method.toUpperCase()} ${req.path}`,
+          { method: req.method, path: req.path },
+        ),
+      };
     }
     if (match.kind === "method-not-allowed") {
-      return createLeafError(
-        "method",
-        [],
-        `method ${req.method.toUpperCase()} not allowed on ${match.pathPattern}; allowed: ${match.allowed.join(", ")}`,
-        { method: req.method, pathPattern: match.pathPattern, allowed: match.allowed },
-      );
+      return {
+        kind: "error",
+        error: createLeafError(
+          "method",
+          [],
+          `method ${req.method.toUpperCase()} not allowed on ${match.pathPattern}; allowed: ${match.allowed.join(", ")}`,
+          { method: req.method, pathPattern: match.pathPattern, allowed: match.allowed },
+        ),
+      };
     }
+    return { kind: "match", match };
+  };
+
+  const validateRequestTree = (req: HttpRequest): ValidationError | null => {
+    const routed = resolveRoute(req);
+    if (routed.kind === "skip") return null;
+    if (routed.kind === "error") return routed.error;
+    const match = routed.match;
     const cache = cacheFor(match);
     const children: ValidationError[] = [];
 
@@ -1177,25 +1207,10 @@ export function createValidator(
   };
 
   const validateResponseTree = (req: HttpRequest, res: HttpResponse): ValidationError | null => {
-    if (options.ignorePaths?.(req.path) === true) return null;
-    const match = router.match(req.method, req.path);
-    if (match === undefined) {
-      if (options.ignoreUndocumented === true) return null;
-      return createLeafError(
-        "route",
-        [],
-        `no route matches ${req.method.toUpperCase()} ${req.path}`,
-        { method: req.method, path: req.path },
-      );
-    }
-    if (match.kind === "method-not-allowed") {
-      return createLeafError(
-        "method",
-        [],
-        `method ${req.method.toUpperCase()} not allowed on ${match.pathPattern}; allowed: ${match.allowed.join(", ")}`,
-        { method: req.method, pathPattern: match.pathPattern, allowed: match.allowed },
-      );
-    }
+    const routed = resolveRoute(req);
+    if (routed.kind === "skip") return null;
+    if (routed.kind === "error") return routed.error;
+    const match = routed.match;
     const cache = cacheFor(match);
     const children: ValidationError[] = [];
 

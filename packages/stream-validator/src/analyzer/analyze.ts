@@ -341,7 +341,7 @@ const COMPOSITION_KEYS = ["allOf", "anyOf", "oneOf", "not", "if"] as const;
 
 function hasComplexValueEquality(node: SchemaObject): boolean {
   const complex = (v: unknown): boolean => typeof v === "object" && v !== null;
-  if (node.const !== undefined) return complex(node.const);
+  if (Object.hasOwn(node, "const")) return complex(node.const);
   return Array.isArray(node.enum) && node.enum.some(complex);
 }
 
@@ -351,20 +351,26 @@ function hasComplexValueEquality(node: SchemaObject): boolean {
 // (`contains`, asserting `format`, `uniqueItems`, complex `enum`/`const`).
 // Relying on the classifier's `strategyOf` alone would miss these and
 // under-report buffering.
-function nodeKind(
+//
+// Exported for `test/analyzer-spine-drift.test.ts`, which pins the
+// agreement with the spine. Not re-exported from the package entry
+// points: the analyzer stays engine-free, and this is not public API.
+export function nodeKind(
   node: SchemaObject,
   cls: Classification,
   formatAsserts: boolean,
 ): "stream" | "tee" | "buffer" {
+  // Presence, not definedness: the in-memory engine dispatches keywords
+  // over `Object.keys`, so `{ contains: undefined }` is a present
+  // keyword to it and to the spine. Testing `!== undefined` here read it
+  // as absent and under-reported the buffer budget. `Object.hasOwn`
+  // rather than `in` so an inherited property is not read as a keyword.
   if (cls.strategyOf(node) === "buffer") return "buffer";
-  if (node.contains !== undefined) return "buffer";
-  if (
-    (node as Record<string, unknown>).dependentSchemas !== undefined ||
-    (node as Record<string, unknown>).discriminator !== undefined
-  ) {
+  if (Object.hasOwn(node, "contains")) return "buffer";
+  if (Object.hasOwn(node, "dependentSchemas") || Object.hasOwn(node, "discriminator")) {
     return "buffer";
   }
-  if (formatAsserts && node.format !== undefined) return "buffer";
+  if (formatAsserts && Object.hasOwn(node, "format")) return "buffer";
   if (node.uniqueItems === true) return "buffer";
   if (hasComplexValueEquality(node)) return "buffer";
   if (cls.strategyOf(node) === "tee") return "tee";
@@ -373,19 +379,21 @@ function nodeKind(
 
 // Best-effort name of the keyword that forced a BUFFER verdict, for the report.
 function bufferKeyword(node: SchemaObject, formatAsserts: boolean): string {
+  // Own-property presence throughout, matching nodeKind: reporting a
+  // different keyword than the one that forced the verdict is worse than
+  // reporting the generic fallback.
   if (node.uniqueItems === true) return "uniqueItems";
-  if ((node as Record<string, unknown>).dependentSchemas !== undefined) return "dependentSchemas";
-  if ((node as Record<string, unknown>).discriminator !== undefined) return "discriminator";
-  if (hasComplexValueEquality(node)) return node.const !== undefined ? "const" : "enum";
-  if (node.contains !== undefined) return "contains";
+  if (Object.hasOwn(node, "dependentSchemas")) return "dependentSchemas";
+  if (Object.hasOwn(node, "discriminator")) return "discriminator";
+  if (hasComplexValueEquality(node)) return Object.hasOwn(node, "const") ? "const" : "enum";
+  if (Object.hasOwn(node, "contains")) return "contains";
   const deps = (node as Record<string, unknown>).dependencies;
   if (isObjectSchema(deps) && Object.values(deps).some((e) => !Array.isArray(e))) {
     return "dependencies";
   }
-  for (const k of COMPOSITION_KEYS)
-    if ((node as Record<string, unknown>)[k] !== undefined) return k;
-  if (node.pattern !== undefined) return "pattern";
-  if (node.format !== undefined && formatAsserts) return "format";
+  for (const k of COMPOSITION_KEYS) if (Object.hasOwn(node, k)) return k;
+  if (Object.hasOwn(node, "pattern")) return "pattern";
+  if (formatAsserts && Object.hasOwn(node, "format")) return "format";
   return "buffer";
 }
 

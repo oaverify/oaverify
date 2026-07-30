@@ -1,0 +1,31 @@
+openapi: 3.1.0
+info:
+  title: Comment tree
+  version: 1.0.0
+paths:
+  /comments:
+    post:
+      summary: Post a comment thread
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Comment"
+      responses:
+        "201":
+          description: Created
+components:
+  schemas:
+    # Self-recursive with no structural depth bound: a client controls how
+    # deep the nesting goes. This is the shape `maxDepth` exists for.
+    Comment:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        replies:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"

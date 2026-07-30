@@ -900,16 +900,20 @@ export class SpineValidator implements JsonEventHandler {
   private computeKind(s: SchemaObject): "stream" | "tee" | "buffer" {
     // BUFFER: anything the spine cannot stream forward (composition with a
     // non-forward branch folds into strategyOf === "buffer").
+    // `Object.hasOwn`, not `in`: a schema reaches here from spec content,
+    // and `in` reads an inherited property as a present keyword. The
+    // in-memory engine dispatches over `Object.keys`, so own-property
+    // presence is the semantics to match (and what the analyzer mirrors).
     if (this.strategyOf(s) === "buffer") return "buffer";
-    if ("contains" in s) return "buffer"; // forward streaming of contains is not implemented
-    if ("dependentSchemas" in s || "discriminator" in s) return "buffer";
-    if (this.assertsFormat && "format" in s) return "buffer"; // no spine-side format assertion
+    if (Object.hasOwn(s, "contains")) return "buffer"; // forward streaming of contains is not implemented
+    if (Object.hasOwn(s, "dependentSchemas") || Object.hasOwn(s, "discriminator")) return "buffer";
+    if (this.assertsFormat && Object.hasOwn(s, "format")) return "buffer"; // no spine-side format assertion
     if (s.uniqueItems === true) return "buffer"; // canonical hashing not streamed
     const complex = (v: unknown): boolean => typeof v === "object" && v !== null;
     if (Array.isArray(s.enum) && s.enum.some(complex)) return "buffer"; // object/array equality
-    if ("const" in s && complex((s as { const?: unknown }).const)) return "buffer";
+    if (Object.hasOwn(s, "const") && complex((s as { const?: unknown }).const)) return "buffer";
     // TEE: forward composition.
-    for (const k of STREAM_COMPOSITION) if (k in s) return "tee";
+    for (const k of STREAM_COMPOSITION) if (Object.hasOwn(s, k)) return "tee";
     return "stream";
   }
 
