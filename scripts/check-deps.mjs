@@ -1,4 +1,4 @@
-// Guard the workspace dependency graph the CLAUDE.md "Dependency graph
+// Guard the workspace dependency graph the AGENTS.md "Dependency graph
 // (strictly enforced; no cycles)" section promises. Checks over every
 // packages/*/package.json, scoped to internal `@oaverify/internal-*` specifiers (peer
 // deps like express / fastify and external deps are out of scope):

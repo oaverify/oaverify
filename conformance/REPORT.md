@@ -43,7 +43,7 @@ into three groups.
 Partial implementation. Our `$dynamicRef` resolves statically against
 the anchor map, so tests that rely on a `$dynamicRef` rebinding at the
 outermost `$dynamicAnchor` encountered during validation fail
-(`dynamicRef.json`). Documented in `CLAUDE.md`.
+(`dynamicRef.json`). Documented in `AGENTS.md`.
 
 Fix path: maintain a runtime stack of `$dynamicAnchor` scopes during
 validation, resolve `$dynamicRef` at call time.

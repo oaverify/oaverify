@@ -1,5 +1,11 @@
 # Contributing
 
+Repo-specific conventions, architecture notes, and the checks CI gates
+on live in [AGENTS.md](./AGENTS.md). `CLAUDE.md` is a symlink to it. If
+your checkout has `CLAUDE.md` containing only the text `AGENTS.md`,
+symlinks are disabled (`core.symlinks=false`, common on Windows without
+Developer Mode); enable them or read and edit `AGENTS.md` directly.
+
 ## Branch + PR flow
 
 - `main` is protected. No direct pushes.

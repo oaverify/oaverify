@@ -1,0 +1,430 @@
+# AGENTS.md: notes for agents and contributors working in this repo
+
+`CLAUDE.md` is a symlink to this file. Edit `AGENTS.md`.
+
+User-facing documentation lives in [`docs/`](./docs) and in each
+package's README; the import surface is in
+[docs/modules.md](./docs/modules.md). This file holds what you cannot
+derive from reading the code: how to decide, which commands actually
+gate CI, and the handful of design facts that a plausible-looking
+change gets wrong.
+
+## Working agreements
+
+How to make decisions when extending this repo. The mechanics
+sections below cover _how_ to add a thing; this section is about
+_whether_ and _what shape_.
+
+### Surface tradeoffs honestly
+
+When a design choice has real tradeoffs (fat vs thin adapter, mocks
+vs integration tests, one PR vs many, opinionated default vs escape
+hatch), say so. Recommend a lean. Defer the call rather than picking
+silently. A half-articulated choice that survives review is harder
+to revisit than one that was explicitly weighed. The point is the
+surfacing, not the agonizing: options + lean + decision space, not
+exhaustive analysis.
+
+### Talk through design before drafting
+
+For substantive new APIs (a new package, a non-trivial option
+addition, a default-behavior shift), open the conversation before
+writing code. Sketch the API shape, list open questions, recommend
+defaults. The cost of one round-trip on the design saves several on
+the implementation when an early choice would have wanted to be
+different. For small fixes and obvious changes, just do it; judgment.
+
+### Naming and consistency
+
+Names that pair (`request`/`response`, `validateRequest`/`validateResponse`,
+`Validator`/`ValidatorOptions`, `httpRequestFromExpress`/`httpRequestFromFetch`)
+carry meaning beyond what each name says alone: a reader should be
+able to predict one from the other. When you add a new symbol, look
+for the sibling that should pair with it, even if you're only writing
+one half today. Across-package symmetry is a feature: every adapter
+package exports the same factory names with the same option shapes,
+with only the framework-typed argument varying. Per-framework types
+use framework-native names (`ExpressContext`, `FastifyContext`); names
+that sit above the framework boundary stay identical everywhere.
+
+That symmetry is why `packages/oav-express4` and `packages/oav-express5`
+contain near-identical files. The duplication is deliberate: sharing
+~220 lines would cost a package boundary and framework-agnostic types,
+and `middleware.ts` diverges exactly where Express 4 and 5 semantics do.
+A DRY pass across the adapters is not wanted.
+
+If a name reads awkwardly in user code (`requestValidator(validator)`,
+three "validator"s, three meanings), that's a signal to rename, not
+to add a comment.
+
+### Forward-compatible API shapes
+
+Design v0 surfaces so v1 additions land as new exports / new options,
+not changed semantics. The Express 4 adapter shipped with
+`validateRequests` named so that any response-validating sibling
+added later would slot in additively, sharing option names, the
+default renderer, and the context shape. Picking those identifiers
+up front cost nothing; doing it after the fact would have meant a
+breaking rename. When you can't tell whether a new option will need
+to extend later, lean toward shapes that widen additively (`select:
+"first" | "deepest" | { byCode }`, not `byCodeOnly: boolean`).
+
+### No magic
+
+Prefer explicit docs warnings over silent runtime detection of common
+gotchas. The Express adapter doesn't auto-detect missing
+`express.json()`; the README flags it. Implicit fallbacks, surprise
+behaviors, and "we'll figure out what you meant" all create debugging
+dead ends. Better to error early with a clear message, or not at all
+and let the user's own logic fail in a familiar way.
+
+### Type as canonical contract
+
+TSDoc on the type is the API reference. Prose docs (READMEs,
+docs/integration.md) are recipes: worked examples that show how
+the pieces compose, with backreferences to the type for the contract.
+When adding a new option-bearing interface, lead its TSDoc with a
+roadmap of the field groups so editor tooling surfaces the surface
+on first read. When adding a recipe in docs/integration.md, include
+a "see {type}" backreference so the reader knows where the source of
+truth lives.
+
+A corollary, because it has already been violated: a rule constraining
+what a caller may pass belongs in the TSDoc. Header-name casing lived
+only as a `// lowercased keys` comment in a recipe while the type said
+nothing, and the lookup code drifted into three strategies underneath.
+
+### Prose Style
+
+LLM-like writing breaks reader flow. Readers familiar with the
+patterns notice them, snap out of whatever they were absorbing, and
+have to reset. Avoid the patterns for the reader's sake, not for
+camouflage. Applies to docs, TSDoc, commit messages, PR descriptions,
+and code comments. The big ones:
+
+- **Em-dash.** Replace `—` with a period, comma, semicolon,
+  parenthesis, or colon.
+- **Contrastive negation.** "Not X, it's Y" / "not just X, but Y" /
+  "this isn't a fix, it's a rewrite." Make the affirmative claim
+  directly.
+- **Filler and hedging.** Throat-clearers ("honestly," "frankly,"
+  "essentially") and stacked hedges ("may," "might," "could
+  potentially") read as AI; drop them. Different from substantive
+  adverbial use, e.g. the "honestly" in "Surface tradeoffs honestly"
+  above.
+- **Over-promising vocabulary.** "Robust," "elegant," "powerful,"
+  "seamless," "comprehensive," "delve," "leverage," "unlock."
+  Substantiate concretely or drop.
+
+Generated output (error messages, log lines, anything the code itself
+emits) is ASCII-only, simple, and concise. Data passed through from a
+spec or user input is unchanged.
+
+### Scope discipline
+
+One PR per logical concern. Tightly-coupled fixes bundle (the
+publish-tooling trio: preinstall guard + prepack + npm-pack guard
+all touched the same script surface and shipped together).
+Anything that could be reverted independently → separate PR.
+Adjacent cleanups noticed during a fix → file as a `polish` issue,
+don't sneak in. The `polish` label exists for "real but not urgent"
+work: fix when next touching the area, not preemptively.
+
+### Verify before declaring done
+
+For substantive changes (new packages, behavior shifts, packaging
+work), exercise the change end-to-end before committing. Mocks
+cover the logic; smoke tests prove the integration. Bug fixes
+start with a reproducer; confirming the bug exists rules out
+fixing the wrong thing. The pack-smoke CI job catches install
+regressions; if your change touches packaging, run the smoke
+locally too (`pnpm pack` + `npm install` in `/tmp`).
+
+## Build commands
+
+```bash
+pnpm install
+pnpm build                        # tsup: @oaverify/core + @oaverify/stream + the oaverify CLI
+pnpm test                         # vitest for everything
+pnpm vitest run packages/schema   # run a single package's tests (path filter)
+pnpm lint                         # oxlint + oxfmt --check + check:deps
+pnpm lint:type-aware              # oxlint --type-aware (NOT part of `pnpm lint`; CI runs it)
+pnpm check:deps                   # assert the @oaverify/internal-* dependency graph (see below)
+pnpm fmt                          # oxfmt --write .
+pnpm typecheck                    # tsc -b (composite project references)
+pnpm oaverify <args>              # run the built CLI (e.g. pnpm oaverify stream-check spec.yaml)
+```
+
+`pnpm test` uses vitest with workspace aliases from `vitest.config.ts` so
+tests run against `packages/*/src` directly; no need to build before
+testing.
+
+**`pnpm lint` is not the whole lint gate.** CI runs `pnpm lint:type-aware`
+as a separate step (`.github/workflows/ci.yml`), and `pnpm lint` does not
+include it. It enables oxlint's type-aware rules, which need type
+information and so catch a class the plain pass cannot see:
+`typescript(no-misused-spread)` on `[...str].length` is the one that has
+actually bitten, and the fix was to use the existing `countCodePoints`
+helper rather than suppress it. A green `pnpm lint` locally and a red
+`lint` job in CI is this, every time. Before committing, run the four
+that CI runs:
+
+```bash
+pnpm test && pnpm typecheck && pnpm lint && pnpm lint:type-aware
+```
+
+`pnpm oaverify` runs `packages/oav/dist/cli.js`, so it needs a prior `pnpm build`
+(which builds `@oaverify/core`, `@oaverify/stream`, and the CLI). The
+standalone-tsup packages (`oaverify`, `stream-validator`, the three adapters)
+set `emitDeclarationOnly: true` in their `tsconfig.json`: their `dist/` is
+the tsup-built runtime artifact, and without this `tsc -b` (typecheck)
+would emit per-file `.js` over the tsup bundle, breaking the built CLI
+until the next `pnpm build`. Leave it in place. (The `@oaverify/internal-*`
+packages bundled into `@oaverify/core` don't need it: their `dist/` is unused,
+since the root tsup bundles them from source.)
+
+Use `pnpm pack` (not `npm pack`) for any workspace package. `npm pack`
+ships unrewritten `workspace:*` deps; the prepack guard rejects it
+with a hint, but the failure is a context switch best avoided by
+reaching for `pnpm pack` directly.
+
+## Architecture: the non-obvious, package by package
+
+Import surface is in [docs/modules.md](./docs/modules.md); each
+package's README covers its responsibilities. What follows is only what
+a reader does not derive from the code quickly enough, and gets wrong
+in the meantime.
+
+- **`@oaverify/internal-core`**: owns the public structural contracts
+  (`HttpRequest`, `HttpResponse`, the error tree, formatters). Changing
+  or adding an error code starts here.
+- **`@oaverify/internal-schema`**: the JSON Schema 2020-12 compiler; walks a
+  schema, dispatches each keyword via `KeywordDefinition.compile(ctx)`,
+  and `eval`s the generated source through `new Function(deps, src)`.
+  Boolean schemas are first-class; `$ref` uses an identity-keyed cache
+  so self-recursive refs emit normal recursive calls. Codegen mechanics
+  sit behind `@oaverify/core/schema/internals`, which is outside the
+  semver contract.
+- **`@oaverify/internal-formats`**: pure string validators, shaped as
+  `Record<string, (s: string) => boolean>` because that shape is
+  `compileSchema`'s `formats` option.
+- **`@oaverify/internal-metaschema`**: the published OpenAPI meta-schemas,
+  pinned per version, plus `metaschemaVersionOf()` dispatch. Consumed by
+  the CLI's `check` through the `/conformance` subpath. The 3.0 document
+  is generated from the checked-in upstream draft-04 document by
+  `scripts/convert-oas30.mjs` and is never hand-edited. Keep the package
+  off `@oaverify/core`'s entries: `metaschemaFor` reaches all three
+  documents, so anything importing it pays ~100KB. 3.1/3.2 stub the
+  Schema Object and 3.0 describes it in full, which is why conformance
+  and the schema classes overlap only on 3.0; docs/strictness.md carries
+  the precedence rule.
+- **`@oaverify/internal-spec`**: `DocumentReader` (file/http/memory/composite)
+  plus `resolveSpec()`, which **hoists** external schema targets into
+  `components.schemas` and leaves an internal `$ref` at each use site,
+  so a schema keeps an address instead of being copied per reference.
+  That address is what the `discriminator` matches its branches by
+  (#553) and what gives a recursive external schema a legal home
+  (#556); it also means a schema used by N operations is stored once.
+  External refs in non-schema positions (Response, Parameter, Path Item
+  Objects) still inline, and a cycle among _those_ still stitches under
+  `$defs.__ext__`. `applyOverlays()` is the extension system.
+- **`@oaverify/internal-overlay-spec`**: OpenAPI Overlay 1.0 -> typed
+  `SpecOverlay`. A closed-form recogniser, not a JSONPath engine;
+  unrecognised target shapes throw with the offending string.
+- **`@oaverify/internal-router`**: sorted-list route matcher; `match` is a
+  linear scan, O(routes x segments). Deliberate, and cheap for typical
+  spec sizes (see #327).
+- **`@oaverify/internal-validator`**: the HTTP orchestrator. `createValidator`
+  pre-compiles per-operation schemas on first access and prefixes each
+  sub-validator's subtree with its HTTP location (`body`, `query`, …)
+  so error paths are unambiguous. Also exports the Fetch-API adapter
+  (`httpRequestFromFetch`, …) for Next.js / Hono / Bun / Deno.
+- **`@oaverify/stream`**: a second, push-based streaming engine, published
+  standalone. Beyond `createStreamValidator` it exports the
+  streamability analyzer: `analyzeStreamability(schema)` returns a
+  peak-buffer budget (`"unbounded"` where a structural bound is
+  missing), and `analyzeSpec(doc)` rolls that up per operation. Two
+  constraints hold it together. It mirrors the spine's `computeKind`
+  rather than the classifier's `strategyOf` alone, because `strategyOf`
+  marks `contains`, asserting `format`, `uniqueItems`, and complex
+  `enum`/`const` as forward/scalar while the spine still materializes
+  them, so `strategyOf` alone under-reports buffering (`nodeKind` in
+  `analyzer/analyze.ts`). And it is engine-free, calling neither the
+  spine nor `createStreamValidator`, so importing only the analyzer does
+  not pull the engine; body extraction therefore lives in the shared
+  `openapi/body-schema.ts`.
+- **`@oaverify/internal-cli`**: thin commander wrapper. The one place it
+  reaches past pure wiring is `stream-check`, which calls `analyzeSpec`
+  and renders the per-operation table; business logic stays in the
+  analyzer, the CLI owns the rendering. `check`'s composition is CLI-owned
+  by design: `checkDocumentRedos` lives here because `redos-detector` is
+  ~1MB unpacked, and conformance stays behind the metaschema subpath for
+  the ~100KB reason above.
+- **`@oaverify/express4` / `@oaverify/express5` / `@oaverify/fastify`**: thin
+  framework adapters with identical export names and option shapes
+  (`validateRequests`, `httpRequestFrom<Framework>`,
+  `renderProblemDetails`, `ValidateRequestsOptions`); only the
+  framework-typed `Context` field names differ
+  (`ExpressContext { req, res, next }` vs
+  `FastifyContext { request, reply }`). `@oaverify/express4` forwards
+  thrown errors via `next(err)`; the express5 / fastify variants are
+  async-native. See "Naming and consistency" for why the shapes, and the
+  duplication, are kept.
+- **`@oaverify/yaml`**: the YAML side, separate because it pulls in a
+  parser (`@oaverify/core` is JSON-only and dependency-free). Readers
+  compose ahead of the JSON-only ones; `loadSpecSync` exists in both
+  packages with different reader defaults. See docs/modules.md.
+
+## Dependency graph (strictly enforced; no cycles)
+
+Every `@oaverify/internal-*` package's runtime `dependencies`, as an
+adjacency list. Read it as a DAG: a tree drawing cannot express shared
+nodes without repeating them, and repetition is how edges went missing
+here before.
+
+```
+core            (leaf)
+formats         (leaf)
+schema        → core
+spec          → core
+router        → core
+overlay-spec  → core spec
+metaschema    → core schema
+validator     → core formats router schema spec
+cli           → core formats metaschema overlay-spec schema spec validator
+```
+
+`scripts/check-deps.mjs` (wired into `pnpm lint`) asserts that graph
+from the manifests: it stays acyclic, and declarations match imports both
+ways (no `@oaverify/internal-*` declared but unimported, none imported
+but undeclared). "Declared" unions `dependencies` + `devDependencies`,
+since the internal packages carry their deps at runtime while the
+published `@oaverify/*` bundles carry the same ones as build-only
+devDeps. Adding a real edge means updating the relevant `package.json`;
+a phantom or undeclared edge fails the build.
+
+The script reads the manifests, not this file, so the list above can
+drift out of date while `pnpm check:deps` stays green. It has. If you
+need the authoritative graph, generate it:
+
+```bash
+for d in packages/*/; do jq -r 'select(.name|startswith("@oaverify/internal-"))
+  | "\(.name) -> \((.dependencies//{})|keys|map(select(startswith("@oaverify/internal-")))|join(" "))"' \
+  "$d/package.json" 2>/dev/null; done
+```
+
+Published companion packages sit outside what `check-deps` polices,
+since it is scoped to `@oaverify/internal-*` and they are not bundle
+members. `@oaverify/stream` and `@oaverify/yaml` share this shape:
+internal packages appear as build-only devDeps and get bundled at
+publish, while the runtime `dependencies` name the published surface
+(`@oaverify/core`, plus `yaml` for the latter). The three adapters take
+the same shape, each depending on `@oaverify/core` with the framework as
+a peer (`express ^4`, `express ^5`, `fastify ^5`). The published
+`oaverify` CLI depends on `@oaverify/core`, `@oaverify/stream`, and
+`@oaverify/yaml`, with `esbuild` as a peer for `compile-spec`. So the
+CLI's edge to the stream validator is real and unasserted. Its source alias
+lives in `workspace-aliases.ts` (consumed by vitest + tsup), the
+published `oaverify` carries it as a real runtime dependency, and the
+`pack-smoke` job installs the locally-packed tarball so the dep resolves
+to the workspace build rather than the registry. `stream-validator` is
+linked into the `@oaverify/core` release group because its public
+contract tracks the core/schema semantics.
+
+## Repo layout and dev-only sub-roots
+
+`packages/` holds the workspace. Four top-level directories are
+standalone roots, plus `performance/mem-bench/` nested inside one of
+them. Each has its own `package.json` + `pnpm-workspace.yaml` (empty
+`packages:` list, so pnpm treats them as isolated); the four top-level
+ones have READMEs with the details:
+
+| Directory          | What it is                                                  | Bootstrap                                     | In CI               |
+| ------------------ | ----------------------------------------------------------- | --------------------------------------------- | ------------------- |
+| `conformance/`     | Upstream JSON Schema Test Suite + OpenAPI case harness      | `cd conformance && pnpm install`              | tests only          |
+| `performance/`     | Compile / validate benchmarks against other validators      | `cd performance && pnpm install`              | no                  |
+| `framework-tests/` | Real-server integration tests for the three adapters (#295) | `cd framework-tests && pnpm install`          | tests + typecheck   |
+| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches    | `cd detection && pnpm install && pnpm detect` | no (see its README) |
+
+Their external dev-dependencies (benchmark runners, competing
+validators and linters, framework runtimes, `tsx`) are deliberately
+absent from the main workspace install. Adapter-package unit tests
+still live in `packages/*` and run on a root `pnpm test`.
+
+The root `.npmrc` sets `auto-install-peers=false` so the adapter
+packages' peer-dep declarations (`express`, `fastify`) do not silently
+pull the framework runtimes into the main workspace lockfile. `fastify`
+is the one exception still installed in the main workspace:
+`packages/oav-fastify/src/*.ts` imports `import type { FastifyRequest } from "fastify"`
+and there is no `@types/fastify` on DefinitelyTyped, so the package
+itself has to be present for tsc to resolve the type.
+
+Each sub-root (`conformance/`, `framework-tests/`, `performance/`,
+`performance/mem-bench/`) also ships its own `.npmrc` pinning
+`auto-install-peers=true`. CI reads the sub-root `.npmrc` (it stops at
+the sub-root's `pnpm-workspace.yaml` boundary), while dependabot's
+lockfile refresh walks up to the root; the explicit per-root file keeps
+them agreeing, otherwise dependabot writes `autoInstallPeers: false`
+lockfiles and CI fails with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
+
+## Before you edit the compiler
+
+Procedures for adding a keyword, a string format, or an output format
+are in [docs/extending.md](./docs/extending.md); the
+`KeywordCompileContext` field reference is the TSDoc on the type
+(`packages/schema/src/keywords/types.ts`), per "Type as canonical
+contract". Three rules that fail silently when you get them wrong:
+
+- **Keyword flags drive specialization.** `applicator`, `annotation`,
+  and `evaluates` on a `KeywordDefinition` change codegen paths; a wrong
+  flag mis-fires correctness or perf with no error. See their TSDoc for
+  what each breaks.
+- **New error codes need a `BuiltInErrorParams` entry** in
+  `packages/core/src/errors.ts`. Errors are emitted through generated
+  JS source, so the compiler cannot check the `code`/`params` contract;
+  drift between the emitted shape and that type is a silent bug.
+- **`ctx.emitError`'s `kind` carries budget semantics.** `"leaf"` is a
+  fresh error and counts against `maxErrors`; `"lift"` is an
+  already-counted child being propagated and never touches the counter.
+  Pick wrong and the budget silently miscounts.
+
+One invariant sits above keyword authoring, because it constrains
+anyone tempted to optimize budget behavior: **a finite `maxErrors` must
+never change a valid/invalid verdict.** It caps how many errors are
+reported and nothing else. Evaluated-key tracking is why the
+short-circuit has special rules; see docs/extending.md "Verdict safety
+under a finite budget" for the full model.
+
+## Landmines
+
+- **Recursion runs on the native JS call stack.** A self-`$ref` emits a
+  recursive call, so an unbounded payload nested a few thousand levels
+  deep throws `RangeError` (empirically ~5k frames on a default Node
+  stack). The `maxDepth` option (`CompileOptions` / `ValidatorOptions`)
+  bounds it and emits a `depth` error leaf (HTTP 400) instead. Unset,
+  codegen is byte-identical to the un-instrumented path. See
+  `compileGuardedRefCall` in `packages/schema/src/keywords/ref.ts` and
+  docs/configuration.md "Guarding against deeply nested payloads".
+- **`$dynamicRef` behaves like `$ref` with an anchor lookup.** No
+  runtime dynamic-scope traversal. Fine for schemas that do not actually
+  rewire the extension point at runtime; assume nothing more.
+- **`unevaluated*` tracking is compile-time gated** on a one-pass walk
+  of the root schema and registered external schemas, so it is free when
+  unused and not free when used. See `CompileState.unevaluatedTracking`
+  and `schemaUsesUnevaluated` in
+  `packages/schema/src/compiler/compiler.ts`.
+
+Output modes are user-facing: the zero-config default is `output:
+"flat"` + `maxErrors: 1` (Ajv parity), `output` is `"flat" | "tree" |
+"predicate"`, and the boolean aliases were removed in v5 (#497). See
+[docs/configuration.md](./docs/configuration.md) and the
+[v5](./docs/migration-v5.md) migration guide.
+
+## Version support
+
+User-facing version support is in the
+[README `## Versions`](./README.md#versions); dialect internals (what
+differs in 3.0, dispatch, per-version test layout) are in
+[docs/dialects.md](./docs/dialects.md). Dispatch is a single
+`dialectFor(version)` at construction, so added versions cost nothing
+per request.
