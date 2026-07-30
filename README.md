@@ -100,16 +100,16 @@ included here; the sizes of the standalone validators its
 [packages/cli/README.md](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md#bundle-size).
 
 Measured with esbuild (`--bundle --minify`, ESM) against the published
-`dist`, then `gzip -n`:
+`dist`, then gzipped:
 
 | Import                                              | Entry point                |     Raw | Gzipped |
 | --------------------------------------------------- | -------------------------- | ------: | ------: |
-| `compileSchema`, `jsonSchemaDialect`                | `@oaverify/core/schema`    |  68,790 |  19,258 |
-| the same, plus `builtInFormats`                     | `+ @oaverify/core/formats` |  72,636 |  20,485 |
-| `createValidator` (request/response HTTP validator) | `@oaverify/core`           | 106,663 |  31,229 |
+| `compileSchema`, `jsonSchemaDialect`                | `@oaverify/core/schema`    |  ~69 KB |  ~19 KB |
+| the same, plus `builtInFormats`                     | `+ @oaverify/core/formats` |  ~73 KB |  ~20 KB |
+| `createValidator` (request/response HTTP validator) | `@oaverify/core`           | ~107 KB |  ~31 KB |
 
-Bytes. `@oaverify/core` carries no runtime dependencies, so these figures
-are the complete cost of the import.
+`@oaverify/core` carries no runtime dependencies, so these figures are
+the complete cost of the import.
 
 Not included, because they are separate packages or separate entry
 points: YAML parsing (`@oaverify/yaml`), the streaming engine
