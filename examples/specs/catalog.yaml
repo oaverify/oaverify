@@ -1,0 +1,64 @@
+openapi: "3.1.0"
+info:
+  title: Catalog
+  version: "1"
+# Three of the examples below contradict the schema they illustrate.
+# They are deliberate: `checkDocumentExamples` exists to find exactly
+# this, and an example fixture with nothing wrong in it proves nothing.
+paths:
+  /items:
+    get:
+      summary: List items
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            maximum: 100
+          # Wrong: above `maximum`.
+          example: 500
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+    post:
+      summary: Create an item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Item"
+            examples:
+              good:
+                value:
+                  sku: "AB-1234"
+                  price: 19.99
+              missingPrice:
+                # Wrong: `price` is required.
+                value:
+                  sku: "AB-1234"
+      responses:
+        "201":
+          description: created
+components:
+  schemas:
+    Item:
+      type: object
+      required: [sku, price]
+      properties:
+        sku:
+          type: string
+          pattern: "^[A-Z]{2}-[0-9]{4}$"
+        price:
+          type: number
+          exclusiveMinimum: 0
+      # Wrong: `sku` does not match `pattern`.
+      example:
+        sku: "not-a-sku"
+        price: 5
