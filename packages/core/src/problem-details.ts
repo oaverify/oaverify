@@ -1,4 +1,5 @@
 import { collectLeaves, type PathSegment, type ValidationError } from "./errors.js";
+import { escapePointerSegment } from "./json-pointer.js";
 import { formatSummary } from "./format.js";
 
 /**
@@ -172,9 +173,5 @@ export function toProblemDetails(
  */
 function toJsonPointer(path: PathSegment[]): string {
   if (path.length === 0) return "";
-  return path.map((seg) => "/" + escapeJsonPointerToken(String(seg))).join("");
-}
-
-function escapeJsonPointerToken(token: string): string {
-  return token.replace(/~/g, "~0").replace(/\//g, "~1");
+  return path.map((seg) => "/" + escapePointerSegment(String(seg))).join("");
 }
