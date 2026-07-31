@@ -1,5 +1,33 @@
 # Changelog
 
+## [5.2.0](https://github.com/oaverify/oaverify/compare/core-v5.1.0...core-v5.2.0) (2026-07-31)
+
+
+### Features
+
+* **check:** give findings a machine-readable address ([#593](https://github.com/oaverify/oaverify/issues/593)) ([8403f7e](https://github.com/oaverify/oaverify/commit/8403f7e24ae5dc45d8921691b53ad668c22226bb))
+* **check:** lay the text report out over lines instead of one per finding ([#597](https://github.com/oaverify/oaverify/issues/597)) ([b4090dd](https://github.com/oaverify/oaverify/commit/b4090ddf9e08d45f52b870f75864a167db3a9799))
+* **check:** report all example failure reasons and quiet 3.0 oneOf noise ([#582](https://github.com/oaverify/oaverify/issues/582)) ([c705558](https://github.com/oaverify/oaverify/commit/c7055581f9bb4c600e77ec4f62e3bac9994d1613)), closes [#517](https://github.com/oaverify/oaverify/issues/517)
+* **spec:** add containment and outbound-request controls to the readers ([#585](https://github.com/oaverify/oaverify/issues/585)) ([de655a4](https://github.com/oaverify/oaverify/commit/de655a4350450b90ff75e65b73b24bf59cd5096d))
+
+
+### Bug Fixes
+
+* backlog sweep ([#570](https://github.com/oaverify/oaverify/issues/570), [#571](https://github.com/oaverify/oaverify/issues/571), [#573](https://github.com/oaverify/oaverify/issues/573), [#584](https://github.com/oaverify/oaverify/issues/584)) ([#592](https://github.com/oaverify/oaverify/issues/592)) ([8cfafc2](https://github.com/oaverify/oaverify/commit/8cfafc2ea72bd4b77be7ee908a032b03b3171a4e))
+* complete the own-key sweep across the router, AOT, and stream engines ([#586](https://github.com/oaverify/oaverify/issues/586)) ([9ee91d3](https://github.com/oaverify/oaverify/commit/9ee91d3879b755cc90e4b9a729390d50ea40e872))
+* **spec:** make confine and maxBytes enforce what they claim ([#589](https://github.com/oaverify/oaverify/issues/589)) ([6fd82d5](https://github.com/oaverify/oaverify/commit/6fd82d5ac7bd32322c79f0add309ca286b17a9cb))
+* stop untrusted keys traversing the prototype chain ([#583](https://github.com/oaverify/oaverify/issues/583)) ([2da9fbb](https://github.com/oaverify/oaverify/commit/2da9fbb79c144c943f5e7874514c2dc0f56bf8bb))
+
+
+### Performance
+
+* **validator:** take the own-property check off the parameter hot path ([#590](https://github.com/oaverify/oaverify/issues/590)) ([1714a12](https://github.com/oaverify/oaverify/commit/1714a12a3e47a1f3282cb387a298d09eb0526b3d))
+
+
+### Documentation
+
+* **comparison:** cover the check verb and cite the detection corpus ([#577](https://github.com/oaverify/oaverify/issues/577)) ([5371a19](https://github.com/oaverify/oaverify/commit/5371a1947937e7d316dde4b12ba7e08537ec8b46))
+
 ## [5.1.0](https://github.com/oaverify/oaverify/compare/core-v5.0.0...core-v5.1.0) (2026-07-30)
 
 

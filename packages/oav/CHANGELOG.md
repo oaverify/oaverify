@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.2.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.1.0...oaverify-v5.2.0) (2026-07-31)
+
+
+### Performance
+
+* **validator:** take the own-property check off the parameter hot path ([#590](https://github.com/oaverify/oaverify/issues/590)) ([1714a12](https://github.com/oaverify/oaverify/commit/1714a12a3e47a1f3282cb387a298d09eb0526b3d))
+
 ## [5.1.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.0.0...oaverify-v5.1.0) (2026-07-30)
 
 
