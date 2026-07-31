@@ -1,4 +1,6 @@
 import {
+  escapePointerSegment,
+  pointerFromFragment,
   resolveJsonPointer,
   type ComponentsObject,
   type OpenAPIDocument,
@@ -141,7 +143,7 @@ function findUnusedComponents(document: OpenAPIDocument): SpecHygieneIssue[] {
       if (reached.has(key)) continue;
       issues.push({
         code: "unused-component",
-        pointer: `/components/${category}/${encodePointerSegment(name)}`,
+        pointer: `/components/${category}/${escapePointerSegment(name)}`,
         message: `components.${category}.${name} is declared but no operation reaches it`,
       });
     }
@@ -344,7 +346,7 @@ function findUnreachableDefs(document: OpenAPIDocument): SpecHygieneIssue[] {
     // *inside* the externals field is still walked, and a dead `$defs`
     // there is reported like any other.
     if (name.startsWith("__ext__/")) return;
-    const target = `${defsPointer}/${encodePointerSegment(name)}`;
+    const target = `${defsPointer}/${escapePointerSegment(name)}`;
     if (refsHit(allRefs, target)) return;
     issues.push({
       code: "unreachable-defs",
@@ -383,7 +385,7 @@ function walkForDefs(
   }
   const obj = value as Record<string, unknown>;
   for (const [key, child] of Object.entries(obj)) {
-    const childPointer = `${pointer}/${encodePointerSegment(key)}`;
+    const childPointer = `${pointer}/${escapePointerSegment(key)}`;
     if (key === "$defs" && child && typeof child === "object" && !Array.isArray(child)) {
       for (const name of Object.keys(child as Record<string, unknown>)) {
         visit(childPointer, name);
@@ -415,7 +417,7 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
   for (const [pathTemplate, pathItem] of Object.entries(document.paths ?? {})) {
     if (!pathItem) continue;
     const inTemplate = extractPathTemplateNames(pathTemplate);
-    const pathItemPointer = `/paths/${encodePointerSegment(pathTemplate)}`;
+    const pathItemPointer = `/paths/${escapePointerSegment(pathTemplate)}`;
     const itemLevelDeclared = collectPathParams(pathItem.parameters ?? [], document);
     for (const method of HTTP_METHODS) {
       const op = pathItem[method];
@@ -472,8 +474,9 @@ function collectPathParams(
 }
 
 function resolveParamRef(ref: ReferenceObject, document: OpenAPIDocument): ParameterObject | null {
-  // resolveJsonPointer takes the fragment after the leading `#`.
-  const pointer = ref.$ref.startsWith("#") ? ref.$ref.slice(1) : ref.$ref;
+  // A `$ref` carries a URI fragment, so it is percent-decoded into a
+  // pointer before evaluation; `resolveJsonPointer` does none itself.
+  const pointer = pointerFromFragment(ref.$ref.startsWith("#") ? ref.$ref.slice(1) : ref.$ref);
   try {
     const target = resolveJsonPointer(document, pointer);
     if (target && typeof target === "object" && "in" in target && "name" in target) {
@@ -495,10 +498,6 @@ function isReference(value: unknown): value is ReferenceObject {
     typeof value === "object" &&
     typeof (value as { $ref?: unknown }).$ref === "string"
   );
-}
-
-function encodePointerSegment(segment: string): string {
-  return segment.replace(/~/g, "~0").replace(/\//g, "~1");
 }
 
 function decodePointerSegment(segment: string): string {

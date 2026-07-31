@@ -1,9 +1,11 @@
+import { resolveJsonPointer } from "@oaverify/internal-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   checkCommand,
   defaultCommandIo,
   resolveCommand,
   validateCommand,
+  type CheckFinding,
   type CommandOptions,
 } from "../src/commands.js";
 import { memoryIo } from "./fixtures.js";
@@ -231,6 +233,327 @@ describe("resolveCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(stdout.value).toContain("conformance [type]");
     expect(stdout.value).toContain("/paths/~1t/get/responses/202/description");
+  });
+
+  it("check --format json carries structured reasons on examples findings (#580)", async () => {
+    // The point of the field: a consumer keying on the rejected value
+    // reads `params`, and never parses the message to find it.
+    const spec = {
+      openapi: "3.1.0",
+      info: { title: "X", version: "1.0.0" },
+      paths: {
+        "/t": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: { type: "string", enum: ["ACH", "CHECK"] },
+                  example: "EFT",
+                },
+              },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const { io, stdout } = memoryIo([["spec.json", spec]]);
+    await checkCommand({ spec: "spec.json", overlays: [], format: "json", options: textOpts }, io);
+
+    const findings = (JSON.parse(stdout.value) as { findings: CheckFinding[] }).findings;
+    const example = findings.find((f) => f.class === "examples");
+    expect(example?.reasons).toEqual([
+      {
+        code: "enum",
+        path: [],
+        message: expect.any(String),
+        params: { allowed: ["ACH", "CHECK"], actual: "EFT" },
+      },
+    ]);
+  });
+
+  it("check leaves reasons absent on the classes that produce no leaf causes", async () => {
+    const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
+    await checkCommand({ spec: "spec.json", overlays: [], format: "json", options: textOpts }, io);
+
+    const findings = (JSON.parse(stdout.value) as { findings: CheckFinding[] }).findings;
+    expect(findings.length).toBeGreaterThan(0);
+    for (const f of findings) {
+      if (f.class !== "examples") expect(f.reasons).toBeUndefined();
+    }
+  });
+
+  describe("machine-readable finding target (#517)", () => {
+    const findingsOf = async (spec: unknown): Promise<CheckFinding[]> => {
+      const { io, stdout } = memoryIo([["spec.json", spec]]);
+      await checkCommand(
+        { spec: "spec.json", overlays: [], format: "json", options: textOpts },
+        io,
+      );
+      return (JSON.parse(stdout.value) as { findings: CheckFinding[] }).findings;
+    };
+
+    it("anchors a hygiene finding at the node, since no ref was crossed", async () => {
+      const findings = await findingsOf(dirtySpec());
+      const unused = findings.find((f) => f.code === "unused-component");
+      expect(unused?.target).toEqual({
+        pointer: "/components/schemas/Orphan",
+        anchor: "node",
+      });
+    });
+
+    it("anchors an inline schema finding at the node", async () => {
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [{ name: "q", in: "query", schema: { type: "string", minLenght: 1 } }],
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+      const issue = findings.find((f) => f.code === "unknown-keyword");
+      expect(issue?.target).toEqual({
+        pointer: "/paths/~1t/get/parameters/0/schema",
+        anchor: "node",
+      });
+    });
+
+    it("anchors a ref-crossing, route-independent finding at the definition", async () => {
+      // Half one of the anchor invariant: a rule whose verdict is a property
+      // of the text it points at, reached through a `$ref`.
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: { schemas: { T: { type: "object", properties: { a: { minLenght: 1 } } } } },
+        paths: {
+          "/t": {
+            post: {
+              requestBody: {
+                content: { "application/json": { schema: { $ref: "#/components/schemas/T" } } },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+      const issue = findings.find((f) => f.code === "unknown-keyword");
+      expect(issue?.target).toEqual({
+        pointer: "/components/schemas/T/properties/a",
+        anchor: "definition",
+      });
+    });
+
+    it("anchors a ref-crossing, route-dependent finding as scoped-definition", async () => {
+      // Half two of the anchor invariant. `required-not-in-properties`
+      // asks what is reachable at
+      // an instance position, so the component it points at may be
+      // perfectly correct for its other users. `definition` here would
+      // tell a reader to fix shared text that is not wrong.
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: {
+          schemas: {
+            T: { type: "object", properties: { name: { type: "string" } }, required: ["nam"] },
+          },
+        },
+        paths: {
+          "/t": {
+            post: {
+              requestBody: {
+                content: { "application/json": { schema: { $ref: "#/components/schemas/T" } } },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+      const issue = findings.find((f) => f.code === "silent-rewrite/required-not-in-properties");
+      expect(issue?.target).toEqual({
+        pointer: "/components/schemas/T/required",
+        anchor: "scoped-definition",
+      });
+    });
+
+    it("addresses a malformed schema at the same place a lint issue would be", async () => {
+      // A schema that will not compile still has an address, and it is
+      // the one the successful path would have used.
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        paths: {
+          "/t": {
+            post: {
+              requestBody: {
+                content: { "application/json": { schema: { type: "object", items: [1, 2] } } },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+      const malformed = findings.find((f) => f.class === "malformed");
+      expect(malformed?.target).toEqual({
+        pointer: "/paths/~1t/post/requestBody/content/application~1json/schema",
+        anchor: "node",
+      });
+    });
+
+    it("addresses a malformed ref-rooted body at its component", async () => {
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: { schemas: { Bad: { type: "object", items: [1, 2] } } },
+        paths: {
+          "/t": {
+            post: {
+              requestBody: {
+                content: { "application/json": { schema: { $ref: "#/components/schemas/Bad" } } },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+      const malformed = findings.find((f) => f.class === "malformed");
+      expect(malformed?.target).toEqual({
+        pointer: "/components/schemas/Bad",
+        anchor: "definition",
+      });
+    });
+
+    it("reports two components with the same defect separately", async () => {
+      // The message carries only the path within a schema, so these two
+      // share one. They are two edits in two places, and collapsing
+      // them hid the second entirely.
+      const body = (ref: string) => ({
+        post: {
+          requestBody: { content: { "application/json": { schema: { $ref: ref } } } },
+          responses: { "200": { description: "ok" } },
+        },
+      });
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: {
+          schemas: {
+            Alpha: { type: "object", properties: { a: { nope: 1 } } },
+            Beta: { type: "object", properties: { a: { nope: 1 } } },
+          },
+        },
+        paths: {
+          "/one": body("#/components/schemas/Alpha"),
+          "/two": body("#/components/schemas/Beta"),
+        },
+      });
+
+      const pointers = findings
+        .filter((f) => f.code === "unknown-keyword")
+        .map((f) => f.target?.pointer)
+        .sort((a, b) => (a ?? "").localeCompare(b ?? ""));
+      expect(pointers).toEqual([
+        "/components/schemas/Alpha/properties/a",
+        "/components/schemas/Beta/properties/a",
+      ]);
+    });
+
+    it("still collapses one defect reported at one address twice", async () => {
+      // What #520 wanted: the same address reached more than once is one
+      // edit, and is reported once.
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: { schemas: { Shared: { type: "object", properties: { a: { nope: 1 } } } } },
+        paths: {
+          "/one": {
+            post: {
+              requestBody: {
+                content: {
+                  "application/json": { schema: { $ref: "#/components/schemas/Shared" } },
+                },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+          "/two": {
+            post: {
+              requestBody: {
+                content: {
+                  "application/json": { schema: { $ref: "#/components/schemas/Shared" } },
+                },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+
+      const shared = findings.filter((f) => f.code === "unknown-keyword");
+      expect(shared).toHaveLength(1);
+      expect(shared[0]?.target?.pointer).toBe("/components/schemas/Shared/properties/a");
+    });
+
+    it("keeps every emitted pointer resolvable against the graded document", async () => {
+      // The contract FindingTarget.pointer states. Asserted over a
+      // document that exercises several classes at once rather than
+      // per-case, since the guarantee is about the field and not about
+      // any one producer.
+      const doc = {
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: {
+          schemas: {
+            Orphan: { type: "object" },
+            Shared: { type: "object", properties: { a: { minLenght: 1 } }, required: ["nope"] },
+          },
+        },
+        paths: {
+          "/t/{id}": {
+            post: {
+              parameters: [{ name: "id", in: "path", required: true, schema: { nope: 1 } }],
+              requestBody: {
+                content: {
+                  "application/json": { schema: { $ref: "#/components/schemas/Shared" } },
+                },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      };
+      const findings = await findingsOf(doc);
+      const targeted = findings.filter((f) => f.target !== undefined);
+      expect(targeted.length).toBeGreaterThan(3);
+      for (const f of targeted) {
+        expect(() => resolveJsonPointer(doc, f.target!.pointer)).not.toThrow();
+      }
+    });
+  });
+
+  it("carries each leaf issue's document address under the reserved name", async () => {
+    // The four-referent rule: `pointer` is a document address,
+    // `location` is prose. `ConformanceIssue` used to call its pointer
+    // `location`, which made one name mean two things at two altitudes.
+    const { io, stdout } = memoryIo([
+      [
+        "spec.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1.0.0" },
+          paths: { "/t": { get: { responses: { "202": { description: null } } } } },
+        },
+      ],
+    ]);
+    await checkCommand({ spec: "spec.json", overlays: [], format: "json", options: textOpts }, io);
+    const findings = (JSON.parse(stdout.value) as { findings: CheckFinding[] }).findings;
+    const conformance = findings.find((f) => f.class === "conformance");
+    expect(conformance?.target?.pointer).toBe("/paths/~1t/get/responses/202/description");
+    // The deprecated alias still carries the same value.
+    expect(conformance?.location).toBe("/paths/~1t/get/responses/202/description");
   });
 
   it("check --only conformance runs neither hygiene nor the schema compile", async () => {

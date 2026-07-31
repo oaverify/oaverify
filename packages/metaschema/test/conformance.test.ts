@@ -61,6 +61,7 @@ describe("the defects this exists to catch", () => {
     const r = checkDocumentConformance(doc);
     expect(r.issues).toContainEqual({
       code: "type",
+      pointer: "/paths/~1things/get/responses/202/description",
       location: "/paths/~1things/get/responses/202/description",
       message: expect.stringContaining("string"),
     });
@@ -74,6 +75,7 @@ describe("the defects this exists to catch", () => {
     const r = checkDocumentConformance(doc);
     expect(r.issues).toContainEqual({
       code: "type",
+      pointer: "/paths/~1things/get/parameters/0/description",
       location: "/paths/~1things/get/parameters/0/description",
       message: expect.stringContaining("string"),
     });
@@ -83,6 +85,7 @@ describe("the defects this exists to catch", () => {
     const r = checkDocumentConformance({ openapi: "3.1.0", info: { title: "t" }, paths: {} });
     expect(r.issues).toContainEqual({
       code: "required",
+      pointer: "/info/version",
       location: "/info/version",
       message: expect.stringContaining("version"),
     });
@@ -104,6 +107,7 @@ describe("the defects this exists to catch", () => {
     const r = checkDocumentConformance(doc);
     expect(r.issues).toContainEqual({
       code: "enum",
+      pointer: "/paths/~1things/get/parameters/0/in",
       location: "/paths/~1things/get/parameters/0/in",
       message: expect.any(String),
     });
@@ -124,6 +128,7 @@ describe("$dynamicRef resolution control", () => {
     const r = checkDocumentConformance(withSchema("3.1.0", "not-a-schema-object"));
     expect(r.issues).toContainEqual({
       code: "type",
+      pointer: "/paths/~1things/get/responses/200/content/application~1json/schema",
       location: "/paths/~1things/get/responses/200/content/application~1json/schema",
       message: expect.stringContaining("object"),
     });
@@ -275,6 +280,7 @@ describe("error shape", () => {
       expect(r.issues).toEqual([
         {
           code: "type",
+          pointer: "/paths/~1things/get/responses/200/description",
           location: "/paths/~1things/get/responses/200/description",
           message: expect.any(String),
         },
@@ -324,6 +330,7 @@ describe("error shape", () => {
     const r = checkDocumentConformance(doc);
     expect(r.issues).toContainEqual({
       code: "oneOf",
+      pointer: "/paths/~1things/get/parameters/0",
       location: "/paths/~1things/get/parameters/0",
       message: expect.any(String),
     });

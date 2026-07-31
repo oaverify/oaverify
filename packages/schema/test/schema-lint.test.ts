@@ -187,6 +187,120 @@ describe("strict mode: silent-rewrite/ref-siblings-oas30", () => {
   });
 });
 
+describe("schema lint: machine-readable position (#517)", () => {
+  const lintAt = (schema: unknown, pointer?: string) =>
+    compileSchema(schema as SchemaOrBoolean, {
+      dialect: jsonSchemaDialect,
+      schemaLint: "strict",
+      ...(pointer === undefined ? {} : { pointer }),
+    }).stats.schemaLintIssues;
+
+  it("reports no pointer when the caller compiled a bare schema", () => {
+    const [issue] = lintAt({ properties: { a: { nope: 1 } } });
+    expect(issue?.code).toBe("unknown-keyword");
+    expect(issue?.pointer).toBeUndefined();
+    // schemaPath still works: it needs no document.
+    expect(issue?.schemaPath).toEqual(["properties", "a"]);
+  });
+
+  it("reports a resolving pointer when the caller said where the schema sits", () => {
+    const [issue] = lintAt(
+      { properties: { a: { nope: 1 } } },
+      "/paths/~1t/get/requestBody/content/application~1json/schema",
+    );
+    expect(issue?.pointer).toBe(
+      "/paths/~1t/get/requestBody/content/application~1json/schema/properties/a",
+    );
+    expect(issue?.schemaPath).toEqual(["properties", "a"]);
+  });
+
+  it("keeps a key containing a dot addressable, which the dotted path cannot", () => {
+    // `path` renders this as `properties.a.b.nope`, indistinguishable
+    // from a nested `b`. The segments and the pointer are not
+    // ambiguous.
+    const [issue] = lintAt({ properties: { "a.b": { nope: 1 } } }, "");
+    expect(issue?.schemaPath).toEqual(["properties", "a.b"]);
+    expect(issue?.pointer).toBe("/properties/a.b");
+  });
+
+  it("reports no pointer for a lint issue inside a ref target of a bare schema", () => {
+    // The absence contract has to hold through a `$ref` too: a caller
+    // who named no document gets no document address, however local
+    // the ref looks.
+    const issues = lintAt({
+      $defs: { T: { type: "object", properties: { name: {} }, required: ["nam"] } },
+      $ref: "#/$defs/T",
+    });
+    const required = issues.filter((i) => i.code === "silent-rewrite/required-not-in-properties");
+    expect(required).toHaveLength(1);
+    expect(required[0]?.pointer).toBeUndefined();
+    expect(issues.every((i) => i.pointer === undefined)).toBe(true);
+  });
+
+  it("addresses the duplicate branch, not the node holding the composition", () => {
+    // The only rule that sets its own position; the stamping pass skips
+    // it deliberately, so a wrong index here goes unnoticed.
+    const [issue] = compileSchema(
+      {
+        properties: {
+          a: { oneOf: [{ type: "string" }, { type: "number" }, { type: "string" }] },
+        },
+      } as unknown as SchemaOrBoolean,
+      { dialect: jsonSchemaDialect, schemaLint: "strict", pointer: "" },
+    ).stats.schemaLintIssues.filter(
+      (i) => i.code === "silent-rewrite/redundant-composition-branches",
+    );
+
+    // Branch 2 duplicates branch 0, and it is branch 2 that is wrong.
+    expect(issue?.pointer).toBe("/properties/a/oneOf/2");
+    expect(issue?.schemaPath).toEqual(["properties", "a", "oneOf", 2]);
+  });
+
+  it("populates location alongside the deprecated context alias", () => {
+    // Both names carry the same value for one major. Without this, the
+    // alias could stop being written and the human output would quietly
+    // lose its operation label with every gate still green.
+    const [issue] = compileSchema(
+      { properties: { a: { nope: 1 } } } as unknown as SchemaOrBoolean,
+      {
+        dialect: jsonSchemaDialect,
+        schemaLint: "strict",
+        label: "POST /things request body (application/json)",
+      },
+    ).stats.schemaLintIssues;
+
+    expect(issue?.location).toBe("POST /things request body (application/json)");
+    expect(issue?.context).toBe(issue?.location);
+  });
+
+  it("re-roots the pointer at the ref target while path keeps naming the use site", () => {
+    // The two addressing rules, both right, now both machine-readable.
+    // `required` is checked at the instance position it applies to, so
+    // `path` stays at the use site; the offending array is written in
+    // the component, so `pointer` names that.
+    const doc = {
+      components: {
+        schemas: {
+          Target: { type: "object", properties: { name: { type: "string" } }, required: ["nam"] },
+        },
+      },
+      $ref: "#/components/schemas/Target",
+    };
+    const issues = compileSchema(doc as unknown as SchemaOrBoolean, {
+      dialect: jsonSchemaDialect,
+      schemaLint: "strict",
+      pointer: "/paths/~1t/post/requestBody/content/application~1json/schema",
+    }).stats.schemaLintIssues.filter((i) => i.code === "silent-rewrite/required-not-in-properties");
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.pointer).toBe("/components/schemas/Target/required");
+    // Not re-rooted, because that is not where the finding applies.
+    expect(issues[0]?.path).toBe("");
+    // No segment list spans a ref hop.
+    expect(issues[0]?.schemaPath).toBeUndefined();
+  });
+});
+
 describe("schema lint: required-not-in-properties (instance-position aware)", () => {
   const flagged = (schema: unknown) =>
     compileSchema(schema as SchemaOrBoolean, {

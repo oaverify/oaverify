@@ -1,4 +1,8 @@
-import { resolveJsonPointer, type OpenAPIDocument } from "@oaverify/internal-core";
+import {
+  pointerFromFragment,
+  resolveJsonPointer,
+  type OpenAPIDocument,
+} from "@oaverify/internal-core";
 import type { SyncDocumentReader } from "./reader.js";
 import { lintResolvedSpec } from "./lint.js";
 import type { ResolvedSpec } from "./resolver.js";
@@ -234,7 +238,8 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
         targetDoc = reader.read(targetUri);
         docs.set(targetUri, targetDoc);
       }
-      const resolved = fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, fragment);
+      const resolved =
+        fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, pointerFromFragment(fragment));
       const inlined = walk(resolved, baseDirOf(targetUri), stitchingUri, targetUri, false);
       visiting.delete(cycleKey(targetUri, fragment));
       const siblings: Mutable = {};
@@ -339,7 +344,9 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       docs.set(target.uri, targetDoc);
     }
     const content =
-      target.fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, target.fragment);
+      target.fragment === ""
+        ? targetDoc
+        : resolveJsonPointer(targetDoc, pointerFromFragment(target.fragment));
     setSpecKey(hoisted, name, walk(content, baseDirOf(target.uri), null, target.uri, true));
   }
   fixUpDiscriminatorMappings();

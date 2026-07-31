@@ -11,7 +11,7 @@
  * @packageDocumentation
  */
 
-import { setSpecKey } from "@oaverify/internal-core";
+import { escapePointerSegment, setSpecKey } from "@oaverify/internal-core";
 import { dirname, isAbsolute, posix, resolve as resolvePath } from "node:path";
 
 /** Mutable object view used while walking parsed JSON documents. */
@@ -55,10 +55,13 @@ export function baseDirOf(uri: string): string {
  */
 export const EXTERNALS_FIELD = "x-oaverify-externals";
 
-/** Encode a URI for use as an {@link EXTERNALS_FIELD} key (JSON-pointer-safe). */
-export function encodeUri(uri: string): string {
-  return uri.replace(/~/g, "~0").replace(/\//g, "~1");
-}
+/**
+ * Encode a URI for use as an {@link EXTERNALS_FIELD} key
+ * (JSON-pointer-safe). The core escape under the name that says what
+ * this call is for; see `escapePointer` in the validator's document
+ * walk for why these are one function rather than copies.
+ */
+export const encodeUri = escapePointerSegment;
 
 /** Strip a single leading slash from a JSON-pointer fragment. */
 export function encodeFragment(fragment: string): string {

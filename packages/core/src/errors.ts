@@ -338,6 +338,47 @@ export interface ValidationError {
 }
 
 /**
+ * One leaf reason a value was rejected, in machine-readable form.
+ *
+ * The structured half of a document-level finding, carried so a
+ * consumer never has to recover cause data by parsing a rendered
+ * message. `oaverify check` populates it on `examples` findings; the
+ * shape is deliberately class-agnostic, since a conformance issue is a
+ * validation failure of the same kind and can adopt the field without a
+ * rename.
+ *
+ * `ValidationError` minus `children`, and the omission is the contract:
+ * these are always leaves. Reporting a nested tree would make a
+ * consumer handle branches that this surface never produces, and would
+ * put an always-empty `children: []` on every entry of a JSON report.
+ *
+ * `code` is `string` rather than `keyof BuiltInErrorParams` because a
+ * custom keyword emits whatever code it likes; narrow the built-ins
+ * with {@link ErrorParamsFor}, exactly as for
+ * {@link ValidationError.code}.
+ *
+ * @public
+ */
+export interface RejectionReason {
+  /** Stable identifier of the keyword that rejected the value. */
+  code: string;
+  /**
+   * Position of the offending value *inside the rejected instance*,
+   * empty for the instance root. Never pre-joined; render it however
+   * suits, and see {@link joinPath} for the conventional rendering.
+   */
+  readonly path: readonly PathSegment[];
+  /** Human-readable description. Do not pattern-match it; read `params`. */
+  message: string;
+  /**
+   * Keyword-specific details, per {@link BuiltInErrorParams}. This is
+   * the field that exists so `allowed` and `actual` never have to be
+   * recovered from prose.
+   */
+  readonly params: Readonly<Record<string, unknown>>;
+}
+
+/**
  * Parameters accepted by {@link createError}.
  *
  * @public

@@ -1,4 +1,5 @@
 import {
+  pointerFromFragment,
   resolveJsonPointer as coreResolveJsonPointer,
   type SchemaObject,
   type SchemaOrBoolean,
@@ -127,7 +128,11 @@ function resolveFragment(
   baseUri: string,
 ): SchemaOrBoolean {
   if (fragment === "") return rootSchema;
-  if (fragment.startsWith("/")) return resolveJsonPointer(rootSchema, fragment);
+  // The fragment comes off a `$ref`, so percent-decode it into a
+  // pointer before evaluating; `resolveJsonPointer` does none itself.
+  if (fragment.startsWith("/")) {
+    return resolveJsonPointer(rootSchema, pointerFromFragment(fragment));
+  }
   const scoped =
     graph.anchorScopes.get(baseUri)?.get(fragment) ??
     graph.dynamicAnchorScopes.get(baseUri)?.get(fragment);

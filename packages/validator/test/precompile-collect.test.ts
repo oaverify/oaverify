@@ -200,4 +200,32 @@ describe("precompile onMalformed", () => {
     expect(failures.map((f) => f.context).join(" ")).toMatch(/\/bad/);
     expect(failures.map((f) => f.context).join(" ")).toMatch(/\/alsoBad/);
   });
+
+  it("populates location alongside the deprecated context alias", () => {
+    // Both names carry the same value for one major, and nothing else
+    // reads `location` in a way a test would catch, so assert it here.
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/bad": {
+          post: {
+            requestBody: {
+              content: { "application/json": { schema: { type: "object", items: [1, 2] } } },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const [failure] = createValidator(doc as unknown as OpenAPIDocument).precompile({
+      onMalformed: "collect",
+    });
+
+    expect(failure?.location).toBe(failure?.context);
+    expect(failure?.location).toContain("POST /bad");
+    // The machine half, addressing the schema that would not compile.
+    expect(failure?.pointer).toBe("/paths/~1bad/post/requestBody/content/application~1json/schema");
+    expect(failure?.anchor).toBe("node");
+  });
 });

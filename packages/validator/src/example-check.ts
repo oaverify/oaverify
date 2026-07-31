@@ -40,6 +40,7 @@
 import {
   detectOpenAPIVersion,
   type OpenAPIDocument,
+  type RejectionReason,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
 import { builtInFormats } from "@oaverify/internal-formats";
@@ -63,10 +64,32 @@ import { escapePointer, walkDocumentSchemas } from "./document-walk.js";
 export interface ExampleIssue {
   /** Always `"example-invalid"`; the field exists so findings read uniformly. */
   code: "example-invalid";
-  /** RFC 6901 pointer to the offending example value within the document. */
+  /**
+   * RFC 6901 pointer to the offending example value within the
+   * document, percent-decoded with `~0` / `~1` retained.
+   */
   pointer: string;
-  /** Human-readable explanation, including why the schema rejected it. */
+  /**
+   * Human-readable explanation, including why the schema rejected it.
+   *
+   * A summary. It deduplicates by rendered text and stops at
+   * `REASON_LIMIT` distinct reasons (naming how many it dropped), so it
+   * can be shorter than {@link ExampleIssue.reasons}. Read `reasons` for
+   * the complete set; do not pattern-match this.
+   */
   message: string;
+  /**
+   * Every leaf the schema rejected this value on, in machine-readable
+   * form. Always present, possibly empty.
+   *
+   * Uncapped and undeduplicated, where `message` caps and dedupes.
+   * Truncation there serves a terminal, and a consumer
+   * has no such constraint; deduplication needs a key, and only the
+   * consumer knows which one it cares about (a composition keyword
+   * reports the same leaf once per branch it tried, and those entries
+   * differ in `params` even where their `message` matches).
+   */
+  reasons: readonly RejectionReason[];
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
@@ -161,10 +184,20 @@ function joinReasons(
 }
 
 /**
- * Validates one example value against a schema, returning a short
- * reason when it fails and `undefined` when it validates.
+ * What one rejected example yields: the rendered summary that goes in
+ * the message, and the structured leaves behind it. Kept together so
+ * the two can never be assembled from different validation runs.
  */
-type ExampleCheck = (value: unknown) => string | undefined;
+interface Rejection {
+  summary: string;
+  reasons: readonly RejectionReason[];
+}
+
+/**
+ * Validates one example value against a schema, returning the rejection
+ * when it fails and `undefined` when it validates.
+ */
+type ExampleCheck = (value: unknown) => Rejection | undefined;
 
 export interface CheckDocumentExamplesOptions {
   /**
@@ -248,22 +281,35 @@ export function checkDocumentExamples(
         return undefined;
       }
       if (result.valid) return undefined;
-      return joinReasons(result.errors);
+      return {
+        summary: joinReasons(result.errors),
+        // Rebuilt rather than passed through: `output: "flat"` already
+        // yields leaves, and copying the four contract fields keeps a
+        // finding from retaining the validator's error tree, and keeps
+        // an always-empty `children: []` out of the JSON report.
+        reasons: result.errors.map((e) => ({
+          code: e.code,
+          path: e.path,
+          message: e.message,
+          params: e.params,
+        })),
+      };
     };
     compiled.set(schema, check);
     return check;
   };
 
-  const report = (pointer: string, what: string, value: unknown, reason: string): void => {
+  const report = (pointer: string, what: string, value: unknown, rejection: Rejection): void => {
     issues.push({
       code: "example-invalid",
       pointer,
+      reasons: rejection.reasons,
       // "oaverify rejects" rather than "does not satisfy": the finding
       // reports this validator's verdict. Usually that means the example
       // is wrong, and occasionally it means oaverify is (#553). Wording
       // it as settled spec truth would overstate the first case and
       // mislead on the second.
-      message: `oaverify rejects ${what} against its schema: ${reason} (example: ${echoValue(value)})`,
+      message: `oaverify rejects ${what} against its schema: ${rejection.summary} (example: ${echoValue(value)})`,
     });
   };
 
@@ -291,16 +337,16 @@ export function checkDocumentExamples(
     if (check === null) return;
 
     if (hasExample) {
-      const reason = check(node["example"]);
-      if (reason !== undefined) {
-        report(`${pointer}/example`, '"example"', node["example"], reason);
+      const rejection = check(node["example"]);
+      if (rejection !== undefined) {
+        report(`${pointer}/example`, '"example"', node["example"], rejection);
       }
     }
     if (hasExamples) {
       for (const [index, value] of (examples as readonly unknown[]).entries()) {
-        const reason = check(value);
-        if (reason !== undefined) {
-          report(`${pointer}/examples/${index}`, `"examples"[${index}]`, value, reason);
+        const rejection = check(value);
+        if (rejection !== undefined) {
+          report(`${pointer}/examples/${index}`, `"examples"[${index}]`, value, rejection);
         }
       }
     }
@@ -328,9 +374,9 @@ export function checkDocumentExamples(
     if (check === null) return;
 
     if (Object.prototype.hasOwnProperty.call(host, "example")) {
-      const reason = check(host["example"]);
-      if (reason !== undefined) {
-        report(`${pointer}/example`, '"example"', host["example"], reason);
+      const rejection = check(host["example"]);
+      if (rejection !== undefined) {
+        report(`${pointer}/example`, '"example"', host["example"], rejection);
       }
     }
 
@@ -339,13 +385,13 @@ export function checkDocumentExamples(
     for (const [name, entry] of Object.entries(examples)) {
       if (!isObj(entry)) continue;
       if (!Object.prototype.hasOwnProperty.call(entry, "value")) continue; // externalValue, or empty
-      const reason = check(entry["value"]);
-      if (reason !== undefined) {
+      const rejection = check(entry["value"]);
+      if (rejection !== undefined) {
         report(
           `${pointer}/examples/${escapePointer(name)}/value`,
           `"examples.${name}"`,
           entry["value"],
-          reason,
+          rejection,
         );
       }
     }

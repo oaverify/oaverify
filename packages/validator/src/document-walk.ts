@@ -20,6 +20,7 @@
  */
 
 import {
+  escapePointerSegment,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
@@ -32,10 +33,17 @@ const METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "tr
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** RFC 6901: `~` becomes `~0`, `/` becomes `~1`. */
-export function escapePointer(token: string): string {
-  return token.replace(/~/g, "~0").replace(/\//g, "~1");
-}
+/**
+ * RFC 6901 segment escaping: `~` becomes `~0`, `/` becomes `~1`.
+ *
+ * The core implementation under the name this package's importers
+ * already use. It is one function rather than a copy because the
+ * pointers escaped here (`ExampleIssue`, `RedosIssue`) and the ones
+ * escaped in the compiler are documented as the same grammar, and a
+ * consumer is invited to compare them. Two implementations would make
+ * that guarantee depend on them staying identical by luck.
+ */
+export const escapePointer = escapePointerSegment;
 
 /**
  * Hooks a caller supplies. Every one is optional; a walk with none is a

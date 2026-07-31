@@ -13,6 +13,7 @@ export {
   type ErrorParams,
   type ErrorParamsFor,
   type PathSegment,
+  type RejectionReason,
   type ValidationError,
 } from "./errors.js";
 
@@ -49,7 +50,12 @@ export {
   type HttpStatusMap,
 } from "./http-status.js";
 
-export { resolveJsonPointer } from "./json-pointer.js";
+export {
+  escapePointerSegment,
+  pointerFromFragment,
+  pointerFromRefFragment,
+  resolveJsonPointer,
+} from "./json-pointer.js";
 
 export {
   detectOpenAPIVersion,

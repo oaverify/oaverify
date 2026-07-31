@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { composeReaders, createMemoryReader } from "../src/reader.js";
-import { resolveJsonPointer, resolveSpec } from "../src/resolver.js";
+import { pointerFromFragment, resolveJsonPointer, resolveSpec } from "../src/resolver.js";
 
 function collectInternalRefs(value: unknown, out: string[] = []): string[] {
   if (value === null || typeof value !== "object") return out;
@@ -179,7 +179,9 @@ describe("resolveSpec", () => {
     // Real-world case: DigitalOcean's spec uses fragments like
     // #/paths/~1v2~1apps~1%7Bapp_id%7D/get/parameters/0 because { and }
     // are reserved in URI fragments per RFC 3986 §3.5. Per RFC 6901 §6,
-    // percent-decoding must happen before ~0/~1 decoding.
+    // percent-decoding happens before ~0/~1 decoding, and it happens in
+    // `pointerFromFragment`: what arrives from a `$ref` is a fragment,
+    // and `resolveJsonPointer` evaluates pointers.
     const doc = {
       paths: {
         "/v2/apps/{app_id}": {
@@ -187,7 +189,8 @@ describe("resolveSpec", () => {
         },
       },
     };
-    const p = resolveJsonPointer(doc, "/paths/~1v2~1apps~1%7Bapp_id%7D/get/parameters/0");
+    const fragment = "/paths/~1v2~1apps~1%7Bapp_id%7D/get/parameters/0";
+    const p = resolveJsonPointer(doc, pointerFromFragment(fragment));
     expect(p).toEqual({ name: "app_id", in: "path" });
   });
 

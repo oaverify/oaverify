@@ -79,31 +79,55 @@ schema [silent-rewrite/ref-siblings-oas30] GET /a 200 response body (application
   -> components.schemas.Wrapper.properties.inner (and 2 more operation(s)): OAS 3.0: ...
 ```
 
-### Which grammar a finding's location uses
+### Mapping a finding back to source
 
-Two grammars, and the class tells you which you get. Worth knowing
-before writing a consumer that maps findings back to source:
+`location` is display text. Its shape varies by class, it is free to
+change wording, and it is not meant to be parsed. To locate a finding
+programmatically, read `target`:
 
-| Class         | Grammar                     | Example                                                              |
-| ------------- | --------------------------- | -------------------------------------------------------------------- |
-| `conformance` | RFC 6901 JSON pointer       | `/paths/~1pets/post/responses/202/description`                       |
-| `examples`    | RFC 6901 JSON pointer       | `/components/schemas/Cusip/examples/0`                               |
-| `hygiene`     | RFC 6901 JSON pointer       | `/tags/0`                                                            |
-| `redos`       | RFC 6901 JSON pointer       | `/components/schemas/Email/properties/emailAddress/pattern`          |
-| `schema`      | operation, then schema path | `GET /pets 200 response body (application/json) -> properties.items` |
-| `malformed`   | operation                   | `GET /pets 200 response`                                             |
+```json
+{
+  "class": "schema",
+  "code": "silent-rewrite/required-not-in-properties",
+  "location": "POST /things request body (application/json) -> anyOf[0]",
+  "target": {
+    "pointer": "/components/schemas/Order/required",
+    "anchor": "scoped-definition"
+  }
+}
+```
 
-The split follows what each pass has in hand. The first four walk the
-document and know the node's address. The last two report on compiled
-artifacts, which are compiled per operation, so the operation is the
-address they can always give; a `$ref`-reached schema additionally
-carries the component path, as above.
+`target.pointer` is an RFC 6901 JSON pointer into the resolved
+document, percent-decoded with `~0` / `~1` retained. It resolves
+against the document `check` graded, or the whole `target` is absent.
+It is never best-effort: an external `$ref` target and an anchor name a
+schema but no position in this document, so those report no target
+rather than an address that goes nowhere.
 
-One consequence: a defect that both a document pass and a compile pass
-can see is reported twice, in both grammars. A `description: null` is
-the common one, reported by `conformance/type` at its pointer and by
-`schema/annotation-value-type` at its operation. Giving every class a
-pointer is [#517](https://github.com/oaverify/oaverify/issues/517).
+`target.anchor` says what following the pointer gets you, which is what
+a consumer needs before it edits anything:
+
+| Anchor              | Meaning                                                                     |
+| ------------------- | --------------------------------------------------------------------------- |
+| `node`              | The finding's own address. Editing there affects nothing else.              |
+| `definition`        | Shared text reached through a `$ref`. Editing there affects every use site. |
+| `scoped-definition` | Shared text, but the finding holds only on the route `location` names. The  |
+|                     | definition may be correct for its other users.                              |
+
+That last one exists because `required` is checked against the property
+names reachable at an _instance_ position, and a component says
+different things at different use sites. Reporting it as `definition`
+would send a reader to fix shared text that is not wrong.
+
+`examples` findings additionally carry `reasons`, the validator's leaf
+errors for the rejected value, so a consumer reads `params.allowed` and
+`params.actual` rather than parsing them out of the message.
+
+One consequence of running several passes: a defect that both a
+document pass and a compile pass can see is reported twice. A
+`description: null` is the common one, reported by `conformance/type`
+and by `schema/annotation-value-type`. Both now carry a `target`, so a
+consumer can recognise the pair by pointer.
 
 ```bash
 
