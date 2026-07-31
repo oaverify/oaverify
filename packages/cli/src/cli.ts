@@ -187,6 +187,10 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             only: opts.only,
             failOn: opts.failOn,
             format: opts.format,
+            // Terminal width only when stdout is one. Redirected or piped
+            // output takes the fixed default so a saved report does not
+            // depend on the terminal that produced it.
+            width: process.stdout.isTTY ? process.stdout.columns : undefined,
             options: { output: opts.output, quiet: opts.quiet },
           },
           io,
