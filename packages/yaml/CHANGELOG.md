@@ -1,5 +1,17 @@
 # Changelog
 
+## [5.2.0](https://github.com/oaverify/oaverify/compare/yaml-v5.1.0...yaml-v5.2.0) (2026-07-31)
+
+
+### Features
+
+* **spec:** add containment and outbound-request controls to the readers ([#585](https://github.com/oaverify/oaverify/issues/585)) ([de655a4](https://github.com/oaverify/oaverify/commit/de655a4350450b90ff75e65b73b24bf59cd5096d))
+
+
+### Bug Fixes
+
+* **spec:** make confine and maxBytes enforce what they claim ([#589](https://github.com/oaverify/oaverify/issues/589)) ([6fd82d5](https://github.com/oaverify/oaverify/commit/6fd82d5ac7bd32322c79f0add309ca286b17a9cb))
+
 ## [5.1.0](https://github.com/oaverify/oaverify/compare/yaml-v5.0.0...yaml-v5.1.0) (2026-07-30)
 
 

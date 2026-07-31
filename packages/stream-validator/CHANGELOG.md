@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.2.0](https://github.com/oaverify/oaverify/compare/stream-v5.1.0...stream-v5.2.0) (2026-07-31)
+
+
+### Bug Fixes
+
+* backlog sweep ([#570](https://github.com/oaverify/oaverify/issues/570), [#571](https://github.com/oaverify/oaverify/issues/571), [#573](https://github.com/oaverify/oaverify/issues/573), [#584](https://github.com/oaverify/oaverify/issues/584)) ([#592](https://github.com/oaverify/oaverify/issues/592)) ([8cfafc2](https://github.com/oaverify/oaverify/commit/8cfafc2ea72bd4b77be7ee908a032b03b3171a4e))
+* complete the own-key sweep across the router, AOT, and stream engines ([#586](https://github.com/oaverify/oaverify/issues/586)) ([9ee91d3](https://github.com/oaverify/oaverify/commit/9ee91d3879b755cc90e4b9a729390d50ea40e872))
+
 ## [5.1.0](https://github.com/oaverify/oaverify/compare/stream-v5.0.0...stream-v5.1.0) (2026-07-30)
 
 
