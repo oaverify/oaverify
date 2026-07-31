@@ -48,3 +48,46 @@ export function resolveJsonPointer(root: unknown, pointer: string): JsonValue {
   }
   return cur as JsonValue;
 }
+
+/**
+ * Escape one token for use as an RFC 6901 pointer segment: `~` becomes
+ * `~0`, `/` becomes `~1` (§3). Percent-encoding is deliberately not
+ * applied; see {@link pointerFromRefFragment} for the form every
+ * pointer this library reports is in.
+ *
+ * @public
+ */
+export function escapePointerSegment(token: string): string {
+  return token.replace(/~/g, "~0").replace(/\//g, "~1");
+}
+
+/**
+ * Turn a local `$ref` into the pointer it names, or `undefined` when it
+ * names no position in this document.
+ *
+ * A `$ref` is a URI reference, so its fragment may carry percent-escapes
+ * that a JSON Pointer does not: `#/components/schemas/My%20Schema`
+ * addresses the key `My Schema`. RFC 6901 §6 decodes those before the
+ * `~0` / `~1` step, which is what {@link resolveJsonPointer} does.
+ *
+ * Reported pointers are therefore in the **decoded** form, with `~0` and
+ * `~1` retained. That is the form {@link escapePointerSegment} produces,
+ * so a pointer built by walking and a pointer taken from a `$ref` are
+ * the same grammar and can be compared and concatenated. Skipping the
+ * decode would leave two grammars behind one field name, which is the
+ * defect this whole surface exists to remove.
+ *
+ * `undefined` for an anchor (`#/$defs/x` is a pointer, `#foo` is not),
+ * an external URI, or a relative reference: those name a schema, and
+ * some of them name it precisely, but none of them name a position in
+ * *this* document, and a synthesized pointer that does not resolve is
+ * worse than no pointer at all.
+ *
+ * @public
+ */
+export function pointerFromRefFragment(ref: string): string | undefined {
+  if (!ref.startsWith("#/")) return undefined;
+  // Only well-formed %XX escapes are decoded, so a stray `%` in a key
+  // survives, matching resolveJsonPointer.
+  return ref.slice(1).replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
+}

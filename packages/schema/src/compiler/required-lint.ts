@@ -1,7 +1,11 @@
+import { pointerFromRefFragment } from "@oaverify/internal-core";
 import {
+  positionFields,
+  stepPosition,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
+  type SubschemaPosition,
 } from "../subschema-positions.js";
 import type { SchemaLintIssue } from "./compiler.js";
 
@@ -266,6 +270,7 @@ function stepFor(key: string, name?: string): Step | undefined {
 export function collectRequiredIssues(
   root: unknown,
   resolve?: RequiredLintResolver,
+  pointer?: string,
 ): SchemaLintIssue[] {
   if (!isObj(root)) return [];
   const issues: SchemaLintIssue[] = [];
@@ -305,7 +310,23 @@ export function collectRequiredIssues(
   // subsumes the cycle guard: a recursive schema revisits the same pair.
   const visited = new Set<string>();
 
-  const walk = (node: unknown, path: string, cur: Instance, underNot: boolean): void => {
+  // Two frames, and they follow `$ref` differently on purpose. `path`
+  // is the logical route and stays at the use site, because that is
+  // where this rule's finding holds (see the block comment at the ref
+  // hop below). `at` is the physical position of the text: it re-roots
+  // at the target, because the offending `required` array is written
+  // there and that is the only address that resolves.
+  //
+  // A node reached by two routes is visited once (`visited`), so `at`
+  // names whichever route arrived first, the same caveat
+  // `SchemaLintIssue.context` carries.
+  const walk = (
+    node: unknown,
+    path: string,
+    cur: Instance,
+    underNot: boolean,
+    at: SubschemaPosition,
+  ): void => {
     if (!isObj(node)) return;
     const key = keyOf(node, cur);
     if (visited.has(key)) return;
@@ -324,7 +345,20 @@ export function collectRequiredIssues(
     const ref = node["$ref"];
     if (typeof ref === "string") {
       const target = resolveRef(ref, root, resolve);
-      if (isObj(target)) walk(target, path, cur, underNot);
+      // The physical frame does re-root here, unlike `path`. Both are
+      // right: `path` answers "where does this apply", `at` answers
+      // "where is the text", and after a ref those are different
+      // places.
+      //
+      // Only while a frame is in scope, for the reason given at the
+      // matching hop in `walkSubschemas`: a ref fragment addresses the
+      // ref resolution root, not the document frame the caller
+      // supplied, and a caller who supplied none gets none.
+      if (isObj(target)) {
+        walk(target, path, cur, underNot, {
+          pointer: at.pointer === undefined ? undefined : pointerFromRefFragment(ref),
+        });
+      }
     }
 
     const required = node["required"];
@@ -345,6 +379,7 @@ export function collectRequiredIssues(
               code: "silent-rewrite/required-not-in-properties",
               keyword: "required",
               path,
+              ...positionFields(stepPosition(at, "required")),
               message:
                 path.length === 0
                   ? `required: "${name}" at <root> is not declared in properties reachable here (likely a typo)`
@@ -359,27 +394,39 @@ export function collectRequiredIssues(
     // every object value as a map: `items` holds a schema directly while
     // `properties` holds schemas one level down, and conflating them
     // reads a schema's own keywords as if they were subschemas.
-    const descend = (v: unknown, childPath: string, key: string, name?: string): void => {
+    const descend = (
+      v: unknown,
+      childPath: string,
+      key: string,
+      childAt: SubschemaPosition,
+      name?: string,
+    ): void => {
       const step = stepFor(key, name);
       walk(
         v,
         childPath,
         step === undefined ? cur : stepInstance(cur, step, root, resolve),
         underNot || key === "not",
+        childAt,
       );
     };
 
     for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
       const v = node[key];
       if (v === undefined) continue;
-      descend(v, path === "" ? key : `${path}.${key}`, key);
+      descend(v, path === "" ? key : `${path}.${key}`, key, stepPosition(at, key));
     }
 
     for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
       const v = node[key];
       if (!Array.isArray(v)) continue;
       for (const [i, item] of v.entries()) {
-        descend(item, path === "" ? `${key}[${i}]` : `${path}.${key}[${i}]`, key);
+        descend(
+          item,
+          path === "" ? `${key}[${i}]` : `${path}.${key}[${i}]`,
+          key,
+          stepPosition(stepPosition(at, key), i),
+        );
       }
     }
 
@@ -387,7 +434,13 @@ export function collectRequiredIssues(
       const v = node[key];
       if (!isObj(v)) continue;
       for (const [name, sub] of Object.entries(v)) {
-        descend(sub, path === "" ? `${key}.${name}` : `${path}.${key}.${name}`, key, name);
+        descend(
+          sub,
+          path === "" ? `${key}.${name}` : `${path}.${key}.${name}`,
+          key,
+          stepPosition(stepPosition(at, key), name),
+          name,
+        );
       }
     }
   };
@@ -398,6 +451,7 @@ export function collectRequiredIssues(
     "",
     rootClosure.unresolved ? UNKNOWN_INSTANCE : { schemas: rootClosure.schemas, unknown: false },
     false,
+    { pointer, schemaPath: [] },
   );
   return issues;
 }

@@ -1,7 +1,10 @@
 import {
+  escapePointerSegment,
+  pointerFromRefFragment,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
+  type PathSegment,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
 
@@ -24,7 +27,65 @@ export {
  *
  * @public
  */
-export type SubschemaVisitor = (schema: SchemaOrBoolean, path: string) => void | boolean;
+export type SubschemaVisitor = (
+  schema: SchemaOrBoolean,
+  path: string,
+  position: SubschemaPosition,
+) => void | boolean;
+
+/**
+ * Where a visited subschema sits, in the two machine-readable frames a
+ * walk can offer. Both are optional, and each is absent exactly when it
+ * is undefined rather than unknown.
+ *
+ * The dotted `path` a visitor also receives is a *rendered* address
+ * whose base frame changes silently at a `$ref` (see the addressing
+ * note on {@link pathForRef}). These two do not: each says which frame
+ * it is in by existing.
+ *
+ * @public
+ */
+export interface SubschemaPosition {
+  /**
+   * RFC 6901 pointer into the document the walk was rooted in,
+   * percent-decoded with `~0` / `~1` retained.
+   *
+   * Present only when the caller supplied
+   * {@link WalkSubschemasOptions.pointer}, and only while the walk can
+   * still name a position: it is re-rooted at the target on entering a
+   * local `$ref`, and absent below an anchor or external `$ref`, which
+   * name a schema but no position in this document.
+   */
+  pointer?: string;
+  /**
+   * Segments from the walk root down to this subschema, never
+   * pre-joined.
+   *
+   * Absent once a `$ref` has been crossed, because "descend into this
+   * `$ref`" is not a schema position and no honest segment list spans
+   * it. That is exactly where `pointer` takes over, so between them a
+   * consumer always has an address whose frame it did not have to
+   * guess.
+   */
+  schemaPath?: readonly PathSegment[];
+}
+
+/**
+ * Options for {@link walkSubschemas}.
+ *
+ * @public
+ */
+export interface WalkSubschemasOptions {
+  /** Follow `$ref` and walk the target too. See {@link walkSubschemas}. */
+  resolveRef?: (ref: string) => SchemaOrBoolean | undefined;
+  /**
+   * RFC 6901 pointer to where the walk root sits in its document.
+   * Without it no {@link SubschemaPosition.pointer} is ever produced,
+   * which is the right answer for a caller holding a bare schema: it
+   * has no document, so there is no pointer to give.
+   */
+  pointer?: string;
+}
 
 /**
  * Display path for a schema reached through `$ref`. A local pointer
@@ -75,6 +136,41 @@ export function pathForRef(ref: string): string {
 }
 
 /**
+ * Step a {@link SubschemaPosition} down one segment. Either frame may
+ * already be absent, and an absent frame stays absent: once a walk has
+ * lost the ability to name a position, no further descent recovers it.
+ *
+ * Shared so the two passes that carry a position (the `walkSubschemas`
+ * rules and the `required` rule, which follow `$ref` differently)
+ * cannot drift on how a segment is escaped or appended.
+ *
+ * @internal
+ */
+export function stepPosition(at: SubschemaPosition, segment: PathSegment): SubschemaPosition {
+  return {
+    pointer:
+      at.pointer === undefined
+        ? undefined
+        : `${at.pointer}/${escapePointerSegment(String(segment))}`,
+    schemaPath: at.schemaPath === undefined ? undefined : [...at.schemaPath, segment],
+  };
+}
+
+/**
+ * The position fields, with absent frames omitted rather than present
+ * and `undefined`, so a finding carries a key only where it has an
+ * answer.
+ *
+ * @internal
+ */
+export function positionFields(at: SubschemaPosition): SubschemaPosition {
+  const out: { pointer?: string; schemaPath?: readonly PathSegment[] } = {};
+  if (at.pointer !== undefined) out.pointer = at.pointer;
+  if (at.schemaPath !== undefined) out.schemaPath = at.schemaPath;
+  return out;
+}
+
+/**
  * Walk every subschema reachable from `root`, in pre-order, descending
  * through every schema-valued key the JSON Schema 2020-12 vocabulary
  * (plus the keys OpenAPI adds on top) declares. Boolean schemas and
@@ -101,8 +197,16 @@ export function pathForRef(ref: string): string {
 export function walkSubschemas(
   root: SchemaOrBoolean,
   visit: SubschemaVisitor,
-  resolveRef?: (ref: string) => SchemaOrBoolean | undefined,
+  resolveRef?: ((ref: string) => SchemaOrBoolean | undefined) | WalkSubschemasOptions,
+  options?: WalkSubschemasOptions,
 ): void {
+  // Third argument was the resolver before the position frames existed,
+  // and stays accepted in that form: every existing caller passes a
+  // function there, and an options object is what a caller wanting a
+  // pointer needs to pass instead.
+  const opts: WalkSubschemasOptions =
+    typeof resolveRef === "function" ? { ...options, resolveRef } : { ...options, ...resolveRef };
+  const resolve = opts.resolveRef;
   // Only ref targets are deduped, never structural positions: the same
   // schema object appearing under two keys is two places a reader may
   // need to fix, and each deserves its own path. A ref target is one
@@ -110,28 +214,49 @@ export function walkSubschemas(
   // stops a recursive component from looping.
   const walkedRefTargets = new WeakSet<object>();
 
-  const go = (node: SchemaOrBoolean, path: string): void => {
-    const keep = visit(node, path);
+  const go = (node: SchemaOrBoolean, path: string, at: SubschemaPosition): void => {
+    const keep = visit(node, path, at);
     if (keep === false) return;
     if (typeof node !== "object" || node === null || Array.isArray(node)) return;
     const n = node as Record<string, unknown>;
 
-    if (resolveRef !== undefined && typeof n["$ref"] === "string") {
-      const target = resolveRef(n["$ref"]);
+    if (resolve !== undefined && typeof n["$ref"] === "string") {
+      const ref = n["$ref"];
+      const target = resolve(ref);
       if (target !== undefined && !(typeof target === "object" && walkedRefTargets.has(target))) {
         if (typeof target === "object" && target !== null) walkedRefTargets.add(target);
-        go(target, pathForRef(n["$ref"]));
+        // Both frames re-root here, and they do it differently. The
+        // pointer becomes the target's own address, so it keeps
+        // resolving. `schemaPath` has no way across the hop and so
+        // ends; see SubschemaPosition.schemaPath.
+        //
+        // Re-rooting only while a frame is already in scope. A `$ref`
+        // fragment names a position relative to the *ref resolution
+        // root*, which is not the same thing as the document frame the
+        // caller supplied, and may be a bare schema with no document at
+        // all. Deriving a pointer from the ref alone would answer a
+        // question the caller never established an answer to, under a
+        // field documented as addressing their document: the exact
+        // frame confusion this contract exists to remove.
+        go(target, pathForRef(ref), {
+          pointer: at.pointer === undefined ? undefined : pointerFromRefFragment(ref),
+        });
       }
     }
     for (const k of SUBSCHEMA_SINGLE_POSITIONS) {
       const v = n[k];
-      if (v !== undefined) go(v as SchemaOrBoolean, path === "" ? k : `${path}.${k}`);
+      if (v !== undefined)
+        go(v as SchemaOrBoolean, path === "" ? k : `${path}.${k}`, stepPosition(at, k));
     }
     for (const k of SUBSCHEMA_ARRAY_POSITIONS) {
       const v = n[k];
       if (Array.isArray(v)) {
         for (let i = 0; i < v.length; i += 1) {
-          go(v[i] as SchemaOrBoolean, path === "" ? `${k}[${i}]` : `${path}.${k}[${i}]`);
+          go(
+            v[i] as SchemaOrBoolean,
+            path === "" ? `${k}[${i}]` : `${path}.${k}[${i}]`,
+            stepPosition(stepPosition(at, k), i),
+          );
         }
       }
     }
@@ -139,10 +264,14 @@ export function walkSubschemas(
       const v = n[k];
       if (v !== null && typeof v === "object" && !Array.isArray(v)) {
         for (const [kk, vv] of Object.entries(v as Record<string, unknown>)) {
-          go(vv as SchemaOrBoolean, path === "" ? `${k}.${kk}` : `${path}.${k}.${kk}`);
+          go(
+            vv as SchemaOrBoolean,
+            path === "" ? `${k}.${kk}` : `${path}.${k}.${kk}`,
+            stepPosition(stepPosition(at, k), kk),
+          );
         }
       }
     }
   };
-  go(root, "");
+  go(root, "", { pointer: opts.pointer, schemaPath: [] });
 }

@@ -50,7 +50,11 @@ export {
   type HttpStatusMap,
 } from "./http-status.js";
 
-export { resolveJsonPointer } from "./json-pointer.js";
+export {
+  escapePointerSegment,
+  pointerFromRefFragment,
+  resolveJsonPointer,
+} from "./json-pointer.js";
 
 export {
   detectOpenAPIVersion,

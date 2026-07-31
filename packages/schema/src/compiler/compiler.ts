@@ -18,6 +18,8 @@ import {
   type ResolvedGraph,
 } from "../resolve/index.js";
 import {
+  positionFields,
+  stepPosition,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
@@ -132,7 +134,11 @@ function runSchemaLint(
   byKeyword: Map<string, KeywordDefinition>,
   mode: "warn" | "strict",
   context: string | undefined,
-  rules: { refSuppressesSiblings: boolean; resolveRef?: (ref: string) => unknown },
+  rules: {
+    refSuppressesSiblings: boolean;
+    resolveRef?: (ref: string) => unknown;
+    pointer?: string;
+  },
 ): SchemaLintIssue[] {
   // The full set of names the active dialect recognizes, including
   // `implements` entries on existing definitions (e.g. `if` implements
@@ -147,15 +153,30 @@ function runSchemaLint(
   // Ancestor-aware, so it walks the graph itself rather than per-node:
   // the question is what property names are reachable at an instance
   // position, which a per-node visitor cannot see.
-  issues.push(...collectRequiredIssues(schema, rules.resolveRef));
+  issues.push(...collectRequiredIssues(schema, rules.resolveRef, rules.pointer));
   // Follow refs, or the rules below see one operation's inline schema
   // plus at most the component named directly as its body: on Asana,
   // 1 of 278 component schemas (#513).
   walkSubschemas(
     schema,
-    (node, path) => {
+    (node, path, at) => {
       if (typeof node !== "object" || node === null || Array.isArray(node)) return;
       const obj = node as Record<string, unknown>;
+      // Stamped once per node after the rules have run, the way
+      // `context` is stamped once per compile below: every rule here
+      // reports at the node being visited, and threading the position
+      // through a dozen construction sites invites one of them to
+      // forget. The one rule that reports below the node
+      // (redundant-composition-branches) sets its own and is skipped.
+      const before = issues.length;
+      const stamp = (): void => {
+        for (let i = before; i < issues.length; i += 1) {
+          const issue = issues[i];
+          if (issue === undefined) continue;
+          if (issue.pointer !== undefined || issue.schemaPath !== undefined) continue;
+          issues[i] = { ...issue, ...positionFields(at) };
+        }
+      };
 
       for (const key of Object.keys(obj)) {
         const def = byKeyword.get(key);
@@ -273,6 +294,10 @@ function runSchemaLint(
                 code: "silent-rewrite/redundant-composition-branches",
                 keyword: key,
                 path: branchPath,
+                // The only rule here whose finding sits below the
+                // visited node, so it steps the position itself rather
+                // than taking the node's.
+                ...positionFields(stepPosition(stepPosition(at, key), i)),
                 message: `${key}[${i}] is structurally identical to ${key}[${j}] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec`,
               });
               break;
@@ -280,8 +305,13 @@ function runSchemaLint(
           }
         }
       }
+
+      stamp();
     },
-    (ref) => rules.resolveRef?.(ref) as SchemaOrBoolean | undefined,
+    {
+      resolveRef: (ref) => rules.resolveRef?.(ref) as SchemaOrBoolean | undefined,
+      pointer: rules.pointer,
+    },
   );
   // Stamped once here rather than at each `issues.push`: the context is
   // the same for every issue this compile produces, and threading it
@@ -472,8 +502,39 @@ export interface SchemaLintIssue {
     | "unsatisfiable/pattern-length";
   /** The offending keyword / key name as written in the schema. */
   keyword: string;
-  /** Dotted path from the root schema to the subschema holding the key. */
+  /**
+   * Dotted path from the root schema to the subschema holding the key.
+   *
+   * A rendered address, and its base frame is not stated: it is
+   * relative to the compiled schema until the walk crosses a `$ref`,
+   * after which it is relative to the ref target and reads as a
+   * document path. Nothing in the value says which. Prefer
+   * {@link SchemaLintIssue.pointer} for a document address and
+   * {@link SchemaLintIssue.schemaPath} for a position inside the
+   * compiled schema; each of those is absent rather than re-framed
+   * where it cannot answer.
+   */
   path: string;
+  /**
+   * RFC 6901 pointer to the subschema holding the key, percent-decoded
+   * with `~0` / `~1` retained.
+   *
+   * Present only when the caller set {@link CompileOptions.pointer} and
+   * the walk can still name a position: it re-roots at the target on
+   * crossing a local `$ref`, and is absent below an anchor or external
+   * `$ref`. Absence means no pointer into this document resolves here,
+   * never that the caller should parse `path` instead.
+   */
+  pointer?: string;
+  /**
+   * Segments from the compiled schema root down to the subschema
+   * holding the key, never pre-joined.
+   *
+   * Absent once a `$ref` has been crossed, since no segment list spans
+   * a ref hop. `pointer` covers exactly that case for a caller who
+   * supplied one, and a bare-schema caller has this and nothing else.
+   */
+  schemaPath?: readonly PathSegment[];
   /** Human-readable explanation. */
   message: string;
   /**
@@ -706,6 +767,26 @@ export interface CompileOptions {
    * callers get this without asking.
    */
   label?: string;
+  /**
+   * RFC 6901 pointer to where this schema sits in the document it came
+   * from, percent-decoded with `~0` / `~1` retained. The structural
+   * sibling of {@link CompileOptions.label}: that one names the schema
+   * for a reader, this one addresses it for a machine, and lands on
+   * {@link SchemaLintIssue.pointer}.
+   *
+   * Absent by default, and the absence is the contract rather than a
+   * gap: a caller compiling a bare schema has no document, so no
+   * pointer exists to give, and every lint issue from that compile
+   * reports `pointer` absent rather than a synthesized address that
+   * resolves nowhere.
+   *
+   * Pass the pointer of the schema **actually being compiled**. Where a
+   * caller unwraps a root `$ref` before handing the schema over (the
+   * HTTP validator does this for body schemas), that is the target's
+   * pointer, not the use site's; the use site holds only the `$ref`,
+   * so a pointer built from it does not resolve to what was compiled.
+   */
+  pointer?: string;
 
   /** Additional external named schemas that `$ref` can resolve to. */
   external?: Map<string, SchemaOrBoolean>;
@@ -1089,6 +1170,7 @@ export function compileSchema(
       ? []
       : runSchemaLint(schema, byKeyword, lintMode, options.label, {
           refSuppressesSiblings: state.refSuppressesSiblings,
+          pointer: options.pointer,
           // Lets the `required` rule see through `$ref` into component
           // schemas, which an operation-scoped compile cannot reach by
           // walking its own schema object.
