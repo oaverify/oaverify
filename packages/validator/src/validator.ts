@@ -948,6 +948,7 @@ export function createValidator(
     const c = compileSchema(schema, {
       label: origin?.label,
       pointer: origin?.pointer,
+      pointerAnchor: origin?.anchor,
       dialect,
       formats,
       refResolver: resolver,
@@ -1003,7 +1004,7 @@ export function createValidator(
         // schema is a bare root `$ref` is unwrapped before compiling,
         // so findings are relative to the target and the use site holds
         // no `properties` to address (#517, defect 3c).
-        pointer: bodySchemaCompiledPointer(schema, refResolver, origin?.pointer),
+        ...bodySchemaCompiledPointer(schema, refResolver, origin?.pointer, origin?.anchor),
       },
     );
 
@@ -1035,15 +1036,20 @@ export function createValidator(
     // Headers are addressed from their own entry, which already
     // accounts for a `$ref`'d Header Object; bodies hang off the
     // response.
+    const header = direction === undefined ? response?.headers.get(key) : undefined;
     const pointer =
       direction === undefined
-        ? response?.headers.get(key)?.pointer === undefined
+        ? header?.pointer === undefined
           ? undefined
-          : `${response.headers.get(key)?.pointer}/schema`
+          : `${header.pointer}/schema`
         : response?.pointer === undefined
           ? undefined
           : `${response.pointer}/content/${escapePointer(key)}/schema`;
-    const origin: SchemaOrigin = { label, pointer };
+    const origin: SchemaOrigin = {
+      label,
+      pointer,
+      anchor: direction === undefined ? header?.anchor : response?.anchor,
+    };
     const c =
       direction === undefined
         ? compile(schema, refResolver, origin)

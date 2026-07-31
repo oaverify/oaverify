@@ -138,6 +138,7 @@ function runSchemaLint(
     refSuppressesSiblings: boolean;
     resolveRef?: (ref: string) => unknown;
     pointer?: string;
+    pointerAnchor?: "node" | "definition";
   },
 ): SchemaLintIssue[] {
   // The full set of names the active dialect recognizes, including
@@ -153,7 +154,9 @@ function runSchemaLint(
   // Ancestor-aware, so it walks the graph itself rather than per-node:
   // the question is what property names are reachable at an instance
   // position, which a per-node visitor cannot see.
-  issues.push(...collectRequiredIssues(schema, rules.resolveRef, rules.pointer));
+  issues.push(
+    ...collectRequiredIssues(schema, rules.resolveRef, rules.pointer, rules.pointerAnchor),
+  );
   // Follow refs, or the rules below see one operation's inline schema
   // plus at most the component named directly as its body: on Asana,
   // 1 of 278 component schemas (#513).
@@ -311,6 +314,7 @@ function runSchemaLint(
     {
       resolveRef: (ref) => rules.resolveRef?.(ref) as SchemaOrBoolean | undefined,
       pointer: rules.pointer,
+      anchor: rules.pointerAnchor,
     },
   );
   // Stamped once here rather than at each `issues.push`: the context is
@@ -535,6 +539,22 @@ export interface SchemaLintIssue {
    * supplied one, and a bare-schema caller has this and nothing else.
    */
   schemaPath?: readonly PathSegment[];
+  /**
+   * What {@link SchemaLintIssue.pointer} addresses, for a reader
+   * deciding whether following it means editing shared text. Present
+   * whenever `pointer` is.
+   *
+   * - `"node"`: the offending node itself, reached without crossing a
+   *   `$ref`. Editing there affects nothing else.
+   * - `"definition"`: shared text reached through a `$ref`. Editing
+   *   there affects every use site.
+   * - `"scoped-definition"`: shared text, but this finding is scoped to
+   *   the route that reached it and the text may be correct for the
+   *   definition's other users. Emitted only by rules whose verdict
+   *   depends on the route, which today is
+   *   `silent-rewrite/required-not-in-properties` alone.
+   */
+  anchor?: "node" | "definition" | "scoped-definition";
   /** Human-readable explanation. */
   message: string;
   /**
@@ -787,6 +807,17 @@ export interface CompileOptions {
    * so a pointer built from it does not resolve to what was compiled.
    */
   pointer?: string;
+  /**
+   * What {@link CompileOptions.pointer} already addresses. Pass
+   * `"definition"` when the schema handed over was reached through a
+   * `$ref`, so findings inside it are reported as shared text.
+   *
+   * The compiler cannot infer this: a hop made before the compile
+   * started is invisible to it, and the HTTP validator makes exactly
+   * that hop when it unwraps a body schema's root ref or resolves a
+   * `$ref`'d Parameter. Defaults to `"node"`.
+   */
+  pointerAnchor?: "node" | "definition";
 
   /** Additional external named schemas that `$ref` can resolve to. */
   external?: Map<string, SchemaOrBoolean>;
@@ -1171,6 +1202,7 @@ export function compileSchema(
       : runSchemaLint(schema, byKeyword, lintMode, options.label, {
           refSuppressesSiblings: state.refSuppressesSiblings,
           pointer: options.pointer,
+          pointerAnchor: options.pointerAnchor,
           // Lets the `required` rule see through `$ref` into component
           // schemas, which an operation-scoped compile cannot reach by
           // walking its own schema object.

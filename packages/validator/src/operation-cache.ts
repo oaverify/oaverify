@@ -69,7 +69,10 @@ export interface ResponseCompiled {
    * name, and the pointer to the Header Object (its component, where it
    * was reached through a `$ref`).
    */
-  headers: Map<string, { name: string; object: HeaderObject; pointer?: string }>;
+  headers: Map<
+    string,
+    { name: string; object: HeaderObject; pointer?: string; anchor?: "node" | "definition" }
+  >;
   /**
    * Response body schemas, keyed by media type. Each is compiled lazily
    * on first use and memoized into `bodyValidators`. Eager compilation
@@ -95,6 +98,8 @@ export interface ResponseCompiled {
    * that was itself absent.
    */
   pointer?: string;
+  /** What `pointer` addresses; `"definition"` for a `$ref`'d Response. */
+  anchor?: "node" | "definition";
   /** Header schemas keyed by lowercased name; compiled lazily. */
   headerSchemas: Map<string, SchemaOrBoolean>;
   /** Memoization caches for the lazy compiles. */
@@ -124,6 +129,13 @@ export interface SchemaOrigin {
    * not simply the use site.
    */
   pointer?: string;
+  /**
+   * What `pointer` addresses. `"definition"` when it was reached
+   * through a `$ref` (a `$ref`'d Parameter, Request Body, Response or
+   * Header, or a body schema whose root ref was unwrapped), so findings
+   * inside it are reported as shared text. Defaults to `"node"`.
+   */
+  anchor?: "node" | "definition";
 }
 
 /**
@@ -241,6 +253,16 @@ function pointerOfResolved(raw: unknown, useSitePointer: string | undefined): st
   return useSitePointer;
 }
 
+/** Did `pointerOfResolved` follow a `$ref` to build its answer? */
+function reachedThroughRef(raw: unknown): boolean {
+  return (
+    typeof raw === "object" &&
+    raw !== null &&
+    !Array.isArray(raw) &&
+    typeof (raw as { $ref?: unknown }).$ref === "string"
+  );
+}
+
 /**
  * First schema found inside a parameter's `content` map (OAS 3.x spec
  * permits exactly one entry, but the API is keyed by media type).
@@ -303,13 +325,17 @@ export function buildOperationCache(
       pointer: opPointer === undefined ? undefined : `${opPointer}/parameters/${i}`,
     })),
   ];
-  const byKey = new Map<string, { object: ParameterObject; pointer?: string }>();
+  const byKey = new Map<
+    string,
+    { object: ParameterObject; pointer?: string; anchor: "node" | "definition" }
+  >();
   for (const { raw, pointer } of rawParams) {
     const resolved = deps.resolveRef<ParameterObject>(raw);
     if (resolved === undefined) continue;
     byKey.set(`${resolved.in}\0${resolved.name}`, {
       object: resolved,
       pointer: pointerOfResolved(raw, pointer),
+      anchor: reachedThroughRef(raw) ? ("definition" as const) : ("node" as const),
     });
   }
   const parameterEntries = [...byKey.values()];
@@ -349,7 +375,7 @@ export function buildOperationCache(
   const headerParamValidators = new Map<string, CompiledTreeSchema>();
   const cookieParamValidators = new Map<string, CompiledTreeSchema>();
 
-  for (const { object: p, pointer: paramPointer } of parameterEntries) {
+  for (const { object: p, pointer: paramPointer, anchor: paramAnchor } of parameterEntries) {
     const contentSchema = firstContentSchema(p);
     const schema = contentSchema ?? p.schema;
     if (schema === undefined) continue;
@@ -362,7 +388,9 @@ export function buildOperationCache(
         : contentSchema === undefined
           ? `${paramPointer}/schema`
           : `${paramPointer}/content/${escapePointer(firstContentMediaType(p) ?? "")}/schema`;
-    const v = guarded(context, () => deps.compile(schema, { label: context, pointer }));
+    const v = guarded(context, () =>
+      deps.compile(schema, { label: context, pointer, anchor: paramAnchor }),
+    );
     if (v === undefined) continue;
     const target =
       p.in === "path"
@@ -393,6 +421,7 @@ export function buildOperationCache(
           deps.compileForDirection(mto.schema as SchemaOrBoolean, "request", {
             label: context,
             pointer,
+            anchor: reachedThroughRef(pathMatch.operation.requestBody) ? "definition" : "node",
           }),
         );
         if (v !== undefined) bodyValidators.set(mt, v);
@@ -413,7 +442,7 @@ export function buildOperationCache(
     const headerSchemas = new Map<string, SchemaOrBoolean>();
     const headersResolved = new Map<
       string,
-      { name: string; object: HeaderObject; pointer?: string }
+      { name: string; object: HeaderObject; pointer?: string; anchor?: "node" | "definition" }
     >();
     let headerReadsRequireOwnProperties = false;
     for (const [mt, mto] of Object.entries(response.content ?? {})) {
@@ -427,6 +456,7 @@ export function buildOperationCache(
       headersResolved.set(lower, {
         name,
         object: hdr,
+        anchor: reachedThroughRef(rawHdr) ? "definition" : "node",
         pointer: pointerOfResolved(
           rawHdr,
           responsePointer === undefined
@@ -440,6 +470,7 @@ export function buildOperationCache(
       object: response,
       context: `${operation} ${status} response`,
       pointer: responsePointer,
+      anchor: reachedThroughRef(rawResponse) ? "definition" : "node",
       headers: headersResolved,
       bodySchemas,
       bodyMediaTypes: compileMediaTypePatterns(bodySchemas.keys()),

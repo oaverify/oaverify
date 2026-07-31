@@ -92,14 +92,18 @@ export function bodySchemaCompiledPointer(
   schema: SchemaOrBoolean,
   refResolver: RefResolver,
   useSitePointer: string | undefined,
-): string | undefined {
-  if (useSitePointer === undefined) return undefined;
+  useSiteAnchor: "node" | "definition" | undefined,
+): { pointer?: string; anchor?: "node" | "definition" } {
+  if (useSitePointer === undefined) return {};
   const { lastRef } = unwrapRootRef(schema, refResolver);
-  if (lastRef === undefined) return useSitePointer;
+  if (lastRef === undefined) return { pointer: useSitePointer, anchor: useSiteAnchor ?? "node" };
   // An external or anchor target names no position in this document,
   // so the honest answer is no pointer rather than the use site's,
   // which addresses the `$ref` node and not what was compiled.
-  return pointerFromRefFragment(lastRef);
+  //
+  // A root ref that was followed means the compiled schema is shared
+  // text, whatever the use site was.
+  return { pointer: pointerFromRefFragment(lastRef), anchor: "definition" };
 }
 
 /**

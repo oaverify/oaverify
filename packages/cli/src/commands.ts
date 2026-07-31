@@ -23,6 +23,7 @@ import {
   type OverlayDocument,
 } from "@oaverify/internal-overlay-spec";
 import { checkDocumentExamples, createValidator } from "@oaverify/internal-validator";
+import type { SchemaLintIssue } from "@oaverify/internal-schema";
 import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
 import type * as Esbuild from "esbuild";
 import type { OpenAPIDocument, RejectionReason } from "@oaverify/internal-core";
@@ -290,6 +291,102 @@ export interface CheckFinding {
    * See {@link ExampleIssue.reasons}.
    */
   reasons?: readonly RejectionReason[];
+  /**
+   * Where this finding is, for a machine. The counterpart to
+   * `location`, which stays prose.
+   *
+   * Absent means **no pointer into the resolved document resolves to
+   * this finding**, which is a fact about the finding rather than an
+   * omission, and never an instruction to parse `location` instead.
+   * External `$ref` targets and anchors name a schema and no position
+   * in this document; a hand-built route has no addressable operation.
+   * A synthesized pointer that resolves nowhere, or worse resolves
+   * somewhere wrong, is the failure this field exists to prevent.
+   *
+   * Populated per class:
+   * - `hygiene`, `conformance`, `examples`, `redos`: always, anchored
+   *   at the offending node.
+   * - `schema`: whenever the compile knew where its schema sat in the
+   *   document, which is every schema `check` compiles.
+   * - `malformed`: not yet. The compile failed, so there is no lint
+   *   issue to carry a position.
+   */
+  target?: FindingTarget;
+}
+
+/**
+ * What a {@link CheckFinding.target} pointer means for the reader who
+ * follows it.
+ *
+ * Derived from what the analysis actually did rather than declared per
+ * rule, with one exception noted on `scoped-definition`.
+ *
+ * @public
+ */
+export type FindingAnchor =
+  /**
+   * The pointer is the offending node's own address. No `$ref` was
+   * crossed to reach it, so editing there affects nothing else.
+   */
+  | "node"
+  /**
+   * A `$ref` was crossed, and the pointer names the shared definition
+   * the text is written in. Editing there affects every use site, and
+   * `location` may name an operation this pointer does not address.
+   */
+  | "definition"
+  /**
+   * A `$ref` was crossed, the pointer names the shared definition, and
+   * the finding is **scoped to the route** named by `location`. The
+   * text at the pointer may be correct for the definition's other
+   * users.
+   *
+   * The one anchor that is not a property of the walk alone: it also
+   * depends on whether a rule's verdict varies by the route taken to
+   * reach a node. Today that is `silent-rewrite/required-not-in-properties`
+   * alone, which asks which property names are reachable at an
+   * *instance* position, and a component says different things at
+   * different use sites.
+   */
+  | "scoped-definition";
+
+/**
+ * A finding's machine-readable address.
+ *
+ * One object rather than two optional fields, because the two are
+ * coupled in both directions: an anchor is meaningless without a
+ * pointer, and a pointer is ambiguous without an anchor. Splitting
+ * them would admit two states that should be unrepresentable.
+ *
+ * @public
+ */
+export interface FindingTarget {
+  /**
+   * RFC 6901 pointer into the resolved document, percent-decoded with
+   * `~0` / `~1` retained. Guaranteed to resolve against the document
+   * `check` graded; that guarantee is why the field is absent rather
+   * than best-effort.
+   */
+  pointer: string;
+  /** What following `pointer` gets you, and what editing there affects. */
+  anchor: FindingAnchor;
+}
+
+/**
+ * A schema lint finding's target, taken from what the compile
+ * recorded rather than re-derived here.
+ *
+ * The anchor is decided where the knowledge is: the walk knows whether
+ * it crossed a `$ref`, the validator knows whether it unwrapped one
+ * before the compile started, and the rule knows whether its verdict
+ * depends on the route. None of those is visible from the finished
+ * finding, and an earlier version of this function that inferred the
+ * anchor from `schemaPath` got it wrong for exactly the case the
+ * validator handles.
+ */
+function targetForSchemaLint(issue: SchemaLintIssue): FindingTarget | undefined {
+  if (issue.pointer === undefined || issue.anchor === undefined) return undefined;
+  return { pointer: issue.pointer, anchor: issue.anchor };
 }
 
 /**
@@ -439,6 +536,7 @@ export async function checkCommand(
         code: issue.code,
         location: issue.pointer,
         message: issue.message,
+        target: { pointer: issue.pointer, anchor: "node" },
       });
     }
   }
@@ -488,6 +586,7 @@ export async function checkCommand(
           code: issue.code,
           location: issue.context === undefined ? where : `${issue.context} -> ${where}`,
           message: issue.message,
+          target: targetForSchemaLint(issue),
         });
       }
     } catch (err) {
@@ -522,6 +621,7 @@ export async function checkCommand(
         code: issue.code,
         location: issue.location,
         message: issue.message,
+        target: { pointer: issue.location, anchor: "node" },
       });
     }
   }
@@ -547,6 +647,7 @@ export async function checkCommand(
         location: issue.pointer,
         message: issue.message,
         reasons: issue.reasons,
+        target: { pointer: issue.pointer, anchor: "node" },
       });
     }
   }
@@ -565,6 +666,7 @@ export async function checkCommand(
         code: issue.code,
         location: issue.pointer,
         message: issue.message,
+        target: { pointer: issue.pointer, anchor: "node" },
       });
     }
   }

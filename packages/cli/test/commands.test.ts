@@ -282,6 +282,122 @@ describe("resolveCommand", () => {
     }
   });
 
+  describe("machine-readable finding target (#517)", () => {
+    const findingsOf = async (spec: unknown): Promise<CheckFinding[]> => {
+      const { io, stdout } = memoryIo([["spec.json", spec]]);
+      await checkCommand(
+        { spec: "spec.json", overlays: [], format: "json", options: textOpts },
+        io,
+      );
+      return (JSON.parse(stdout.value) as { findings: CheckFinding[] }).findings;
+    };
+
+    it("anchors a hygiene finding at the node, since no ref was crossed", async () => {
+      const findings = await findingsOf(dirtySpec());
+      const unused = findings.find((f) => f.code === "unused-component");
+      expect(unused?.target).toEqual({
+        pointer: "/components/schemas/Orphan",
+        anchor: "node",
+      });
+    });
+
+    it("anchors an inline schema finding at the node", async () => {
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [{ name: "q", in: "query", schema: { type: "string", minLenght: 1 } }],
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+      const issue = findings.find((f) => f.code === "unknown-keyword");
+      expect(issue?.target).toEqual({
+        pointer: "/paths/~1t/get/parameters/0/schema",
+        anchor: "node",
+      });
+    });
+
+    it("anchors a ref-crossing, route-independent finding at the definition", async () => {
+      // Codex's tripwire, half one: a rule whose verdict is a property
+      // of the text it points at, reached through a `$ref`.
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: { schemas: { T: { type: "object", properties: { a: { minLenght: 1 } } } } },
+        paths: {
+          "/t": {
+            post: {
+              requestBody: {
+                content: { "application/json": { schema: { $ref: "#/components/schemas/T" } } },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+      const issue = findings.find((f) => f.code === "unknown-keyword");
+      expect(issue?.target).toEqual({
+        pointer: "/components/schemas/T/properties/a",
+        anchor: "definition",
+      });
+    });
+
+    it("anchors a ref-crossing, route-dependent finding as scoped-definition", async () => {
+      // Half two. `required-not-in-properties` asks what is reachable at
+      // an instance position, so the component it points at may be
+      // perfectly correct for its other users. `definition` here would
+      // tell a reader to fix shared text that is not wrong.
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: {
+          schemas: {
+            T: { type: "object", properties: { name: { type: "string" } }, required: ["nam"] },
+          },
+        },
+        paths: {
+          "/t": {
+            post: {
+              requestBody: {
+                content: { "application/json": { schema: { $ref: "#/components/schemas/T" } } },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+      const issue = findings.find((f) => f.code === "silent-rewrite/required-not-in-properties");
+      expect(issue?.target).toEqual({
+        pointer: "/components/schemas/T/required",
+        anchor: "scoped-definition",
+      });
+    });
+
+    it("omits the target on malformed rather than pointing somewhere unverified", async () => {
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        paths: {
+          "/t": {
+            post: {
+              requestBody: {
+                content: { "application/json": { schema: { type: "object", items: [1, 2] } } },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+      const malformed = findings.filter((f) => f.class === "malformed");
+      expect(malformed.length).toBeGreaterThan(0);
+      for (const f of malformed) expect(f.target).toBeUndefined();
+    });
+  });
+
   it("check --only conformance runs neither hygiene nor the schema compile", async () => {
     const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
     const result = await checkCommand(

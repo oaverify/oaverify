@@ -82,14 +82,16 @@ describe("walkSubschemas", () => {
         },
       );
       expect(seen).toEqual([
-        { pointer: "/components/schemas/Thing", schemaPath: [] },
+        { pointer: "/components/schemas/Thing", schemaPath: [], anchor: "node" },
         {
           pointer: "/components/schemas/Thing/properties/a",
           schemaPath: ["properties", "a"],
+          anchor: "node",
         },
         {
           pointer: "/components/schemas/Thing/properties/a/items",
           schemaPath: ["properties", "a", "items"],
+          anchor: "node",
         },
       ]);
     });

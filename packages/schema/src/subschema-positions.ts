@@ -68,6 +68,17 @@ export interface SubschemaPosition {
    * guess.
    */
   schemaPath?: readonly PathSegment[];
+  /**
+   * Whether `pointer` addresses text this position reached through a
+   * `$ref`, and so text that other use sites share.
+   *
+   * `"node"` until a `$ref` is crossed, `"definition"` after. A caller
+   * whose walk root was *itself* reached through a `$ref` says so with
+   * {@link WalkSubschemasOptions.anchor}: the walk cannot see a hop
+   * that happened before it started, and the HTTP validator makes
+   * exactly that hop when it unwraps a body schema's root ref.
+   */
+  anchor?: "node" | "definition";
 }
 
 /**
@@ -85,6 +96,13 @@ export interface WalkSubschemasOptions {
    * has no document, so there is no pointer to give.
    */
   pointer?: string;
+  /**
+   * What `pointer` already addresses when the walk starts. Pass
+   * `"definition"` when the root was reached through a `$ref`, so
+   * findings inside it are reported as shared text rather than as
+   * belonging to one use site. Defaults to `"node"`.
+   */
+  anchor?: "node" | "definition";
 }
 
 /**
@@ -153,6 +171,9 @@ export function stepPosition(at: SubschemaPosition, segment: PathSegment): Subsc
         ? undefined
         : `${at.pointer}/${escapePointerSegment(String(segment))}`,
     schemaPath: at.schemaPath === undefined ? undefined : [...at.schemaPath, segment],
+    // Descending never un-shares text: once inside a definition,
+    // everything below it is equally shared.
+    anchor: at.anchor,
   };
 }
 
@@ -164,9 +185,12 @@ export function stepPosition(at: SubschemaPosition, segment: PathSegment): Subsc
  * @internal
  */
 export function positionFields(at: SubschemaPosition): SubschemaPosition {
-  const out: { pointer?: string; schemaPath?: readonly PathSegment[] } = {};
+  const out: SubschemaPosition = {};
   if (at.pointer !== undefined) out.pointer = at.pointer;
   if (at.schemaPath !== undefined) out.schemaPath = at.schemaPath;
+  // An anchor describes what a pointer addresses, so it says nothing
+  // without one and is omitted rather than reported against nothing.
+  if (at.pointer !== undefined && at.anchor !== undefined) out.anchor = at.anchor;
   return out;
 }
 
@@ -240,6 +264,7 @@ export function walkSubschemas(
         // frame confusion this contract exists to remove.
         go(target, pathForRef(ref), {
           pointer: at.pointer === undefined ? undefined : pointerFromRefFragment(ref),
+          anchor: "definition",
         });
       }
     }
@@ -273,5 +298,5 @@ export function walkSubschemas(
       }
     }
   };
-  go(root, "", { pointer: opts.pointer, schemaPath: [] });
+  go(root, "", { pointer: opts.pointer, schemaPath: [], anchor: opts.anchor ?? "node" });
 }

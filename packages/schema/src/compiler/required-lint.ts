@@ -29,6 +29,18 @@ const IN_PLACE = [
 ] as const;
 const IN_PLACE_SET = new Set<string>(IN_PLACE);
 
+/**
+ * Promote a shared-text anchor to `scoped-definition`, leaving `node`
+ * alone: text reached without a `$ref` is not shared, so there is
+ * nothing to warn a reader about.
+ */
+function anchorAsScoped(
+  at: SubschemaPosition,
+): Pick<SchemaLintIssue, "pointer" | "schemaPath" | "anchor"> {
+  if (at.anchor !== "definition") return at;
+  return { ...at, anchor: "scoped-definition" };
+}
+
 /** Sentinel for "this instance can carry names we cannot enumerate". */
 const ANY_PROPERTY = " any";
 
@@ -271,6 +283,7 @@ export function collectRequiredIssues(
   root: unknown,
   resolve?: RequiredLintResolver,
   pointer?: string,
+  pointerAnchor?: "node" | "definition",
 ): SchemaLintIssue[] {
   if (!isObj(root)) return [];
   const issues: SchemaLintIssue[] = [];
@@ -357,6 +370,9 @@ export function collectRequiredIssues(
       if (isObj(target)) {
         walk(target, path, cur, underNot, {
           pointer: at.pointer === undefined ? undefined : pointerFromRefFragment(ref),
+          // Shared text from here down, which for this rule means
+          // `scoped-definition` on the way out.
+          anchor: "definition",
         });
       }
     }
@@ -379,7 +395,15 @@ export function collectRequiredIssues(
               code: "silent-rewrite/required-not-in-properties",
               keyword: "required",
               path,
-              ...positionFields(stepPosition(at, "required")),
+              // This rule's verdict depends on the route taken to the
+              // node: it asks which property names are reachable at an
+              // *instance* position, and a component says different
+              // things at different use sites. So where the pointer
+              // names shared text, it names text that may be perfectly
+              // correct for the definition's other users, and
+              // `definition` would send a reader to fix something that
+              // is not broken.
+              ...anchorAsScoped(positionFields(stepPosition(at, "required"))),
               message:
                 path.length === 0
                   ? `required: "${name}" at <root> is not declared in properties reachable here (likely a typo)`
@@ -451,7 +475,7 @@ export function collectRequiredIssues(
     "",
     rootClosure.unresolved ? UNKNOWN_INSTANCE : { schemas: rootClosure.schemas, unknown: false },
     false,
-    { pointer, schemaPath: [] },
+    { pointer, schemaPath: [], anchor: pointerAnchor ?? "node" },
   );
   return issues;
 }
