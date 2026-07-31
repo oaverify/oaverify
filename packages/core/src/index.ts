@@ -13,6 +13,7 @@ export {
   type ErrorParams,
   type ErrorParamsFor,
   type PathSegment,
+  type RejectionReason,
   type ValidationError,
 } from "./errors.js";
 

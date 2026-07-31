@@ -781,6 +781,85 @@ describe("checkDocumentExamples", () => {
     });
   });
 
+  describe("carries the structured cause alongside the prose (#580)", () => {
+    it("hands over the enum params without going through the message", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({
+          schema: { type: "string", enum: ["ACH", "CHECK"] },
+          example: "EFT",
+        }),
+      );
+
+      expect(issues[0]?.reasons).toEqual([
+        {
+          code: "enum",
+          path: [],
+          message: expect.any(String),
+          params: { allowed: ["ACH", "CHECK"], actual: "EFT" },
+        },
+      ]);
+    });
+
+    it("keeps the instance path as segments rather than pre-joining it", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({
+          schema: {
+            type: "object",
+            properties: {
+              // A key holding the separator the prose renderer joins on,
+              // so a joined path would be ambiguous and a segment array
+              // is not.
+              "a.b": { type: "object", properties: { c: { type: "string" } } },
+            },
+          },
+          example: { "a.b": { c: 1 } },
+        }),
+      );
+
+      expect(issues[0]?.reasons[0]?.path).toEqual(["a.b", "c"]);
+    });
+
+    it("reports every leaf even where the message stopped at five", () => {
+      const properties: Record<string, unknown> = {};
+      const example: Record<string, unknown> = {};
+      for (let i = 0; i < 8; i += 1) {
+        properties[`p${i}`] = { type: "string" };
+        example[`p${i}`] = i;
+      }
+
+      const issues = checkDocumentExamples(
+        withJsonBody({ schema: { type: "object", properties }, example }),
+      );
+
+      expect(issues[0]?.message).toContain("and 3 more");
+      expect(issues[0]?.reasons).toHaveLength(8);
+      expect(issues[0]?.reasons.map((r) => r.path[0])).toEqual([
+        "p0",
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5",
+        "p6",
+        "p7",
+      ]);
+    });
+
+    it("is empty rather than absent when a schema rejects with no leaves", () => {
+      const issues = checkDocumentExamples(
+        withJsonBody({ schema: { type: "string" }, example: "fine" }),
+      );
+      // Nothing invalid here; the point is that every issue this pass
+      // produces has the field, so a consumer never checks for it.
+      expect(issues).toEqual([]);
+      for (const issue of checkDocumentExamples(
+        withJsonBody({ schema: { type: "string" }, example: 1 }),
+      )) {
+        expect(Array.isArray(issue.reasons)).toBe(true);
+      }
+    });
+  });
+
   it("declines a schema that will not compile rather than guessing", () => {
     const issues = checkDocumentExamples(
       withJsonBody({ schema: { $ref: "#/components/schemas/Missing", example: "anything" } }),

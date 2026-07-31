@@ -4,6 +4,7 @@ import {
   defaultCommandIo,
   resolveCommand,
   validateCommand,
+  type CheckFinding,
   type CommandOptions,
 } from "../src/commands.js";
 import { memoryIo } from "./fixtures.js";
@@ -231,6 +232,54 @@ describe("resolveCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(stdout.value).toContain("conformance [type]");
     expect(stdout.value).toContain("/paths/~1t/get/responses/202/description");
+  });
+
+  it("check --format json carries structured reasons on examples findings (#580)", async () => {
+    // The point of the field: a consumer keying on the rejected value
+    // reads `params`, and never parses the message to find it.
+    const spec = {
+      openapi: "3.1.0",
+      info: { title: "X", version: "1.0.0" },
+      paths: {
+        "/t": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: { type: "string", enum: ["ACH", "CHECK"] },
+                  example: "EFT",
+                },
+              },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const { io, stdout } = memoryIo([["spec.json", spec]]);
+    await checkCommand({ spec: "spec.json", overlays: [], format: "json", options: textOpts }, io);
+
+    const findings = (JSON.parse(stdout.value) as { findings: CheckFinding[] }).findings;
+    const example = findings.find((f) => f.class === "examples");
+    expect(example?.reasons).toEqual([
+      {
+        code: "enum",
+        path: [],
+        message: expect.any(String),
+        params: { allowed: ["ACH", "CHECK"], actual: "EFT" },
+      },
+    ]);
+  });
+
+  it("check leaves reasons absent on the classes that produce no leaf causes", async () => {
+    const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
+    await checkCommand({ spec: "spec.json", overlays: [], format: "json", options: textOpts }, io);
+
+    const findings = (JSON.parse(stdout.value) as { findings: CheckFinding[] }).findings;
+    expect(findings.length).toBeGreaterThan(0);
+    for (const f of findings) {
+      if (f.class !== "examples") expect(f.reasons).toBeUndefined();
+    }
   });
 
   it("check --only conformance runs neither hygiene nor the schema compile", async () => {

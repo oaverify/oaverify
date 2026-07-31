@@ -25,7 +25,7 @@ import {
 import { checkDocumentExamples, createValidator } from "@oaverify/internal-validator";
 import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
 import type * as Esbuild from "esbuild";
-import type { OpenAPIDocument } from "@oaverify/internal-core";
+import type { OpenAPIDocument, RejectionReason } from "@oaverify/internal-core";
 import { analyzeSpec } from "@oaverify/stream";
 import { emitStandalone, type StandaloneDialect } from "./emit-standalone.js";
 import { emitSpec } from "./emit-spec.js";
@@ -275,6 +275,21 @@ export interface CheckFinding {
    * printed again.
    */
   occurrences?: number;
+  /**
+   * Structured cause data: every leaf the underlying check rejected the
+   * value on. The machine half of `message`, so a consumer never
+   * recovers `allowed` / `actual` by parsing prose (#580).
+   *
+   * Populated by the `examples` class only. Absent on every other
+   * class, which means "this class does not produce leaf-level causes",
+   * not "this finding had none". The field is class-agnostic by
+   * construction, so `conformance` (whose issues are validation
+   * failures of the same shape) can adopt it later without a rename.
+   *
+   * Uncapped, and so longer than `message` where `message` truncated.
+   * See {@link ExampleIssue.reasons}.
+   */
+  reasons?: readonly RejectionReason[];
 }
 
 /**
@@ -531,6 +546,7 @@ export async function checkCommand(
         code: issue.code,
         location: issue.pointer,
         message: issue.message,
+        reasons: issue.reasons,
       });
     }
   }
