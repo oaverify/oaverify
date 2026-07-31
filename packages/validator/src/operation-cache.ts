@@ -169,7 +169,18 @@ export interface OperationCacheDeps {
    * caller must not memoize it for request validation. `precompile`
    * memoizes only when nothing was reported.
    */
-  onCompileError?: (context: string, err: unknown) => void;
+  onCompileError?: (origin: SchemaOrigin, err: unknown) => void;
+  /**
+   * Adjust a body schema's origin to address what will actually be
+   * compiled, which differs from the use site when a root `$ref` is
+   * unwrapped (#517, defect 3c).
+   *
+   * Exposed because the guard has to name the unit *before* attempting
+   * it: a body that fails to compile is reported from here, and the
+   * schema that failed is the target, not the `$ref` node. Idempotent,
+   * since it derives the answer from the raw schema.
+   */
+  bodySchemaOrigin?: (schema: SchemaOrBoolean, origin: SchemaOrigin) => SchemaOrigin;
 }
 
 /**
@@ -358,14 +369,17 @@ export function buildOperationCache(
   // recorded against its own label and the unit is skipped, leaving the
   // rest of the operation to compile.
   const guarded = (
-    context: string,
+    origin: SchemaOrigin,
     run: () => CompiledTreeSchema,
   ): CompiledTreeSchema | undefined => {
     if (deps.onCompileError === undefined) return run();
     try {
       return run();
     } catch (err) {
-      deps.onCompileError(context, err);
+      // The origin, not just its label: a schema that failed to compile
+      // still has an address, and it is the same one a successful
+      // compile would have reported its lint issues against.
+      deps.onCompileError(origin, err);
       return undefined;
     }
   };
@@ -388,9 +402,8 @@ export function buildOperationCache(
         : contentSchema === undefined
           ? `${paramPointer}/schema`
           : `${paramPointer}/content/${escapePointer(firstContentMediaType(p) ?? "")}/schema`;
-    const v = guarded(context, () =>
-      deps.compile(schema, { label: context, pointer, anchor: paramAnchor }),
-    );
+    const origin: SchemaOrigin = { label: context, pointer, anchor: paramAnchor };
+    const v = guarded(origin, () => deps.compile(schema, origin));
     if (v === undefined) continue;
     const target =
       p.in === "path"
@@ -417,12 +430,14 @@ export function buildOperationCache(
           requestBodyPointer === undefined
             ? undefined
             : `${requestBodyPointer}/content/${escapePointer(mt)}/schema`;
-        const v = guarded(context, () =>
-          deps.compileForDirection(mto.schema as SchemaOrBoolean, "request", {
-            label: context,
-            pointer,
-            anchor: reachedThroughRef(pathMatch.operation.requestBody) ? "definition" : "node",
-          }),
+        const useSite: SchemaOrigin = {
+          label: context,
+          pointer,
+          anchor: reachedThroughRef(pathMatch.operation.requestBody) ? "definition" : "node",
+        };
+        const origin = deps.bodySchemaOrigin?.(mto.schema as SchemaOrBoolean, useSite) ?? useSite;
+        const v = guarded(origin, () =>
+          deps.compileForDirection(mto.schema as SchemaOrBoolean, "request", origin),
         );
         if (v !== undefined) bodyValidators.set(mt, v);
       }

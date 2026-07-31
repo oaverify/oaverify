@@ -308,8 +308,10 @@ export interface CheckFinding {
    *   at the offending node.
    * - `schema`: whenever the compile knew where its schema sat in the
    *   document, which is every schema `check` compiles.
-   * - `malformed`: not yet. The compile failed, so there is no lint
-   *   issue to carry a position.
+   * - `malformed`: the schema that would not compile, addressed as the
+   *   successful path would have addressed it. Absent where the failure
+   *   was not attributable to one schema (an operation-wide build
+   *   failure, or security).
    */
   target?: FindingTarget;
 }
@@ -572,6 +574,10 @@ export async function checkCommand(
           code: "malformed-schema",
           location: failure.context,
           message: failure.message,
+          target:
+            failure.pointer === undefined
+              ? undefined
+              : { pointer: failure.pointer, anchor: failure.anchor ?? "node" },
         });
       }
       for (const issue of validator.stats.schemaLintIssues) {

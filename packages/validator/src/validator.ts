@@ -54,6 +54,7 @@ import {
 import {
   buildOperationCache,
   operationLabel,
+  operationPointer,
   resolveOperationRef,
   type OperationCache,
   type ResponseCompiled,
@@ -73,6 +74,58 @@ function normalizeSecurityMode(
   value: "off" | "shape" | "strict" | undefined,
 ): "off" | SecurityMode {
   return value ?? "off";
+}
+
+/**
+ * Turn a failed compile into a {@link PrecompileFailure}, keeping the
+ * address the successful path would have used.
+ *
+ * `context` falls back to the empty string only when the site supplied
+ * no label, which no current site does; the field is required on the
+ * type and predates this.
+ */
+function failureFrom(origin: SchemaOrigin, err: unknown): PrecompileFailure {
+  const failure: PrecompileFailure = {
+    context: origin.label ?? "",
+    message: (err as Error).message,
+  };
+  if (origin.pointer !== undefined) {
+    failure.pointer = origin.pointer;
+    failure.anchor = origin.anchor ?? "node";
+  }
+  return failure;
+}
+
+/**
+ * Address one response body media type, matching what
+ * `getResponseValidator` would compile it under. Duplicated shape
+ * rather than shared because the guard runs before the getter and has
+ * to name the unit it is about to attempt.
+ */
+function responseBodyOrigin(response: ResponseCompiled, mediaType: string): SchemaOrigin {
+  return {
+    // The response's own label, not a per-media-type one. The guard
+    // reported `context` before this change and the compiler's message
+    // already names the media type, so narrowing it here would both
+    // change existing human output and say it twice.
+    label: response.context,
+    pointer:
+      response.pointer === undefined
+        ? undefined
+        : `${response.pointer}/content/${escapePointer(mediaType)}/schema`,
+    anchor: response.anchor,
+  };
+}
+
+/** The header counterpart to {@link responseBodyOrigin}. */
+function responseHeaderOrigin(response: ResponseCompiled, key: string): SchemaOrigin {
+  const header = response.headers.get(key);
+  return {
+    // See responseBodyOrigin: the label is the response's, unchanged.
+    label: response.context,
+    pointer: header?.pointer === undefined ? undefined : `${header.pointer}/schema`,
+    anchor: header?.anchor,
+  };
 }
 
 /**
@@ -157,6 +210,22 @@ export interface PrecompileFailure {
   context: string;
   /** The compiler's message, including the path within the schema. */
   message: string;
+  /**
+   * RFC 6901 pointer to the schema that would not compile,
+   * percent-decoded with `~0` / `~1` retained. The structural
+   * counterpart to `context`.
+   *
+   * A schema that failed to compile still has an address, and it is the
+   * same one its lint issues would have carried had it compiled.
+   * Absent under the same rule as everywhere else: no pointer into this
+   * document resolves to it.
+   */
+  pointer?: string;
+  /**
+   * What `pointer` addresses: `"definition"` when the schema was
+   * reached through a `$ref`, so editing there affects every use site.
+   */
+  anchor?: "node" | "definition";
 }
 
 export interface Validator {
@@ -1075,7 +1144,7 @@ export function createValidator(
    */
   const buildCache = (
     pathMatch: RouteMatch,
-    onCompileError?: (context: string, err: unknown) => void,
+    onCompileError?: (origin: SchemaOrigin, err: unknown) => void,
   ): OperationCache => {
     const cache = buildOperationCache(pathMatch, {
       resolveRef,
@@ -1083,6 +1152,10 @@ export function createValidator(
       // sees a two-argument `compile` and the default resolver is bound
       // here.
       compile: (schema, origin) => compile(schema, refResolver, origin),
+      bodySchemaOrigin: (schema, origin) => ({
+        ...origin,
+        ...bodySchemaCompiledPointer(schema, refResolver, origin.pointer, origin.anchor),
+      }),
       compileForDirection,
       onCompileError,
     });
@@ -1100,7 +1173,7 @@ export function createValidator(
         try {
           build();
         } catch (err) {
-          onCompileError(`${operationLabel(pathMatch)} security`, err);
+          onCompileError({ label: `${operationLabel(pathMatch)} security` }, err);
         }
       }
     }
@@ -1454,7 +1527,7 @@ export function createValidator(
     // Each unit is compiled inside its own guard so one malformed schema
     // costs its own operation and nothing else. Without it the first bad
     // schema in a document hid every finding behind it (#515).
-    const attempt = (context: string, run: () => void): void => {
+    const attempt = (origin: SchemaOrigin, run: () => void): void => {
       if (!collect) {
         run();
         return;
@@ -1462,7 +1535,7 @@ export function createValidator(
       try {
         run();
       } catch (err) {
-        failures.push({ context, message: (err as Error).message });
+        failures.push(failureFrom(origin, err));
       }
     };
 
@@ -1481,9 +1554,9 @@ export function createValidator(
         // finding in the operation was lost with no sign in the output
         // that it had been graded at all (#527).
         const before = failures.length;
-        attempt(where, () => {
-          cache = buildCache(match, (context, err) => {
-            failures.push({ context, message: (err as Error).message });
+        attempt({ label: where, pointer: operationPointer(match) }, () => {
+          cache = buildCache(match, (origin, err) => {
+            failures.push(failureFrom(origin, err));
           });
         });
         if (cache === undefined) continue;
@@ -1499,7 +1572,7 @@ export function createValidator(
       // and headers are not, so drive their lazy getters here.
       for (const [status, response] of cache.responses) {
         for (const mediaType of response.bodySchemas.keys()) {
-          attempt(response.context, () => {
+          attempt(responseBodyOrigin(response, mediaType), () => {
             getResponseValidator(
               response.bodyValidators,
               response.bodySchemas,
@@ -1510,7 +1583,7 @@ export function createValidator(
           });
         }
         for (const name of response.headerSchemas.keys()) {
-          attempt(response.context, () => {
+          attempt(responseHeaderOrigin(response, name), () => {
             getResponseValidator(
               response.headerValidators,
               response.headerSchemas,

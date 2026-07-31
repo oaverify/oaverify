@@ -1,3 +1,4 @@
+import { resolveJsonPointer } from "@oaverify/internal-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   checkCommand,
@@ -377,7 +378,9 @@ describe("resolveCommand", () => {
       });
     });
 
-    it("omits the target on malformed rather than pointing somewhere unverified", async () => {
+    it("addresses a malformed schema at the same place a lint issue would be", async () => {
+      // A schema that will not compile still has an address, and it is
+      // the one the successful path would have used.
       const findings = await findingsOf({
         openapi: "3.1.0",
         info: { title: "X", version: "1.0.0" },
@@ -392,9 +395,70 @@ describe("resolveCommand", () => {
           },
         },
       });
-      const malformed = findings.filter((f) => f.class === "malformed");
-      expect(malformed.length).toBeGreaterThan(0);
-      for (const f of malformed) expect(f.target).toBeUndefined();
+      const malformed = findings.find((f) => f.class === "malformed");
+      expect(malformed?.target).toEqual({
+        pointer: "/paths/~1t/post/requestBody/content/application~1json/schema",
+        anchor: "node",
+      });
+    });
+
+    it("addresses a malformed ref-rooted body at its component", async () => {
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: { schemas: { Bad: { type: "object", items: [1, 2] } } },
+        paths: {
+          "/t": {
+            post: {
+              requestBody: {
+                content: { "application/json": { schema: { $ref: "#/components/schemas/Bad" } } },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+      const malformed = findings.find((f) => f.class === "malformed");
+      expect(malformed?.target).toEqual({
+        pointer: "/components/schemas/Bad",
+        anchor: "definition",
+      });
+    });
+
+    it("keeps every emitted pointer resolvable against the graded document", async () => {
+      // The contract FindingTarget.pointer states. Asserted over a
+      // document that exercises several classes at once rather than
+      // per-case, since the guarantee is about the field and not about
+      // any one producer.
+      const doc = {
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: {
+          schemas: {
+            Orphan: { type: "object" },
+            Shared: { type: "object", properties: { a: { minLenght: 1 } }, required: ["nope"] },
+          },
+        },
+        paths: {
+          "/t/{id}": {
+            post: {
+              parameters: [{ name: "id", in: "path", required: true, schema: { nope: 1 } }],
+              requestBody: {
+                content: {
+                  "application/json": { schema: { $ref: "#/components/schemas/Shared" } },
+                },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      };
+      const findings = await findingsOf(doc);
+      const targeted = findings.filter((f) => f.target !== undefined);
+      expect(targeted.length).toBeGreaterThan(3);
+      for (const f of targeted) {
+        expect(() => resolveJsonPointer(doc, f.target!.pointer)).not.toThrow();
+      }
     });
   });
 
