@@ -215,7 +215,7 @@ describe("resolveCommand", () => {
     const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
     const result = await checkCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
     expect(result.exitCode).toBe(0);
-    expect(stdout.value).toContain("hygiene [unused-component]");
+    expect(stdout.value).toContain("hygiene      unused-component");
     expect(stdout.value).toContain("/components/schemas/Orphan");
   });
 
@@ -231,7 +231,7 @@ describe("resolveCommand", () => {
     const { io, stdout } = memoryIo([["spec.json", spec]]);
     const result = await checkCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
     expect(result.exitCode).toBe(0);
-    expect(stdout.value).toContain("conformance [type]");
+    expect(stdout.value).toContain("conformance  type");
     expect(stdout.value).toContain("/paths/~1t/get/responses/202/description");
   });
 
@@ -563,16 +563,42 @@ describe("resolveCommand", () => {
       io,
     );
     expect(result.exitCode).toBe(0);
-    expect(stdout.value).not.toContain("hygiene [");
-    expect(stdout.value).not.toContain("schema [");
+    expect(stdout.value).not.toMatch(/^\w+\s+hygiene\s/m);
+    expect(stdout.value).not.toMatch(/^\w+\s+schema\s/m);
   });
 
   it("check labels every finding with a severity", async () => {
     const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
     await checkCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
     // Severity leads each line, and the summary breaks the total down.
-    expect(stdout.value).toMatch(/^(warning|error|fatal)\s+\w+ \[/m);
+    expect(stdout.value).toMatch(/^(warning|error|fatal)\s+\w+\s+\S+$/m);
     expect(stdout.value).toMatch(/finding\(s\): /);
+  });
+
+  it("check renders each finding as a header, an indented message and a deeper location", async () => {
+    const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
+    await checkCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
+    // The three parts a reader asks for separately, each at its own left
+    // edge: severity/class/code flush, message at 2, location at 4. The
+    // indents are the whole point of the layout, so they are asserted
+    // rather than the wording of any one finding.
+    expect(stdout.value).toMatch(
+      /^warning {2}hygiene {6}unused-component\n {2}\S.*\n {4}at \/components\/schemas\/Orphan\n\n/m,
+    );
+  });
+
+  it("check wraps report prose to the requested width", async () => {
+    const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
+    await checkCommand({ spec: "spec.json", overlays: [], width: 40, options: textOpts }, io);
+    const wrapped = stdout.value
+      .split("\n")
+      .filter((l) => l.startsWith("  ") && !l.includes(" at "));
+    expect(wrapped.length).toBeGreaterThan(1);
+    // Wrapping is greedy on whitespace and never splits a token, so a
+    // line may overrun only when it holds one word that does not fit.
+    for (const line of wrapped) {
+      expect(line.length <= 40 || line.trim().split(/\s+/).length === 1).toBe(true);
+    }
   });
 
   it("check --fail-on error gates on specification violations and ignores the rest", async () => {
@@ -644,7 +670,7 @@ describe("resolveCommand", () => {
       { spec: "spec.json", overlays: [], only: ["conformance"], options: textOpts },
       io,
     );
-    expect(stdout.value).not.toContain("conformance [");
+    expect(stdout.value).not.toMatch(/^\w+\s+conformance\s/m);
   });
 
   it("check reports a shared component's defect once, with a count", async () => {

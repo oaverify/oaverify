@@ -106,7 +106,7 @@ describe("buildProgram: argv-level", () => {
     const mem = memoryIo([["spec.json", dirty]]);
     const out = await runCli(["check", "spec.json", "--fail-on", "warning"], mem);
     expect(out.exitCode).toBe(1);
-    expect(out.stdout).toContain("hygiene [unused-component]");
+    expect(out.stdout).toContain("hygiene      unused-component");
   });
 
   it("check --format json emits one classed findings array", async () => {

@@ -466,6 +466,45 @@ export type CheckSeverity = (typeof CHECK_SEVERITIES)[number];
 const HYGIENE_ERRORS = new Set(["path-param-undeclared", "path-param-unused"]);
 
 /**
+ * Column budget the `check` text report wraps to when the caller does
+ * not supply one, which covers every non-TTY run: a pipe, a redirect,
+ * `-o file`, and the tests.
+ *
+ * A fixed number rather than "unwrapped when not a terminal" so that
+ * redirected output is identical to what the terminal showed, which is
+ * what makes a saved report reviewable and a golden file diffable.
+ */
+const DEFAULT_REPORT_WIDTH = 80;
+
+/**
+ * Greedy word-wrap for report prose.
+ *
+ * Long unbroken tokens (JSON pointers, regex sources, schema paths) are
+ * allowed to overrun the width rather than being split. Breaking them
+ * would make the one part of a finding a reader needs to copy verbatim
+ * the one part they cannot select in a single go, and a pointer that
+ * wrapped mid-token reads as two pointers.
+ */
+function wrapText(text: string, width: number, first: string, rest: string): string[] {
+  const lines: string[] = [];
+  let prefix = first;
+  let line = "";
+  for (const word of text.split(/\s+/).filter((w) => w !== "")) {
+    if (line === "") {
+      line = word;
+    } else if (prefix.length + line.length + 1 + word.length <= width) {
+      line += ` ${word}`;
+    } else {
+      lines.push(prefix + line);
+      prefix = rest;
+      line = word;
+    }
+  }
+  if (line !== "") lines.push(prefix + line);
+  return lines.length === 0 ? [first.trimEnd()] : lines;
+}
+
+/**
  * Implement the `oaverify check <spec> ...` subcommand: answer "what is
  * wrong with my spec?".
  *
@@ -521,6 +560,18 @@ export async function checkCommand(
     failOn?: CheckSeverity;
     /** `"text"` (default) or `"json"`. */
     format?: "text" | "json";
+    /**
+     * Column budget the `"text"` report wraps prose to. Defaults to
+     * {@link DEFAULT_REPORT_WIDTH}.
+     *
+     * Passed in rather than read from `process.stdout` here so the width
+     * is an input to the rendering and not an ambient fact about the
+     * process: tests pin it, and a run whose output is redirected wraps
+     * the same way every time instead of inheriting whatever terminal
+     * happened to launch it. `cli.ts` supplies the terminal width when
+     * stdout is a TTY.
+     */
+    width?: number;
     options: CommandOptions;
   },
   io: CommandIo = defaultCommandIo(),
@@ -710,15 +761,38 @@ export async function checkCommand(
   } else if (findings.length === 0) {
     await sink(`check: no findings (${[...classes].sort().join(", ")})\n`);
   } else {
+    const width = args.width ?? DEFAULT_REPORT_WIDTH;
     for (const f of findings) {
-      const also =
-        f.occurrences === undefined ? "" : ` (and ${f.occurrences - 1} more operation(s))`;
+      // Three parts, each on its own line, because they answer three
+      // different questions and a reader is usually asking one of them:
+      // how bad and what kind (the header), where to look (`at`), and
+      // what is wrong (the message). Run together on one line, as this
+      // was, the header was the only part with a fixed position and the
+      // other two ran past the terminal width into a wrap the reader had
+      // to re-parse per finding.
+      //
       // Severity leads, because it is what decides whether you act now.
-      // Class follows, because it says which pass to look at. Padded so
-      // the classes line up when several severities are present.
-      await sink(
-        `${f.severity.padEnd(7)} ${f.class} [${f.code}] ${f.location}${also}: ${f.message}\n`,
-      );
+      // Class follows, because it says which pass to look at. Both are
+      // padded to a column so that the codes line up down the report and
+      // a scan for one severity is a scan down a fixed offset.
+      const also = f.occurrences === undefined ? "" : `  (+${f.occurrences - 1} more operation(s))`;
+      await sink(`${f.severity.padEnd(7)}  ${f.class.padEnd(11)}  ${f.code}${also}\n`);
+      // Message before location, at the shallower indent, because "what
+      // is wrong" is what a reader wants from a report they are skimming
+      // and "where" is what they want only once one finding has their
+      // attention. The location then hangs deeper, like a stack frame
+      // under an exception.
+      //
+      // The two indents are what separates them. At a common indent the
+      // blocks ran together, which mattered here because several
+      // messages open by restating the schema path that the location
+      // ends on, so the eye had no cue for where one stopped.
+      for (const line of wrapText(f.message, width, "  ", "  ")) await sink(`${line}\n`);
+      for (const line of wrapText(f.location, width, "    at ", "       ")) await sink(`${line}\n`);
+      // Blank line between findings: the report is scanned for the one
+      // that matters, and blocks separate where indentation alone does
+      // not once a message itself wraps to several lines.
+      await sink("\n");
     }
     // A bare total does not say whether to act. The breakdown does, and
     // it is the whole reason severity exists as a field.
@@ -726,7 +800,8 @@ export async function checkCommand(
       .reverse()
       .map((sev) => `${findings.filter((f) => f.severity === sev).length} ${sev}`)
       .join(", ");
-    await sink(`\n${findings.length} finding(s): ${bySeverity}\n`);
+    // No leading blank line: each finding block already ends with one.
+    await sink(`${findings.length} finding(s): ${bySeverity}\n`);
   }
 
   // A malformed schema outranks the gate: the document cannot be
