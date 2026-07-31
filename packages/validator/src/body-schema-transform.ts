@@ -20,7 +20,7 @@
 
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { type RefResolver } from "@oaverify/internal-schema";
-import { setSpecKey } from "@oaverify/internal-core";
+import { pointerFromRefFragment, setSpecKey } from "@oaverify/internal-core";
 import {
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
@@ -67,8 +67,39 @@ export function transformBodySchemaForDirection(
   refResolver: RefResolver,
   cache: Map<SchemaOrBoolean, SchemaOrBoolean>,
 ): SchemaOrBoolean {
-  const unwrapped = unwrapRootRef(schema, refResolver);
+  const unwrapped = unwrapRootRef(schema, refResolver).schema;
   return transformInner(unwrapped, direction, refResolver, cache);
+}
+
+/**
+ * Where the schema that {@link transformBodySchemaForDirection} will
+ * actually compile lives, given where the body's `schema:` keyword sits.
+ *
+ * These differ, and silently, which is defect 3c of #517. A body of
+ * `{$ref: "#/components/schemas/Req"}` is unwrapped before compiling,
+ * so every path in a resulting finding is relative to `Req` while the
+ * use site holds only the `$ref`. A pointer built from the use site
+ * therefore does not resolve: there is no `properties` under
+ * `.../content/application~1json/schema`.
+ *
+ * Returns the target's pointer when a root ref was unwrapped and the
+ * use site's otherwise. `undefined` in, `undefined` out: a caller with
+ * no document frame gains one here no more than anywhere else.
+ *
+ * @internal
+ */
+export function bodySchemaCompiledPointer(
+  schema: SchemaOrBoolean,
+  refResolver: RefResolver,
+  useSitePointer: string | undefined,
+): string | undefined {
+  if (useSitePointer === undefined) return undefined;
+  const { lastRef } = unwrapRootRef(schema, refResolver);
+  if (lastRef === undefined) return useSitePointer;
+  // An external or anchor target names no position in this document,
+  // so the honest answer is no pointer rather than the use site's,
+  // which addresses the `$ref` node and not what was compiled.
+  return pointerFromRefFragment(lastRef);
 }
 
 /**
@@ -112,9 +143,15 @@ export function createDirectionResolver(
  * than by us, and the compiler does that itself. Keeping the node also
  * lets `silent-rewrite/ref-siblings-oas30` see it and warn (#505).
  */
-function unwrapRootRef(schema: SchemaOrBoolean, refResolver: RefResolver): SchemaOrBoolean {
+function unwrapRootRef(
+  schema: SchemaOrBoolean,
+  refResolver: RefResolver,
+): { schema: SchemaOrBoolean; lastRef?: string } {
   const visited = new Set<SchemaOrBoolean>();
   let current = schema;
+  // The chain can be several hops; only the last one names what is
+  // compiled, which is what a pointer has to address.
+  let lastRef: string | undefined;
   while (
     typeof current === "object" &&
     current !== null &&
@@ -122,15 +159,17 @@ function unwrapRootRef(schema: SchemaOrBoolean, refResolver: RefResolver): Schem
     typeof (current as { $ref?: unknown }).$ref === "string" &&
     isBareRef(current as Record<string, unknown>)
   ) {
-    if (visited.has(current)) return current;
+    if (visited.has(current)) return { schema: current, lastRef };
     visited.add(current);
+    const ref = (current as { $ref: string }).$ref;
     try {
-      current = refResolver.resolve((current as { $ref: string }).$ref);
+      current = refResolver.resolve(ref);
     } catch {
-      return current;
+      return { schema: current, lastRef };
     }
+    lastRef = ref;
   }
-  return current;
+  return { schema: current, lastRef };
 }
 
 /**

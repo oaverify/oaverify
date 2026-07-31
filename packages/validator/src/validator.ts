@@ -37,9 +37,11 @@ import {
   type ValidationResult,
 } from "@oaverify/internal-schema";
 import { deserialize, matchParsedMediaType, matchResponseKey } from "./deserialize.js";
+import { escapePointer } from "./document-walk.js";
 import { getHeaderValue, getHeaderValueFast } from "./headers.js";
 import { reshapeResult, toFetchResult } from "./reshape.js";
 import {
+  bodySchemaCompiledPointer,
   createDirectionResolver,
   transformBodySchemaForDirection,
   type BodyDirection,
@@ -54,6 +56,8 @@ import {
   operationLabel,
   resolveOperationRef,
   type OperationCache,
+  type ResponseCompiled,
+  type SchemaOrigin,
 } from "./operation-cache.js";
 import { checkSecurity, compileOperationSecurity, type SecurityMode } from "./security.js";
 import { matchRequestBodyMediaType, validateBody, validateParameter } from "./validate-step.js";
@@ -937,12 +941,13 @@ export function createValidator(
   const compile = (
     schema: SchemaOrBoolean,
     resolver: RefResolver = refResolver,
-    label?: string,
+    origin?: SchemaOrigin,
   ): CompiledTreeSchema => {
     const cached = compiledCache.get(schema);
     if (cached !== undefined) return cached;
     const c = compileSchema(schema, {
-      label,
+      label: origin?.label,
+      pointer: origin?.pointer,
       dialect,
       formats,
       refResolver: resolver,
@@ -982,7 +987,7 @@ export function createValidator(
   const compileForDirection = (
     schema: SchemaOrBoolean,
     direction: BodyDirection,
-    label?: string,
+    origin?: SchemaOrigin,
   ): CompiledTreeSchema =>
     compile(
       transformBodySchemaForDirection(
@@ -992,7 +997,14 @@ export function createValidator(
         directionTransformCache[direction],
       ),
       directionResolvers[direction],
-      label,
+      {
+        label: origin?.label,
+        // The one place the pointer is not the use site. A body whose
+        // schema is a bare root `$ref` is unwrapped before compiling,
+        // so findings are relative to the target and the use site holds
+        // no `properties` to address (#517, defect 3c).
+        pointer: bodySchemaCompiledPointer(schema, refResolver, origin?.pointer),
+      },
     );
 
   // Look up a response-side validator, compiling on first access and
@@ -1005,7 +1017,7 @@ export function createValidator(
     schemas: Map<string, SchemaOrBoolean>,
     key: string,
     direction?: BodyDirection,
-    context?: string,
+    response?: ResponseCompiled,
   ): CompiledTreeSchema | undefined => {
     const hit = cache.get(key);
     if (hit !== undefined) return hit;
@@ -1013,16 +1025,29 @@ export function createValidator(
     if (schema === undefined) return undefined;
     // `direction === undefined` is the header path; bodies carry a media
     // type, headers a name.
+    const context = response?.context;
     const label =
       context === undefined
         ? undefined
         : direction === undefined
           ? `${context} header "${key}"`
           : `${context} body (${key})`;
+    // Headers are addressed from their own entry, which already
+    // accounts for a `$ref`'d Header Object; bodies hang off the
+    // response.
+    const pointer =
+      direction === undefined
+        ? response?.headers.get(key)?.pointer === undefined
+          ? undefined
+          : `${response.headers.get(key)?.pointer}/schema`
+        : response?.pointer === undefined
+          ? undefined
+          : `${response.pointer}/content/${escapePointer(key)}/schema`;
+    const origin: SchemaOrigin = { label, pointer };
     const c =
       direction === undefined
-        ? compile(schema, refResolver, label)
-        : compileForDirection(schema, direction, label);
+        ? compile(schema, refResolver, origin)
+        : compileForDirection(schema, direction, origin);
     cache.set(key, c);
     if (direction === "response") stats.responseBodiesCompiled += 1;
     return c;
@@ -1051,7 +1076,7 @@ export function createValidator(
       // The cache builder has no business choosing a ref resolver, so it
       // sees a two-argument `compile` and the default resolver is bound
       // here.
-      compile: (schema, label) => compile(schema, refResolver, label),
+      compile: (schema, origin) => compile(schema, refResolver, origin),
       compileForDirection,
       onCompileError,
     });
@@ -1252,7 +1277,7 @@ export function createValidator(
               responseCompiled.headerSchemas,
               lowered,
               undefined,
-              responseCompiled.context,
+              responseCompiled,
             );
             if (validator === undefined) continue;
             const value = deserialize(raw, {
@@ -1312,7 +1337,7 @@ export function createValidator(
               responseCompiled.bodySchemas,
               mt,
               "response",
-              responseCompiled.context,
+              responseCompiled,
             );
             if (validator !== undefined) {
               const r = validator.validate(res.body, ["body"]);
@@ -1474,7 +1499,7 @@ export function createValidator(
               response.bodySchemas,
               mediaType,
               "response",
-              response.context,
+              response,
             );
           });
         }
@@ -1485,7 +1510,7 @@ export function createValidator(
               response.headerSchemas,
               name,
               undefined,
-              response.context,
+              response,
             );
           });
         }
