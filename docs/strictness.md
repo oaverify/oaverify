@@ -52,17 +52,38 @@ validator.stats.schemaLintIssues;
 //   code: "unknown-keyword",
 //   keyword: "minimumx",
 //   path: "properties.age",
-//   context: "POST /users request body (application/json)",
+//   schemaPath: ["properties", "age"],
+//   pointer: "/paths/~1users/post/requestBody/content/application~1json/schema/properties/age",
+//   anchor: "node",
+//   location: "POST /users request body (application/json)",
 //   message: ...
 // }]
 ```
 
-`path` is relative to the schema that was compiled, so it locates the
-keyword inside that schema and not inside your document. `context` names
-what was being compiled, which is what turns the two into an address you
-can act on. A schema reached from several operations compiles once and
-carries the label of whichever got there first, so read `context` as a
-pointer to the schema rather than the full list of operations affected.
+Four fields say "where", and each answers a different question:
+
+- `pointer` addresses the resolved **document** (RFC 6901). Present when
+  the caller said where the compiled schema sits, which `createValidator`
+  always does. Absent below an external `$ref` or an anchor, which name a
+  schema but no position in this document.
+- `schemaPath` addresses a position inside the **compiled schema**, as
+  segments. Absent once a `$ref` has been crossed, since no segment list
+  spans a ref hop. A caller compiling a bare schema has this and no
+  pointer.
+- `path` is the same position rendered as a dotted string. Its base frame
+  is not stated and changes at a `$ref`, so prefer the two above.
+- `location` is text for a **human**, naming what was being compiled.
+
+`anchor` says what `pointer` addresses: `node` for the finding's own
+position, `definition` for shared text reached through a `$ref`, and
+`scoped-definition` for shared text where the finding holds only on this
+route. A schema reached from several operations compiles once and
+carries the label of whichever got there first, so read `location` as a
+hint about where to look rather than the full list of operations
+affected.
+
+`context` is a deprecated alias for `location` and carries the same
+value.
 
 The same label prefixes malformed-schema errors:
 

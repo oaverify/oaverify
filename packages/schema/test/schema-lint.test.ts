@@ -237,6 +237,42 @@ describe("schema lint: machine-readable position (#517)", () => {
     expect(issues.every((i) => i.pointer === undefined)).toBe(true);
   });
 
+  it("addresses the duplicate branch, not the node holding the composition", () => {
+    // The only rule that sets its own position; the stamping pass skips
+    // it deliberately, so a wrong index here goes unnoticed.
+    const [issue] = compileSchema(
+      {
+        properties: {
+          a: { oneOf: [{ type: "string" }, { type: "number" }, { type: "string" }] },
+        },
+      } as unknown as SchemaOrBoolean,
+      { dialect: jsonSchemaDialect, schemaLint: "strict", pointer: "" },
+    ).stats.schemaLintIssues.filter(
+      (i) => i.code === "silent-rewrite/redundant-composition-branches",
+    );
+
+    // Branch 2 duplicates branch 0, and it is branch 2 that is wrong.
+    expect(issue?.pointer).toBe("/properties/a/oneOf/2");
+    expect(issue?.schemaPath).toEqual(["properties", "a", "oneOf", 2]);
+  });
+
+  it("populates location alongside the deprecated context alias", () => {
+    // Both names carry the same value for one major. Without this, the
+    // alias could stop being written and the human output would quietly
+    // lose its operation label with every gate still green.
+    const [issue] = compileSchema(
+      { properties: { a: { nope: 1 } } } as unknown as SchemaOrBoolean,
+      {
+        dialect: jsonSchemaDialect,
+        schemaLint: "strict",
+        label: "POST /things request body (application/json)",
+      },
+    ).stats.schemaLintIssues;
+
+    expect(issue?.location).toBe("POST /things request body (application/json)");
+    expect(issue?.context).toBe(issue?.location);
+  });
+
   it("re-roots the pointer at the ref target while path keeps naming the use site", () => {
     // The two addressing rules, both right, now both machine-readable.
     // `required` is checked at the instance position it applies to, so

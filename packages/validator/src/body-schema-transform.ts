@@ -83,8 +83,8 @@ export function transformBodySchemaForDirection(
  * `.../content/application~1json/schema`.
  *
  * Returns the target's pointer when a root ref was unwrapped and the
- * use site's otherwise. `undefined` in, `undefined` out: a caller with
- * no document frame gains one here no more than anywhere else.
+ * use site's otherwise. A caller with no document frame gets an empty
+ * result, gaining one here no more than anywhere else.
  *
  * @internal
  */

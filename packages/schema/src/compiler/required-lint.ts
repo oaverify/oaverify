@@ -283,7 +283,7 @@ export function collectRequiredIssues(
   root: unknown,
   resolve?: RequiredLintResolver,
   pointer?: string,
-  pointerAnchor?: "node" | "definition",
+  anchor?: "node" | "definition",
 ): SchemaLintIssue[] {
   if (!isObj(root)) return [];
   const issues: SchemaLintIssue[] = [];
@@ -475,7 +475,7 @@ export function collectRequiredIssues(
     "",
     rootClosure.unresolved ? UNKNOWN_INSTANCE : { schemas: rootClosure.schemas, unknown: false },
     false,
-    { pointer, schemaPath: [], anchor: pointerAnchor ?? "node" },
+    { pointer, schemaPath: [], anchor: anchor ?? "node" },
   );
   return issues;
 }

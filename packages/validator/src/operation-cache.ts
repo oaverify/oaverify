@@ -6,7 +6,11 @@ import type {
   ResponseObject,
   SchemaOrBoolean,
 } from "@oaverify/internal-core";
-import { pointerFromRefFragment, resolveJsonPointer } from "@oaverify/internal-core";
+import {
+  pointerFromFragment,
+  pointerFromRefFragment,
+  resolveJsonPointer,
+} from "@oaverify/internal-core";
 import {
   isHeaderObjectPrototypePropertyName,
   isObjectPrototypePropertyName,
@@ -181,6 +185,15 @@ export interface OperationCacheDeps {
    * since it derives the answer from the raw schema.
    */
   bodySchemaOrigin?: (schema: SchemaOrBoolean, origin: SchemaOrigin) => SchemaOrigin;
+  /**
+   * Where a spec object that may be a `$ref` actually sits, following
+   * the chain. See {@link originOfResolved}, which this binds to the
+   * document; the cache builder holds no document of its own.
+   */
+  originOf?: (
+    raw: unknown,
+    base: { pointer?: string; anchor?: "node" | "definition" },
+  ) => { pointer?: string; anchor?: "node" | "definition" };
 }
 
 /**
@@ -247,38 +260,68 @@ export function operationPointer(pathMatch: RouteMatch): string | undefined {
 }
 
 /**
- * Pointer to a spec object that may have been reached through a `$ref`.
+ * How far a `$ref` chain is followed before it is called a cycle. Shared
+ * with {@link resolveOperationRef} so the address and the object it
+ * addresses can never come from different numbers of hops.
+ */
+const REF_CHAIN_MAX_HOPS = 32;
+
+/**
+ * Where a spec object that may have been reached through `$ref` sits,
+ * and what that address means for a reader.
  *
  * `resolveRef` returns the target and says nothing about how it got
  * there, so a caller building an address has to ask separately. A
  * `$ref`'d Parameter, Request Body, Response or Header is written in
  * `components`, and that is where a reader has to go to edit it; the
  * use-site pointer addresses the `$ref` node instead.
+ *
+ * Follows the **whole chain**, because only its last hop names the
+ * object that was resolved. A one-hop reading of `A -> B -> Parameter`
+ * addresses `A`, which holds no `schema` key, so every pointer built
+ * beneath it fails to resolve. That is the same defect as an unwrapped
+ * root ref on a body schema (#517, defect 3c); the two are one bug in
+ * two places.
+ *
+ * The anchor never downgrades: a caller passing `"definition"` because
+ * its own container was `$ref`'d keeps it whether or not this object
+ * adds a hop of its own. A response header inside a `$ref`'d Response
+ * is shared text even when the Header Object is written inline.
+ *
+ * @internal
  */
-function pointerOfResolved(raw: unknown, useSitePointer: string | undefined): string | undefined {
-  if (useSitePointer === undefined) return undefined;
-  if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
-    const ref = (raw as { $ref?: unknown }).$ref;
-    if (typeof ref === "string") return pointerFromRefFragment(ref);
+export function originOfResolved(
+  spec: unknown,
+  raw: unknown,
+  base: { pointer?: string; anchor?: "node" | "definition" },
+): { pointer?: string; anchor?: "node" | "definition" } {
+  if (base.pointer === undefined) return {};
+  let current = raw;
+  let lastRef: string | undefined;
+  for (let hops = 0; hops < REF_CHAIN_MAX_HOPS; hops += 1) {
+    if (typeof current !== "object" || current === null || Array.isArray(current)) break;
+    const ref = (current as { $ref?: unknown }).$ref;
+    if (typeof ref !== "string") break;
+    // An external or anchor target names no position in this document,
+    // so no pointer is the honest answer rather than the use site's,
+    // which addresses the `$ref` node and not what was resolved.
+    if (!ref.startsWith("#/")) return {};
+    lastRef = ref;
+    try {
+      current = resolveJsonPointer(spec, pointerFromFragment(ref.slice(1)));
+    } catch {
+      // Unresolvable here is not this function's problem to report; the
+      // compile that follows will fail and say so with its own message.
+      return {};
+    }
   }
-  return useSitePointer;
-}
-
-/** Did `pointerOfResolved` follow a `$ref` to build its answer? */
-function reachedThroughRef(raw: unknown): boolean {
-  return (
-    typeof raw === "object" &&
-    raw !== null &&
-    !Array.isArray(raw) &&
-    typeof (raw as { $ref?: unknown }).$ref === "string"
-  );
+  if (lastRef === undefined) return { pointer: base.pointer, anchor: base.anchor ?? "node" };
+  return { pointer: pointerFromRefFragment(lastRef), anchor: "definition" };
 }
 
 /**
- * First schema found inside a parameter's `content` map (OAS 3.x spec
- * permits exactly one entry, but the API is keyed by media type).
- * Split out so both the cache builder and the per-request parameter
- * step can agree on the lookup rule.
+ * Media type of the entry {@link firstContentSchema} picks, so a caller
+ * addressing that schema can name the `content` key it sits under.
  *
  * @internal
  */
@@ -290,6 +333,14 @@ export function firstContentMediaType(p: ParameterObject): string | undefined {
   return undefined;
 }
 
+/**
+ * First schema found inside a parameter's `content` map (OAS 3.x spec
+ * permits exactly one entry, but the API is keyed by media type).
+ * Split out so both the cache builder and the per-request parameter
+ * step can agree on the lookup rule.
+ *
+ * @internal
+ */
 export function firstContentSchema(p: ParameterObject): SchemaOrBoolean | undefined {
   if (p.content === undefined) return undefined;
   for (const mto of Object.values(p.content)) {
@@ -338,15 +389,14 @@ export function buildOperationCache(
   ];
   const byKey = new Map<
     string,
-    { object: ParameterObject; pointer?: string; anchor: "node" | "definition" }
+    { object: ParameterObject; pointer?: string; anchor?: "node" | "definition" }
   >();
   for (const { raw, pointer } of rawParams) {
     const resolved = deps.resolveRef<ParameterObject>(raw);
     if (resolved === undefined) continue;
     byKey.set(`${resolved.in}\0${resolved.name}`, {
       object: resolved,
-      pointer: pointerOfResolved(raw, pointer),
-      anchor: reachedThroughRef(raw) ? ("definition" as const) : ("node" as const),
+      ...deps.originOf?.(raw, { pointer, anchor: "node" }),
     });
   }
   const parameterEntries = [...byKey.values()];
@@ -376,9 +426,9 @@ export function buildOperationCache(
     try {
       return run();
     } catch (err) {
-      // The origin, not just its label: a schema that failed to compile
-      // still has an address, and it is the same one a successful
-      // compile would have reported its lint issues against.
+      // The whole origin reaches the collector: a schema that failed to
+      // compile still has an address, and it is the same one a
+      // successful compile would have reported its lint issues against.
       deps.onCompileError(origin, err);
       return undefined;
     }
@@ -395,13 +445,17 @@ export function buildOperationCache(
     if (schema === undefined) continue;
     const context = `${operation} ${p.in} parameter "${p.name}"`;
     // A `content`-bearing parameter holds its schema one level deeper,
-    // under the single media type the spec permits.
+    // under the single media type the spec permits. No media type means
+    // no address for it, which is absence rather than `/content//schema`.
+    const contentMediaType = contentSchema === undefined ? undefined : firstContentMediaType(p);
     const pointer =
       paramPointer === undefined
         ? undefined
         : contentSchema === undefined
           ? `${paramPointer}/schema`
-          : `${paramPointer}/content/${escapePointer(firstContentMediaType(p) ?? "")}/schema`;
+          : contentMediaType === undefined
+            ? undefined
+            : `${paramPointer}/content/${escapePointer(contentMediaType)}/schema`;
     const origin: SchemaOrigin = { label: context, pointer, anchor: paramAnchor };
     const v = guarded(origin, () => deps.compile(schema, origin));
     if (v === undefined) continue;
@@ -418,22 +472,23 @@ export function buildOperationCache(
 
   const bodyValidators = new Map<string, CompiledTreeSchema>();
   const requestBody = deps.resolveRef<RequestBodyObject>(pathMatch.operation.requestBody);
-  const requestBodyPointer = pointerOfResolved(
-    pathMatch.operation.requestBody,
-    opPointer === undefined ? undefined : `${opPointer}/requestBody`,
-  );
+  const requestBodyOrigin =
+    deps.originOf?.(pathMatch.operation.requestBody, {
+      pointer: opPointer === undefined ? undefined : `${opPointer}/requestBody`,
+      anchor: "node",
+    }) ?? {};
   if (requestBody?.content) {
     for (const [mt, mto] of Object.entries(requestBody.content)) {
       if (mto.schema) {
         const context = `${operation} request body (${mt})`;
         const pointer =
-          requestBodyPointer === undefined
+          requestBodyOrigin.pointer === undefined
             ? undefined
-            : `${requestBodyPointer}/content/${escapePointer(mt)}/schema`;
+            : `${requestBodyOrigin.pointer}/content/${escapePointer(mt)}/schema`;
         const useSite: SchemaOrigin = {
           label: context,
           pointer,
-          anchor: reachedThroughRef(pathMatch.operation.requestBody) ? "definition" : "node",
+          anchor: requestBodyOrigin.anchor,
         };
         const origin = deps.bodySchemaOrigin?.(mto.schema as SchemaOrBoolean, useSite) ?? useSite;
         const v = guarded(origin, () =>
@@ -449,10 +504,12 @@ export function buildOperationCache(
   for (const [status, rawResponse] of Object.entries(rawResponses)) {
     const response = deps.resolveRef<ResponseObject>(rawResponse);
     if (response === undefined) continue;
-    const responsePointer = pointerOfResolved(
-      rawResponse,
-      opPointer === undefined ? undefined : `${opPointer}/responses/${escapePointer(status)}`,
-    );
+    const responseOrigin =
+      deps.originOf?.(rawResponse, {
+        pointer:
+          opPointer === undefined ? undefined : `${opPointer}/responses/${escapePointer(status)}`,
+        anchor: "node",
+      }) ?? {};
     const bodySchemas = new Map<string, SchemaOrBoolean>();
     const headerSchemas = new Map<string, SchemaOrBoolean>();
     const headersResolved = new Map<
@@ -471,21 +528,23 @@ export function buildOperationCache(
       headersResolved.set(lower, {
         name,
         object: hdr,
-        anchor: reachedThroughRef(rawHdr) ? "definition" : "node",
-        pointer: pointerOfResolved(
-          rawHdr,
-          responsePointer === undefined
-            ? undefined
-            : `${responsePointer}/headers/${escapePointer(name)}`,
-        ),
+        // The response's anchor is the base, so a header written inline
+        // inside a `$ref`'d Response is still shared text.
+        ...deps.originOf?.(rawHdr, {
+          pointer:
+            responseOrigin.pointer === undefined
+              ? undefined
+              : `${responseOrigin.pointer}/headers/${escapePointer(name)}`,
+          anchor: responseOrigin.anchor,
+        }),
       });
       if (hdr.schema) headerSchemas.set(lower, hdr.schema);
     }
     responses.set(status, {
       object: response,
       context: `${operation} ${status} response`,
-      pointer: responsePointer,
-      anchor: reachedThroughRef(rawResponse) ? "definition" : "node",
+      pointer: responseOrigin.pointer,
+      anchor: responseOrigin.anchor,
       headers: headersResolved,
       bodySchemas,
       bodyMediaTypes: compileMediaTypePatterns(bodySchemas.keys()),
@@ -536,7 +595,7 @@ export function resolveOperationRef<T>(
   value: T | ReferenceObject | undefined,
 ): T | undefined {
   let current: unknown = value;
-  for (let hops = 0; hops < 32; hops++) {
+  for (let hops = 0; hops < REF_CHAIN_MAX_HOPS; hops++) {
     if (current === undefined || current === null || typeof current !== "object") {
       return current as T | undefined;
     }
@@ -547,7 +606,7 @@ export function resolveOperationRef<T>(
         `external ref "${ref}" not resolved; run resolveSpec() from @oaverify/core/spec over the document before passing it to createValidator()`,
       );
     }
-    current = resolveJsonPointer(spec, ref.slice(1));
+    current = resolveJsonPointer(spec, pointerFromFragment(ref.slice(1)));
   }
   throw new Error(`$ref chain exceeded 32 hops (possible cycle)`);
 }

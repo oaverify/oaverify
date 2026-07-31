@@ -316,9 +316,16 @@ export interface CheckFinding {
    * - `schema`: whenever the compile knew where its schema sat in the
    *   document, which is every schema `check` compiles.
    * - `malformed`: the schema that would not compile, addressed as the
-   *   successful path would have addressed it. Absent where the failure
-   *   was not attributable to one schema (an operation-wide build
-   *   failure, or security).
+   *   successful path would have addressed it. Where the failure is
+   *   operation-wide rather than owned by one schema (an unresolvable
+   *   `$ref` that aborts the build), the pointer names the operation
+   *   instead, which is the smallest unit that failed. Absent for a
+   *   security compile, which has no document position of its own.
+   *
+   * One finding can stand for several occurrences of the same defect
+   * (see `occurrences`), and `target` then addresses the first one
+   * reached, exactly as `location` does. It locates the defect; it does
+   * not enumerate every site affected.
    */
   target?: FindingTarget;
 }
@@ -334,8 +341,10 @@ export interface CheckFinding {
  */
 export type FindingAnchor =
   /**
-   * The pointer is the offending node's own address. No `$ref` was
-   * crossed to reach it, so editing there affects nothing else.
+   * The pointer is the finding's own address, reached without crossing
+   * a `$ref`, so editing there affects nothing else. Usually the
+   * offending node; for an operation-wide build failure it is the
+   * operation, which is the smallest unit that failed.
    */
   | "node"
   /**
@@ -389,9 +398,7 @@ export interface FindingTarget {
  * it crossed a `$ref`, the validator knows whether it unwrapped one
  * before the compile started, and the rule knows whether its verdict
  * depends on the route. None of those is visible from the finished
- * finding, and an earlier version of this function that inferred the
- * anchor from `schemaPath` got it wrong for exactly the case the
- * validator handles.
+ * finding, so this copies rather than infers.
  */
 function targetForSchemaLint(issue: SchemaLintIssue): FindingTarget | undefined {
   if (issue.pointer === undefined || issue.anchor === undefined) return undefined;
@@ -400,10 +407,21 @@ function targetForSchemaLint(issue: SchemaLintIssue): FindingTarget | undefined 
 
 /**
  * Add a schema finding, collapsing a repeat of one already recorded.
- * Keyed on code plus message, which already carries the path.
+ *
+ * Keyed on code plus message plus address. The message carries only the
+ * path *within* a schema, so two distinct components with the same
+ * defect at the same relative path (`Alpha.properties.a` and
+ * `Beta.properties.a`) produce the same message and used to collapse
+ * into one finding, hiding the second entirely. Those are two edits in
+ * two places, not one defect seen twice.
+ *
+ * Including the pointer separates them and still collapses what #520
+ * wanted collapsed: a genuine repeat is the same defect at the same
+ * address, so it keys the same. `occurrences` therefore counts repeats
+ * of one address rather than of one message.
  */
 function addSchemaFinding(into: Map<string, CheckFinding>, finding: CheckFinding): void {
-  const key = `${finding.code}\u0000${finding.message}`;
+  const key = `${finding.code}\u0000${finding.message}\u0000${finding.target?.pointer ?? ""}`;
   const already = into.get(key);
   if (already === undefined) {
     into.set(key, finding);

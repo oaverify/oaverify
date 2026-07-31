@@ -82,8 +82,8 @@ export interface ExampleIssue {
    * Every leaf the schema rejected this value on, in machine-readable
    * form. Always present, possibly empty.
    *
-   * Uncapped and undeduplicated, which is deliberately not what
-   * `message` does. Truncation there serves a terminal, and a consumer
+   * Uncapped and undeduplicated, where `message` caps and dedupes.
+   * Truncation there serves a terminal, and a consumer
    * has no such constraint; deduplication needs a key, and only the
    * consumer knows which one it cares about (a composition keyword
    * reports the same leaf once per branch it tried, and those entries

@@ -52,6 +52,7 @@ export {
 
 export {
   escapePointerSegment,
+  pointerFromFragment,
   pointerFromRefFragment,
   resolveJsonPointer,
 } from "./json-pointer.js";

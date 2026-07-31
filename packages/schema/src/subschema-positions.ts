@@ -221,15 +221,14 @@ export function positionFields(at: SubschemaPosition): SubschemaPosition {
 export function walkSubschemas(
   root: SchemaOrBoolean,
   visit: SubschemaVisitor,
-  resolveRef?: ((ref: string) => SchemaOrBoolean | undefined) | WalkSubschemasOptions,
-  options?: WalkSubschemasOptions,
+  options?: ((ref: string) => SchemaOrBoolean | undefined) | WalkSubschemasOptions,
 ): void {
-  // Third argument was the resolver before the position frames existed,
-  // and stays accepted in that form: every existing caller passes a
-  // function there, and an options object is what a caller wanting a
-  // pointer needs to pass instead.
+  // The third argument was the resolver before the position frames
+  // existed, and stays accepted in that form: every existing caller
+  // passes a function there. A caller wanting a pointer passes the
+  // options object instead.
   const opts: WalkSubschemasOptions =
-    typeof resolveRef === "function" ? { ...options, resolveRef } : { ...options, ...resolveRef };
+    typeof options === "function" ? { resolveRef: options } : (options ?? {});
   const resolve = opts.resolveRef;
   // Only ref targets are deduped, never structural positions: the same
   // schema object appearing under two keys is two places a reader may

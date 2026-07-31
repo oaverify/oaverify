@@ -1,4 +1,5 @@
 import {
+  pointerFromFragment,
   resolveJsonPointer,
   type ComponentsObject,
   type OpenAPIDocument,
@@ -472,8 +473,9 @@ function collectPathParams(
 }
 
 function resolveParamRef(ref: ReferenceObject, document: OpenAPIDocument): ParameterObject | null {
-  // resolveJsonPointer takes the fragment after the leading `#`.
-  const pointer = ref.$ref.startsWith("#") ? ref.$ref.slice(1) : ref.$ref;
+  // A `$ref` carries a URI fragment, so it is percent-decoded into a
+  // pointer before evaluation; `resolveJsonPointer` does none itself.
+  const pointer = pointerFromFragment(ref.$ref.startsWith("#") ? ref.$ref.slice(1) : ref.$ref);
   try {
     const target = resolveJsonPointer(document, pointer);
     if (target && typeof target === "object" && "in" in target && "name" in target) {

@@ -323,7 +323,7 @@ describe("resolveCommand", () => {
     });
 
     it("anchors a ref-crossing, route-independent finding at the definition", async () => {
-      // Codex's tripwire, half one: a rule whose verdict is a property
+      // Half one of the anchor invariant: a rule whose verdict is a property
       // of the text it points at, reached through a `$ref`.
       const findings = await findingsOf({
         openapi: "3.1.0",
@@ -348,7 +348,8 @@ describe("resolveCommand", () => {
     });
 
     it("anchors a ref-crossing, route-dependent finding as scoped-definition", async () => {
-      // Half two. `required-not-in-properties` asks what is reachable at
+      // Half two of the anchor invariant. `required-not-in-properties`
+      // asks what is reachable at
       // an instance position, so the component it points at may be
       // perfectly correct for its other users. `definition` here would
       // tell a reader to fix shared text that is not wrong.
@@ -423,6 +424,77 @@ describe("resolveCommand", () => {
         pointer: "/components/schemas/Bad",
         anchor: "definition",
       });
+    });
+
+    it("reports two components with the same defect separately", async () => {
+      // The message carries only the path within a schema, so these two
+      // share one. They are two edits in two places, and collapsing
+      // them hid the second entirely.
+      const body = (ref: string) => ({
+        post: {
+          requestBody: { content: { "application/json": { schema: { $ref: ref } } } },
+          responses: { "200": { description: "ok" } },
+        },
+      });
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: {
+          schemas: {
+            Alpha: { type: "object", properties: { a: { nope: 1 } } },
+            Beta: { type: "object", properties: { a: { nope: 1 } } },
+          },
+        },
+        paths: {
+          "/one": body("#/components/schemas/Alpha"),
+          "/two": body("#/components/schemas/Beta"),
+        },
+      });
+
+      const pointers = findings
+        .filter((f) => f.code === "unknown-keyword")
+        .map((f) => f.target?.pointer)
+        .sort((a, b) => (a ?? "").localeCompare(b ?? ""));
+      expect(pointers).toEqual([
+        "/components/schemas/Alpha/properties/a",
+        "/components/schemas/Beta/properties/a",
+      ]);
+    });
+
+    it("still collapses one defect reported at one address twice", async () => {
+      // What #520 wanted: the same address reached more than once is one
+      // edit, and is reported once.
+      const findings = await findingsOf({
+        openapi: "3.1.0",
+        info: { title: "X", version: "1.0.0" },
+        components: { schemas: { Shared: { type: "object", properties: { a: { nope: 1 } } } } },
+        paths: {
+          "/one": {
+            post: {
+              requestBody: {
+                content: {
+                  "application/json": { schema: { $ref: "#/components/schemas/Shared" } },
+                },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+          "/two": {
+            post: {
+              requestBody: {
+                content: {
+                  "application/json": { schema: { $ref: "#/components/schemas/Shared" } },
+                },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+
+      const shared = findings.filter((f) => f.code === "unknown-keyword");
+      expect(shared).toHaveLength(1);
+      expect(shared[0]?.target?.pointer).toBe("/components/schemas/Shared/properties/a");
     });
 
     it("keeps every emitted pointer resolvable against the graded document", async () => {

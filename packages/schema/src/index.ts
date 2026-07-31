@@ -176,7 +176,12 @@ export {
 // Generic subschema walk: intended for linters / introspection /
 // tooling. For rewriting use cases, the raw `SUBSCHEMA_*_POSITIONS`
 // constants are in `./internals`.
-export { walkSubschemas, type SubschemaVisitor } from "./subschema-positions.js";
+export {
+  walkSubschemas,
+  type SubschemaPosition,
+  type SubschemaVisitor,
+  type WalkSubschemasOptions,
+} from "./subschema-positions.js";
 
 // Keyword introspection: enumerate the built-in keyword set (with its
 // classification flags) for a dialect. Reads keyword metadata; pairs

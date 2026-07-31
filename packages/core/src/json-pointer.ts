@@ -1,15 +1,57 @@
 import type { JsonValue } from "./types.js";
 
 /**
- * Resolve an RFC 6901 JSON Pointer fragment (the part AFTER a leading
- * `#`) against a root document. Percent-encoded octets are decoded
- * before `~0`/`~1` per RFC 6901 §5.
+ * Turn a URI fragment into the JSON Pointer it encodes, per RFC 6901
+ * §6: percent-decode the whole fragment, and evaluate the result as a
+ * pointer.
+ *
+ * The two steps are separate operations on different inputs, and
+ * conflating them is a bug rather than a shortcut. A `$ref` value is a
+ * URI reference whose fragment is percent-encoded; a JSON Pointer
+ * string is not. `/a%2Fb` as a *fragment* addresses `a` then `b`, and
+ * as a *pointer* addresses the single key `a%2Fb`. So decoding belongs
+ * here, at the boundary, and {@link resolveJsonPointer} does none.
+ *
+ * Decoding the whole string at once is what makes a multi-byte sequence
+ * work: `%C3%A9` is one character in two escapes, and decoding each
+ * escape on its own throws `URIError` on the first half. The fallback
+ * runs only when the string as a whole will not decode, and then
+ * decodes each *run* of escapes together (still multi-byte safe) while
+ * leaving a stray `%` as written, since a bare `%` is legal in a key
+ * and refusing the whole reference over it would be worse.
+ *
+ * @public
+ */
+export function pointerFromFragment(text: string): string {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text.replace(/(?:%[0-9A-Fa-f]{2})+/g, (run) => {
+      try {
+        return decodeURIComponent(run);
+      } catch {
+        return run;
+      }
+    });
+  }
+}
+
+/**
+ * Evaluate an RFC 6901 JSON Pointer against a root document (§4).
+ *
+ * Takes a **JSON Pointer**, not a URI fragment. It does no
+ * percent-decoding: `%2F` is two ordinary characters inside a key, and
+ * `~1` is how a `/` inside a key is written. A caller holding a `$ref`
+ * has a fragment rather than a pointer and converts first, with
+ * {@link pointerFromFragment} or {@link pointerFromRefFragment}.
  *
  * Behavior:
- *   - `""` or `"/"` returns the root (the whole-document pointer).
+ *   - `""` returns the root, and is the only pointer that does. `"/"`
+ *     is one reference token whose value is the empty string, so it
+ *     addresses the member keyed `""` (§3). A document with an
+ *     empty-string key is rare and legal, and treating `"/"` as the
+ *     root would resolve a present pointer to the wrong node.
  *   - Any other pointer MUST start with `/`.
- *   - Stray `%` characters that aren't a valid `%XX` escape are
- *     preserved rather than decoded.
  *   - Numeric pointer segments traverse arrays by index.
  *   - Missing targets and pointers that walk into a primitive throw
  *     `Error`; use a `try`/`catch` at call sites that expect the
@@ -22,15 +64,11 @@ import type { JsonValue } from "./types.js";
  * @public
  */
 export function resolveJsonPointer(root: unknown, pointer: string): JsonValue {
-  if (pointer === "" || pointer === "/") return root as JsonValue;
-  // RFC 6901 §6: percent-decoding happens on the whole pointer first,
-  // then ~0/~1 decoding per §4. Only well-formed %XX escapes are decoded
-  // so stray '%' chars in keys are preserved.
-  const decoded = pointer.replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
-  if (!decoded.startsWith("/")) {
+  if (pointer === "") return root as JsonValue;
+  if (!pointer.startsWith("/")) {
     throw new Error(`invalid JSON pointer: ${pointer}`);
   }
-  const parts = decoded
+  const parts = pointer
     .slice(1)
     .split("/")
     .map((s) => s.replace(/~1/g, "/").replace(/~0/g, "~"));
@@ -67,8 +105,9 @@ export function escapePointerSegment(token: string): string {
  *
  * A `$ref` is a URI reference, so its fragment may carry percent-escapes
  * that a JSON Pointer does not: `#/components/schemas/My%20Schema`
- * addresses the key `My Schema`. RFC 6901 §6 decodes those before the
- * `~0` / `~1` step, which is what {@link resolveJsonPointer} does.
+ * addresses the key `My Schema`. The decode happens here, once, via
+ * {@link pointerFromFragment}; the pointer this returns is ready to
+ * hand to {@link resolveJsonPointer} and must not be decoded again.
  *
  * Reported pointers are therefore in the **decoded** form, with `~0` and
  * `~1` retained. That is the form {@link escapePointerSegment} produces,
@@ -87,7 +126,5 @@ export function escapePointerSegment(token: string): string {
  */
 export function pointerFromRefFragment(ref: string): string | undefined {
   if (!ref.startsWith("#/")) return undefined;
-  // Only well-formed %XX escapes are decoded, so a stray `%` in a key
-  // survives, matching resolveJsonPointer.
-  return ref.slice(1).replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
+  return pointerFromFragment(ref.slice(1));
 }

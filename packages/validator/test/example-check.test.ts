@@ -845,18 +845,29 @@ describe("checkDocumentExamples", () => {
       ]);
     });
 
-    it("is empty rather than absent when a schema rejects with no leaves", () => {
-      const issues = checkDocumentExamples(
-        withJsonBody({ schema: { type: "string" }, example: "fine" }),
-      );
-      // Nothing invalid here; the point is that every issue this pass
-      // produces has the field, so a consumer never checks for it.
-      expect(issues).toEqual([]);
-      for (const issue of checkDocumentExamples(
+    it("carries a non-empty reasons array on every issue this pass emits", () => {
+      // The field is required, so a consumer never tests for it. Every
+      // rejection path this pass can reach produces at least one leaf,
+      // so `reasons` being empty would itself be the bug; asserting
+      // only `Array.isArray` would pass on a permanently empty array.
+      const cases = [
         withJsonBody({ schema: { type: "string" }, example: 1 }),
-      )) {
-        expect(Array.isArray(issue.reasons)).toBe(true);
+        withJsonBody({ schema: { type: "string", enum: ["a"] }, example: "b" }),
+        withJsonBody({
+          schema: { type: "object", properties: { a: { type: "string" } } },
+          example: { a: 1 },
+        }),
+      ];
+      for (const doc of cases) {
+        const issues = checkDocumentExamples(doc);
+        expect(issues).toHaveLength(1);
+        expect(issues[0]?.reasons.length).toBeGreaterThan(0);
       }
+      // And a valid example yields no issue at all, so the field's
+      // contract is never exercised against something that validates.
+      expect(
+        checkDocumentExamples(withJsonBody({ schema: { type: "string" }, example: "fine" })),
+      ).toEqual([]);
     });
   });
 

@@ -219,6 +219,202 @@ describe("schema lint pointers through the validator", () => {
     expectResolves(doc, header?.pointer);
   });
 
+  describe("$ref chains through spec objects", () => {
+    // The gap that let a non-resolving pointer ship: the branch taught
+    // `unwrapRootRef` to follow a *schema* chain to its end, and did not
+    // carry that to Parameter / Request Body / Response / Header, whose
+    // pointers were built from the first hop while `resolveRef` followed
+    // the whole chain. Only the last hop names the object resolved.
+    it("addresses a chained $ref'd parameter at the end of the chain", () => {
+      const doc = {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        components: {
+          parameters: {
+            Alias: { $ref: "#/components/parameters/Real" },
+            Real: { name: "page", in: "query", schema: { type: "integer", minimun: 1 } },
+          },
+        },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [{ $ref: "#/components/parameters/Alias" }],
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      } as unknown as OpenAPIDocument;
+
+      const issue = lint(doc).find((i) => i.code === "unknown-keyword");
+      expect(issue?.pointer).toBe("/components/parameters/Real/schema");
+      expect(issue?.anchor).toBe("definition");
+      expectResolves(doc, issue?.pointer);
+      // The first hop holds no `schema`, so a one-hop reading throws.
+      expect(() => resolveJsonPointer(doc, "/components/parameters/Alias/schema")).toThrow();
+    });
+
+    it("addresses a chained $ref'd request body at the end of the chain", () => {
+      const doc = {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        components: {
+          requestBodies: {
+            Alias: { $ref: "#/components/requestBodies/Real" },
+            Real: {
+              content: {
+                "application/json": { schema: { type: "object", properties: { a: { nope: 1 } } } },
+              },
+            },
+          },
+        },
+        paths: {
+          "/t": {
+            post: {
+              requestBody: { $ref: "#/components/requestBodies/Alias" },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      } as unknown as OpenAPIDocument;
+
+      const issue = lint(doc).find((i) => i.code === "unknown-keyword");
+      expect(issue?.pointer).toBe(
+        "/components/requestBodies/Real/content/application~1json/schema/properties/a",
+      );
+      expectResolves(doc, issue?.pointer);
+    });
+
+    it("addresses a chained $ref'd response at the end of the chain", () => {
+      const doc = {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        components: {
+          responses: {
+            Alias: { $ref: "#/components/responses/Real" },
+            Real: {
+              description: "e",
+              content: {
+                "application/json": { schema: { type: "object", properties: { a: { nope: 1 } } } },
+              },
+            },
+          },
+        },
+        paths: {
+          "/t": { get: { responses: { "500": { $ref: "#/components/responses/Alias" } } } },
+        },
+      } as unknown as OpenAPIDocument;
+
+      const issue = lint(doc).find((i) => i.code === "unknown-keyword");
+      expect(issue?.pointer).toBe(
+        "/components/responses/Real/content/application~1json/schema/properties/a",
+      );
+      expectResolves(doc, issue?.pointer);
+    });
+  });
+
+  describe("anchor, decided in the validator", () => {
+    // None of this was covered before: `reachedThroughRef` could have
+    // returned `false` unconditionally and every test stayed green,
+    // while every finding in a shared component claimed that editing it
+    // affected nothing else.
+    it("calls an inline schema's finding a node", () => {
+      const doc = {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [{ name: "q", in: "query", schema: { nope: 1 } }],
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      } as unknown as OpenAPIDocument;
+      expect(lint(doc).find((i) => i.code === "unknown-keyword")?.anchor).toBe("node");
+    });
+
+    it("calls a $ref'd component's finding a definition", () => {
+      const doc = {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        components: { parameters: { P: { name: "q", in: "query", schema: { nope: 1 } } } },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [{ $ref: "#/components/parameters/P" }],
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      } as unknown as OpenAPIDocument;
+      expect(lint(doc).find((i) => i.code === "unknown-keyword")?.anchor).toBe("definition");
+    });
+
+    it("calls a header inside a $ref'd response a definition, though the header is inline", () => {
+      // The anchor must not downgrade: the Header Object is written
+      // inline, but every operation referencing the Response shares it.
+      const doc = {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        components: {
+          responses: {
+            Err: {
+              description: "e",
+              headers: { "X-Rate-Limit": { schema: { type: "integer", minimun: 0 } } },
+              content: {
+                "application/json": { schema: { type: "object", properties: { a: { nope: 1 } } } },
+              },
+            },
+          },
+        },
+        paths: {
+          "/t": { get: { responses: { "500": { $ref: "#/components/responses/Err" } } } },
+        },
+      } as unknown as OpenAPIDocument;
+
+      const issues = lint(doc);
+      const header = issues.find((i) => i.keyword === "minimun");
+      const body = issues.find((i) => i.keyword === "nope");
+      expect(header?.anchor).toBe("definition");
+      expect(body?.anchor).toBe("definition");
+      expect(header?.pointer).toBe("/components/responses/Err/headers/X-Rate-Limit/schema");
+      expectResolves(doc, header?.pointer);
+    });
+  });
+
+  it("addresses a content-bearing parameter through its single media type", () => {
+    // A parameter with `content` holds its schema one level deeper than
+    // one with `schema`, so the pointer needs the media-type segment.
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [
+              {
+                name: "filter",
+                in: "query",
+                content: {
+                  "application/json": {
+                    schema: { type: "object", properties: { a: { nope: 1 } } },
+                  },
+                },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+
+    const issue = lint(doc).find((i) => i.code === "unknown-keyword");
+    expect(issue?.pointer).toBe(
+      "/paths/~1t/get/parameters/0/content/application~1json/schema/properties/a",
+    );
+    expectResolves(doc, issue?.pointer);
+  });
+
   it("escapes a path template rather than letting its slashes split the pointer", () => {
     const doc = {
       openapi: "3.1.0",

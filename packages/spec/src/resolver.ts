@@ -1,4 +1,8 @@
-import { resolveJsonPointer, type OpenAPIDocument } from "@oaverify/internal-core";
+import {
+  pointerFromFragment,
+  resolveJsonPointer,
+  type OpenAPIDocument,
+} from "@oaverify/internal-core";
 import type { DocumentReader } from "./reader.js";
 import { lintResolvedSpec, type SpecHygieneIssue } from "./lint.js";
 import {
@@ -20,8 +24,9 @@ import {
 import { isSubschemaKey } from "@oaverify/internal-core";
 
 // Re-export the canonical implementation so @oaverify/internal-spec consumers who
-// imported `resolveJsonPointer` keep working.
-export { resolveJsonPointer };
+// imported `resolveJsonPointer` keep working. `pointerFromFragment` rides
+// along because a caller holding a `$ref` needs it before the other.
+export { pointerFromFragment, resolveJsonPointer };
 
 /**
  * Options accepted by {@link resolveSpec}.
@@ -262,7 +267,8 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
         targetDoc = await reader.read(targetUri);
         docs.set(targetUri, targetDoc);
       }
-      const resolved = fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, fragment);
+      const resolved =
+        fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, pointerFromFragment(fragment));
       const inlined = await walk(resolved, baseDirOf(targetUri), stitchingUri, targetUri, false);
       visiting.delete(cycleKey(targetUri, fragment));
       const siblings: Mutable = {};
@@ -367,7 +373,9 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       docs.set(target.uri, targetDoc);
     }
     const content =
-      target.fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, target.fragment);
+      target.fragment === ""
+        ? targetDoc
+        : resolveJsonPointer(targetDoc, pointerFromFragment(target.fragment));
     setSpecKey(hoisted, name, await walk(content, baseDirOf(target.uri), null, target.uri, true));
   }
   fixUpDiscriminatorMappings();

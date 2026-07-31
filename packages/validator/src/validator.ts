@@ -55,6 +55,7 @@ import {
   buildOperationCache,
   operationLabel,
   operationPointer,
+  originOfResolved,
   resolveOperationRef,
   type OperationCache,
   type ResponseCompiled,
@@ -1036,7 +1037,7 @@ export function createValidator(
     const c = compileSchema(schema, {
       label: origin?.label,
       pointer: origin?.pointer,
-      pointerAnchor: origin?.anchor,
+      anchor: origin?.anchor,
       dialect,
       formats,
       refResolver: resolver,
@@ -1175,6 +1176,7 @@ export function createValidator(
         ...origin,
         ...bodySchemaCompiledPointer(schema, refResolver, origin.pointer, origin.anchor),
       }),
+      originOf: (raw, base) => originOfResolved(spec, raw, base),
       compileForDirection,
       onCompileError,
     });
