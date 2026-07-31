@@ -332,7 +332,7 @@ export function collectRequiredIssues(
   //
   // A node reached by two routes is visited once (`visited`), so `at`
   // names whichever route arrived first, the same caveat
-  // `SchemaLintIssue.context` carries.
+  // `SchemaLintIssue.location` carries.
   const walk = (
     node: unknown,
     path: string,

@@ -320,7 +320,11 @@ function runSchemaLint(
   // Stamped once here rather than at each `issues.push`: the context is
   // the same for every issue this compile produces, and threading it
   // through each construction site invites one of them to forget.
-  return context === undefined ? issues : issues.map((issue) => ({ ...issue, context }));
+  // Both names carry the same value for one major; see the
+  // deprecation on SchemaLintIssue.context.
+  return context === undefined
+    ? issues
+    : issues.map((issue) => ({ ...issue, context, location: context }));
 }
 
 /**
@@ -565,10 +569,29 @@ export interface SchemaLintIssue {
    * Names where the schema was *first* compiled. A component reached
    * from several operations compiles once and is reported once, against
    * whichever operation got there first, since the later ones hit the
-   * compile cache. Treat it as a pointer to the schema, not as the
+   * compile cache. Treat it as a hint about where to look, not as the
    * complete set of operations affected.
+   *
+   * @deprecated Renamed to {@link SchemaLintIssue.location}, which is
+   * the same value. `location` is the name this library reserves for
+   * human-readable text. Both are populated; this one is removed in the
+   * next major.
    */
   context?: string;
+  /**
+   * Human-readable text naming what was being compiled, from
+   * {@link CompileOptions.label}, so the position fields can be placed
+   * in the wider document. Absent when the caller set no label.
+   *
+   * Prose, and never parseable. For a machine address use
+   * {@link SchemaLintIssue.pointer} (the document) or
+   * {@link SchemaLintIssue.schemaPath} (inside the compiled schema).
+   *
+   * Carries the same caveat `context` did: it names where the schema
+   * was *first* compiled, since a component reached from several
+   * operations compiles once.
+   */
+  location?: string;
 }
 
 /**
@@ -781,7 +804,12 @@ export interface CompileOptions {
    * what is wrong without saying where to look. Set this to something
    * that locates the schema in the wider document (`POST /things
    * request body (application/json)`) and it prefixes thrown
-   * well-formedness errors and lands on {@link SchemaLintIssue.context}.
+   * well-formedness errors and lands on
+   * {@link SchemaLintIssue.location} (and on its deprecated alias
+   * `context`).
+   *
+   * Prose. {@link CompileOptions.pointer} is its structural sibling and
+   * is what a machine consumer reads.
    *
    * The HTTP validator sets it per operation, so `createValidator`
    * callers get this without asking.

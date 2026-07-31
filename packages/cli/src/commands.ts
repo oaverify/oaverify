@@ -257,11 +257,18 @@ export interface CheckFinding {
   /** The class-specific code, e.g. `"unused-component"`, `"unknown-keyword"`. */
   code: string;
   /**
-   * Where it is. An RFC 6901 pointer for hygiene findings (they address
-   * the resolved document) and a dotted schema path for schema-lint
-   * findings (they address a position inside one schema). Kept as one
-   * field because a consumer wants "where" more than it wants the
-   * addressing scheme.
+   * Where it is, for a human. Display text, and the format varies by
+   * class: a pointer for the classes that address the document, an
+   * operation label plus a path within the schema for the classes that
+   * do not.
+   *
+   * **Never parse this.** It carries no stable grammar and is free to
+   * change wording. {@link CheckFinding.target} is the machine address
+   * and is the field to switch on, key off, or map to a source line.
+   *
+   * Unchanged since before `target` existed, deliberately: the point of
+   * adding a machine contract was to stop a consumer needing this one,
+   * not to alter what a reader sees.
    */
   location: string;
   message: string;
@@ -572,7 +579,7 @@ export async function checkCommand(
           class: "malformed",
           severity: "fatal",
           code: "malformed-schema",
-          location: failure.context,
+          location: failure.location,
           message: failure.message,
           target:
             failure.pointer === undefined
@@ -590,7 +597,7 @@ export async function checkCommand(
           class: "schema",
           severity: "warning",
           code: issue.code,
-          location: issue.context === undefined ? where : `${issue.context} -> ${where}`,
+          location: issue.location === undefined ? where : `${issue.location} -> ${where}`,
           message: issue.message,
           target: targetForSchemaLint(issue),
         });
@@ -625,9 +632,9 @@ export async function checkCommand(
         class: "conformance",
         severity: "error",
         code: issue.code,
-        location: issue.location,
+        location: issue.pointer,
         message: issue.message,
-        target: { pointer: issue.location, anchor: "node" },
+        target: { pointer: issue.pointer, anchor: "node" },
       });
     }
   }

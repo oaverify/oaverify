@@ -85,8 +85,12 @@ function normalizeSecurityMode(
  * type and predates this.
  */
 function failureFrom(origin: SchemaOrigin, err: unknown): PrecompileFailure {
+  const label = origin.label ?? "";
   const failure: PrecompileFailure = {
-    context: origin.label ?? "",
+    // Both names carry the same value for one major; see the
+    // deprecation on PrecompileFailure.context.
+    context: label,
+    location: label,
     message: (err as Error).message,
   };
   if (origin.pointer !== undefined) {
@@ -206,8 +210,23 @@ export interface PrecompileFailure {
    * (application/json)"`, `"GET /pets 200 response"`, or
    * `"POST /things security"`. The compiler's own message carries the
    * path within that schema.
+   *
+   * @deprecated Renamed to {@link PrecompileFailure.location}, which is
+   * the same value. `location` is the name this library reserves for
+   * human-readable text. Both are populated; this one is removed in the
+   * next major.
    */
   context: string;
+  /**
+   * Human-readable text naming what was being compiled, down to the
+   * individual schema: `'POST /things query parameter "q"'`,
+   * `"POST /things request body (application/json)"`,
+   * `"GET /pets 200 response"`, or `"POST /things security"`.
+   *
+   * Prose, and never parseable. For a machine address use
+   * {@link PrecompileFailure.pointer}.
+   */
+  location: string;
   /** The compiler's message, including the path within the schema. */
   message: string;
   /**
@@ -1006,7 +1025,7 @@ export function createValidator(
   // `label` names what is being compiled so errors and lint issues can
   // be placed in the document. The cache is keyed by schema identity
   // alone, so a schema reached from several operations keeps the label
-  // of whichever compiled it first; see SchemaLintIssue.context.
+  // of whichever compiled it first; see SchemaLintIssue.location.
   const compile = (
     schema: SchemaOrBoolean,
     resolver: RefResolver = refResolver,

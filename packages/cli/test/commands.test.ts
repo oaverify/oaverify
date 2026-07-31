@@ -462,6 +462,28 @@ describe("resolveCommand", () => {
     });
   });
 
+  it("carries each leaf issue's document address under the reserved name", async () => {
+    // The four-referent rule: `pointer` is a document address,
+    // `location` is prose. `ConformanceIssue` used to call its pointer
+    // `location`, which made one name mean two things at two altitudes.
+    const { io, stdout } = memoryIo([
+      [
+        "spec.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1.0.0" },
+          paths: { "/t": { get: { responses: { "202": { description: null } } } } },
+        },
+      ],
+    ]);
+    await checkCommand({ spec: "spec.json", overlays: [], format: "json", options: textOpts }, io);
+    const findings = (JSON.parse(stdout.value) as { findings: CheckFinding[] }).findings;
+    const conformance = findings.find((f) => f.class === "conformance");
+    expect(conformance?.target?.pointer).toBe("/paths/~1t/get/responses/202/description");
+    // The deprecated alias still carries the same value.
+    expect(conformance?.location).toBe("/paths/~1t/get/responses/202/description");
+  });
+
   it("check --only conformance runs neither hygiene nor the schema compile", async () => {
     const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
     const result = await checkCommand(

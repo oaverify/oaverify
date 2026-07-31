@@ -36,8 +36,21 @@ export interface ConformanceIssue {
    */
   code: string;
   /**
-   * RFC 6901 pointer to the offending node in the document, e.g.
+   * RFC 6901 pointer to the offending node in the document,
+   * percent-decoded with `~0` / `~1` retained, e.g.
    * `/paths/~1things/get/responses/202/description`.
+   *
+   * `pointer` is the name this library reserves for a document address;
+   * `location` is reserved for prose. This field was named `location`
+   * before that rule existed, which left one name meaning a pointer
+   * here and free text on `CheckFinding`.
+   */
+  pointer: string;
+  /**
+   * @deprecated Renamed to {@link ConformanceIssue.pointer}, which is
+   * the same value. `location` is reserved for human-readable text
+   * across this library and this field never held any. Both are
+   * populated; this one is removed in the next major.
    */
   location: string;
   message: string;
@@ -201,9 +214,12 @@ function collectLeaves(error: ValidationError, into: ConformanceIssue[]): void {
     for (const child of children) collectLeaves(child, into);
     return;
   }
+  const pointer = toPointer(error.path as readonly (string | number)[]);
   into.push({
     code: error.code,
-    location: toPointer(error.path as readonly (string | number)[]),
+    pointer,
+    // Same value under the deprecated name, for one major.
+    location: pointer,
     message: error.message,
   });
 }
@@ -230,7 +246,10 @@ function collectLeaves(error: ValidationError, into: ConformanceIssue[]): void {
  * ```ts
  * checkDocumentConformance({ openapi: "3.1.0", info: { title: "t" }, paths: {} });
  * // { version: "3.1", issues: [
- * //   { code: "required", location: "/info/version", message: "..." },
+ * //   { code: "required",
+ * //     pointer: "/info/version",
+ * //     location: "/info/version", // deprecated alias for `pointer`
+ * //     message: "..." },
  * // ] }
  * ```
  *
