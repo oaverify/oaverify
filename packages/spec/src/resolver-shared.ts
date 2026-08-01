@@ -266,6 +266,36 @@ export function existingSchemaNames(doc: unknown): string[] {
   return Object.keys(schemas as Mutable);
 }
 
+/**
+ * Which document each external target was first referenced from, so a
+ * read failure can name both ends of the edge that led to it.
+ */
+export type ReferrerTrail = Map<string, string>;
+
+/**
+ * Record the document a target was referenced from. First writer wins:
+ * a target reached by several refs is read once, and the earliest
+ * referrer is the one the walk actually followed to get there.
+ */
+export function noteReferrer(trail: ReferrerTrail, targetUri: string, referrerUri: string): void {
+  if (!trail.has(targetUri)) trail.set(targetUri, referrerUri);
+}
+
+/**
+ * Wrap a reader failure with the URI that failed and the document that
+ * referenced it.
+ *
+ * A parse error from a reader carries no address of its own: JSON.parse
+ * on a document reached through a `$ref` reports only the offending
+ * token, which in a large spec names neither the file nor the reference
+ * that pulled it in. Both ends of the edge are known here.
+ */
+export function wrapReadError(err: unknown, uri: string, referrer: string | null): Error {
+  const cause = err instanceof Error ? err.message : String(err);
+  const from = referrer === null || referrer === uri ? "" : ` (referenced from ${referrer})`;
+  return new Error(`failed to read ${uri}${from}: ${cause}`, { cause: err });
+}
+
 /** Cycle-detection key for a (uri, fragment) pair. */
 export function cycleKey(targetUri: string, fragment: string): string {
   return targetUri + "#" + fragment;

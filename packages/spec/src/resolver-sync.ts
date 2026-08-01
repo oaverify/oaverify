@@ -17,10 +17,13 @@ import {
   mergeHoistedSchemas,
   mergeStitchedExternals,
   type Mutable,
+  noteReferrer,
+  type ReferrerTrail,
   resolveRelative,
   rewriteInternalRefTarget,
   setSpecKey,
   targetKey,
+  wrapReadError,
 } from "./resolver-shared.js";
 import { isSubschemaKey } from "@oaverify/internal-core";
 
@@ -71,7 +74,18 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   const sources = new Set<string>([options.entry]);
   const docs = new Map<string, unknown>();
 
-  const entryDoc = reader.read(options.entry);
+  // Populated as the walk derives each target URI; read back only on
+  // failure, to name the reference that pulled the bad document in.
+  const referrers: ReferrerTrail = new Map();
+  const readDoc = (uri: string): unknown => {
+    try {
+      return reader.read(uri);
+    } catch (err) {
+      throw wrapReadError(err, uri, referrers.get(uri) ?? null);
+    }
+  };
+
+  const entryDoc = readDoc(options.entry);
   docs.set(options.entry, entryDoc);
 
   const visiting = new Set<string>();
@@ -205,6 +219,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
         const uri = isExternal
           ? resolveRelative(currentBase, refPath)
           : (externalSourceUri as string);
+        noteReferrer(referrers, uri, externalSourceUri ?? options.entry);
         const out: Mutable = { $ref: hoistedRef(claim(uri, fragment)) };
         // OpenAPI 3.1 allows siblings alongside `$ref`; they survive.
         for (const key of Object.keys(obj)) {
@@ -225,6 +240,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     if (typeof ref === "string" && !ref.startsWith("#")) {
       const [refPath, fragment = ""] = ref.split("#") as [string, string | undefined];
       const targetUri = resolveRelative(currentBase, refPath);
+      noteReferrer(referrers, targetUri, externalSourceUri ?? options.entry);
       const stitchRef = makeStitchRef(targetUri, fragment);
       if (stitchingUri !== null && stitchingUri === targetUri) return stitchRef;
       if (visiting.has(cycleKey(targetUri, fragment))) {
@@ -235,7 +251,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       sources.add(targetUri);
       let targetDoc = docs.get(targetUri);
       if (targetDoc === undefined) {
-        targetDoc = reader.read(targetUri);
+        targetDoc = readDoc(targetUri);
         docs.set(targetUri, targetDoc);
       }
       const resolved =
@@ -340,7 +356,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     setSpecKey(hoisted, name, true);
     let targetDoc = docs.get(target.uri);
     if (targetDoc === undefined) {
-      targetDoc = reader.read(target.uri);
+      targetDoc = readDoc(target.uri);
       docs.set(target.uri, targetDoc);
     }
     const content =
@@ -361,7 +377,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       sources.add(uri);
       let targetDoc = docs.get(uri);
       if (targetDoc === undefined) {
-        targetDoc = reader.read(uri);
+        targetDoc = readDoc(uri);
         docs.set(uri, targetDoc);
       }
       const savedVisiting = new Set(visiting);
