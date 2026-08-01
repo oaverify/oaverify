@@ -799,3 +799,88 @@ describe("hoisting external schemas (#553, #556)", () => {
     expect(disc.mapping.a).toBe("models/gone.yml");
   });
 });
+
+describe("resolveSpec read failures", () => {
+  /**
+   * A reader that serves `sources` and fails on anything else with a
+   * message carrying no address of its own, the way a JSON parse error
+   * from a `$ref`ed document does.
+   */
+  function failingReader(sources: Map<string, unknown>) {
+    return {
+      canRead: () => true,
+      read: (uri: string) => {
+        if (!sources.has(uri)) throw new SyntaxError(`Unexpected token 'R' in ${"<data>"}`);
+        return Promise.resolve(sources.get(uri));
+      },
+    };
+  }
+
+  it("names the entry document, with no referrer, when the entry itself fails", async () => {
+    const reader = failingReader(new Map());
+    await expect(resolveSpec({ reader, entry: "main.json" })).rejects.toThrow(
+      /^failed to read main\.json: Unexpected token 'R'/,
+    );
+  });
+
+  it("names the target and the referring document for a non-schema ref", async () => {
+    const reader = failingReader(
+      new Map<string, unknown>([
+        [
+          "main.json",
+          {
+            openapi: "3.1.0",
+            info: { title: "X", version: "1" },
+            paths: { "/p": { get: { responses: { "200": { $ref: "notes.mdx" } } } } },
+          },
+        ],
+      ]),
+    );
+    await expect(resolveSpec({ reader, entry: "main.json" })).rejects.toThrow(
+      "failed to read notes.mdx (referenced from main.json): Unexpected token 'R' in <data>",
+    );
+  });
+
+  it("names the target and the referring document for a hoisted schema ref", async () => {
+    const reader = failingReader(
+      new Map<string, unknown>([
+        [
+          "main.json",
+          {
+            openapi: "3.1.0",
+            info: { title: "X", version: "1" },
+            components: { schemas: { Thing: { $ref: "thing.mdx" } } },
+          },
+        ],
+      ]),
+    );
+    await expect(resolveSpec({ reader, entry: "main.json" })).rejects.toThrow(
+      "failed to read thing.mdx (referenced from main.json): Unexpected token 'R' in <data>",
+    );
+  });
+
+  it("names the external document that referenced the failing one, not the entry", async () => {
+    const reader = failingReader(
+      new Map<string, unknown>([
+        [
+          "main.json",
+          {
+            openapi: "3.1.0",
+            info: { title: "X", version: "1" },
+            components: { schemas: { Thing: { $ref: "a.json#/Thing" } } },
+          },
+        ],
+        ["a.json", { Thing: { type: "object", properties: { b: { $ref: "b.mdx" } } } }],
+      ]),
+    );
+    await expect(resolveSpec({ reader, entry: "main.json" })).rejects.toThrow(
+      "failed to read b.mdx (referenced from a.json): Unexpected token 'R' in <data>",
+    );
+  });
+
+  it("keeps the original error as the cause", async () => {
+    const reader = failingReader(new Map());
+    const err = await resolveSpec({ reader, entry: "main.json" }).catch((e: unknown) => e);
+    expect((err as Error).cause).toBeInstanceOf(SyntaxError);
+  });
+});
