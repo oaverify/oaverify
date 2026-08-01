@@ -100,4 +100,6 @@ export {
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
 } from "./subschema-positions.js";
+export { followsRef, refablePositionsFor, refPositionFor } from "./ref-positions.js";
+export type { RefNodeKind, RefPosition } from "./ref-positions.js";
 export { getOwn, setSpecKey } from "./own-key.js";

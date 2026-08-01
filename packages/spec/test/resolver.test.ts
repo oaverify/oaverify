@@ -469,6 +469,11 @@ describe("non-schema cycles land somewhere legal (#559)", () => {
   // root and allows nothing else there, and the previous home (a root
   // `$defs`) made `check` report the resolver's own output as
   // non-conformant.
+  // The cycle runs Path Item -> Operation -> Callback -> Path Item,
+  // every hop a position OpenAPI types as ref-able. It used to close
+  // through an `x-loop` extension, which stopped being a reference once
+  // the resolver became position-aware; a vendor extension holds author
+  // data, so a `$ref` inside one is not a cycle and not a reference.
   const cyclic = () =>
     createMemoryReader(
       new Map<string, unknown>([
@@ -477,22 +482,22 @@ describe("non-schema cycles land somewhere legal (#559)", () => {
           {
             openapi: "3.1.0",
             info: { title: "X", version: "1" },
-            paths: {
-              "/a": {
-                get: { operationId: "a", responses: { "200": { $ref: "resp.json" } } },
-              },
+            paths: { "/a": { $ref: "path-item.json" } },
+          },
+        ],
+        [
+          "path-item.json",
+          {
+            get: {
+              operationId: "a",
+              responses: { "200": { $ref: "resp.json" } },
+              callbacks: { onEvent: { $ref: "callback.json" } },
             },
           },
         ],
+        ["callback.json", { "{$request.body#/url}": { $ref: "path-item.json" } }],
         ["resp.json", { description: "a", headers: { "X-B": { $ref: "header.json" } } }],
-        [
-          "header.json",
-          {
-            description: "b",
-            schema: { type: "string" },
-            "x-loop": { $ref: "resp.json" },
-          },
-        ],
+        ["header.json", { description: "b", schema: { type: "string" } }],
       ]),
     );
 
@@ -501,7 +506,7 @@ describe("non-schema cycles land somewhere legal (#559)", () => {
     expect((document as unknown as { $defs?: unknown }).$defs).toBeUndefined();
     const bucket = (document as unknown as Record<string, unknown>)["x-oaverify-externals"];
     expect(bucket).toBeDefined();
-    expect(Object.keys(bucket as Record<string, unknown>)).toContain("resp.json");
+    expect(Object.keys(bucket as Record<string, unknown>)).toContain("path-item.json");
   });
 
   it("leaves every ref into the bucket resolvable", async () => {

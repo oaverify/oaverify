@@ -1,7 +1,11 @@
 import {
+  detectOpenAPIVersion,
+  followsRef,
   pointerFromFragment,
+  refPositionFor,
   resolveJsonPointer,
   type OpenAPIDocument,
+  type RefNodeKind,
 } from "@oaverify/internal-core";
 import type { SyncDocumentReader } from "./reader.js";
 import { lintResolvedSpec } from "./lint.js";
@@ -89,7 +93,13 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   docs.set(options.entry, entryDoc);
 
   const visiting = new Set<string>();
-  const stitchQueue = new Set<string>();
+  // Which positions may hold a `$ref` is version-dependent, so the
+  // entry document's own version decides. Mirrors resolveSpec.
+  const version = detectOpenAPIVersion(entryDoc) ?? "3.1";
+
+  // Keyed by URI, valued by the kind of node the reference sat at, so a
+  // stitched document is walked as the object it actually is.
+  const stitchQueue = new Map<string, RefNodeKind>();
 
   // Schema targets get a `components.schemas` name and a single hoisted
   // copy; every `$ref` to them becomes an internal ref to that name.
@@ -187,23 +197,41 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     }
   };
 
+  /** See the async resolver for what these carry. */
+  interface Pos {
+    readonly kind: RefNodeKind;
+    readonly refable: boolean;
+    readonly inSchema: boolean;
+  }
+  const DOCUMENT_POS: Pos = { kind: "document", refable: false, inSchema: false };
+  const SCHEMA_POS: Pos = { kind: "schema", refable: false, inSchema: true };
+  const UNKNOWN_POS: Pos = { kind: "unknown", refable: false, inSchema: false };
+  const posOf = (kind: RefNodeKind, refable: boolean): Pos => ({
+    kind,
+    refable,
+    inSchema: kind === "schema",
+  });
+
   const walk = (
     value: unknown,
     currentBase: string,
     stitchingUri: string | null,
     externalSourceUri: string | null,
-    inSchema: boolean,
+    pos: Pos,
   ): unknown => {
     if (value === null || typeof value !== "object") return value;
     if (Array.isArray(value)) {
       const out: unknown[] = [];
       for (const item of value) {
-        out.push(walk(item, currentBase, stitchingUri, externalSourceUri, inSchema));
+        out.push(walk(item, currentBase, stitchingUri, externalSourceUri, pos));
       }
       return out;
     }
     const obj = value as Mutable;
-    const ref = obj["$ref"];
+    const inSchema = pos.inSchema;
+    // Outside a schema, a `$ref` is a reference only where the
+    // specification types the position as `X | Reference`.
+    const ref = inSchema || followsRef(pos.kind, pos.refable) ? obj["$ref"] : undefined;
 
     // --- schema positions: hoist rather than inline ------------------
     // The reference keeps a name, which is what the discriminator needs
@@ -227,7 +255,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
           setSpecKey(
             out,
             key,
-            walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, true),
+            walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, SCHEMA_POS),
           );
         }
         return out;
@@ -244,7 +272,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       const stitchRef = makeStitchRef(targetUri, fragment);
       if (stitchingUri !== null && stitchingUri === targetUri) return stitchRef;
       if (visiting.has(cycleKey(targetUri, fragment))) {
-        stitchQueue.add(targetUri);
+        stitchQueue.set(targetUri, pos.kind);
         return stitchRef;
       }
       visiting.add(cycleKey(targetUri, fragment));
@@ -256,7 +284,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       }
       const resolved =
         fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, pointerFromFragment(fragment));
-      const inlined = walk(resolved, baseDirOf(targetUri), stitchingUri, targetUri, false);
+      const inlined = walk(resolved, baseDirOf(targetUri), stitchingUri, targetUri, pos);
       visiting.delete(cycleKey(targetUri, fragment));
       const siblings: Mutable = {};
       for (const key of Object.keys(obj)) {
@@ -264,7 +292,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
         setSpecKey(
           siblings,
           key,
-          walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, false),
+          walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
         );
       }
       if (Object.keys(siblings).length === 0) return inlined;
@@ -274,14 +302,14 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     }
     if (typeof ref === "string" && ref.startsWith("#") && externalSourceUri !== null) {
       const rewritten = rewriteInternalRefTarget(externalSourceUri, ref.slice(1));
-      stitchQueue.add(externalSourceUri);
+      stitchQueue.set(externalSourceUri, pos.kind);
       const siblings: Mutable = { $ref: rewritten };
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
         setSpecKey(
           siblings,
           key,
-          walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, false),
+          walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
         );
       }
       return siblings;
@@ -289,23 +317,14 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
 
     const out: Mutable = {};
     for (const key of Object.keys(obj)) {
-      setSpecKey(
-        out,
-        key,
-        walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, inSchema),
-      );
+      setSpecKey(out, key, walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos));
     }
     return out;
   };
 
   /**
-   * Walk one child, deciding whether it is a schema position.
-   *
-   * Entering a schema: a `schema` key (media type, parameter, header) or
-   * a `components.schemas` entry. Staying in one: only the keys that
-   * hold subschemas. `example`, `default` and `enum` hold arbitrary
-   * author data, so they drop back out; a `$ref`-shaped object inside an
-   * example is data, not a reference.
+   * Walk one child, deciding what kind of position it is. Mirrors the
+   * async resolver; the commentary lives there.
    */
   const walkChild = (
     parent: Mutable,
@@ -313,32 +332,38 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     currentBase: string,
     stitchingUri: string | null,
     externalSourceUri: string | null,
-    parentInSchema: boolean,
+    parentPos: Pos,
   ): unknown => {
     const value = parent[key];
-    if (parentInSchema && key === "discriminator") {
+    if (parentPos.inSchema && key === "discriminator") {
       if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
       const node: Mutable = { ...(value as Mutable) };
       mappingSites.push({ node, base: currentBase, source: externalSourceUri });
       return node;
     }
-    const childInSchema = parentInSchema
-      ? isSubschemaKey(key)
-      : key === "schema" || key === "schemas";
-    // `components.schemas` and the subschema *map* positions hold
-    // `name -> schema`, so the schemas are one level below the key.
-    const mapOfSchemas = parentInSchema ? isSchemaMapKey(key) : key === "schemas";
-    if (mapOfSchemas && typeof value === "object" && value !== null && !Array.isArray(value)) {
+
+    let childPos: Pos;
+    let mapOfChildren: boolean;
+    if (parentPos.inSchema) {
+      childPos = isSubschemaKey(key) ? SCHEMA_POS : UNKNOWN_POS;
+      mapOfChildren = isSchemaMapKey(key);
+    } else {
+      const at = refPositionFor(version, parentPos.kind, key);
+      childPos = at === undefined ? UNKNOWN_POS : posOf(at.kind, at.refable);
+      mapOfChildren = at?.arity === "map";
+    }
+
+    if (mapOfChildren && typeof value === "object" && value !== null && !Array.isArray(value)) {
       const out: Mutable = {};
       for (const [name, sub] of Object.entries(value as Mutable)) {
-        setSpecKey(out, name, walk(sub, currentBase, stitchingUri, externalSourceUri, true));
+        setSpecKey(out, name, walk(sub, currentBase, stitchingUri, externalSourceUri, childPos));
       }
       return out;
     }
-    return walk(value, currentBase, stitchingUri, externalSourceUri, childInSchema);
+    return walk(value, currentBase, stitchingUri, externalSourceUri, childPos);
   };
 
-  const resolved = walk(entryDoc, baseDir, null, null, false) as OpenAPIDocument;
+  const resolved = walk(entryDoc, baseDir, null, null, DOCUMENT_POS) as OpenAPIDocument;
 
   // Hoist every claimed schema target. Nested targets discovered while
   // walking one are appended to the queue, so this drains transitively;
@@ -363,7 +388,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       target.fragment === ""
         ? targetDoc
         : resolveJsonPointer(targetDoc, pointerFromFragment(target.fragment));
-    setSpecKey(hoisted, name, walk(content, baseDirOf(target.uri), null, target.uri, true));
+    setSpecKey(hoisted, name, walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS));
   }
   fixUpDiscriminatorMappings();
   mergeHoistedSchemas(resolved, hoisted);
@@ -371,7 +396,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   if (stitchQueue.size > 0) {
     const stitched: Mutable = {};
     while (stitchQueue.size > 0) {
-      const uri = stitchQueue.values().next().value as string;
+      const [uri, kind] = stitchQueue.entries().next().value as [string, RefNodeKind];
       stitchQueue.delete(uri);
       if (Object.hasOwn(stitched, uri)) continue;
       sources.add(uri);
@@ -382,7 +407,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       }
       const savedVisiting = new Set(visiting);
       visiting.clear();
-      const inlined = walk(targetDoc, baseDirOf(uri), uri, uri, false);
+      const inlined = walk(targetDoc, baseDirOf(uri), uri, uri, posOf(kind, true));
       visiting.clear();
       for (const v of savedVisiting) visiting.add(v);
       setSpecKey(stitched, uri, inlined);
