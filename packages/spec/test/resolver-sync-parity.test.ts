@@ -312,6 +312,39 @@ describe("resolveSpecSync ⇔ resolveSpec parity", () => {
       expect(r.syncReads).toEqual(r.asyncReads);
     });
 
+    it(`${fx.name}: identical regions and read order with provenance`, async () => {
+      const r = recorders(fx.sources);
+      const asyncResult = await resolveSpec({
+        reader: r.asyncReader,
+        entry: fx.entry,
+        provenance: true,
+      });
+      const syncResult = resolveSpecSync({
+        reader: r.syncReader,
+        entry: fx.entry,
+        provenance: true,
+      });
+      // Regions are emitted in walk order, so this pins the order of the
+      // walk itself and not only what it produced.
+      expect(syncResult.regions).toEqual(asyncResult.regions);
+      expect(syncResult.document).toEqual(asyncResult.document);
+      expect(r.syncReads).toEqual(r.asyncReads);
+    });
+
+    it(`${fx.name}: recording provenance changes neither output nor read order`, async () => {
+      const plain = recorders(fx.sources);
+      const tracked = recorders(fx.sources);
+      const off = await resolveSpec({ reader: plain.asyncReader, entry: fx.entry });
+      const on = await resolveSpec({
+        reader: tracked.asyncReader,
+        entry: fx.entry,
+        provenance: true,
+      });
+      expect(on.document).toEqual(off.document);
+      expect(on.sources).toEqual(off.sources);
+      expect(tracked.asyncReads).toEqual(plain.asyncReads);
+    });
+
     it(`${fx.name}: identical output and read order with lint`, async () => {
       const r = recorders(fx.sources);
       const asyncResult = await resolveSpec({ reader: r.asyncReader, entry: fx.entry, lint: true });

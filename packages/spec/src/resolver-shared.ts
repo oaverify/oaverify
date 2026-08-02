@@ -13,6 +13,7 @@
 
 import { escapePointerSegment, setSpecKey } from "@oaverify/internal-core";
 import { dirname, isAbsolute, posix, resolve as resolvePath } from "node:path";
+import type { SourceHop, SpecRegion } from "./provenance.js";
 
 /** Mutable object view used while walking parsed JSON documents. */
 export type Mutable = Record<string, unknown>;
@@ -264,6 +265,149 @@ export function existingSchemaNames(doc: unknown): string[] {
   const schemas = (components as Mutable).schemas;
   if (typeof schemas !== "object" || schemas === null) return [];
   return Object.keys(schemas as Mutable);
+}
+
+/**
+ * Where a mounted subtree came from, as the walk currently stands.
+ * Handed back by {@link ProvenanceTrail.enter} and returned to
+ * {@link ProvenanceTrail.leave} so the enclosing document's answer is
+ * restored on the way out.
+ */
+export interface MountState {
+  readonly at: string;
+  readonly uri: string;
+  readonly pointer: string;
+  readonly via: readonly SourceHop[];
+}
+
+/**
+ * Records where each part of the resolved document came from, as both
+ * resolvers walk.
+ *
+ * Exists only when provenance was asked for; the walks hold it as
+ * `ProvenanceTrail | null` and reach it through `?.`, so an unasked-for
+ * resolution pays one null check per node and allocates nothing. That
+ * is the whole reason this is a separate object rather than fields on
+ * the walk: spec load runs at startup for every server user and none of
+ * them call `check`.
+ *
+ * The resolved-document path is a single reused array pushed and popped
+ * as the walk descends. Both walks are depth-first and strictly
+ * sequential (the async one awaits each child in turn and never runs
+ * two branches concurrently), so a stack is enough, and a pointer string
+ * is built only where a region is recorded: once per external
+ * reference, not once per node.
+ *
+ * Shared by both resolvers rather than mirrored, so the recording rules
+ * exist in one place and only the call sites are hand-mirrored.
+ */
+export class ProvenanceTrail {
+  /** Regions recorded so far, in the order the walk found them. */
+  readonly regions: SpecRegion[] = [];
+  private readonly path: string[] = [];
+  private at = "";
+  private uri: string;
+  private pointer = "";
+  private via: readonly SourceHop[] = [];
+
+  constructor(entryUri: string) {
+    this.uri = entryUri;
+    this.regions.push({ kind: "mounted", at: "", uri: entryUri, pointer: "", via: [] });
+  }
+
+  /** Descend into a child. `segment` is a raw key or array index. */
+  push(segment: string): void {
+    this.path.push(escapePointerSegment(segment));
+  }
+
+  /** Come back out of a child. */
+  pop(): void {
+    this.path.pop();
+  }
+
+  /** RFC 6901 pointer to the node being walked, in the resolved document. */
+  here(): string {
+    return this.path.length === 0 ? "" : "/" + this.path.join("/");
+  }
+
+  /** The node being walked, addressed in the document it came from. */
+  private sourceHere(): string {
+    return this.pointer + this.here().slice(this.at.length);
+  }
+
+  /**
+   * The chain that reaches a target referenced from the node being
+   * walked: everything followed to get here, plus this reference.
+   */
+  chain(): readonly SourceHop[] {
+    return [...this.via, { uri: this.uri, pointer: this.sourceHere() }];
+  }
+
+  /**
+   * Record a subtree of `uri` mounted at the node being walked, and
+   * answer for it until {@link leave}. This is the inlining case, where
+   * the target's content replaces the reference in place.
+   */
+  enter(uri: string, pointer: string, via: readonly SourceHop[]): MountState {
+    return this.mount(this.here(), uri, pointer, via);
+  }
+
+  /**
+   * Record a subtree of `uri` mounted at an absolute position, and
+   * answer for it until {@link leave}. This is relocation: a hoisted
+   * schema or a stitched external is walked on its own, after the walk
+   * that found it has finished, so it names where it lands rather than
+   * continuing from where it was referenced.
+   */
+  enterAt(segments: readonly string[], uri: string, pointer: string, via: readonly SourceHop[]) {
+    this.path.length = 0;
+    for (const segment of segments) this.push(segment);
+    return this.mount(this.here(), uri, pointer, via);
+  }
+
+  private mount(at: string, uri: string, pointer: string, via: readonly SourceHop[]): MountState {
+    const saved: MountState = { at: this.at, uri: this.uri, pointer: this.pointer, via: this.via };
+    this.at = at;
+    this.uri = uri;
+    this.pointer = pointer;
+    this.via = via;
+    this.regions.push({ kind: "mounted", at, uri, pointer, via });
+    return saved;
+  }
+
+  /** Restore the enclosing document's answer, and its path if asked. */
+  leave(saved: MountState, resetPath = false): void {
+    this.at = saved.at;
+    this.uri = saved.uri;
+    this.pointer = saved.pointer;
+    this.via = saved.via;
+    if (resetPath) this.path.length = 0;
+  }
+
+  /**
+   * Record that one key of the node being walked belongs to the
+   * enclosing document rather than to whatever was mounted here.
+   *
+   * The non-schema merge `{...inlined, ...siblings}` blends two
+   * documents key-wise, so provenance is recorded key-wise too: the
+   * node keeps the target's address and each sibling key shadows it
+   * with the referring document's. Call after {@link leave}.
+   */
+  shadow(key: string): void {
+    const at = this.here() + "/" + escapePointerSegment(key);
+    this.regions.push({
+      kind: "mounted",
+      at,
+      uri: this.uri,
+      pointer: this.pointer + at.slice(this.at.length),
+      via: this.via,
+    });
+  }
+
+  /** Record that a position exists only in the resolved document. */
+  synthetic(at: string): void {
+    this.regions.push({ kind: "synthetic", at });
+  }
 }
 
 /**
