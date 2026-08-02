@@ -283,6 +283,101 @@ describe("resolveCommand", () => {
     }
   });
 
+  describe("finding source provenance (#596)", () => {
+    const findingsOf = async (
+      entries: Array<[string, unknown]>,
+      spec = "entry.json",
+    ): Promise<CheckFinding[]> => {
+      const { io, stdout } = memoryIo(entries);
+      await checkCommand({ spec, overlays: [], format: "json", options: textOpts }, io);
+      return (JSON.parse(stdout.value) as { findings: CheckFinding[] }).findings;
+    };
+
+    /** The defect lives in the referenced file, not in the entry. */
+    const twoFiles: Array<[string, unknown]> = [
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1.0.0" },
+          paths: {
+            "/orders": {
+              post: {
+                requestBody: {
+                  content: {
+                    "application/json": {
+                      schema: { $ref: "./order.json#/components/schemas/Order" },
+                    },
+                  },
+                },
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        },
+      ],
+      [
+        "order.json",
+        {
+          components: {
+            schemas: {
+              Order: {
+                type: "object",
+                required: ["id", "nope"],
+                properties: { id: { type: "string" } },
+              },
+            },
+          },
+        },
+      ],
+    ];
+
+    it("names the file a finding came from, and the reference that reached it", async () => {
+      const findings = await findingsOf(twoFiles);
+      const issue = findings.find((f) => f.code === "silent-rewrite/required-not-in-properties");
+      // Before this, the report named `/components/schemas/Order`, a
+      // component the entry document does not contain, and nothing
+      // named order.json at all.
+      expect(issue?.target).toEqual({
+        pointer: "/components/schemas/Order/required",
+        anchor: "scoped-definition",
+        source: {
+          uri: "order.json",
+          pointer: "/components/schemas/Order/required",
+          via: [
+            {
+              uri: "entry.json",
+              pointer: "/paths/~1orders/post/requestBody/content/application~1json/schema",
+            },
+          ],
+        },
+      });
+    });
+
+    it("gives a single-file spec its own file, with an empty chain", async () => {
+      const findings = await findingsOf([["spec.json", dirtySpec()]], "spec.json");
+      const unused = findings.find((f) => f.code === "unused-component");
+      expect(unused?.target?.source).toEqual({
+        uri: "spec.json",
+        pointer: "/components/schemas/Orphan",
+        via: [],
+      });
+    });
+
+    it("leaves no source on a node the resolver invented", async () => {
+      // `components` exists only because hoisting needed somewhere to
+      // put the target, so a finding addressed there has no file to
+      // name. `unused-component` fires on the hoisted schema, whose own
+      // address is real.
+      const findings = await findingsOf(twoFiles);
+      for (const finding of findings) {
+        const source = finding.target?.source;
+        if (source === undefined) continue;
+        expect(["entry.json", "order.json"]).toContain(source.uri);
+      }
+    });
+  });
+
   describe("machine-readable finding target (#517)", () => {
     const findingsOf = async (spec: unknown): Promise<CheckFinding[]> => {
       const { io, stdout } = memoryIo([["spec.json", spec]]);
@@ -296,7 +391,7 @@ describe("resolveCommand", () => {
     it("anchors a hygiene finding at the node, since no ref was crossed", async () => {
       const findings = await findingsOf(dirtySpec());
       const unused = findings.find((f) => f.code === "unused-component");
-      expect(unused?.target).toEqual({
+      expect(unused?.target).toMatchObject({
         pointer: "/components/schemas/Orphan",
         anchor: "node",
       });
@@ -316,7 +411,7 @@ describe("resolveCommand", () => {
         },
       });
       const issue = findings.find((f) => f.code === "unknown-keyword");
-      expect(issue?.target).toEqual({
+      expect(issue?.target).toMatchObject({
         pointer: "/paths/~1t/get/parameters/0/schema",
         anchor: "node",
       });
@@ -341,7 +436,7 @@ describe("resolveCommand", () => {
         },
       });
       const issue = findings.find((f) => f.code === "unknown-keyword");
-      expect(issue?.target).toEqual({
+      expect(issue?.target).toMatchObject({
         pointer: "/components/schemas/T/properties/a",
         anchor: "definition",
       });
@@ -373,7 +468,7 @@ describe("resolveCommand", () => {
         },
       });
       const issue = findings.find((f) => f.code === "silent-rewrite/required-not-in-properties");
-      expect(issue?.target).toEqual({
+      expect(issue?.target).toMatchObject({
         pointer: "/components/schemas/T/required",
         anchor: "scoped-definition",
       });
@@ -397,7 +492,7 @@ describe("resolveCommand", () => {
         },
       });
       const malformed = findings.find((f) => f.class === "malformed");
-      expect(malformed?.target).toEqual({
+      expect(malformed?.target).toMatchObject({
         pointer: "/paths/~1t/post/requestBody/content/application~1json/schema",
         anchor: "node",
       });
@@ -420,7 +515,7 @@ describe("resolveCommand", () => {
         },
       });
       const malformed = findings.find((f) => f.class === "malformed");
-      expect(malformed?.target).toEqual({
+      expect(malformed?.target).toMatchObject({
         pointer: "/components/schemas/Bad",
         anchor: "definition",
       });
