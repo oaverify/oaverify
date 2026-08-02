@@ -315,9 +315,18 @@ export class ProvenanceTrail {
     this.regions.push({ kind: "mounted", at: "", uri: entryUri, pointer: "", via: [] });
   }
 
-  /** Descend into a child. `segment` is a raw key or array index. */
+  /**
+   * Descend into a child. `segment` is a raw key or array index.
+   *
+   * Tested before escaping because this runs per node and the escape is
+   * two regex passes: almost every key in a spec contains neither `~`
+   * nor `/`, and two `includes` on a short string are much cheaper than
+   * rebuilding it twice.
+   */
   push(segment: string): void {
-    this.path.push(escapePointerSegment(segment));
+    this.path.push(
+      segment.includes("~") || segment.includes("/") ? escapePointerSegment(segment) : segment,
+    );
   }
 
   /** Come back out of a child. */
