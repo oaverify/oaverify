@@ -111,8 +111,10 @@ export type SpecRegion =
    * Exists only in the resolved document. The container the resolver
    * invented to hold hoisted schemas, the root extension stitched
    * externals live under, and anything an overlay rewrote or added.
-   * Covered nodes have no source address, which is a fact about them
-   * rather than a gap in what was recorded.
+   * A covered node has no source address unless a deeper region answers
+   * for it, which is how an invented container holds subtrees that do
+   * have one. Absence is a fact about the node rather than a gap in
+   * what was recorded.
    */
   | { readonly kind: "synthetic"; readonly at: string };
 

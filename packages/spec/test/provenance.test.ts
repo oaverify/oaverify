@@ -239,6 +239,16 @@ describe("withSynthetic", () => {
     expect(after).toHaveLength(2);
   });
 
+  it("drops every descendant when given the root pointer", () => {
+    const regions: SpecRegion[] = [
+      entry,
+      { kind: "mounted", at: "/components/schemas/X", uri: "x.yaml", pointer: "", via: [] },
+    ];
+    const after = withSynthetic(regions, "");
+    expect(after).toEqual([entry, { kind: "synthetic", at: "" }]);
+    expect(sourceOf(after, "/components/schemas/X/type")).toBeUndefined();
+  });
+
   it("marks the whole document when given the root pointer", () => {
     // The entry region sits at the same depth rather than below, so it
     // survives the filter and loses on order instead.
