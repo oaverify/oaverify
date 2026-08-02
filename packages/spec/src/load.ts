@@ -3,6 +3,7 @@ import { applyOverlays, type SpecOverlay } from "./overlay.js";
 import { resolveSpec, type ResolvedSpec } from "./resolver.js";
 import { resolveSpecSync } from "./resolver-sync.js";
 import { lintResolvedSpec } from "./lint.js";
+import { withOverlayChanges, type SpecRegion } from "./provenance.js";
 
 /**
  * Options accepted by {@link loadSpec}.
@@ -24,6 +25,16 @@ export interface LoadSpecOptions {
    * to `false`.
    */
   lint?: boolean;
+  /**
+   * Record where each part of the resolved document came from. Regions
+   * land in {@link ResolvedSpec.regions}. Defaults to `false`. See
+   * {@link ResolveSpecOptions.provenance}.
+   *
+   * Overlays run after resolution, so anything they changed or added is
+   * marked as having no source rather than left pointing at a file that
+   * no longer says it.
+   */
+  provenance?: boolean;
 }
 
 /**
@@ -54,13 +65,33 @@ export async function loadSpec(options: LoadSpecOptions): Promise<ResolvedSpec> 
     reader: options.reader,
     entry: options.entry,
     ...(options.baseUri !== undefined && { baseUri: options.baseUri }),
+    ...(options.provenance === true && { provenance: true }),
   });
   const overlaid =
     options.overlays && options.overlays.length > 0
       ? applyOverlays(resolved.document, options.overlays)
       : resolved.document;
   const specHygieneIssues = options.lint ? lintResolvedSpec(overlaid) : [];
-  return { document: overlaid, sources: resolved.sources, specHygieneIssues };
+  return {
+    document: overlaid,
+    sources: resolved.sources,
+    specHygieneIssues,
+    ...(resolved.regions !== undefined && {
+      regions: afterOverlays(resolved.regions, resolved.document, overlaid),
+    }),
+  };
+}
+
+/**
+ * Regions for the post-overlay document. Identity means the overlay
+ * pass did not run, so nothing changed and nothing needs marking.
+ */
+function afterOverlays(
+  regions: readonly SpecRegion[],
+  resolved: unknown,
+  overlaid: unknown,
+): readonly SpecRegion[] {
+  return resolved === overlaid ? regions : withOverlayChanges(regions, resolved, overlaid);
 }
 
 /**
@@ -97,6 +128,16 @@ export interface LoadSpecSyncOptions {
    * to `false`.
    */
   lint?: boolean;
+  /**
+   * Record where each part of the resolved document came from. Regions
+   * land in {@link ResolvedSpec.regions}. Defaults to `false`. See
+   * {@link ResolveSpecOptions.provenance}.
+   *
+   * Overlays run after resolution, so anything they changed or added is
+   * marked as having no source rather than left pointing at a file that
+   * no longer says it.
+   */
+  provenance?: boolean;
 }
 
 /**
@@ -131,11 +172,19 @@ export function loadSpecSync(options: LoadSpecSyncOptions): ResolvedSpec {
     reader,
     entry: options.entry,
     ...(options.baseUri !== undefined && { baseUri: options.baseUri }),
+    ...(options.provenance === true && { provenance: true }),
   });
   const overlaid =
     options.overlays && options.overlays.length > 0
       ? applyOverlays(resolved.document, options.overlays)
       : resolved.document;
   const specHygieneIssues = options.lint ? lintResolvedSpec(overlaid) : [];
-  return { document: overlaid, sources: resolved.sources, specHygieneIssues };
+  return {
+    document: overlaid,
+    sources: resolved.sources,
+    specHygieneIssues,
+    ...(resolved.regions !== undefined && {
+      regions: afterOverlays(resolved.regions, resolved.document, overlaid),
+    }),
+  };
 }

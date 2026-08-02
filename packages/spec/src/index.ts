@@ -30,6 +30,7 @@ export { loadSpec, loadSpecSync, type LoadSpecOptions, type LoadSpecSyncOptions 
 export { lintResolvedSpec, type SpecHygieneIssue } from "./lint.js";
 export {
   sourceOf,
+  withOverlayChanges,
   withSynthetic,
   type SourceAddress,
   type SourceHop,

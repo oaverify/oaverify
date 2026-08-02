@@ -19,6 +19,8 @@
  * @packageDocumentation
  */
 
+import { escapePointerSegment } from "@oaverify/internal-core";
+
 /**
  * One reference that was followed on the way to a source document.
  *
@@ -183,4 +185,85 @@ export function withSynthetic(regions: readonly SpecRegion[], at: string): SpecR
   const kept = regions.filter((region) => !(region.at.length > at.length && covers(at, region.at)));
   kept.push({ kind: "synthetic", at });
   return kept;
+}
+
+/**
+ * Mark everything an overlay pass changed as having no source.
+ *
+ * An overlay rewrites the resolved document after it was assembled, so
+ * a node it touched no longer says what its source file says and a node
+ * it added was never in one. Both have to be absent rather than
+ * approximate.
+ *
+ * Decided by comparing the document before and after rather than by
+ * asking the overlay pass what it did. Comparison is exact by
+ * construction and cannot drift as verbs are added, and the alternative
+ * (every verb reporting its own target pointer) is a much larger
+ * surface to keep honest. The cost is one walk of the document, paid
+ * only when provenance and overlays are both in play.
+ *
+ * Holes land at the deepest changed node, so an overlay that adds one
+ * operation to a path item leaves the rest of that path item addressed
+ * as before. Removals need no hole: a node that is gone cannot be
+ * addressed. An array whose contents changed is marked whole, because
+ * an insertion shifts every index after it and index-wise attribution
+ * would then be wrong rather than missing.
+ *
+ * @param regions - Regions from the resolution that produced `before`.
+ * @param before - The document as `resolveSpec` returned it.
+ * @param after - The document after the overlays were applied.
+ *
+ * @public
+ */
+export function withOverlayChanges(
+  regions: readonly SpecRegion[],
+  before: unknown,
+  after: unknown,
+): SpecRegion[] {
+  const changed: string[] = [];
+  compare(before, after, "", changed);
+  let out = [...regions];
+  for (const at of changed) out = withSynthetic(out, at);
+  return out;
+}
+
+/** Collect the deepest pointers at which `after` differs from `before`. */
+function compare(before: unknown, after: unknown, at: string, changed: string[]): boolean {
+  if (before === after) return true;
+  const bothArrays = Array.isArray(before) && Array.isArray(after);
+  if (bothArrays) {
+    if (before.length !== after.length) {
+      changed.push(at);
+      return false;
+    }
+    // Same length: indices still line up, so attribute element-wise.
+    let equal = true;
+    for (let i = 0; i < after.length; i += 1) {
+      if (!compare(before[i], after[i], `${at}/${i}`, changed)) equal = false;
+    }
+    return equal;
+  }
+  if (isObject(before) && isObject(after)) {
+    let equal = true;
+    for (const key of Object.keys(after)) {
+      const to = `${at}/${escapePointerSegment(key)}`;
+      if (!Object.hasOwn(before, key)) {
+        changed.push(to);
+        equal = false;
+        continue;
+      }
+      if (!compare(before[key], after[key], to, changed)) equal = false;
+    }
+    for (const key of Object.keys(before)) {
+      // A removed key has no node to address, so it needs no hole.
+      if (!Object.hasOwn(after, key)) equal = false;
+    }
+    return equal;
+  }
+  changed.push(at);
+  return false;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
