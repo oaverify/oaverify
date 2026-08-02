@@ -261,6 +261,42 @@ const fixtures: { name: string; entry: string; sources: Map<string, unknown> }[]
       ],
     ]),
   },
+  {
+    // Positions OpenAPI does not type as `X | Reference` hold author
+    // data. Both walks must decline all of these identically, and the
+    // read order proves it: only the entry document is ever read.
+    name: "refs at illegal positions are left alone",
+    entry: "main.json",
+    sources: map([
+      [
+        "main.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1", description: { $ref: "info.md" } },
+          tags: [{ name: "T", description: { $ref: "flow.mdx" } }],
+          "x-vendor": { $ref: "vendor.json" },
+          paths: {
+            "/p": {
+              get: {
+                responses: {
+                  "200": {
+                    description: "ok",
+                    content: {
+                      "application/json": {
+                        schema: { type: "object" },
+                        example: { $ref: "payload.json" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          components: { examples: { E: { value: { $ref: "value.json" } } } },
+        },
+      ],
+    ]),
+  },
 ];
 
 describe("resolveSpecSync ⇔ resolveSpec parity", () => {
