@@ -206,10 +206,23 @@ export function withSynthetic(regions: readonly SpecRegion[], at: string): SpecR
  *
  * Holes land at the deepest changed node, so an overlay that adds one
  * operation to a path item leaves the rest of that path item addressed
- * as before. Removals need no hole: a node that is gone cannot be
- * addressed. An array whose contents changed is marked whole, because
- * an insertion shifts every index after it and index-wise attribution
- * would then be wrong rather than missing.
+ * as before.
+ *
+ * What "changed" means is decided per node rather than per subtree, and
+ * the distinction is load-bearing. A scalar *is* its value, so a
+ * rewritten one is a different node and loses its address. An object is
+ * a container whose children are separately addressed, so adding or
+ * removing a key leaves every surviving key pointing where it always
+ * did; the added key gets its own hole, the removed key has no node to
+ * hole, and the container keeps the address of the object it was built
+ * from even though its key set now differs. Holing containers as well
+ * would walk the change up the spine to the document root, and a hole
+ * at the root is provenance switched off for any spec with an overlay.
+ *
+ * An array whose length changed is marked whole, because an insertion
+ * or a removal shifts every index after it and index-wise attribution
+ * would then be wrong rather than missing. One that kept its length is
+ * compared element-wise, since the indices still line up.
  *
  * @param regions - Regions from the resolution that produced `before`.
  * @param before - The document as `resolveSpec` returned it.
@@ -257,7 +270,9 @@ function compare(before: unknown, after: unknown, at: string, changed: string[])
       if (!compare(before[key], after[key], to, changed)) equal = false;
     }
     for (const key of Object.keys(before)) {
-      // A removed key has no node to address, so it needs no hole.
+      // A removed key has no node in the graded document, so there is
+      // nothing to address and nothing to hole. Every surviving key
+      // still points where it did.
       if (!Object.hasOwn(after, key)) equal = false;
     }
     return equal;

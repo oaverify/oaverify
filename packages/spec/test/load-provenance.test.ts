@@ -14,8 +14,9 @@ const docs: Record<string, unknown> = {
   "entry.json": {
     openapi: "3.1.0",
     info: { title: "X", version: "1" },
-    tags: [{ name: "one" }],
-    paths: { "/a": { $ref: "./path.json" } },
+    tags: [{ name: "one" }, { name: "two" }],
+    "x-keep": "removed by one of the overlays below",
+    paths: { "/a": { $ref: "./path.json" }, "/gone": { get: { responses: {} } } },
   },
   "path.json": {
     get: {
@@ -98,11 +99,24 @@ describe("loadSpec provenance", () => {
     expect(sourceOf(regions, "/paths/~1a/get/summary")?.uri).toBe("path.json");
   });
 
-  it("marks a replaced array whole, because indices shift", async () => {
-    const regions = await regionsWith([{ tags: [{ name: "two" }, { name: "three" }] }]);
+  it("marks an array whole when its length changed, because indices shift", async () => {
+    const regions = await regionsWith([
+      { tags: [{ name: "two" }, { name: "three" }, { name: "four" }] },
+    ]);
     expect(sourceOf(regions, "/tags")).toBeUndefined();
     expect(sourceOf(regions, "/tags/0/name")).toBeUndefined();
     expect(sourceOf(regions, "/info/title")?.uri).toBe("entry.json");
+  });
+
+  it("stays element-wise when an array kept its length", async () => {
+    // Indices still line up, so only what changed loses its address.
+    const regions = await regionsWith([{ tags: [{ name: "one" }, { name: "changed" }] }]);
+    expect(sourceOf(regions, "/tags/0/name")).toEqual({
+      uri: "entry.json",
+      pointer: "/tags/0/name",
+      via: [],
+    });
+    expect(sourceOf(regions, "/tags/1/name")).toBeUndefined();
   });
 
   it("suppresses a mount underneath a subtree the overlay replaced", async () => {
@@ -129,9 +143,41 @@ describe("loadSpec provenance", () => {
     expect(sourceOf(regions, "/paths/~1a/get/responses/200/description")).toBeUndefined();
   });
 
-  it("leaves a removal alone, since a node that is gone cannot be addressed", async () => {
+  it("gives an added root extension no address", async () => {
     const regions = await regionsWith([{ setExtensions: { "x-added": 1 } }]);
     expect(sourceOf(regions, "/x-added")).toBeUndefined();
     expect(sourceOf(regions, "/paths/~1a/get/operationId")?.uri).toBe("path.json");
+  });
+
+  describe("removals", () => {
+    // A removed node has no address in the graded document, so there is
+    // nothing to mark. What has to stay true is that every node that
+    // survives still addresses the right place: a removal must not
+    // shift what is left, or an address would become wrong rather than
+    // missing, which is the failure this design exists to prevent.
+
+    it("keeps the surviving paths addressed when one is removed", async () => {
+      const regions = await regionsWith([{ removePaths: ["/gone"] }]);
+      expect(sourceOf(regions, "/paths/~1a/get/operationId")).toEqual({
+        uri: "path.json",
+        pointer: "/get/operationId",
+        via: [{ uri: "entry.json", pointer: "/paths/~1a" }],
+      });
+      // The removed path resolves to nothing in the graded document, so
+      // no finding can carry this pointer in the first place.
+      expect(sourceOf(regions, "/paths/~1gone")?.pointer).toBe("/paths/~1gone");
+    });
+
+    it("marks the tags array when one is removed, because indices shift", async () => {
+      const regions = await regionsWith([{ removeTags: ["one"] }]);
+      expect(sourceOf(regions, "/tags")).toBeUndefined();
+      expect(sourceOf(regions, "/tags/0/name")).toBeUndefined();
+    });
+
+    it("keeps the rest of the document addressed when an extension is removed", async () => {
+      const regions = await regionsWith([{ setExtensions: { "x-keep": undefined } }]);
+      expect(sourceOf(regions, "/info/title")?.uri).toBe("entry.json");
+      expect(sourceOf(regions, "/paths/~1a/get/operationId")?.uri).toBe("path.json");
+    });
   });
 });
