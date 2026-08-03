@@ -812,8 +812,14 @@ export async function checkCommand(
 
   // The caller's grading, applied once over every class rather than at
   // each site that builds a finding, so no class can quietly opt out of
-  // it. `malformed` is excluded at parse time, so nothing here has to
-  // special-case it beyond leaving it alone.
+  // it.
+  //
+  // The `malformed` skip is not redundant with the parse-time refusal.
+  // That refusal keys on two literal strings, so it catches
+  // `malformed=...` and `malformed-schema=...` and nothing else; a
+  // second code in this class carrying a slash would be reachable
+  // through a `malformed/*` family key. Skipping by class holds
+  // whatever codes the class grows.
   if (severityMap !== EMPTY_SEVERITY_MAP) {
     for (const finding of findings) {
       if (finding.class === "malformed") continue;
