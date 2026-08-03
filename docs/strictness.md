@@ -70,9 +70,28 @@ Four fields say "where", and each answers a different question:
   segments. Absent once a `$ref` has been crossed, since no segment list
   spans a ref hop. A caller compiling a bare schema has this and no
   pointer.
-- `path` is the same position rendered as a dotted string. Its base frame
-  is not stated and changes at a `$ref`, so prefer the two above.
+- `path` renders the position the finding is **actionable** at, as a
+  dotted string. Always present, and the text `check` prints. Read it,
+  and use the two above to parse.
 - `location` is text for a **human**, naming what was being compiled.
+
+`path` renders in one of two frames, and the rule picks whichever one
+names the place a reader would edit. For every rule but one it re-roots
+at each `$ref` crossed, so a defect in a shared component is reported
+once, at the component. For `silent-rewrite/required-not-in-properties`
+it keeps the use-site route from the compiled schema root instead: that
+rule asks which property names are reachable at an instance position,
+and a component answers differently at different use sites, so the
+definition can name a position where the finding does not hold. `anchor`
+reports `scoped-definition` in exactly that case, which is how a
+consumer holding a pointer tells the two frames apart.
+
+A caller compiling a self-contained schema (`compileSchema` with `$defs`
+and no surrounding document) gets no `pointer` by default, and
+`schemaPath` stops at the first `$ref`. Passing `pointer: ""` roots the
+pointer at the schema itself, which is where the default resolver
+already resolves `#/…`, so findings behind a ref carry an address that
+resolves (`/$defs/Inner/properties/y`) rather than nothing.
 
 `anchor` says what `pointer` addresses: `node` for the finding's own
 position, `definition` for shared text reached through a `$ref`, and

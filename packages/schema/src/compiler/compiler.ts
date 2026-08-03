@@ -437,19 +437,23 @@ export interface CompileStats {
  *
  * ## Which field says "where"
  *
- * Four names, four referents. Each is absent rather than re-framed
- * where it cannot answer, so a consumer never has to guess which frame
- * an address is in:
+ * Four names, four referents:
  *
  * - {@link SchemaLintIssue.pointer}: the **resolved document**, as an
  *   RFC 6901 pointer. Needs {@link CompileOptions.pointer}.
  * - {@link SchemaLintIssue.schemaPath}: a position inside the
  *   **compiled schema**, as segments. Ends at a `$ref` hop.
- * - {@link SchemaLintIssue.path}: the same position rendered as a
- *   dotted string, whose base frame is not stated. Retained for
- *   callers that predate the two above.
+ * - {@link SchemaLintIssue.path}: the position the finding is
+ *   **actionable** at, rendered as a dotted string for a reader. Always
+ *   present, and which frame it renders depends on the rule; see the
+ *   field.
  * - {@link SchemaLintIssue.location}: text for a **human**, naming what
  *   was being compiled. Never parse it.
+ *
+ * The first two are the machine addresses, and each is absent rather
+ * than re-framed where it cannot answer, so a consumer never has to
+ * guess which frame an address is in. `path` answers a different
+ * question, which is why it keeps rendering where those two stop.
  *
  * {@link SchemaLintIssue.anchor} is not an address; it says what
  * following `pointer` means for a reader who edits there.
@@ -528,16 +532,40 @@ export interface SchemaLintIssue {
   /** The offending keyword / key name as written in the schema. */
   keyword: string;
   /**
-   * Dotted path from the root schema to the subschema holding the key.
+   * Dotted rendering of the position this finding is actionable at:
+   * where a reader has to go to act on it.
    *
-   * A rendered address, and its base frame is not stated: it is
-   * relative to the compiled schema until the walk crosses a `$ref`,
-   * after which it is relative to the ref target and reads as a
-   * document path. Nothing in the value says which. Prefer
-   * {@link SchemaLintIssue.pointer} for a document address and
-   * {@link SchemaLintIssue.schemaPath} for a position inside the
-   * compiled schema; each of those is absent rather than re-framed
-   * where it cannot answer.
+   * A locator to read, and not an address to parse. It is what `check`
+   * prints and what every `message` interpolates, so its rendering is
+   * user-visible output and changes only deliberately. For a machine
+   * address use {@link SchemaLintIssue.pointer} (the document) or
+   * {@link SchemaLintIssue.schemaPath} (inside the compiled schema),
+   * each of which is absent rather than re-framed where it cannot
+   * answer. This field is always present, including where both of those
+   * are absent.
+   *
+   * Two frames are in use, and which one a rule renders in follows from
+   * what the reader would have to edit:
+   *
+   * - **The definition**, for every rule except the one below. The
+   *   render re-roots at each `$ref` crossed, so a defect in shared text
+   *   is reported once at the place it gets fixed, however many use
+   *   sites reach it. A local `#/…` ref renders as the dotted document
+   *   path it names (`components.schemas.Email`); an anchor or an
+   *   external URI renders as written, there being no document path to
+   *   give.
+   * - **The use site**, for
+   *   `silent-rewrite/required-not-in-properties`. That rule asks which
+   *   property names are reachable at an instance position, and a
+   *   component answers differently at different use sites, so the
+   *   definition can name a position where the finding does not hold.
+   *   The render therefore keeps the route from the compiled schema root
+   *   across every `$ref`. {@link SchemaLintIssue.anchor} reports
+   *   `"scoped-definition"` in exactly this case, so a consumer holding
+   *   a pointer can tell the two frames apart.
+   *
+   * A rule added later that reports at a use site states it here, the
+   * way that one does.
    */
   path: string;
   /**
@@ -865,9 +893,17 @@ export interface CompileOptions {
    * a resolver rooted somewhere else (the default one is rooted at the
    * schema) yields addresses in a frame the caller never named. The
    * HTTP validator satisfies this: its resolver and its pointers are
-   * both rooted at the whole document. A caller compiling a
-   * self-contained schema with `$defs` should pass no pointer and read
-   * {@link SchemaLintIssue.schemaPath} instead.
+   * both rooted at the whole document.
+   *
+   * A caller compiling a **self-contained** schema satisfies it by
+   * passing `""`: the default resolver is rooted at the schema, so the
+   * schema is the document and the empty pointer names its root.
+   * Worth doing where findings can sit behind a `$ref`, since
+   * {@link SchemaLintIssue.schemaPath} stops at the first hop and
+   * {@link SchemaLintIssue.pointer} keeps resolving past it
+   * (`/$defs/Inner/properties/y`). A caller whose schema is a fragment
+   * of some larger document, or whose `refResolver` is rooted
+   * elsewhere, passes no pointer instead and reads `schemaPath`.
    */
   pointer?: string;
   /**

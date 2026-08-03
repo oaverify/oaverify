@@ -301,6 +301,79 @@ describe("schema lint: machine-readable position (#517)", () => {
   });
 });
 
+describe("the two frames `path` renders in (#594)", () => {
+  // `path` names where a reader has to go to act. Which frame that is
+  // depends on the rule, and both halves are documented contract on
+  // SchemaLintIssue.path, so both are pinned here: a rule that quietly
+  // switched frames would otherwise change user-visible output, and the
+  // CLI dedup key with it, under a green gate.
+  const shared = {
+    $defs: {
+      Inner: { type: "object", required: ["nope"], properties: { yes: { type: "string" } } },
+    },
+    type: "object",
+    properties: {
+      // Declares `nope` alongside, so the required lint does not fire here.
+      a: { allOf: [{ $ref: "#/$defs/Inner" }, { properties: { nope: { type: "string" } } }] },
+      b: { allOf: [{ $ref: "#/$defs/Inner" }] },
+    },
+  };
+
+  const lint = (schema: unknown, pointer?: string) =>
+    compileSchema(schema as SchemaOrBoolean, {
+      dialect: jsonSchemaDialect,
+      schemaLint: "strict",
+      ...(pointer === undefined ? {} : { pointer }),
+    }).stats.schemaLintIssues;
+
+  it("renders the use site for the required lint, which no other field names", () => {
+    const [issue] = lint(shared, "").filter(
+      (i) => i.code === "silent-rewrite/required-not-in-properties",
+    );
+
+    // The route that is broken. `properties.a` composes the missing
+    // name in, so only `b` is reachable-and-wrong.
+    expect(issue?.path).toBe("properties.b.allOf[0]");
+    // The text to look at is shared, and correct for `a`.
+    expect(issue?.pointer).toBe("/$defs/Inner/required");
+    // Which says the finding is route-scoped, without saying which route.
+    expect(issue?.anchor).toBe("scoped-definition");
+  });
+
+  it("renders the definition for every other rule, re-rooted at the ref", () => {
+    const [issue] = lint(
+      {
+        $defs: { Inner: { type: "object", properties: { y: { exclusiveMinimumm: 3 } } } },
+        properties: { a: { $ref: "#/$defs/Inner" } },
+      },
+      "",
+    ).filter((i) => i.code === "unknown-keyword" && i.anchor === "definition");
+
+    // The dotted document path of the target, not the `properties.a`
+    // route that reached it.
+    expect(issue?.path).toBe("$defs.Inner.properties.y");
+    expect(issue?.pointer).toBe("/$defs/Inner/properties/y");
+    // The hop ends the segment list; the render carries on past it.
+    expect(issue?.schemaPath).toBeUndefined();
+  });
+
+  it('gives a self-contained caller a resolving pointer behind a ref for `pointer: ""`', () => {
+    // The recipe documented on CompileOptions.pointer. Without it the
+    // finding behind the hop has `path` and nothing else.
+    const schema = {
+      $defs: { Inner: { type: "object", properties: { y: { exclusiveMinimumm: 3 } } } },
+      properties: { a: { $ref: "#/$defs/Inner" } },
+    };
+
+    const bare = lint(schema).filter((i) => i.schemaPath === undefined);
+    expect(bare[0]?.pointer).toBeUndefined();
+
+    const rooted = lint(schema, "").filter((i) => i.schemaPath === undefined);
+    expect(rooted[0]?.pointer).toBe("/$defs/Inner/properties/y");
+    expect(rooted[0]?.anchor).toBe("definition");
+  });
+});
+
 describe("schema lint: required-not-in-properties (instance-position aware)", () => {
   const flagged = (schema: unknown) =>
     compileSchema(schema as SchemaOrBoolean, {
