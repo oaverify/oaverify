@@ -160,6 +160,18 @@ RFC 6901 pointer into the resolved document, percent-decoded with `~0` /
 anchor name a schema but no position in the graded document, so those
 report no `target` at all rather than an address that goes nowhere.
 
+It addresses the **resolved** document, so it can name a position no
+author typed. That is what `target.source` is for. **Values changed in
+5.3.0** for specs assembled from several files: a component reached
+across documents used to be copied under a derived name, so a pointer
+read `/components/schemas/Cat_y57khi/required`, where the suffix came
+from the path the spec was resolved from and changed with the directory.
+Such a component is no longer duplicated, and the same finding now
+reports `/components/schemas/Cat/required`, agreeing with
+`target.source.pointer`. A consumer that stored pointers from an earlier
+run, or that matched them against a pattern, is reading a spec of more
+than one file if this affects it; single-file specs are unchanged.
+
 **`target.anchor` says what following the pointer gets you**, which is
 what a consumer needs before it edits anything. A closed vocabulary:
 
