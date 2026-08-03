@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CHECK_CODES, CHECK_FAMILIES } from "../src/codes.js";
 import { CHECK_CLASSES, CHECK_SEVERITIES } from "../src/commands.js";
 import {
   defaultSeverityFor,
@@ -46,6 +47,13 @@ describe("the three key spaces", () => {
     ).toBe("fatal");
   });
 
+  it("maps a code with no family in its name", () => {
+    // Both `hygiene`; refused before the registry existed.
+    const map = parse("unused-component=error");
+    expect(grade(map, "hygiene", "unused-component")).toBe("error");
+    expect(grade(map, "hygiene", "unused-tag")).toBe("warning");
+  });
+
   it("leaves anything unmapped on its default", () => {
     expect(grade(parse("redos=error"), "schema", "unknown-keyword")).toBe("warning");
   });
@@ -90,14 +98,44 @@ describe("input the flag refuses rather than half-applies", () => {
     expect(() => parse("redos=")).toThrow(/no level/);
   });
 
-  it("refuses a bare word that is not a class, since it is a mistyped class", () => {
+  it("refuses a bare word that is neither a class nor a code", () => {
     // Accepting it as a code would match nothing and grade nothing,
     // which is the silent failure this option exists to prevent.
-    expect(() => parse("typo=error")).toThrow(/is not a class/);
+    expect(() => parse("typo=error")).toThrow(/is not a class .* or a code oaverify emits/);
   });
 
   it("refuses a star anywhere but a trailing /*", () => {
     expect(() => parse("un*safe=error")).toThrow(/only allowed as a trailing/);
+  });
+
+  // #632: both parsed, graded nothing, exited 0.
+  it("refuses a code no check emits, naming the family's real members", () => {
+    expect(() => parse("unsatisfiable/patern-length=error")).toThrow(
+      /is not a code oaverify emits/,
+    );
+    expect(() => parse("unsatisfiable/patern-length=error")).toThrow(
+      /"unsatisfiable\/" holds unsatisfiable\/enum-member-type, unsatisfiable\/pattern-length/,
+    );
+  });
+
+  it("falls back to naming the families when the family is wrong too", () => {
+    expect(() => parse("unsatisfyable/pattern-length=error")).toThrow(
+      /known families are silent-rewrite, unsatisfiable/,
+    );
+  });
+
+  it("refuses a family no code sits in", () => {
+    expect(() => parse("unsatisfyable/*=error")).toThrow(/is not a code family/);
+  });
+
+  it("still accepts every real code and family", () => {
+    for (const code of CHECK_CODES) {
+      if (code === "malformed-schema") continue; // refused as malformed, before the lookup
+      expect(() => parse(`${code}=error`)).not.toThrow();
+    }
+    for (const family of CHECK_FAMILIES) {
+      expect(() => parse(`${family}/*=error`)).not.toThrow();
+    }
   });
 });
 
