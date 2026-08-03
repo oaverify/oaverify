@@ -25,6 +25,7 @@ import { readFile } from "node:fs/promises";
 import { resolve as resolvePath } from "node:path";
 import {
   loadSpecSync as loadSpecSyncCore,
+  STDIN_URI,
   type DocumentReader,
   type FileReaderOptions,
   type HttpReaderOptions,
@@ -35,9 +36,11 @@ import {
   composeReadersSync,
   createFileReaderSync,
   fetchInit,
+  readStream,
   resolveReadPath,
   resolveReadPathSync,
   responseText,
+  trimStdinText,
   type SyncDocumentReader,
 } from "@oaverify/internal-spec/internals";
 import { parse as parseYaml } from "yaml";
@@ -89,6 +92,67 @@ export function createYamlFileReader(
       const path = await resolveReadPath(root, decoded, uri, options.confine === true);
       const raw = await readFile(path, "utf8");
       return parseYaml(raw);
+    },
+  };
+}
+
+/**
+ * Read one document from standard input, JSON or YAML.
+ *
+ * Compose it at the **front** of the chain: `createFileReader`'s
+ * `canRead` claims every non-HTTP, non-memory URI, so anything later
+ * would take `-` and look for a file of that name.
+ *
+ * There is no extension to dispatch on, so the format is decided by a
+ * stated rule rather than by sniffing:
+ *
+ * > Read the stream to completion, strip a BOM, trim leading
+ * > whitespace. If the first character is `{`, parse as JSON.
+ * > Otherwise parse as YAML.
+ *
+ * The whole stream has to be read before either parser can run, so the
+ * rule costs nothing. Routing `{`-leading input to the JSON parser
+ * rather than leaning on YAML being a JSON superset is deliberate:
+ * YAML 1.2 flow mappings and JSON objects are not quite the same
+ * grammar, and a JSON document should be parsed by the JSON parser.
+ *
+ * The one shape this decides against is a spec written in YAML flow
+ * style at the top level (`{openapi: 3.1.0, ...}`), which is legal YAML
+ * and vanishingly rare for a document anyone pipes. Write it as a file,
+ * or as block-style YAML.
+ *
+ * The stream is read once and the parsed document memoised, since a
+ * stream cannot be rewound.
+ *
+ * @param stdin - Optional stream to read. Defaults to `process.stdin`.
+ * @returns A {@link @oaverify/core/spec!DocumentReader}.
+ *
+ * @example
+ * ```ts
+ * // redocly bundle openapi.yaml | oaverify check -
+ * const reader = composeReaders([
+ *   createYamlStdinReader(),
+ *   createYamlFileReader(),
+ *   createFileReader(),
+ * ]);
+ * ```
+ *
+ * @public
+ */
+export function createYamlStdinReader(stdin?: AsyncIterable<Uint8Array>): DocumentReader {
+  let pending: Promise<unknown> | undefined;
+  return {
+    canRead(uri) {
+      return uri === STDIN_URI;
+    },
+    async read(uri) {
+      if (uri !== STDIN_URI) throw new Error(`stdin reader: ${uri} is not ${STDIN_URI}`);
+      pending ??= (async () => {
+        const text = trimStdinText(await readStream(stdin ?? process.stdin));
+        if (text === "") throw new Error("stdin: no input");
+        return text.startsWith("{") ? JSON.parse(text) : parseYaml(text);
+      })();
+      return pending;
     },
   };
 }

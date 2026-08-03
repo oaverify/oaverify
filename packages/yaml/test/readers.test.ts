@@ -2,8 +2,18 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { composeReaders, createFileReader, resolveSpec } from "@oaverify/internal-spec";
-import { createSmartHttpReader, createYamlFileReader, parseYamlString } from "../src/index.js";
+import {
+  composeReaders,
+  createFileReader,
+  createStdinReader,
+  resolveSpec,
+} from "@oaverify/internal-spec";
+import {
+  createSmartHttpReader,
+  createYamlFileReader,
+  createYamlStdinReader,
+  parseYamlString,
+} from "../src/index.js";
 
 describe("createYamlFileReader", () => {
   let dir: string;
@@ -169,5 +179,48 @@ describe("parseYamlString", () => {
   it("parses a YAML source to a JSON-compatible value", () => {
     expect(parseYamlString("a: 1\nb: [2, 3]")).toEqual({ a: 1, b: [2, 3] });
     expect(parseYamlString("42")).toBe(42);
+  });
+});
+
+describe("createYamlStdinReader", () => {
+  const streamOf = (...parts: string[]): AsyncIterable<Uint8Array> => ({
+    // eslint-disable-next-line @typescript-eslint/require-await -- generator body needs no await
+    async *[Symbol.asyncIterator]() {
+      for (const part of parts) yield new TextEncoder().encode(part);
+    },
+  });
+
+  it("parses block YAML, which is what a bundler emits", async () => {
+    const r = createYamlStdinReader(streamOf("openapi: 3.1.0\ninfo:\n  title: X\n"));
+    expect(await r.read("-")).toEqual({ openapi: "3.1.0", info: { title: "X" } });
+  });
+
+  it("routes a leading `{` to the JSON parser", async () => {
+    // The stated rule, and the reason for it: JSON is parsed by the
+    // JSON parser rather than relying on YAML being a superset.
+    const r = createYamlStdinReader(streamOf('  {"openapi":"3.1.0"}\n'));
+    expect(await r.read("-")).toEqual({ openapi: "3.1.0" });
+  });
+
+  it("rejects a JSON document that is malformed, rather than reading it as YAML", async () => {
+    // Without the `{` rule this text parses as a YAML scalar and the
+    // caller gets a string where it expected a document.
+    const r = createYamlStdinReader(streamOf('{"openapi": }'));
+    await expect(r.read("-")).rejects.toThrow(SyntaxError);
+  });
+
+  it("shadows the JSON-only stdin reader when composed ahead of it", async () => {
+    const reader = composeReaders([
+      createYamlStdinReader(streamOf("openapi: 3.1.0\n")),
+      createStdinReader(streamOf("unused")),
+      createFileReader(),
+    ]);
+    expect(await reader.read("-")).toEqual({ openapi: "3.1.0" });
+  });
+
+  it("reads the stream once", async () => {
+    const r = createYamlStdinReader(streamOf("a: 1\n"));
+    expect(await r.read("-")).toEqual({ a: 1 });
+    expect(await r.read("-")).toEqual({ a: 1 });
   });
 });

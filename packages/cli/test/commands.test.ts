@@ -1162,6 +1162,38 @@ describe("validateCommand", () => {
     };
   }
 
+  it("refuses to take both the spec and the payload from stdin (#602)", async () => {
+    // One stream, two consumers. Whichever read first would win and the
+    // other would fail on an empty document, so say what is wrong
+    // instead. Checked before anything is read, so no input is consumed.
+    const { io, stderr } = memoryIo([["spec.json", specWithRequiredBody()]], []);
+    const result = await validateCommand(
+      {
+        spec: "-",
+        overlays: [],
+        mode: { kind: "bodyForPath", method: "POST", path: "/pets", body: "-" },
+        options: textOpts,
+      },
+      io,
+    );
+    expect(result.exitCode).toBe(3);
+    expect(stderr.value).toContain("only one of them can read it");
+  });
+
+  it("allows a spec on stdin alongside a payload from a file", async () => {
+    const { io } = memoryIo([["-", specWithRequiredBody()]], [["body.json", '{"name":"a"}']]);
+    const result = await validateCommand(
+      {
+        spec: "-",
+        overlays: [],
+        mode: { kind: "bodyForPath", method: "POST", path: "/pets", body: "body.json" },
+        options: textOpts,
+      },
+      io,
+    );
+    expect(result.exitCode).toBe(0);
+  });
+
   it("exits 3 on an unrecognised overlay shape (shared readOverlay path)", async () => {
     const { io, stderr } = memoryIo(
       [

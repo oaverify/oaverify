@@ -23,9 +23,11 @@ export {
   composeReadersSync,
   createFileReaderSync,
   fetchInit,
+  readStream,
   resolveReadPath,
   resolveReadPathSync,
   responseText,
+  trimStdinText,
   type SyncDocumentReader,
 } from "./reader.js";
 export { resolveSpecSync, type ResolveSpecSyncOptions } from "./resolver-sync.js";
