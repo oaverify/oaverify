@@ -1,6 +1,7 @@
 /* eslint-disable unicorn/no-thenable -- `then` is a JSON Schema keyword here */
 import { describe, expect, it } from "vitest";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import type { SchemaLintIssue } from "../src/compiler/compiler.js";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect, oas30Dialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
 
@@ -371,6 +372,42 @@ describe("the two frames `path` renders in (#594)", () => {
     const rooted = lint(schema, "").filter((i) => i.schemaPath === undefined);
     expect(rooted[0]?.pointer).toBe("/$defs/Inner/properties/y");
     expect(rooted[0]?.anchor).toBe("definition");
+  });
+
+  /**
+   * Every code declares which frame it renders `path` in.
+   *
+   * The tests above pin the two frames against the rules that use them
+   * today, so they catch an existing rule switching. They cannot catch
+   * a *new* rule picking a frame silently, and `SchemaLintIssue.path`
+   * states the frame as contract, so a rule that picks one without
+   * saying makes the documentation wrong under a green gate.
+   *
+   * This map closes that. `Record` over the `code` union is exhaustive,
+   * so adding a member fails `pnpm typecheck` here until its author has
+   * decided which frame it reports in and said so on the field.
+   *
+   * It is a declaration, not a measurement: it records the intent the
+   * TSDoc carries. The behaviour is pinned by the two tests above.
+   */
+  const FRAME: Record<SchemaLintIssue["code"], "definition" | "use-site"> = {
+    "partial-feature": "definition",
+    "unknown-keyword": "definition",
+    "annotation-value-type": "definition",
+    "silent-rewrite/ref-siblings-oas30": "definition",
+    "silent-rewrite/redundant-composition-branches": "definition",
+    "silent-rewrite/discriminator-unroutable": "definition",
+    "unsatisfiable/pattern-length": "definition",
+    // The one rule whose verdict depends on the route that reached the
+    // text, so the definition can name a position where it does not
+    // hold. Reports `anchor: "scoped-definition"`.
+    "silent-rewrite/required-not-in-properties": "use-site",
+  };
+
+  it("declares a frame for every code, and only the required lint uses the use site", () => {
+    expect(Object.entries(FRAME).filter(([, frame]) => frame === "use-site")).toEqual([
+      ["silent-rewrite/required-not-in-properties", "use-site"],
+    ]);
   });
 });
 
