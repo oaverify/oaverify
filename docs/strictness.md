@@ -382,6 +382,42 @@ oaverify check spec.yaml --fail-on warning  # break the build on anything at all
 schema is found by compiling, which is what the `schema` check does, so
 it cannot be asked for on its own and appears whenever that check runs.
 
+#### When you disagree with the grading
+
+The table above is oaverify's judgement about consequence, and a
+consumer may reasonably hold a different one. `schema` and `redos` are
+flat `warning`, which puts `unsatisfiable/pattern-length` (a field no
+value can ever satisfy) and `redos/ambiguous-pattern` (a
+denial-of-service vector on a field with no `maxLength`) at the same
+rank as a style note.
+
+`--severity` regrades, so the policy lives with the team that has to
+act on it:
+
+```
+oaverify check spec.yaml --severity 'unsatisfiable/*=error' --fail-on error
+oaverify check spec.yaml --severity 'redos=error,examples=error' --fail-on error
+```
+
+A key is an exact code, a family written `name/*`, or a class, and the
+most specific one wins, so
+`--severity 'unsatisfiable/*=error,unsatisfiable/pattern-length=warning'`
+promotes the family and demotes the single member whichever order they
+are written in. Levels are the three above. The flag takes a
+comma-separated list and may be repeated.
+
+It changes the `severity` field in the report and what `--fail-on`
+gates on, and nothing else: `validate` has no notion of severity, and
+which findings are produced is `--only`'s question.
+
+**`malformed` cannot be remapped.** Its exit code is 4, which outranks
+`--fail-on` because a document that cannot be compiled is not a gate
+result, so a remapping would change the printed word and nothing that
+matters. `--severity malformed=warning` is refused as a usage error
+rather than half-applied. Every other input error is refused too, on
+the same reasoning: a mistyped key that silently graded nothing is the
+failure this option exists to prevent.
+
 ### Document conformance
 
 `conformance` validates the document against the JSON Schema OpenAPI

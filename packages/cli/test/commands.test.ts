@@ -727,6 +727,63 @@ describe("resolveCommand", () => {
     ).toBe(1);
   });
 
+  it("check --severity regrades a class, and that changes the gate (#607)", async () => {
+    // The point of the option. An unused component is graded `warning`,
+    // so `--fail-on error` ignores it; a team that disagrees says so and
+    // the exit code follows, without post-processing JSON.
+    const tidyOnly = {
+      openapi: "3.1.0",
+      info: { title: "X", version: "1.0.0" },
+      paths: { "/t": { get: { responses: { "200": { description: "ok" } } } } },
+      components: { schemas: { Orphan: { type: "string" } } },
+    };
+
+    const { io } = memoryIo([["spec.json", tidyOnly]]);
+    const before = await checkCommand(
+      { spec: "spec.json", overlays: [], failOn: "error", options: textOpts },
+      io,
+    );
+    expect(before.exitCode).toBe(0);
+
+    const { io: io2, stdout } = memoryIo([["spec.json", tidyOnly]]);
+    const after = await checkCommand(
+      {
+        spec: "spec.json",
+        overlays: [],
+        failOn: "error",
+        severity: ["hygiene=error"],
+        options: textOpts,
+      },
+      io2,
+    );
+    expect(after.exitCode).toBe(1);
+    // And the report says so too, not only the exit code.
+    expect(stdout.value).toContain("error");
+  });
+
+  it("check --severity refuses a bad map before reading the document", async () => {
+    // No spec entry at all: reaching the reader would throw something
+    // else, so the usage error has to come first.
+    const { io, stderr } = memoryIo([]);
+    const res = await checkCommand(
+      { spec: "absent.json", overlays: [], severity: ["typo=error"], options: textOpts },
+      io,
+    );
+    expect(res.exitCode).toBe(3);
+    expect(stderr.value).toContain("--severity");
+    expect(stderr.value).toContain("is not a class");
+  });
+
+  it("check --severity cannot remap malformed", async () => {
+    const { io, stderr } = memoryIo([]);
+    const res = await checkCommand(
+      { spec: "absent.json", overlays: [], severity: ["malformed=warning"], options: textOpts },
+      io,
+    );
+    expect(res.exitCode).toBe(3);
+    expect(stderr.value).toContain("always exit 4");
+  });
+
   it("check --fail-on warning still means any finding at all", async () => {
     // Backward compatibility, asserted rather than assumed. Introducing
     // severity must not quietly demote existing findings below an

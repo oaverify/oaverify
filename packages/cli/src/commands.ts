@@ -38,6 +38,14 @@ import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
 import { checkDocumentRedos } from "./redos-check.js";
 import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
+import {
+  defaultSeverityFor,
+  EMPTY_SEVERITY_MAP,
+  parseSeverityMap,
+  severityFor,
+  SeverityMapError,
+  type SeverityMap,
+} from "./severity.js";
 
 /**
  * Input shared by all CLI commands.
@@ -485,15 +493,6 @@ export const CHECK_SEVERITIES = ["warning", "error", "fatal"] as const;
 export type CheckSeverity = (typeof CHECK_SEVERITIES)[number];
 
 /**
- * Hygiene codes that are specification violations rather than
- * housekeeping. OpenAPI requires every path-template placeholder to have
- * a matching parameter declaration, so these are not a matter of taste;
- * the rest of the hygiene codes (unused components, tags, `$defs`) name
- * things that are legal and merely dead.
- */
-const HYGIENE_ERRORS = new Set(["path-param-undeclared", "path-param-unused"]);
-
-/**
  * Column budget the `check` text report wraps to when the caller does
  * not supply one, which covers every non-TTY run: a pipe, a redirect,
  * `-o file`, and the tests.
@@ -586,6 +585,12 @@ export async function checkCommand(
      * specification violations while ignoring the rest.
      */
     failOn?: CheckSeverity;
+    /**
+     * `--severity` entries, unparsed. Each is a comma-separated list of
+     * `<key>=<level>`; see `parseSeverityMap` for the grammar and for
+     * why `malformed` is refused.
+     */
+    severity?: readonly string[];
     /** `"text"` (default) or `"json"`. */
     format?: "text" | "json";
     /**
@@ -605,6 +610,20 @@ export async function checkCommand(
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
   const classes = new Set<CheckClass>(args.only ?? CHECK_CLASSES);
+
+  // Parsed before anything is read: a typo in a CI flag should fail on
+  // the flag rather than after grading a document.
+  let severityMap: SeverityMap;
+  try {
+    severityMap =
+      args.severity === undefined || args.severity.length === 0
+        ? EMPTY_SEVERITY_MAP
+        : parseSeverityMap(args.severity, CHECK_CLASSES, CHECK_SEVERITIES);
+  } catch (err) {
+    if (!(err instanceof SeverityMapError)) throw err;
+    io.stderr(`check: --severity ${err.message}\n`);
+    return { exitCode: 3 };
+  }
 
   let overlayDocs: SpecOverlay[];
   try {
@@ -644,7 +663,7 @@ export async function checkCommand(
     for (const issue of specHygieneIssues) {
       findings.push({
         class: "hygiene",
-        severity: HYGIENE_ERRORS.has(issue.code) ? "error" : "warning",
+        severity: defaultSeverityFor("hygiene", issue.code),
         code: issue.code,
         location: issue.pointer,
         message: issue.message,
@@ -700,7 +719,7 @@ export async function checkCommand(
         const where = issue.path === "" ? "<root>" : issue.path;
         addSchemaFinding(schemaFindings, {
           class: "schema",
-          severity: "warning",
+          severity: defaultSeverityFor("schema", issue.code),
           code: issue.code,
           location: issue.location === undefined ? where : `${issue.location} -> ${where}`,
           message: issue.message,
@@ -735,7 +754,7 @@ export async function checkCommand(
     for (const issue of conformance.issues) {
       findings.push({
         class: "conformance",
-        severity: "error",
+        severity: defaultSeverityFor("conformance", issue.code),
         code: issue.code,
         location: issue.pointer,
         message: issue.message,
@@ -760,7 +779,7 @@ export async function checkCommand(
     for (const issue of checkDocumentExamples(document)) {
       findings.push({
         class: "examples",
-        severity: "warning",
+        severity: defaultSeverityFor("examples", issue.code),
         code: issue.code,
         location: issue.pointer,
         message: issue.message,
@@ -780,7 +799,7 @@ export async function checkCommand(
     for (const issue of checkDocumentRedos(document)) {
       findings.push({
         class: "redos",
-        severity: "warning",
+        severity: defaultSeverityFor("redos", issue.code),
         code: issue.code,
         location: issue.pointer,
         message: issue.message,
@@ -790,6 +809,17 @@ export async function checkCommand(
   }
 
   findings.push(...schemaFindings.values());
+
+  // The caller's grading, applied once over every class rather than at
+  // each site that builds a finding, so no class can quietly opt out of
+  // it. `malformed` is excluded at parse time, so nothing here has to
+  // special-case it beyond leaving it alone.
+  if (severityMap !== EMPTY_SEVERITY_MAP) {
+    for (const finding of findings) {
+      if (finding.class === "malformed") continue;
+      finding.severity = severityFor(severityMap, finding, finding.severity);
+    }
+  }
 
   // Every target that addresses a node the resolver built from a source
   // file gains that file's address. A target with no covering region,
