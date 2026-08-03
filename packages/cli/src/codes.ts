@@ -1,0 +1,158 @@
+/**
+ * Every finding code `check` can emit, so `--severity` has something to
+ * validate a code or `family/*` key against (#632).
+ *
+ * A mirror of codes the emitting passes own. Where they declare a union,
+ * the array is pinned to it and drift is a typecheck error; the three
+ * single-literal classes are hand-written and covered by
+ * `test/codes.test.ts`.
+ *
+ * @packageDocumentation
+ */
+
+import type { BuiltInErrorParams } from "@oaverify/internal-core";
+import type { SchemaLintIssue } from "@oaverify/internal-schema";
+import type { SpecHygieneIssue } from "@oaverify/internal-spec";
+
+/** Union members the array omits. `satisfies` covers the other direction. */
+type Missing<Union extends string, Listed extends string> = Exclude<Union, Listed>;
+
+/** Schema-class codes. */
+export const SCHEMA_CODES = [
+  "partial-feature",
+  "unknown-keyword",
+  "annotation-value-type",
+  "silent-rewrite/ref-siblings-oas30",
+  "silent-rewrite/required-not-in-properties",
+  "silent-rewrite/redundant-composition-branches",
+  "silent-rewrite/discriminator-unroutable",
+  "unsatisfiable/pattern-length",
+  "unsatisfiable/enum-member-type",
+] as const satisfies readonly SchemaLintIssue["code"][];
+// Reads as: no SchemaLintIssue code is missing from the array above.
+const _schemaComplete: Missing<SchemaLintIssue["code"], (typeof SCHEMA_CODES)[number]> extends never
+  ? true
+  : ["missing from SCHEMA_CODES", Missing<SchemaLintIssue["code"], (typeof SCHEMA_CODES)[number]>] =
+  true;
+
+/** Hygiene-class codes. */
+export const HYGIENE_CODES = [
+  "unused-component",
+  "unused-tag",
+  "unreachable-defs",
+  "path-param-undeclared",
+  "path-param-unused",
+] as const satisfies readonly SpecHygieneIssue["code"][];
+const _hygieneComplete: Missing<
+  SpecHygieneIssue["code"],
+  (typeof HYGIENE_CODES)[number]
+> extends never
+  ? true
+  : [
+      "missing from HYGIENE_CODES",
+      Missing<SpecHygieneIssue["code"], (typeof HYGIENE_CODES)[number]>,
+    ] = true;
+
+/**
+ * The "HTTP-level wrappers" half of {@link BuiltInErrorParams}. Excluded
+ * from conformance, which validates a document and has no traffic to
+ * describe. Subtracting these means a new keyword's code joins the
+ * conformance class without touching this file.
+ */
+const HTTP_LEVEL_CODES = [
+  "route",
+  "method",
+  "body",
+  "request",
+  "response",
+  "content-type",
+  "status",
+  "path-param",
+  "query-param",
+  "header-param",
+  "cookie-param",
+  "security",
+] as const satisfies readonly (keyof BuiltInErrorParams)[];
+
+/**
+ * Conformance-class codes. `BuiltInErrorParams` is open to declaration
+ * merging, but this pass compiles a metaschema the CLI ships, so no
+ * consumer keyword can reach it.
+ */
+type ConformanceCode = Exclude<keyof BuiltInErrorParams, (typeof HTTP_LEVEL_CODES)[number]>;
+
+export const CONFORMANCE_CODES = [
+  "false",
+  "type",
+  "const",
+  "enum",
+  "minimum",
+  "maximum",
+  "multipleOf",
+  "minLength",
+  "maxLength",
+  "pattern",
+  "format",
+  "minItems",
+  "maxItems",
+  "uniqueItems",
+  "minProperties",
+  "maxProperties",
+  "required",
+  "items",
+  "contains",
+  "maxContains",
+  "additionalProperties",
+  "unevaluatedProperties",
+  "unevaluatedItems",
+  "not",
+  "allOf",
+  "anyOf",
+  "oneOf",
+  "schema",
+  "discriminator",
+  "dependentRequired",
+  "dependencies",
+  "depth",
+] as const satisfies readonly ConformanceCode[];
+const _conformanceComplete: Missing<
+  ConformanceCode,
+  (typeof CONFORMANCE_CODES)[number]
+> extends never
+  ? true
+  : [
+      "missing from CONFORMANCE_CODES",
+      Missing<ConformanceCode, (typeof CONFORMANCE_CODES)[number]>,
+    ] = true;
+
+/** Examples-class codes. */
+export const EXAMPLES_CODES = ["example-invalid"] as const;
+
+/** ReDoS-class codes. */
+export const REDOS_CODES = ["ambiguous-pattern"] as const;
+
+/** Malformed-class codes. `--severity` refuses these before the lookup. */
+export const MALFORMED_CODES = ["malformed-schema"] as const;
+
+/** Every code, by the class that emits it. */
+export const CODES_BY_CLASS = {
+  hygiene: HYGIENE_CODES,
+  schema: SCHEMA_CODES,
+  conformance: CONFORMANCE_CODES,
+  examples: EXAMPLES_CODES,
+  redos: REDOS_CODES,
+  malformed: MALFORMED_CODES,
+} as const satisfies Readonly<Record<string, readonly string[]>>;
+
+/** Every code `check` can emit, flattened. */
+export const CHECK_CODES: ReadonlySet<string> = new Set(
+  Object.values(CODES_BY_CLASS).flatMap((codes) => [...codes]),
+);
+
+/** The families that exist, for a `family/*` key to be checked against. */
+export const CHECK_FAMILIES: ReadonlySet<string> = new Set(
+  [...CHECK_CODES].flatMap((code) => {
+    const slash = code.indexOf("/");
+    return slash === -1 ? [] : [code.slice(0, slash)];
+  }),
+);

@@ -13,6 +13,7 @@
  * @packageDocumentation
  */
 
+import { CHECK_CODES, CHECK_FAMILIES } from "./codes.js";
 import type { CheckClass, CheckSeverity } from "./commands.js";
 
 /**
@@ -106,6 +107,18 @@ export function defaultSeverityFor(cls: CheckClass, code: string): CheckSeverity
 export class SeverityMapError extends Error {}
 
 /**
+ * A hint for a rejected code key, as a trailing clause. Dozens of codes
+ * across six classes is too many to print, and a mistyped code is nearly
+ * always the wrong member of a family the caller had right.
+ */
+function nearestCode(key: string): string {
+  const family = key.slice(0, key.indexOf("/"));
+  const siblings = [...CHECK_CODES].filter((code) => code.startsWith(`${family}/`)).sort();
+  if (siblings.length > 0) return `; "${family}/" holds ${siblings.join(", ")}`;
+  return `; known families are ${[...CHECK_FAMILIES].sort().join(", ")}`;
+}
+
+/**
  * Parse `--severity` into a {@link SeverityMap}.
  *
  * The grammar is one comma-separated list of `key=level`, matching
@@ -119,6 +132,10 @@ export class SeverityMapError extends Error {}
  * A key is an exact code (`unsatisfiable/pattern-length`), a family
  * (`unsatisfiable/*`), or a class (`redos`). A level is one of
  * `warning`, `error`, `fatal`.
+ *
+ * All three key spaces are checked against what `check` can emit
+ * ({@link CHECK_CODES}, {@link CHECK_FAMILIES}, and the caller's class
+ * list). A key matching nothing is refused, not stored.
  *
  * **`malformed` cannot be mapped, and saying so is the point.** Its
  * findings are `fatal` and its exit code is 4, which outranks
@@ -173,22 +190,28 @@ export function parseSeverityMap(
     }
 
     if (key.endsWith("/*")) {
-      byFamily.set(key.slice(0, -2), severity);
-    } else if (knownClasses.includes(key)) {
-      byClass.set(key, severity);
-    } else if (key.includes("/") || !key.includes("*")) {
-      // Anything left that is not a class is read as a code. A bare word
-      // that is not a known class is almost always a mistyped class, so
-      // it is worth naming the list rather than accepting it as a code
-      // that will never match.
-      if (!key.includes("/")) {
+      const family = key.slice(0, -2);
+      if (!CHECK_FAMILIES.has(family)) {
         throw new SeverityMapError(
-          `"${text}": "${key}" is not a class (${knownClasses.join(", ")}) and does not look like a code`,
+          `"${text}": "${family}" is not a code family (${[...CHECK_FAMILIES].sort().join(", ")})`,
         );
       }
-      byCode.set(key, severity);
-    } else {
+      byFamily.set(family, severity);
+    } else if (key.includes("*")) {
       throw new SeverityMapError(`"${text}": "*" is only allowed as a trailing "/*"`);
+    } else if (knownClasses.includes(key)) {
+      // A class wins over a code of the same spelling; none collide today.
+      byClass.set(key, severity);
+    } else if (CHECK_CODES.has(key)) {
+      byCode.set(key, severity);
+    } else if (key.includes("/")) {
+      throw new SeverityMapError(
+        `"${text}": "${key}" is not a code oaverify emits${nearestCode(key)}`,
+      );
+    } else {
+      throw new SeverityMapError(
+        `"${text}": "${key}" is not a class (${knownClasses.join(", ")}) or a code oaverify emits`,
+      );
     }
   }
 
