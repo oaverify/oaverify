@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.3.0](https://github.com/oaverify/oaverify/compare/yaml-v5.2.0...yaml-v5.3.0) (2026-08-03)
+
+
+### Features
+
+* **cli:** accept a spec on stdin in every mode that takes one ([#617](https://github.com/oaverify/oaverify/issues/617)) ([272ca12](https://github.com/oaverify/oaverify/commit/272ca125e2f4e6c53b4d4ea56e676ee2628b8f5d))
+* **spec:** tell a finding which file it came from ([#614](https://github.com/oaverify/oaverify/issues/614)) ([d6035f8](https://github.com/oaverify/oaverify/commit/d6035f8b05ae2312233870dbf57f4e3ca2f74c5f))
+
 ## [5.2.0](https://github.com/oaverify/oaverify/compare/yaml-v5.1.0...yaml-v5.2.0) (2026-07-31)
 
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## [5.3.0](https://github.com/oaverify/oaverify/compare/core-v5.2.0...core-v5.3.0) (2026-08-03)
+
+
+### Features
+
+* **cli:** accept a spec on stdin in every mode that takes one ([#617](https://github.com/oaverify/oaverify/issues/617)) ([272ca12](https://github.com/oaverify/oaverify/commit/272ca125e2f4e6c53b4d4ea56e676ee2628b8f5d))
+* **cli:** let the consumer own severity with --severity ([#621](https://github.com/oaverify/oaverify/issues/621)) ([2c1c9a1](https://github.com/oaverify/oaverify/commit/2c1c9a1f0f92101de9ee985144f0a122c00640f6))
+* **cli:** SARIF 2.1.0 output for check ([#622](https://github.com/oaverify/oaverify/issues/622)) ([163a0df](https://github.com/oaverify/oaverify/commit/163a0df5fb615108363b2cf702396477437852d4))
+* **schema:** report enum members the sibling type cannot admit ([#620](https://github.com/oaverify/oaverify/issues/620)) ([56f338e](https://github.com/oaverify/oaverify/commit/56f338e68d9f06a07ef033ddc821caeb12d8ac10))
+* **spec:** tell a finding which file it came from ([#614](https://github.com/oaverify/oaverify/issues/614)) ([d6035f8](https://github.com/oaverify/oaverify/commit/d6035f8b05ae2312233870dbf57f4e3ca2f74c5f))
+
+
+### Bug Fixes
+
+* **check:** report each rejected-example leaf once ([#616](https://github.com/oaverify/oaverify/issues/616)) ([86cb5fe](https://github.com/oaverify/oaverify/commit/86cb5fedebad8b74810db6a1d96d0c8982f1d11f))
+* **check:** stop building a ref resolver the examples pass may not need ([#623](https://github.com/oaverify/oaverify/issues/623)) ([7af2bc4](https://github.com/oaverify/oaverify/commit/7af2bc4177608b3648c9b7cbf2fa1c0cdb0e4394))
+* **spec:** follow $ref only where OpenAPI defines one ([#601](https://github.com/oaverify/oaverify/issues/601)) ([e8d96ca](https://github.com/oaverify/oaverify/commit/e8d96cae9af9eb85234e88f2748f5429c1ba6ad5))
+* **spec:** name the document that failed to read, and what referenced it ([#599](https://github.com/oaverify/oaverify/issues/599)) ([472ccae](https://github.com/oaverify/oaverify/commit/472ccae3ded368cae3b931592be3f6b617db6f38))
+* **spec:** stop treating a reference to the entry document as external ([#618](https://github.com/oaverify/oaverify/issues/618)) ([5f84d50](https://github.com/oaverify/oaverify/commit/5f84d5086638f0a6e95991037b05e207480b8986))
+
+
+### Documentation
+
+* cleanup ([#627](https://github.com/oaverify/oaverify/issues/627)) ([bb50269](https://github.com/oaverify/oaverify/commit/bb50269ff850f065d1ce4ec11154f0515b5d9580))
+* **cli:** move the shipped contracts into the package that ships ([#615](https://github.com/oaverify/oaverify/issues/615)) ([f5a5f00](https://github.com/oaverify/oaverify/commit/f5a5f00563a5cff15d9e80fe892cd7c6bf4ba6b8))
+* **cli:** note that target.pointer values moved for multi-file specs ([#619](https://github.com/oaverify/oaverify/issues/619)) ([86a9b9e](https://github.com/oaverify/oaverify/commit/86a9b9ea6608b556b0a98109f1596e36528b39a9))
+* **schema:** state the frame SchemaLintIssue.path renders in ([#613](https://github.com/oaverify/oaverify/issues/613)) ([64189e7](https://github.com/oaverify/oaverify/commit/64189e7dc07a3a1f77573163d0135058b3c711d8))
+
 ## [5.2.0](https://github.com/oaverify/oaverify/compare/core-v5.1.0...core-v5.2.0) (2026-07-31)
 
 
