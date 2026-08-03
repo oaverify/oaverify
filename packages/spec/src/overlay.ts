@@ -31,8 +31,12 @@ import { setSpecKey } from "@oaverify/internal-core";
  * @public
  */
 export interface PathOverride {
-  /** HTTP method → operation fragment. Keys are lowercase. */
-  operations?: Partial<Record<HttpMethod, OperationOverride>>;
+  /**
+   * HTTP method → operation fragment. Keys are lowercase. The key
+   * `"*"` applies the fragment to every method present on the path;
+   * a concrete method key wins over the wildcard for that method.
+   */
+  operations?: Partial<Record<HttpMethod | "*", OperationOverride>>;
   /** Fields on the PathItem itself (e.g. `parameters`) to merge. */
   pathItem?: Partial<PathItem>;
 }
@@ -290,13 +294,21 @@ export interface SpecOverlay {
   addPaths?: Record<string, PathItem>;
   /** Remove paths. Throws if a target path isn't present in the base document. */
   removePaths?: string[];
-  /** Per-path modifications; see {@link PathOverride}. */
+  /**
+   * Per-path modifications, keyed by path; see {@link PathOverride}.
+   * Throws when a target path isn't present in the base document. The
+   * key `"*"` applies its override to every path; entries apply in
+   * declaration order.
+   */
   overrides?: Record<string, PathOverride>;
 
   /**
    * Walk every operation under `paths` (and `webhooks` when present),
    * run the {@link ModifyOperationsEntry.where} predicate, and apply
    * the override on matches. Entries run in declaration order.
+   * Webhook entries that are reference objects (`{ $ref: ... }`) are
+   * passed through unchanged; their path-item contents aren't
+   * inspectable pre-resolve.
    */
   modifyOperations?: ModifyOperationsEntry[];
   /**
@@ -1104,9 +1116,7 @@ function applyPathOverride(item: PathItem, override: PathOverride): PathItem {
     const methods =
       "*" in override.operations ? METHODS : (Object.keys(override.operations) as HttpMethod[]);
     for (const method of methods) {
-      const opOverride =
-        override.operations[method as HttpMethod] ??
-        (override.operations as Record<string, OperationOverride | undefined>)["*"];
+      const opOverride = override.operations[method] ?? override.operations["*"];
       if (opOverride === undefined) continue;
       const op = next[method];
       if (op === undefined) continue;
