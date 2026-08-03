@@ -38,6 +38,7 @@ import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
 import { checkDocumentRedos } from "./redos-check.js";
 import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
+import { renderSarif } from "./sarif.js";
 import {
   defaultSeverityFor,
   EMPTY_SEVERITY_MAP,
@@ -591,8 +592,20 @@ export async function checkCommand(
      * why `malformed` is refused.
      */
     severity?: readonly string[];
-    /** `"text"` (default) or `"json"`. */
-    format?: "text" | "json";
+    /** `"text"` (default), `"json"`, or `"sarif"`. */
+    format?: "text" | "json" | "sarif";
+    /**
+     * Tool version to record in SARIF output. The CLI passes its own
+     * package version; unset it becomes `"0.0.0"`, which is what a
+     * library caller that does not care gets.
+     */
+    version?: string;
+    /**
+     * Directory that SARIF paths are made relative to, normally the
+     * working directory. A parameter so a test does not depend on where
+     * it was invoked from.
+     */
+    cwd?: string;
     /**
      * Column budget the `"text"` report wraps prose to. Defaults to
      * {@link DEFAULT_REPORT_WIDTH}.
@@ -838,7 +851,15 @@ export async function checkCommand(
   }
 
   const sink = primarySink(io, args.options);
-  if (args.format === "json") {
+  if (args.format === "sarif") {
+    await sink(
+      renderSarif(findings, {
+        version: args.version ?? "0.0.0",
+        base: args.cwd ?? process.cwd(),
+        classes: [...classes],
+      }),
+    );
+  } else if (args.format === "json") {
     await sink(JSON.stringify({ findings }, null, 2) + "\n");
   } else if (findings.length === 0) {
     await sink(`check: no findings (${[...classes].sort().join(", ")})\n`);

@@ -727,6 +727,37 @@ describe("resolveCommand", () => {
     ).toBe(1);
   });
 
+  it("check --format sarif carries the consumer's grading into level (#606)", async () => {
+    // The coupling with #607: SARIF `level` comes from the severity as
+    // this run reported it, so a consumer's policy reaches code
+    // scanning without the converter holding one of its own.
+    const tidyOnly = {
+      openapi: "3.1.0",
+      info: { title: "X", version: "1.0.0" },
+      paths: { "/t": { get: { responses: { "200": { description: "ok" } } } } },
+      components: { schemas: { Orphan: { type: "string" } } },
+    };
+
+    const { io, stdout } = memoryIo([["spec.json", tidyOnly]]);
+    await checkCommand({ spec: "spec.json", overlays: [], format: "sarif", options: textOpts }, io);
+    const before = JSON.parse(stdout.value);
+    expect(before.version).toBe("2.1.0");
+    expect(before.runs[0].results[0].level).toBe("warning");
+
+    const { io: io2, stdout: out2 } = memoryIo([["spec.json", tidyOnly]]);
+    await checkCommand(
+      {
+        spec: "spec.json",
+        overlays: [],
+        format: "sarif",
+        severity: ["hygiene=error"],
+        options: textOpts,
+      },
+      io2,
+    );
+    expect(JSON.parse(out2.value).runs[0].results[0].level).toBe("error");
+  });
+
   it("check --severity regrades a class, and that changes the gate (#607)", async () => {
     // The point of the option. An unused component is graded `warning`,
     // so `--fail-on error` ignores it; a team that disagrees says so and

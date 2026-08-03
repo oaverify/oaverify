@@ -162,10 +162,10 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .option(
       "--format <shape>",
-      "'text' (default; one finding per line) or 'json' ({ findings })",
-      (value: string): "text" | "json" => {
-        if (value !== "text" && value !== "json") {
-          throw new Error(`unknown format: ${value} (expected "text" or "json")`);
+      "'text' (default; one finding per line), 'json' ({ findings }), or 'sarif' (SARIF 2.1.0)",
+      (value: string): "text" | "json" | "sarif" => {
+        if (value !== "text" && value !== "json" && value !== "sarif") {
+          throw new Error(`unknown format: ${value} (expected "text", "json" or "sarif")`);
         }
         return value;
       },
@@ -181,7 +181,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           only?: CheckClass[];
           failOn?: CheckSeverity;
           severity?: string[];
-          format: "text" | "json";
+          format: "text" | "json" | "sarif";
           output?: string;
           quiet: boolean;
         },
@@ -194,6 +194,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             failOn: opts.failOn,
             severity: opts.severity,
             format: opts.format,
+            version: options.version,
             // Terminal width only when stdout is one. Redirected or piped
             // output takes the fixed default so a saved report does not
             // depend on the terminal that produced it.

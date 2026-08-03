@@ -218,6 +218,45 @@ reported twice. A `description: null` is the common one, reported by
 Note that `anchor` here is unrelated to the JSON Schema `$anchor` /
 `$dynamicRef` sense the `@oaverify/core` README uses.
 
+## SARIF, for code scanning
+
+`--format sarif` emits a SARIF 2.1.0 log, so findings reach GitHub code
+scanning, GitLab, editors and security dashboards without adopting a new
+workflow:
+
+```yaml
+- run: npx oaverify check openapi.yaml --format sarif -o oaverify.sarif
+- uses: github/codeql-action/upload-sarif@v3
+  with: { sarif_file: oaverify.sarif }
+```
+
+Three things worth knowing before you wire it up.
+
+**Findings are attributed to a file, not to a line.** SARIF locates a
+result with a file plus a line and column region, and oaverify has files
+and JSON pointers but not lines. So a finding appears in the security
+tab against the right file, and it is not annotated on the diff line.
+Emitting line 1 to fill the field would put every finding at the top of
+its file, which is worse than leaving it out.
+
+**Run it from the repository root.** Local paths are emitted relative to
+the working directory with `uriBaseId: "%SRCROOT%"`, which is how code
+scanning matches a result to a file in the checkout. A spec fetched over
+HTTP, or a path outside the working directory, gets an absolute URI and
+no base, and will not annotate anything.
+
+**`--severity` flows through.** SARIF `level` is taken from the severity
+this run reported, so a team's own grading reaches code scanning rather
+than the converter applying a policy of its own. SARIF has no `fatal`,
+which maps to `error`; the original survives in
+`properties."oaverify:severity"`.
+
+Results also carry `partialFingerprints` keyed on the finding's code and
+source address, so code scanning tracks a finding across commits and
+file moves rather than using its default, which keys on line content and
+churns whenever a file is reformatted. The reference chain that reached
+a document, if any, is attached as `relatedLocations`.
+
 ## Using the library instead
 
 To validate inside your application rather than from a shell:
