@@ -14,12 +14,14 @@ import {
   baseDirOf,
   cycleKey,
   componentSchemaSlots,
+  entryIdentity,
   existingSchemaNames,
   EXTERNALS_FIELD,
   hoistedRef,
   HoistNames,
   makeStitchRef,
   mergeHoistedSchemas,
+  noteInlinedComponent,
   mergeStitchedExternals,
   type MountState,
   type Mutable,
@@ -88,6 +90,29 @@ export interface ResolvedSpec {
    */
   specHygieneIssues: readonly SpecHygieneIssue[];
   /**
+   * Components of the entry document that a reference reached and the
+   * resolver inlined at the use site, as pointers
+   * (`/components/parameters/PageSize`).
+   *
+   * Non-schema positions inline, so the resolved document contains the
+   * component's content without reaching the component, and a rule
+   * grading that document alone would call it unused. Pass this to
+   * {@link lintResolvedSpec} so it stays quiet about them instead.
+   * Empty for a single-file spec, and for any spec whose cross-document
+   * references are all in schema positions.
+   *
+   * Optional so a caller building a {@link ResolvedSpec} by hand does
+   * not have to, and so that absence can carry meaning. Both resolvers
+   * always set it, empty included: an empty array says the walk inlined
+   * no component, and absence says nobody can answer for this document.
+   * `loadSpec` is what produces the second, dropping the list when an
+   * overlay ran, since an overlay can re-reference or remove any of the
+   * components it names. Reporting `[]` there would read as "nothing
+   * was inlined" and silently turn the finding back on for the wrong
+   * reason.
+   */
+  inlinedComponents?: readonly string[];
+  /**
    * Where each part of the resolved document came from. Present only
    * when {@link ResolveSpecOptions.provenance} was set, which is the
    * one way to tell "provenance was never tracked" apart from "tracked,
@@ -104,10 +129,14 @@ export interface ResolvedSpec {
  * External refs in **schema** positions are hoisted: the target lands in
  * `components.schemas` under a derived name and each use site keeps an
  * internal `$ref` to it, so a schema keeps an address rather than being
- * copied per reference. External refs in non-schema positions (Response,
- * Parameter, Path Item Objects) are inlined, and a cycle among those is
- * materialized under `$defs.__ext__/<encoded-uri>` so the compiler can
- * resolve it via the identity-keyed schema cache.
+ * copied per reference. A ref that names a file but resolves to the
+ * entry document is not external: its target already has an address, so
+ * the use site keeps a plain internal `$ref` to it (see
+ * {@link entryIdentity} for exactly which spellings that recognises).
+ * External refs in non-schema positions (Response, Parameter, Path Item
+ * Objects) are inlined, and a cycle among those is materialized under
+ * `$defs.__ext__/<encoded-uri>` so the compiler can resolve it via the
+ * identity-keyed schema cache.
  *
  * The synchronous mirror is `resolveSpecSync` (reachable via
  * `@oaverify/core/spec/internals`); both share the pure URI / ref-rewriting helpers
@@ -128,7 +157,9 @@ export interface ResolvedSpec {
 export async function resolveSpec(options: ResolveSpecOptions): Promise<ResolvedSpec> {
   const { reader } = options;
   const baseDir = options.baseUri ?? baseDirOf(options.entry);
+  const entryUri = entryIdentity(options.entry);
   const sources = new Set<string>([options.entry]);
+  const inlinedComponents = new Set<string>();
   const docs = new Map<string, unknown>();
 
   // Null unless asked for. Every call site below reaches it through
@@ -325,11 +356,27 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
         const uri = isExternal
           ? resolveRelative(currentBase, refPath)
           : (externalSourceUri as string);
-        noteReferrer(referrers, uri, externalSourceUri ?? options.entry);
-        // The target is walked later, from the hoist queue, so the
-        // chain that reached it is recorded here where it is known.
-        noteVia(hoistVia, targetKey(uri, fragment));
-        const out: Mutable = { $ref: hoistedRef(claim(uri, fragment)) };
+        // Whether the target is the entry document decides, not whether
+        // the reference is spelled as a path. A node of the entry
+        // already has an address in the resolved document, so hoisting
+        // one copies a schema that was reachable all along and leaves
+        // the author's own component unreferenced (#612).
+        //
+        // The fragment has to be a JSON pointer for that address to
+        // exist. An empty one names the whole OpenAPI document rather
+        // than an addressable Schema Object, and `#anchor` is a claim
+        // about `$anchor` resolution this makes no attempt at; both
+        // keep hoisting, deliberately, and both have a test.
+        const intoEntry = uri === entryUri && fragment.startsWith("/");
+        if (!intoEntry) {
+          noteReferrer(referrers, uri, externalSourceUri ?? options.entry);
+          // The target is walked later, from the hoist queue, so the
+          // chain that reached it is recorded here where it is known.
+          noteVia(hoistVia, targetKey(uri, fragment));
+        }
+        const out: Mutable = {
+          $ref: intoEntry ? `#${fragment}` : hoistedRef(claim(uri, fragment)),
+        };
         // OpenAPI 3.1 allows siblings alongside `$ref`; they survive.
         for (const key of Object.keys(obj)) {
           if (key === "$ref") continue;
@@ -350,6 +397,10 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       const [refPath, fragment = ""] = ref.split("#") as [string, string | undefined];
       const targetUri = resolveRelative(currentBase, refPath);
       noteReferrer(referrers, targetUri, externalSourceUri ?? options.entry);
+      // The content lands at the use site, so the component it came
+      // from is about to look unreachable to anything reading the
+      // resolved document alone.
+      if (targetUri === entryUri) noteInlinedComponent(inlinedComponents, fragment);
       const stitchRef = makeStitchRef(targetUri, fragment);
       if (stitchingUri !== null && stitchingUri === targetUri) {
         noteVia(stitchVia, targetUri);
@@ -394,7 +445,18 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       for (const key of Object.keys(siblings)) trail?.shadow(key);
       return { ...(inlined as Mutable), ...siblings };
     }
-    if (typeof ref === "string" && ref.startsWith("#") && externalSourceUri !== null) {
+    // An internal ref inside content inlined from another document
+    // names a node of *that* document, so it is stitched and re-pointed.
+    // Inside content inlined from the entry it names a node of the
+    // resolved document already, and stitching mounted a second copy of
+    // the whole entry under the root extension to point at (#612).
+    // Leaving it as written falls through to the generic walk below.
+    if (
+      typeof ref === "string" &&
+      ref.startsWith("#") &&
+      externalSourceUri !== null &&
+      externalSourceUri !== entryUri
+    ) {
       const rewritten = rewriteInternalRefTarget(externalSourceUri, ref.slice(1));
       noteVia(stitchVia, externalSourceUri);
       stitchQueue.set(externalSourceUri, pos.kind);
@@ -583,11 +645,15 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     mergeStitchedExternals(resolved, stitched);
   }
 
-  const specHygieneIssues = options.lint ? lintResolvedSpec(resolved) : [];
+  const inlined = [...inlinedComponents];
+  const specHygieneIssues = options.lint
+    ? lintResolvedSpec(resolved, { inlinedComponents: inlined })
+    : [];
   return {
     document: resolved,
     sources: [...sources],
     specHygieneIssues,
+    inlinedComponents: inlined,
     ...(trail !== null && { regions: trail.regions }),
   };
 }

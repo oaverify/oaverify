@@ -12,7 +12,7 @@
  */
 
 import { escapePointerSegment, setSpecKey } from "@oaverify/internal-core";
-import { dirname, isAbsolute, posix, resolve as resolvePath } from "node:path";
+import { basename, dirname, isAbsolute, posix, resolve as resolvePath } from "node:path";
 import type { SourceHop, SpecRegion } from "./provenance.js";
 
 /** Mutable object view used while walking parsed JSON documents. */
@@ -40,6 +40,76 @@ export function resolveRelative(base: string, rel: string): string {
 /** Directory of a URI, used as the base for refs found inside it. */
 export function baseDirOf(uri: string): string {
   return dirname(uri);
+}
+
+/**
+ * The entry URI as a reference to it will be spelled once the walk has
+ * resolved it, so the two can be compared.
+ *
+ * A `$ref` back into the entry document names a file, so it arrives at
+ * the walk through {@link resolveRelative} like any other target.
+ * Comparing that against the caller's `entry` string directly misses
+ * the spellings that string can take: entry `./openapi.yaml` has its
+ * own refs resolve to `openapi.yaml`, so a textual comparison answers
+ * "external" for two thirds of the ways the same file can be named.
+ * Putting the entry through the same function is what makes the answer
+ * agree across spellings: its own directory joined with its own file
+ * name, which is how a reference to it from beside it resolves.
+ *
+ * What this claims is narrow, and deliberately so: **the same document
+ * under a reader key that differs only by path normalisation**. `docs`,
+ * `sources` and the hoist names are all keyed by the reader key, and
+ * this treats `./main.json` and `main.json` as one document, which is
+ * true of every reader whose keys are paths. It does not claim symlink
+ * identity, percent-encoding equivalence, `file:///x` against `/x`, a
+ * case-insensitive filesystem, `http` against `https`, or trailing
+ * slash and query variation. A reference matching the entry by any of
+ * those and not by this one keeps today's behaviour, a hoisted
+ * duplicate: larger than it needs to be, and correct. The permissive
+ * failure is the one worth avoiding, since it would rewrite a genuine
+ * external target to an internal address that need not exist.
+ *
+ * `ResolveSpecOptions.baseUri` is not part of this, also deliberately.
+ * It redefines what a relative reference means, so with `baseUri` set a
+ * ref that reads like the entry's own name resolves to a different
+ * reader key, and the document served under that key is a different
+ * document: hoisting it is the correct answer, and it is what happens.
+ * Following `baseUri` here would let a reference that names one schema
+ * be rewritten to the address of another, which is a validation change
+ * wearing a deduplication's clothes. The cost is that an entry reached
+ * only through `baseUri` keeps hoisting a duplicate of itself, which is
+ * the conservative half of the same trade.
+ *
+ * Put the other way round: where a caller makes the entry reachable
+ * under two reader keys, only the entry's own normalised key family is
+ * recognised, and the second key stays external. Treating it as the
+ * entry would mean proving that two keys name one document, which is a
+ * claim about the reader rather than about the URIs.
+ */
+export function entryIdentity(entry: string): string {
+  return resolveRelative(baseDirOf(entry), basename(entry));
+}
+
+/** A pointer naming one entry of one `components` category. */
+const COMPONENT_POINTER = /^\/components\/[^/]+\/[^/]+$/;
+
+/**
+ * Record a component of the entry document that a reference reached and
+ * the walk inlined at the use site.
+ *
+ * Non-schema positions inline, so after resolution nothing in the
+ * document reaches the component the author declared, and
+ * `unused-component` reports it (#612). The rule is answering correctly
+ * about a document that no longer reflects what was written, and this
+ * is the one thing it cannot see for itself. Collected here rather than
+ * recomputed, because only the walk knows which references it followed.
+ *
+ * `fragment` is the reference's fragment, an RFC 6901 pointer with its
+ * leading slash, and is kept only when it names a component; anything
+ * else has no entry for the lint pass to stay quiet about.
+ */
+export function noteInlinedComponent(into: Set<string>, fragment: string): void {
+  if (COMPONENT_POINTER.test(fragment)) into.add(fragment);
 }
 
 /**

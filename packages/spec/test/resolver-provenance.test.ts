@@ -356,6 +356,46 @@ describe("non-schema inlining and the sibling merge", () => {
   });
 });
 
+describe("a reference whose target is the entry document", () => {
+  // The schema stays where the author put it, so there is nothing to
+  // mount: the entry's own root region answers for it (#612). Before,
+  // a mount at the hoisted name answered instead, and `source.pointer`
+  // was what told a reader which component they had actually written.
+  const docs = {
+    "entry.json": {
+      ...openapi,
+      paths: { "/a": { $ref: "./p.json" } },
+      components: { schemas: { Pet: { type: "object" } } },
+    },
+    "p.json": {
+      get: {
+        responses: {
+          "200": {
+            description: "ok",
+            content: {
+              "application/json": { schema: { $ref: "./entry.json#/components/schemas/Pet" } },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  it("mounts nothing under components.schemas", async () => {
+    const regions = await regionsOf(docs, "entry.json");
+    expect(regions.filter((r) => r.at.startsWith("/components/schemas"))).toEqual([]);
+  });
+
+  it("addresses the component to what the author wrote", async () => {
+    const regions = await regionsOf(docs, "entry.json");
+    expect(sourceOf(regions, "/components/schemas/Pet")).toMatchObject({
+      uri: "entry.json",
+      pointer: "/components/schemas/Pet",
+      via: [],
+    });
+  });
+});
+
 describe("stitched non-schema cycles", () => {
   // A Response Object cycle: p.json's 200 refs q.json#/r, which refs
   // that same response back. The walk cuts it by stitching q.json under

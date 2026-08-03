@@ -15,12 +15,14 @@ import {
   baseDirOf,
   cycleKey,
   componentSchemaSlots,
+  entryIdentity,
   existingSchemaNames,
   EXTERNALS_FIELD,
   hoistedRef,
   HoistNames,
   makeStitchRef,
   mergeHoistedSchemas,
+  noteInlinedComponent,
   mergeStitchedExternals,
   type MountState,
   type Mutable,
@@ -86,7 +88,9 @@ export interface ResolveSpecSyncOptions {
 export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   const { reader } = options;
   const baseDir = options.baseUri ?? baseDirOf(options.entry);
+  const entryUri = entryIdentity(options.entry);
   const sources = new Set<string>([options.entry]);
+  const inlinedComponents = new Set<string>();
   const docs = new Map<string, unknown>();
 
   // Mirrors resolveSpec; the commentary lives there.
@@ -268,9 +272,16 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
         const uri = isExternal
           ? resolveRelative(currentBase, refPath)
           : (externalSourceUri as string);
-        noteReferrer(referrers, uri, externalSourceUri ?? options.entry);
-        noteVia(hoistVia, targetKey(uri, fragment));
-        const out: Mutable = { $ref: hoistedRef(claim(uri, fragment)) };
+        // A target in the entry document already has an address in the
+        // resolved document; the commentary lives in resolveSpec.
+        const intoEntry = uri === entryUri && fragment.startsWith("/");
+        if (!intoEntry) {
+          noteReferrer(referrers, uri, externalSourceUri ?? options.entry);
+          noteVia(hoistVia, targetKey(uri, fragment));
+        }
+        const out: Mutable = {
+          $ref: intoEntry ? `#${fragment}` : hoistedRef(claim(uri, fragment)),
+        };
         // OpenAPI 3.1 allows siblings alongside `$ref`; they survive.
         for (const key of Object.keys(obj)) {
           if (key === "$ref") continue;
@@ -291,6 +302,8 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       const [refPath, fragment = ""] = ref.split("#") as [string, string | undefined];
       const targetUri = resolveRelative(currentBase, refPath);
       noteReferrer(referrers, targetUri, externalSourceUri ?? options.entry);
+      // Mirrors resolveSpec; the commentary lives there.
+      if (targetUri === entryUri) noteInlinedComponent(inlinedComponents, fragment);
       const stitchRef = makeStitchRef(targetUri, fragment);
       if (stitchingUri !== null && stitchingUri === targetUri) {
         noteVia(stitchVia, targetUri);
@@ -331,7 +344,15 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       for (const key of Object.keys(siblings)) trail?.shadow(key);
       return { ...(inlined as Mutable), ...siblings };
     }
-    if (typeof ref === "string" && ref.startsWith("#") && externalSourceUri !== null) {
+    // Inside content inlined from the entry, an internal ref already
+    // addresses the resolved document; the commentary lives in
+    // resolveSpec.
+    if (
+      typeof ref === "string" &&
+      ref.startsWith("#") &&
+      externalSourceUri !== null &&
+      externalSourceUri !== entryUri
+    ) {
       const rewritten = rewriteInternalRefTarget(externalSourceUri, ref.slice(1));
       noteVia(stitchVia, externalSourceUri);
       stitchQueue.set(externalSourceUri, pos.kind);
@@ -489,11 +510,15 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     );
   }
 
-  const specHygieneIssues = options.lint ? lintResolvedSpec(resolved) : [];
+  const inlined = [...inlinedComponents];
+  const specHygieneIssues = options.lint
+    ? lintResolvedSpec(resolved, { inlinedComponents: inlined })
+    : [];
   return {
     document: resolved,
     sources: [...sources],
     specHygieneIssues,
+    inlinedComponents: inlined,
     ...(trail !== null && { regions: trail.regions }),
   };
 }
