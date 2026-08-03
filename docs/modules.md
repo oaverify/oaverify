@@ -24,6 +24,7 @@ it pulls in a parser:
 | ---------------------------- | ----------------------------------------------------------------- |
 | `createYamlFileReader(cwd?)` | Reader for `.yaml` / `.yml` on disk                               |
 | `createSmartHttpReader()`    | HTTP reader handling JSON and YAML, dispatching on `Content-Type` |
+| `createYamlStdinReader()`    | Reader for one document on stdin, JSON or YAML                    |
 | `parseYamlString(source)`    | Parse a YAML string, for specs loaded out of band                 |
 | `loadSpecSync(options)`      | Synchronous loader whose default reader covers YAML and JSON      |
 

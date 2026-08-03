@@ -3,6 +3,8 @@ export {
   createFileReader,
   createHttpReader,
   createMemoryReader,
+  createStdinReader,
+  STDIN_URI,
   type DocumentReader,
   type FileReaderOptions,
   type HttpReaderOptions,

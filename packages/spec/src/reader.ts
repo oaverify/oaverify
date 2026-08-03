@@ -333,6 +333,114 @@ export function createMemoryReader(sources: Map<string, unknown>): DocumentReade
 }
 
 /**
+ * The URI that means standard input.
+ *
+ * A single `-`, matching the convention the CLI already uses for
+ * `--body` and `--request`. It is not a path and never reaches the
+ * filesystem, so a file literally named `-` is unreachable through
+ * this reader; refer to it as `./-`.
+ *
+ * @public
+ */
+export const STDIN_URI = "-";
+
+/**
+ * Read one document from standard input. JSON only; pair with
+ * `@oaverify/yaml`'s `createYamlStdinReader` via {@link composeReaders}
+ * for YAML support.
+ *
+ * Compose it **ahead of** {@link createFileReader}, whose `canRead`
+ * claims every non-HTTP, non-memory URI and would otherwise take `-`
+ * and look for a file of that name.
+ *
+ * The stream is read once and the parsed document memoised. A stream
+ * cannot be rewound, so a second read would return an empty document
+ * rather than an error; `resolveSpec` caches by URI and would not ask
+ * twice today, but a reader that can only be consumed once should say
+ * so by construction rather than rely on its caller.
+ *
+ * Relative `$ref`s in a piped document resolve against the working
+ * directory, since `-` has no directory of its own. Bundled specs are
+ * self-contained, so this rarely comes up; when it does, pass the
+ * document through a file instead.
+ *
+ * @param stdin - Optional stream to read. Defaults to `process.stdin`.
+ * @returns A {@link DocumentReader}.
+ *
+ * @example
+ * ```ts
+ * // redocly bundle openapi.yaml | oaverify check -
+ * const reader = composeReaders([createStdinReader(), createFileReader()]);
+ * ```
+ *
+ * @public
+ */
+export function createStdinReader(stdin?: AsyncIterable<Uint8Array>): DocumentReader {
+  let pending: Promise<unknown> | undefined;
+  return {
+    canRead(uri) {
+      return uri === STDIN_URI;
+    },
+    async read(uri) {
+      if (uri !== STDIN_URI) throw new Error(`stdin reader: ${uri} is not ${STDIN_URI}`);
+      pending ??= (async () => {
+        const text = await readStream(stdin ?? process.stdin);
+        return parseJsonFromStdin(text);
+      })();
+      return pending;
+    },
+  };
+}
+
+/**
+ * Strip a UTF-8 BOM and leading whitespace.
+ *
+ * Shared with the YAML side, which needs the same normalisation before
+ * it can look at the first character.
+ *
+ * @internal
+ */
+export function trimStdinText(text: string): string {
+  // 0xFEFF as a code point rather than a literal BOM character, which
+  // would be invisible in this file.
+  const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  return body.replace(/^\s+/, "");
+}
+
+function parseJsonFromStdin(text: string): unknown {
+  const trimmed = trimStdinText(text);
+  if (trimmed === "") throw new Error("stdin: no input");
+  if (!trimmed.startsWith("{")) {
+    // The format rule is stated rather than sniffed, so a YAML document
+    // arriving at the JSON-only reader gets the install hint the file
+    // readers give, not a parse error about an unexpected token.
+    throw new Error(`stdin: ${YAML_HINT}`);
+  }
+  return JSON.parse(trimmed);
+}
+
+/**
+ * Collect a byte stream into a string.
+ *
+ * @internal
+ */
+export async function readStream(stream: AsyncIterable<Uint8Array>): Promise<string> {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for await (const chunk of stream) {
+    chunks.push(chunk);
+    total += chunk.byteLength;
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(out);
+}
+
+/**
  * Try each reader in order until one accepts the URI. Useful for mixing
  * file / HTTP / memory sources in a single resolver, and for layering
  * the YAML readers from `@oaverify/yaml` ahead of the

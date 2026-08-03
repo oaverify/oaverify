@@ -10,10 +10,12 @@ import {
   composeReaders,
   createFileReader,
   createHttpReader,
+  createStdinReader,
   isSpecOverlay,
   loadSpec,
   sourceOf,
   specOverlayVerbs,
+  STDIN_URI,
   type DocumentReader,
   type SourceAddress,
   type SpecHygieneIssue,
@@ -103,7 +105,7 @@ export function defaultCommandIo(): CommandIo {
     // `http:` / `https:` URIs; the YAML-over-HTTP story rides on
     // top of this chain in oaverify's CLI wrapper, which
     // composes YAML readers in front of whatever we return here.
-    reader: composeReaders([createFileReader(), createHttpReader()]),
+    reader: composeReaders([createStdinReader(), createFileReader(), createHttpReader()]),
     async readText(pathOrDash: string) {
       if (pathOrDash === "-") return readAllStdin();
       return readFile(pathOrDash, "utf8");
@@ -933,6 +935,23 @@ export async function validateCommand(
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
+  // `-` is one stream, so it can be the spec or the payload and not
+  // both. Caught here rather than left to produce a confusing parse
+  // failure on whichever consumer lost the race.
+  const payloadFromStdin =
+    args.mode.kind === "request"
+      ? args.mode.file
+      : args.mode.kind === "bodyForPath" || args.mode.kind === "responseForPath"
+        ? args.mode.body
+        : undefined;
+  if (args.spec === STDIN_URI && payloadFromStdin === STDIN_URI) {
+    io.stderr(
+      "validate: stdin was given as both the spec and the payload; " +
+        "only one of them can read it. Pass a file for one.\n",
+    );
+    return { exitCode: 3 };
+  }
+
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(io, args.overlays);

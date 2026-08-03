@@ -7,6 +7,7 @@ import {
   createFileReader,
   createHttpReader,
   createMemoryReader,
+  createStdinReader,
 } from "../src/reader.js";
 
 describe("memory reader", () => {
@@ -157,5 +158,62 @@ describe("composeReaders", () => {
     const back = createMemoryReader(new Map([["shared.json", '{"from":"back"}']]));
     const composed = composeReaders([front, back]);
     expect(await composed.read("shared.json")).toEqual({ from: "front" });
+  });
+});
+
+describe("stdin reader", () => {
+  // A stream of one chunk per string, so a test can also prove the
+  // reader assembles a document split across chunk boundaries.
+  const streamOf = (...parts: string[]): AsyncIterable<Uint8Array> => ({
+    // eslint-disable-next-line @typescript-eslint/require-await -- generator body needs no await
+    async *[Symbol.asyncIterator]() {
+      for (const part of parts) yield new TextEncoder().encode(part);
+    },
+  });
+
+  it("claims `-` and nothing else", () => {
+    const r = createStdinReader(streamOf("{}"));
+    expect(r.canRead("-")).toBe(true);
+    expect(r.canRead("./-")).toBe(false);
+    expect(r.canRead("spec.json")).toBe(false);
+    expect(r.canRead("https://example.com/openapi")).toBe(false);
+  });
+
+  it("parses JSON arriving across chunk boundaries", async () => {
+    const r = createStdinReader(streamOf('{"open', 'api":"3.1', '.0"}'));
+    expect(await r.read("-")).toEqual({ openapi: "3.1.0" });
+  });
+
+  it("reads the stream once and answers a second call from memory", async () => {
+    // A stream cannot be rewound, so without memoisation the second
+    // read returns an empty document rather than failing.
+    const r = createStdinReader(streamOf('{"a":1}'));
+    expect(await r.read("-")).toEqual({ a: 1 });
+    expect(await r.read("-")).toEqual({ a: 1 });
+  });
+
+  it("strips a BOM and leading whitespace before deciding", async () => {
+    const r = createStdinReader(streamOf(`${String.fromCharCode(0xfeff)}\n  {"a":1}`));
+    expect(await r.read("-")).toEqual({ a: 1 });
+  });
+
+  it("gives the install hint for YAML rather than a JSON parse error", async () => {
+    const r = createStdinReader(streamOf("openapi: 3.1.0\n"));
+    await expect(r.read("-")).rejects.toThrow(/@oaverify\/yaml/);
+  });
+
+  it("says so when the stream is empty", async () => {
+    const r = createStdinReader(streamOf(""));
+    await expect(r.read("-")).rejects.toThrow(/no input/);
+  });
+
+  it("must be composed ahead of the file reader, which claims `-` too", async () => {
+    // The ordering constraint, pinned: createFileReader.canRead claims
+    // every non-HTTP, non-memory URI, so the reverse order looks for a
+    // file named `-`.
+    expect(createFileReader().canRead("-")).toBe(true);
+
+    const right = composeReaders([createStdinReader(streamOf('{"a":1}')), createFileReader()]);
+    expect(await right.read("-")).toEqual({ a: 1 });
   });
 });

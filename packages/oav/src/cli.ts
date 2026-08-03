@@ -24,7 +24,8 @@ try {
 
 const { buildProgram, defaultCommandIo } = await import("@oaverify/internal-cli");
 const { composeReaders } = await import("@oaverify/internal-spec");
-const { createSmartHttpReader, createYamlFileReader } = await import("@oaverify/yaml");
+const { createSmartHttpReader, createYamlFileReader, createYamlStdinReader } =
+  await import("@oaverify/yaml");
 
 // Default I/O composes the YAML readers from @oaverify/yaml in
 // front of the JSON-only readers baked into @oaverify/internal-cli's defaultCommandIo,
@@ -35,7 +36,16 @@ const { createSmartHttpReader, createYamlFileReader } = await import("@oaverify/
 const baseIo = defaultCommandIo();
 const io = {
   ...baseIo,
-  reader: composeReaders([createYamlFileReader(), createSmartHttpReader(), baseIo.reader]),
+  // The stdin reader goes first: createFileReader claims every
+  // non-HTTP, non-memory URI, so anything after it would take `-` and
+  // look for a file of that name. The YAML one shadows the JSON-only
+  // reader inside baseIo, so a piped spec may be either format.
+  reader: composeReaders([
+    createYamlStdinReader(),
+    createYamlFileReader(),
+    createSmartHttpReader(),
+    baseIo.reader,
+  ]),
 };
 // Read from this package's own manifest rather than a constant, so the
 // reported version cannot drift from the installed package and there is

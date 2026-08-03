@@ -135,7 +135,39 @@ oaverify stream-check <openapi.yaml> --verbose                # list each unboun
 oaverify stream-check <openapi.yaml> --fail-on-unbounded      # CI gate: exit 1 if any body is unbounded
 ```
 
-Pass `-` as the file path to read from stdin (e.g. `--body -`).
+Pass `-` as the file path to read from stdin. That works for `<spec>`
+in every command that takes one, as well as for `--body` and
+`--request`:
+
+```bash
+redocly bundle openapi.yaml | oaverify check -
+jq 'del(.paths["/internal"])' openapi.json | oaverify stream-check -
+```
+
+Generated, bundled and filtered specs are the ones you least want to
+write to disk in CI, and this saves the temp file.
+
+Three things to know about it.
+
+**Format is a stated rule, not detection.** `-` has no extension to
+dispatch on, so: read the stream to completion, strip a BOM, trim
+leading whitespace, and if the first character is `{` parse as JSON,
+otherwise parse as YAML. The whole stream has to be read before either
+parser runs, so the rule costs nothing. The one shape it decides
+against is a spec written in top-level YAML flow style
+(`{openapi: 3.1.0, ...}`), which is legal YAML and vanishingly rare for
+a piped document.
+
+**Relative `$ref`s resolve against the working directory**, since `-`
+has no directory of its own. Bundled specs are self-contained, so this
+rarely comes up; pipe through a file when it does.
+
+**One stream, one reader.** `oaverify validate - --body -` asks stdin
+for two different things and exits 3 saying so. A spec on stdin with
+`--body` or `--request` reading a file is fine.
+
+A file literally named `-` is unreachable this way; refer to it as
+`./-`.
 
 `<spec>` and `--overlay <file>` accept local paths, `file://` URIs,
 and `http://` / `https://` URLs (both JSON and YAML over HTTP). Relative
