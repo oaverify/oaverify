@@ -156,6 +156,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       },
     )
     .option(
+      "--severity <map...>",
+      "regrade findings: comma-separated <key>=<level>, key being a code, " +
+        "a family as 'name/*', or a class (e.g. 'unsatisfiable/*=error,redos=error')",
+    )
+    .option(
       "--format <shape>",
       "'text' (default; one finding per line) or 'json' ({ findings })",
       (value: string): "text" | "json" => {
@@ -175,6 +180,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           overlay: string[];
           only?: CheckClass[];
           failOn?: CheckSeverity;
+          severity?: string[];
           format: "text" | "json";
           output?: string;
           quiet: boolean;
@@ -186,6 +192,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             overlays: opts.overlay,
             only: opts.only,
             failOn: opts.failOn,
+            severity: opts.severity,
             format: opts.format,
             // Terminal width only when stdout is one. Redirected or piped
             // output takes the fixed default so a saved report does not
