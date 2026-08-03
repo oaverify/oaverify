@@ -1,4 +1,8 @@
 node_modules/
+# Without the trailing slash a symlink to a node_modules elsewhere is
+# not matched, and gets committed. Linking the sub-root installs and
+# the gitignored corpora into a worktree is a normal thing to do here.
+node_modules
 .pnpm-store/
 dist/
 *.tsbuildinfo
@@ -6,6 +10,7 @@ dist/
 coverage/
 tmp/
 conformance/real-world/specs/
+conformance/real-world/specs
 performance/compiled-dump/
 performance/results/
 .DS_Store
@@ -20,3 +25,4 @@ mise.toml
 mise.local.toml
 .mise.local.toml
 detection/real-world/specs/
+detection/real-world/specs
