@@ -44,6 +44,7 @@ import {
   jsonSchemaDialect,
   openapi31Dialect,
 } from "@oaverify/internal-schema";
+import { builtInFormats } from "@oaverify/internal-formats";
 import { normalizeOas30 } from "../openapi/index.js";
 import { classify } from "../classifier/index.js";
 import {
@@ -217,7 +218,11 @@ function buildDelegate(
         // Bound the in-memory delegate's native recursion so a deeply
         // nested island fails as a client error, not a RangeError crash.
         ...(options.maxDepth === undefined ? {} : { maxDepth: options.maxDepth }),
-        ...(options.formats === undefined ? {} : { formats: options.formats }),
+        // Merged, not replaced, so this matches `createValidator`: a
+        // caller registering one vendor format keeps the standard ones.
+        // Passing only `options.formats` meant an unregistered name
+        // asserted nothing and said nothing about it (#636).
+        formats: { ...builtInFormats, ...options.formats },
         ...(options.regexCompiler === undefined ? {} : { regexCompiler: options.regexCompiler }),
         ...(options.keywords === undefined ? {} : { keywords: options.keywords }),
       }).validate as CompiledValidator;

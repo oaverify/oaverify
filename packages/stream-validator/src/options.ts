@@ -86,12 +86,19 @@ export interface StreamValidatorOptions {
   policy?: "terminate" | "detach";
 
   /**
-   * Custom string-format validators, shape-compatible with
-   * `@oaverify/internal-schema`'s `formats` option. Threaded into the BUFFER-island
-   * delegate's in-memory compile; they take effect only where that engine
-   * asserts `format` (an OpenAPI dialect, or the 2020-12 format-assertion
-   * vocabulary). The forward STREAM path treats `format` as an annotation
-   * and never runs these.
+   * Extra format validators merged on top of `builtInFormats`, the same
+   * shape and the same merge as `createValidator`'s option of this name.
+   * A name registered here wins over a built-in of that name.
+   *
+   * Threaded into the BUFFER-island delegate's in-memory compile; they
+   * take effect only where that engine asserts `format` (an OpenAPI
+   * dialect, or the 2020-12 format-assertion vocabulary). The forward
+   * STREAM path treats `format` as an annotation and never runs these.
+   *
+   * A format name with no validator under it asserts nothing, per JSON
+   * Schema, and reports nothing. Enumerating the formats a spec uses
+   * today therefore leaves a later addition silently unchecked, which is
+   * why the built-ins are the base rather than the whole set.
    */
   formats?: Record<string, (value: string) => boolean>;
 

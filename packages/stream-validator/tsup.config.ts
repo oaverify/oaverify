@@ -22,6 +22,7 @@ import { defineConfig } from "tsup";
  */
 const oavCoreRewrite: Record<string, string> = {
   "@oaverify/internal-core": "@oaverify/core/core",
+  "@oaverify/internal-formats": "@oaverify/core/formats",
   "@oaverify/internal-schema": "@oaverify/core/schema",
   "@oaverify/internal-schema/internals": "@oaverify/core/schema/internals",
 };

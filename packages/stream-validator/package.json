@@ -68,6 +68,7 @@
   },
   "devDependencies": {
     "@oaverify/internal-core": "workspace:*",
+    "@oaverify/internal-formats": "workspace:*",
     "@oaverify/internal-schema": "workspace:*",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
