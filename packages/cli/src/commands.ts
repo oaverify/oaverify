@@ -621,8 +621,10 @@ export async function checkCommand(
 
   // One defect reached from several operations is one thing to fix, and
   // printing it once per operation buries the rest of the report: on
-  // Asana 101 schema findings are 28 distinct defects (#520). Keyed on
-  // code plus message, which already carries the path.
+  // Asana 101 schema findings are 28 distinct defects (#520). See
+  // `addSchemaFinding` for the key, which is code plus message plus
+  // pointer: message alone collapsed two components sharing a relative
+  // path into one finding.
   const schemaFindings = new Map<string, CheckFinding>();
 
   // Set when at least one schema was malformed. The document is still
