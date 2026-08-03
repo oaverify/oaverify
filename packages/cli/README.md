@@ -83,107 +83,36 @@ schema [silent-rewrite/ref-siblings-oas30] GET /a 200 response body (application
 
 `location` is display text. Its shape varies by class, it is free to
 change wording, and it is not meant to be parsed. To locate a finding
-programmatically, read `target`:
+programmatically, read `target`, and to find the file it was written in
+read `target.source`.
 
-```json
-{
-  "class": "schema",
-  "code": "silent-rewrite/required-not-in-properties",
-  "location": "POST /things request body (application/json) -> anyOf[0]",
-  "target": {
-    "pointer": "/components/schemas/Order/required",
-    "anchor": "scoped-definition"
-  }
-}
-```
+Both are specified in
+[the published CLI README](https://github.com/oaverify/oaverify/blob/main/packages/oav/README.md#the-check---format-json-contract),
+which is the canonical statement because it is the one a consumer who
+ran `npm i oaverify` actually has. It carries the closed `anchor`
+vocabulary, what absence means for each field, and the stability
+promise. This file does not restate it, so that there is one copy to
+keep true.
 
-`target.pointer` is an RFC 6901 JSON pointer into the resolved
-document, percent-decoded with `~0` / `~1` retained. It resolves
-against the document `check` graded, or the whole `target` is absent.
-It is never best-effort: an external `$ref` target and an anchor name a
-schema but no position in this document, so those report no target
-rather than an address that goes nowhere.
+Three things that belong here rather than there, being the reasoning
+behind the contract rather than the contract:
 
-`target.anchor` says what following the pointer gets you, which is what
-a consumer needs before it edits anything:
+**Why `scoped-definition` exists.** `required` is checked against the
+property names reachable at an _instance_ position, and a component says
+different things at different use sites. Reporting such a finding as
+`definition` would send a reader to fix shared text that is not wrong.
 
-| Anchor              | Meaning                                                                     |
-| ------------------- | --------------------------------------------------------------------------- |
-| `node`              | The finding's own address. Editing there affects nothing else.              |
-| `definition`        | Shared text reached through a `$ref`. Editing there affects every use site. |
-| `scoped-definition` | Shared text, but the finding holds only on the route `location` names. The  |
-|                     | definition may be correct for its other users.                              |
-
-That last one exists because `required` is checked against the property
-names reachable at an _instance_ position, and a component says
-different things at different use sites. Reporting it as `definition`
-would send a reader to fix shared text that is not wrong.
-
-### Which file a finding came from
-
-`target.pointer` addresses the **resolved** document. For a spec
-assembled from several files that names a node no author typed, in a
-component the resolver may have invented. `target.source` is the
-address in the file the author would open:
-
-```json
-"target": {
-  "pointer": "/components/schemas/Order/required",
-  "anchor": "scoped-definition",
-  "source": {
-    "uri": "order.yaml",
-    "pointer": "/components/schemas/Order/required",
-    "via": [
-      {
-        "uri": "entry.yaml",
-        "pointer": "/paths/~1orders/post/requestBody/content/application~1json/schema"
-      }
-    ]
-  }
-}
-```
-
-`source.uri` is the document the node was built from and `source.pointer`
-addresses it within that document. `source.via` is the chain of
-references the resolver followed to reach it, outermost first, each hop
-naming the `$ref` node itself. An empty `via` means the node was reached
-in the entry document without crossing a reference, which is every node
-of a single-file spec.
-
-Every `uri` is resolved against the spec argument, so it comes back in
-the form that argument was given in: `oaverify check ./openapi.yaml`
-reports `./schemas/order.yaml`, and an absolute path reports absolute
-paths. Resolve one the same way you resolved the spec argument itself.
-
-The three arrive together or not at all. `source` absent means no source
-node corresponds to this one: the container that holds hoisted schemas
-and the root extension that stitched externals live under are the
-resolver's own, and an overlay rewrites the document after it is
-assembled, so anything an overlay touched or added has no position in a
-file to give. Absence is a fact about the node, the same standard
-`target` itself is held to.
-
-One thing `source` does not claim: it addresses the node the resolved
+**What `source` does not claim.** It addresses the node the resolved
 node was built from, and does not promise the two hold the same value.
 The resolver rewrites every external `$ref` into an internal one on the
 way through, so a value-equality guarantee would have to abstain on the
 most common node in a resolved multi-file spec.
 
-Where `anchor` is `definition` or `scoped-definition`, `via` is how the
-resolver first reached that shared definition rather than the route this
-particular finding took to it. That is the same caveat `anchor` already
-carries for `pointer`: a shared definition is reported once, addressed
-where it is written.
-
-`examples` findings additionally carry `reasons`, the validator's leaf
-errors for the rejected value, so a consumer reads `params.allowed` and
-`params.actual` rather than parsing them out of the message.
-
-One consequence of running several passes: a defect that both a
-document pass and a compile pass can see is reported twice. A
-`description: null` is the common one, reported by `conformance/type`
-and by `schema/annotation-value-type`. Both now carry a `target`, so a
-consumer can recognise the pair by pointer.
+**Whose route `via` is.** Where `anchor` is `definition` or
+`scoped-definition`, `via` is how the resolver first reached that shared
+definition, not the route this particular finding took to it. That is
+the same caveat `anchor` already carries for `pointer`: a shared
+definition is reported once, addressed where it is written.
 
 ```bash
 
@@ -379,33 +308,11 @@ the budget for the rest of the spec.
 
 ## Exit codes
 
-| Code | Meaning                                                                      |
-| ---- | ---------------------------------------------------------------------------- |
-| 0    | clean                                                                        |
-| 1    | a domain check failed: validation errors, or findings met a `--fail-on` gate |
-| 2    | the input could not be read, resolved, or parsed                             |
-| 3    | CLI usage error                                                              |
-| 4    | `check` graded the document and at least one schema is malformed             |
-
-Exit 2 means there is no report to read: the file could not be opened,
-a `$ref` would not resolve, the YAML would not parse. It means the same
-thing in every command that loads a spec.
-
-Exit 4 is `check`-only and means the opposite: the document was graded
-in full and the report on stdout is complete, but one or more findings
-make it uncompilable. Those are reported under the class `malformed`
-with the code `malformed-schema`. `malformed` is a reported class
-rather than a selectable one: `--only` takes the classes listed with the
-flag above, and a malformed schema is found by compiling, which is what
-the `schema` check does. `check` grades the rest of the document rather than
-stopping at the first one, so a run that exits 4 still carries every
-other finding it could reach. Exit 4 outranks `--fail-on`: a document
-that cannot be compiled is not a gate result.
-
 One taxonomy across every command, rather than a per-command meaning.
-Note in particular that `check` does not vary its exit code by finding
-class: a single run can report several classes at once, so the class
-lives in the output and the exit code answers only "did this pass".
+The table, and what exit 2 and exit 4 mean, are in
+[the published CLI README](https://github.com/oaverify/oaverify/blob/main/packages/oav/README.md#exit-codes),
+for the same reason as the finding contract above: a CI job is written
+by someone who installed `oaverify`, not by someone reading this file.
 
 ## `.http` file format
 

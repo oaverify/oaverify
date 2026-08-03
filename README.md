@@ -392,7 +392,7 @@ surface, the `.http` file format, and both compile commands' output
 contracts.
 
 Every command shares one exit-code taxonomy, tabulated in
-[the CLI README](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md#exit-codes).
+[the published CLI README](https://github.com/oaverify/oaverify/blob/main/packages/oav/README.md#exit-codes).
 The rule worth reading before you script around it: stdout carries the
 report and the exit code summarises it. `check` exits `4` when a schema
 is malformed, and still prints every finding it reached, so treating
