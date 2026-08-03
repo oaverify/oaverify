@@ -2,7 +2,7 @@ import { createFileReaderSync, type DocumentReader, type SyncDocumentReader } fr
 import { applyOverlays, type SpecOverlay } from "./overlay.js";
 import { resolveSpec, type ResolvedSpec } from "./resolver.js";
 import { resolveSpecSync } from "./resolver-sync.js";
-import { lintResolvedSpec } from "./lint.js";
+import { lintResolvedSpec, type LintOptions } from "./lint.js";
 import { withOverlayChanges, type SpecRegion } from "./provenance.js";
 
 /**
@@ -71,15 +71,34 @@ export async function loadSpec(options: LoadSpecOptions): Promise<ResolvedSpec> 
     options.overlays && options.overlays.length > 0
       ? applyOverlays(resolved.document, options.overlays)
       : resolved.document;
-  const specHygieneIssues = options.lint ? lintResolvedSpec(overlaid) : [];
+  const lint = lintOptionsFor(resolved, overlaid);
+  const specHygieneIssues = options.lint ? lintResolvedSpec(overlaid, lint) : [];
   return {
     document: overlaid,
     sources: resolved.sources,
     specHygieneIssues,
+    ...(lint.inlinedComponents !== undefined && { inlinedComponents: lint.inlinedComponents }),
     ...(resolved.regions !== undefined && {
       regions: afterOverlays(resolved.regions, resolved.document, overlaid),
     }),
   };
+}
+
+/**
+ * What the lint pass needs beyond the document, for the document it is
+ * actually given.
+ *
+ * The resolver's list describes the document it resolved. An overlay
+ * can move, remove or re-reference any of those components, so the list
+ * stops being a statement about the document being linted and is
+ * dropped, here and from the returned {@link ResolvedSpec}. That
+ * restores the pre-#612 false positive under overlays, which is the
+ * cheaper failure: keeping it risks staying quiet about a component an
+ * overlay orphaned.
+ */
+function lintOptionsFor(resolved: ResolvedSpec, overlaid: unknown): LintOptions {
+  if (resolved.document !== overlaid) return {};
+  return { inlinedComponents: resolved.inlinedComponents ?? [] };
 }
 
 /**
@@ -178,11 +197,13 @@ export function loadSpecSync(options: LoadSpecSyncOptions): ResolvedSpec {
     options.overlays && options.overlays.length > 0
       ? applyOverlays(resolved.document, options.overlays)
       : resolved.document;
-  const specHygieneIssues = options.lint ? lintResolvedSpec(overlaid) : [];
+  const lint = lintOptionsFor(resolved, overlaid);
+  const specHygieneIssues = options.lint ? lintResolvedSpec(overlaid, lint) : [];
   return {
     document: overlaid,
     sources: resolved.sources,
     specHygieneIssues,
+    ...(lint.inlinedComponents !== undefined && { inlinedComponents: lint.inlinedComponents }),
     ...(resolved.regions !== undefined && {
       regions: afterOverlays(resolved.regions, resolved.document, overlaid),
     }),

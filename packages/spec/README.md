@@ -202,7 +202,19 @@ for (const w of specHygieneIssues) {
 
 The same engine is reachable directly via `lintResolvedSpec(document)`
 for callers that already have a resolved document and just want the
-findings. The validator surfaces it too: `createValidator(spec,
+findings. One thing the document cannot say for itself: a non-schema
+component referenced from another file is inlined at the use site, so
+nothing in the resolved document reaches the component and
+`unused-component` would report it. `resolveSpec` returns those in
+`inlinedComponents`; pass them on to keep the rule quiet about them:
+
+```ts
+const { document, inlinedComponents } = await resolveSpec({ reader, entry });
+const issues = lintResolvedSpec(document, { inlinedComponents });
+```
+
+`loadSpec` and `resolveSpec` do this for you under `lint: true`. See
+`LintOptions`. The validator surfaces it too: `createValidator(spec,
 { lint: true })` exposes `validator.specHygieneIssues`. Pick whichever
 layer is natural for the flow; running `lint: true` in two places lints
 twice.

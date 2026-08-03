@@ -412,6 +412,7 @@ describe("resolveSpecSync ⇔ resolveSpec parity", () => {
       const syncResult = resolveSpecSync({ reader: r.syncReader, entry: fx.entry, lint: true });
       expect(syncResult.document).toEqual(asyncResult.document);
       expect(syncResult.specHygieneIssues).toEqual(asyncResult.specHygieneIssues);
+      expect(syncResult.inlinedComponents).toEqual(asyncResult.inlinedComponents);
       expect(r.syncReads).toEqual(r.asyncReads);
     });
   }

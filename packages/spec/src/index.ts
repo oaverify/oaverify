@@ -29,7 +29,7 @@ export {
   type SpecOverlay,
 } from "./overlay.js";
 export { loadSpec, loadSpecSync, type LoadSpecOptions, type LoadSpecSyncOptions } from "./load.js";
-export { lintResolvedSpec, type SpecHygieneIssue } from "./lint.js";
+export { lintResolvedSpec, type LintOptions, type SpecHygieneIssue } from "./lint.js";
 export {
   sourceOf,
   withOverlayChanges,

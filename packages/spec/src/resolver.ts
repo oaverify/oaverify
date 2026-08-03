@@ -21,6 +21,7 @@ import {
   HoistNames,
   makeStitchRef,
   mergeHoistedSchemas,
+  noteInlinedComponent,
   mergeStitchedExternals,
   type MountState,
   type Mutable,
@@ -89,6 +90,25 @@ export interface ResolvedSpec {
    */
   specHygieneIssues: readonly SpecHygieneIssue[];
   /**
+   * Components of the entry document that a reference reached and the
+   * resolver inlined at the use site, as pointers
+   * (`/components/parameters/PageSize`).
+   *
+   * Non-schema positions inline, so the resolved document contains the
+   * component's content without reaching the component, and a rule
+   * grading that document alone would call it unused. Pass this to
+   * {@link lintResolvedSpec} so it stays quiet about them instead.
+   * Empty for a single-file spec, and for any spec whose cross-document
+   * references are all in schema positions.
+   *
+   * Optional so a caller building a {@link ResolvedSpec} by hand does
+   * not have to. Both resolvers always set it; `loadSpec` drops it when
+   * an overlay ran, since an overlay can re-reference or remove any of
+   * the components it names and the list would no longer describe the
+   * document returned beside it.
+   */
+  inlinedComponents?: readonly string[];
+  /**
    * Where each part of the resolved document came from. Present only
    * when {@link ResolveSpecOptions.provenance} was set, which is the
    * one way to tell "provenance was never tracked" apart from "tracked,
@@ -135,6 +155,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   const baseDir = options.baseUri ?? baseDirOf(options.entry);
   const entryUri = entryIdentity(options.entry);
   const sources = new Set<string>([options.entry]);
+  const inlinedComponents = new Set<string>();
   const docs = new Map<string, unknown>();
 
   // Null unless asked for. Every call site below reaches it through
@@ -372,6 +393,10 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       const [refPath, fragment = ""] = ref.split("#") as [string, string | undefined];
       const targetUri = resolveRelative(currentBase, refPath);
       noteReferrer(referrers, targetUri, externalSourceUri ?? options.entry);
+      // The content lands at the use site, so the component it came
+      // from is about to look unreachable to anything reading the
+      // resolved document alone.
+      if (targetUri === entryUri) noteInlinedComponent(inlinedComponents, fragment);
       const stitchRef = makeStitchRef(targetUri, fragment);
       if (stitchingUri !== null && stitchingUri === targetUri) {
         noteVia(stitchVia, targetUri);
@@ -616,11 +641,15 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     mergeStitchedExternals(resolved, stitched);
   }
 
-  const specHygieneIssues = options.lint ? lintResolvedSpec(resolved) : [];
+  const inlined = [...inlinedComponents];
+  const specHygieneIssues = options.lint
+    ? lintResolvedSpec(resolved, { inlinedComponents: inlined })
+    : [];
   return {
     document: resolved,
     sources: [...sources],
     specHygieneIssues,
+    inlinedComponents: inlined,
     ...(trail !== null && { regions: trail.regions }),
   };
 }

@@ -22,6 +22,7 @@ import {
   HoistNames,
   makeStitchRef,
   mergeHoistedSchemas,
+  noteInlinedComponent,
   mergeStitchedExternals,
   type MountState,
   type Mutable,
@@ -89,6 +90,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   const baseDir = options.baseUri ?? baseDirOf(options.entry);
   const entryUri = entryIdentity(options.entry);
   const sources = new Set<string>([options.entry]);
+  const inlinedComponents = new Set<string>();
   const docs = new Map<string, unknown>();
 
   // Mirrors resolveSpec; the commentary lives there.
@@ -300,6 +302,8 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       const [refPath, fragment = ""] = ref.split("#") as [string, string | undefined];
       const targetUri = resolveRelative(currentBase, refPath);
       noteReferrer(referrers, targetUri, externalSourceUri ?? options.entry);
+      // Mirrors resolveSpec; the commentary lives there.
+      if (targetUri === entryUri) noteInlinedComponent(inlinedComponents, fragment);
       const stitchRef = makeStitchRef(targetUri, fragment);
       if (stitchingUri !== null && stitchingUri === targetUri) {
         noteVia(stitchVia, targetUri);
@@ -506,11 +510,15 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     );
   }
 
-  const specHygieneIssues = options.lint ? lintResolvedSpec(resolved) : [];
+  const inlined = [...inlinedComponents];
+  const specHygieneIssues = options.lint
+    ? lintResolvedSpec(resolved, { inlinedComponents: inlined })
+    : [];
   return {
     document: resolved,
     sources: [...sources],
     specHygieneIssues,
+    inlinedComponents: inlined,
     ...(trail !== null && { regions: trail.regions }),
   };
 }

@@ -84,6 +84,28 @@ export function entryIdentity(entry: string): string {
   return resolveRelative(baseDirOf(entry), basename(entry));
 }
 
+/** A pointer naming one entry of one `components` category. */
+const COMPONENT_POINTER = /^\/components\/[^/]+\/[^/]+$/;
+
+/**
+ * Record a component of the entry document that a reference reached and
+ * the walk inlined at the use site.
+ *
+ * Non-schema positions inline, so after resolution nothing in the
+ * document reaches the component the author declared, and
+ * `unused-component` reports it (#612). The rule is answering correctly
+ * about a document that no longer reflects what was written, and this
+ * is the one thing it cannot see for itself. Collected here rather than
+ * recomputed, because only the walk knows which references it followed.
+ *
+ * `fragment` is the reference's fragment, an RFC 6901 pointer with its
+ * leading slash, and is kept only when it names a component; anything
+ * else has no entry for the lint pass to stay quiet about.
+ */
+export function noteInlinedComponent(into: Set<string>, fragment: string): void {
+  if (COMPONENT_POINTER.test(fragment)) into.add(fragment);
+}
+
 /**
  * Root field the resolver materialises circular non-schema externals
  * under.

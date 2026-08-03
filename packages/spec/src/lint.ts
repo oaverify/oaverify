@@ -47,6 +47,26 @@ export interface SpecHygieneIssue {
   message: string;
 }
 
+/**
+ * What {@link lintResolvedSpec} cannot see in the document it is given.
+ *
+ * Resolution is lossy in one direction that matters to hygiene: a
+ * non-schema component referenced across documents is inlined at the
+ * use site, so its content survives and the component itself becomes
+ * unreachable. Everything else the rules need is in the document.
+ *
+ * @public
+ */
+export interface LintOptions {
+  /**
+   * Components the resolver inlined at a use site, as pointers
+   * (`/components/parameters/PageSize`). `unused-component` stays quiet
+   * about these. Comes from {@link ResolvedSpec.inlinedComponents};
+   * omitting it restores the pre-#612 behaviour, which reports them.
+   */
+  inlinedComponents?: readonly string[];
+}
+
 const COMPONENT_CATEGORIES = [
   "schemas",
   "parameters",
@@ -100,14 +120,20 @@ const PATH_TEMPLATE_RE = /\{([^{}]+)\}/g;
  *   `{name}` placeholders in a path template and the path-parameter
  *   declarations on the operation + its path-item.
  *
+ * @param document - The resolved document to grade.
+ * @param options - What the document alone cannot say. See
+ *   {@link LintOptions}.
  * @returns Findings, ordered by category then by pointer for stable
  *   output. Empty array means clean spec.
  *
  * @public
  */
-export function lintResolvedSpec(document: OpenAPIDocument): SpecHygieneIssue[] {
+export function lintResolvedSpec(
+  document: OpenAPIDocument,
+  options: LintOptions = {},
+): SpecHygieneIssue[] {
   const issues: SpecHygieneIssue[] = [];
-  issues.push(...findUnusedComponents(document));
+  issues.push(...findUnusedComponents(document, options.inlinedComponents ?? []));
   issues.push(...findUnusedTags(document));
   issues.push(...findUnreachableDefs(document));
   issues.push(...findPathParamMismatches(document));
@@ -118,9 +144,13 @@ export function lintResolvedSpec(document: OpenAPIDocument): SpecHygieneIssue[] 
 // unused-component
 // ---------------------------------------------------------------------------
 
-function findUnusedComponents(document: OpenAPIDocument): SpecHygieneIssue[] {
+function findUnusedComponents(
+  document: OpenAPIDocument,
+  inlinedComponents: readonly string[],
+): SpecHygieneIssue[] {
   const components = document.components;
   if (!components) return [];
+  const inlined = new Set(inlinedComponents);
 
   const declared = new Set<string>();
   for (const category of COMPONENT_CATEGORIES) {
@@ -141,9 +171,15 @@ function findUnusedComponents(document: OpenAPIDocument): SpecHygieneIssue[] {
     for (const name of Object.keys(bucket)) {
       const key = `${category}/${name}`;
       if (reached.has(key)) continue;
+      const pointer = `/components/${category}/${escapePointerSegment(name)}`;
+      // Referenced from another document and inlined at the use site,
+      // so the resolved document reaches its content without reaching
+      // it. Say nothing rather than say "unused": the rule cannot tell
+      // this apart from an orphan by looking at the document it has.
+      if (inlined.has(pointer)) continue;
       issues.push({
         code: "unused-component",
-        pointer: `/components/${category}/${escapePointerSegment(name)}`,
+        pointer,
         message: `components.${category}.${name} is declared but no operation reaches it`,
       });
     }
