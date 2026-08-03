@@ -128,9 +128,11 @@ malformed-schema error because annotations emit no validation code, so
 the compiled validator is unaffected. What is lost is the text the
 author meant to write, which no other check would notice.
 
-The `unsatisfiable/*` family reports a position no instance can
-validate at, which is almost always a typo. `unsatisfiable/pattern-length`
-is the current member: a `pattern` whose match length cannot overlap the
+The `unsatisfiable/*` family reports something provably dead, which is
+almost always a typo. The code names what is dead, since that is not
+always the whole position.
+
+`unsatisfiable/pattern-length` kills the position: a `pattern` whose match length cannot overlap the
 sibling `minLength` / `maxLength`, as in `pattern: '(^[a-zA-Z0-9](9)$)'`
 alongside `minLength: 9`, where `(9)` is a group matching the literal
 `9` and `{9}` was meant. Match length is computed by parsing the
@@ -143,6 +145,21 @@ since that fallback reads the length of some constructs differently
 (`\01` is one octal escape there, two characters under `u`). For the same reason it
 fires only where `type` is exactly `"string"`: with another type
 admitted, a non-string instance still validates.
+
+`unsatisfiable/enum-member-type` kills a member: an `enum` entry the
+sibling `type` can never admit, so no instance can select it.
+`type: string` with `enum: [1, 2, 3]` is the shape in the wild. The
+finding names each dead member and its index, and says separately when
+every member is dead, which is the case where the position goes with
+them. Reporting the whole enum for one bad member would be the
+over-report, since `enum: ["a", 2]` still validates `"a"`.
+
+It says nothing where `type` is absent, nothing being constrained. And
+under OAS 3.0 it honours `nullable: true`, so `type: string` with
+`enum: ["a", null]` is accepted there; that is valid 3.0 and comparable
+tools report it anyway. Under 3.1 `nullable` is an inert extension, so
+the same document is reported there, and the difference is the dialect
+rather than an inconsistency.
 
 The `silent-rewrite/*` family reports a constraint the validator does
 not enforce as written. `silent-rewrite/discriminator-unroutable` is

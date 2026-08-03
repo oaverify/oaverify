@@ -90,6 +90,14 @@ export const CASES: readonly DetectionCase[] = [
     note: "The #503 case. Discriminates tools that resolve refs before linting.",
   },
   {
+    id: "lint/enum-type-mismatch",
+    class: "lint",
+    defect: "`enum: [1, 2, 3]` beside `type: string`, so no member can ever be selected",
+    signals: ['"enum"', "can never admit", "enum-type-mismatch", "typed-enum"],
+    oaverify: "catches",
+    note: "#514. Redocly reports it as no-enum-type-mismatch, Spectral as typed-enum.",
+  },
+  {
     id: "lint/ref-siblings-oas30",
     class: "lint",
     defect: "OAS 3.0 $ref with a sibling `required`, which is silently dropped",
