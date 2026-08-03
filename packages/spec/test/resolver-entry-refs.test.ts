@@ -3,7 +3,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createFileReader, createMemoryReader } from "../src/reader.js";
-import { resolveSpec } from "../src/resolver.js";
+import { resolveJsonPointer, resolveSpec } from "../src/resolver.js";
+
+/** Every internal `$ref` in a resolved document, in walk order. */
+function collectInternalRefs(value: unknown, out: string[] = []): string[] {
+  if (value === null || typeof value !== "object") return out;
+  if (Array.isArray(value)) {
+    for (const item of value) collectInternalRefs(item, out);
+    return out;
+  }
+  const obj = value as Record<string, unknown>;
+  const ref = obj.$ref;
+  if (typeof ref === "string" && ref.startsWith("#")) out.push(ref);
+  for (const key of Object.keys(obj)) {
+    if (key === "$ref") continue;
+    collectInternalRefs(obj[key], out);
+  }
+  return out;
+}
 
 /**
  * References whose target is the entry document (#612).
@@ -215,6 +232,75 @@ describe("a schema ref whose target is the entry document", () => {
       in: "query",
       schema: { $ref: "#/components/schemas/Size" },
     });
+  });
+});
+
+describe("the address a rewritten ref keeps", () => {
+  // `#<fragment>` is a legal address only because the walk never moves
+  // a node of the entry: values are replaced in place, and the only
+  // additions are new `components.schemas` keys and the root extension.
+  // The argument is about the shape of the walk, so these two cases
+  // check the consequence instead: a fragment pointing deep into the
+  // entry, at a node that is not a component and sits next to content
+  // the walk does rewrite, still resolves afterwards.
+  const deep = (target: string) =>
+    createMemoryReader(
+      new Map<string, unknown>([
+        [
+          "main.json",
+          {
+            openapi: "3.1.0",
+            info: { title: "X", version: "1" },
+            paths: {
+              "/pets": {
+                get: {
+                  responses: {
+                    "200": {
+                      description: "ok",
+                      content: {
+                        "application/json": { schema: { type: "object", title: "inline" } },
+                      },
+                    },
+                  },
+                },
+              },
+              "/others": {
+                get: {
+                  responses: {
+                    "200": {
+                      description: "ok",
+                      content: { "application/json": { schema: { $ref: target } } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      ]),
+    );
+
+  const OTHERS = "/paths/~1others/get/responses/200/content/application~1json/schema";
+
+  it("resolves a fragment naming a node outside components", async () => {
+    const target = "./main.json#/paths/~1pets/get/responses/200/content/application~1json/schema";
+    const { document } = await resolveSpec({ reader: deep(target), entry: "main.json" });
+    expect(at(document, OTHERS)).toEqual({
+      $ref: "#/paths/~1pets/get/responses/200/content/application~1json/schema",
+    });
+    // The pointer the rewrite produced, walked in the document it was
+    // produced for.
+    expect(
+      at(document, "/paths/~1pets/get/responses/200/content/application~1json/schema"),
+    ).toEqual({ type: "object", title: "inline" });
+  });
+
+  it("leaves every internal ref in the resolved document resolvable", async () => {
+    const target = "./main.json#/paths/~1pets/get/responses/200/content/application~1json/schema";
+    const { document } = await resolveSpec({ reader: deep(target), entry: "main.json" });
+    for (const ref of collectInternalRefs(document)) {
+      expect(resolveJsonPointer(document, ref.slice(1)), ref).toBeDefined();
+    }
   });
 });
 
