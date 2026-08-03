@@ -190,10 +190,13 @@ many operations reported the same defect, when more than one; a
 component reached from several operations is one defect and one edit.
 `reasons` carries the validator's leaf errors for a rejected value, on
 `examples` findings only, so a consumer reads `params.allowed` and
-`params.actual` rather than parsing them out of `message`. Each error
-`code` has a documented `params` shape: the `BuiltInErrorParams`
-interface in `@oaverify/core` is the reference, and `ErrorParamsFor<Code>`
-narrows it at the read site.
+`params.actual` rather than parsing them out of `message`. No two
+entries are equal on all four fields, so counting the array counts
+distinct defects; a composition that rejects one position twice with
+different detail still gives two entries. Each error `code` has a
+documented `params` shape: the `BuiltInErrorParams` interface in
+`@oaverify/core` is the reference, and `ErrorParamsFor<Code>` narrows it
+at the read site.
 
 A defect that both a document pass and a compile pass can see is
 reported twice. A `description: null` is the common one, reported by
