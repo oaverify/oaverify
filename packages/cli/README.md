@@ -119,6 +119,62 @@ names reachable at an _instance_ position, and a component says
 different things at different use sites. Reporting it as `definition`
 would send a reader to fix shared text that is not wrong.
 
+### Which file a finding came from
+
+`target.pointer` addresses the **resolved** document. For a spec
+assembled from several files that names a node no author typed, in a
+component the resolver may have invented. `target.source` is the
+address in the file the author would open:
+
+```json
+"target": {
+  "pointer": "/components/schemas/Order/required",
+  "anchor": "scoped-definition",
+  "source": {
+    "uri": "order.yaml",
+    "pointer": "/components/schemas/Order/required",
+    "via": [
+      {
+        "uri": "entry.yaml",
+        "pointer": "/paths/~1orders/post/requestBody/content/application~1json/schema"
+      }
+    ]
+  }
+}
+```
+
+`source.uri` is the document the node was built from and `source.pointer`
+addresses it within that document. `source.via` is the chain of
+references the resolver followed to reach it, outermost first, each hop
+naming the `$ref` node itself. An empty `via` means the node was reached
+in the entry document without crossing a reference, which is every node
+of a single-file spec.
+
+Every `uri` is resolved against the spec argument, so it comes back in
+the form that argument was given in: `oaverify check ./openapi.yaml`
+reports `./schemas/order.yaml`, and an absolute path reports absolute
+paths. Resolve one the same way you resolved the spec argument itself.
+
+The three arrive together or not at all. `source` absent means no source
+node corresponds to this one: the container that holds hoisted schemas
+and the root extension that stitched externals live under are the
+resolver's own, and an overlay rewrites the document after it is
+assembled, so anything an overlay touched or added has no position in a
+file to give. Absence is a fact about the node, the same standard
+`target` itself is held to.
+
+One thing `source` does not claim: it addresses the node the resolved
+node was built from, and does not promise the two hold the same value.
+The resolver rewrites every external `$ref` into an internal one on the
+way through, so a value-equality guarantee would have to abstain on the
+most common node in a resolved multi-file spec.
+
+Where `anchor` is `definition` or `scoped-definition`, `via` is how the
+resolver first reached that shared definition rather than the route this
+particular finding took to it. That is the same caveat `anchor` already
+carries for `pointer`: a shared definition is reported once, addressed
+where it is written.
+
 `examples` findings additionally carry `reasons`, the validator's leaf
 errors for the rejected value, so a consumer reads `params.allowed` and
 `params.actual` rather than parsing them out of the message.

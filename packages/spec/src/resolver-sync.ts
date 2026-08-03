@@ -1,5 +1,6 @@
 import {
   detectOpenAPIVersion,
+  escapePointerSegment,
   followsRef,
   pointerFromFragment,
   refPositionFor,
@@ -15,13 +16,16 @@ import {
   cycleKey,
   componentSchemaSlots,
   existingSchemaNames,
+  EXTERNALS_FIELD,
   hoistedRef,
   HoistNames,
   makeStitchRef,
   mergeHoistedSchemas,
   mergeStitchedExternals,
+  type MountState,
   type Mutable,
   noteReferrer,
+  ProvenanceTrail,
   type ReferrerTrail,
   resolveRelative,
   rewriteInternalRefTarget,
@@ -29,6 +33,7 @@ import {
   targetKey,
   wrapReadError,
 } from "./resolver-shared.js";
+import type { SourceHop } from "./provenance.js";
 import { isSubschemaKey } from "@oaverify/internal-core";
 
 /**
@@ -44,6 +49,12 @@ export interface ResolveSpecSyncOptions {
   baseUri?: string;
   /** Run spec-hygiene lint passes against the resolved document. Defaults to `false`. */
   lint?: boolean;
+  /**
+   * Record where each part of the resolved document came from. Regions
+   * land in {@link ResolvedSpec.regions}. Defaults to `false`. See
+   * {@link ResolveSpecOptions.provenance}.
+   */
+  provenance?: boolean;
 }
 
 /**
@@ -77,6 +88,14 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   const baseDir = options.baseUri ?? baseDirOf(options.entry);
   const sources = new Set<string>([options.entry]);
   const docs = new Map<string, unknown>();
+
+  // Mirrors resolveSpec; the commentary lives there.
+  const trail = options.provenance === true ? new ProvenanceTrail(options.entry) : null;
+  const hoistVia = new Map<string, readonly SourceHop[]>();
+  const stitchVia = new Map<string, readonly SourceHop[]>();
+  const noteVia = (map: Map<string, readonly SourceHop[]>, key: string): void => {
+    if (trail !== null && !map.has(key)) map.set(key, trail.chain());
+  };
 
   // Populated as the walk derives each target URI; read back only on
   // failure, to name the reference that pulled the bad document in.
@@ -223,7 +242,9 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     if (Array.isArray(value)) {
       const out: unknown[] = [];
       for (const item of value) {
+        trail?.push(String(out.length));
         out.push(walk(item, currentBase, stitchingUri, externalSourceUri, pos));
+        trail?.pop();
       }
       return out;
     }
@@ -248,6 +269,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
           ? resolveRelative(currentBase, refPath)
           : (externalSourceUri as string);
         noteReferrer(referrers, uri, externalSourceUri ?? options.entry);
+        noteVia(hoistVia, targetKey(uri, fragment));
         const out: Mutable = { $ref: hoistedRef(claim(uri, fragment)) };
         // OpenAPI 3.1 allows siblings alongside `$ref`; they survive.
         for (const key of Object.keys(obj)) {
@@ -270,8 +292,12 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       const targetUri = resolveRelative(currentBase, refPath);
       noteReferrer(referrers, targetUri, externalSourceUri ?? options.entry);
       const stitchRef = makeStitchRef(targetUri, fragment);
-      if (stitchingUri !== null && stitchingUri === targetUri) return stitchRef;
+      if (stitchingUri !== null && stitchingUri === targetUri) {
+        noteVia(stitchVia, targetUri);
+        return stitchRef;
+      }
       if (visiting.has(cycleKey(targetUri, fragment))) {
+        noteVia(stitchVia, targetUri);
         stitchQueue.set(targetUri, pos.kind);
         return stitchRef;
       }
@@ -284,7 +310,12 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       }
       const resolved =
         fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, pointerFromFragment(fragment));
+      let mounted: MountState | undefined;
+      if (trail !== null) {
+        mounted = trail.enter(targetUri, pointerFromFragment(fragment), trail.chain());
+      }
       const inlined = walk(resolved, baseDirOf(targetUri), stitchingUri, targetUri, pos);
+      if (trail !== null && mounted !== undefined) trail.leave(mounted);
       visiting.delete(cycleKey(targetUri, fragment));
       const siblings: Mutable = {};
       for (const key of Object.keys(obj)) {
@@ -296,12 +327,13 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
         );
       }
       if (Object.keys(siblings).length === 0) return inlined;
-      return inlined !== null && typeof inlined === "object" && !Array.isArray(inlined)
-        ? { ...(inlined as Mutable), ...siblings }
-        : inlined;
+      if (inlined === null || typeof inlined !== "object" || Array.isArray(inlined)) return inlined;
+      for (const key of Object.keys(siblings)) trail?.shadow(key);
+      return { ...(inlined as Mutable), ...siblings };
     }
     if (typeof ref === "string" && ref.startsWith("#") && externalSourceUri !== null) {
       const rewritten = rewriteInternalRefTarget(externalSourceUri, ref.slice(1));
+      noteVia(stitchVia, externalSourceUri);
       stitchQueue.set(externalSourceUri, pos.kind);
       const siblings: Mutable = { $ref: rewritten };
       for (const key of Object.keys(obj)) {
@@ -335,10 +367,15 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     parentPos: Pos,
   ): unknown => {
     const value = parent[key];
+    trail?.push(key);
     if (parentPos.inSchema && key === "discriminator") {
-      if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
+      if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        trail?.pop();
+        return value;
+      }
       const node: Mutable = { ...(value as Mutable) };
       mappingSites.push({ node, base: currentBase, source: externalSourceUri });
+      trail?.pop();
       return node;
     }
 
@@ -356,11 +393,16 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     if (mapOfChildren && typeof value === "object" && value !== null && !Array.isArray(value)) {
       const out: Mutable = {};
       for (const [name, sub] of Object.entries(value as Mutable)) {
+        trail?.push(name);
         setSpecKey(out, name, walk(sub, currentBase, stitchingUri, externalSourceUri, childPos));
+        trail?.pop();
       }
+      trail?.pop();
       return out;
     }
-    return walk(value, currentBase, stitchingUri, externalSourceUri, childPos);
+    const walked = walk(value, currentBase, stitchingUri, externalSourceUri, childPos);
+    trail?.pop();
+    return walked;
   };
 
   const resolved = walk(entryDoc, baseDir, null, null, DOCUMENT_POS) as OpenAPIDocument;
@@ -388,12 +430,28 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       target.fragment === ""
         ? targetDoc
         : resolveJsonPointer(targetDoc, pointerFromFragment(target.fragment));
+    let mounted: MountState | undefined;
+    if (trail !== null) {
+      mounted = trail.enterAt(
+        ["components", "schemas", name],
+        target.uri,
+        pointerFromFragment(target.fragment),
+        hoistVia.get(key) ?? [],
+      );
+    }
     setSpecKey(hoisted, name, walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS));
+    if (trail !== null && mounted !== undefined) trail.leave(mounted, true);
+  }
+  if (trail !== null && Object.keys(hoisted).length > 0) {
+    const components = (resolved as unknown as Mutable).components;
+    if (!isPlainObject(components)) trail.synthetic("/components");
+    else if (!isPlainObject(components.schemas)) trail.synthetic("/components/schemas");
   }
   fixUpDiscriminatorMappings();
   mergeHoistedSchemas(resolved, hoisted);
 
   if (stitchQueue.size > 0) {
+    trail?.synthetic(`/${escapePointerSegment(EXTERNALS_FIELD)}`);
     const stitched: Mutable = {};
     while (stitchQueue.size > 0) {
       const [uri, kind] = stitchQueue.entries().next().value as [string, RefNodeKind];
@@ -407,7 +465,12 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       }
       const savedVisiting = new Set(visiting);
       visiting.clear();
+      let mounted: MountState | undefined;
+      if (trail !== null) {
+        mounted = trail.enterAt([EXTERNALS_FIELD, uri], uri, "", stitchVia.get(uri) ?? []);
+      }
       const inlined = walk(targetDoc, baseDirOf(uri), uri, uri, posOf(kind, true));
+      if (trail !== null && mounted !== undefined) trail.leave(mounted, true);
       visiting.clear();
       for (const v of savedVisiting) visiting.add(v);
       setSpecKey(stitched, uri, inlined);
@@ -427,5 +490,15 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   }
 
   const specHygieneIssues = options.lint ? lintResolvedSpec(resolved) : [];
-  return { document: resolved, sources: [...sources], specHygieneIssues };
+  return {
+    document: resolved,
+    sources: [...sources],
+    specHygieneIssues,
+    ...(trail !== null && { regions: trail.regions }),
+  };
+}
+
+/** A JSON object, as opposed to an array, a null, or a scalar. */
+function isPlainObject(value: unknown): value is Mutable {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

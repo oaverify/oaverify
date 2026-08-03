@@ -12,10 +12,13 @@ import {
   createHttpReader,
   isSpecOverlay,
   loadSpec,
+  sourceOf,
   specOverlayVerbs,
   type DocumentReader,
+  type SourceAddress,
   type SpecHygieneIssue,
   type SpecOverlay,
+  type SpecRegion,
 } from "@oaverify/internal-spec";
 import {
   isOverlayDocument,
@@ -388,6 +391,29 @@ export interface FindingTarget {
   pointer: string;
   /** What following `pointer` gets you, and what editing there affects. */
   anchor: FindingAnchor;
+  /**
+   * Where the node at `pointer` came from in the files that were read:
+   * which document, where in it, and the references that reached it.
+   *
+   * `pointer` addresses the **resolved** document, which for a spec
+   * assembled from several files names a node no author typed, in a
+   * component the resolver may have invented. This is the address in
+   * the file the author would open.
+   *
+   * Absent means no source node corresponds to this one. In `check`
+   * output that is a fact about the node rather than an omission:
+   * `check` always records provenance, so absence means the node exists
+   * only in the resolved document. The resolver invented the container
+   * that holds hoisted schemas, or the root extension that stitched
+   * externals live under, or an overlay rewrote or added the node after
+   * resolution and its position in a source file would be stale.
+   *
+   * Present or absent as a unit, never partly filled. See
+   * {@link SourceAddress}, which also states the one thing this does not
+   * claim: it addresses the node the resolved node was built from, and
+   * does not promise the two hold the same value.
+   */
+  source?: SourceAddress;
 }
 
 /**
@@ -590,15 +616,21 @@ export async function checkCommand(
 
   let document: OpenAPIDocument;
   let specHygieneIssues: readonly SpecHygieneIssue[] = [];
+  // Where each part of the resolved document came from, applied to
+  // every finding's target in one pass below rather than per class, so
+  // no class can quietly answer differently from the rest.
+  let regions: readonly SpecRegion[] = [];
   try {
     const loaded = await loadSpec({
       reader: io.reader,
       entry: args.spec,
       overlays: overlayDocs,
       lint: classes.has("hygiene"),
+      provenance: true,
     });
     document = loaded.document;
     specHygieneIssues = loaded.specHygieneIssues;
+    regions = loaded.regions ?? [];
   } catch (err) {
     // The document could not be read, resolved, or parsed. Not a finding:
     // there is nothing to report findings about.
@@ -756,6 +788,16 @@ export async function checkCommand(
   }
 
   findings.push(...schemaFindings.values());
+
+  // Every target that addresses a node the resolver built from a source
+  // file gains that file's address. A target with no covering region,
+  // or one covered by something the resolver invented, keeps no
+  // `source`, which is what absence means here.
+  for (const finding of findings) {
+    if (finding.target === undefined) continue;
+    const source = sourceOf(regions, finding.target.pointer);
+    if (source !== undefined) finding.target = { ...finding.target, source };
+  }
 
   const sink = primarySink(io, args.options);
   if (args.format === "json") {

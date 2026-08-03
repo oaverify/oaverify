@@ -8,7 +8,7 @@ five public subpath entrypoints (plus the not-semver-covered
 | ----------------------------- | ------------------------------------------------------------------------------- |
 | `@oaverify/core`              | `createValidator`, `combineValidators`, error helpers, formatters, types        |
 | `@oaverify/core/schema`       | `compileSchema`, dialects, vocabularies, custom keywords, keyword introspection |
-| `@oaverify/core/spec`         | `loadSpec`, `loadSpecSync`, `resolveSpec`, `applyOverlays`, readers             |
+| `@oaverify/core/spec`         | `loadSpec`, `loadSpecSync`, `resolveSpec`, `applyOverlays`, `sourceOf`, readers |
 | `@oaverify/core/overlay-spec` | `translateOverlay`, `applySpecOverlay`: OpenAPI Overlay 1.0 → typed SpecOverlay |
 | `@oaverify/core/formats`      | Built-in string format validators                                               |
 | `@oaverify/core/core`         | Error tree model, shared OpenAPI / HTTP types                                   |

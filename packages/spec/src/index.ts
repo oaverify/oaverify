@@ -28,3 +28,11 @@ export {
 } from "./overlay.js";
 export { loadSpec, loadSpecSync, type LoadSpecOptions, type LoadSpecSyncOptions } from "./load.js";
 export { lintResolvedSpec, type SpecHygieneIssue } from "./lint.js";
+export {
+  sourceOf,
+  withOverlayChanges,
+  withSynthetic,
+  type SourceAddress,
+  type SourceHop,
+  type SpecRegion,
+} from "./provenance.js";
