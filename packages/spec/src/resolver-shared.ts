@@ -56,16 +56,29 @@ export function baseDirOf(uri: string): string {
  * agree across spellings: its own directory joined with its own file
  * name, which is how a reference to it from beside it resolves.
  *
- * What this claims is narrow, and deliberately so: **identity of the
- * key the reader is asked for**, which is what `docs`, `sources` and
- * the hoist names are keyed by. It does not claim symlink identity,
- * percent-encoding equivalence, `file:///x` against `/x`, a
+ * What this claims is narrow, and deliberately so: **the same document
+ * under a reader key that differs only by path normalisation**. `docs`,
+ * `sources` and the hoist names are all keyed by the reader key, and
+ * this treats `./main.json` and `main.json` as one document, which is
+ * true of every reader whose keys are paths. It does not claim symlink
+ * identity, percent-encoding equivalence, `file:///x` against `/x`, a
  * case-insensitive filesystem, `http` against `https`, or trailing
  * slash and query variation. A reference matching the entry by any of
  * those and not by this one keeps today's behaviour, a hoisted
  * duplicate: larger than it needs to be, and correct. The permissive
  * failure is the one worth avoiding, since it would rewrite a genuine
  * external target to an internal address that need not exist.
+ *
+ * `ResolveSpecOptions.baseUri` is not part of this, also deliberately.
+ * It redefines what a relative reference means, so with `baseUri` set a
+ * ref that reads like the entry's own name resolves to a different
+ * reader key, and the document served under that key is a different
+ * document: hoisting it is the correct answer, and it is what happens.
+ * Following `baseUri` here would let a reference that names one schema
+ * be rewritten to the address of another, which is a validation change
+ * wearing a deduplication's clothes. The cost is that an entry reached
+ * only through `baseUri` keeps hoisting a duplicate of itself, which is
+ * the conservative half of the same trade.
  */
 export function entryIdentity(entry: string): string {
   return resolveRelative(baseDirOf(entry), basename(entry));

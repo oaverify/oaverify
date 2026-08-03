@@ -315,6 +315,98 @@ describe("what the entry-identity test declines to answer", () => {
     );
   });
 
+  it("still hoists the document a baseUri-relative ref actually names", async () => {
+    // `baseUri` redefines what a relative reference means, so a ref
+    // that reads like the entry's own name resolves to a different
+    // reader key, and the reader serves a different document there.
+    // Following `baseUri` into the entry identity would substitute the
+    // entry's `Pet` for the one the reference names.
+    const reader = createMemoryReader(
+      new Map<string, unknown>([
+        [
+          "main.json",
+          {
+            openapi: "3.1.0",
+            info: { title: "X", version: "1" },
+            paths: { "/pets": { $ref: "./paths/pets.json" } },
+            components: { schemas: { Pet: { type: "object", title: "the entry's Pet" } } },
+          },
+        ],
+        [
+          "specs/paths/pets.json",
+          {
+            get: {
+              responses: {
+                "200": {
+                  description: "ok",
+                  content: {
+                    "application/json": {
+                      schema: { $ref: "../main.json#/components/schemas/Pet" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+        [
+          "specs/main.json",
+          { components: { schemas: { Pet: { type: "object", title: "another document's Pet" } } } },
+        ],
+      ]),
+    );
+    const { document } = await resolveSpec({ reader, entry: "main.json", baseUri: "specs" });
+    const hoisted = schemas(document).find((name) => name !== "Pet");
+    expect(hoisted).toBeDefined();
+    expect(at(document, `/components/schemas/${hoisted}`)).toMatchObject({
+      title: "another document's Pet",
+    });
+    expect(at(document, "/components/schemas/Pet")).toMatchObject({ title: "the entry's Pet" });
+    expect(at(document, PET_POINTER)).toEqual({ $ref: `#/components/schemas/${hoisted}` });
+  });
+
+  it("still stitches the document a baseUri-relative non-schema ref names", async () => {
+    // The same for the stitch branch: content inlined from
+    // `specs/main.json` is foreign content, so its internal refs are
+    // re-pointed at the stitched copy rather than at the entry.
+    const reader = createMemoryReader(
+      new Map<string, unknown>([
+        [
+          "main.json",
+          {
+            openapi: "3.1.0",
+            info: { title: "X", version: "1" },
+            paths: { "/pets": { $ref: "./paths/pets.json" } },
+            components: { headers: { H: { description: "the entry's H" } } },
+          },
+        ],
+        [
+          "specs/paths/pets.json",
+          {
+            get: {
+              responses: { "200": { $ref: "../main.json#/components/responses/Ok" } },
+            },
+          },
+        ],
+        [
+          "specs/main.json",
+          {
+            components: {
+              headers: { H: { description: "another document's H" } },
+              responses: {
+                Ok: { description: "ok", headers: { X: { $ref: "#/components/headers/H" } } },
+              },
+            },
+          },
+        ],
+      ]),
+    );
+    const { document } = await resolveSpec({ reader, entry: "main.json", baseUri: "specs" });
+    expect(at(document, "/paths/~1pets/get/responses/200/headers/X")).toEqual({
+      $ref: "#/x-oaverify-externals/specs~1main.json/components/headers/H",
+    });
+  });
+
   it("still stitches a cycle between two documents that are not the entry", async () => {
     // Path Item -> Operation -> Callback -> Path Item, none of them the
     // entry. An entry-identity test that generalised to "any document
