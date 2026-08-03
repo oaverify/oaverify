@@ -920,3 +920,97 @@ describe("checkDocumentExamples", () => {
     expect(checkDocumentExamples(withJsonBody({ schema: { type: "object" } }))).toEqual([]);
   });
 });
+
+describe("what it builds, and when (#611)", () => {
+  /**
+   * `resolve()` walks the whole document, including a root `$defs` that
+   * the example walk never visits. A getter there therefore fires when
+   * the full ref resolver is built and at no other time, which is the
+   * property #611 is about: `check --only examples` on Stripe spent 43s
+   * and 9GB building resolver state for a document containing no
+   * examples at all.
+   */
+  function watched(
+    schema: unknown,
+    opts: { example?: unknown; components?: unknown } = {},
+  ): { doc: never; built: () => number } {
+    let built = 0;
+    const media: Record<string, unknown> = { schema };
+    if ("example" in opts) media["example"] = opts.example;
+    const doc: Record<string, unknown> = {
+      openapi: "3.1.0",
+      info: { title: "X", version: "1" },
+      paths: {
+        "/x": {
+          post: {
+            requestBody: { content: { "application/json": media } },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      ...(opts.components === undefined ? {} : { components: opts.components }),
+    };
+    Object.defineProperty(doc, "$defs", {
+      enumerable: true,
+      get() {
+        built += 1;
+        return {};
+      },
+    });
+    return { doc: doc as never, built: () => built };
+  }
+
+  it("builds no resolver for a document with no examples", () => {
+    const w = watched({ type: "string" });
+    expect(checkDocumentExamples(w.doc)).toEqual([]);
+    expect(w.built()).toBe(0);
+  });
+
+  it("builds no resolver when no example schema crosses a reference", () => {
+    // The common case: an example beside a schema that needs nothing
+    // resolved. Building the document's whole ref graph to check it was
+    // the cost, not the checking.
+    const w = watched({ type: "string" }, { example: 42 });
+    expect(checkDocumentExamples(w.doc).map((i) => i.code)).toEqual(["example-invalid"]);
+    expect(w.built()).toBe(0);
+  });
+
+  it("answers a same-document pointer reference without building one", () => {
+    const w = watched(
+      { $ref: "#/components/schemas/Real" },
+      { example: 42, components: { schemas: { Real: { type: "string" } } } },
+    );
+    expect(checkDocumentExamples(w.doc).map((i) => i.code)).toEqual(["example-invalid"]);
+    expect(w.built()).toBe(0);
+  });
+
+  it("builds one for a reference the pointer path cannot answer", () => {
+    // An `$anchor` reference is not a JSON pointer, so it falls through
+    // to the full resolver. Pinned because that fallback is the branch
+    // the corpus cannot reach: every real-world spec is a single file
+    // whose references are all `#/` pointers.
+    const w = watched(
+      { $ref: "#tag" },
+      { example: 42, components: { schemas: { Real: { $anchor: "tag", type: "string" } } } },
+    );
+    checkDocumentExamples(w.doc);
+    expect(w.built()).toBe(1);
+  });
+
+  it("still reports every reason once an example is rejected", () => {
+    // The predicate runs first and only says yes or no; the uncapped
+    // flat validator is compiled for the rejected ones. A consumer must
+    // not be able to tell, so the reasons stay complete.
+    const issues = checkDocumentExamples(
+      withJsonBody({
+        schema: {
+          type: "object",
+          properties: { a: { type: "string" }, b: { type: "string" } },
+          required: ["a", "b"],
+        },
+        example: { a: 1, b: 2 },
+      }),
+    );
+    expect(issues[0]?.reasons.map((r) => r.path.join("."))).toEqual(["a", "b"]);
+  });
+});

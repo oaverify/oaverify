@@ -39,9 +39,11 @@
 
 import {
   detectOpenAPIVersion,
+  pointerFromFragment,
   type OpenAPIDocument,
   type PathSegment,
   type RejectionReason,
+  resolveJsonPointer,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
 import { builtInFormats } from "@oaverify/internal-formats";
@@ -52,6 +54,7 @@ import {
   openapi31Dialect,
   resolve,
   type CompiledSchema,
+  type CompiledPredicate,
   type Dialect,
   type RefResolver,
 } from "@oaverify/internal-schema";
@@ -265,6 +268,18 @@ interface Rejection {
  */
 type ExampleCheck = (value: unknown) => Rejection | undefined;
 
+interface ExampleJob {
+  schema: unknown;
+  pointer: string;
+  what: string;
+  value: unknown;
+}
+
+interface ExampleCheckers {
+  predicate: CompiledPredicate;
+  detail?: CompiledSchema;
+}
+
 export interface CheckDocumentExamplesOptions {
   /**
    * Override the dialect. Defaults to the one implied by the document's
@@ -294,67 +309,8 @@ export function checkDocumentExamples(
   options: CheckDocumentExamplesOptions = {},
 ): ExampleIssue[] {
   const dialect = options.dialect ?? dialectForDocument(document);
-  let refResolver: RefResolver;
-  try {
-    refResolver = createRefResolver(resolve(document as unknown as SchemaOrBoolean));
-  } catch {
-    // A document whose ref graph will not build is not this pass's
-    // problem to report; the schema and conformance classes own it.
-    return [];
-  }
-
+  const jobs: ExampleJob[] = [];
   const issues: ExampleIssue[] = [];
-  // Identity-keyed, so a component shared by 60 operations compiles
-  // once. `null` records "this one will not compile", which is asked
-  // again for every example on the same schema.
-  const compiled = new Map<unknown, ExampleCheck | null>();
-
-  const checkerFor = (schema: unknown): ExampleCheck | null => {
-    const cached = compiled.get(schema);
-    if (cached !== undefined) return cached;
-
-    let built: CompiledSchema;
-    try {
-      built = compileSchema(schema as SchemaOrBoolean, {
-        dialect,
-        formats: builtInFormats,
-        refResolver,
-        // Load-bearing rather than an optimisation: this pass is the
-        // only lint over these schemas, and leaving it on would collect
-        // issues nobody reads on every compile.
-        schemaLint: "off",
-        output: "flat",
-        // Uncapped, against the zero-config default of 1. An example is
-        // usually wrong in several independent ways, and a budget of 1
-        // costs the author one fix-and-recheck round per defect with no
-        // sign of how many remain (#579). Rendering is capped instead,
-        // at REASON_LIMIT, so the finding stays readable and the count
-        // of what was dropped is exact.
-        maxErrors: Number.POSITIVE_INFINITY,
-      });
-    } catch {
-      compiled.set(schema, null);
-      return null;
-    }
-
-    const check: ExampleCheck = (value) => {
-      let result: ReturnType<CompiledSchema["validate"]>;
-      try {
-        result = built.validate(value);
-      } catch {
-        // A validator that throws on this value says nothing about the
-        // example being wrong.
-        return undefined;
-      }
-      if (result.valid) return undefined;
-      return {
-        summary: joinReasons(result.errors),
-        reasons: distinctReasons(result.errors),
-      };
-    };
-    compiled.set(schema, check);
-    return check;
-  };
 
   const report = (pointer: string, what: string, value: unknown, rejection: Rejection): void => {
     issues.push({
@@ -390,21 +346,22 @@ export function checkDocumentExamples(
     const hasExamples = Array.isArray(examples);
     if (!hasExample && !hasExamples) return;
 
-    const check = checkerFor(node);
-    if (check === null) return;
-
     if (hasExample) {
-      const rejection = check(node["example"]);
-      if (rejection !== undefined) {
-        report(`${pointer}/example`, '"example"', node["example"], rejection);
-      }
+      jobs.push({
+        schema: node,
+        pointer: `${pointer}/example`,
+        what: '"example"',
+        value: node["example"],
+      });
     }
     if (hasExamples) {
       for (const [index, value] of (examples as readonly unknown[]).entries()) {
-        const rejection = check(value);
-        if (rejection !== undefined) {
-          report(`${pointer}/examples/${index}`, `"examples"[${index}]`, value, rejection);
-        }
+        jobs.push({
+          schema: node,
+          pointer: `${pointer}/examples/${index}`,
+          what: `"examples"[${index}]`,
+          value,
+        });
       }
     }
   };
@@ -427,14 +384,14 @@ export function checkDocumentExamples(
   const checkExamplesBesideSchema = (host: Record<string, unknown>, pointer: string): void => {
     const schema = host["schema"];
     if (schema === undefined) return;
-    const check = checkerFor(schema);
-    if (check === null) return;
 
     if (Object.prototype.hasOwnProperty.call(host, "example")) {
-      const rejection = check(host["example"]);
-      if (rejection !== undefined) {
-        report(`${pointer}/example`, '"example"', host["example"], rejection);
-      }
+      jobs.push({
+        schema,
+        pointer: `${pointer}/example`,
+        what: '"example"',
+        value: host["example"],
+      });
     }
 
     const examples = host["examples"];
@@ -442,15 +399,12 @@ export function checkDocumentExamples(
     for (const [name, entry] of Object.entries(examples)) {
       if (!isObj(entry)) continue;
       if (!Object.prototype.hasOwnProperty.call(entry, "value")) continue; // externalValue, or empty
-      const rejection = check(entry["value"]);
-      if (rejection !== undefined) {
-        report(
-          `${pointer}/examples/${escapePointer(name)}/value`,
-          `"examples.${name}"`,
-          entry["value"],
-          rejection,
-        );
-      }
+      jobs.push({
+        schema,
+        pointer: `${pointer}/examples/${escapePointer(name)}/value`,
+        what: `"examples.${name}"`,
+        value: entry["value"],
+      });
     }
   };
 
@@ -462,7 +416,113 @@ export function checkDocumentExamples(
     onParameterLike: checkExamplesBesideSchema,
   });
 
+  if (jobs.length === 0) return [];
+
+  const refResolver = lazyDocumentRefResolver(document);
+
+  // Identity-keyed, so a component shared by 60 operations compiles
+  // once. `null` records "this one will not compile", which is asked
+  // again for every example on the same schema.
+  const compiled = new Map<unknown, ExampleCheck | null>();
+
+  const checkerFor = (schema: unknown): ExampleCheck | null => {
+    const cached = compiled.get(schema);
+    if (cached !== undefined) return cached;
+
+    let checkers: ExampleCheckers;
+    try {
+      checkers = {
+        predicate: compileSchema(schema as SchemaOrBoolean, {
+          dialect,
+          formats: builtInFormats,
+          refResolver,
+          schemaLint: "off",
+          output: "predicate",
+        }),
+      };
+    } catch {
+      compiled.set(schema, null);
+      return null;
+    }
+
+    const detail = (): CompiledSchema => {
+      if (checkers.detail !== undefined) return checkers.detail;
+      checkers.detail = compileSchema(schema as SchemaOrBoolean, {
+        dialect,
+        formats: builtInFormats,
+        refResolver,
+        // Load-bearing rather than an optimisation: this pass is the
+        // only lint over these schemas, and leaving it on would collect
+        // issues nobody reads on every compile.
+        schemaLint: "off",
+        output: "flat",
+        // Uncapped, against the zero-config default of 1. An example is
+        // usually wrong in several independent ways, and a budget of 1
+        // costs the author one fix-and-recheck round per defect with no
+        // sign of how many remain (#579). Rendering is capped instead,
+        // at REASON_LIMIT, so the finding stays readable and the count
+        // of what was dropped is exact.
+        maxErrors: Number.POSITIVE_INFINITY,
+      });
+      return checkers.detail;
+    };
+
+    const check: ExampleCheck = (value) => {
+      let valid: boolean;
+      try {
+        valid = checkers.predicate.validate(value);
+      } catch {
+        // A validator that throws on this value says nothing about the
+        // example being wrong.
+        return undefined;
+      }
+      if (valid) return undefined;
+
+      let result: ReturnType<CompiledSchema["validate"]>;
+      try {
+        result = detail().validate(value);
+      } catch {
+        return undefined;
+      }
+      if (result.valid) return undefined;
+      return {
+        summary: joinReasons(result.errors),
+        reasons: distinctReasons(result.errors),
+      };
+    };
+    compiled.set(schema, check);
+    return check;
+  };
+
+  for (const job of jobs) {
+    const check = checkerFor(job.schema);
+    if (check === null) continue;
+    const rejection = check(job.value);
+    if (rejection !== undefined) report(job.pointer, job.what, job.value, rejection);
+  }
+
   return issues;
+}
+
+function lazyDocumentRefResolver(document: OpenAPIDocument): RefResolver {
+  let fallback: RefResolver | undefined;
+  const full = (): RefResolver => {
+    if (fallback !== undefined) return fallback;
+    fallback = createRefResolver(resolve(document as unknown as SchemaOrBoolean));
+    return fallback;
+  };
+
+  return {
+    resolve(ref: string, fromBaseUri = ""): SchemaOrBoolean {
+      if (fromBaseUri === "" && ref.startsWith("#/")) {
+        return resolveJsonPointer(
+          document,
+          pointerFromFragment(ref.slice(1)),
+        ) as unknown as SchemaOrBoolean;
+      }
+      return full().resolve(ref, fromBaseUri);
+    },
+  };
 }
 
 /**
