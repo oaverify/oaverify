@@ -146,6 +146,8 @@
     "build": "tsup && pnpm --filter @oaverify/stream build && pnpm --filter @oaverify/yaml build && pnpm --filter oaverify build",
     "oaverify": "node packages/oav/dist/cli.js",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "coverage:by-package": "node ./scripts/coverage-by-package.mjs",
     "test:watch": "vitest",
     "lint": "oxlint && oxfmt --check . && pnpm check:deps",
     "lint:type-aware": "oxlint --type-aware -c .oxlintrc.type-aware.json packages",
@@ -158,6 +160,7 @@
   },
   "devDependencies": {
     "@types/node": "26.1.2",
+    "@vitest/coverage-v8": "4.1.10",
     "commander": "15.0.0",
     "esbuild": "0.28.1",
     "oxfmt": "0.61.0",
