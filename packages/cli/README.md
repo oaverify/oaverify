@@ -150,6 +150,11 @@ naming the `$ref` node itself. An empty `via` means the node was reached
 in the entry document without crossing a reference, which is every node
 of a single-file spec.
 
+Every `uri` is resolved against the spec argument, so it comes back in
+the form that argument was given in: `oaverify check ./openapi.yaml`
+reports `./schemas/order.yaml`, and an absolute path reports absolute
+paths. Resolve one the same way you resolved the spec argument itself.
+
 The three arrive together or not at all. `source` absent means no source
 node corresponds to this one: the container that holds hoisted schemas
 and the root extension that stitched externals live under are the

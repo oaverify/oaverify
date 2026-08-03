@@ -33,7 +33,10 @@ import { escapePointerSegment } from "@oaverify/internal-core";
  * @public
  */
 export interface SourceHop {
-  /** The document the reference was written in. */
+  /**
+   * The document the reference was written in, in the form described
+   * on {@link SourceAddress.uri}.
+   */
   readonly uri: string;
   /** RFC 6901 pointer to the `$ref` node, within that document. */
   readonly pointer: string;
@@ -62,7 +65,15 @@ export interface SourceHop {
  * @public
  */
 export interface SourceAddress {
-  /** The document this node was built from. */
+  /**
+   * The document this node was built from.
+   *
+   * Resolved against the entry, so it comes back in the form the entry
+   * was given in: a relative entry yields relative URIs, an absolute
+   * one absolute URIs, a `file:` URL `file:` URLs. A caller turning a
+   * URI into something it can open resolves it the same way it
+   * resolved the entry it passed to `resolveSpec`.
+   */
   readonly uri: string;
   /** RFC 6901 pointer to the node, within that document. */
   readonly pointer: string;

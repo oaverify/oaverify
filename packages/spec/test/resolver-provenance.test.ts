@@ -500,4 +500,53 @@ describe("discriminator mappings", () => {
       ],
     });
   });
+
+  it("reports each document in the form the entry was given in", async () => {
+    // A source URI is resolved against the entry, so it comes back in
+    // whatever form the entry was passed in: a caller that handed over
+    // a relative path gets relative URIs back and resolves them the
+    // same way it resolved the entry. Pinned because a consumer has to
+    // turn a URI into something it can open.
+    const docs = (prefix: string): Record<string, unknown> => ({
+      [`${prefix}entry.json`]: {
+        openapi: "3.1.0",
+        info: { title: "X", version: "1" },
+        paths: {
+          "/a": {
+            post: {
+              requestBody: {
+                content: { "application/json": { schema: { $ref: "./nested/one.json#/schema" } } },
+              },
+              responses: {},
+            },
+          },
+        },
+      },
+      [`${prefix}nested/one.json`]: { schema: { type: "object" } },
+    });
+
+    const relative = await regionsOf(docs(""), "entry.json");
+    expect(sourceOf(relative, "/components/schemas/one_schema")).toEqual({
+      uri: "nested/one.json",
+      pointer: "/schema",
+      via: [
+        {
+          uri: "entry.json",
+          pointer: "/paths/~1a/post/requestBody/content/application~1json/schema",
+        },
+      ],
+    });
+
+    const absolute = await regionsOf(docs("/specs/"), "/specs/entry.json");
+    expect(sourceOf(absolute, "/components/schemas/one_schema")).toEqual({
+      uri: "/specs/nested/one.json",
+      pointer: "/schema",
+      via: [
+        {
+          uri: "/specs/entry.json",
+          pointer: "/paths/~1a/post/requestBody/content/application~1json/schema",
+        },
+      ],
+    });
+  });
 });
