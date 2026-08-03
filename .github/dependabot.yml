@@ -112,6 +112,37 @@ updates:
           - minor
           - patch
 
+  # detection/ is the fifth isolated pnpm root. It was missing here
+  # until a fast-uri advisory landed against its lockfile with no way
+  # to fix itself: GitHub's advisory scanning reads every lockfile in
+  # the repo, but dependabot only opens PRs for directories declared
+  # in this file, so the alert sat open with no auto-PR behind it
+  # (#629). Any root with a lockfile needs an entry here.
+  - package-ecosystem: npm
+    directory: "/detection"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    ignore:
+      # Like performance/ and performance/mem-bench, detection/ has no
+      # CI job, so a major bump lands unverified. It also compares
+      # oaverify against pinned competitors (ajv, Spectral, Redocly): a
+      # major of any of those changes what the corpus measures without
+      # changing a single case, which reads as oaverify's detection
+      # rate moving. Opt out of major auto-PRs entirely; minor/patch
+      # still flow. Bump a major by hand when revisiting the corpus.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      dev-minor-and-patch:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+
   - package-ecosystem: npm
     directory: "/conformance"
     schedule:
