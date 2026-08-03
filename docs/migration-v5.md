@@ -64,11 +64,8 @@ option names scope what gets stricter, which is the rule that decides
 when `strict` is acceptable; see
 [docs/strictness.md](./strictness.md#for-contributors-naming).
 
-**No alias was added.** v4 shipped with four symbols whose TSDoc had
-promised removal in v4 (see section 2), which teaches users that a
-deprecation notice is not load-bearing. Adding a fifth would have
-repeated that. The rename is mechanical and TypeScript flags every
-call site.
+**No alias was added.** The rename is mechanical and TypeScript flags
+every call site.
 
 ## 2. The v4-overdue deprecated aliases are gone
 
@@ -142,7 +139,6 @@ with a linter. See [the strictness guide](./strictness.md#document-conformance).
 ### `stream-check --envelope` is now `--format`
 
 Renamed for consistency with `check --format` and `validate --format`.
-The window for that rename was open exactly once.
 
 ```bash
 oaverify stream-check spec.yaml --format json   # was --envelope json

@@ -1,11 +1,10 @@
 # Integration guide
 
-Use this guide when you already have an OpenAPI document and want to
-run request or response validation inside an HTTP framework.
-
-The common integrations have adapter packages. The remaining runtimes
-use the same framework-agnostic validator surface, or the Fetch helpers
-when the framework exposes Web Standards `Request` / `Response`.
+Use this guide when you have an OpenAPI document and want request or
+response validation inside an HTTP framework. The common integrations
+have adapter packages; other runtimes use the framework-agnostic
+validator surface, or the Fetch helpers when the framework exposes
+Web Standards `Request` / `Response`.
 
 | Your app uses                        | Start here                                                                                    |
 | ------------------------------------ | --------------------------------------------------------------------------------------------- |
@@ -20,10 +19,8 @@ when the framework exposes Web Standards `Request` / `Response`.
 Adapters handle request validation and default
 `application/problem+json` responses. Response validation, upload
 parsing, authentication, and application-specific error envelopes stay
-explicit so they fit the service you already have.
-
-The cross-cutting recipes section covers concerns that show up across
-frameworks:
+explicit so they fit the service you already have. The cross-cutting
+recipes cover concerns that show up across frameworks:
 
 - [Status-code mapping](#status-code-mapping)
 - [Preserving an existing client error envelope](#preserving-an-existing-client-error-envelope)
@@ -79,14 +76,10 @@ lean install). The recipes below assume these are in scope.
 a flat `ValidationError[]`, so `result.errors` passes straight through.
 
 - **`httpStatusFor(errors, overrides?)`**: maps the failure to an
-  HTTP status: `route` → 404, `method` → 405, `security`
-  (leaf) → 401, `content-type` (leaf) → 415, `status` (leaf) → 500,
-  everything else → 400. Pass `{ default: 422 }` (or any other key)
-  to override a slot. The helper inspects the failure correctly:
-  writing this switch by hand is a common mistake, because
-  `"content-type"` / `"security"` / `"status"` appear as leaves
-  under a top-level `"request"` / `"response"` branch, not as a
-  top-level `code` directly.
+  HTTP status (`route` → 404, `method` → 405, and so on; the full
+  table and the reason not to write this switch by hand are under
+  [Status-code mapping](#status-code-mapping)). Pass
+  `{ default: 422 }` (or any other slot) to override.
 
 - **`allowHeaderFor(errors)`**: returns the `Allow` header value for a
   405 (RFC 9110 §15.5.6 requires it) or `undefined` otherwise.
@@ -478,90 +471,12 @@ updating the document.
 ### Patching a spec with overlays
 
 When you consume a spec you don't own (a vendor API, a gateway's
-published document, an upstream service), `applyOverlays` rewrites
-the document at load time so application code can validate against
-the shape you actually ship. See [docs/overlays.md](./overlays.md)
-for the full surface; the four shapes that come up most often:
-
-**Add a server.** When the deployed URL differs from what upstream
-declared, append to the `servers` list:
-
-```ts
-import { applyOverlays } from "@oaverify/core/spec";
-import type { SpecOverlay } from "@oaverify/core/spec";
-
-const eu: SpecOverlay = {
-  addServers: [{ url: "https://eu.api.example.com", description: "EU region" }],
-};
-const patched = applyOverlays(base, [eu]);
-```
-
-`servers` (without the `add` prefix) replaces wholesale; `addServers`
-appends. The two cannot coexist in one overlay.
-
-**Add an operation-level security requirement.** Tenants often
-require auth where the base spec doesn't:
-
-```ts
-const requireApiKey: SpecOverlay = {
-  overrides: {
-    "/pets": {
-      operations: {
-        post: { addSecurity: [{ apiKey: [] }] },
-      },
-    },
-  },
-};
-```
-
-`addSecurity` appends to the operation's existing requirement list
-(OR semantics between entries). Use `security: [...]` on the
-override to replace the list wholesale; replace cannot combine with
-`add` / `remove` in the same override.
-
-**Modify every operation matching a tag.** For "apply this to every
-internal endpoint" cases, the predicate iterator beats hand-rolling
-per-path overrides:
-
-```ts
-const lockInternals: SpecOverlay = {
-  modifyOperations: [
-    {
-      where: { tags: ["internal"] },
-      apply: {
-        addSecurity: [{ internalKey: [] }],
-        setExtensions: { "x-internal-only": true },
-      },
-    },
-  ],
-};
-```
-
-`modifyOperations` walks both `paths` and `webhooks`. `where` fields
-combine with AND semantics; omit `where` to apply to every operation.
-Webhook entries that are reference objects (`{ $ref: ... }`) are
-passed through unchanged; their path-item contents aren't inspectable
-pre-resolve.
-
-**Extend a component schema.** Tighten upstream constraints without
-forking the schema:
-
-```ts
-const requirePetId: SpecOverlay = {
-  extendSchemas: {
-    Pet: { required: ["id"] },
-  },
-};
-```
-
-`extendSchemas` wraps the upstream definition as
-`allOf: [<upstream>, { required: ["id"] }]`. The original applies;
-the override piles additional constraints on top. The parallel
-`extend<Bucket>` verbs for non-schema component buckets (parameters,
-responses, etc.) shallow-merge instead.
-
-Overlays apply in order; later overlays win on conflict. The base
-document is deep-cloned, never mutated.
+published document), overlays rewrite the document in memory so
+application code validates against the shape you actually ship: add
+servers, require parameters or security, extend or replace component
+schemas, add or remove paths. [docs/overlays.md](./overlays.md) has
+the verb surface and recipes; `loadSpec`'s `overlays` option and the
+CLI's `--overlay` flag apply them at load time.
 
 ### Consuming spec-format overlays
 
@@ -636,32 +551,21 @@ const allow = allowHeaderFor(err);
 if (allow !== undefined) res.setHeader("Allow", allow);
 ```
 
-For richer response envelopes, `toProblemDetails` produces
-[RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html)
-`application/problem+json` with the failing leaves as an `issues`
-field. `collectIssues` is the raw flat leaf list if you want to roll
-your own response shape.
-
 ### Redacting field values from problem-details responses
 
 `toProblemDetails` echoes input values and schema metadata into the
-response by design. The default `detail` is a one-line summary of the
-first failing leaf, which interpolates the offending value for codes
-such as `enum`, `format`, and `pattern`. Each `issues[*].params`
-carries the machine-readable detail per code (`pattern.actual`,
-`additionalProperties.unexpected`, `required.missing`,
-`enum.allowed`, `pattern.pattern`, and so on; see `BuiltInErrorParams`
-for the full set). That is the right default for trusted clients and
-developer-facing APIs: machine-readable detail is what the envelope
-exists for.
+response by design: the default `detail` interpolates the offending
+value for codes such as `enum`, `format`, and `pattern`, and each
+`issues[*].params` carries the machine-readable detail per code (see
+`BuiltInErrorParams` for the full set). Right for trusted clients and
+developer-facing APIs.
 
-It is also a fingerprinting / data-exposure surface for endpoints
-that take request bodies containing PII (emails, account numbers,
-free text) or that validate against a spec whose internals (mapping
-keys, allowed enums) shouldn't be enumerable by an unauthenticated
-client. Two override points are exposed: pass `detail` to
-`toProblemDetails` for a structural summary, and post-process
-`issues[*].params` before sending.
+For endpoints whose request bodies carry PII (emails, account
+numbers, free text), or specs whose internals (mapping keys, allowed
+enums) shouldn't be enumerable by an unauthenticated client, that
+echo is a fingerprinting / data-exposure surface. Two override points:
+pass `detail` to `toProblemDetails` for a structural summary, and
+post-process `issues[*].params` before sending.
 
 ```ts
 import { httpStatusFor, toProblemDetails, type ValidationError } from "@oaverify/core";
@@ -690,25 +594,19 @@ app.use(
 ```
 
 The trade-off: clients lose machine-readable detail in exchange for
-not leaking field values or schema internals. Each issue still
-carries `code` and `pointer`, which describe what failed and where;
-the value the client sent and the value the schema expected stay on
-the server. Narrower policies (clear `params` only on
-specific codes; clear `params` only on request paths under
-`/body/...`; keep `enum.allowed` but drop `enum.actual`) compose
-straightforwardly from the same hook; the broad form above is the
-starting point.
+not leaking field values or schema internals; each issue still
+carries `code` and `pointer` (what failed, where). Narrower policies
+(clear `params` only on specific codes or paths, keep `enum.allowed`
+but drop `enum.actual`) compose from the same hook.
 
 ### Preserving an existing client error envelope
 
-Migrating an existing service may mean a documented client
-contract you can't change without breaking callers. Keep your
-envelope, fill it from `collectIssues` (per-issue path,
-message, code), an error count for the top-level summary, and
+Migrating an existing service may mean a documented client contract
+you can't change without breaking callers. Keep your envelope, fill
+it from `collectIssues` (per-issue path, message, code) and
 `httpStatusFor` (status). Don't walk the tree by hand; the helpers
-already do the right thing for nested branches, route/method
-top-levels, and security/content-type leaves under `request` /
-`response` wrappers.
+already handle nested branches, route/method top-levels, and
+security/content-type leaves under `request` / `response` wrappers.
 
 ```ts
 import { collectIssues, httpStatusFor, type ValidationError } from "@oaverify/core";
@@ -866,10 +764,9 @@ or Uint8Array passes without a string-type error. `format: "byte"`
 #### Global validator + per-route multer
 
 The recipe above is per-route inline: multer and the validator both
-live inside the route handler. That works for single-upload-route
-apps. For an app with many routes and one (or a few) upload
-endpoints, a more idiomatic shape is **multer mounted at the route
-prefix, validator mounted globally**, with `toHttpRequest`
+live inside the route handler, which suits a single upload route. For
+an app with many routes and a few upload endpoints, mount **multer at
+the route prefix and the validator globally**, with `toHttpRequest`
 synthesizing the spec-shaped body from `req.files`:
 
 ```ts
@@ -901,11 +798,9 @@ app.use(
 
 The `toHttpRequest` extension point is a general seam for **any
 "reshape what oaverify sees"** use case: synthesizing a body from
-`req.files`, normalizing an empty body to `{}`, merging headers
-from an upstream proxy, anything that wants to live above the
-extraction layer without bypassing it. The empty-body normalization
-recipe in [body-parser caveats](#body-parser-caveats) and this
-multer-body-synthesis recipe are two examples of the same pattern.
+`req.files`, normalizing an empty body to `{}` (see
+[body-parser caveats](#body-parser-caveats)), merging headers from
+an upstream proxy.
 
 **Watch out for `oneOf` / `anyOf` with binary fields.** The "accept
 anything" rewrite means every binary branch matches every input. A
@@ -948,22 +843,18 @@ app.post("/uploads", upload.any() /* validator + handler as above */);
 ```
 
 `getOperation` returns the resolved, overlay-applied
-`OperationObject` for a (method, path) pair. It does the same
+`OperationObject` for a (method, path) pair, using the same
 route-match + `$ref` resolution + overlay application that validation
-does, but hands the result back as plain OpenAPI shapes; read
-whatever declaration you need. `digestOperation` (see
-[`examples/spec-digest.ts`](../examples/spec-digest.ts)) is a recipe
+does. It is startup-time introspection: read whatever declaration you
+need, so the spec stays the single source of truth for middleware
+configuration and duplicated magic numbers can't drift against the
+validator's own view. `digestOperation`
+([`examples/spec-digest.ts`](../examples/spec-digest.ts)) is a recipe
 that pulls the common middleware-config facts into a flat shape:
 content types, body limits, required headers, security. Copy it into
 your project and adjust the interpretation choices
 (`maxLength`-as-bytes vs code points, which `x-*` extensions to
-recognize, etc.) to fit your domain.
-
-The getter is startup-time introspection, not part of validation. Its
-job is to make the spec the single source of truth for middleware
-configuration (multer's `fileSize`, body-parser content types, auth
-middleware assertions) so duplicated magic numbers can't drift
-against the validator's own view.
+recognize) to fit your domain.
 
 ### Streaming bodies, large uploads, and the `readBody` override
 
@@ -1184,9 +1075,7 @@ dev / prototyping) or when the auth layer only decorates `req`
 without rejecting unauthenticated traffic. Use `"strict"` when you
 want every declared scheme to either be shape-checkable or fail
 loudly. None of the modes substitute for actual credential
-verification. The boolean form (`true` / `false`) is a deprecated
-alias preserved through v3; `true` aliases `"shape"`, `false`
-aliases `"off"`. See `ValidatorOptions.validateSecurity` for the
+verification. See `ValidatorOptions.validateSecurity` for the
 option contract; this section is the recipe.
 
 #### Per-scheme auth dispatch

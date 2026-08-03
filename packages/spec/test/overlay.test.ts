@@ -91,6 +91,30 @@ describe("applyOverlays", () => {
     expect(params.some((p) => notRef(p).name === "trace")).toBe(true);
   });
 
+  it("overrides with wildcard `*` operation key applies to every method, concrete key wins", () => {
+    const patched = applyOverlays(base(), [
+      {
+        overrides: {
+          "/pets": {
+            operations: {
+              "*": {
+                upsertParameters: [{ name: "trace", in: "header", schema: { type: "string" } }],
+              },
+              get: {
+                upsertParameters: [{ name: "limit", in: "query", schema: { type: "string" } }],
+              },
+            },
+          },
+        },
+      },
+    ]);
+    const postParams = patched.paths?.["/pets"]?.post?.parameters ?? [];
+    expect(postParams.some((p) => notRef(p).name === "trace")).toBe(true);
+    const getParams = patched.paths?.["/pets"]?.get?.parameters ?? [];
+    expect(getParams.some((p) => notRef(p).name === "trace")).toBe(false);
+    expect(getParams.map((p) => notRef(p).schema)).toContainEqual({ type: "string" });
+  });
+
   it("extendSchemas wraps the existing schema in allOf", () => {
     const patched = applyOverlays(base(), [{ extendSchemas: { Pet: { required: ["name"] } } }]);
     const pet = patched.components?.schemas?.["Pet"];

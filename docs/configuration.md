@@ -101,25 +101,14 @@ mean "boolean"?
 keyword "required" requires an array of strings; got string "id"
 ```
 
-Both of those used to compile. `type: "Boolean"` produced a validator
-nothing could satisfy, so every request failed with `must be Boolean`,
-blaming the payload for a spec bug. `required: "id"` was quieter: the
-string iterated as its own characters, so the schema demanded
-properties `"i"` and `"d"` and rejected the `{ "id": ... }` it was meant
-to accept.
-
 Under OpenAPI 3.0 the legal type set is the same six minus `null`, and
 `type: "null"` is reported with a pointer to `nullable: true` rather
 than a spelling suggestion.
 
-These are spec bugs that no runtime option should paper over, which is
-why the failure is a throw at construction rather than an entry in
-`schemaLintIssues`. Catching it needs a `try` around `createValidator`, not
-a check on each request.
-
-This is a precondition rather than a lint rung: there is nothing to
-grade in a value that is not a schema, and validating a request against
-a schema whose meaning is unknown is worse than refusing to start.
+These are spec bugs that no runtime option papers over, which is why
+the failure is a throw at construction rather than an entry in
+`schemaLintIssues`. Catching one needs a `try` around
+`createValidator`, not a check on each request.
 
 ## Hardening against untrusted regex patterns
 
@@ -204,7 +193,7 @@ URI it is handed. That is the right default for a first-party spec on
 disk, and the wrong one for a spec you accepted from a user.
 
 Four opt-in controls close it. Contracts live on the types; see
-{@link FileReaderOptions} and {@link HttpReaderOptions}.
+`FileReaderOptions` and `HttpReaderOptions`.
 
 ```ts
 import {
@@ -309,11 +298,8 @@ body reaches the validator. A byte-size limit alone is not enough: a
 payload nested thousands of levels deep is tiny, so `express.json({
 limit })` (or its equivalent) bounds width, not depth. Walk the parsed
 value iteratively (a recursive walker would overflow on the same input
-you are trying to reject) and reject anything past a sane ceiling.
-Legitimate request bodies rarely nest beyond ten or fifteen levels; a
-cap of 32 to 64 is generous for real traffic and well clear of the
-danger zone. Set it low and raise it only if a legitimate payload
-trips it.
+you are trying to reject) and reject anything past a sane ceiling. Set
+it low and raise it only if a legitimate payload trips it.
 
 ```ts
 // Returns true if `value` nests deeper than `limit`. Iterative on
