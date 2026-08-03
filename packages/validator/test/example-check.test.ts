@@ -845,6 +845,44 @@ describe("checkDocumentExamples", () => {
       ]);
     });
 
+    it("collapses a leaf a composition replayed once per branch (#604)", () => {
+      // Both branches carry the same `required`, so each branch rejects
+      // the value the same way and the leaves come back byte-identical,
+      // `params` included. One defect, one edit, and a consumer counting
+      // this array reported it twice.
+      const branch = {
+        type: "object",
+        properties: { parts: { type: "string" }, serial: { type: "string" } },
+        required: ["parts", "serial"],
+      };
+      const issues = checkDocumentExamples(
+        withJsonBody({ schema: { anyOf: [branch, { ...branch }] }, example: {} }),
+      );
+
+      expect(issues[0]?.reasons.map((r) => [r.code, r.path.join(".")])).toEqual([
+        ["required", "parts"],
+        ["required", "serial"],
+        ["anyOf", ""],
+      ]);
+    });
+
+    it("keeps two branches that reject one position with different detail", () => {
+      // The reason the key is the whole leaf rather than `code` plus
+      // `path`: these are two `enum` leaves at the root, and which
+      // values were permitted is the actionable part. Collapsing them
+      // would drop half the answer.
+      const issues = checkDocumentExamples(
+        withJsonBody({ schema: { anyOf: [{ enum: [1, 2] }, { enum: [3, 4] }] }, example: 9 }),
+      );
+
+      expect(
+        issues[0]?.reasons.filter((r) => r.code === "enum").map((r) => r.params["allowed"]),
+      ).toEqual([
+        [1, 2],
+        [3, 4],
+      ]);
+    });
+
     it("carries a non-empty reasons array on every issue this pass emits", () => {
       // The field is required, so a consumer never tests for it. Every
       // rejection path this pass can reach produces at least one leaf,

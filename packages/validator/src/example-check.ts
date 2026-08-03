@@ -40,6 +40,7 @@
 import {
   detectOpenAPIVersion,
   type OpenAPIDocument,
+  type PathSegment,
   type RejectionReason,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
@@ -82,12 +83,24 @@ export interface ExampleIssue {
    * Every leaf the schema rejected this value on, in machine-readable
    * form. Always present, possibly empty.
    *
-   * Uncapped and undeduplicated, where `message` caps and dedupes.
-   * Truncation there serves a terminal, and a consumer
-   * has no such constraint; deduplication needs a key, and only the
-   * consumer knows which one it cares about (a composition keyword
-   * reports the same leaf once per branch it tried, and those entries
-   * differ in `params` even where their `message` matches).
+   * Uncapped, where `message` caps: truncation there serves a terminal
+   * and a consumer has no such constraint, so this can be longer.
+   *
+   * Distinct, in the strict sense that no two entries are equal on all
+   * four fields. A composition keyword runs every branch, so branches
+   * carrying the same constraint report byte-identical leaves, and
+   * counting this array to say "N problems with this example" counted
+   * those twice (#604). Only an exact repeat is dropped: two branches
+   * rejecting one position with different detail stay as two entries,
+   * because `anyOf: [{enum: [1, 2]}, {enum: [3, 4]}]` against `9` gives
+   * two `enum` leaves whose `params.allowed` differ and which the author
+   * may act on separately.
+   *
+   * So this is longer than `message` where `message` truncated, and
+   * never longer for having replayed a branch. A consumer wanting a
+   * coarser grouping (per `code`, per `path`) still applies its own key;
+   * what it no longer has to do is undo a duplication it did not ask
+   * for.
    */
   reasons: readonly RejectionReason[];
 }
@@ -181,6 +194,59 @@ function joinReasons(
   const shown = reasons.slice(0, REASON_LIMIT).join("; ");
   const dropped = reasons.length - REASON_LIMIT;
   return dropped > 0 ? `${shown}; and ${dropped} more` : shown;
+}
+
+/**
+ * The leaves behind one rejection, with exact duplicates removed.
+ *
+ * A composition keyword runs every branch, so two branches carrying the
+ * same constraint report the same leaf twice: `anyOf: [A, B]` where both
+ * declare `required: [parts]` yields two identical `required` errors at
+ * one path. They are one defect and one edit, and a consumer counting
+ * this array to say "N problems with this example" counted them twice.
+ * {@link joinReasons} has always collapsed them in the rendered summary,
+ * so before this the message and the array disagreed on how many things
+ * were wrong.
+ *
+ * Deduplication is on the whole leaf rather than on `code` plus `path`,
+ * because two branches can reject the same position for the same reason
+ * with different detail: `anyOf: [{enum: [1, 2]}, {enum: [3, 4]}]`
+ * against `9` gives two `enum` leaves at the root whose `params.allowed`
+ * differ, and those are two things the author may act on. Only an exact
+ * repeat is dropped, which is what a branch replay produces.
+ *
+ * Rebuilt rather than passed through: `output: "flat"` already yields
+ * leaves, and copying the four contract fields keeps a finding from
+ * retaining the validator's error tree, and keeps an always-empty
+ * `children: []` out of the JSON report.
+ */
+function distinctReasons(
+  errors: readonly {
+    code: string;
+    path: readonly PathSegment[];
+    message: string;
+    params: Readonly<Record<string, unknown>>;
+  }[],
+): readonly RejectionReason[] {
+  const seen = new Set<string>();
+  const reasons: RejectionReason[] = [];
+  for (const error of errors) {
+    // Serialised whole rather than joined with separators, so no
+    // property name can forge a key boundary. Two leaves from one
+    // validation run are built by the same generated code, so equal
+    // params serialise equally; a key that missed would keep a duplicate
+    // rather than drop a distinct leaf, the safe direction to be wrong in.
+    const key = JSON.stringify([error.code, error.path, error.message, error.params]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    reasons.push({
+      code: error.code,
+      path: error.path,
+      message: error.message,
+      params: error.params,
+    });
+  }
+  return reasons;
 }
 
 /**
@@ -283,16 +349,7 @@ export function checkDocumentExamples(
       if (result.valid) return undefined;
       return {
         summary: joinReasons(result.errors),
-        // Rebuilt rather than passed through: `output: "flat"` already
-        // yields leaves, and copying the four contract fields keeps a
-        // finding from retaining the validator's error tree, and keeps
-        // an always-empty `children: []` out of the JSON report.
-        reasons: result.errors.map((e) => ({
-          code: e.code,
-          path: e.path,
-          message: e.message,
-          params: e.params,
-        })),
+        reasons: distinctReasons(result.errors),
       };
     };
     compiled.set(schema, check);
