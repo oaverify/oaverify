@@ -17,15 +17,12 @@ build/load time; they don't sit in the request path. Document linters
 (Spectral, Redocly) also work at build time, on style and structure
 rather than on traffic.
 
-oaverify covers both halves, and splits them across two verbs:
-`oaverify check` asks what is wrong with a document, `oaverify validate`
-asks whether a payload conforms. So the closest comparison depends on
-which half you care about. This document spends most of its space on Ajv
-and `express-openapi-validator` because they are the closest comparison
-for the traffic half; the [Defect detection](#defect-detection) section
-covers the document half, where the comparison is against linters
-instead. The broader ecosystem matters, but the same decision usually
-comes down to the shape of integration you want.
+oaverify covers both halves, split across two verbs: `oaverify check`
+asks what is wrong with a document, `oaverify validate` asks whether a
+payload conforms. Most of this document compares against Ajv and
+`express-openapi-validator`, the closest comparison for the traffic
+half; [Defect detection](#defect-detection) covers the document half,
+where the comparison is against linters instead.
 
 ## Ecosystem map
 

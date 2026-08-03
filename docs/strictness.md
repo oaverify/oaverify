@@ -27,18 +27,10 @@ createValidator(spec); // throws
 This covers a schema-valued slot holding something that is not a schema
 (`items: [ ... ]`, `if: null`) and a keyword holding a value it cannot
 use (`type: "Boolean"`, `required: "id"`, `enum: 5`, `minimum: "5"`).
-
 The check walks the whole document, so a typo in a `$defs` entry nothing
-`$ref`s is caught along with the rest.
-
-Both classes used to slip through, and the reason they are fatal now is
-what they did instead. An array-valued `items` compiled to a schema with
-no keywords, so the array's elements went unvalidated while the spec
-looked fine. `required: "id"` iterated the string as characters and
-demanded properties `"i"` and `"d"`, rejecting the `{ "id": ... }` it was
-meant to accept. Neither looked wrong from outside. A validator whose
-meaning is unknown is worse than one that refuses to start, so catch this
-with a `try` around `createValidator`, not with a check on each request.
+`$ref`s is caught along with the rest. Catch it with a `try` around
+`createValidator`, not a check on each request; the common shapes are in
+[configuration.md](./configuration.md#malformed-schemas-fail-at-construction).
 
 ## Schema lint: advice about a valid schema
 
@@ -211,10 +203,6 @@ warning examples [example-invalid]
   /components/schemas/Thing/properties/count/example:
   oaverify rejects "example" against its schema: must be integer (example: "not-an-integer")
 ```
-
-The wording is deliberate. The finding reports this validator's verdict
-on the example, which is usually a defect in the example and
-occasionally a defect in oaverify (see below).
 
 Findings are located by RFC 6901 pointer, so a shared component is
 reported once, at its own definition, rather than once per operation
@@ -446,14 +434,8 @@ Two limits worth knowing:
 oaverify check spec.yaml --only schema --fail-on warning --format json
 ```
 
-| Exit | Meaning                                            |
-| ---- | -------------------------------------------------- |
-| 0    | clean                                              |
-| 1    | findings met `--fail-on`, or a domain check failed |
-| 2    | input could not be read, resolved, or parsed       |
-| 3    | CLI usage error                                    |
-| 4    | graded, and at least one schema is malformed       |
-
+The full exit-code table is in
+[the published CLI README](../packages/oav/README.md#exit-codes).
 The 2-versus-4 split is the one worth scripting against. Exit 2 means
 there is no report to read, and it means the same thing in every
 command that loads a spec. Exit 4 means the report on stdout is

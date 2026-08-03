@@ -37,6 +37,14 @@ install hint pointing here.
 `@oaverify/yaml`'s default reader covers both, so a `.yaml` entry
 loads with no composition.
 
+## Streaming
+
+`@oaverify/stream` is the push-based streaming engine
+(`createStreamValidator`, `streamValidatorForOperation`) plus the
+streamability analyzer (`analyzeStreamability`, `analyzeSpec`),
+published standalone. See
+[`packages/stream-validator/README.md`](../packages/stream-validator/README.md).
+
 ## The CLI
 
 `oaverify` ships the `oaverify` binary and no library exports. See

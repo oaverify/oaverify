@@ -16,10 +16,10 @@ draft-04, so it goes through a translation (see below). Three mechanical
 edits, and the script refuses anything it does not understand, but the
 artifact is our output and a bug in it would be ours.
 
-This package holds the schemas and the version dispatch only. It does not
-compile or validate anything, and **nothing consumes it yet**: the
-`check` wiring lands separately, so no user-visible document
-conformance exists on the strength of this package alone.
+This package holds the schemas and the version dispatch only. It does
+not compile or validate anything. The CLI's `check` consumes it for the
+`conformance` class, compiling the pinned schema for the version the
+document declares.
 
 Its one workspace dependency is `@oaverify/internal-core`, for
 `detectOpenAPIVersion`.

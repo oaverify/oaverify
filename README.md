@@ -35,11 +35,9 @@ if (!result.valid) {
 ```
 
 One validation call covers the HTTP frame: method, path, parameters,
-body, content type, status, and headers. Failures are return values.
-The default failure shape is a flat list of typed leaves
-(`code`, `path`, `message`, `params`); `output: "tree"` keeps the
-nested error tree, and `output: "predicate"` returns a boolean.
-oaverify does not mutate framework request or response objects.
+body, content type, status, and headers. Failures are return values
+(structured errors, not throws), and framework request and response
+objects are never mutated.
 
 Tested against the JSON Schema 2020-12 test suite, OpenAPI 3.0 / 3.1 /
 3.2 fixtures, real-world specs (Stripe, GitHub, Twilio, and more), and
@@ -65,16 +63,6 @@ JSON; YAML support is a separate package because it pulls in a parser.
 The adapters and the streaming engine depend on `@oaverify/core`, so installing
 one gets you both.
 
-```bash
-npm install @oaverify/core             # the library, zero runtime deps
-npm install @oaverify/yaml             # YAML + smart HTTP readers
-npm install @oaverify/express4         # Express 4 adapter
-npm install @oaverify/express5         # Express 5 adapter
-npm install @oaverify/fastify          # Fastify adapter
-npm install @oaverify/stream           # streaming validation + analyzeSpec
-npm install -g oaverify               # the CLI
-```
-
 The CLI can validate a request before you wire validation into an
 application:
 
@@ -82,9 +70,8 @@ application:
 npx oaverify validate openapi.yaml --path "POST /pets" --body pet.json
 ```
 
-A valid request prints nothing and exits `0`; validation errors print to
-stdout and exit non-zero. (Redirect with `--output <file>`, or silence the
-report and rely on the exit code with `--quiet`.)
+A valid request prints nothing and exits `0`; validation errors print
+to stdout and exit non-zero.
 
 `@oaverify/core` exposes its surface at five subpath entrypoints (`/schema`,
 `/spec`, `/overlay-spec`, `/formats`, `/core`) alongside the root export.
@@ -93,14 +80,8 @@ for what each one exports.
 
 ## Bundle cost
 
-These are the figures for **embedding the library** in an application.
-The `oaverify` command-line tool is a separate package and is not
-included here; the sizes of the standalone validators its
-`compile-schema` and `compile-spec` commands emit are documented in
-[packages/cli/README.md](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md#bundle-size).
-
-Measured with esbuild (`--bundle --minify`, ESM) against the published
-`dist`, then gzipped:
+The cost of embedding the library, measured with esbuild
+(`--bundle --minify`, ESM) against the published `dist`, then gzipped:
 
 | Import                                              | Entry point                |     Raw | Gzipped |
 | --------------------------------------------------- | -------------------------- | ------: | ------: |
@@ -109,18 +90,14 @@ Measured with esbuild (`--bundle --minify`, ESM) against the published
 | `createValidator` (request/response HTTP validator) | `@oaverify/core`           | ~107 KB |  ~31 KB |
 
 `@oaverify/core` carries no runtime dependencies, so these figures are
-the complete cost of the import.
-
-Not included, because they are separate packages or separate entry
-points: YAML parsing (`@oaverify/yaml`), the streaming engine
-(`@oaverify/stream`), the framework adapters, the spec loader
-(`@oaverify/core/spec`), and the OpenAPI meta-schemas. See
-[Install](#install) for what pulls in what.
-
-If size is a constraint, measure the imports you actually use rather
-than relying on these numbers. They move with the version, and adding
-one import to an entry point can move them by more than the table
-suggests.
+the complete cost of the import. YAML parsing, the streaming engine,
+the adapters, the spec loader (`@oaverify/core/spec`), and the OpenAPI
+meta-schemas are separate packages or entry points and not included.
+The standalone validators emitted by `compile-schema` / `compile-spec`
+are sized in
+[packages/cli/README.md](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md#bundle-size).
+If size is a constraint, measure the imports you actually use; the
+figures move with the version.
 
 ## Quick start
 
@@ -211,17 +188,14 @@ config, streaming validation, and pre-deploy buffer budgets.
 - Apply deployment-specific or tenant-specific overlays to a base spec
   before constructing a validator.
 
-For feature comparisons with Ajv, `express-openapi-validator`, and
-other OpenAPI validators, see [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md).
-
 ## Streaming large bodies
 
 `createValidator` validates a fully-parsed value. For a body too large
-to hold in memory, the separate `@oaverify/stream`
-package validates it as it streams, echoing the bytes through to a sink
-while reporting violations on a side channel. It is a second engine,
-with its own construction path: your router still picks the operation,
-and the stream validator checks one resolved schema.
+to hold in memory, the separate `@oaverify/stream` package validates it
+as it streams, echoing the bytes through to a sink while reporting
+violations on a side channel. It is a second engine, with its own
+construction path: your router still picks the operation, and the
+stream validator checks one resolved schema.
 
 ```ts
 import { pipeline } from "node:stream/promises";
@@ -237,73 +211,37 @@ const { valid, peakBufferedBytes } = await validator.result;
 
 Not every schema can stream: `uniqueItems`, `contains`, an
 object-level `const`, or an asserting `format` force a subtree to
-buffer. `analyzeSpec` answers which bodies stream and which buffer (and
-how large a buffer can get) from the spec alone, before any traffic:
-
-```ts
-import { analyzeSpec } from "@oaverify/stream";
-
-for (const op of analyzeSpec(document).operations) {
-  for (const body of op.bodies) {
-    console.log(`${op.method} ${op.path} ${body.role}: ${body.report?.peakBytes ?? body.error}`);
-  }
-}
-```
-
-`oaverify stream-check openapi.yaml` prints the same per-operation budget as
-a table (`--fail-on-unbounded` makes it a CI gate). The stream validator
-is versioned with the `@oaverify/core` family on the same release line;
-see [`packages/stream-validator/README.md`](https://github.com/oaverify/oaverify/blob/main/packages/stream-validator/README.md)
+buffer. `analyzeSpec` reports which bodies stream, which buffer, and
+how large a buffer can get, from the spec alone;
+`oaverify stream-check openapi.yaml` prints the same per-operation
+budget as a table (`--fail-on-unbounded` makes it a CI gate). See
+[`packages/stream-validator/README.md`](https://github.com/oaverify/oaverify/blob/main/packages/stream-validator/README.md)
 for the engine, the buffer model, and the edit hooks.
 
 ## Overlay quickstart
 
-`applyOverlays` rewrites the document in memory before the validator
-is constructed. Typical shapes:
+Overlays patch a spec you don't own (add a server, require a header,
+tighten a schema) in memory, before the validator is constructed,
+without forking the file:
 
 ```ts
 import { applyOverlays } from "@oaverify/core/spec";
 import type { SpecOverlay } from "@oaverify/core/spec";
 
-// Add a deployment-specific server. `addServers` appends; `servers`
-// replaces wholesale.
-const eu: SpecOverlay = {
-  addServers: [{ url: "https://eu.api.example.com" }],
-};
-
-// Require an API key on POST /pets without forking the base spec.
-const requireKey: SpecOverlay = {
+// Require an API key on POST /pets; tighten the upstream Pet schema.
+const deployment: SpecOverlay = {
   overrides: {
-    "/pets": {
-      operations: { post: { addSecurity: [{ apiKey: [] }] } },
-    },
+    "/pets": { operations: { post: { addSecurity: [{ apiKey: [] }] } } },
   },
-};
-
-// Apply one rule to every operation matching a tag (walks paths and
-// webhooks).
-const lockInternals: SpecOverlay = {
-  modifyOperations: [
-    {
-      where: { tags: ["internal"] },
-      apply: { addSecurity: [{ internalKey: [] }] },
-    },
-  ],
-};
-
-// Tighten an upstream schema; the original definition still applies.
-const requirePetId: SpecOverlay = {
   extendSchemas: { Pet: { required: ["id"] } },
 };
 
-const patched = applyOverlays(document, [eu, requireKey, lockInternals, requirePetId]);
-const validator = createValidator(patched);
+const validator = createValidator(applyOverlays(document, [deployment]));
 ```
 
-The full verb surface (component-bucket fan-out, predicate iterators,
-operation-level metadata) is documented in
-[`docs/overlays.md`](https://github.com/oaverify/oaverify/blob/main/docs/overlays.md); cross-cutting integration
-shapes live in [`docs/integration.md`](https://github.com/oaverify/oaverify/blob/main/docs/integration.md).
+The full verb surface (servers, paths, component-bucket fan-out,
+predicate iterators) is documented in
+[`docs/overlays.md`](https://github.com/oaverify/oaverify/blob/main/docs/overlays.md).
 
 ## Where to go next
 
@@ -328,19 +266,19 @@ Ajv for JSON Schema, `express-openapi-validator` for Express,
 request/response validators for custom stacks. oaverify is aimed at
 HTTP-aware validation with structured errors, streaming validation of
 large bodies plus design-time buffer budgets, overlays, and standalone
-OpenAPI validator output. See [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md)
-for the feature map, and [docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md)
-if you are migrating from `express-openapi-validator`.
+OpenAPI validator output.
 
 On the benchmark shapes, oaverify compiles schemas one to two orders of
 magnitude faster than Ajv. Steady-state validation is comparable across
 typical request and response bodies, with Ajv ahead on fast-fail
 rejection of some plain object shapes.
 
-For the host-stamped per-shape numbers, the memory comparison, and the
-methodology, see [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md).
-Raw benchmark data lives in
+[docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md)
+has the feature map, the host-stamped per-shape numbers, the memory
+comparison, and the methodology; raw benchmark data lives in
 [`performance/`](https://github.com/oaverify/oaverify/blob/main/performance/README.md).
+Migrating from `express-openapi-validator`:
+[docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md).
 
 ## Conformance
 
@@ -378,18 +316,11 @@ oaverify compile-spec openapi.yaml  -o validator.mjs             # OpenAPI   -> 
 oaverify stream-check openapi.yaml                               # per-operation streamability + peak-buffer budget
 ```
 
-Flags: `--overlay file` (repeatable), `-o file`, and `--quiet` apply
-where supported. Command-specific flags include `check --only`,
-`check --fail-on`, `check --format text|json`,
-`validate --format text|json|summary`,
-`validate --depth`, `compile-schema|compile-spec --dialect`,
-`compile-spec --requests-only`, `compile-spec --only`,
-`compile-spec --output-mode`, `compile-spec --max-errors`,
-`stream-check --format text|json`, `stream-check --max-buffered-bytes`,
-`stream-check --verbose`, and `stream-check --fail-on-unbounded`. See
-[packages/cli/README.md](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md) for the full
-surface, the `.http` file format, and both compile commands' output
-contracts.
+`--overlay file` (repeatable), `-o file`, and `--quiet` apply where
+supported. See
+[packages/cli/README.md](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md)
+for per-command flags, the `.http` file format, and both compile
+commands' output contracts.
 
 Every command shares one exit-code taxonomy, tabulated in
 [the published CLI README](https://github.com/oaverify/oaverify/blob/main/packages/oav/README.md#exit-codes).
@@ -442,55 +373,22 @@ The canonical contract is the `ValidatorOptions` TSDoc.
 
 ## Framework integration
 
-`@oaverify/core` exposes framework-neutral `validateRequest` and
-`validateResponse` methods. Write a short adapter for a custom
-framework, or use one of the companion adapter packages. An inline
-Express 5 adapter is about this long:
-
-```ts
-import { allowHeaderFor, httpStatusFor, toProblemDetails } from "@oaverify/core";
-
-app.use(async (req, res, next) => {
-  const result = validator.validateRequest({
-    method: req.method,
-    path: req.path,
-    query: req.query as Record<string, string | string[]>,
-    headers: req.headers as Record<string, string | string[]>,
-    contentType: req.get("content-type") ?? undefined,
-    body: req.body,
-  });
-  if (result.valid) return next();
-  const allow = allowHeaderFor(result.errors);
-  if (allow !== undefined) res.setHeader("Allow", allow);
-  res
-    .status(httpStatusFor(result.errors))
-    .type("application/problem+json")
-    .json(toProblemDetails(result.errors, { instance: req.originalUrl }));
-});
-```
-
-`httpStatusFor`, `allowHeaderFor`, and `toProblemDetails` accept either
-the flat `errors` list or a tree `error`, so this wiring is the same
-whichever `output` the validator uses.
-
-Companion adapter packages cover common request-validation wiring:
+The adapter packages cover request validation and share export names
+and option shapes; only the framework type differs:
 [`@oaverify/express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md),
 [`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md), and
-[`@oaverify/fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md). They share export
-names and option shapes; only the framework type differs.
+[`@oaverify/fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md).
+Response validation, auth dispatch, upload parsing, and custom error
+envelopes stay explicit in your application.
 
-For Next.js, Hono, Bun, Deno, and custom frameworks, use the
-framework-agnostic `validateRequest` / `validateResponse` calls or the
-Fetch helpers (`validateFetchRequest`, `validateFetchResponse`). See
-[docs/integration.md](https://github.com/oaverify/oaverify/blob/main/docs/integration.md) for body parsing,
-response validation, uploads, security, ignored paths, and custom error
-envelopes.
-
-The adapters cover request validation. Response validation, auth
-dispatch, upload parsing, and custom error envelopes stay explicit in
-your application. The validator leaves `req` and `res` unchanged,
-applies OpenAPI 3.0 behavior through its dialect, and returns
-structured errors as a flat list by default or a nested tree on request.
+You are not locked into the adapters. For Next.js, Hono, Bun, Deno, or
+a custom stack, the framework-neutral `validateRequest` /
+`validateResponse` calls (or the Fetch helpers `validateFetchRequest` /
+`validateFetchResponse`) plus the response helpers (`httpStatusFor`,
+`allowHeaderFor`, `toProblemDetails`) wire up an inline adapter in
+about fifteen lines. [docs/integration.md](https://github.com/oaverify/oaverify/blob/main/docs/integration.md)
+has that recipe, plus body parsing, response validation, uploads,
+security, ignored paths, and custom error envelopes.
 
 ## Known limitations
 

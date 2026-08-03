@@ -150,9 +150,9 @@ compileSchema({ type: "array", items: [{ type: "string" }] }, { dialect });
 // "items" is the draft-04 / Swagger 2.0 spelling.
 ```
 
-The check covers `external` schemas too, and runs under every `strict`
-setting including `"off"`. `strict` selects how loudly to grade a
-schema; this decides whether there is a schema to grade. A slot holding
+The check covers `external` schemas too, and runs under every
+`schemaLint` setting including `"off"`. `schemaLint` selects how loudly
+to grade a schema; this decides whether there is a schema to grade. A slot holding
 an array would otherwise compile to a keyword-free subschema and drop
 its constraint silently, which is the failure worth being loud about.
 
