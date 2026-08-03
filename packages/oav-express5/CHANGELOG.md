@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.3.0](https://github.com/oaverify/oaverify/compare/express5-v5.2.0...express5-v5.3.0) (2026-08-03)
+
+
+### Documentation
+
+* cleanup ([#627](https://github.com/oaverify/oaverify/issues/627)) ([bb50269](https://github.com/oaverify/oaverify/commit/bb50269ff850f065d1ce4ec11154f0515b5d9580))
+
 ## [5.2.0](https://github.com/oaverify/oaverify/compare/express5-v5.1.0...express5-v5.2.0) (2026-07-31)
 
 

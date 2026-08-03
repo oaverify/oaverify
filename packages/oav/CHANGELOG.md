@@ -1,5 +1,24 @@
 # Changelog
 
+## [5.3.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.2.0...oaverify-v5.3.0) (2026-08-03)
+
+
+### Features
+
+* **cli:** accept a spec on stdin in every mode that takes one ([#617](https://github.com/oaverify/oaverify/issues/617)) ([272ca12](https://github.com/oaverify/oaverify/commit/272ca125e2f4e6c53b4d4ea56e676ee2628b8f5d))
+* **cli:** SARIF 2.1.0 output for check ([#622](https://github.com/oaverify/oaverify/issues/622)) ([163a0df](https://github.com/oaverify/oaverify/commit/163a0df5fb615108363b2cf702396477437852d4))
+
+
+### Bug Fixes
+
+* **check:** report each rejected-example leaf once ([#616](https://github.com/oaverify/oaverify/issues/616)) ([86cb5fe](https://github.com/oaverify/oaverify/commit/86cb5fedebad8b74810db6a1d96d0c8982f1d11f))
+
+
+### Documentation
+
+* **cli:** move the shipped contracts into the package that ships ([#615](https://github.com/oaverify/oaverify/issues/615)) ([f5a5f00](https://github.com/oaverify/oaverify/commit/f5a5f00563a5cff15d9e80fe892cd7c6bf4ba6b8))
+* **cli:** note that target.pointer values moved for multi-file specs ([#619](https://github.com/oaverify/oaverify/issues/619)) ([86a9b9e](https://github.com/oaverify/oaverify/commit/86a9b9ea6608b556b0a98109f1596e36528b39a9))
+
 ## [5.2.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.1.0...oaverify-v5.2.0) (2026-07-31)
 
 
