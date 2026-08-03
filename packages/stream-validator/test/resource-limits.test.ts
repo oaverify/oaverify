@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import type { RegexCompiler } from "@oaverify/internal-schema";
 import { compileSchema, jsonSchemaDialect, openapi31Dialect } from "@oaverify/internal-schema";
+import { builtInFormats } from "@oaverify/internal-formats";
 import { asError } from "./helpers.js";
 
 import {
@@ -68,8 +69,13 @@ describe("format asserts under an OpenAPI dialect", () => {
   for (const value of ["a@b.co", "not-an-email"]) {
     it(`format email "${value}" matches in-memory under openapi3.1`, async () => {
       const streamed = (await verdictOf(schema, value, { dialect: openapi31Dialect })).valid;
+      // The delegate registers `builtInFormats` under the caller's map
+      // (#636), so the in-memory side needs them to be the same engine.
+      // Without this both sides had no `email` validator and the case
+      // passed on two silent accepts.
       const inMem = compileSchema(schema as never, {
         dialect: openapi31Dialect,
+        formats: builtInFormats,
         maxErrors: Number.POSITIVE_INFINITY,
       }).validate(value).valid;
       expect(streamed).toBe(inMem);

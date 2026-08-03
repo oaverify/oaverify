@@ -118,6 +118,64 @@ describe("formats and keywords reach the delegate", () => {
     expect(bad.violations[0]?.code).toBe("format");
   });
 
+  // #636: `formats` is merged on top of the built-ins, matching
+  // `createValidator`. Passing only the caller's map meant a name it did
+  // not happen to list asserted nothing at all.
+  const runFormat = (
+    schema: SchemaOrBoolean,
+    body: string,
+    formats?: Record<string, (value: string) => boolean>,
+  ) => {
+    const v = createStreamValidator(schema, {
+      openApiVersion: "3.1",
+      ...(formats === undefined ? {} : { formats }),
+      policy: "detach",
+      maxErrors: Number.POSITIVE_INFINITY,
+    });
+    v.on("error", () => {});
+    v.resume();
+    const result = v.result;
+    v.end(Buffer.from(enc.encode(body)));
+    return result;
+  };
+
+  it("a built-in format asserts with no `formats` option at all", async () => {
+    const schema = { type: "string", format: "date-time" } as SchemaOrBoolean;
+    await expect(runFormat(schema, '"2026-08-03T00:00:00Z"')).resolves.toMatchObject({
+      valid: true,
+    });
+    const bad = await runFormat(schema, '"not a date-time"');
+    expect(bad.valid).toBe(false);
+    expect(bad.violations[0]?.code).toBe("format");
+  });
+
+  it("a built-in the caller did not enumerate still asserts", async () => {
+    // The reported incident: a hand-enumerated map, then the spec moves
+    // the field to a format the map does not list.
+    const schema = { type: "string", format: "uri-reference" } as SchemaOrBoolean;
+    const formats = { "even-len": (s: string) => s.length % 2 === 0 };
+    await expect(runFormat(schema, '"/v1/things/1"', formats)).resolves.toMatchObject({
+      valid: true,
+    });
+    const bad = await runFormat(schema, '"not a uri reference"', formats);
+    expect(bad.valid).toBe(false);
+    expect(bad.violations[0]?.code).toBe("format");
+  });
+
+  it("a caller's format wins over a built-in of the same name", async () => {
+    const schema = { type: "string", format: "date-time" } as SchemaOrBoolean;
+    const formats = { "date-time": (s: string) => s === "whenever" };
+    await expect(runFormat(schema, '"whenever"', formats)).resolves.toMatchObject({ valid: true });
+    const bad = await runFormat(schema, '"2026-08-03T00:00:00Z"', formats);
+    expect(bad.valid).toBe(false);
+    expect(bad.violations[0]?.code).toBe("format");
+  });
+
+  it("an unregistered format name still asserts nothing, per JSON Schema", async () => {
+    const schema = { type: "string", format: "vendor-thing" } as SchemaOrBoolean;
+    await expect(runFormat(schema, '"anything at all"')).resolves.toMatchObject({ valid: true });
+  });
+
   it("a custom keyword runs through the delegate, carrying its message/params", async () => {
     const schema = { type: "integer", isEven: true } as unknown as SchemaOrBoolean;
     const keywords = {
