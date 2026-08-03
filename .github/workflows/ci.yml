@@ -78,6 +78,31 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
 
+  coverage:
+    # Enforces the floors in vitest.config.ts; `vitest --coverage` exits
+    # non-zero when a metric drops below its threshold. Its own job on a
+    # single Node major rather than a step in the `test` matrix: the v8
+    # instrumentation is the same code path on 22 and 24, so running it
+    # twice buys nothing, and keeping it separate means a coverage dip
+    # reads as a coverage failure instead of a test failure.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:coverage
+      # Advisory: the global thresholds average ~9400 statements, so
+      # print the split a single number hides. Never fails the job.
+      - name: coverage by package
+        if: always()
+        run: pnpm coverage:by-package
+
   build:
     runs-on: ubuntu-latest
     steps:

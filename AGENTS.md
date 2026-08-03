@@ -188,6 +188,32 @@ ships unrewritten `workspace:*` deps; the prepack guard rejects it
 with a hint, but the failure is a context switch best avoided by
 reaching for `pnpm pack` directly.
 
+## Coverage
+
+```bash
+pnpm test:coverage        # vitest run --coverage; enforces the thresholds
+pnpm coverage:by-package  # roll the summary up per package (advisory)
+```
+
+The thresholds in `vitest.config.ts` are a ratchet, set just under the
+numbers on the day the gate landed. Raise one when a run clears the next
+step; never lower one to turn a red run green. A file that genuinely
+cannot be covered gets an exclude naming what does exercise it, the way
+`packages/oav/src/cli.ts` names `pack-smoke`.
+
+Three things the numbers don't say:
+
+- `coverage.include` is explicit because v8 only sees files a test
+  imported. Without it, a module nothing loads is absent from the report
+  rather than reported at 0%.
+- The global number averages a 10x spread; `@oaverify/internal-schema`
+  is a quarter of all statements and can carry a thin package under the
+  floor. `pnpm coverage:by-package` splits it. No per-package
+  thresholds: fourteen numbers to maintain, and the per-package view
+  works better as a review input than a gate.
+- Coverage runs only in the main workspace, so the adapter packages are
+  understated by whatever `framework-tests/` contributes.
+
 ## Architecture: the non-obvious, package by package
 
 Import surface is in [docs/modules.md](./docs/modules.md); each
