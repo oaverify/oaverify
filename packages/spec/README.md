@@ -214,10 +214,15 @@ const issues = lintResolvedSpec(document, { inlinedComponents });
 ```
 
 `loadSpec` and `resolveSpec` do this for you under `lint: true`. See
-`LintOptions`. The validator surfaces it too: `createValidator(spec,
-{ lint: true })` exposes `validator.specHygieneIssues`. Pick whichever
-layer is natural for the flow; running `lint: true` in two places lints
-twice.
+`LintOptions`.
+
+The validator surfaces the findings too: `createValidator(spec,
+{ lint: true })` exposes `validator.specHygieneIssues`. It is handed a
+document and nothing else, so it has no `inlinedComponents` to go on
+and still reports a component that was inlined across documents. Lint
+at the load layer for a multi-file spec; the validator layer is the
+natural one when the spec arrives as a single document. Running
+`lint: true` in two places lints twice.
 
 `oaverify check` exposes the same checks at the CLI; pair with
 `--fail-on warning` for a CI gate.

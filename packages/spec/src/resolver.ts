@@ -102,10 +102,14 @@ export interface ResolvedSpec {
    * references are all in schema positions.
    *
    * Optional so a caller building a {@link ResolvedSpec} by hand does
-   * not have to. Both resolvers always set it; `loadSpec` drops it when
-   * an overlay ran, since an overlay can re-reference or remove any of
-   * the components it names and the list would no longer describe the
-   * document returned beside it.
+   * not have to, and so that absence can carry meaning. Both resolvers
+   * always set it, empty included: an empty array says the walk inlined
+   * no component, and absence says nobody can answer for this document.
+   * `loadSpec` is what produces the second, dropping the list when an
+   * overlay ran, since an overlay can re-reference or remove any of the
+   * components it names. Reporting `[]` there would read as "nothing
+   * was inlined" and silently turn the finding back on for the wrong
+   * reason.
    */
   inlinedComponents?: readonly string[];
   /**
