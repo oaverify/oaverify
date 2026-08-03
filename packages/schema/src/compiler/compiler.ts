@@ -27,6 +27,7 @@ import {
 } from "../subschema-positions.js";
 import { createDeps, type RegexCompiler, type ValidatorDeps } from "./runtime.js";
 import { computeDiscriminatorRoutes } from "../keywords/discriminator-routes.js";
+import { collectEnumTypeIssue } from "./enum-type.js";
 import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
 import { assertWellFormedSchema } from "./well-formed.js";
@@ -263,6 +264,13 @@ function runSchemaLint(
       // server would notice on its first request.
       const patternIssue = collectPatternLengthIssue(obj, path);
       if (patternIssue !== undefined) issues.push(patternIssue);
+
+      // Same footing: reading the enum members against the sibling
+      // `type` costs one pass over a list the author wrote by hand.
+      // `nullable` is honoured only where the dialect defines it, which
+      // `known` answers directly rather than by inferring the version.
+      const enumIssue = collectEnumTypeIssue(obj, path, known.has("nullable"));
+      if (enumIssue !== undefined) issues.push(enumIssue);
 
       // silent-rewrite/* checks are always-on (any non-"off" mode).
       if (rules.refSuppressesSiblings && typeof obj.$ref === "string") {
@@ -519,6 +527,17 @@ export interface SchemaLintIssue {
    *   than guessing. Reported only where `type` is exactly `"string"`,
    *   since otherwise a non-string instance can still validate and the
    *   position is not dead.
+   * - `"unsatisfiable/enum-member-type"`: an `enum` member the sibling
+   *   `type` can never admit, so no instance can ever select it.
+   *   `type: string` with `enum: [1, 2, 3]` is the shape in the wild.
+   *
+   *   The claim is about the member rather than the position: a partial
+   *   mismatch leaves the position satisfiable by its surviving
+   *   members, and the message says separately when every member is
+   *   dead. Silent where `type` is absent or names something outside
+   *   JSON Schema's seven names, and silent for a `null` member beside
+   *   `nullable: true` under OAS 3.0, where that is valid. Under 3.1
+   *   `nullable` is inert, so the same input is reported there.
    */
   code:
     | "partial-feature"
@@ -528,7 +547,8 @@ export interface SchemaLintIssue {
     | "silent-rewrite/required-not-in-properties"
     | "silent-rewrite/redundant-composition-branches"
     | "silent-rewrite/discriminator-unroutable"
-    | "unsatisfiable/pattern-length";
+    | "unsatisfiable/pattern-length"
+    | "unsatisfiable/enum-member-type";
   /** The offending keyword / key name as written in the schema. */
   keyword: string;
   /**

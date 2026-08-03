@@ -398,6 +398,7 @@ describe("the two frames `path` renders in (#594)", () => {
     "silent-rewrite/redundant-composition-branches": "definition",
     "silent-rewrite/discriminator-unroutable": "definition",
     "unsatisfiable/pattern-length": "definition",
+    "unsatisfiable/enum-member-type": "definition",
     // The one rule whose verdict depends on the route that reached the
     // text, so the definition can name a position where it does not
     // hold. Reports `anchor: "scoped-definition"`.
