@@ -50,8 +50,10 @@ the other commands do not need it.
 | `compile-spec`   | Emit a standalone HTTP validator module for a whole document |
 | `compile-schema` | Emit a standalone validator module for a single JSON Schema  |
 
-Full flags and output shapes are in
+Full flags and per-command output shapes are in
 [`packages/cli/README.md`](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md).
+The two contracts a CI job or a downstream tool has to build on, the
+exit codes and the shape of a `check` finding, are below.
 
 A quick taste. Validation exits `0` when the payload conforms and
 non-zero when it does not, so it drops into CI as-is:
@@ -82,6 +84,124 @@ oaverify stream-check openapi.yaml
 
 YAML and JSON both work everywhere a spec is accepted, including specs
 fetched over HTTP where the server advertises YAML by `Content-Type`.
+
+## Exit codes
+
+One taxonomy across every command, rather than a per-command meaning.
+
+| Code | Meaning                                                                      |
+| ---- | ---------------------------------------------------------------------------- |
+| 0    | clean                                                                        |
+| 1    | a domain check failed: validation errors, or findings met a `--fail-on` gate |
+| 2    | the input could not be read, resolved, or parsed                             |
+| 3    | CLI usage error                                                              |
+| 4    | `check` graded the document and at least one schema is malformed             |
+
+Exit 2 means there is no report to read: the file could not be opened,
+a `$ref` would not resolve, the YAML would not parse. It means the same
+thing in every command that loads a spec.
+
+Exit 4 is `check`-only and means the opposite. The document was graded
+in full and the report on stdout is complete, but one or more findings
+make it uncompilable. Those are reported under the class `malformed`
+with the code `malformed-schema`. `check` grades the rest of the
+document rather than stopping at the first one, so a run that exits 4
+still carries every other finding it could reach. Exit 4 outranks
+`--fail-on`: a document that cannot be compiled is not a gate result.
+
+`check` does not vary its exit code by finding class. A single run can
+report several classes at once, so the class lives in the output and the
+exit code answers only "did this pass".
+
+## The `check --format json` contract
+
+Verbatim output of `oaverify check ./entry.yaml --format json` on a
+two-file spec whose defect lives in the referenced file. A stable
+interface: the fields below keep their names and meanings;
+additions arrive as new fields, and a removal or a change of meaning is
+a breaking change of this package.
+
+```json
+{
+  "findings": [
+    {
+      "class": "schema",
+      "severity": "warning",
+      "code": "silent-rewrite/required-not-in-properties",
+      "location": "POST /orders request body (application/json) -> <root>",
+      "message": "required: \"shipped\" at <root> is not declared in properties reachable here (likely a typo)",
+      "target": {
+        "pointer": "/components/schemas/Order/required",
+        "anchor": "scoped-definition",
+        "source": {
+          "uri": "order.yaml",
+          "pointer": "/components/schemas/Order/required",
+          "via": [
+            {
+              "uri": "./entry.yaml",
+              "pointer": "/paths/~1orders/post/requestBody/content/application~1json/schema"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+`class` is one of `hygiene`, `schema`, `malformed`, `conformance`,
+`examples`, `redos`; `severity` is `warning`, `error` or `fatal`.
+`location` is display text: its wording varies by class and is free to
+change, so read `target` instead of parsing it.
+
+**`target` addresses the finding, or is absent.** `target.pointer` is an
+RFC 6901 pointer into the resolved document, percent-decoded with `~0` /
+`~1` retained. It is never best-effort: an external `$ref` target and an
+anchor name a schema but no position in the graded document, so those
+report no `target` at all rather than an address that goes nowhere.
+
+**`target.anchor` says what following the pointer gets you**, which is
+what a consumer needs before it edits anything. A closed vocabulary:
+
+| Anchor              | Meaning                                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `node`              | The finding's own address. Editing there affects nothing else.                                                                |
+| `definition`        | Shared text reached through a `$ref`. Editing there affects every use site.                                                   |
+| `scoped-definition` | Shared text, but the finding holds only on the route `location` names, and the definition may be correct for its other users. |
+
+**`target.source` says which file the node was written in**, for a spec
+assembled from several. `uri` is the document, `pointer` addresses the
+node within it, and `via` is the chain of references the resolver
+followed to reach it, outermost first, each hop naming the `$ref` node
+itself. An empty `via` means the node was reached in the entry document
+without crossing a reference, which is every node of a single-file spec.
+
+The three arrive together or not at all. `source` absent means no source
+node corresponds to this one: the container that holds hoisted schemas
+and the root extension that stitched externals live under are the
+resolver's own, and anything an overlay rewrote or added has no position
+in a file to give. Every `uri` is resolved against the spec argument, so
+it comes back in the form that argument was given in: `oaverify check
+./openapi.yaml` reports `./schemas/order.yaml`, and an absolute path
+reports absolute paths.
+
+**Two more fields appear where they apply.** `occurrences` counts how
+many operations reported the same defect, when more than one; a
+component reached from several operations is one defect and one edit.
+`reasons` carries the validator's leaf errors for a rejected value, on
+`examples` findings only, so a consumer reads `params.allowed` and
+`params.actual` rather than parsing them out of `message`. Each error
+`code` has a documented `params` shape: the `BuiltInErrorParams`
+interface in `@oaverify/core` is the reference, and `ErrorParamsFor<Code>`
+narrows it at the read site.
+
+A defect that both a document pass and a compile pass can see is
+reported twice. A `description: null` is the common one, reported by
+`conformance/type` and by `schema/annotation-value-type`. Both carry a
+`target`, so a consumer recognises the pair by pointer.
+
+Note that `anchor` here is unrelated to the JSON Schema `$anchor` /
+`$dynamicRef` sense the `@oaverify/core` README uses.
 
 ## Using the library instead
 
@@ -117,6 +237,7 @@ and for bodies too large to buffer there is
 ## See also
 
 - [Top-level `README.md`](https://github.com/oaverify/oaverify/blob/main/README.md): rationale, install matrix, comparison.
+- [`docs/strictness.md`](https://github.com/oaverify/oaverify/blob/main/docs/strictness.md): what each `check` class grades, and how severity is decided.
 - [`docs/modules.md`](https://github.com/oaverify/oaverify/blob/main/docs/modules.md): what each package and subpath exports.
 - [`docs/integration.md`](https://github.com/oaverify/oaverify/blob/main/docs/integration.md): adapter recipes and manual wiring for Next.js, Hono, Bun, Deno.
 - [`packages/stream-validator/README.md`](https://github.com/oaverify/oaverify/blob/main/packages/stream-validator/README.md): streaming validation and the buffer-budget analyzer.

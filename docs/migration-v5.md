@@ -124,7 +124,7 @@ takes a comma-separated subset of `hygiene`, `schema`. Both sets have
 grown since 5.0; see [the strictness guide](./strictness.md#on-the-cli)
 for the current ones. Its output shape
 and its exit codes are documented in
-[the CLI README](../packages/cli/README.md#exit-codes); read them as new
+[the published CLI README](../packages/oav/README.md#exit-codes); read them as new
 surface, not as a diff against `resolve --lint`.
 
 **In 5.0, `check` did not validate your document against the OpenAPI
