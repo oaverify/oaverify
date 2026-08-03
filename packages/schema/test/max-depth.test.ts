@@ -41,10 +41,15 @@ describe("maxDepth: codegen specialization", () => {
     expect(v.source).not.toContain("maxDepth");
   });
 
-  it("emits the guard at the recursive boundary when set", () => {
+  it("emits depth instrumentation when set", () => {
+    // The mirror of the test above, and the whole of what codegen
+    // specialization promises: instrumented when configured, absent
+    // when not. What the guard expression looks like is not a contract,
+    // and the behaviour it produces is covered below by the cap
+    // boundary, the counter reset, and the unwind cases.
     const v = compile(recursive, { maxDepth: 4 });
-    expect(v.source).toContain("++deps.depth > deps.maxDepth");
-    expect(v.source).toContain("deps.depth = 0;"); // per-call reset
+    expect(v.source).toContain("deps.depth");
+    expect(v.source).toContain("maxDepth");
   });
 
   it("does not instrument a non-recursive schema even when set", () => {
