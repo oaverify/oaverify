@@ -44,6 +44,7 @@ oaverify check <spec> --only conformance                      # one class only
 oaverify check <spec> --fail-on error                         # CI gate: exit 1 on spec violations
 oaverify check <spec> --fail-on warning                       # CI gate: exit 1 on any finding
 oaverify check <spec> --severity 'unsatisfiable/*=error' --fail-on error  # regrade, then gate
+oaverify check <spec> --format sarif -o results.sarif             # SARIF 2.1.0 for code scanning
 oaverify check <spec> --format json                           # { findings: [...] }, each classed
 ```
 
