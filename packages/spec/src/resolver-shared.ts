@@ -79,6 +79,12 @@ export function baseDirOf(uri: string): string {
  * wearing a deduplication's clothes. The cost is that an entry reached
  * only through `baseUri` keeps hoisting a duplicate of itself, which is
  * the conservative half of the same trade.
+ *
+ * Put the other way round: where a caller makes the entry reachable
+ * under two reader keys, only the entry's own normalised key family is
+ * recognised, and the second key stays external. Treating it as the
+ * entry would mean proving that two keys name one document, which is a
+ * claim about the reader rather than about the URIs.
  */
 export function entryIdentity(entry: string): string {
   return resolveRelative(baseDirOf(entry), basename(entry));
