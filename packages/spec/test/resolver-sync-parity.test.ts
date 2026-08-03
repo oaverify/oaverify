@@ -297,6 +297,67 @@ const fixtures: { name: string; entry: string; sources: Map<string, unknown> }[]
       ],
     ]),
   },
+  {
+    // Both halves of #612: the entry naming itself, and another
+    // document naming it back. Neither hoists, and the sync walk has to
+    // reach the same conclusion from the same entry string.
+    name: "references whose target is the entry document",
+    entry: "main.json",
+    sources: map([
+      [
+        "main.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1" },
+          paths: {
+            "/pets": { $ref: "./paths/pets.json" },
+            "/self": {
+              get: {
+                responses: {
+                  "200": {
+                    description: "ok",
+                    content: {
+                      "application/json": {
+                        schema: { $ref: "./main.json#/components/schemas/Pet" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          components: {
+            parameters: {
+              PageSize: {
+                name: "pageSize",
+                in: "query",
+                schema: { $ref: "#/components/schemas/Size" },
+              },
+            },
+            schemas: { Pet: { type: "object" }, Size: { type: "integer" } },
+          },
+        },
+      ],
+      [
+        "paths/pets.json",
+        {
+          get: {
+            parameters: [{ $ref: "../main.json#/components/parameters/PageSize" }],
+            responses: {
+              "200": {
+                description: "ok",
+                content: {
+                  "application/json": {
+                    schema: { $ref: "../main.json#/components/schemas/Pet" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    ]),
+  },
 ];
 
 describe("resolveSpecSync ⇔ resolveSpec parity", () => {

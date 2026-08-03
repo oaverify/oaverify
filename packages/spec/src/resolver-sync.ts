@@ -15,6 +15,7 @@ import {
   baseDirOf,
   cycleKey,
   componentSchemaSlots,
+  entryIdentity,
   existingSchemaNames,
   EXTERNALS_FIELD,
   hoistedRef,
@@ -86,6 +87,7 @@ export interface ResolveSpecSyncOptions {
 export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   const { reader } = options;
   const baseDir = options.baseUri ?? baseDirOf(options.entry);
+  const entryUri = entryIdentity(options.entry);
   const sources = new Set<string>([options.entry]);
   const docs = new Map<string, unknown>();
 
@@ -268,9 +270,16 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
         const uri = isExternal
           ? resolveRelative(currentBase, refPath)
           : (externalSourceUri as string);
-        noteReferrer(referrers, uri, externalSourceUri ?? options.entry);
-        noteVia(hoistVia, targetKey(uri, fragment));
-        const out: Mutable = { $ref: hoistedRef(claim(uri, fragment)) };
+        // A target in the entry document already has an address in the
+        // resolved document; the commentary lives in resolveSpec.
+        const intoEntry = uri === entryUri && fragment.startsWith("/");
+        if (!intoEntry) {
+          noteReferrer(referrers, uri, externalSourceUri ?? options.entry);
+          noteVia(hoistVia, targetKey(uri, fragment));
+        }
+        const out: Mutable = {
+          $ref: intoEntry ? `#${fragment}` : hoistedRef(claim(uri, fragment)),
+        };
         // OpenAPI 3.1 allows siblings alongside `$ref`; they survive.
         for (const key of Object.keys(obj)) {
           if (key === "$ref") continue;

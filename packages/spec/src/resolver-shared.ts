@@ -12,7 +12,7 @@
  */
 
 import { escapePointerSegment, setSpecKey } from "@oaverify/internal-core";
-import { dirname, isAbsolute, posix, resolve as resolvePath } from "node:path";
+import { basename, dirname, isAbsolute, posix, resolve as resolvePath } from "node:path";
 import type { SourceHop, SpecRegion } from "./provenance.js";
 
 /** Mutable object view used while walking parsed JSON documents. */
@@ -40,6 +40,35 @@ export function resolveRelative(base: string, rel: string): string {
 /** Directory of a URI, used as the base for refs found inside it. */
 export function baseDirOf(uri: string): string {
   return dirname(uri);
+}
+
+/**
+ * The entry URI as a reference to it will be spelled once the walk has
+ * resolved it, so the two can be compared.
+ *
+ * A `$ref` back into the entry document names a file, so it arrives at
+ * the walk through {@link resolveRelative} like any other target.
+ * Comparing that against the caller's `entry` string directly misses
+ * the spellings that string can take: entry `./openapi.yaml` has its
+ * own refs resolve to `openapi.yaml`, so a textual comparison answers
+ * "external" for two thirds of the ways the same file can be named.
+ * Putting the entry through the same function is what makes the answer
+ * agree across spellings: its own directory joined with its own file
+ * name, which is how a reference to it from beside it resolves.
+ *
+ * What this claims is narrow, and deliberately so: **identity of the
+ * key the reader is asked for**, which is what `docs`, `sources` and
+ * the hoist names are keyed by. It does not claim symlink identity,
+ * percent-encoding equivalence, `file:///x` against `/x`, a
+ * case-insensitive filesystem, `http` against `https`, or trailing
+ * slash and query variation. A reference matching the entry by any of
+ * those and not by this one keeps today's behaviour, a hoisted
+ * duplicate: larger than it needs to be, and correct. The permissive
+ * failure is the one worth avoiding, since it would rewrite a genuine
+ * external target to an internal address that need not exist.
+ */
+export function entryIdentity(entry: string): string {
+  return resolveRelative(baseDirOf(entry), basename(entry));
 }
 
 /**

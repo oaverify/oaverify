@@ -14,6 +14,7 @@ import {
   baseDirOf,
   cycleKey,
   componentSchemaSlots,
+  entryIdentity,
   existingSchemaNames,
   EXTERNALS_FIELD,
   hoistedRef,
@@ -104,10 +105,14 @@ export interface ResolvedSpec {
  * External refs in **schema** positions are hoisted: the target lands in
  * `components.schemas` under a derived name and each use site keeps an
  * internal `$ref` to it, so a schema keeps an address rather than being
- * copied per reference. External refs in non-schema positions (Response,
- * Parameter, Path Item Objects) are inlined, and a cycle among those is
- * materialized under `$defs.__ext__/<encoded-uri>` so the compiler can
- * resolve it via the identity-keyed schema cache.
+ * copied per reference. A ref that names a file but resolves to the
+ * entry document is not external: its target already has an address, so
+ * the use site keeps a plain internal `$ref` to it (see
+ * {@link entryIdentity} for exactly which spellings that recognises).
+ * External refs in non-schema positions (Response, Parameter, Path Item
+ * Objects) are inlined, and a cycle among those is materialized under
+ * `$defs.__ext__/<encoded-uri>` so the compiler can resolve it via the
+ * identity-keyed schema cache.
  *
  * The synchronous mirror is `resolveSpecSync` (reachable via
  * `@oaverify/core/spec/internals`); both share the pure URI / ref-rewriting helpers
@@ -128,6 +133,7 @@ export interface ResolvedSpec {
 export async function resolveSpec(options: ResolveSpecOptions): Promise<ResolvedSpec> {
   const { reader } = options;
   const baseDir = options.baseUri ?? baseDirOf(options.entry);
+  const entryUri = entryIdentity(options.entry);
   const sources = new Set<string>([options.entry]);
   const docs = new Map<string, unknown>();
 
@@ -325,11 +331,27 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
         const uri = isExternal
           ? resolveRelative(currentBase, refPath)
           : (externalSourceUri as string);
-        noteReferrer(referrers, uri, externalSourceUri ?? options.entry);
-        // The target is walked later, from the hoist queue, so the
-        // chain that reached it is recorded here where it is known.
-        noteVia(hoistVia, targetKey(uri, fragment));
-        const out: Mutable = { $ref: hoistedRef(claim(uri, fragment)) };
+        // Whether the target is the entry document decides, not whether
+        // the reference is spelled as a path. A node of the entry
+        // already has an address in the resolved document, so hoisting
+        // one copies a schema that was reachable all along and leaves
+        // the author's own component unreferenced (#612).
+        //
+        // The fragment has to be a JSON pointer for that address to
+        // exist. An empty one names the whole OpenAPI document rather
+        // than an addressable Schema Object, and `#anchor` is a claim
+        // about `$anchor` resolution this makes no attempt at; both
+        // keep hoisting, deliberately, and both have a test.
+        const intoEntry = uri === entryUri && fragment.startsWith("/");
+        if (!intoEntry) {
+          noteReferrer(referrers, uri, externalSourceUri ?? options.entry);
+          // The target is walked later, from the hoist queue, so the
+          // chain that reached it is recorded here where it is known.
+          noteVia(hoistVia, targetKey(uri, fragment));
+        }
+        const out: Mutable = {
+          $ref: intoEntry ? `#${fragment}` : hoistedRef(claim(uri, fragment)),
+        };
         // OpenAPI 3.1 allows siblings alongside `$ref`; they survive.
         for (const key of Object.keys(obj)) {
           if (key === "$ref") continue;
