@@ -340,7 +340,15 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       for (const key of Object.keys(siblings)) trail?.shadow(key);
       return { ...(inlined as Mutable), ...siblings };
     }
-    if (typeof ref === "string" && ref.startsWith("#") && externalSourceUri !== null) {
+    // Inside content inlined from the entry, an internal ref already
+    // addresses the resolved document; the commentary lives in
+    // resolveSpec.
+    if (
+      typeof ref === "string" &&
+      ref.startsWith("#") &&
+      externalSourceUri !== null &&
+      externalSourceUri !== entryUri
+    ) {
       const rewritten = rewriteInternalRefTarget(externalSourceUri, ref.slice(1));
       noteVia(stitchVia, externalSourceUri);
       stitchQueue.set(externalSourceUri, pos.kind);

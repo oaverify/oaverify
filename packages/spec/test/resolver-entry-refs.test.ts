@@ -218,6 +218,43 @@ describe("a schema ref whose target is the entry document", () => {
   });
 });
 
+describe("an internal ref inside content inlined from the entry", () => {
+  const docs = () =>
+    new Map<string, unknown>([
+      [
+        "main.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1" },
+          paths: { "/pets": { $ref: "./paths/pets.json" } },
+          components: {
+            headers: { H: { description: "h", schema: { type: "string" } } },
+            responses: {
+              Ok: { description: "ok", headers: { X: { $ref: "#/components/headers/H" } } },
+            },
+          },
+        },
+      ],
+      [
+        "paths/pets.json",
+        { get: { responses: { "200": { $ref: "../main.json#/components/responses/Ok" } } } },
+      ],
+    ]);
+
+  it("keeps the ref as written rather than stitching a copy of the entry", async () => {
+    const { document } = await resolveSpec({
+      reader: createMemoryReader(docs()),
+      entry: "main.json",
+    });
+    expect(Object.keys(document as unknown as Record<string, unknown>)).not.toContain(
+      "x-oaverify-externals",
+    );
+    expect(at(document, "/paths/~1pets/get/responses/200/headers/X")).toEqual({
+      $ref: "#/components/headers/H",
+    });
+  });
+});
+
 describe("what the entry-identity test declines to answer", () => {
   it("still hoists a different document with the same file name", async () => {
     const reader = createMemoryReader(

@@ -416,7 +416,18 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       for (const key of Object.keys(siblings)) trail?.shadow(key);
       return { ...(inlined as Mutable), ...siblings };
     }
-    if (typeof ref === "string" && ref.startsWith("#") && externalSourceUri !== null) {
+    // An internal ref inside content inlined from another document
+    // names a node of *that* document, so it is stitched and re-pointed.
+    // Inside content inlined from the entry it names a node of the
+    // resolved document already, and stitching mounted a second copy of
+    // the whole entry under the root extension to point at (#612).
+    // Leaving it as written falls through to the generic walk below.
+    if (
+      typeof ref === "string" &&
+      ref.startsWith("#") &&
+      externalSourceUri !== null &&
+      externalSourceUri !== entryUri
+    ) {
       const rewritten = rewriteInternalRefTarget(externalSourceUri, ref.slice(1));
       noteVia(stitchVia, externalSourceUri);
       stitchQueue.set(externalSourceUri, pos.kind);
