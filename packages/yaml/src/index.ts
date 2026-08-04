@@ -37,6 +37,8 @@ import {
   createFileReaderSync,
   fetchInit,
   readStream,
+  assertWithinMaxBytes,
+  assertWithinMaxBytesSync,
   resolveReadPath,
   resolveReadPathSync,
   responseText,
@@ -90,6 +92,7 @@ export function createYamlFileReader(
       // a literal filename that actually contains one.
       const decoded = decodePercent(stripped);
       const path = await resolveReadPath(root, decoded, uri, options.confine === true);
+      await assertWithinMaxBytes(path, uri, options.maxBytes);
       const raw = await readFile(path, "utf8");
       return parseYaml(raw);
     },
@@ -273,6 +276,7 @@ function createYamlFileReaderSync(
       const stripped = uri.replace(/^file:\/\//, "");
       const decoded = decodePercent(stripped);
       const path = resolveReadPathSync(root, decoded, uri, options.confine === true);
+      assertWithinMaxBytesSync(path, uri, options.maxBytes);
       return parseYaml(readFileSync(path, "utf8"));
     },
   };
