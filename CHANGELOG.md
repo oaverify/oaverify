@@ -1,5 +1,28 @@
 # Changelog
 
+## [5.4.0](https://github.com/oaverify/oaverify/compare/core-v5.3.0...core-v5.4.0) (2026-08-04)
+
+**New package: [`@oaverify/check`](https://www.npmjs.com/package/@oaverify/check).** The document check behind `oaverify check` is now published on its own, so you can call `checkSpec` from your own tooling and grade, address and render the findings the way the CLI does. The CLI behaves exactly as before. `@oaverify/core`'s surface is unchanged by the move; see [its changelog](https://github.com/oaverify/oaverify/blob/main/packages/check/CHANGELOG.md).
+
+
+### Features
+
+* **schema:** unknownFormats option, refusing a format nothing enforces ([#647](https://github.com/oaverify/oaverify/issues/647)) ([442610e](https://github.com/oaverify/oaverify/commit/442610ee02f34fb599e28bc58a296a51cfbff198))
+* **spec:** bound file reads by maxBytes ([#650](https://github.com/oaverify/oaverify/issues/650)) ([7d8637a](https://github.com/oaverify/oaverify/commit/7d8637a8f43ac344988a623a425b49a82cb340de)), closes [#588](https://github.com/oaverify/oaverify/issues/588)
+
+
+### Bug Fixes
+
+* **validator:** stop reporting an unvalidatable example as fine ([#653](https://github.com/oaverify/oaverify/issues/653)) ([e251b65](https://github.com/oaverify/oaverify/commit/e251b6530f0de0ef2925bb96cd730f996b731ce5)), closes [#625](https://github.com/oaverify/oaverify/issues/625)
+
+
+### Documentation
+
+* define fatal as a rank, not as what happened to the document ([#648](https://github.com/oaverify/oaverify/issues/648)) ([c993ae6](https://github.com/oaverify/oaverify/commit/c993ae686bcf442af8bef367eba3634f34509ef0)), closes [#638](https://github.com/oaverify/oaverify/issues/638)
+* map the old package names to the new ones ([#649](https://github.com/oaverify/oaverify/issues/649)) ([11bbe58](https://github.com/oaverify/oaverify/commit/11bbe58d0a5928ed0e1309e1360dab10fc335adc)), closes [#637](https://github.com/oaverify/oaverify/issues/637)
+* point --severity at the code list it now validates against ([#642](https://github.com/oaverify/oaverify/issues/642)) ([bc9e3f1](https://github.com/oaverify/oaverify/commit/bc9e3f180e99be69e43b268213e96f179da5f8e3))
+* **readme:** name @oaverify/check in the install table ([#657](https://github.com/oaverify/oaverify/issues/657)) ([77bfe86](https://github.com/oaverify/oaverify/commit/77bfe86207d8aa17518b302799262cb035662d9b))
+
 ## [5.3.0](https://github.com/oaverify/oaverify/compare/core-v5.2.0...core-v5.3.0) (2026-08-03)
 
 
