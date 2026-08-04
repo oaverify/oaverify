@@ -1,5 +1,21 @@
 # Changelog
 
+## [5.4.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.3.0...oaverify-v5.4.0) (2026-08-04)
+
+`oaverify check` now runs the check from the new [`@oaverify/check`](https://www.npmjs.com/package/@oaverify/check) package rather than its own copy. Same passes, same findings, same exit codes; the package is a new runtime dependency of the CLI.
+
+
+### Features
+
+* **cli:** enumerate check codes and validate --severity against them ([#641](https://github.com/oaverify/oaverify/issues/641)) ([67a928a](https://github.com/oaverify/oaverify/commit/67a928a2a386e94bdbb9c7597f2db20bc98ebc47)), closes [#633](https://github.com/oaverify/oaverify/issues/633) [#632](https://github.com/oaverify/oaverify/issues/632)
+* **cli:** report a format check cannot validate ([#645](https://github.com/oaverify/oaverify/issues/645)) ([25e5471](https://github.com/oaverify/oaverify/commit/25e547157731fb8cfd4b38cb66da142f6a091a00)), closes [#644](https://github.com/oaverify/oaverify/issues/644)
+* **check:** move the composed spec check into @oaverify/check ([#654](https://github.com/oaverify/oaverify/issues/654)) ([2b376e2](https://github.com/oaverify/oaverify/commit/2b376e253f59dcf97b6b8a71cdc670e6fbb8260d))
+
+
+### Bug Fixes
+
+* **check:** stop reporting an unvalidatable example as fine ([#653](https://github.com/oaverify/oaverify/issues/653)) ([e251b65](https://github.com/oaverify/oaverify/commit/e251b6530f0de0ef2925bb96cd730f996b731ce5)), closes [#625](https://github.com/oaverify/oaverify/issues/625)
+
 ## [5.3.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.2.0...oaverify-v5.3.0) (2026-08-03)
 
 

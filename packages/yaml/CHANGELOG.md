@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.4.0](https://github.com/oaverify/oaverify/compare/yaml-v5.3.0...yaml-v5.4.0) (2026-08-04)
+
+
+### Features
+
+* **spec:** bound file reads by maxBytes ([#650](https://github.com/oaverify/oaverify/issues/650)) ([7d8637a](https://github.com/oaverify/oaverify/commit/7d8637a8f43ac344988a623a425b49a82cb340de)), closes [#588](https://github.com/oaverify/oaverify/issues/588)
+
 ## [5.3.0](https://github.com/oaverify/oaverify/compare/yaml-v5.2.0...yaml-v5.3.0) (2026-08-03)
 
 

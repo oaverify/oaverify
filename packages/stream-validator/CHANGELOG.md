@@ -1,5 +1,17 @@
 # Changelog
 
+## [5.4.0](https://github.com/oaverify/oaverify/compare/stream-v5.3.0...stream-v5.4.0) (2026-08-04)
+
+
+### Features
+
+* **schema:** unknownFormats option, refusing a format nothing enforces ([#647](https://github.com/oaverify/oaverify/issues/647)) ([442610e](https://github.com/oaverify/oaverify/commit/442610ee02f34fb599e28bc58a296a51cfbff198))
+
+
+### Bug Fixes
+
+* **stream-validator:** merge builtInFormats under the caller's map ([#639](https://github.com/oaverify/oaverify/issues/639)) ([7dad9c9](https://github.com/oaverify/oaverify/commit/7dad9c99eca965f6ecdc21db0d44266749dc0863)), closes [#636](https://github.com/oaverify/oaverify/issues/636)
+
 ## [5.3.0](https://github.com/oaverify/oaverify/compare/stream-v5.2.0...stream-v5.3.0) (2026-08-03)
 
 
