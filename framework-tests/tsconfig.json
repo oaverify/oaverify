@@ -14,10 +14,11 @@
         "../packages/core/src/prototype-properties.ts"
       ],
       "@oaverify/internal-validator": ["../packages/validator/src/index.ts"],
+      "@oaverify/internal-validator/internals": ["../packages/validator/src/internals.ts"],
       "@oaverify/internal-oav-express4": ["../packages/oav-express4/src/index.ts"],
       "@oaverify/internal-oav-express5": ["../packages/oav-express5/src/index.ts"],
       "@oaverify/internal-oav-fastify": ["../packages/oav-fastify/src/index.ts"]
     }
   },
-  "include": ["test/**/*.ts", "vitest.config.ts", "workspace-aliases.ts"]
+  "include": ["test/**/*.ts", "vitest.config.ts", "../workspace-aliases.ts"]
 }

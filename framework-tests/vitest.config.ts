@@ -1,9 +1,11 @@
 import { defineConfig } from "vitest/config";
-import { workspaceAliases } from "./workspace-aliases.js";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { workspaceAliases } from "../workspace-aliases.js";
 
 export default defineConfig({
   resolve: {
-    alias: workspaceAliases(),
+    alias: workspaceAliases(resolve(dirname(fileURLToPath(import.meta.url)), "..")),
   },
   test: {
     include: ["test/**/*.test.ts"],
