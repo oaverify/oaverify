@@ -367,7 +367,7 @@ export async function checkCommand(
     severityMap =
       args.severity === undefined || args.severity.length === 0
         ? EMPTY_SEVERITY_MAP
-        : parseSeverityMap(args.severity, CHECK_CLASSES, CHECK_SEVERITIES);
+        : parseSeverityMap(args.severity);
   } catch (err) {
     if (!(err instanceof SeverityMapError)) throw err;
     io.stderr(`check: --severity ${err.message}\n`);

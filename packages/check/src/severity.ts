@@ -22,7 +22,7 @@
  */
 
 import { CHECK_CODES, CHECK_FAMILIES } from "./codes.js";
-import type { CheckClass, CheckSeverity } from "./finding.js";
+import { CHECK_CLASSES, CHECK_SEVERITIES, type CheckClass, type CheckSeverity } from "./finding.js";
 
 /**
  * What oaverify grades each class as, before any `--severity` mapping.
@@ -154,8 +154,15 @@ function nearestCode(key: string): string {
  * `warning`, `error`, `fatal`.
  *
  * All three key spaces are checked against what `check` can emit
- * ({@link CHECK_CODES}, {@link CHECK_FAMILIES}, and the caller's class
- * list). A key matching nothing is refused, not stored.
+ * ({@link CHECK_CODES}, {@link CHECK_FAMILIES}, {@link CHECK_CLASSES}).
+ * A key matching nothing is refused, not stored.
+ *
+ * The key spaces are taken from this package rather than passed in.
+ * Injecting them would let a caller accept a class `checkSpec` will
+ * never emit, or refuse one it does, which is the drift moving the
+ * parser here was meant to end. If a future class needs declaring (#634
+ * proposes `custom`), that arrives as an optional options argument and
+ * widens this additively.
  *
  * **`malformed` cannot be mapped, and saying so is the point.** Its
  * findings are `fatal` and its exit code is 4, which outranks
@@ -173,11 +180,9 @@ function nearestCode(key: string): string {
  *
  * @public
  */
-export function parseSeverityMap(
-  entries: readonly string[],
-  knownClasses: readonly string[],
-  severities: readonly CheckSeverity[],
-): SeverityMap {
+export function parseSeverityMap(entries: readonly string[]): SeverityMap {
+  const knownClasses: readonly string[] = CHECK_CLASSES;
+  const severities: readonly CheckSeverity[] = CHECK_SEVERITIES;
   const byCode = new Map<string, CheckSeverity>();
   const byFamily = new Map<string, CheckSeverity>();
   const byClass = new Map<string, CheckSeverity>();

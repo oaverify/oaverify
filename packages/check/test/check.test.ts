@@ -2,7 +2,7 @@ import { createMemoryReader, loadSpec, type ResolvedSpec } from "@oaverify/inter
 import { describe, expect, it } from "vitest";
 import { CheckAbortedError, checkSpec } from "../src/check.js";
 import { parseSeverityMap } from "../src/severity.js";
-import { CHECK_CLASSES, CHECK_SEVERITIES, type CheckFinding } from "../src/finding.js";
+import type { CheckFinding } from "../src/finding.js";
 
 /**
  * The same two-file document `packages/cli/test/check-golden.test.ts`
@@ -106,11 +106,7 @@ describe("checkSpec", () => {
   });
 
   it("applies a severity map across all three key spaces", async () => {
-    const severity = parseSeverityMap(
-      ["redos=error,unsatisfiable/*=fatal,unused-component=error"],
-      CHECK_CLASSES,
-      CHECK_SEVERITIES,
-    );
+    const severity = parseSeverityMap(["redos=error,unsatisfiable/*=fatal,unused-component=error"]);
     const findings = checkSpec(await resolve(kitchenSink()), { severity });
     const at = (code: string): string | undefined =>
       findings.find((f) => f.code === code)?.severity;
@@ -185,7 +181,7 @@ describe("checkSpec", () => {
     // The one thing a severity map may not touch, because the exit code
     // tracks the class and a half-applied remap would look like it worked.
     it("stays fatal under a severity map", async () => {
-      const severity = parseSeverityMap(["schema=warning"], CHECK_CLASSES, CHECK_SEVERITIES);
+      const severity = parseSeverityMap(["schema=warning"]);
       const findings = checkSpec(await resolve(malformed), { severity });
       expect(findings.find((f) => f.class === "malformed")?.severity).toBe("fatal");
     });

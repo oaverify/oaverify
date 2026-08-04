@@ -218,13 +218,25 @@ export interface FindingTarget {
    * component the resolver may have invented. This is the address in
    * the file the author would open.
    *
-   * Absent means no source node corresponds to this one. In `check`
-   * output that is a fact about the node rather than an omission:
-   * `check` always records provenance, so absence means the node exists
-   * only in the resolved document. The resolver invented the container
-   * that holds hoisted schemas, or the root extension that stitched
-   * externals live under, or an overlay rewrote or added the node after
-   * resolution and its position in a source file would be stale.
+   * Absent means one of two things, and which one is decided by the
+   * spec that was checked rather than by the finding:
+   *
+   * - **The resolved spec carried regions** (it was loaded or resolved
+   *   with `provenance: true`). Absence is then a fact about the node:
+   *   no source node corresponds to it. The resolver invented the
+   *   container that holds hoisted schemas, or the root extension that
+   *   stitched externals live under, or an overlay rewrote or added the
+   *   node after resolution and its position in a source file would be
+   *   stale.
+   * - **It did not.** Source attribution was unavailable for the whole
+   *   run, so every target lacks this field and none of them is saying
+   *   anything about its node.
+   *
+   * A caller tells the two apart the way `sourceOf` says to: by whether
+   * regions were recorded, which is a property of the `ResolvedSpec`
+   * they passed in and which they already know. `oaverify check` always
+   * loads with `provenance: true`, so in CLI output only the first case
+   * arises.
    *
    * Present or absent as a unit, never partly filled. See
    * {@link SourceAddress}, which also states the one thing this does not
