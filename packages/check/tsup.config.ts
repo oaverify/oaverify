@@ -20,6 +20,24 @@ import { defineConfig } from "tsup";
  * every `@oaverify/core` consumer and break the zero-runtime-dependency
  * claim.
  */
+const repoRoot = resolve(__dirname, "..", "..");
+
+// Bundled rather than rewritten to a `@oaverify/core` subpath, because
+// it is not one. It carries ~100KB of vendored OpenAPI meta-schemas and
+// `metaschemaFor` reaches all three, so anything importing it pays in
+// full; only the conformance pass needs them, so they belong in this
+// tarball rather than in the library every framework adapter depends on.
+const bundledWorkspace: Record<string, string> = {
+  "@oaverify/internal-metaschema": resolve(repoRoot, "packages", "metaschema", "src", "index.ts"),
+  "@oaverify/internal-metaschema/conformance": resolve(
+    repoRoot,
+    "packages",
+    "metaschema",
+    "src",
+    "conformance.ts",
+  ),
+};
+
 const oavCoreRewrite: Record<string, string> = {
   "@oaverify/internal-core": "@oaverify/core/core",
   "@oaverify/internal-schema": "@oaverify/core/schema",
@@ -57,6 +75,8 @@ function rewriteOavCore(): Plugin {
       build.onResolve({ filter: /^@oaverify\/internal-/ }, (args) => {
         const rewrite = oavCoreRewrite[args.path];
         if (rewrite) return { path: rewrite, external: true };
+        const bundled = bundledWorkspace[args.path];
+        if (bundled) return { path: bundled };
         return null;
       });
     },

@@ -13,7 +13,6 @@
     { "path": "../schema" },
     { "path": "../spec" },
     { "path": "../stream-validator" },
-    { "path": "../metaschema" },
     { "path": "../validator" }
   ]
 }

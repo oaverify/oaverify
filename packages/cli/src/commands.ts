@@ -13,22 +13,18 @@ import {
   createStdinReader,
   isSpecOverlay,
   loadSpec,
-  sourceOf,
   specOverlayVerbs,
   STDIN_URI,
   type DocumentReader,
-  type SpecHygieneIssue,
+  type ResolvedSpec,
   type SpecOverlay,
-  type SpecRegion,
 } from "@oaverify/internal-spec";
+import { createValidator } from "@oaverify/internal-validator";
 import {
   isOverlayDocument,
   translateOverlay,
   type OverlayDocument,
 } from "@oaverify/internal-overlay-spec";
-import { checkDocumentExamples, createValidator } from "@oaverify/internal-validator";
-import type { SchemaLintIssue } from "@oaverify/internal-schema";
-import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
 import type * as Esbuild from "esbuild";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { analyzeSpec } from "@oaverify/stream";
@@ -40,18 +36,14 @@ import { renderSarif } from "./sarif.js";
 import {
   CHECK_CLASSES,
   CHECK_SEVERITIES,
-  checkDocumentFormats,
-  checkDocumentRedos,
-  defaultSeverityFor,
+  checkSpec,
   EMPTY_SEVERITY_MAP,
   parseSeverityMap,
-  KNOWN_FORMATS,
-  severityFor,
   SeverityMapError,
   type CheckClass,
+  CheckAbortedError,
   type CheckFinding,
   type CheckSeverity,
-  type FindingTarget,
   type SeverityMap,
 } from "@oaverify/check";
 
@@ -238,46 +230,6 @@ export async function resolveCommand(
 }
 
 /**
- * A schema lint finding's target, taken from what the compile
- * recorded rather than re-derived here.
- *
- * The anchor is decided where the knowledge is: the walk knows whether
- * it crossed a `$ref`, the validator knows whether it unwrapped one
- * before the compile started, and the rule knows whether its verdict
- * depends on the route. None of those is visible from the finished
- * finding, so this copies rather than infers.
- */
-function targetForSchemaLint(issue: SchemaLintIssue): FindingTarget | undefined {
-  if (issue.pointer === undefined || issue.anchor === undefined) return undefined;
-  return { pointer: issue.pointer, anchor: issue.anchor };
-}
-
-/**
- * Add a schema finding, collapsing a repeat of one already recorded.
- *
- * Keyed on code plus message plus address. The message carries only the
- * path *within* a schema, so two distinct components with the same
- * defect at the same relative path (`Alpha.properties.a` and
- * `Beta.properties.a`) produce the same message and used to collapse
- * into one finding, hiding the second entirely. Those are two edits in
- * two places, not one defect seen twice.
- *
- * Including the pointer separates them and still collapses what #520
- * wanted collapsed: a genuine repeat is the same defect at the same
- * address, so it keys the same. `occurrences` therefore counts repeats
- * of one address rather than of one message.
- */
-function addSchemaFinding(into: Map<string, CheckFinding>, finding: CheckFinding): void {
-  const key = `${finding.code}\u0000${finding.message}\u0000${finding.target?.pointer ?? ""}`;
-  const already = into.get(key);
-  if (already === undefined) {
-    into.set(key, finding);
-    return;
-  }
-  already.occurrences = (already.occurrences ?? 1) + 1;
-}
-
-/**
  * Column budget the `check` text report wraps to when the caller does
  * not supply one, which covers every non-TTY run: a pipe, a redirect,
  * `-o file`, and the tests.
@@ -430,25 +382,18 @@ export async function checkCommand(
     return { exitCode: 3 };
   }
 
-  const findings: CheckFinding[] = [];
-
-  let document: OpenAPIDocument;
-  let specHygieneIssues: readonly SpecHygieneIssue[] = [];
-  // Where each part of the resolved document came from, applied to
-  // every finding's target in one pass below rather than per class, so
-  // no class can quietly answer differently from the rest.
-  let regions: readonly SpecRegion[] = [];
+  let resolved: ResolvedSpec;
   try {
-    const loaded = await loadSpec({
+    // `provenance: true` unconditionally: every finding's `target.source`
+    // depends on it, and `check` promises that field is absent only when
+    // the node genuinely has no source. Loading is the CLI's job because
+    // it is the asynchronous half; `checkSpec` takes what it produces.
+    resolved = await loadSpec({
       reader: io.reader,
       entry: args.spec,
       overlays: overlayDocs,
-      lint: classes.has("hygiene"),
       provenance: true,
     });
-    document = loaded.document;
-    specHygieneIssues = loaded.specHygieneIssues;
-    regions = loaded.regions ?? [];
   } catch (err) {
     // The document could not be read, resolved, or parsed. Not a finding:
     // there is nothing to report findings about.
@@ -456,195 +401,18 @@ export async function checkCommand(
     return { exitCode: 2 };
   }
 
-  if (classes.has("hygiene")) {
-    for (const issue of specHygieneIssues) {
-      findings.push({
-        class: "hygiene",
-        severity: defaultSeverityFor("hygiene", issue.code),
-        code: issue.code,
-        location: issue.pointer,
-        message: issue.message,
-        target: { pointer: issue.pointer, anchor: "node" },
-      });
-    }
-  }
-
-  // One defect reached from several operations is one thing to fix, and
-  // printing it once per operation buries the rest of the report: on
-  // Asana 101 schema findings are 28 distinct defects (#520). See
-  // `addSchemaFinding` for the key, which is code plus message plus
-  // pointer: message alone collapsed two components sharing a relative
-  // path into one finding.
-  const schemaFindings = new Map<string, CheckFinding>();
-
-  // Set when at least one schema was malformed. The document is still
-  // graded, so the report is complete; the exit code says the grading
-  // ran against a document that cannot be compiled.
-  let malformed = false;
-
-  if (classes.has("schema")) {
-    try {
-      const validator = createValidator(document, { schemaLint: "strict" });
-      // Compilation is lazy, so without this the schema class inspects
-      // nothing: no schema has been checked and schemaLintIssues is
-      // empty. `check` is exactly the caller that wants the whole
-      // document compiled.
-      //
-      // `collect` rather than the default `throw`: a tool inspecting a
-      // document wants every finding, and stopping at the first
-      // malformed schema hid the rest of the file behind it (#515). A
-      // server wants the opposite and gets it by default.
-      for (const failure of validator.precompile({ onMalformed: "collect" })) {
-        malformed = true;
-        addSchemaFinding(schemaFindings, {
-          class: "malformed",
-          severity: "fatal",
-          code: "malformed-schema",
-          location: failure.location,
-          message: failure.message,
-          target:
-            failure.pointer === undefined
-              ? undefined
-              : { pointer: failure.pointer, anchor: failure.anchor ?? "node" },
-        });
-      }
-      for (const issue of validator.stats.schemaLintIssues) {
-        // The path is relative to the schema that was compiled, which on
-        // a spec with many operations does not say where to look. The
-        // validator labels each compile with its operation, so prefer
-        // that when it is present.
-        const where = issue.path === "" ? "<root>" : issue.path;
-        addSchemaFinding(schemaFindings, {
-          class: "schema",
-          severity: defaultSeverityFor("schema", issue.code),
-          code: issue.code,
-          location: issue.location === undefined ? where : `${issue.location} -> ${where}`,
-          message: issue.message,
-          target: targetForSchemaLint(issue),
-        });
-      }
-    } catch (err) {
-      // Nothing survives building the validator at all: an unresolvable
-      // ref, a document that is not an OpenAPI object. Unlike a
-      // malformed schema, there is no partial result to report.
-      io.stderr(`check: ${(err as Error).message}\n`);
-      return { exitCode: 2 };
-    }
-
-    // Outside the try: a document walk, not a compile, so a malformed
-    // schema elsewhere does not cost the reader this finding.
-    for (const issue of checkDocumentFormats(document, KNOWN_FORMATS)) {
-      findings.push({
-        class: "schema",
-        severity: defaultSeverityFor("schema", issue.code),
-        code: issue.code,
-        location: issue.pointer,
-        message: issue.message,
-        target: { pointer: issue.pointer, anchor: "node" },
-      });
-    }
-  }
-
-  if (classes.has("conformance")) {
-    // Structural conformance against the meta-schema OpenAPI publishes
-    // for the version this document declares. Deliberately separate
-    // from the schema class: that one asks whether oaverify understood
-    // your schemas, this one asks whether the document is legal OpenAPI
-    // at all. A document can fail either without failing the other.
-    //
-    // Overlap with the schema classes depends on the version. 3.1 and
-    // 3.2 stub the Schema Object upstream, so this pass and the
-    // compiler's well-formedness pass are disjoint. 3.0 describes it in
-    // full, so one defect there can be reported by both. Deduplicating
-    // needs the two to address findings the same way, which is #517:
-    // malformed findings are located by operation, these by RFC 6901
-    // pointer. See the note in metaschema/src/conformance.ts for why
-    // stubbing 3.0 to match is not an option.
-    const conformance = checkDocumentConformance(document);
-    for (const issue of conformance.issues) {
-      findings.push({
-        class: "conformance",
-        severity: defaultSeverityFor("conformance", issue.code),
-        code: issue.code,
-        location: issue.pointer,
-        message: issue.message,
-        target: { pointer: issue.pointer, anchor: "node" },
-      });
-    }
-  }
-
-  if (classes.has("examples")) {
-    // Its own class, and its own pass over the document as written,
-    // rather than a rule inside the schema class. The schema class
-    // reads whatever the validator compiled, and body schemas are
-    // compiled per direction (`readOnly` rewritten to `false` on the
-    // request leg), so a component example that is a correct response
-    // would be reported as invalid there. An example describes the
-    // schema as authored, so it is checked against the schema as
-    // authored.
-    //
-    // Separate class also gives the cost its own switch: this is the
-    // one check that compiles schemas of its own accord, so
-    // `--only hygiene,schema` opts out of it.
-    for (const issue of checkDocumentExamples(document)) {
-      findings.push({
-        class: "examples",
-        severity: defaultSeverityFor("examples", issue.code),
-        code: issue.code,
-        location: issue.pointer,
-        message: issue.message,
-        reasons: issue.reasons,
-        target: { pointer: issue.pointer, anchor: "node" },
-      });
-    }
-  }
-
-  if (classes.has("redos")) {
-    // Its own class because it is the only check that reaches for a
-    // third-party analyser: `redos-detector` is a dependency of
-    // `@oaverify/check`, kept off `@oaverify/core` so that stays
-    // dependency-free. Runs by default like every other class; `--only`
-    // is how a caller who has already hardened with `regexCompiler`, or
-    // who finds the analysis slow on a very large document, opts out.
-    for (const issue of checkDocumentRedos(document)) {
-      findings.push({
-        class: "redos",
-        severity: defaultSeverityFor("redos", issue.code),
-        code: issue.code,
-        location: issue.pointer,
-        message: issue.message,
-        target: { pointer: issue.pointer, anchor: "node" },
-      });
-    }
-  }
-
-  findings.push(...schemaFindings.values());
-
-  // The caller's grading, applied once over every class rather than at
-  // each site that builds a finding, so no class can quietly opt out of
-  // it.
-  //
-  // The `malformed` skip is not redundant with the parse-time refusal.
-  // That refusal keys on two literal strings, so it catches
-  // `malformed=...` and `malformed-schema=...` and nothing else; a
-  // second code in this class carrying a slash would be reachable
-  // through a `malformed/*` family key. Skipping by class holds
-  // whatever codes the class grows.
-  if (severityMap !== EMPTY_SEVERITY_MAP) {
-    for (const finding of findings) {
-      if (finding.class === "malformed") continue;
-      finding.severity = severityFor(severityMap, finding, finding.severity);
-    }
-  }
-
-  // Every target that addresses a node the resolver built from a source
-  // file gains that file's address. A target with no covering region,
-  // or one covered by something the resolver invented, keeps no
-  // `source`, which is what absence means here.
-  for (const finding of findings) {
-    if (finding.target === undefined) continue;
-    const source = sourceOf(regions, finding.target.pointer);
-    if (source !== undefined) finding.target = { ...finding.target, source };
+  let findings: CheckFinding[];
+  try {
+    findings = checkSpec(resolved, { only: [...classes], severity: severityMap });
+  } catch (err) {
+    // Only the abort. It means the same to a caller as a document that
+    // would not read: nothing was graded, so there is no report. Any
+    // other throw is a defect rather than a verdict, and is left to
+    // propagate as it always has rather than being dressed up as one of
+    // this command's exit codes.
+    if (!(err instanceof CheckAbortedError)) throw err;
+    io.stderr(`check: ${err.message}\n`);
+    return { exitCode: 2 };
   }
 
   const sink = primarySink(io, args.options);
@@ -708,7 +476,7 @@ export async function checkCommand(
   // compiled, whatever the findings say. Distinct from the exit 2 above,
   // which means the document could not be read and nothing was printed;
   // here the report is complete and one of its findings is fatal.
-  if (malformed) return { exitCode: 4 };
+  if (findings.some((f) => f.class === "malformed")) return { exitCode: 4 };
   if (args.failOn !== undefined) {
     const threshold = CHECK_SEVERITIES.indexOf(args.failOn);
     const hit = findings.some((f) => CHECK_SEVERITIES.indexOf(f.severity) >= threshold);

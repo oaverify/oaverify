@@ -16,7 +16,6 @@
     "@oaverify/check": "workspace:*",
     "@oaverify/internal-core": "workspace:*",
     "@oaverify/internal-formats": "workspace:*",
-    "@oaverify/internal-metaschema": "workspace:*",
     "@oaverify/internal-overlay-spec": "workspace:*",
     "@oaverify/internal-schema": "workspace:*",
     "@oaverify/internal-spec": "workspace:*",

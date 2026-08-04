@@ -16,6 +16,9 @@ import { defineConfig } from "tsup";
  *   CLI start with a clear error when the install is corrupt.
  * - `esbuild` is an external optional peer, used only by
  *   `compile-schema` / `compile-spec` and reported lazily by them.
+ * - `@oaverify/check` is an external runtime dep. The conformance pass
+ *   and its ~100KB of vendored meta-schemas moved there with the rest
+ *   of the check logic, so this tarball no longer bundles them.
  * - `@oaverify/internal-cli` (the workspace package that owns the CLI logic) is
  *   bundled in, along with everything it transitively imports from
  *   `@oaverify/internal-*`. Those transitive imports are rewritten to the
@@ -55,19 +58,6 @@ const bundledWorkspace: Record<string, string> = {
   ),
   "@oaverify/internal-cli": resolve(repoRoot, "packages", "cli", "src", "index.ts"),
   "@oaverify/internal-router": resolve(repoRoot, "packages", "router", "src", "index.ts"),
-  // Bundled rather than rewritten to a `@oaverify/core` subpath on
-  // purpose. It carries ~100KB of vendored OpenAPI meta-schemas, and
-  // `metaschemaFor` reaches all three, so anything importing it pays in
-  // full. Only `check` needs them, so they belong in this tarball rather
-  // than in the library every framework adapter depends on.
-  "@oaverify/internal-metaschema": resolve(repoRoot, "packages", "metaschema", "src", "index.ts"),
-  "@oaverify/internal-metaschema/conformance": resolve(
-    repoRoot,
-    "packages",
-    "metaschema",
-    "src",
-    "conformance.ts",
-  ),
 };
 
 // esbuild resolves aliases before external-matching, but only for

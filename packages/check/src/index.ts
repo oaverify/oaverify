@@ -23,6 +23,7 @@ export {
   SCHEMA_CODES,
   type CheckCode,
 } from "./codes.js";
+export { CheckAbortedError, checkSpec, type CheckOptions } from "./check.js";
 export { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
 export { checkDocumentRedos } from "./redos-check.js";
 export {

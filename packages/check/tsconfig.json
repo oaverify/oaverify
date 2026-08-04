@@ -10,6 +10,7 @@
   "references": [
     { "path": "../core" },
     { "path": "../formats" },
+    { "path": "../metaschema" },
     { "path": "../schema" },
     { "path": "../spec" },
     { "path": "../validator" }
