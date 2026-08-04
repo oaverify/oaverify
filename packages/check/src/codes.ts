@@ -149,6 +149,22 @@ export const CODES_BY_CLASS = {
   malformed: MALFORMED_CODES,
 } as const satisfies Readonly<Record<string, readonly string[]>>;
 
+/**
+ * Every code a `check` run can emit, as a type.
+ *
+ * Derived from {@link CODES_BY_CLASS} rather than written out, so it
+ * cannot disagree with the runtime set below. Most of that table is
+ * already pinned to the emitting packages' unions in both directions
+ * (#641), which makes this the last link in a chain running from a
+ * keyword's declared code to what a consumer autocompletes.
+ *
+ * Consumers meet it through {@link CheckFinding.code}, which widens it
+ * with `string` on purpose; the reasoning is on that field.
+ *
+ * @public
+ */
+export type CheckCode = (typeof CODES_BY_CLASS)[keyof typeof CODES_BY_CLASS][number];
+
 /** Every code `check` can emit, flattened. */
 export const CHECK_CODES: ReadonlySet<string> = new Set(
   Object.values(CODES_BY_CLASS).flatMap((codes) => [...codes]),

@@ -54,6 +54,9 @@ importers:
       '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
+      '@oaverify/internal-schema':
+        specifier: workspace:*
+        version: link:../schema
       '@oaverify/internal-spec':
         specifier: workspace:*
         version: link:../spec

@@ -11,6 +11,7 @@
 
 import type { RejectionReason } from "@oaverify/internal-core";
 import type { SourceAddress } from "@oaverify/internal-spec";
+import type { CheckCode } from "./codes.js";
 
 /**
  * A single finding from a `check` run, normalised across the classes so
@@ -57,8 +58,25 @@ export interface CheckFinding {
    * finding to `"fatal"` never claims the document failed to compile.
    */
   severity: CheckSeverity;
-  /** The class-specific code, e.g. `"unused-component"`, `"unknown-keyword"`. */
-  code: string;
+  /**
+   * The class-specific code, e.g. `"unused-component"`,
+   * `"unknown-keyword"`.
+   *
+   * Typed as the known set widened by `string`, which is deliberate and
+   * is not the same as `string`. The intersection makes every code in
+   * {@link CheckCode} autocomplete and keeps an unknown one assignable,
+   * so adding a code is not a breaking change.
+   *
+   * A closed union would break every exhaustive `switch` each time a
+   * code is added, and codes are added often: three arrived in the week
+   * before this package existed. A bare `string` would throw away the
+   * registry #641 built. This keeps both.
+   *
+   * The consequence to know about: a `switch` over this cannot be
+   * exhaustive, so write a `default`. That is the honest shape, because
+   * a consumer pinned at one version will meet codes from a later one.
+   */
+  code: CheckCode | (string & {});
   /**
    * Where it is, for a human. Display text, and the format varies by
    * class: a pointer for the classes that address the document, an

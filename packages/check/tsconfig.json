@@ -7,5 +7,5 @@
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "src/**/*.test.ts"],
-  "references": [{ "path": "../core" }, { "path": "../spec" }]
+  "references": [{ "path": "../core" }, { "path": "../schema" }, { "path": "../spec" }]
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
+import { REDOS_CODES } from "@oaverify/check";
 import { checkDocumentRedos } from "../src/redos-check.js";
 
 const withPattern = (pattern: string, extra: Record<string, unknown> = {}) =>
@@ -149,5 +150,16 @@ describe("checkDocumentRedos", () => {
       },
     } as unknown as OpenAPIDocument;
     expect(checkDocumentRedos(doc)).toHaveLength(2);
+  });
+});
+
+// The registry in `@oaverify/check` hand-writes this class's codes,
+// because there is no union at the emit site to pin them to. This is
+// the other half of that pin: what the pass actually emits.
+describe("the emitted code matches the registry", () => {
+  it("emits only codes REDOS_CODES lists", () => {
+    const issues = checkDocumentRedos(withPattern("^(a+)+$"));
+    expect(issues.length).toBeGreaterThan(0);
+    for (const issue of issues) expect(REDOS_CODES).toContain(issue.code);
   });
 });

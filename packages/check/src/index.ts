@@ -12,6 +12,18 @@
  */
 
 export {
+  CHECK_CODES,
+  CHECK_FAMILIES,
+  CODES_BY_CLASS,
+  CONFORMANCE_CODES,
+  EXAMPLES_CODES,
+  HYGIENE_CODES,
+  MALFORMED_CODES,
+  REDOS_CODES,
+  SCHEMA_CODES,
+  type CheckCode,
+} from "./codes.js";
+export {
   CHECK_CLASSES,
   CHECK_SEVERITIES,
   type CheckClass,

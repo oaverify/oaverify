@@ -13,7 +13,7 @@
  * @packageDocumentation
  */
 
-import { CHECK_CODES, CHECK_FAMILIES } from "./codes.js";
+import { CHECK_CODES, CHECK_FAMILIES } from "@oaverify/check";
 import type { CheckClass, CheckSeverity } from "@oaverify/check";
 
 /**
