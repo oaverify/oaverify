@@ -103,6 +103,18 @@ export interface StreamValidatorOptions {
   formats?: Record<string, (value: string) => boolean>;
 
   /**
+   * What to do about a `format` with no validator registered under its
+   * name: `"ignore"` (default) leaves it asserting nothing, `"error"`
+   * refuses to build the island delegate.
+   *
+   * Only the BUFFER-island delegate asserts `format`, so this is scoped
+   * to the same place {@link StreamValidatorOptions.formats} is.
+   *
+   * See `CompileOptions.unknownFormats`.
+   */
+  unknownFormats?: "ignore" | "error";
+
+  /**
    * Custom keywords registered with the in-memory compiler. A keyword
    * present here is delegable (its subtree is classified BUFFER); one
    * absent that appears in a schema is a compile-time REJECT, never a

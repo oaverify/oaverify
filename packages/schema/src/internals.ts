@@ -53,6 +53,11 @@ export {
 // registry + dynamic-anchor collector are strictly internal.
 export { SchemaRegistry, collectDynamicAnchors } from "./resolve/index.js";
 
+// The `unknownFormats: "error"` check, so an engine that compiles
+// lazily can run it at construction instead of mid-stream.
+export { assertFormatsRegistered } from "./compiler/unknown-formats.js";
+export { buildKeywordMap } from "./introspection.js";
+
 // Keyword-context factory. Keyword authors receive a context (via
 // `compile(ctx)`); only the compiler (and tests that exercise a
 // keyword in isolation) need to build one.

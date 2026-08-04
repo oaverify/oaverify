@@ -45,6 +45,7 @@ import {
   openapi31Dialect,
 } from "@oaverify/internal-schema";
 import { builtInFormats } from "@oaverify/internal-formats";
+import { assertFormatsRegistered, buildKeywordMap } from "@oaverify/internal-schema/internals";
 import { normalizeOas30 } from "../openapi/index.js";
 import { classify } from "../classifier/index.js";
 import {
@@ -223,6 +224,7 @@ function buildDelegate(
         // Passing only `options.formats` meant an unregistered name
         // asserted nothing and said nothing about it (#636).
         formats: { ...builtInFormats, ...options.formats },
+        ...(options.unknownFormats === undefined ? {} : { unknownFormats: options.unknownFormats }),
         ...(options.regexCompiler === undefined ? {} : { regexCompiler: options.regexCompiler }),
         ...(options.keywords === undefined ? {} : { keywords: options.keywords }),
       }).validate as CompiledValidator;
@@ -390,6 +392,18 @@ export class StreamValidator extends Transform {
       parity: options.parity,
       enforceBounds: options.enforceBounds,
     });
+    // Same fast-fail: a `format` nothing can enforce is refused before
+    // any byte rather than when an island first compiles, which is
+    // mid-stream and reaches the caller as a fatal `error` event.
+    if (options.unknownFormats === "error") {
+      assertFormatsRegistered(
+        root,
+        buildKeywordMap(dialect.vocabularies),
+        new Map(Object.entries({ ...builtInFormats, ...options.formats })),
+        undefined,
+      );
+    }
+
     // Surface the sound-but-unbounded warnings the classifier flagged
     // (enforceBounds turns them into a throw above; otherwise they are dropped
     // unless a `warn` sink is provided).
