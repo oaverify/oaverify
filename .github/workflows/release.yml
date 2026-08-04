@@ -130,7 +130,7 @@ jobs:
       - name: Pack
         run: |
           mkdir -p pkgs
-          for pkg in . packages/oav packages/yaml packages/oav-express4 packages/oav-express5 packages/oav-fastify packages/stream-validator; do
+          for pkg in . packages/check packages/oav packages/yaml packages/oav-express4 packages/oav-express5 packages/oav-fastify packages/stream-validator; do
             (cd "$pkg" && pnpm pack --pack-destination "$GITHUB_WORKSPACE/pkgs")
           done
       # Publish via npm CLI, which performs the OIDC token exchange
@@ -163,6 +163,7 @@ jobs:
           # path recovers, but the broken window is public and avoidable.
           ORDER=(
             "oaverify-core-*.tgz"
+            "oaverify-check-*.tgz"
             "oaverify-yaml-*.tgz"
             "oaverify-stream-*.tgz"
             "oaverify-express4-*.tgz"
