@@ -30,13 +30,12 @@ on:
     inputs:
       tag:
         # release-please creates one tag per package per release
-        # (component prefix from release-please-config.json). The six
-        # linked packages share a version, so their tags point at the same
-        # commit; stream is unlinked (its own 1.x line) and carries its own
-        # tag at its own commit. Pass whichever package's tag you are
-        # republishing; core is the conventional choice for the linked
-        # group.
-        description: "Release tag to (re)publish, e.g. core-v4.0.0 or stream-v1.2.0"
+        # (component prefix from release-please-config.json). All eight
+        # packages are one linked-versions group, so they share a version
+        # and their tags point at the same commit. Pass whichever
+        # package's tag you are republishing; core is the conventional
+        # choice.
+        description: "Release tag to (re)publish, e.g. core-v5.4.0 or check-v5.4.0"
         required: true
         type: string
 
@@ -65,8 +64,9 @@ jobs:
     # publish — release-please's `releases_created` is `false` while
     # it's only updating the in-flight release PR. Note the plural: the
     # singular `release_created` is scoped to the ROOT component, so a
-    # release that touches only an unlinked package (stream) would tag
-    # but never publish.
+    # release that tagged no root change would tag but never publish.
+    # Every package is linked today, which makes that unreachable; the
+    # plural costs nothing and survives a package leaving the group.
     if: |
       needs.release-please.outputs.releases_created == 'true' ||
       github.event_name == 'workflow_dispatch'
@@ -81,13 +81,19 @@ jobs:
       # true`). Reject anything else so a dispatcher can't pass
       # `main` or a SHA and end up publishing whatever happens to
       # be at that ref.
+      #
+      # The component list is hand-maintained: this step runs before
+      # checkout, so it cannot read them out of the config. Adding a
+      # package means adding it here as well as to Pack and ORDER
+      # below. Getting it wrong only breaks the dispatch recovery
+      # path, which is the worst time to find out.
       - name: Validate release tag
         if: github.event_name == 'workflow_dispatch'
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          if [[ ! "$TAG" =~ ^(core|oaverify|yaml|express4|express5|fastify|stream)-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Invalid tag '$TAG'. Expected <component>-v<MAJOR>.<MINOR>.<PATCH>, e.g. core-v4.0.0"
+          if [[ ! "$TAG" =~ ^(core|oaverify|yaml|check|express4|express5|fastify|stream)-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid tag '$TAG'. Expected <component>-v<MAJOR>.<MINOR>.<PATCH>, e.g. core-v5.4.0"
             exit 1
           fi
       # Check out the exact release commit. On the auto path
@@ -130,7 +136,7 @@ jobs:
       - name: Pack
         run: |
           mkdir -p pkgs
-          for pkg in . packages/oav packages/yaml packages/oav-express4 packages/oav-express5 packages/oav-fastify packages/stream-validator; do
+          for pkg in . packages/check packages/oav packages/yaml packages/oav-express4 packages/oav-express5 packages/oav-fastify packages/stream-validator; do
             (cd "$pkg" && pnpm pack --pack-destination "$GITHUB_WORKSPACE/pkgs")
           done
       # Publish via npm CLI, which performs the OIDC token exchange
@@ -163,6 +169,7 @@ jobs:
           # path recovers, but the broken window is public and avoidable.
           ORDER=(
             "oaverify-core-*.tgz"
+            "oaverify-check-*.tgz"
             "oaverify-yaml-*.tgz"
             "oaverify-stream-*.tgz"
             "oaverify-express4-*.tgz"
