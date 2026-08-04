@@ -33,17 +33,21 @@ import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
 import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
 import {
+  applySkip,
   CHECK_CLASSES,
   CHECK_SEVERITIES,
   checkSpec,
   EMPTY_SEVERITY_MAP,
   parseSeverityMap,
+  parseSkipKeys,
   renderSarif,
   SeverityMapError,
+  SkipKeyError,
   type CheckClass,
   CheckAbortedError,
   type CheckFinding,
   type CheckSeverity,
+  type FindingKey,
   type SeverityMap,
 } from "@oaverify/check";
 
@@ -328,6 +332,16 @@ export async function checkCommand(
      * why `malformed` is refused.
      */
     severity?: readonly string[];
+    /**
+     * `--skip` entries, unparsed. Each is a comma-separated list of
+     * keys in `--severity`'s key space; see `parseSkipKeys` for the
+     * grammar and for why `malformed` is refused.
+     *
+     * Beside `--only` rather than `--severity` on purpose: which
+     * findings exist is `--only`'s question, and `docs/strictness.md`
+     * promises `--severity` changes grading and nothing else.
+     */
+    skip?: readonly string[];
     /** `"text"` (default), `"json"`, or `"sarif"`. */
     format?: "text" | "json" | "sarif";
     /**
@@ -374,6 +388,17 @@ export async function checkCommand(
     return { exitCode: 3 };
   }
 
+  // Same reasoning as `--severity`: parse before reading anything, so
+  // a typo fails on the flag rather than after grading a document.
+  let skipKeys: FindingKey[];
+  try {
+    skipKeys = args.skip === undefined || args.skip.length === 0 ? [] : parseSkipKeys(args.skip);
+  } catch (err) {
+    if (!(err instanceof SkipKeyError)) throw err;
+    io.stderr(`check: --skip ${err.message}\n`);
+    return { exitCode: 3 };
+  }
+
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(io, args.overlays);
@@ -415,6 +440,19 @@ export async function checkCommand(
     return { exitCode: 2 };
   }
 
+  // A skipped finding is not produced: it leaves the array here, so it
+  // gates on nothing below and counts toward nothing in the summary.
+  // The report is what keeps that from being silent.
+  const skipResult = applySkip(findings, skipKeys);
+  findings = skipResult.findings;
+  const skipped = skipResult.skipped;
+  const skipLine =
+    skipped.length === 0
+      ? ""
+      : `skipped: ${skipResult.dropped} finding(s) (${skipped
+          .map((e) => `${e.key} x${e.count}`)
+          .join(", ")})\n`;
+
   const sink = primarySink(io, args.options);
   if (args.format === "sarif") {
     await sink(
@@ -422,12 +460,16 @@ export async function checkCommand(
         version: args.version ?? "0.0.0",
         base: args.cwd ?? process.cwd(),
         classes: [...classes],
+        skipped,
       }),
     );
   } else if (args.format === "json") {
-    await sink(JSON.stringify({ findings }, null, 2) + "\n");
+    await sink(
+      JSON.stringify({ findings, ...(skipped.length === 0 ? {} : { skipped }) }, null, 2) + "\n",
+    );
   } else if (findings.length === 0) {
     await sink(`check: no findings (${[...classes].sort().join(", ")})\n`);
+    if (skipLine !== "") await sink(skipLine);
   } else {
     const width = args.width ?? DEFAULT_REPORT_WIDTH;
     for (const f of findings) {
@@ -470,6 +512,9 @@ export async function checkCommand(
       .join(", ");
     // No leading blank line: each finding block already ends with one.
     await sink(`${findings.length} finding(s): ${bySeverity}\n`);
+    // After the total, because it qualifies it: the count above is what
+    // survived, and this is what did not.
+    if (skipLine !== "") await sink(skipLine);
   }
 
   // A malformed schema outranks the gate: the document cannot be

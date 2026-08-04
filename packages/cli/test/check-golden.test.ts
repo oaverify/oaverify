@@ -64,6 +64,7 @@ async function run(
     only?: CheckClass[];
     failOn?: CheckSeverity;
     severity?: readonly string[];
+    skip?: readonly string[];
     format?: "text" | "json" | "sarif";
     spec?: string;
   } = {},
@@ -76,6 +77,7 @@ async function run(
       ...(args.only !== undefined && { only: args.only }),
       ...(args.failOn !== undefined && { failOn: args.failOn }),
       ...(args.severity !== undefined && { severity: args.severity }),
+      ...(args.skip !== undefined && { skip: args.skip }),
       ...(args.format !== undefined && { format: args.format }),
       // Pinned so SARIF paths do not depend on where the suite ran, and
       // so the tool version in the log is stable across releases.
@@ -168,6 +170,79 @@ describe("check output is byte-identical (#572)", () => {
     expect(exitCode).toBe(2);
     expect(stdout).toBe("");
     expectGolden("unreadable.stderr", stderr);
+  });
+
+  it("--skip drops a code and says what it dropped, text", async () => {
+    const { exitCode, stdout } = await run(kitchenSink(), { skip: ["unused-component"] });
+    expect(exitCode).toBe(0);
+    expectGolden("skip-code.text", stdout);
+  });
+
+  it("--skip reports a key that matched nothing", async () => {
+    // A stale CI flag suppressing a code that no longer fires is the
+    // case the report exists for.
+    const { stdout } = await run(kitchenSink(), { skip: ["ambiguous-pattern,unused-tag"] });
+    expectGolden("skip-zero-count.text", stdout);
+  });
+
+  it("--skip puts a skipped block in the json report", async () => {
+    const { exitCode, stdout } = await run(kitchenSink(), {
+      skip: ["unsatisfiable/*,unused-component"],
+      format: "json",
+    });
+    expect(exitCode).toBe(0);
+    expectGolden("skip-two-keys.json", stdout);
+  });
+
+  it("--skip records a run notification in sarif, and no suppressed results", async () => {
+    const { stdout } = await run(kitchenSink(), { skip: ["unused-component"], format: "sarif" });
+    expectGolden("skip-code.sarif", stdout);
+  });
+
+  it("--skip composes with --only and --severity", async () => {
+    const { exitCode, stdout } = await run(kitchenSink(), {
+      only: ["hygiene", "redos"],
+      severity: ["redos=error"],
+      skip: ["unused-component"],
+      format: "json",
+    });
+    expect(exitCode).toBe(0);
+    expectGolden("skip-with-only-and-severity.json", stdout);
+  });
+
+  it("a skipped finding gates on nothing", async () => {
+    // Not produced, so --fail-on cannot see it. Skipping every finding
+    // a gate would have fired on turns a red run green, which is why
+    // the report above is not optional.
+    const before = await run(kitchenSink(), { failOn: "error" });
+    expect(before.exitCode).toBe(1);
+    const after = await run(kitchenSink(), {
+      failOn: "error",
+      skip: ["hygiene", "conformance", "examples"],
+    });
+    expect(after.exitCode).toBe(0);
+  });
+
+  it("--skip rejects an unknown key before reading the document", async () => {
+    const { exitCode, stdout, stderr } = await run(kitchenSink(), { skip: ["nonsense"] });
+    expect(exitCode).toBe(3);
+    expect(stdout).toBe("");
+    expectGolden("skip-bad-key.stderr", stderr);
+  });
+
+  it("--skip refuses malformed, in both spellings", async () => {
+    // The exit-4 signal is not skippable: a document that cannot be
+    // compiled is not a gate result.
+    for (const key of ["malformed", "malformed-schema"]) {
+      const { exitCode, stderr } = await run(malformedSpec(), { spec: "spec.json", skip: [key] });
+      expect(exitCode).toBe(3);
+      expect(stderr).toContain("cannot be skipped");
+    }
+  });
+
+  it("a malformed schema still exits 4 when other things are skipped", async () => {
+    const { exitCode } = await run(malformedSpec(), { spec: "spec.json", skip: ["redos"] });
+    expect(exitCode).toBe(4);
   });
 
   it("a clean document says so", async () => {

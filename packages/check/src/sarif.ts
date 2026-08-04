@@ -36,6 +36,7 @@
 import { isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { type CheckClass, type CheckFinding, type CheckSeverity } from "./finding.js";
+import type { SkipReportEntry } from "./skip.js";
 
 /** The version this emitter targets, and the schema it declares. */
 const SARIF_VERSION = "2.1.0";
@@ -173,7 +174,13 @@ function rulesOf(findings: readonly CheckFinding[]): {
  * `ruleId`, `level`, `message` and the `oaverify:*` properties, and
  * they will not annotate a file. See {@link FindingTarget.source}.
  *
- * @param findings - The findings, after any regrading.
+ * **Skipped findings are absent, and the log says so.** They were not
+ * produced, so there is no result to suppress; `--skip` is reported as
+ * a run notification instead of as `result.suppressions`, which would
+ * mean emitting the results and contradicting that. The JSON report's
+ * `skipped` block is the machine-readable form.
+ *
+ * @param findings - The findings, after any regrading and any skipping.
  * @param options - `version` names the tool and defaults to `"0.0.0"`;
  *   `base` is the directory local paths are made relative to, and
  *   defaults to the working directory; `classes` names the classes the
@@ -191,12 +198,24 @@ export function renderSarif(
     version?: string;
     base?: string;
     classes: readonly CheckClass[];
+    /** What `--skip` dropped, if anything. See {@link SkipReportEntry}. */
+    skipped?: readonly SkipReportEntry[];
   },
 ): string {
   const version = options.version ?? "0.0.0";
   const base = options.base ?? process.cwd();
   const classes = options.classes;
   const { rules, indexOf } = rulesOf(findings);
+  const skipNotifications = (options.skipped ?? []).map((entry) => ({
+    level: "note",
+    message: {
+      text:
+        `--skip ${entry.key} suppressed ${entry.count} finding(s); ` +
+        `they are absent from this log.`,
+    },
+    descriptor: { id: "oaverify:skipped" },
+    properties: { "oaverify:skipKey": entry.key, "oaverify:skipCount": entry.count },
+  }));
 
   const results = findings.map((finding) => {
     const related = relatedLocationsOf(finding, base);
@@ -251,6 +270,16 @@ export function renderSarif(
         // document: `check --only schema` reporting nothing means
         // something different from a full run reporting nothing.
         properties: { "oaverify:classes": [...classes].sort() },
+        // Same reason, for the other way a report can be short of what
+        // the passes found. A note rather than a result, because a
+        // skipped finding was not produced.
+        ...(skipNotifications.length === 0
+          ? {}
+          : {
+              invocations: [
+                { executionSuccessful: true, toolExecutionNotifications: skipNotifications },
+              ],
+            }),
         results,
       },
     ],
