@@ -2,18 +2,23 @@
  * Byte-for-byte pins on what `check` prints, across every output format
  * and every flag that changes the report.
  *
- * These exist for the move of the check logic into `@oaverify/check`
- * (#572). The rest of the suite asserts that a finding is present, or
- * that one field holds one value, which is what a test should normally
- * do. None of that catches a reordering, a dropped blank line, a
- * `source` that stopped being attached, or a SARIF property that
- * silently changed shape, and a consumer pinned at 5.3 sees all four.
+ * The rest of the suite asserts that a finding is present, or that one
+ * field holds one value, which is what a test should normally do. None
+ * of that catches a reordering, a dropped blank line, a `source` that
+ * stopped being attached, or a SARIF property that silently changed
+ * shape. The JSON and SARIF formats are machine-consumed contracts: a
+ * script parsing `--format json` or an upload to code scanning breaks
+ * on exactly the changes field assertions let through. These files make
+ * that churn visible in review, so it happens on purpose or not at all.
  *
- * The goldens are captured from the behaviour at `e251b65`, before any
- * code moved. Regenerate with `UPDATE_GOLDEN=1 pnpm vitest run
+ * Captured at `e251b65` for the move of the check logic into
+ * `@oaverify/check` (#572), where the correct number of golden changes
+ * was zero. The suite outlives the move because the output contract
+ * does. Regenerate with `UPDATE_GOLDEN=1 pnpm vitest run
  * packages/cli/test/check-golden.test.ts`, and treat a diff as a
- * question to answer rather than a file to refresh: during the #572
- * move the correct number of golden changes is zero.
+ * question to answer rather than a file to refresh: a text wording
+ * change is fine once it is intended, and a JSON or SARIF shape change
+ * is a compatibility decision.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
