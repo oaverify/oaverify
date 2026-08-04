@@ -76,11 +76,19 @@ describe("an OAS-defined format reads differently from a vendor one", () => {
   // Every real 3.0 document carries several of these, and the author did
   // not invent the name: the spec gave it to them and nothing enforces
   // the range. Same code, different claim.
-  it("names OpenAPI as the definer for int32 and friends", () => {
-    for (const format of ["int32", "int64", "float", "double", "byte", "binary", "password"]) {
+  it("names OpenAPI as the definer for float and friends", () => {
+    for (const format of ["float", "double", "byte", "binary", "password"]) {
       const message = check(doc({ type: "string", format }))[0]?.message ?? "";
       expect(message).toContain(`OpenAPI defines "${format}" but oaverify does not assert it`);
     }
+  });
+
+  it("says nothing at all about int32 and int64, which are asserted", () => {
+    // They were OAS_DEFINED members until they became assertable. The
+    // walk skips anything KNOWN_FORMATS holds, so the OAS-defined
+    // wording for them is now unreachable rather than merely unused.
+    expect(check(doc({ type: "integer", format: "int32" }))).toEqual([]);
+    expect(check(doc({ type: "integer", format: "int64" }))).toEqual([]);
   });
 
   it("does not claim OpenAPI defined a vendor name", () => {

@@ -5,6 +5,7 @@ import {
   detectOpenAPIVersion,
   type HttpRequest,
   type HttpResponse,
+  type FormatDefinition,
   type OpenAPIDocument,
   type OpenAPIVersion,
   type OperationObject,
@@ -661,8 +662,27 @@ export interface ValidatorOptions {
 
   // --- 2. Shared extension points ---
 
-  /** Optional extra format validators merged on top of {@link builtInFormats}. */
-  formats?: Record<string, (value: string) => boolean>;
+  /**
+   * Optional extra format validators, merged on top of
+   * {@link builtInFormats}. A name here replaces the built-in of that
+   * name.
+   *
+   * One registry for every format whatever JSON type it constrains:
+   * `date-time` takes a string, `int32` takes a number. See
+   * {@link FormatDefinition} for the four spellings.
+   *
+   * This is also the per-format escape hatch. The OpenAPI dialects
+   * assert `format`, so `int32` and `int64` reject out-of-range numbers
+   * by default; `false` keeps a name as an annotation and asserts
+   * nothing:
+   *
+   * ```ts
+   * // int64 asserts only the safe-integer range, because a JSON number
+   * // past 2^53 has already lost precision. To accept those anyway:
+   * createValidator(spec, { formats: { int64: false } });
+   * ```
+   */
+  formats?: Record<string, FormatDefinition>;
   /**
    * User-registered schema keywords. The record is keyed by keyword
    * name; each validator is invoked whenever that name appears in a

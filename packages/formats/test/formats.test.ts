@@ -1,3 +1,4 @@
+import { normalizeFormat, type FormatDefinition } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import {
   builtInFormats,
@@ -8,6 +9,8 @@ import {
   validateEmail,
   validateHostname,
   validateIdnEmail,
+  validateInt32,
+  validateInt64,
   validateIpv4,
   validateIpv6,
   validateJsonPointer,
@@ -148,7 +151,7 @@ describe("regex / uuid", () => {
 });
 
 describe("builtInFormats map", () => {
-  it("exposes every format by name", () => {
+  it("exposes every string format by name, as a bare function", () => {
     const keys = [
       "date-time",
       "date",
@@ -169,7 +172,22 @@ describe("builtInFormats map", () => {
       "relative-json-pointer",
       "uuid",
     ];
+    // The bare-function shorthand, so a string format's entry is the
+    // predicate itself and reads the way it always has.
     for (const k of keys) expect(typeof builtInFormats[k]).toBe("function");
+  });
+
+  it("exposes the numeric formats with a declared type", () => {
+    expect(builtInFormats["int32"]).toEqual({ type: "number", validate: validateInt32 });
+    expect(builtInFormats["int64"]).toEqual({ type: "number", validate: validateInt64 });
+  });
+
+  it("does not include float or double", () => {
+    // Deliberate: every JSON number is already a double, and a
+    // Math.fround-based float rejects values a producer legitimately
+    // sent.
+    expect(builtInFormats["float"]).toBeUndefined();
+    expect(builtInFormats["double"]).toBeUndefined();
   });
 
   it("does not include `regex` (registered by @oaverify/internal-schema's createDeps)", () => {
@@ -177,14 +195,82 @@ describe("builtInFormats map", () => {
   });
 });
 
+describe("normalizeFormat", () => {
+  it("reads a bare function as a string format", () => {
+    const fn = (v: string): boolean => v === "x";
+    expect(normalizeFormat(fn)).toEqual({ type: "string", validate: fn });
+  });
+
+  it("reads a bare function as a string format even for a numeric built-in name", () => {
+    // No name-based inference: the caller wrote a bare function, so it
+    // is a string format, and there is no table that says otherwise.
+    const fn = ((): boolean => true) as (value: string) => boolean;
+    expect(normalizeFormat(fn)?.type).toBe("string");
+  });
+
+  it("carries a declared type through", () => {
+    const validate = (n: number): boolean => n > 0;
+    expect(normalizeFormat({ type: "number", validate })).toEqual({ type: "number", validate });
+  });
+
+  it("reads false as registered-and-asserting-nothing", () => {
+    // null, not undefined: a caller asking "is this registered" has to
+    // tell a deliberate opt-out from a name nobody mentioned.
+    expect(normalizeFormat(false)).toBeNull();
+  });
+});
+
+describe("int32 / int64", () => {
+  it("accepts the int32 range and rejects either side of it", () => {
+    expect(validateInt32(0)).toBe(true);
+    expect(validateInt32(-2147483648)).toBe(true);
+    expect(validateInt32(2147483647)).toBe(true);
+    expect(validateInt32(-2147483649)).toBe(false);
+    expect(validateInt32(2147483648)).toBe(false);
+    expect(validateInt32(3000000000)).toBe(false);
+  });
+
+  it("rejects a non-integer number under int32", () => {
+    expect(validateInt32(1.5)).toBe(false);
+    expect(validateInt32(NaN)).toBe(false);
+    expect(validateInt32(Infinity)).toBe(false);
+  });
+
+  it("accepts int64 over the safe-integer range", () => {
+    expect(validateInt64(0)).toBe(true);
+    expect(validateInt64(3000000000)).toBe(true);
+    expect(validateInt64(Number.MAX_SAFE_INTEGER)).toBe(true);
+    expect(validateInt64(Number.MIN_SAFE_INTEGER)).toBe(true);
+  });
+
+  it("rejects an int64 above 2^53, which JSON has already rounded", () => {
+    // Legal int64, illegal JSON number: JSON.parse("9223372036854775807")
+    // yields a different value than the one on the wire, and this is
+    // the range where that starts.
+    expect(validateInt64(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
+    expect(validateInt64(Number.MIN_SAFE_INTEGER - 1)).toBe(false);
+  });
+
+  it("rejects a non-integer number under int64", () => {
+    expect(validateInt64(1.5)).toBe(false);
+    expect(validateInt64(NaN)).toBe(false);
+    expect(validateInt64(Infinity)).toBe(false);
+  });
+});
+
 describe("fromAjvFormats", () => {
-  it("converts Ajv-shaped definitions to plain string predicates", () => {
+  const asString = (def: FormatDefinition | undefined): ((v: string) => boolean) => {
+    const n = def === undefined ? null : normalizeFormat(def);
+    expect(n?.type).toBe("string");
+    return n?.validate as unknown as (v: string) => boolean;
+  };
+
+  it("converts Ajv-shaped definitions to declared format definitions", () => {
     const result = fromAjvFormats({
       duration: { type: "string", validate: (v) => typeof v === "string" && v.startsWith("P") },
     });
-    expect(typeof result.duration).toBe("function");
-    expect(result.duration?.("P1D")).toBe(true);
-    expect(result.duration?.("1D")).toBe(false);
+    expect(asString(result.duration)("P1D")).toBe(true);
+    expect(asString(result.duration)("1D")).toBe(false);
   });
 
   it("coerces truthy non-boolean returns to true", () => {
@@ -193,24 +279,34 @@ describe("fromAjvFormats", () => {
         validate: (v) => (typeof v === "string" && v.length > 0 ? 1 : 0) as unknown as boolean,
       },
     });
-    expect(result.truthy?.("x")).toBe(true);
-    expect(result.truthy?.("")).toBe(false);
+    expect(asString(result.truthy)("x")).toBe(true);
+    expect(asString(result.truthy)("")).toBe(false);
   });
 
-  it("tolerates entries without `type`", () => {
+  it("treats an entry without `type` as a string format, as Ajv does", () => {
+    const result = fromAjvFormats({ anything: { validate: () => true } });
+    expect(normalizeFormat(result.anything!)?.type).toBe("string");
+  });
+
+  it('carries `type: "number"` through as a numeric format', () => {
+    // Before numeric formats existed this entry landed in the string
+    // map and was called with strings.
     const result = fromAjvFormats({
-      anything: { validate: () => true },
+      "x-count": { type: "number", validate: (v) => typeof v === "number" && v > 0 },
     });
-    expect(result.anything?.("x")).toBe(true);
+    const n = normalizeFormat(result["x-count"]!);
+    expect(n?.type).toBe("number");
+    const validate = n?.validate as unknown as (v: number) => boolean;
+    expect(validate(1)).toBe(true);
+    expect(validate(0)).toBe(false);
   });
 
   it("hands back a map directly usable by createValidator / compileSchema", () => {
     const ajvMap = { foo: { type: "string" as const, validate: (v: unknown) => v === "foo" } };
     const formats = fromAjvFormats(ajvMap);
-    // Shape matches what compileSchema expects: Record<string, (v: string) => boolean>
     expect(Object.keys(formats)).toEqual(["foo"]);
-    expect(formats.foo?.("foo")).toBe(true);
-    expect(formats.foo?.("bar")).toBe(false);
+    expect(asString(formats.foo)("foo")).toBe(true);
+    expect(asString(formats.foo)("bar")).toBe(false);
   });
 });
 

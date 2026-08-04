@@ -1,8 +1,11 @@
+import type { FormatDefinition } from "@oaverify/internal-core";
+
 export { validateDate, validateDateTime, validateDuration, validateTime } from "./date.js";
 export { validateEmail, validateIdnEmail } from "./email.js";
 export { validateHostname, validateIdnHostname } from "./hostname.js";
 export { validateIpv4, validateIpv6 } from "./ip.js";
 export { validateRegex, validateUuid } from "./misc.js";
+export { validateInt32, validateInt64 } from "./numeric.js";
 export {
   validateIri,
   validateIriReference,
@@ -22,6 +25,7 @@ import { validateIpv4, validateIpv6 } from "./ip.js";
 // pattern-keyword compile path (and the regexCompiler hook). The standalone
 // validateRegex export still lives in ./misc.ts as a u-mode utility.
 import { validateUuid } from "./misc.js";
+import { validateInt32, validateInt64 } from "./numeric.js";
 import {
   validateIri,
   validateIriReference,
@@ -33,9 +37,22 @@ import {
 } from "./uri.js";
 
 /**
- * Every built-in format validator, keyed by its JSON Schema format name.
- * Hand to `compileSchema`'s `formats` option to get out-of-the-box
- * format validation.
+ * Every built-in format validator, keyed by its format name.
+ *
+ * String formats are bare functions, per {@link FormatDefinition}'s
+ * shorthand. The two OpenAPI numeric formats declare `type: "number"`,
+ * because a format's JSON type is a property of the format.
+ *
+ * `createValidator` registers all of these for an OpenAPI document.
+ * Direct `compileSchema` callers pass them through the `formats`
+ * option, which is also how a caller replaces one:
+ *
+ * ```ts
+ * compileSchema(schema, {
+ *   dialect: oas30Dialect,
+ *   formats: { ...builtInFormats, int64: false },
+ * });
+ * ```
  *
  * `regex` is intentionally absent: `@oaverify/core/schema` registers
  * its own `regex` validator inside the compiler dependencies so it
@@ -43,14 +60,12 @@ import {
  * the `regexCompiler` option. Override by setting
  * `formats: { regex: yourFn, ... }` if you want a different policy.
  *
- * @public
+ * `float` and `double` are absent too, and that is a decision rather
+ * than a gap; the reasoning is in `numeric.ts`.
  *
- * @example
- * ```ts
- * compileSchema(mySchema, { dialect: jsonSchemaDialect, formats: builtInFormats });
- * ```
+ * @public
  */
-export const builtInFormats: Record<string, (value: string) => boolean> = {
+export const builtInFormats: Record<string, FormatDefinition> = {
   "date-time": validateDateTime,
   date: validateDate,
   time: validateTime,
@@ -69,13 +84,17 @@ export const builtInFormats: Record<string, (value: string) => boolean> = {
   "json-pointer": validateJsonPointer,
   "relative-json-pointer": validateRelativeJsonPointer,
   uuid: validateUuid,
+  int32: { type: "number", validate: validateInt32 },
+  int64: { type: "number", validate: validateInt64 },
 };
 
 /**
- * An Ajv-shaped format definition: `{ type, validate }`. oaverify's
- * `format` keyword only applies to string values (per JSON Schema
- * 2020-12 §6.3), so `type` is carried for shape compatibility but
- * not acted on; non-string values skip format validation regardless.
+ * An Ajv-shaped format definition: `{ type, validate }`.
+ *
+ * `type` says which JSON type the validator expects, and oaverify acts
+ * on it: it is the same question {@link FormatDefinition}'s full form
+ * asks. A definition with no `type` is a string format, matching Ajv's
+ * own default.
  *
  * Ajv's adjacent `async` / `compare` fields aren't used by oaverify and
  * are ignored by {@link fromAjvFormats}.
@@ -88,14 +107,19 @@ export interface AjvFormatDef {
 }
 
 /**
- * Convert a map of Ajv-shaped format definitions to the plain
- * predicate shape oaverify's `formats` option expects. One-way; pass the
- * result straight into `createValidator` / `compileSchema`.
+ * Convert a map of Ajv-shaped format definitions to the shape
+ * oaverify's `formats` option expects. One-way; pass the result
+ * straight into `createValidator` / `compileSchema`.
  *
  * Main audience: migrants from `ajv-formats` or
  * `express-openapi-validator`'s `formats` option, who already have a
  * `Record<string, { type, validate }>` lying around and would
- * otherwise hand-roll the three-line conversion on every project.
+ * otherwise hand-roll the conversion on every project.
+ *
+ * `type` is carried through, so a `type: "number"` definition arrives
+ * as a numeric format and is called with numbers. Before numeric
+ * formats existed this function dropped such an entry into the string
+ * map, where it was called with strings.
  *
  * Non-boolean truthy returns from the source validator are coerced
  * to `true` (some adapter packages in the wild return `1` / strings).
@@ -114,11 +138,13 @@ export interface AjvFormatDef {
  */
 export function fromAjvFormats(
   defs: Record<string, AjvFormatDef>,
-): Record<string, (value: string) => boolean> {
+): Record<string, FormatDefinition> {
   return Object.fromEntries(
-    Object.entries(defs).map(([name, def]) => [
+    Object.entries(defs).map(([name, def]): [string, FormatDefinition] => [
       name,
-      (value: string) => Boolean(def.validate(value)),
+      def.type === "number"
+        ? { type: "number", validate: (value: number) => Boolean(def.validate(value)) }
+        : { type: "string", validate: (value: string) => Boolean(def.validate(value)) },
     ]),
   );
 }

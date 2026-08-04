@@ -20,6 +20,11 @@ import { walkSubschemas } from "../subschema-positions.js";
  * vocabulary nothing is enforced by design, so there is nothing for a
  * missing validator to have cost.
  *
+ * @param formats - Registered format names. Only the keys are read, so
+ *   a name registered as `false` (asserting nothing on purpose) counts
+ *   as registered: the caller made a decision about it, which is what
+ *   this option is asking whether anyone did.
+ *
  * @throws Error naming every unregistered format, sorted, at most once
  *   each. Reported together rather than one per compile so a caller
  *   turning this on for the first time sees the whole list.
@@ -27,7 +32,7 @@ import { walkSubschemas } from "../subschema-positions.js";
 export function assertFormatsRegistered(
   schema: SchemaOrBoolean,
   byKeyword: ReadonlyMap<string, KeywordDefinition>,
-  formats: ReadonlyMap<string, (value: string) => boolean>,
+  formats: ReadonlyMap<string, unknown>,
   label: string | undefined,
   resolveRef?: (ref: string) => unknown,
 ): void {

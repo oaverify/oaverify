@@ -5,7 +5,7 @@
  * @packageDocumentation
  */
 
-import type { PathSegment } from "@oaverify/internal-core";
+import type { FormatDefinition, PathSegment } from "@oaverify/internal-core";
 import type { CustomKeywordValidator, Dialect, RegexCompiler } from "@oaverify/internal-schema";
 
 /**
@@ -87,7 +87,9 @@ export interface StreamValidatorOptions {
 
   /**
    * Extra format validators merged on top of `builtInFormats`, the same
-   * shape and the same merge as `createValidator`'s option of this name.
+   * shape and the same merge as `createValidator`'s option of this
+   * name. One registry for every format whatever JSON type it
+   * constrains; see {@link FormatDefinition}.
    * A name registered here wins over a built-in of that name.
    *
    * Threaded into the BUFFER-island delegate's in-memory compile; they
@@ -100,7 +102,7 @@ export interface StreamValidatorOptions {
    * today therefore leaves a later addition silently unchecked, which is
    * why the built-ins are the base rather than the whole set.
    */
-  formats?: Record<string, (value: string) => boolean>;
+  formats?: Record<string, FormatDefinition>;
 
   /**
    * What to do about a `format` with no validator registered under its

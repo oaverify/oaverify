@@ -26,14 +26,17 @@ export const KNOWN_FORMATS: ReadonlySet<string> = new Set(Object.keys(builtInFor
 /**
  * Formats OpenAPI names but oaverify does not assert. Every real 3.0
  * document uses several, so folding them in with vendor names would
- * report `int32` in the same words as `twiml` and bury the difference:
+ * report `float` in the same words as `twiml` and bury the difference:
  * one is a name the author invented, the other is a name the spec gave
  * them and a range nothing enforces.
  *
- * `date`, `date-time` and `byte`'s base64 are OAS formats too, and are
- * absent here because `builtInFormats` covers them.
+ * `date`, `date-time`, `int32`, `int64` and `byte`'s base64 are OAS
+ * formats too, and are absent here because `builtInFormats` covers
+ * them. `int32` and `int64` were members until they became assertable;
+ * a name in both sets would be unreachable, since the walk skips
+ * anything `known` holds.
  */
-const OAS_DEFINED = new Set(["int32", "int64", "float", "double", "byte", "binary", "password"]);
+const OAS_DEFINED = new Set(["float", "double", "byte", "binary", "password"]);
 
 /** A `format` name with no validator behind it. */
 export interface FormatIssue {
