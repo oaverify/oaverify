@@ -173,6 +173,69 @@ function collectLeafCodes(err: ValidationError): string[] {
   return err.children.flatMap(collectLeafCodes);
 }
 
+describe("compile-spec: format assertion parity", () => {
+  // The emitted module builds its own `deps` and loads `builtInFormats`
+  // into it, so it has to normalize the way the runtime does. It did
+  // not, once, and every string format silently stopped asserting in
+  // AOT output while the runtime kept rejecting: a whole class of
+  // assertion missing from compiled validators with a green suite.
+  const formatSpec: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "Formats", version: "1" },
+    paths: {
+      "/p": {
+        post: {
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    when: { type: "string", format: "date-time" },
+                    n: { type: "integer", format: "int32" },
+                    big: { type: "integer", format: "int64" },
+                  },
+                },
+              },
+            },
+          },
+          responses: { "204": { description: "ok" } },
+        },
+      },
+    },
+  };
+
+  const post = (body: unknown): Record<string, unknown> => ({
+    method: "POST",
+    path: "/p",
+    contentType: "application/json",
+    body,
+  });
+
+  it("asserts a string format, matching createValidator", async () => {
+    const aot = await buildAot(formatSpec);
+    const runtime = createValidator(formatSpec);
+    const bad = post({ when: "not-a-date" });
+    expect(runtime.validateRequest(bad as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(bad as never)).map((e) => e.code)).toEqual(["format"]);
+    const good = post({ when: "2026-01-01T00:00:00Z" });
+    expect(flatErrors(aot.validateRequest(good as never))).toEqual([]);
+  });
+
+  it("asserts int32 and int64, matching createValidator", async () => {
+    const aot = await buildAot(formatSpec);
+    const runtime = createValidator(formatSpec);
+    for (const body of [{ n: 3000000000 }, { big: Number.MAX_SAFE_INTEGER + 1 }]) {
+      expect(runtime.validateRequest(post(body) as never).valid).toBe(false);
+      expect(flatErrors(aot.validateRequest(post(body) as never)).map((e) => e.code)).toEqual([
+        "format",
+      ]);
+    }
+    expect(flatErrors(aot.validateRequest(post({ n: 1, big: 3000000000 }) as never))).toEqual([]);
+  });
+});
+
 describe("compile-spec: equivalence vs createValidator", () => {
   it("does not satisfy required parameters from inherited record members", async () => {
     const spec: OpenAPIDocument = {
