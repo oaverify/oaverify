@@ -746,6 +746,18 @@ export interface ValidatorOptions {
    */
   schemaLint?: "off" | "warn" | "strict";
   /**
+   * What to do about a `format` with no validator registered under its
+   * name: `"ignore"` (default) leaves it asserting nothing, `"error"`
+   * refuses to compile.
+   *
+   * Compilation is lazy, so an unregistered format in an operation
+   * nothing has touched surfaces on that operation's first request.
+   * Call {@link Validator.precompile} at boot for the failure at boot.
+   *
+   * See {@link @oaverify/internal-schema!CompileOptions.unknownFormats}.
+   */
+  unknownFormats?: "ignore" | "error";
+  /**
    * Custom compiler for schema `pattern` keywords and `format: "regex"`.
    * Defaults to JavaScript's built-in `RegExp` (with u-mode and a
    * non-u fallback). Override to plug in a library like `re2` when
@@ -1052,6 +1064,7 @@ export function createValidator(
       maxDepth: options.maxDepth,
       keywords: options.keywords,
       schemaLint: options.schemaLint,
+      unknownFormats: options.unknownFormats,
       regexCompiler: options.regexCompiler,
     });
     compiledCache.set(schema, c);

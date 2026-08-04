@@ -204,3 +204,38 @@ describe("formats and keywords reach the delegate", () => {
     expect(bad.violations[0]?.params).toEqual({ parity: "odd" });
   });
 });
+
+// #635: `unknownFormats: "error"` refuses at construction, matching the
+// package's fast-fail invariant, rather than when an island first
+// compiles (mid-stream, reaching the caller as a fatal `error` event).
+describe("unknownFormats", () => {
+  const mk = (format: string, opts: Record<string, unknown>) =>
+    createStreamValidator({ type: "string", format } as SchemaOrBoolean, {
+      openApiVersion: "3.1",
+      policy: "detach",
+      ...opts,
+    });
+
+  it("refuses an unregistered format before any byte", () => {
+    expect(() => mk("vendor-thing", { unknownFormats: "error" })).toThrow(
+      /no validator registered for format "vendor-thing"/,
+    );
+  });
+
+  it("accepts a built-in, which is merged in", () => {
+    expect(() => mk("date-time", { unknownFormats: "error" })).not.toThrow();
+  });
+
+  it("accepts a vendor format registered as the identity", () => {
+    expect(() =>
+      mk("vendor-thing", {
+        unknownFormats: "error",
+        formats: { "vendor-thing": () => true },
+      }),
+    ).not.toThrow();
+  });
+
+  it("is inert unset, leaving the format asserting nothing", () => {
+    expect(() => mk("vendor-thing", {})).not.toThrow();
+  });
+});

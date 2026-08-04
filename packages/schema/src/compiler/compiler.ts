@@ -30,6 +30,7 @@ import { computeDiscriminatorRoutes } from "../keywords/discriminator-routes.js"
 import { collectEnumTypeIssue } from "./enum-type.js";
 import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
+import { assertFormatsRegistered } from "./unknown-formats.js";
 import { assertWellFormedSchema } from "./well-formed.js";
 
 // Token scan fed into CompileStats.emittedTreeRuntime. Word-boundaried
@@ -864,6 +865,37 @@ export interface CompileOptions {
    */
   schemaLint?: "off" | "warn" | "strict";
 
+  /**
+   * What to do about a `format` with no validator registered under its
+   * name.
+   *
+   * - `"ignore"` (default): the format asserts nothing, per JSON Schema.
+   * - `"error"`: refuse to compile, naming the formats.
+   *
+   * A name with no validator behind it is a constraint the author wrote
+   * and no one enforces, and nothing reports it. `"error"` is how a
+   * caller who wants every `format` enforced says so.
+   *
+   * Only meaningful where the dialect asserts `format` at all. Under the
+   * annotation-only default nothing is enforced by design, and this is
+   * inert.
+   *
+   * A format meant as an annotation stays legal by registering the
+   * identity for it, which says so at the call site:
+   *
+   * ```ts
+   * compileSchema(schema, {
+   *   unknownFormats: "error",
+   *   formats: { "x-internal-id": () => true },
+   * })
+   * ```
+   *
+   * Independent of {@link CompileOptions.schemaLint}: this refuses to
+   * build a validator rather than reporting advice, so `schemaLint:
+   * "off"` does not switch it off.
+   */
+  unknownFormats?: "ignore" | "error";
+
   // --- 4. Schema-compile-specific extras ---
 
   /**
@@ -1259,6 +1291,12 @@ export function compileSchema(
   // (#512). Re-walking the root costs one linear pass over a graph that
   // is about to be compiled.
   assertWellFormedSchema(schema, byKeyword, options.label, refResolver);
+
+  if (options.unknownFormats === "error") {
+    assertFormatsRegistered(schema, byKeyword, deps.formats, options.label, (ref) =>
+      refResolver.resolve(ref),
+    );
+  }
 
   // One-pass walk: does anything in this compile unit use
   // `unevaluatedProperties` / `unevaluatedItems`? Include external
