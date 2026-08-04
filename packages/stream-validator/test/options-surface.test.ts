@@ -235,6 +235,25 @@ describe("unknownFormats", () => {
     ).not.toThrow();
   });
 
+  it("accepts a name registered as `false`", () => {
+    // Registered and asserting nothing on purpose. Whether anyone made
+    // a decision about the name is what this option asks, and `false`
+    // is a decision; `undefined` is nobody having looked.
+    expect(() =>
+      mk("vendor-thing", { unknownFormats: "error", formats: { "vendor-thing": false } }),
+    ).not.toThrow();
+  });
+
+  it("accepts a numeric built-in", () => {
+    expect(() => mk("int32", { unknownFormats: "error" })).not.toThrow();
+  });
+
+  it("still refuses when a built-in is turned off but another name is unregistered", () => {
+    expect(() =>
+      mk("vendor-thing", { unknownFormats: "error", formats: { int64: false } }),
+    ).toThrow(/no validator registered for format "vendor-thing"/);
+  });
+
   it("is inert unset, leaving the format asserting nothing", () => {
     expect(() => mk("vendor-thing", {})).not.toThrow();
   });

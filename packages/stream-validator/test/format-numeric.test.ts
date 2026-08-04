@@ -46,8 +46,28 @@ describe("numeric formats on the stream engine", () => {
     expect(await codes(island, '{"n":1}')).toEqual([]);
   });
 
-  it("honours the per-format escape hatch", async () => {
+  it("asserts int64 over the safe-integer range", async () => {
+    const big = {
+      type: "object",
+      properties: { v: { type: "integer", format: "int64" } },
+    };
+    expect(await codes(big as SchemaOrBoolean, `{"v":${Number.MAX_SAFE_INTEGER + 1}}`)).toEqual([
+      "format",
+    ]);
+    expect(await codes(big as SchemaOrBoolean, '{"v":3000000000}')).toEqual([]);
+  });
+
+  it("honours the per-format escape hatch, for both", async () => {
     expect(await codes(island, '{"n":3000000000}', { int32: false })).toEqual([]);
+    const big = {
+      type: "object",
+      properties: { v: { type: "integer", format: "int64" } },
+    };
+    expect(
+      await codes(big as SchemaOrBoolean, `{"v":${Number.MAX_SAFE_INTEGER + 1}}`, {
+        int64: false,
+      }),
+    ).toEqual([]);
   });
 
   it("asserts a plain scalar leaf too, exactly where a string format does", async () => {

@@ -5,6 +5,10 @@
  * asserts nothing and reports nothing, which is correct per JSON Schema
  * and is how a constraint the author wrote can go silently unenforced.
  *
+ * A name registered as `false` counts as registered: asserting nothing
+ * on purpose is a decision someone made, and whether anyone made one is
+ * the question this option asks.
+ *
  * @packageDocumentation
  */
 
@@ -69,6 +73,6 @@ export function assertFormatsRegistered(
     `${where}no validator registered for format ${names.map((n) => `"${n}"`).join(", ")}. ` +
       `unknownFormats: "error" is set, so a format nothing can enforce is a compile ` +
       `failure. Register a validator through the formats option, or register ` +
-      `\`() => true\` to keep the name as an annotation.`,
+      `\`false\` to keep the name as an annotation.`,
   );
 }
