@@ -36,6 +36,7 @@ import { analyzeSpec } from "@oaverify/stream";
 import { emitStandalone, type StandaloneDialect } from "./emit-standalone.js";
 import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
+import { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
 import { checkDocumentRedos } from "./redos-check.js";
 import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
 import { renderSarif } from "./sarif.js";
@@ -745,6 +746,19 @@ export async function checkCommand(
       // malformed schema, there is no partial result to report.
       io.stderr(`check: ${(err as Error).message}\n`);
       return { exitCode: 2 };
+    }
+
+    // Outside the try: a document walk, not a compile, so a malformed
+    // schema elsewhere does not cost the reader this finding.
+    for (const issue of checkDocumentFormats(document, KNOWN_FORMATS)) {
+      findings.push({
+        class: "schema",
+        severity: defaultSeverityFor("schema", issue.code),
+        code: issue.code,
+        location: issue.pointer,
+        message: issue.message,
+        target: { pointer: issue.pointer, anchor: "node" },
+      });
     }
   }
 

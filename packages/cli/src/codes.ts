@@ -134,10 +134,16 @@ export const REDOS_CODES = ["ambiguous-pattern"] as const;
 /** Malformed-class codes. `--severity` refuses these before the lookup. */
 export const MALFORMED_CODES = ["malformed-schema"] as const;
 
+/**
+ * Schema-class codes the CLI emits itself, so outside the union above.
+ * `format-not-validated` is a document walk `check` owns (#644).
+ */
+const CLI_SCHEMA_CODES = ["format-not-validated"] as const;
+
 /** Every code, by the class that emits it. */
 export const CODES_BY_CLASS = {
   hygiene: HYGIENE_CODES,
-  schema: SCHEMA_CODES,
+  schema: [...SCHEMA_CODES, ...CLI_SCHEMA_CODES],
   conformance: CONFORMANCE_CODES,
   examples: EXAMPLES_CODES,
   redos: REDOS_CODES,
