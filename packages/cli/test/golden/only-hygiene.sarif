@@ -1,0 +1,115 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "oaverify",
+          "informationUri": "https://github.com/oaverify/oaverify",
+          "version": "0.0.0-golden",
+          "semanticVersion": "0.0.0-golden",
+          "rules": [
+            {
+              "id": "unused-component",
+              "name": "unused-component",
+              "shortDescription": {
+                "text": "unused-component"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "oaverify:class": "hygiene",
+                "tags": [
+                  "hygiene"
+                ]
+              }
+            },
+            {
+              "id": "path-param-undeclared",
+              "name": "path-param-undeclared",
+              "shortDescription": {
+                "text": "path-param-undeclared"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "oaverify:class": "hygiene",
+                "tags": [
+                  "hygiene"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "oaverify:classes": [
+          "hygiene"
+        ]
+      },
+      "results": [
+        {
+          "ruleId": "unused-component",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "components.schemas.Orphan is declared but no operation reaches it"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "entry.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "oaverifyFindingV1": "unused-component entry.json/components/schemas/Orphan"
+          },
+          "properties": {
+            "oaverify:class": "hygiene",
+            "oaverify:severity": "warning",
+            "oaverify:location": "/components/schemas/Orphan",
+            "oaverify:pointer": "/components/schemas/Orphan",
+            "oaverify:anchor": "node",
+            "oaverify:sourcePointer": "/components/schemas/Orphan"
+          }
+        },
+        {
+          "ruleId": "path-param-undeclared",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "path template \"/pets/{petId}\" references \"{petId}\" but neither the operation nor its path item declares a path parameter named \"petId\""
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "entry.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "oaverifyFindingV1": "path-param-undeclared entry.json/paths/~1pets~1{petId}/get"
+          },
+          "properties": {
+            "oaverify:class": "hygiene",
+            "oaverify:severity": "error",
+            "oaverify:location": "/paths/~1pets~1{petId}/get",
+            "oaverify:pointer": "/paths/~1pets~1{petId}/get",
+            "oaverify:anchor": "node",
+            "oaverify:sourcePointer": "/paths/~1pets~1{petId}/get"
+          }
+        }
+      ]
+    }
+  ]
+}
