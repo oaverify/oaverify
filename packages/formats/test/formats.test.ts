@@ -218,6 +218,30 @@ describe("normalizeFormat", () => {
     // tell a deliberate opt-out from a name nobody mentioned.
     expect(normalizeFormat(false)).toBeNull();
   });
+
+  // Types refuse all of these, so the callers that reach here are
+  // JavaScript and a map deserialized from configuration. Falling
+  // through would produce a format with no `validate`, which asserts
+  // nothing: a disabled format arrived at by accident, and silent.
+  it.each([
+    ["true", true],
+    ["a number", 42],
+    ["a string", "int32"],
+    ["null", null],
+    ["an object missing validate", { type: "number" }],
+    ["an object with an unknown type", { type: "integer", validate: (): boolean => true }],
+  ])("refuses %s", (_label, bad) => {
+    expect(() => normalizeFormat(bad as unknown as FormatDefinition)).toThrow(
+      /format definition must be a function/,
+    );
+  });
+
+  it("names false as the way to register without asserting", () => {
+    // The message has to answer "then how do I turn one off", because
+    // reaching for `true` is what someone does when they mean exactly
+    // that.
+    expect(() => normalizeFormat(true as unknown as FormatDefinition)).toThrow(/use false/);
+  });
 });
 
 describe("int32 / int64", () => {

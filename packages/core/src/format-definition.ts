@@ -72,9 +72,19 @@ export interface NormalizedFormat {
 /**
  * Collapse a {@link FormatDefinition} to its canonical form.
  *
+ * Throws on input outside the union rather than returning something
+ * inert. TypeScript refuses `formats: { int32: true }` already, so this
+ * catches the callers types do not reach: JavaScript, and a map
+ * deserialized from configuration. Left to fall through, `true` would
+ * normalize to a format with no `validate` and silently assert nothing,
+ * which is the shape of a disabled format arrived at by accident.
+ *
  * @returns The normalized format, or `null` for `false`: registered,
  *   asserting nothing. A caller distinguishing "unregistered" from
  *   "deliberately not asserted" reads `undefined` against `null`.
+ *
+ * @throws Error naming what it got, for anything that is not a
+ *   function, a `{ type, validate }` object, or `false`.
  *
  * @public
  */
@@ -83,8 +93,34 @@ export function normalizeFormat(definition: FormatDefinition): NormalizedFormat 
   if (typeof definition === "function") {
     return { type: "string", validate: definition as (value: never) => boolean };
   }
+  if (
+    typeof definition !== "object" ||
+    definition === null ||
+    ((definition as NormalizedFormat).type !== "string" &&
+      (definition as NormalizedFormat).type !== "number") ||
+    typeof (definition as NormalizedFormat).validate !== "function"
+  ) {
+    throw new Error(
+      `format definition must be a function, { type: "string" | "number", validate }, ` +
+        `or false; got ${describe(definition)}. To register the name without ` +
+        `asserting anything, use false.`,
+    );
+  }
   return {
     type: definition.type,
     validate: definition.validate as (value: never) => boolean,
   };
+}
+
+/** A rejected definition, short enough for one line of an error message. */
+function describe(definition: unknown): string {
+  if (definition === null) return "null";
+  if (typeof definition === "object") {
+    const keys = Object.keys(definition);
+    return keys.length === 0 ? "an object with no keys" : `an object with keys ${keys.join(", ")}`;
+  }
+  // A primitive here, so `JSON.stringify` renders it. It returns
+  // undefined for `undefined` and symbols, which have no rendering
+  // worth printing; the type name is the useful thing to say instead.
+  return JSON.stringify(definition) ?? typeof definition;
 }

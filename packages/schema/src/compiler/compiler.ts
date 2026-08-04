@@ -1392,7 +1392,16 @@ export function compileSchema(
     for (const name of Object.keys(options.formats)) {
       const definition = options.formats[name];
       if (definition === undefined) continue;
-      const normalized = normalizeFormat(definition);
+      // Rethrown with the key, because the bad entry is in the caller's
+      // map and `normalizeFormat` only ever sees the value.
+      let normalized: ReturnType<typeof normalizeFormat>;
+      try {
+        normalized = normalizeFormat(definition);
+      } catch (err) {
+        throw new Error(`formats[${JSON.stringify(name)}]: ${(err as Error).message}`, {
+          cause: err,
+        });
+      }
       deps.formats.set(name, normalized);
       formatTypes.set(name, normalized === null ? "none" : normalized.type);
     }

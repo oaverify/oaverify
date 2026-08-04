@@ -49,6 +49,10 @@ annotation. It reads the same for any format, so turning off a string
 one is the same spelling, and turning `int64` off leaves `int32`
 asserting.
 
+`false` is the only spelling for this. `true` is refused with an error
+naming the format, rather than taken as a second way to say the same
+thing.
+
 ## `int64` accepts less than int64, on purpose
 
 `int64` asserts the **safe-integer** range, `-(2^53 - 1)` through

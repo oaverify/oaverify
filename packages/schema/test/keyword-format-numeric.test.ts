@@ -138,6 +138,16 @@ describe("the per-format escape hatch", () => {
     expect(ok(v, "yes")).toBe(true);
     expect(ok(v, "no")).toBe(false);
   });
+
+  it("`true` is refused, and the error names the format", () => {
+    // `true` is the plausible wrong guess for "leave this one alone",
+    // and it is the one spelling that would otherwise disable the
+    // format silently. The key is in the message because that is what
+    // the caller has to go and edit.
+    expect(() => oas({ format: "int32" }, { ...builtInFormats, int32: true as never })).toThrow(
+      /formats\["int32"\].*must be a function.*use false/s,
+    );
+  });
 });
 
 describe("unknownFormats sees one registry", () => {
