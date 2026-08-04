@@ -24,6 +24,8 @@ export {
   createFileReaderSync,
   fetchInit,
   readStream,
+  assertWithinMaxBytes,
+  assertWithinMaxBytesSync,
   resolveReadPath,
   resolveReadPathSync,
   responseText,
