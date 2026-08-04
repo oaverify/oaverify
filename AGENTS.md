@@ -144,7 +144,7 @@ locally too (`pnpm pack` + `npm install` in `/tmp`).
 
 ```bash
 pnpm install
-pnpm build                        # tsup: @oaverify/core + @oaverify/stream + the oaverify CLI
+pnpm build                        # tsup: @oaverify/core + stream + yaml + check + the oaverify CLI
 pnpm test                         # vitest for everything
 pnpm vitest run packages/schema   # run a single package's tests (path filter)
 pnpm lint                         # oxlint + oxfmt --check + check:deps
@@ -174,8 +174,10 @@ pnpm test && pnpm typecheck && pnpm lint && pnpm lint:type-aware
 ```
 
 `pnpm oaverify` runs `packages/oav/dist/cli.js`, so it needs a prior `pnpm build`
-(which builds `@oaverify/core`, `@oaverify/stream`, and the CLI). The
-standalone-tsup packages (`oaverify`, `stream-validator`, the three adapters)
+(which builds `@oaverify/core`, `@oaverify/stream`, `@oaverify/yaml`,
+`@oaverify/check`, and the CLI; the CLI loads `@oaverify/check` at runtime,
+so a build that skips it leaves every subcommand crashing on import). The
+standalone-tsup packages (`oaverify`, `stream-validator`, `check`, the three adapters)
 set `emitDeclarationOnly: true` in their `tsconfig.json`: their `dist/` is
 the tsup-built runtime artifact, and without this `tsc -b` (typecheck)
 would emit per-file `.js` over the tsup bundle, breaking the built CLI

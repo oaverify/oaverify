@@ -143,7 +143,7 @@
     "provenance": true
   },
   "scripts": {
-    "build": "tsup && pnpm --filter @oaverify/stream build && pnpm --filter @oaverify/yaml build && pnpm --filter oaverify build",
+    "build": "tsup && pnpm --filter @oaverify/stream build && pnpm --filter @oaverify/yaml build && pnpm --filter @oaverify/check build && pnpm --filter oaverify build",
     "oaverify": "node packages/oav/dist/cli.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
