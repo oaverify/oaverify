@@ -8,20 +8,24 @@
  * and the blowup is merely polynomial rather than exponential (measured:
  * 23ms at 200 characters, 1.1s at 1200, no return at 2000).
  *
- * ## Why this lives in the CLI
+ * ## Why this lives here and not in `@oaverify/core`
  *
  * The analysis comes from `redos-detector`, and that dependency belongs
- * here rather than in the library. `@oaverify/core` carries no runtime
- * dependencies, the whole HTTP validator is around 31 KB gzipped, and
- * `redos-detector` plus `regjsparser` is roughly 1 MB unpacked. Paying
- * that on every `createValidator` import, to report something a running
- * server cannot act on, is the wrong trade: a server cannot rewrite its
- * author's pattern, and its remedy is the `regexCompiler` option, which
- * is already documented.
+ * in this package rather than in the validator. `@oaverify/core`
+ * carries no runtime dependencies, the whole HTTP validator is around
+ * 31 KB gzipped, and `redos-detector` plus `regjsparser` is roughly
+ * 1 MB unpacked. Paying that on every `createValidator` import, to
+ * report something a running server cannot act on, is the wrong trade:
+ * a server cannot rewrite its author's pattern, and its remedy is the
+ * `regexCompiler` option, which is already documented.
  *
- * `check` is where a spec author reads output, so `check` is where the
- * cost belongs, alongside the other checks that exist to grade a
- * document rather than to serve traffic.
+ * A `check` run is where a spec author reads output, so this is where
+ * the cost belongs, alongside the other passes that exist to grade a
+ * document rather than to serve traffic. It is also the single largest
+ * reason `@oaverify/check` is a package rather than a
+ * `@oaverify/core/check` subpath: npm installs a dependency whichever
+ * entry imports it, so a subpath would have moved this 1 MB onto every
+ * `@oaverify/core` consumer regardless.
  *
  * ## Why not hand-rolled
  *

@@ -12,13 +12,13 @@ import { defineConfig } from "tsup";
  * them from the consumer's install rather than inlining a second copy
  * of the compiler.
  *
- * The ReDoS pass brings `redos-detector` with it when it moves here, as
- * a regular runtime dependency kept external. It is ~1MB unpacked,
+ * `redos-detector` is a regular runtime dependency and stays external.
+ * It is ~1MB unpacked,
  * which is the reason this package exists rather than a
  * `@oaverify/core/check` subpath: npm installs a dependency whichever
- * entry imports it, so putting the pass behind a core subpath would
- * land that weight on every `@oaverify/core` consumer and break the
- * zero-runtime-dependency claim.
+ * entry imports it, so behind a core subpath that weight would reach
+ * every `@oaverify/core` consumer and break the zero-runtime-dependency
+ * claim.
  */
 const oavCoreRewrite: Record<string, string> = {
   "@oaverify/internal-core": "@oaverify/core/core",
@@ -40,7 +40,7 @@ export default defineConfig({
   sourcemap: false,
   target: "es2022",
   tsconfig: resolve(__dirname, "../../tsconfig.build.json"),
-  external: ["@oaverify/core"],
+  external: ["@oaverify/core", "redos-detector"],
   esbuildPlugins: [rewriteOavCore()],
 });
 

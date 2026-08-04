@@ -50,16 +50,25 @@ importers:
       '@oaverify/core':
         specifier: workspace:*
         version: link:../..
+      redos-detector:
+        specifier: ^6.1.4
+        version: 6.1.4
     devDependencies:
       '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
+      '@oaverify/internal-formats':
+        specifier: workspace:*
+        version: link:../formats
       '@oaverify/internal-schema':
         specifier: workspace:*
         version: link:../schema
       '@oaverify/internal-spec':
         specifier: workspace:*
         version: link:../spec
+      '@oaverify/internal-validator':
+        specifier: workspace:*
+        version: link:../validator
       tsup:
         specifier: 8.5.1
         version: 8.5.1(postcss@8.5.23)(typescript@5.9.3)(yaml@2.9.0)
@@ -102,9 +111,6 @@ importers:
       commander:
         specifier: 15.0.0
         version: 15.0.0
-      redos-detector:
-        specifier: ^6.1.4
-        version: 6.1.4
 
   packages/core: {}
 

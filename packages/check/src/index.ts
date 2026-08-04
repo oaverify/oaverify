@@ -23,6 +23,8 @@ export {
   SCHEMA_CODES,
   type CheckCode,
 } from "./codes.js";
+export { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
+export { checkDocumentRedos } from "./redos-check.js";
 export {
   defaultSeverityFor,
   DEFAULT_SEVERITY,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
-import { REDOS_CODES } from "@oaverify/check";
+import { REDOS_CODES } from "../src/codes.js";
 import { checkDocumentRedos } from "../src/redos-check.js";
 
 const withPattern = (pattern: string, extra: Record<string, unknown> = {}) =>

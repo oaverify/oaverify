@@ -35,16 +35,17 @@ import { analyzeSpec } from "@oaverify/stream";
 import { emitStandalone, type StandaloneDialect } from "./emit-standalone.js";
 import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
-import { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
-import { checkDocumentRedos } from "./redos-check.js";
 import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
 import { renderSarif } from "./sarif.js";
 import {
   CHECK_CLASSES,
   CHECK_SEVERITIES,
+  checkDocumentFormats,
+  checkDocumentRedos,
   defaultSeverityFor,
   EMPTY_SEVERITY_MAP,
   parseSeverityMap,
+  KNOWN_FORMATS,
   severityFor,
   SeverityMapError,
   type CheckClass,
@@ -600,9 +601,9 @@ export async function checkCommand(
 
   if (classes.has("redos")) {
     // Its own class because it is the only check that reaches for a
-    // third-party analyser: `redos-detector` is a CLI dependency, kept
-    // out of the library so `@oaverify/core` stays dependency-free (see
-    // redos-check.ts). Runs by default like every other class; `--only`
+    // third-party analyser: `redos-detector` is a dependency of
+    // `@oaverify/check`, kept off `@oaverify/core` so that stays
+    // dependency-free. Runs by default like every other class; `--only`
     // is how a caller who has already hardened with `regexCompiler`, or
     // who finds the analysis slow on a very large document, opts out.
     for (const issue of checkDocumentRedos(document)) {

@@ -62,12 +62,15 @@
     "postpack": "node ../../scripts/pack-devdeps.mjs restore"
   },
   "dependencies": {
-    "@oaverify/core": "workspace:*"
+    "@oaverify/core": "workspace:*",
+    "redos-detector": "^6.1.4"
   },
   "devDependencies": {
     "@oaverify/internal-core": "workspace:*",
+    "@oaverify/internal-formats": "workspace:*",
     "@oaverify/internal-schema": "workspace:*",
     "@oaverify/internal-spec": "workspace:*",
+    "@oaverify/internal-validator": "workspace:*",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "4.1.10"
