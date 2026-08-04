@@ -63,14 +63,18 @@ pass needs. Load with `provenance: true` for source attribution and
 SARIF locations; without it, `target.source` is absent on every finding.
 
 ```ts
-import { loadSpec } from "@oaverify/core/spec";
+import { loadSpecSync } from "@oaverify/core/spec";
 import { checkSpec } from "@oaverify/check";
 
-const resolved = await loadSpec({ entry: "openapi.yaml", provenance: true });
+const resolved = loadSpecSync({ entry: "openapi.json", provenance: true });
 for (const finding of checkSpec(resolved)) {
   console.log(finding.severity, finding.code, finding.location);
 }
 ```
+
+`loadSpec` (async) requires an explicit `reader`; `loadSpecSync`
+defaults to a JSON-only filesystem one. Compose in `@oaverify/yaml`'s
+readers for a YAML entry.
 
 Loading stays with the caller, which is why the package has no reader
 and no second copy of `loadSpec`. See

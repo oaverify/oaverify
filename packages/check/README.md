@@ -19,10 +19,10 @@ npm install @oaverify/check @oaverify/core
 ## Usage
 
 ```ts
-import { loadSpec } from "@oaverify/core/spec";
+import { loadSpecSync } from "@oaverify/core/spec";
 import { checkSpec } from "@oaverify/check";
 
-const resolved = await loadSpec({ entry: "openapi.yaml", provenance: true });
+const resolved = loadSpecSync({ entry: "openapi.json", provenance: true });
 const findings = checkSpec(resolved);
 
 for (const finding of findings) {
@@ -30,9 +30,25 @@ for (const finding of findings) {
 }
 ```
 
-`checkSpec` is synchronous. Loading is the only asynchronous part of a
-check and it stays with you, which is why this package ships no reader
-and no second copy of `loadSpec`.
+`checkSpec` is synchronous, so with `loadSpecSync` the whole check is.
+Loading stays with you either way, which is why this package ships no
+reader and no second copy of the loaders.
+
+For a spec that is fetched over HTTP, or written in YAML, load it
+asynchronously and compose the readers you need. `loadSpec` requires an
+explicit reader; `loadSpecSync` defaults to a JSON-only filesystem one:
+
+```ts
+import { loadSpec, composeReaders, createFileReader } from "@oaverify/core/spec";
+import { createYamlFileReader } from "@oaverify/yaml";
+
+const resolved = await loadSpec({
+  reader: composeReaders([createYamlFileReader(), createFileReader()]),
+  entry: "openapi.yaml",
+  provenance: true,
+});
+const findings = checkSpec(resolved);
+```
 
 ### Load with `provenance: true`
 
