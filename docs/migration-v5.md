@@ -17,6 +17,24 @@ If you use the framework adapters with the default renderer, never pass
 `strict`, and never pass `dialect`, the upgrade is likely a version bump
 and nothing else.
 
+## Package names
+
+The scope moved in v4, not v5. The `@aahoughton/*` packages are
+deprecated and stay at 3.8.0 / 1.1.0.
+
+| Old                                | Now                |
+| ---------------------------------- | ------------------ |
+| `@aahoughton/oav-core`             | `@oaverify/core`   |
+| `@aahoughton/oav`                  | `oaverify`         |
+| `@aahoughton/oav-stream-validator` | `@oaverify/stream` |
+
+`@oaverify/yaml` and the three adapters never shipped under the old
+scope. `oaverify` ships only the binary; import from `@oaverify/core`.
+
+The stream package's directory is `packages/stream-validator`, which is
+the `stream-validator:` commit scope in the changelog. The published
+name is `@oaverify/stream`.
+
 ## At a glance
 
 | Area                                | v4                                            | v5                                                |
