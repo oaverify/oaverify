@@ -54,10 +54,9 @@ const _hygieneComplete: Missing<
     ] = true;
 
 /**
- * The "HTTP-level wrappers" half of {@link BuiltInErrorParams}. Excluded
- * from conformance, which validates a document and has no traffic to
- * describe. Subtracting these means a new keyword's code joins the
- * conformance class without touching this file.
+ * The "HTTP-level wrappers" half of {@link BuiltInErrorParams}, excluded
+ * from conformance: that pass validates a document and has no traffic.
+ * Subtracting them lets a new keyword's code join the class on its own.
  */
 const HTTP_LEVEL_CODES = [
   "route",

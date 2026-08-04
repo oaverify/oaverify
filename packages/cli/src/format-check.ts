@@ -1,19 +1,13 @@
 /**
  * Reporting a `format` oaverify does not validate.
  *
- * `format` names a constraint, and an unimplemented name asserts nothing
- * and says nothing, so a spec that moves a field from `uri` to
- * `uri-reference` can leave it entirely unchecked with no signal (#635).
+ * Advice, never a defect: OAS says support for a format is optional and
+ * a tool may fall back to `type` alone, so a vendor format is legal.
+ * What the author loses is the constraint they wrote.
  *
- * A finding here is advice, never a defect: OAS says support for a
- * registered format is optional and a tool MAY fall back to `type`
- * alone, so a vendor format is legal and stays legal. What the author
- * loses is the constraint they wrote, which nothing else reports.
- *
- * Lives in the CLI because `check` is the one caller whose format
- * support is fixed: it validates with `builtInFormats` and nothing else,
- * so the answer depends on the document alone. A library caller supplies
- * its own map, which is a different question (#635).
+ * In the CLI because `check`'s format support is fixed at
+ * `builtInFormats`, so the answer depends on the document alone. A
+ * library caller supplies its own map (#635).
  *
  * @packageDocumentation
  */
@@ -50,10 +44,7 @@ export interface FormatIssue {
 
 /**
  * Walk a resolved document and report every `format` name `check` cannot
- * validate, once per distinct name.
- *
- * One finding per name rather than per position: the remedy is per name
- * (register a validator, or accept it as a vendor annotation), and a
+ * validate, once per distinct name: the remedy is per name, and a
  * document using one vendor format in forty places has one problem.
  *
  * @param document - A resolved OpenAPI document.
