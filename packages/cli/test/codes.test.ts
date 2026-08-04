@@ -34,8 +34,8 @@ describe("the hand-written slices still match their emit sites", () => {
   });
 
   // Both need a compiled validator to produce, which `check` owns.
-  it("lists exactly one code each for examples and malformed", () => {
-    expect([...EXAMPLES_CODES]).toEqual(["example-invalid"]);
+  it("lists the codes each of examples and malformed emits", () => {
+    expect([...EXAMPLES_CODES]).toEqual(["example-invalid", "example-uncheckable"]);
     expect([...MALFORMED_CODES]).toEqual(["malformed-schema"]);
   });
 });
