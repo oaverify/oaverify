@@ -35,7 +35,7 @@
 
 import { isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { CheckClass, CheckFinding, CheckSeverity } from "./commands.js";
+import type { CheckClass, CheckFinding, CheckSeverity } from "@oaverify/check";
 
 /** The version this emitter targets, and the schema it declares. */
 const SARIF_VERSION = "2.1.0";

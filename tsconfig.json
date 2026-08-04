@@ -10,6 +10,7 @@
     { "path": "./packages/router" },
     { "path": "./packages/validator" },
     { "path": "./packages/stream-validator" },
+    { "path": "./packages/check" },
     { "path": "./packages/cli" },
     { "path": "./packages/oav" },
     { "path": "./packages/oav-express4" },

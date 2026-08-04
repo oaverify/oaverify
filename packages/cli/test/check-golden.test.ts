@@ -19,7 +19,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { checkCommand, type CheckClass, type CheckSeverity } from "../src/commands.js";
+import type { CheckClass, CheckSeverity } from "@oaverify/check";
+import { checkCommand } from "../src/commands.js";
 import { memoryIo } from "./fixtures.js";
 
 const goldenDir = fileURLToPath(new URL("./golden/", import.meta.url));

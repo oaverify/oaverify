@@ -61,6 +61,7 @@ export function workspaceAliases(rootDir: string): Record<string, string> {
   const publishedEntries: Array<[string, string]> = [
     ["@oaverify/stream", resolve(rootDir, "packages", "stream-validator", "src", "index.ts")],
     ["@oaverify/yaml", resolve(rootDir, "packages", "yaml", "src", "index.ts")],
+    ["@oaverify/check", resolve(rootDir, "packages", "check", "src", "index.ts")],
     // The published subpaths of `@oaverify/core`. Emitted standalone
     // validators import these by their real names, so tests that write a
     // generated module to a tmpdir and import it need them resolvable to

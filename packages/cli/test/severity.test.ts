@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CHECK_CODES, CHECK_FAMILIES } from "../src/codes.js";
-import { CHECK_CLASSES, CHECK_SEVERITIES } from "../src/commands.js";
+import { CHECK_CLASSES, CHECK_SEVERITIES } from "@oaverify/check";
 import {
   defaultSeverityFor,
   EMPTY_SEVERITY_MAP,

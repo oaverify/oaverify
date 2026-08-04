@@ -235,6 +235,7 @@ jobs:
           pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed"
           (cd packages/oav && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/yaml && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
+          (cd packages/check && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/oav-express4 && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/oav-express5 && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/oav-fastify && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
@@ -311,6 +312,21 @@ jobs:
           console.log("oaverify-yaml smoke ok");
           EOF
           node smoke.mjs
+      - name: smoke @oaverify/check
+        run: |
+          set -euo pipefail
+          CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
+          CHECK_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-check-*.tgz | head -n1)"
+          rm -rf /tmp/smoke-check && mkdir -p /tmp/smoke-check && cd /tmp/smoke-check
+          npm init -y > /dev/null
+          npm install "$CORE_TGZ" "$CHECK_TGZ"
+          cat > smoke.mjs <<'EOF'
+          import { CHECK_CLASSES, CHECK_SEVERITIES } from "@oaverify/check";
+          if (!CHECK_CLASSES.includes("hygiene")) throw new Error("CHECK_CLASSES regression");
+          if (CHECK_SEVERITIES[0] !== "warning") throw new Error("CHECK_SEVERITIES regression");
+          console.log("oaverify-check smoke ok");
+          EOF
+          node smoke.mjs
       - name: smoke the oaverify CLI
         run: |
           set -euo pipefail
@@ -320,10 +336,11 @@ jobs:
           CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
           YAML_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-yaml-*.tgz | head -n1)"
           SV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-stream-*.tgz | head -n1)"
+          CHECK_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-check-*.tgz | head -n1)"
           CLI_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-[0-9]*.tgz | head -n1)"
           rm -rf /tmp/smoke-cli && mkdir -p /tmp/smoke-cli && cd /tmp/smoke-cli
           npm init -y > /dev/null
-          npm install "$CORE_TGZ" "$YAML_TGZ" "$SV_TGZ" "$CLI_TGZ"
+          npm install "$CORE_TGZ" "$YAML_TGZ" "$SV_TGZ" "$CHECK_TGZ" "$CLI_TGZ"
           # The library surface must NOT be reachable from the CLI package.
           if node -e 'import("oaverify/schema").then(()=>process.exit(0),()=>process.exit(1))'; then
             echo "oaverify should not export a library surface" >&2

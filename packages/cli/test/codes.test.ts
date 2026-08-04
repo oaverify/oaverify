@@ -8,7 +8,7 @@ import {
   MALFORMED_CODES,
   REDOS_CODES,
 } from "../src/codes.js";
-import { CHECK_CLASSES } from "../src/commands.js";
+import { CHECK_CLASSES } from "@oaverify/check";
 
 // The union-pinned slices fail the typecheck on drift. These three are
 // hand-written against a literal at an emit site, so they need a test.

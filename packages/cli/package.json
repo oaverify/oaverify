@@ -13,6 +13,7 @@
     }
   },
   "dependencies": {
+    "@oaverify/check": "workspace:*",
     "@oaverify/internal-core": "workspace:*",
     "@oaverify/internal-formats": "workspace:*",
     "@oaverify/internal-metaschema": "workspace:*",

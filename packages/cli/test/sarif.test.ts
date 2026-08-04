@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { pathToFileURL } from "node:url";
-import type { CheckFinding } from "../src/commands.js";
+import type { CheckFinding } from "@oaverify/check";
 import { artifactLocation, renderSarif } from "../src/sarif.js";
 
 const BASE = "/repo";

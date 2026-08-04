@@ -17,7 +17,6 @@ import {
   specOverlayVerbs,
   STDIN_URI,
   type DocumentReader,
-  type SourceAddress,
   type SpecHygieneIssue,
   type SpecOverlay,
   type SpecRegion,
@@ -31,7 +30,7 @@ import { checkDocumentExamples, createValidator } from "@oaverify/internal-valid
 import type { SchemaLintIssue } from "@oaverify/internal-schema";
 import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
 import type * as Esbuild from "esbuild";
-import type { OpenAPIDocument, RejectionReason } from "@oaverify/internal-core";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { analyzeSpec } from "@oaverify/stream";
 import { emitStandalone, type StandaloneDialect } from "./emit-standalone.js";
 import { emitSpec } from "./emit-spec.js";
@@ -40,6 +39,14 @@ import { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
 import { checkDocumentRedos } from "./redos-check.js";
 import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
 import { renderSarif } from "./sarif.js";
+import {
+  CHECK_CLASSES,
+  CHECK_SEVERITIES,
+  type CheckClass,
+  type CheckFinding,
+  type CheckSeverity,
+  type FindingTarget,
+} from "@oaverify/check";
 import {
   defaultSeverityFor,
   EMPTY_SEVERITY_MAP,
@@ -232,209 +239,6 @@ export async function resolveCommand(
 }
 
 /**
- * A single finding from `oaverify check`, normalised across the classes so
- * one array can carry all of them.
- *
- * The CLI unifies where the programmatic API does not: `check` runs the
- * classes together by construction, while an API caller reaches for one
- * layer at a time and would have to filter a union to get back what they
- * asked for. `class` is required so a consumer can re-split them.
- *
- * @public
- */
-export interface CheckFinding {
-  /**
-   * Which check produced this, matching the three-class model in
-   * docs/strictness.md.
-   *
-   * Not the same set as {@link CHECK_CLASSES}, which is what `--only`
-   * selects. A malformed schema is found by compiling, which is what the
-   * `schema` class does, so it cannot be requested on its own; it is
-   * reported under its own class because it is a different kind of
-   * problem with a different remedy, and a consumer re-splitting the
-   * array should not have to match on `code` to find it.
-   */
-  class: "hygiene" | "schema" | "malformed" | "conformance" | "examples" | "redos";
-  /**
-   * What this means for you, independent of which check found it.
-   *
-   * Separate from `class` on purpose. Class says which pass produced a
-   * finding; severity says whether it breaks anything. Conflating them
-   * is what made `--fail-on` useless: `path-param-undeclared` violates
-   * the OpenAPI spec and `unused-tag` is housekeeping, but both are
-   * `hygiene`, so gating on the class meant gating on both or neither.
-   *
-   * - `"fatal"`: act before shipping anything else. The `malformed`
-   *   class owns this today, because a document that cannot be compiled
-   *   is the one thing that stops everything.
-   * - `"error"`: legal to parse, but violates the OpenAPI specification.
-   * - `"warning"`: legal, and probably not what the author meant.
-   *
-   * Exit code 4 tracks the `malformed` class, not this rank, so
-   * `--severity` may promote a finding to `fatal` without claiming the
-   * document failed to compile.
-   */
-  severity: CheckSeverity;
-  /** The class-specific code, e.g. `"unused-component"`, `"unknown-keyword"`. */
-  code: string;
-  /**
-   * Where it is, for a human. Display text, and the format varies by
-   * class: a pointer for the classes that address the document, an
-   * operation label plus a path within the schema for the classes that
-   * do not.
-   *
-   * **Never parse this.** It carries no stable grammar and is free to
-   * change wording. {@link CheckFinding.target} is the machine address
-   * and is the field to switch on, key off, or map to a source line.
-   *
-   * Unchanged since before `target` existed, deliberately: the point of
-   * adding a machine contract was to stop a consumer needing this one,
-   * not to alter what a reader sees.
-   */
-  location: string;
-  message: string;
-  /**
-   * How many operations reported this same defect, when more than one.
-   * Absent for a single occurrence.
-   *
-   * Schemas compile per operation, so a component reached from several
-   * of them is checked several times and produces one finding each. They
-   * are one defect and one edit. `location` names the first operation
-   * that reached it; the rest are collapsed into this count rather than
-   * printed again.
-   */
-  occurrences?: number;
-  /**
-   * Structured cause data: every leaf the underlying check rejected the
-   * value on. The machine half of `message`, so a consumer never
-   * recovers `allowed` / `actual` by parsing prose (#580).
-   *
-   * Populated by the `examples` class only. Absent on every other
-   * class, which means "this class does not produce leaf-level causes",
-   * not "this finding had none". The field is class-agnostic by
-   * construction, so `conformance` (whose issues are validation
-   * failures of the same shape) can adopt it later without a rename.
-   *
-   * Uncapped, and so longer than `message` where `message` truncated.
-   * See {@link ExampleIssue.reasons}.
-   */
-  reasons?: readonly RejectionReason[];
-  /**
-   * Where this finding is, for a machine. The counterpart to
-   * `location`, which stays prose.
-   *
-   * Absent means **no pointer into the resolved document resolves to
-   * this finding**, which is a fact about the finding rather than an
-   * omission, and never an instruction to parse `location` instead.
-   * External `$ref` targets and anchors name a schema and no position
-   * in this document; a hand-built route has no addressable operation.
-   * A synthesized pointer that resolves nowhere, or worse resolves
-   * somewhere wrong, is the failure this field exists to prevent.
-   *
-   * Populated per class:
-   * - `hygiene`, `conformance`, `examples`, `redos`: always, anchored
-   *   at the offending node.
-   * - `schema`: whenever the compile knew where its schema sat in the
-   *   document, which is every schema `check` compiles.
-   * - `malformed`: the schema that would not compile, addressed as the
-   *   successful path would have addressed it. Where the failure is
-   *   operation-wide rather than owned by one schema (an unresolvable
-   *   `$ref` that aborts the build), the pointer names the operation
-   *   instead, which is the smallest unit that failed. Absent for a
-   *   security compile, which has no document position of its own.
-   *
-   * One finding can stand for several occurrences of the same defect
-   * (see `occurrences`), and `target` then addresses the first one
-   * reached, exactly as `location` does. It locates the defect; it does
-   * not enumerate every site affected.
-   */
-  target?: FindingTarget;
-}
-
-/**
- * What a {@link CheckFinding.target} pointer means for the reader who
- * follows it.
- *
- * Derived from what the analysis actually did rather than declared per
- * rule, with one exception noted on `scoped-definition`.
- *
- * @public
- */
-export type FindingAnchor =
-  /**
-   * The pointer is the finding's own address, reached without crossing
-   * a `$ref`, so editing there affects nothing else. Usually the
-   * offending node; for an operation-wide build failure it is the
-   * operation, which is the smallest unit that failed.
-   */
-  | "node"
-  /**
-   * A `$ref` was crossed, and the pointer names the shared definition
-   * the text is written in. Editing there affects every use site, and
-   * `location` may name an operation this pointer does not address.
-   */
-  | "definition"
-  /**
-   * A `$ref` was crossed, the pointer names the shared definition, and
-   * the finding is **scoped to the route** named by `location`. The
-   * text at the pointer may be correct for the definition's other
-   * users.
-   *
-   * The one anchor that is not a property of the walk alone: it also
-   * depends on whether a rule's verdict varies by the route taken to
-   * reach a node. Today that is `silent-rewrite/required-not-in-properties`
-   * alone, which asks which property names are reachable at an
-   * *instance* position, and a component says different things at
-   * different use sites.
-   */
-  | "scoped-definition";
-
-/**
- * A finding's machine-readable address.
- *
- * One object rather than two optional fields, because the two are
- * coupled in both directions: an anchor is meaningless without a
- * pointer, and a pointer is ambiguous without an anchor. Splitting
- * them would admit two states that should be unrepresentable.
- *
- * @public
- */
-export interface FindingTarget {
-  /**
-   * RFC 6901 pointer into the resolved document, percent-decoded with
-   * `~0` / `~1` retained. Guaranteed to resolve against the document
-   * `check` graded; that guarantee is why the field is absent rather
-   * than best-effort.
-   */
-  pointer: string;
-  /** What following `pointer` gets you, and what editing there affects. */
-  anchor: FindingAnchor;
-  /**
-   * Where the node at `pointer` came from in the files that were read:
-   * which document, where in it, and the references that reached it.
-   *
-   * `pointer` addresses the **resolved** document, which for a spec
-   * assembled from several files names a node no author typed, in a
-   * component the resolver may have invented. This is the address in
-   * the file the author would open.
-   *
-   * Absent means no source node corresponds to this one. In `check`
-   * output that is a fact about the node rather than an omission:
-   * `check` always records provenance, so absence means the node exists
-   * only in the resolved document. The resolver invented the container
-   * that holds hoisted schemas, or the root extension that stitched
-   * externals live under, or an overlay rewrote or added the node after
-   * resolution and its position in a source file would be stale.
-   *
-   * Present or absent as a unit, never partly filled. See
-   * {@link SourceAddress}, which also states the one thing this does not
-   * claim: it addresses the node the resolved node was built from, and
-   * does not promise the two hold the same value.
-   */
-  source?: SourceAddress;
-}
-
-/**
  * A schema lint finding's target, taken from what the compile
  * recorded rather than re-derived here.
  *
@@ -473,32 +277,6 @@ function addSchemaFinding(into: Map<string, CheckFinding>, finding: CheckFinding
   }
   already.occurrences = (already.occurrences ?? 1) + 1;
 }
-
-/**
- * Check classes `--only` accepts. These are the checks that can be
- * *run*; see {@link CheckFinding.class} for the classes a finding can be
- * *reported* under, which additionally includes `"malformed"`.
- */
-export const CHECK_CLASSES = ["hygiene", "schema", "conformance", "examples", "redos"] as const;
-export type CheckClass = (typeof CHECK_CLASSES)[number];
-
-/**
- * Severities `--fail-on` accepts, ordered least to most serious. A
- * threshold fires on its own level and everything above it, so
- * `--fail-on error` gates on specification violations and ignores the
- * rest.
- *
- * No `info` level, deliberately. Adding one and putting the tidiness
- * codes in it would have changed what `--fail-on warning` does: it
- * historically meant "any finding at all", and demoting
- * `unused-component` below the threshold would silently stop an
- * existing CI gate from firing. `warning` is also the honest level for
- * those codes: declaring a component nothing reaches is legal, and
- * probably not what the author meant, which is what warning means here.
- * An `info` level can be added when something actually belongs in it.
- */
-export const CHECK_SEVERITIES = ["warning", "error", "fatal"] as const;
-export type CheckSeverity = (typeof CHECK_SEVERITIES)[number];
 
 /**
  * Column budget the `check` text report wraps to when the caller does

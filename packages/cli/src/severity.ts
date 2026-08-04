@@ -14,7 +14,7 @@
  */
 
 import { CHECK_CODES, CHECK_FAMILIES } from "./codes.js";
-import type { CheckClass, CheckSeverity } from "./commands.js";
+import type { CheckClass, CheckSeverity } from "@oaverify/check";
 
 /**
  * What oaverify grades each class as, before any `--severity` mapping.

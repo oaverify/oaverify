@@ -99,6 +99,13 @@ export default defineConfig({
   sourcemap: false,
   target: "es2022",
   tsconfig: resolve(__dirname, "../../tsconfig.build.json"),
-  external: ["@oaverify/core", "@oaverify/stream", "@oaverify/yaml", "commander", "esbuild"],
+  external: [
+    "@oaverify/core",
+    "@oaverify/check",
+    "@oaverify/stream",
+    "@oaverify/yaml",
+    "commander",
+    "esbuild",
+  ],
   esbuildPlugins: [rewriteOavCore()],
 });
