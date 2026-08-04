@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { pathToFileURL } from "node:url";
-import type { CheckFinding } from "@oaverify/check";
+import { createMemoryReader, loadSpec } from "@oaverify/internal-spec";
+import { checkSpec } from "../src/check.js";
+import type { CheckFinding } from "../src/finding.js";
 import { artifactLocation, renderSarif } from "../src/sarif.js";
 
 const BASE = "/repo";
@@ -208,5 +210,92 @@ describe("properties", () => {
     expect(render([finding()]).runs[0]?.results[0]?.properties).not.toHaveProperty(
       "oaverify:occurrences",
     );
+  });
+});
+
+// Locations come from `target.source` alone, so whether a SARIF run can
+// annotate a file is decided by how the spec was loaded, not by the
+// findings. Both halves are pinned: without provenance every result is
+// still a complete result and simply has nowhere on disk to point.
+describe("locations track the spec's provenance", () => {
+  const spec: Array<[string, unknown]> = [
+    [
+      "entry.json",
+      {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1.0.0" },
+        paths: { "/t": { get: { responses: { "200": { description: "ok" } } } } },
+        components: { schemas: { Orphan: { type: "object" } } },
+      },
+    ],
+  ];
+
+  const runWith = async (provenance: boolean): Promise<Record<string, unknown>> => {
+    const resolved = await loadSpec({
+      reader: createMemoryReader(new Map(spec)),
+      entry: "entry.json",
+      ...(provenance && { provenance: true }),
+    });
+    const findings = checkSpec(resolved, { only: ["hygiene"] });
+    expect(findings.length).toBeGreaterThan(0);
+    return JSON.parse(renderSarif(findings, { version: "1.2.3", base: "/repo" })) as Record<
+      string,
+      unknown
+    >;
+  };
+
+  const resultsOf = (log: Record<string, unknown>): Array<Record<string, unknown>> =>
+    (log["runs"] as Array<Record<string, unknown>>)[0]!["results"] as Array<
+      Record<string, unknown>
+    >;
+
+  it("carries a physicalLocation when the spec was loaded with provenance", async () => {
+    const results = resultsOf(await runWith(true));
+    expect(results[0]?.["locations"]).toEqual([
+      {
+        physicalLocation: {
+          artifactLocation: expect.objectContaining({ uri: expect.any(String) }),
+        },
+      },
+    ]);
+  });
+
+  it("emits an empty locations array without it, and a complete result otherwise", async () => {
+    const results = resultsOf(await runWith(false));
+    expect(results[0]?.["locations"]).toEqual([]);
+    // The result is not degraded beyond the location: a consumer reading
+    // rules and severities gets everything it would have got.
+    expect(results[0]?.["ruleId"]).toBe("unused-component");
+    expect(results[0]?.["level"]).toBe("warning");
+    expect(results[0]?.["message"]).toEqual({ text: expect.any(String) });
+    expect(results[0]?.["partialFingerprints"]).toEqual({
+      oaverifyFindingV1: expect.any(String),
+    });
+  });
+});
+
+// A library caller that does not care about tool metadata should not
+// have to invent it. The CLI still passes its own values.
+describe("options default for a caller that supplies none", () => {
+  const finding: CheckFinding = {
+    class: "hygiene",
+    severity: "warning",
+    code: "unused-component",
+    location: "/components/schemas/Orphan",
+    message: "declared but unreached",
+  };
+
+  it("names the tool 0.0.0 and reports every class as selected", () => {
+    const log = JSON.parse(renderSarif([finding])) as Record<string, unknown>;
+    const run = (log["runs"] as Array<Record<string, unknown>>)[0]!;
+    const driver = (run["tool"] as Record<string, Record<string, unknown>>)["driver"]!;
+    expect(driver["version"]).toBe("0.0.0");
+    expect((run["properties"] as Record<string, unknown>)["oaverify:classes"]).toEqual([
+      "conformance",
+      "examples",
+      "hygiene",
+      "redos",
+      "schema",
+    ]);
   });
 });

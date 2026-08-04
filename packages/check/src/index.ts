@@ -26,6 +26,7 @@ export {
 export { CheckAbortedError, checkSpec, type CheckOptions } from "./check.js";
 export { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
 export { checkDocumentRedos } from "./redos-check.js";
+export { artifactLocation, renderSarif } from "./sarif.js";
 export {
   defaultSeverityFor,
   DEFAULT_SEVERITY,

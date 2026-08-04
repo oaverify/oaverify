@@ -32,13 +32,13 @@ import { emitStandalone, type StandaloneDialect } from "./emit-standalone.js";
 import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
 import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
-import { renderSarif } from "./sarif.js";
 import {
   CHECK_CLASSES,
   CHECK_SEVERITIES,
   checkSpec,
   EMPTY_SEVERITY_MAP,
   parseSeverityMap,
+  renderSarif,
   SeverityMapError,
   type CheckClass,
   CheckAbortedError,
