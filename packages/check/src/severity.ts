@@ -146,7 +146,7 @@ function nearestCode(key: string): string {
  * than reimplementing the key spaces.
  *
  * ```
- * parseSeverityMap(["unsatisfiable/*=error,redos=error"], CHECK_CLASSES, CHECK_SEVERITIES)
+ * parseSeverityMap(["unsatisfiable/*=error,redos=error"])
  * ```
  *
  * A key is an exact code (`unsatisfiable/pattern-length`), a family
