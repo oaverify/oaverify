@@ -283,7 +283,7 @@ function wrapText(text: string, width: number, first: string, rest: string): str
  * docs/strictness.md.
  *
  * - **malformed**: a schema the compiler cannot interpret at all. Fatal
- *   for the operation that holds it, so the run exits 2 whatever the
+ *   for the operation that holds it, so the run exits 4 whatever the
  *   gate says, and reported alongside the rest rather than instead of
  *   it: one bad `items` should not hide every other finding in the
  *   document (#515).
