@@ -14,7 +14,8 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { checkCommand, type CheckFinding } from "../src/commands.js";
+import { checkCommand } from "../src/commands.js";
+import type { CheckFinding } from "@oaverify/check";
 import { memoryIo } from "./fixtures.js";
 
 const FIXTURES = join(fileURLToPath(new URL(".", import.meta.url)), "fixtures");

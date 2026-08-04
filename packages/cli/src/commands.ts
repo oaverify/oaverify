@@ -255,8 +255,20 @@ export async function resolveCommand(
 /**
  * Which classes a `check` run selects, and the one combination refused.
  *
- * `custom` is out of the default set: with no `--rules` there is nothing
- * in it, and a class that silently reports nothing reads as a pass.
+ * Two halves of one rule: **a report never claims the custom class ran
+ * when it could not.**
+ *
+ * - Unnamed and no rules: quietly excluded. Listing `custom` in
+ *   `check: no findings (...)` when nothing could have produced a
+ *   finding is a small lie, and not telling it costs nothing.
+ * - Named and no rules: a usage error. The observable outcome would
+ *   otherwise be exit 0 and `no findings (custom)`, which a CI job reads
+ *   as "the house rules passed" when no house rule ran. That is the
+ *   failure `--severity`'s strictness exists to prevent (#641), and a
+ *   dropped `--rules` in a CI edit is exactly how it happens.
+ *
+ * Not the same as `--only redos` on a document with no patterns: that
+ * runs a pass that exists and reports what it found.
  */
 export function classesFor(
   only: readonly CheckClass[] | undefined,

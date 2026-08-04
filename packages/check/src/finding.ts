@@ -254,6 +254,23 @@ export interface FindingTarget {
  * The two sets differ on purpose and the asymmetry is load-bearing: a
  * malformed schema is found by compiling, which is what the `schema`
  * class does, so it cannot be requested on its own.
+ *
+ * `custom` is the one class oaverify does not supply the content of: it
+ * holds whatever the caller loaded. It is a class of its own rather than
+ * a label a rule picks from the other five, because `class` means "which
+ * pass found this", and letting a rule declare `conformance` would make
+ * `--only conformance` a command whose name says nothing about the user
+ * code it runs.
+ *
+ * **What deselecting `custom` does and does not guarantee.** It
+ * guarantees no rule *runs* and no rule finding is reported. It does not
+ * guarantee no user code executed: the CLI's `--rules` modules are
+ * imported whenever the flag is present, whatever `--only` says, because
+ * their codes have to be registered for `--severity x-acme/...` and
+ * because a broken module is worth reporting either way. The boundary
+ * that does hold is the one that matters: what is imported is named by
+ * the invoker in argv and never by a document, an overlay, or a
+ * discovered config file.
  */
 export const CHECK_CLASSES = [
   "hygiene",
