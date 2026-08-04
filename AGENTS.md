@@ -333,7 +333,7 @@ router        → core
 overlay-spec  → core spec
 metaschema    → core schema
 validator     → core formats router schema spec
-cli           → core formats metaschema overlay-spec schema spec validator
+cli           → core formats overlay-spec schema spec validator
 ```
 
 `scripts/check-deps.mjs` (wired into `pnpm lint`) asserts that graph
