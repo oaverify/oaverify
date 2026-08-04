@@ -67,3 +67,44 @@ describe("@oaverify/internal-* alias parity across resolution tables", () => {
     expect([...aliases].filter((k) => !tsup.has(k)).sort()).toEqual(NOT_IN_OAV_BUNDLE);
   });
 });
+
+// `framework-tests` is an isolated pnpm root, so its config is not
+// reached by a root `pnpm test` or `pnpm typecheck`. Its vitest aliases
+// now come from the builder above; its tsconfig `paths` still cannot,
+// because JSON has no imports. This is what catches that half drifting.
+//
+// The trap it exists for (#590/#591): the sub-root aliases a base
+// package, the root gains a subpath under it, and vite prefix-matches
+// the bare alias into `.../src/index.ts/prototype-properties`.
+function frameworkTestsPathEntries(): Array<[string, string]> {
+  const json = JSON.parse(readFileSync(resolve(root, "framework-tests/tsconfig.json"), "utf8")) as {
+    compilerOptions: { paths: Record<string, string[]> };
+  };
+  return Object.entries(json.compilerOptions.paths).map(([key, [target]]) => [
+    key,
+    resolve(root, "framework-tests", target!),
+  ]);
+}
+
+describe("framework-tests resolution tables track the root builder", () => {
+  const aliases = workspaceAliases(root);
+
+  it("aliases nothing the root builder does not, and resolves to the same file", () => {
+    for (const [key, target] of frameworkTestsPathEntries()) {
+      expect(aliases, `framework-tests aliases unknown ${key}`).toHaveProperty([key]);
+      expect(aliases[key], `framework-tests resolves ${key} elsewhere`).toBe(target);
+    }
+  });
+
+  it("carries every subpath of a package it already aliases", () => {
+    const declared = new Set(frameworkTestsPathEntries().map(([key]) => key));
+    const missing = Object.keys(aliases)
+      .filter(onlyOav)
+      .filter((key) => {
+        const slash = key.indexOf("/", "@oaverify/".length);
+        if (slash === -1) return false;
+        return declared.has(key.slice(0, slash)) && !declared.has(key);
+      });
+    expect(missing).toEqual([]);
+  });
+});
