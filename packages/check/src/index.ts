@@ -24,6 +24,16 @@ export {
   type CheckCode,
 } from "./codes.js";
 export {
+  defaultSeverityFor,
+  DEFAULT_SEVERITY,
+  EMPTY_SEVERITY_MAP,
+  HYGIENE_ERRORS,
+  parseSeverityMap,
+  severityFor,
+  SeverityMapError,
+  type SeverityMap,
+} from "./severity.js";
+export {
   CHECK_CLASSES,
   CHECK_SEVERITIES,
   type CheckClass,

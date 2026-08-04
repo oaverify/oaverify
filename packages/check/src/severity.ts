@@ -3,18 +3,26 @@
  *
  * oaverify grades every finding, and that grading is a judgement about
  * consequence which a consumer may reasonably disagree with. The
- * defaults below are what oaverify believes; `--severity` is how a team
- * that believes otherwise says so, without post-processing JSON.
+ * defaults below are what oaverify believes; a {@link SeverityMap} is
+ * how a caller that believes otherwise says so, without post-processing
+ * the findings.
  *
- * The grading is not cosmetic. `--fail-on` reads `severity`, so a
- * remapping changes exit codes, which is the point: a team that treats
- * `unsatisfiable/*` as a release blocker can gate on it.
+ * The grading is not cosmetic: it is what a gate reads. The CLI's
+ * `--fail-on` compares against `severity`, so a remapping changes exit
+ * codes, which is the point. A team that treats `unsatisfiable/*` as a
+ * release blocker can gate on it.
+ *
+ * Publishing {@link DEFAULT_SEVERITY} makes oaverify's judgement part
+ * of the contract, so changing an entry is a breaking change. That cost
+ * is taken deliberately, because the alternative is worse: leaving the
+ * table unexported means every consumer reimplements the composition
+ * and the four gradings drift apart.
  *
  * @packageDocumentation
  */
 
-import { CHECK_CODES, CHECK_FAMILIES } from "@oaverify/check";
-import type { CheckClass, CheckSeverity } from "@oaverify/check";
+import { CHECK_CODES, CHECK_FAMILIES } from "./codes.js";
+import type { CheckClass, CheckSeverity } from "./finding.js";
 
 /**
  * What oaverify grades each class as, before any `--severity` mapping.
@@ -51,7 +59,11 @@ export const DEFAULT_SEVERITY: Readonly<Record<CheckClass, CheckSeverity>> = {
 export const HYGIENE_ERRORS = new Set(["path-param-undeclared", "path-param-unused"]);
 
 /**
- * A parsed `--severity` mapping.
+ * A regrading, keyed three ways.
+ *
+ * What {@link parseSeverityMap} produces, and what a caller can also
+ * build by hand: the map is the semantics, the string grammar is one
+ * serialization of it.
  *
  * Three key spaces, most specific first when a finding is graded. Kept
  * apart rather than merged into one map so precedence is a property of
@@ -76,11 +88,11 @@ export const EMPTY_SEVERITY_MAP: SeverityMap = {
  * The severity a finding carries, after any mapping.
  *
  * Most specific wins: an exact code beats the family it sits in, which
- * beats its class. So `--severity 'unsatisfiable/*=error,unsatisfiable/pattern-length=warning'`
- * promotes the family and demotes the one member, and the order the two
- * were written in does not matter.
+ * beats its class. So a map promoting the `unsatisfiable` family to
+ * `error` while demoting `unsatisfiable/pattern-length` to `warning`
+ * does both, and which was written first does not matter.
  *
- * @internal
+ * @public
  */
 export function severityFor(
   map: SeverityMap,
@@ -103,7 +115,13 @@ export function defaultSeverityFor(cls: CheckClass, code: string): CheckSeverity
   return DEFAULT_SEVERITY[cls];
 }
 
-/** Thrown for a malformed `--severity`; the CLI renders it as a usage error. */
+/**
+ * Thrown by {@link parseSeverityMap} for input it will not accept.
+ *
+ * The message names the offending text and is written to be shown to
+ * whoever typed it; the CLI prints it as a usage error. A caller
+ * parsing a config file can do the same.
+ */
 export class SeverityMapError extends Error {}
 
 /**
@@ -119,14 +137,16 @@ function nearestCode(key: string): string {
 }
 
 /**
- * Parse `--severity` into a {@link SeverityMap}.
+ * Parse the string grammar into a {@link SeverityMap}.
  *
- * The grammar is one comma-separated list of `key=level`, matching
- * `--only`'s shape rather than introducing a file for what is usually
- * one or two entries:
+ * The grammar is one comma-separated list of `key=level`. It exists
+ * because a regrading usually has one or two entries and typing them
+ * beats authoring a file; the CLI exposes it as `--severity`, and a
+ * caller reading a config value in the same shape can reuse it rather
+ * than reimplementing the key spaces.
  *
  * ```
- * --severity 'unsatisfiable/*=error,redos=error'
+ * parseSeverityMap(["unsatisfiable/*=error,redos=error"], CHECK_CLASSES, CHECK_SEVERITIES)
  * ```
  *
  * A key is an exact code (`unsatisfiable/pattern-length`), a family
@@ -139,8 +159,8 @@ function nearestCode(key: string): string {
  *
  * **`malformed` cannot be mapped, and saying so is the point.** Its
  * findings are `fatal` and its exit code is 4, which outranks
- * `--fail-on` because a document that cannot be compiled is not a gate
- * result. A mapping that changed the printed severity while leaving the
+ * a gate threshold, because a document that cannot be compiled is not
+ * a gate result. A mapping that changed the printed severity while leaving the
  * exit code alone would look like it worked and would not, so
  * `malformed` and `malformed-schema` are refused rather than
  * half-applied.
@@ -151,7 +171,7 @@ function nearestCode(key: string): string {
  *
  * @throws SeverityMapError with the offending text.
  *
- * @internal
+ * @public
  */
 export function parseSeverityMap(
   entries: readonly string[],

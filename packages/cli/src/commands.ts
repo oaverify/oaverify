@@ -42,19 +42,17 @@ import { renderSarif } from "./sarif.js";
 import {
   CHECK_CLASSES,
   CHECK_SEVERITIES,
-  type CheckClass,
-  type CheckFinding,
-  type CheckSeverity,
-  type FindingTarget,
-} from "@oaverify/check";
-import {
   defaultSeverityFor,
   EMPTY_SEVERITY_MAP,
   parseSeverityMap,
   severityFor,
   SeverityMapError,
+  type CheckClass,
+  type CheckFinding,
+  type CheckSeverity,
+  type FindingTarget,
   type SeverityMap,
-} from "./severity.js";
+} from "@oaverify/check";
 
 /**
  * Input shared by all CLI commands.
