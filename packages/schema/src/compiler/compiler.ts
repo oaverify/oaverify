@@ -872,16 +872,11 @@ export interface CompileOptions {
    * - `"ignore"` (default): the format asserts nothing, per JSON Schema.
    * - `"error"`: refuse to compile, naming the formats.
    *
-   * A name with no validator behind it is a constraint the author wrote
-   * and no one enforces, and nothing reports it. `"error"` is how a
-   * caller who wants every `format` enforced says so.
+   * Inert where the dialect does not assert `format`, and independent of
+   * {@link CompileOptions.schemaLint}, which reports advice rather than
+   * refusing to build.
    *
-   * Only meaningful where the dialect asserts `format` at all. Under the
-   * annotation-only default nothing is enforced by design, and this is
-   * inert.
-   *
-   * A format meant as an annotation stays legal by registering the
-   * identity for it, which says so at the call site:
+   * Keep a format as an annotation by registering the identity for it:
    *
    * ```ts
    * compileSchema(schema, {
@@ -889,10 +884,6 @@ export interface CompileOptions {
    *   formats: { "x-internal-id": () => true },
    * })
    * ```
-   *
-   * Independent of {@link CompileOptions.schemaLint}: this refuses to
-   * build a validator rather than reporting advice, so `schemaLint:
-   * "off"` does not switch it off.
    */
   unknownFormats?: "ignore" | "error";
 
