@@ -16,6 +16,7 @@ import {
   specOverlayVerbs,
   STDIN_URI,
   type DocumentReader,
+  sourceOf,
   type ResolvedSpec,
   type SpecOverlay,
 } from "@oaverify/internal-spec";
@@ -37,15 +38,28 @@ import {
   CHECK_SEVERITIES,
   checkSpec,
   EMPTY_SEVERITY_MAP,
+  KNOWN_FORMATS,
   parseSeverityMap,
   renderSarif,
+  severityFor,
+  severityKeyOf,
   SeverityMapError,
+  splitSeverityEntries,
   type CheckClass,
   CheckAbortedError,
   type CheckFinding,
   type CheckSeverity,
   type SeverityMap,
 } from "@oaverify/check";
+import {
+  DOCUMENT_LOCATION,
+  isCustomSeverityKey,
+  loadRules,
+  runRules,
+  RuleContractError,
+  RuleLoadError,
+  type DocumentRule,
+} from "./custom-rules.js";
 
 /**
  * Input shared by all CLI commands.
@@ -238,6 +252,31 @@ export async function resolveCommand(
  * redirected output is identical to what the terminal showed, which is
  * what makes a saved report reviewable and a golden file diffable.
  */
+/**
+ * Which classes a `check` run selects, and the one combination refused.
+ *
+ * `custom` is out of the default set: with no `--rules` there is nothing
+ * in it, and a class that silently reports nothing reads as a pass.
+ */
+export function classesFor(
+  only: readonly CheckClass[] | undefined,
+  hasRules: boolean,
+): { classes: Set<CheckClass> } | { error: string } {
+  if (only === undefined) {
+    return {
+      classes: new Set(hasRules ? CHECK_CLASSES : CHECK_CLASSES.filter((c) => c !== "custom")),
+    };
+  }
+  if (only.includes("custom") && !hasRules) {
+    return {
+      error:
+        "--only custom needs --rules: the custom class holds the rules a module supplies, and " +
+        "with none loaded this run would report no findings without having checked anything",
+    };
+  }
+  return { classes: new Set(only) };
+}
+
 const DEFAULT_REPORT_WIDTH = 80;
 
 /**
@@ -313,8 +352,22 @@ export async function checkCommand(
   args: {
     spec: string;
     overlays: string[];
-    /** Classes to run. Defaults to all of {@link CHECK_CLASSES}. */
+    /**
+     * Classes to run. Defaults to all of {@link CHECK_CLASSES} except
+     * `custom`, which joins the default set only when `rules` is
+     * non-empty. See {@link classesFor}.
+     */
     only?: CheckClass[];
+    /**
+     * `--rules` module paths, resolved against `cwd`. Each exports
+     * `rules` (or defaults) an array of {@link DocumentRule}.
+     *
+     * **Loading these executes local code.** Only ever from argv: there
+     * is no config file, no discovery, and no document extension that
+     * can name one, so a spec can never introduce code to run. See the
+     * module docs on `custom-rules.ts`.
+     */
+    rules?: readonly string[];
     /**
      * Exit non-zero when any finding at or above this severity appears.
      * `"warning"` is the floor and keeps its historical meaning of "any
@@ -337,9 +390,9 @@ export async function checkCommand(
      */
     version?: string;
     /**
-     * Directory that SARIF paths are made relative to, normally the
-     * working directory. A parameter so a test does not depend on where
-     * it was invoked from.
+     * The working directory: what SARIF paths are made relative to, and
+     * what a relative `rules` path resolves against. A parameter so a
+     * test does not depend on where it was invoked from.
      */
     cwd?: string;
     /**
@@ -358,16 +411,56 @@ export async function checkCommand(
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
-  const classes = new Set<CheckClass>(args.only ?? CHECK_CLASSES);
+  const selection = classesFor(args.only, (args.rules ?? []).length > 0);
+  if ("error" in selection) {
+    io.stderr(`check: ${selection.error}\n`);
+    return { exitCode: 3 };
+  }
+  const classes = selection.classes;
 
-  // Parsed before anything is read: a typo in a CI flag should fail on
-  // the flag rather than after grading a document.
+  // Severity is parsed in two passes, split on the reserved `x-`
+  // namespace, so that loading a rule module does not cost the property
+  // that a typo in a CI flag fails before anything happens.
+  //
+  // Pass one covers every built-in key and runs before any module is
+  // imported, which is exactly what the single parse did before
+  // `--rules` existed. Only an `x-` key defers, and it has to: the
+  // module the flag names is what defines whether that key is a typo.
+  const severityEntries = splitSeverityEntries(args.severity ?? []);
+  const builtInEntries = severityEntries.filter((e) => !isCustomSeverityKey(severityKeyOf(e)));
+  try {
+    parseSeverityMap(builtInEntries);
+  } catch (err) {
+    if (!(err instanceof SeverityMapError)) throw err;
+    io.stderr(`check: --severity ${err.message}\n`);
+    return { exitCode: 3 };
+  }
+
+  // Loaded whenever `--rules` is given, even when `--only` leaves the
+  // custom class out, because the codes have to be registered for
+  // `--severity x-acme/...` to be gradeable either way. That matches
+  // `--severity hygiene=error --only schema`, which is accepted today
+  // and grades nothing. Loading is also the only place a bad module is
+  // reported, and reporting that is worth more than skipping it.
+  let rules: readonly DocumentRule[] = [];
+  if (args.rules !== undefined && args.rules.length > 0) {
+    try {
+      rules = await loadRules(args.rules, args.cwd ?? process.cwd());
+    } catch (err) {
+      if (!(err instanceof RuleLoadError)) throw err;
+      io.stderr(`check: ${err.message}\n`);
+      return { exitCode: 3 };
+    }
+  }
+
   let severityMap: SeverityMap;
   try {
     severityMap =
-      args.severity === undefined || args.severity.length === 0
+      severityEntries.length === 0
         ? EMPTY_SEVERITY_MAP
-        : parseSeverityMap(args.severity);
+        : parseSeverityMap(severityEntries, {
+            customCodes: new Set(rules.map((r) => r.code)),
+          });
   } catch (err) {
     if (!(err instanceof SeverityMapError)) throw err;
     io.stderr(`check: --severity ${err.message}\n`);
@@ -413,6 +506,51 @@ export async function checkCommand(
     if (!(err instanceof CheckAbortedError)) throw err;
     io.stderr(`check: ${err.message}\n`);
     return { exitCode: 2 };
+  }
+
+  if (classes.has("custom") && rules.length > 0) {
+    // House rules, last, so a report reads oaverify's findings before
+    // the reader's own. Everything except `message` and the pointer is
+    // derived here rather than supplied by the rule: `class` is fixed,
+    // `location` is display text the rule cannot write, and `anchor` is
+    // `node` because a rule addresses the resolved document by walking
+    // it, which is what every other document pass does.
+    let ruleFindings;
+    try {
+      ruleFindings = await runRules(rules, {
+        document: resolved.document,
+        knownFormats: KNOWN_FORMATS,
+      });
+    } catch (err) {
+      if (!(err instanceof RuleContractError)) throw err;
+      io.stderr(`check: ${err.message}\n`);
+      return { exitCode: 3 };
+    }
+    for (const finding of ruleFindings) {
+      // Graded here rather than by `checkSpec`, which only grades what it
+      // produced. Without this a `--severity x-acme//rule=error` would
+      // parse, validate against the rule's own code, and then be ignored.
+      const graded = { class: "custom" as const, code: finding.code };
+      // `target.source` is attached here rather than by the pass inside
+      // `checkSpec`, which only sees the findings it produced. Without
+      // this a custom finding is the one kind with no source address,
+      // and SARIF loses its location.
+      const target =
+        finding.pointer === undefined
+          ? undefined
+          : { pointer: finding.pointer, anchor: "node" as const };
+      const source =
+        target === undefined ? undefined : sourceOf(resolved.regions ?? [], target.pointer);
+      findings.push({
+        ...graded,
+        severity: severityFor(severityMap, graded, finding.severity),
+        location: finding.pointer ?? DOCUMENT_LOCATION,
+        message: finding.message,
+        ...(target === undefined
+          ? {}
+          : { target: source === undefined ? target : { ...target, source } }),
+      });
+    }
   }
 
   const sink = primarySink(io, args.options);

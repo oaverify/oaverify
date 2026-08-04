@@ -1,1 +1,1 @@
-check: --severity "nonsense=error": "nonsense" is not a class (hygiene, schema, conformance, examples, redos) or a code oaverify emits
+check: --severity "nonsense=error": "nonsense" is not a class (hygiene, schema, conformance, examples, redos, custom) or a code oaverify emits

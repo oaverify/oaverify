@@ -47,6 +47,11 @@ export const DEFAULT_SEVERITY: Readonly<Record<CheckClass, CheckSeverity>> = {
   // Split by code: two hygiene codes are spec violations, the rest name
   // things that are legal and merely dead.
   hygiene: "warning",
+  // Never consulted: a custom finding is graded by the rule that
+  // produced it, or by the rule's own default, before it reaches here.
+  // Present because the table is exhaustive over CheckClass, which is
+  // what makes a new class impossible to forget.
+  custom: "warning",
 };
 
 /**
@@ -125,15 +130,65 @@ export function defaultSeverityFor(cls: CheckClass, code: string): CheckSeverity
 export class SeverityMapError extends Error {}
 
 /**
+ * Flatten `--severity` occurrences into one entry per `key=level`.
+ *
+ * Exported so a caller can validate a subset of the entries before the
+ * rest are knowable. `check` parses every built-in key with it before a
+ * `--rules` module is imported, which is what keeps "a typo in a CI flag
+ * fails before any side effect" true now that some keys are defined by
+ * a module the flags cause to execute.
+ */
+export function splitSeverityEntries(entries: readonly string[]): string[] {
+  return entries
+    .flatMap((e) => e.split(","))
+    .map((e) => e.trim())
+    .filter((e) => e !== "");
+}
+
+/** The key half of one entry, unvalidated. The whole entry when it has no `=`. */
+export function severityKeyOf(entry: string): string {
+  const eq = entry.indexOf("=");
+  return eq === -1 ? entry.trim() : entry.slice(0, eq).trim();
+}
+
+const EMPTY_CODES: ReadonlySet<string> = new Set<string>();
+
+/**
+ * Options for {@link parseSeverityMap}.
+ *
+ * @remarks
+ * The built-in key spaces are taken from this package rather than passed
+ * in, so this widens what is accepted and never replaces it.
+ *
+ * @public
+ */
+export interface ParseSeverityMapOptions {
+  /**
+   * Codes to accept in addition to {@link CHECK_CODES}, for findings this
+   * package does not itself emit. A code containing `/` also contributes
+   * its prefix as an accepted family.
+   *
+   * `check --rules` supplies the codes its rule modules declare, which is
+   * what lets `--severity x-acme//rule=error` validate against a code
+   * space that only exists once a module has been imported.
+   */
+  readonly customCodes?: ReadonlySet<string>;
+}
+
+/**
  * A hint for a rejected code key, as a trailing clause. Dozens of codes
  * across six classes is too many to print, and a mistyped code is nearly
  * always the wrong member of a family the caller had right.
  */
-function nearestCode(key: string): string {
+function nearestCode(
+  key: string,
+  codes: ReadonlySet<string>,
+  families: ReadonlySet<string>,
+): string {
   const family = key.slice(0, key.indexOf("/"));
-  const siblings = [...CHECK_CODES].filter((code) => code.startsWith(`${family}/`)).sort();
+  const siblings = [...codes].filter((code) => code.startsWith(`${family}/`)).sort();
   if (siblings.length > 0) return `; "${family}/" holds ${siblings.join(", ")}`;
-  return `; known families are ${[...CHECK_FAMILIES].sort().join(", ")}`;
+  return `; known families are ${[...families].sort().join(", ")}`;
 }
 
 /**
@@ -164,6 +219,14 @@ function nearestCode(key: string): string {
  * proposes `custom`), that arrives as an optional options argument and
  * widens this additively.
  *
+ * `customCodes` widens the code space with the codes a `--rules` module
+ * declared, so the space stays *closed* rather than becoming open: it
+ * closes later, once the rule set is known, and a typo in an
+ * `x-acme/...` key is still refused. The caller is responsible for
+ * parsing the built-in keys before it loads any module, which is what
+ * keeps that refusal ahead of the side effect; see
+ * {@link splitSeverityEntries}.
+ *
  * **`malformed` cannot be mapped, and saying so is the point.** Its
  * findings are `fatal` and its exit code is 4, which outranks
  * a gate threshold, because a document that cannot be compiled is not
@@ -180,17 +243,30 @@ function nearestCode(key: string): string {
  *
  * @public
  */
-export function parseSeverityMap(entries: readonly string[]): SeverityMap {
+export function parseSeverityMap(
+  entries: readonly string[],
+  options: ParseSeverityMapOptions = {},
+): SeverityMap {
   const knownClasses: readonly string[] = CHECK_CLASSES;
   const severities: readonly CheckSeverity[] = CHECK_SEVERITIES;
+  const customCodes = options.customCodes ?? EMPTY_CODES;
   const byCode = new Map<string, CheckSeverity>();
   const byFamily = new Map<string, CheckSeverity>();
   const byClass = new Map<string, CheckSeverity>();
 
-  for (const entry of entries.flatMap((e) => e.split(","))) {
-    const text = entry.trim();
-    if (text === "") continue;
+  const codes = customCodes.size === 0 ? CHECK_CODES : new Set([...CHECK_CODES, ...customCodes]);
+  const families =
+    customCodes.size === 0
+      ? CHECK_FAMILIES
+      : new Set([
+          ...CHECK_FAMILIES,
+          ...[...customCodes].flatMap((code) => {
+            const slash = code.indexOf("/");
+            return slash === -1 ? [] : [code.slice(0, slash)];
+          }),
+        ]);
 
+  for (const text of splitSeverityEntries(entries)) {
     const eq = text.indexOf("=");
     if (eq === -1) {
       throw new SeverityMapError(`"${text}" is not <key>=<level>`);
@@ -216,9 +292,9 @@ export function parseSeverityMap(entries: readonly string[]): SeverityMap {
 
     if (key.endsWith("/*")) {
       const family = key.slice(0, -2);
-      if (!CHECK_FAMILIES.has(family)) {
+      if (!families.has(family)) {
         throw new SeverityMapError(
-          `"${text}": "${family}" is not a code family (${[...CHECK_FAMILIES].sort().join(", ")})`,
+          `"${text}": "${family}" is not a code family (${[...families].sort().join(", ")})`,
         );
       }
       byFamily.set(family, severity);
@@ -227,11 +303,11 @@ export function parseSeverityMap(entries: readonly string[]): SeverityMap {
     } else if (knownClasses.includes(key)) {
       // A class wins over a code of the same spelling; none collide today.
       byClass.set(key, severity);
-    } else if (CHECK_CODES.has(key)) {
+    } else if (codes.has(key)) {
       byCode.set(key, severity);
     } else if (key.includes("/")) {
       throw new SeverityMapError(
-        `"${text}": "${key}" is not a code oaverify emits${nearestCode(key)}`,
+        `"${text}": "${key}" is not a code oaverify emits${nearestCode(key, codes, families)}`,
       );
     } else {
       throw new SeverityMapError(

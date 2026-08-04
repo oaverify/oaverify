@@ -33,7 +33,10 @@ export {
   EMPTY_SEVERITY_MAP,
   parseSeverityMap,
   severityFor,
+  severityKeyOf,
   SeverityMapError,
+  splitSeverityEntries,
+  type ParseSeverityMapOptions,
   type SeverityMap,
 } from "./severity.js";
 export {

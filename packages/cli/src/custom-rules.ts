@@ -38,7 +38,7 @@
 import { isAbsolute, resolve as resolvePath } from "node:path";
 import { pathToFileURL } from "node:url";
 import { resolveJsonPointer, type OpenAPIDocument } from "@oaverify/internal-core";
-import type { CheckSeverity } from "./commands.js";
+import type { CheckSeverity } from "@oaverify/check";
 
 /**
  * What a rule knows about the run it is part of.

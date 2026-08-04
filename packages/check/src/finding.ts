@@ -37,7 +37,7 @@ export interface CheckFinding {
    * problem with a different remedy, and a consumer re-splitting the
    * array should not have to match on `code` to find it.
    */
-  class: "hygiene" | "schema" | "malformed" | "conformance" | "examples" | "redos";
+  class: "hygiene" | "schema" | "malformed" | "conformance" | "examples" | "redos" | "custom";
   /**
    * What this means for you, independent of which check found it.
    *
@@ -255,7 +255,14 @@ export interface FindingTarget {
  * malformed schema is found by compiling, which is what the `schema`
  * class does, so it cannot be requested on its own.
  */
-export const CHECK_CLASSES = ["hygiene", "schema", "conformance", "examples", "redos"] as const;
+export const CHECK_CLASSES = [
+  "hygiene",
+  "schema",
+  "conformance",
+  "examples",
+  "redos",
+  "custom",
+] as const;
 export type CheckClass = (typeof CHECK_CLASSES)[number];
 
 /**

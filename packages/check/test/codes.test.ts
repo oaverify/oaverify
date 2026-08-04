@@ -22,8 +22,15 @@ describe("the hand-written slices still match their emit sites", () => {
 });
 
 describe("the registry covers the classes it claims to", () => {
-  it("has an entry for every selectable class, plus malformed", () => {
-    expect(Object.keys(CODES_BY_CLASS).sort()).toEqual([...CHECK_CLASSES, "malformed"].sort());
+  // `custom` is the one class with no entry, and that is the closed
+  // registry holding rather than leaking: its codes are declared by the
+  // `--rules` modules a run loads, so they are known at load time and
+  // unioned into the code space then. A static entry here would have to
+  // be either empty (and false) or open (and unable to reject a typo).
+  it("has an entry for every statically-known class, plus malformed", () => {
+    expect(Object.keys(CODES_BY_CLASS).sort()).toEqual(
+      [...CHECK_CLASSES.filter((c) => c !== "custom"), "malformed"].sort(),
+    );
   });
 
   it("holds no duplicate code across classes", () => {

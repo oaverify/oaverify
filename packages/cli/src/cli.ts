@@ -163,6 +163,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
         "a family as 'name/*', or a class (e.g. 'unsatisfiable/*=error,redos=error')",
     )
     .option(
+      "--rules <file...>",
+      "run house rules from one or more local modules (EXECUTES THAT CODE; " +
+        "only ever read from this flag, never from a spec or a config file)",
+    )
+    .option(
       "--format <shape>",
       "'text' (default; one finding per line), 'json' ({ findings }), or 'sarif' (SARIF 2.1.0)",
       (value: string): "text" | "json" | "sarif" => {
@@ -183,6 +188,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           only?: CheckClass[];
           failOn?: CheckSeverity;
           severity?: string[];
+          rules?: string[];
           format: "text" | "json" | "sarif";
           output?: string;
           quiet: boolean;
@@ -195,6 +201,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             only: opts.only,
             failOn: opts.failOn,
             severity: opts.severity,
+            rules: opts.rules,
             format: opts.format,
             version: options.version,
             // Terminal width only when stdout is one. Redirected or piped
