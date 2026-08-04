@@ -10,6 +10,11 @@
 //                      #346 removed: cli->router, formats->core).
 //        - undeclared: imported in shipped src but not declared (the more
 //                      dangerous direction; works only by lockfile luck).
+//   3. CLASSIFIED: a bundle member importing an internal from runtime src
+//      declares it in `dependencies`, not `devDependencies`. Check 1 reads
+//      `dependencies`, and check 2 accepts either, so without this a real
+//      runtime edge can sit in devDependencies where the cycle check cannot
+//      see it, and both other checks still pass.
 //
 // "Declared" unions `dependencies` and `devDependencies`, because the two
 // package kinds carry their @oaverify/internal-* deps differently: the internal private
@@ -34,11 +39,10 @@
 //   - Collapse subpaths. An import of `@oaverify/internal-validator/internals` counts
 //     as using `@oaverify/internal-validator` (the cli relies on this barrel).
 //
-// Two source sets, because the two assertions ask different questions:
+// Two source sets, because the assertions ask different questions:
 //   - RUNTIME src = packages/<pkg>/src/**/*.ts minus *.test.ts. Feeds the
-//     cycle check, which models the shipped dependency DAG; the package
-//     tsconfigs exclude tests from the build, so a test import is not a
-//     runtime edge.
+//     classification check, because the package tsconfigs exclude tests from
+//     the build, so a test import is not a runtime edge.
 //   - ALL src = the above plus *.test.ts anywhere under the package. Feeds
 //     the declared-vs-imported checks, because a test-only import still
 //     belongs in devDependencies. Scanning only runtime src made those two
@@ -119,9 +123,13 @@ function readPackages() {
         ...Object.keys(manifest.devDependencies ?? {}).filter((d) => d.startsWith(SCOPE)),
       ]),
     ];
-    // Declared-vs-imported spans tests; the cycle check does not (see the
-    // two-source-sets note at the top).
+    // Declared-vs-imported spans tests; the classification check does not
+    // (see the two-source-sets note at the top).
     const imported = new Set();
+    const runtimeImported = new Set();
+    for (const file of collectSources(join(dir, "src"), false)) {
+      for (const pkg of importedPackages(readFileSync(file, "utf8"))) runtimeImported.add(pkg);
+    }
     for (const file of [
       ...collectSources(join(dir, "src"), true),
       ...collectSources(join(dir, "test"), true),
@@ -129,7 +137,15 @@ function readPackages() {
       for (const pkg of importedPackages(readFileSync(file, "utf8"))) imported.add(pkg);
     }
     imported.delete(manifest.name); // a package importing its own subpath is not a dep.
-    packages.set(manifest.name, { dir, runtimeDeps, declared, imported });
+    runtimeImported.delete(manifest.name);
+    packages.set(manifest.name, {
+      dir,
+      bundleMember: manifest.private === true,
+      runtimeDeps,
+      declared,
+      imported,
+      runtimeImported,
+    });
   }
   return packages;
 }
@@ -175,7 +191,7 @@ const errors = [];
 const cycle = findCycle(packages);
 if (cycle) errors.push(`cycle in @oaverify/internal-* dependency graph: ${cycle.join(" -> ")}`);
 
-for (const [name, { declared, imported }] of packages) {
+for (const [name, { bundleMember, runtimeDeps, declared, imported, runtimeImported }] of packages) {
   for (const dep of declared) {
     if (!imported.has(dep)) {
       errors.push(`${name}: declares ${dep} but never imports it (phantom dependency)`);
@@ -184,6 +200,22 @@ for (const [name, { declared, imported }] of packages) {
   for (const dep of imported) {
     if (!declared.includes(dep)) {
       errors.push(`${name}: imports ${dep} but does not declare it (undeclared dependency)`);
+    }
+  }
+  // The cycle check above reads `dependencies` only, so a runtime edge
+  // parked in devDependencies is invisible to it: the union in `declared`
+  // satisfies both checks above, and the graph loses an edge it should
+  // have. Assert the classification the cycle check depends on. Bundle
+  // members only: the published packages import internals from runtime
+  // source and declare them as devDependencies on purpose, because tsup
+  // inlines them at publish and their runtime dep is `@oaverify/core`.
+  if (!bundleMember) continue;
+  for (const dep of runtimeImported) {
+    if (!runtimeDeps.includes(dep)) {
+      errors.push(
+        `${name}: imports ${dep} from runtime src but declares it in devDependencies; ` +
+          `move it to dependencies (the cycle check reads dependencies, so this edge is not checked)`,
+      );
     }
   }
 }
