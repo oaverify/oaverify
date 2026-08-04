@@ -57,11 +57,15 @@ Pick the packages that match what you need.
 | Express 5 request middleware                    | `@oaverify/core` + `@oaverify/express5` |
 | Fastify `preValidation` hook                    | `@oaverify/core` + `@oaverify/fastify`  |
 | Streaming large bodies + buffer-budget analysis | `@oaverify/stream`                      |
+| Grading a spec document from your own tooling   | `@oaverify/check`                       |
 
 `@oaverify/core` is the library and carries no runtime dependencies. It parses
 JSON; YAML support is a separate package because it pulls in a parser.
-The adapters and the streaming engine depend on `@oaverify/core`, so installing
-one gets you both.
+The adapters, the streaming engine and the document check depend on
+`@oaverify/core`, so installing one gets you both. `@oaverify/check` is what
+`oaverify check` runs; install it directly when you want the findings, the
+severity grading and the SARIF output inside your own program rather than
+from a shell.
 
 The CLI can validate a request before you wire validation into an
 application:
