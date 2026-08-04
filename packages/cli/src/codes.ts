@@ -125,7 +125,7 @@ const _conformanceComplete: Missing<
     ] = true;
 
 /** Examples-class codes. */
-export const EXAMPLES_CODES = ["example-invalid"] as const;
+export const EXAMPLES_CODES = ["example-invalid", "example-uncheckable"] as const;
 
 /** ReDoS-class codes. */
 export const REDOS_CODES = ["ambiguous-pattern"] as const;

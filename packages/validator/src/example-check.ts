@@ -61,13 +61,17 @@ import {
 import { escapePointer, walkDocumentSchemas } from "./document-walk.js";
 
 /**
- * One example that its schema rejects.
+ * One example its schema rejects, or one this pass could not check.
  *
  * @public
  */
 export interface ExampleIssue {
-  /** Always `"example-invalid"`; the field exists so findings read uniformly. */
-  code: "example-invalid";
+  /**
+   * - `"example-invalid"`: the schema rejects the example.
+   * - `"example-uncheckable"`: the validator threw, so nothing is known
+   *   about the example either way.
+   */
+  code: "example-invalid" | "example-uncheckable";
   /**
    * RFC 6901 pointer to the offending example value within the
    * document, percent-decoded with `~0` / `~1` retained.
@@ -257,9 +261,39 @@ function distinctReasons(
  * the message, and the structured leaves behind it. Kept together so
  * the two can never be assembled from different validation runs.
  */
+/**
+ * Depth cap for the two compiles below.
+ *
+ * Recursion runs on the native call stack, so a self-`$ref` schema and a
+ * deeply nested example throw `RangeError` (empirically around 5k
+ * frames). `maxDepth` turns that into a `depth` error leaf, so the
+ * example is reported as invalid with a true reason rather than passing
+ * silently (#625).
+ *
+ * 500 against a measured crash at ~7.7k, so the margin absorbs a
+ * smaller stack (another platform, another Node, a deeper caller)
+ * rather than tracking the ceiling. Far over any real example: 500
+ * levels of nesting is not a value anyone writes into a spec.
+ */
+const EXAMPLE_MAX_DEPTH = 500;
+
 interface Rejection {
+  code: ExampleIssue["code"];
   summary: string;
   reasons: readonly RejectionReason[];
+}
+
+/**
+ * A validator that threw says nothing about the example. Reporting it
+ * as a finding keeps "I could not check this" distinct from "this is
+ * fine", which returning `undefined` did not (#625).
+ */
+function uncheckable(err: unknown): Rejection {
+  return {
+    code: "example-uncheckable",
+    summary: err instanceof Error ? err.message : String(err),
+    reasons: [],
+  };
 }
 
 /**
@@ -314,7 +348,7 @@ export function checkDocumentExamples(
 
   const report = (pointer: string, what: string, value: unknown, rejection: Rejection): void => {
     issues.push({
-      code: "example-invalid",
+      code: rejection.code,
       pointer,
       reasons: rejection.reasons,
       // "oaverify rejects" rather than "does not satisfy": the finding
@@ -322,7 +356,10 @@ export function checkDocumentExamples(
       // is wrong, and occasionally it means oaverify is (#553). Wording
       // it as settled spec truth would overstate the first case and
       // mislead on the second.
-      message: `oaverify rejects ${what} against its schema: ${rejection.summary} (example: ${echoValue(value)})`,
+      message:
+        rejection.code === "example-uncheckable"
+          ? `oaverify could not check ${what} against its schema: ${rejection.summary} (example: ${echoValue(value)})`
+          : `oaverify rejects ${what} against its schema: ${rejection.summary} (example: ${echoValue(value)})`,
     });
   };
 
@@ -438,6 +475,7 @@ export function checkDocumentExamples(
           refResolver,
           schemaLint: "off",
           output: "predicate",
+          maxDepth: EXAMPLE_MAX_DEPTH,
         }),
       };
     } catch {
@@ -463,6 +501,7 @@ export function checkDocumentExamples(
         // at REASON_LIMIT, so the finding stays readable and the count
         // of what was dropped is exact.
         maxErrors: Number.POSITIVE_INFINITY,
+        maxDepth: EXAMPLE_MAX_DEPTH,
       });
       return checkers.detail;
     };
@@ -471,21 +510,20 @@ export function checkDocumentExamples(
       let valid: boolean;
       try {
         valid = checkers.predicate.validate(value);
-      } catch {
-        // A validator that throws on this value says nothing about the
-        // example being wrong.
-        return undefined;
+      } catch (err) {
+        return uncheckable(err);
       }
       if (valid) return undefined;
 
       let result: ReturnType<CompiledSchema["validate"]>;
       try {
         result = detail().validate(value);
-      } catch {
-        return undefined;
+      } catch (err) {
+        return uncheckable(err);
       }
       if (result.valid) return undefined;
       return {
+        code: "example-invalid",
         summary: joinReasons(result.errors),
         reasons: distinctReasons(result.errors),
       };
