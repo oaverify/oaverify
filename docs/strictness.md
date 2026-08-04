@@ -352,9 +352,13 @@ Every finding carries both, and neither implies the other.
 
 | Severity  | Meaning                                                 |
 | --------- | ------------------------------------------------------- |
-| `fatal`   | The document cannot be compiled into a validator.       |
+| `fatal`   | Act before shipping anything else.                      |
 | `error`   | Legal to parse, but violates the OpenAPI specification. |
 | `warning` | Legal, and probably not what the author meant.          |
+
+`fatal` is a rank. Exit code 4 and the ban on remapping attach to the
+`malformed` class, not to this row, so `--severity` may promote a finding
+to `fatal` without claiming the document failed to compile.
 
 They are separate because they cut across each other. `hygiene` holds
 both `path-param-undeclared`, which is a specification violation, and

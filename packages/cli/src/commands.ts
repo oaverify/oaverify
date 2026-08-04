@@ -264,9 +264,15 @@ export interface CheckFinding {
    * the OpenAPI spec and `unused-tag` is housekeeping, but both are
    * `hygiene`, so gating on the class meant gating on both or neither.
    *
-   * - `"fatal"`: the document cannot be compiled into a validator.
+   * - `"fatal"`: act before shipping anything else. The `malformed`
+   *   class owns this today, because a document that cannot be compiled
+   *   is the one thing that stops everything.
    * - `"error"`: legal to parse, but violates the OpenAPI specification.
    * - `"warning"`: legal, and probably not what the author meant.
+   *
+   * Exit code 4 tracks the `malformed` class, not this rank, so
+   * `--severity` may promote a finding to `fatal` without claiming the
+   * document failed to compile.
    */
   severity: CheckSeverity;
   /** The class-specific code, e.g. `"unused-component"`, `"unknown-keyword"`. */
