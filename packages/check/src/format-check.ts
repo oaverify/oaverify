@@ -5,9 +5,10 @@
  * a tool may fall back to `type` alone, so a vendor format is legal.
  * What the author loses is the constraint they wrote.
  *
- * In the CLI because `check`'s format support is fixed at
- * `builtInFormats`, so the answer depends on the document alone. A
- * library caller supplies its own map (#635).
+ * A pass of its own because `check` fixes format support at
+ * `builtInFormats`, so the answer depends on the document alone.
+ * Exposing the format map as an option would make it depend on the
+ * caller too, which is additive when someone wants it (#635).
  *
  * @packageDocumentation
  */

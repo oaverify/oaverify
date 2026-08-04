@@ -51,6 +51,12 @@ const NOT_IN_OAV_BUNDLE = [
   "@oaverify/internal-oav-express5",
   "@oaverify/internal-oav-fastify",
   "@oaverify/internal-stream-validator",
+  // The meta-schemas are `@oaverify/check`'s since #572, and that
+  // package is an external runtime dep of the oaverify tarball rather
+  // than a bundle member. The CLI reached them only through its
+  // conformance pass, which moved.
+  "@oaverify/internal-metaschema",
+  "@oaverify/internal-metaschema/conformance",
 ].sort();
 
 describe("@oaverify/internal-* alias parity across resolution tables", () => {

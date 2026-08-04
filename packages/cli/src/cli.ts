@@ -3,6 +3,10 @@ import { KNOWN_OUTPUT_FORMATS, isOutputFormat, type OutputFormat } from "@oaveri
 import {
   CHECK_CLASSES,
   CHECK_SEVERITIES,
+  type CheckClass,
+  type CheckSeverity,
+} from "@oaverify/check";
+import {
   checkCommand,
   compileSchemaCommand,
   compileSpecCommand,
@@ -10,8 +14,6 @@ import {
   resolveCommand,
   streamCheckCommand,
   validateCommand,
-  type CheckClass,
-  type CheckSeverity,
   type CommandIo,
   type ValidateMode,
 } from "./commands.js";

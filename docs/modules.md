@@ -37,6 +37,49 @@ install hint pointing here.
 `@oaverify/yaml`'s default reader covers both, so a `.yaml` entry
 loads with no composition.
 
+## Spec checking
+
+`@oaverify/check` is the composed document check behind `oaverify
+check`, in its own package because the ReDoS pass depends on
+`redos-detector` (~1MB unpacked) and npm installs a dependency whichever
+entry imports it. Behind a `@oaverify/core` subpath that weight would
+reach every `@oaverify/core` consumer.
+
+| Export                                       | Purpose                                                                 |
+| -------------------------------------------- | ----------------------------------------------------------------------- |
+| `checkSpec(resolved, options?)`              | Every selected pass over a `ResolvedSpec`, graded into `CheckFinding[]` |
+| `CheckFinding`, `FindingTarget`              | What a finding is, and how it addresses the document                    |
+| `CHECK_CLASSES`, `CHECK_SEVERITIES`          | The classes a run selects, and the severity ranking                     |
+| `CheckCode`, `CHECK_CODES`                   | Every code a run can emit, as a type and as a set                       |
+| `DEFAULT_SEVERITY`, `severityFor`            | oaverify's grading, and how a regrading is applied                      |
+| `parseSeverityMap(entries)`                  | The `key=level` grammar the CLI spells `--severity`                     |
+| `renderSarif(findings, options)`             | SARIF 2.1.0, for code scanning; `options.classes` is required           |
+| `checkDocumentFormats`, `checkDocumentRedos` | The two passes that have no other home                                  |
+
+`checkSpec` takes a resolved spec rather than a document, because two of
+its inputs are byproducts of resolution: the regions each finding's
+`target.source` comes from, and the `inlinedComponents` list the hygiene
+pass needs. Load with `provenance: true` for source attribution and
+SARIF locations; without it, `target.source` is absent on every finding.
+
+```ts
+import { loadSpecSync } from "@oaverify/core/spec";
+import { checkSpec } from "@oaverify/check";
+
+const resolved = loadSpecSync({ entry: "openapi.json", provenance: true });
+for (const finding of checkSpec(resolved)) {
+  console.log(finding.severity, finding.code, finding.location);
+}
+```
+
+`loadSpec` (async) requires an explicit `reader`; `loadSpecSync`
+defaults to a JSON-only filesystem one. Compose in `@oaverify/yaml`'s
+readers for a YAML entry.
+
+Loading stays with the caller, which is why the package has no reader
+and no second copy of `loadSpec`. See
+[`packages/check/README.md`](../packages/check/README.md).
+
 ## Streaming
 
 `@oaverify/stream` is the push-based streaming engine
@@ -47,7 +90,10 @@ published standalone. See
 
 ## The CLI
 
-`oaverify` ships the `oaverify` binary and no library exports. See
+`oaverify` ships the `oaverify` binary and no library exports. Its
+`check` command is a renderer over `@oaverify/check`: text output, exit
+codes and flag parsing are the CLI's, everything it reports is
+`checkSpec`'s. See
 [`packages/cli/README.md`](../packages/cli/README.md) for commands and
 flags.
 

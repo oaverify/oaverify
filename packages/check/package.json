@@ -1,25 +1,20 @@
 {
-  "name": "oaverify",
+  "name": "@oaverify/check",
   "version": "5.3.0",
-  "description": "Command-line OpenAPI validator (3.0/3.1/3.2): validate requests, responses, and examples against a spec, resolve and lint documents, and compile standalone validators. Library API lives in @oaverify/core.",
+  "description": "The composed OpenAPI document check behind `oaverify check`: hygiene, schema, conformance, example and ReDoS passes over a resolved spec, graded into one finding list.",
   "keywords": [
-    "api-validation",
-    "cli",
-    "command-line",
     "oas",
     "openapi",
     "openapi-3.0",
     "openapi-3.1",
     "openapi-3.2",
-    "openapi-cli",
+    "openapi-lint",
     "openapi-validator",
-    "request-validator",
-    "response-validator",
-    "spec-validation",
+    "sarif",
+    "spec-lint",
     "swagger",
     "validation",
-    "validator",
-    "yaml"
+    "validator"
   ],
   "homepage": "https://github.com/oaverify/oaverify#readme",
   "bugs": {
@@ -30,10 +25,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/oaverify/oaverify.git",
-    "directory": "packages/oav"
-  },
-  "bin": {
-    "oaverify": "./dist/cli.js"
+    "directory": "packages/check"
   },
   "files": [
     "dist",
@@ -41,7 +33,21 @@
     "LICENSE"
   ],
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -56,26 +62,19 @@
     "postpack": "node ../../scripts/pack-devdeps.mjs restore"
   },
   "dependencies": {
-    "@oaverify/check": "workspace:*",
     "@oaverify/core": "workspace:*",
-    "@oaverify/stream": "workspace:*",
-    "@oaverify/yaml": "workspace:*",
-    "commander": "^15.0.0"
+    "redos-detector": "^6.1.4"
   },
   "devDependencies": {
-    "@oaverify/internal-cli": "workspace:*",
+    "@oaverify/internal-core": "workspace:*",
+    "@oaverify/internal-formats": "workspace:*",
+    "@oaverify/internal-metaschema": "workspace:*",
+    "@oaverify/internal-schema": "workspace:*",
     "@oaverify/internal-spec": "workspace:*",
+    "@oaverify/internal-validator": "workspace:*",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "4.1.10"
-  },
-  "peerDependencies": {
-    "esbuild": "^0.28.0"
-  },
-  "peerDependenciesMeta": {
-    "esbuild": {
-      "optional": true
-    }
   },
   "engines": {
     "node": ">=22"

@@ -1,38 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { checkDocumentRedos } from "../src/redos-check.js";
+import type { CheckCode } from "../src/codes.js";
 import {
   CHECK_CODES,
   CHECK_FAMILIES,
   CODES_BY_CLASS,
   EXAMPLES_CODES,
   MALFORMED_CODES,
-  REDOS_CODES,
 } from "../src/codes.js";
-import { CHECK_CLASSES } from "../src/commands.js";
+import { CHECK_CLASSES } from "../src/finding.js";
 
-// The union-pinned slices fail the typecheck on drift. These three are
+// The union-pinned slices fail the typecheck on drift. The rest are
 // hand-written against a literal at an emit site, so they need a test.
+// The redos slice is asserted against its emit site in
+// `redos-check.test.ts`, which is where that pass lives.
 describe("the hand-written slices still match their emit sites", () => {
-  it("redos emits the code the registry lists", () => {
-    const doc = {
-      openapi: "3.1.0",
-      info: { title: "t", version: "1" },
-      paths: {
-        "/a": {
-          get: {
-            parameters: [
-              { name: "q", in: "query", schema: { type: "string", pattern: "^(a+)+$" } },
-            ],
-            responses: { "200": { description: "ok" } },
-          },
-        },
-      },
-    };
-    const issues = checkDocumentRedos(doc as never);
-    expect(issues.length).toBeGreaterThan(0);
-    for (const issue of issues) expect(REDOS_CODES).toContain(issue.code);
-  });
-
   // Both need a compiled validator to produce, which `check` owns.
   it("lists the codes each of examples and malformed emits", () => {
     expect([...EXAMPLES_CODES]).toEqual(["example-invalid", "example-uncheckable"]);
@@ -55,5 +36,22 @@ describe("the registry covers the classes it claims to", () => {
     for (const family of CHECK_FAMILIES) {
       expect([...CHECK_CODES].some((code) => code.startsWith(`${family}/`))).toBe(true);
     }
+  });
+});
+
+// `CheckCode` is derived from `CODES_BY_CLASS`, and the derivation is
+// the kind that degrades quietly: widen one array's type and the union
+// collapses to `string`, which still compiles everywhere and silently
+// stops autocompleting. `CheckFinding.code` then means nothing, because
+// its `string` half was only ever there to keep unknown codes
+// assignable. These two lines fail the typecheck if that happens.
+describe("CheckCode stays a literal union", () => {
+  it("accepts a code the registry lists and rejects one it does not", () => {
+    const known: CheckCode = "unused-component";
+    // @ts-expect-error "nonsense" is not a code oaverify emits. If this
+    // stops erroring, CheckCode has widened to `string`.
+    const unknown: CheckCode = "nonsense";
+    expect(CHECK_CODES.has(known)).toBe(true);
+    expect(CHECK_CODES.has(unknown)).toBe(false);
   });
 });

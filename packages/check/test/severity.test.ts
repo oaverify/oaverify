@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { CHECK_CODES, CHECK_FAMILIES } from "../src/codes.js";
-import { CHECK_CLASSES, CHECK_SEVERITIES } from "../src/commands.js";
 import {
   defaultSeverityFor,
   EMPTY_SEVERITY_MAP,
@@ -9,7 +8,7 @@ import {
   SeverityMapError,
 } from "../src/severity.js";
 
-const parse = (...entries: string[]) => parseSeverityMap(entries, CHECK_CLASSES, CHECK_SEVERITIES);
+const parse = (...entries: string[]) => parseSeverityMap(entries);
 
 const grade = (map: ReturnType<typeof parse>, cls: string, code: string) =>
   severityFor(map, { class: cls, code }, "warning");

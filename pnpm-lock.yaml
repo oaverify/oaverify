@@ -45,8 +45,15 @@ importers:
         specifier: 2.9.0
         version: 2.9.0
 
-  packages/cli:
+  packages/check:
     dependencies:
+      '@oaverify/core':
+        specifier: workspace:*
+        version: link:../..
+      redos-detector:
+        specifier: ^6.1.4
+        version: 6.1.4
+    devDependencies:
       '@oaverify/internal-core':
         specifier: workspace:*
         version: link:../core
@@ -56,6 +63,36 @@ importers:
       '@oaverify/internal-metaschema':
         specifier: workspace:*
         version: link:../metaschema
+      '@oaverify/internal-schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@oaverify/internal-spec':
+        specifier: workspace:*
+        version: link:../spec
+      '@oaverify/internal-validator':
+        specifier: workspace:*
+        version: link:../validator
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(postcss@8.5.23)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 4.1.10
+        version: 4.1.10(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(esbuild@0.28.1)(yaml@2.9.0)
+
+  packages/cli:
+    dependencies:
+      '@oaverify/check':
+        specifier: workspace:*
+        version: link:../check
+      '@oaverify/internal-core':
+        specifier: workspace:*
+        version: link:../core
+      '@oaverify/internal-formats':
+        specifier: workspace:*
+        version: link:../formats
       '@oaverify/internal-overlay-spec':
         specifier: workspace:*
         version: link:../overlay-spec
@@ -74,9 +111,6 @@ importers:
       commander:
         specifier: 15.0.0
         version: 15.0.0
-      redos-detector:
-        specifier: ^6.1.4
-        version: 6.1.4
 
   packages/core: {}
 
@@ -93,6 +127,9 @@ importers:
 
   packages/oav:
     dependencies:
+      '@oaverify/check':
+        specifier: workspace:*
+        version: link:../check
       '@oaverify/core':
         specifier: workspace:*
         version: link:../..
@@ -105,9 +142,6 @@ importers:
       commander:
         specifier: ^15.0.0
         version: 15.0.0
-      redos-detector:
-        specifier: ^6.1.4
-        version: 6.1.4
     devDependencies:
       '@oaverify/internal-cli':
         specifier: workspace:*

@@ -37,7 +37,8 @@
       "@oaverify/internal-stream-validator": ["./packages/stream-validator/src/index.ts"],
       "@oaverify/stream": ["./packages/stream-validator/src/index.ts"],
       "@oaverify/internal-cli": ["./packages/cli/src/index.ts"],
-      "@oaverify/internal-yaml": ["./packages/yaml/src/index.ts"]
+      "@oaverify/internal-yaml": ["./packages/yaml/src/index.ts"],
+      "@oaverify/check": ["./packages/check/src/index.ts"]
     }
   },
   "include": ["packages/*/test/**/*.ts", "packages/*/src/**/*.test.ts", "test/**/*.ts"]

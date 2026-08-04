@@ -2,17 +2,17 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "emitDeclarationOnly": true
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "src/**/*.test.ts"],
   "references": [
-    { "path": "../check" },
     { "path": "../core" },
     { "path": "../formats" },
+    { "path": "../metaschema" },
     { "path": "../schema" },
     { "path": "../spec" },
-    { "path": "../stream-validator" },
     { "path": "../validator" }
   ]
 }

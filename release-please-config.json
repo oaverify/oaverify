@@ -7,7 +7,16 @@
     {
       "type": "linked-versions",
       "groupName": "oaverify",
-      "components": ["core", "oaverify", "yaml", "express4", "express5", "fastify", "stream"]
+      "components": [
+        "core",
+        "oaverify",
+        "yaml",
+        "check",
+        "express4",
+        "express5",
+        "fastify",
+        "stream"
+      ]
     }
   ],
   "changelog-sections": [
@@ -79,6 +88,12 @@
       "release-type": "node",
       "package-name": "@oaverify/yaml",
       "component": "yaml",
+      "changelog-path": "CHANGELOG.md"
+    },
+    "packages/check": {
+      "release-type": "node",
+      "package-name": "@oaverify/check",
+      "component": "check",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/oav-express4": {

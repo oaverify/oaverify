@@ -13,16 +13,15 @@
     }
   },
   "dependencies": {
+    "@oaverify/check": "workspace:*",
     "@oaverify/internal-core": "workspace:*",
     "@oaverify/internal-formats": "workspace:*",
-    "@oaverify/internal-metaschema": "workspace:*",
     "@oaverify/internal-overlay-spec": "workspace:*",
     "@oaverify/internal-schema": "workspace:*",
     "@oaverify/internal-spec": "workspace:*",
     "@oaverify/internal-validator": "workspace:*",
     "@oaverify/stream": "workspace:*",
-    "commander": "15.0.0",
-    "redos-detector": "^6.1.4"
+    "commander": "15.0.0"
   },
   "engines": {
     "node": ">=20"

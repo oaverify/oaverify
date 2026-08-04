@@ -1,11 +1,11 @@
 import { resolveJsonPointer } from "@oaverify/internal-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { CheckFinding } from "@oaverify/check";
 import {
   checkCommand,
   defaultCommandIo,
   resolveCommand,
   validateCommand,
-  type CheckFinding,
   type CommandOptions,
 } from "../src/commands.js";
 import { memoryIo } from "./fixtures.js";

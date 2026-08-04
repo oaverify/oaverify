@@ -35,7 +35,7 @@
 
 import { isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { CheckClass, CheckFinding, CheckSeverity } from "./commands.js";
+import { type CheckClass, type CheckFinding, type CheckSeverity } from "./finding.js";
 
 /** The version this emitter targets, and the schema it declares. */
 const SARIF_VERSION = "2.1.0";
@@ -164,26 +164,48 @@ function rulesOf(findings: readonly CheckFinding[]): {
 /**
  * Render a `check` report as a SARIF 2.1.0 log.
  *
- * @param findings - The findings, after any `--severity` mapping.
- * @param options - `version` names the tool; `base` is the directory
- *   local paths are made relative to, normally the working directory.
+ * A data transformation rather than a rendering choice, which is why it
+ * lives here and the text report does not: uploading findings to code
+ * scanning is not a CLI-only need.
  *
- * @internal
+ * **Locations come from `target.source`, so a spec checked without
+ * provenance produces results with `locations: []`.** They still carry
+ * `ruleId`, `level`, `message` and the `oaverify:*` properties, and
+ * they will not annotate a file. See {@link FindingTarget.source}.
+ *
+ * @param findings - The findings, after any regrading.
+ * @param options - `version` names the tool and defaults to `"0.0.0"`;
+ *   `base` is the directory local paths are made relative to, and
+ *   defaults to the working directory; `classes` names the classes the
+ *   run selected: the same list passed to `checkSpec` as `only`, or
+ *   `CHECK_CLASSES` for a full run. Required rather than defaulted,
+ *   because the log asserts it as `oaverify:classes` so a consumer can
+ *   tell a partial run from a clean document; a default of all five
+ *   would label a partial run complete.
+ *
+ * @public
  */
 export function renderSarif(
   findings: readonly CheckFinding[],
-  options: { version: string; base: string; classes: readonly CheckClass[] },
+  options: {
+    version?: string;
+    base?: string;
+    classes: readonly CheckClass[];
+  },
 ): string {
+  const version = options.version ?? "0.0.0";
+  const base = options.base ?? process.cwd();
+  const classes = options.classes;
   const { rules, indexOf } = rulesOf(findings);
 
   const results = findings.map((finding) => {
-    const related = relatedLocationsOf(finding, options.base);
+    const related = relatedLocationsOf(finding, base);
     return {
       ruleId: finding.code,
       ruleIndex: indexOf.get(finding.code),
       level: levelOf(finding.severity),
       message: { text: finding.message },
-      locations: locationsOf(finding, options.base),
+      locations: locationsOf(finding, base),
       ...(related.length > 0 ? { relatedLocations: related } : {}),
       partialFingerprints: { oaverifyFindingV1: fingerprint(finding) },
       properties: {
@@ -220,15 +242,15 @@ export function renderSarif(
           driver: {
             name: "oaverify",
             informationUri: "https://github.com/oaverify/oaverify",
-            version: options.version,
-            semanticVersion: options.version,
+            version,
+            semanticVersion: version,
             rules,
           },
         },
         // Named so a consumer can tell a partial run from a clean
         // document: `check --only schema` reporting nothing means
         // something different from a full run reporting nothing.
-        properties: { "oaverify:classes": [...options.classes].sort() },
+        properties: { "oaverify:classes": [...classes].sort() },
         results,
       },
     ],
