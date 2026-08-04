@@ -80,5 +80,5 @@
   "engines": {
     "node": ">=22"
   },
-  "//": "No prepublishOnly: release.yml runs `pnpm test` from root before `pnpm -r publish`. Per-package publish (`cd packages/<x> && pnpm publish`) is not the supported path; it would skip the test gate."
+  "//": "No prepublishOnly: release.yml runs `pnpm test` from root, then packs with `pnpm pack` and publishes each tarball with `npm publish <tarball>`, which does not run prepublishOnly at all. Per-package publish (`cd packages/<x> && pnpm publish`) is not the supported path; it would skip the test gate."
 }
