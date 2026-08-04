@@ -236,7 +236,8 @@ in the meantime.
   `compileSchema`'s `formats` option.
 - **`@oaverify/internal-metaschema`**: the published OpenAPI meta-schemas,
   pinned per version, plus `metaschemaVersionOf()` dispatch. Consumed by
-  the CLI's `check` through the `/conformance` subpath. The 3.0 document
+  `@oaverify/check`'s conformance pass through the `/conformance`
+  subpath, and bundled into that tarball. The 3.0 document
   is generated from the checked-in upstream draft-04 document by
   `scripts/convert-oas30.mjs` and is never hand-edited. Keep the package
   off `@oaverify/core`'s entries: `metaschemaFor` reaches all three
@@ -279,13 +280,26 @@ in the meantime.
   spine nor `createStreamValidator`, so importing only the analyzer does
   not pull the engine; body extraction therefore lives in the shared
   `openapi/body-schema.ts`.
-- **`@oaverify/internal-cli`**: thin commander wrapper. The one place it
-  reaches past pure wiring is `stream-check`, which calls `analyzeSpec`
-  and renders the per-operation table; business logic stays in the
-  analyzer, the CLI owns the rendering. `check`'s composition is CLI-owned
-  by design: `checkDocumentRedos` lives here because `redos-detector` is
-  ~1MB unpacked, and conformance stays behind the metaschema subpath for
-  the ~100KB reason above.
+- **`@oaverify/internal-cli`**: thin commander wrapper. The two places
+  it reaches past pure wiring are `stream-check`, which calls
+  `analyzeSpec` and renders the per-operation table, and `check`, which
+  calls `checkSpec` and renders that. Business logic stays in the
+  analyzer and in `@oaverify/check`; the CLI owns flag parsing, the text
+  report and the exit codes. Loading is the CLI's too, because it is the
+  asynchronous half and `checkSpec` is deliberately synchronous.
+- **`@oaverify/check`**: the composed document check, published. Owns
+  the six passes, the finding contract, the code registry, the grading
+  table and the SARIF emitter. `checkSpec` takes a `ResolvedSpec`, not
+  an `OpenAPIDocument`: provenance regions and `inlinedComponents` are
+  byproducts of resolution that a document cannot reconstruct, and
+  without them every finding loses `target.source` and SARIF loses its
+  locations. Two hazards live here. The `precompile` /
+  `stats.schemaLintIssues` pair in `check.ts` must stay adjacent and in
+  order, because `precompile` is a generator and the stats array is read
+  live as it drains (#624 measures that class at 2.67GB on
+  `stripe.json`). And only a failure to build the validator becomes
+  `CheckAbortedError` / exit 2; a throw from any other pass propagates
+  to exit 3, as it did before the move.
 - **`@oaverify/express4` / `@oaverify/express5` / `@oaverify/fastify`**: thin
   framework adapters with identical export names and option shapes
   (`validateRequests`, `httpRequestFrom<Framework>`,
@@ -339,16 +353,34 @@ for d in packages/*/; do jq -r 'select(.name|startswith("@oaverify/internal-"))
   "$d/package.json" 2>/dev/null; done
 ```
 
-Published companion packages sit outside what `check-deps` polices,
-since it is scoped to `@oaverify/internal-*` and they are not bundle
-members. `@oaverify/stream` and `@oaverify/yaml` share this shape:
-internal packages appear as build-only devDeps and get bundled at
+Published companion packages contribute no edges to the graph above,
+since they are not bundle members: their internal deps sit in
+`devDependencies` and are bundled at publish. They are **not** outside
+`check-deps` altogether, which is easy to assume and wrong. The script
+reads every `packages/*/package.json`, unions `dependencies` and
+`devDependencies`, filters to `@oaverify/internal-*`, and matches that
+against imports in both directions. So a published package that
+declares an internal it does not import fails the build as a phantom
+dependency, exactly as an internal one would; only the acyclicity check
+skips them.
+
+`@oaverify/stream`, `@oaverify/yaml` and `@oaverify/check` share the
+shape: internal packages appear as build-only devDeps and get bundled at
 publish, while the runtime `dependencies` name the published surface
-(`@oaverify/core`, plus `yaml` for the latter). The three adapters take
-the same shape, each depending on `@oaverify/core` with the framework as
-a peer (`express ^4`, `express ^5`, `fastify ^5`). The published
-`oaverify` CLI depends on `@oaverify/core`, `@oaverify/stream`, and
-`@oaverify/yaml`, with `esbuild` as a peer for `compile-spec`. So the
+(`@oaverify/core`, plus `yaml` and `redos-detector` respectively). The
+three adapters take the same shape, each depending on `@oaverify/core`
+with the framework as a peer (`express ^4`, `express ^5`,
+`fastify ^5`). The published `oaverify` CLI depends on
+`@oaverify/core`, `@oaverify/check`, `@oaverify/stream`, and
+`@oaverify/yaml`, with `esbuild` as a peer for `compile-spec`.
+
+`@oaverify/check` is the one companion that bundles an internal package
+rather than rewriting it to a `@oaverify/core` subpath:
+`@oaverify/internal-metaschema` is not a core entry, for the ~100KB
+reason above, so its tsup config carries a `bundledWorkspace` map the
+way `packages/oav`'s does. `packages/oav` stopped bundling it when the
+conformance pass moved, which `test/alias-parity.test.ts` records in
+`NOT_IN_OAV_BUNDLE`. So the
 CLI's edge to the stream validator is real and unasserted. Its source alias
 lives in `workspace-aliases.ts` (consumed by vitest + tsup), the
 published `oaverify` carries it as a real runtime dependency, and the
