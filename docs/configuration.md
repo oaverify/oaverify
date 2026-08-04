@@ -8,7 +8,7 @@ this page is a recipe-oriented overview.
 | Option                  | Effect                                                                                                                                                                                                             |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `dialect`               | Force a specific schema dialect. Wins over the version the document declares; detection still runs, so `validator.detectedVersion` is unchanged.                                                                   |
-| `formats`               | Extra string format validators merged on top of the built-ins.                                                                                                                                                     |
+| `formats`               | Extra format validators merged on top of the built-ins, and the per-format off switch. See below.                                                                                                                  |
 | `keywords`              | Register user-defined schema keywords (see below).                                                                                                                                                                 |
 | `output`                | Result shape: `"flat"` (default; `{ valid, errors, truncated }`), `"tree"` (nested `{ valid, error, truncated }`), or `"predicate"` (bare boolean). Mirrors `compileSchema`.                                       |
 | `maxErrors`             | Per-call total cap on leaf errors. Default `1` (fast-fail); pass `Number.POSITIVE_INFINITY` to collect every error.                                                                                                |
@@ -20,6 +20,60 @@ this page is a recipe-oriented overview.
 | `ignorePaths`           | Predicate `(path) => boolean`; returning `true` short-circuits validation to a valid result (`{ valid: true }`) before routing.                                                                                    |
 | `onUnknownVersion`      | Policy for specs with missing/unsupported `openapi`: `"fallback31"` (default), `"warn"`, or `"throw"`.                                                                                                             |
 | `regexCompiler`         | Compiler for `pattern` keywords and `format: "regex"`. Defaults to `new RegExp(p, "u")` with a non-u fallback. Plug in `re2` or a safe-regex check for hardening; see below.                                       |
+
+## Formats
+
+One registry, whatever JSON type a format constrains. `date-time`
+takes a string and `int32` takes a number, and both are configured
+through `formats`:
+
+```ts
+createValidator(spec, {
+  formats: {
+    // A bare function is a string format.
+    "x-internal-id": (value) => value.startsWith("id_"),
+    // Constraining numbers needs the type said out loud.
+    "x-basis-points": { type: "number", validate: (n) => n >= 0 && n <= 10000 },
+    // `false` registers the name and asserts nothing.
+    int64: false,
+  },
+});
+```
+
+A bare function is **always** a string format, including under a name
+whose built-in constrains numbers. `formats: { int32: (v) => ... }`
+receives strings, and the numeric assertion is gone. Inferring the
+type from the name would make two identical-looking entries mean
+different things by way of a table you cannot see.
+
+Under the OpenAPI dialects `format` is an assertion, so the built-ins
+bind: `format: "int32"` on `3000000000` is a validation error, the way
+`format: "date-time"` on `"not-a-date"` always has been. `false` is how
+you keep a name as an annotation instead. That is per format, so
+turning `int64` off leaves `int32` asserting.
+
+`int64` is a partial assertion and worth knowing about. It accepts the
+safe-integer range, `-(2^53 - 1)` through `2^53 - 1`, and rejects
+outside it. A JSON number past 2^53 has already lost precision before
+any JavaScript validator sees it: `JSON.parse("9223372036854775807")`
+yields `9223372036854775808`, a different number. Rejecting says so;
+accepting would vouch for a value that is not the one on the wire.
+Producers of large int64s send them as strings. If you would rather
+accept them, write `formats: { int64: false }`.
+
+`float` and `double` are not asserted at all, and will not be. Every
+JSON number is already an IEEE 754 double, so `double` asserts
+nothing, and a `Math.fround`-based `float` rejects values a producer
+legitimately sent (`0.1` is not representable as a 32-bit float).
+`oaverify check` reports both under `format-not-validated`.
+
+Migrating from an Ajv-shaped map, `fromAjvFormats` carries `type`
+through, so a `type: "number"` definition arrives as a numeric format:
+
+```ts
+import { fromAjvFormats } from "@oaverify/core/formats";
+createValidator(spec, { formats: fromAjvFormats(myAjvFormats) });
+```
 
 ## Custom keywords
 
