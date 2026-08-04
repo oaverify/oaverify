@@ -166,9 +166,28 @@ export function isCustomSeverityKey(key: string): boolean {
 
 function describe(value: unknown): string {
   if (value === null) return "null";
+  if (value === undefined) return "undefined";
   if (Array.isArray(value)) return "an array";
   const kind = typeof value;
-  return `${kind === "object" || kind === "undefined" ? "an" : "a"} ${kind}`;
+  return `${kind === "object" ? "an" : "a"} ${kind}`;
+}
+
+/**
+ * The reason a rule module failed, for any thrown value.
+ *
+ * `throw "boom"` is legal JS and a rule author will eventually write it.
+ * Reading `.message` off it yields `undefined`, which turns the error
+ * whose whole job is to name the defect into one that hides it.
+ */
+function reasonOf(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  try {
+    return String(err);
+  } catch {
+    // A thrown object with a throwing `toString`. Rare, and cheaper to
+    // answer than to let it mask the original failure.
+    return describe(err);
+  }
 }
 
 /**
@@ -185,13 +204,19 @@ async function loadOne(specifier: string, cwd: string): Promise<DocumentRule[]> 
   try {
     mod = (await import(pathToFileURL(path).href)) as Record<string, unknown>;
   } catch (err) {
-    throw new RuleLoadError(`cannot load rule module ${specifier}: ${(err as Error).message}`);
+    throw new RuleLoadError(`cannot load rule module ${specifier}: ${reasonOf(err)}`);
   }
 
-  const exported = mod["rules"] ?? mod["default"];
-  if (exported === undefined) {
+  // `hasOwn` rather than `??`, so `export const rules = undefined` is
+  // diagnosed as a broken named export instead of silently falling
+  // through to the default one. Named wins when both are present.
+  const named = Object.hasOwn(mod, "rules");
+  const exported = named ? mod["rules"] : mod["default"];
+  if (exported === undefined || exported === null) {
     throw new RuleLoadError(
-      `rule module ${specifier} exports neither "rules" nor a default export`,
+      named
+        ? `rule module ${specifier} exports "rules" as ${describe(exported)}`
+        : `rule module ${specifier} exports neither "rules" nor a default export`,
     );
   }
   if (!Array.isArray(exported)) {
@@ -311,7 +336,7 @@ export async function runRules(
     try {
       produced = await rule.run(ctx);
     } catch (err) {
-      throw new RuleContractError(`rule ${rule.code} threw: ${(err as Error).message}`);
+      throw new RuleContractError(`rule ${rule.code} threw: ${reasonOf(err)}`);
     }
     if (
       produced === null ||
@@ -350,7 +375,7 @@ export async function runRules(
         } catch (err) {
           throw new RuleContractError(
             `rule ${rule.code} produced a finding at "${pointer}", which does not resolve in the ` +
-              `document (${(err as Error).message}). A finding with no position should omit ` +
+              `document (${reasonOf(err)}). A finding with no position should omit ` +
               `"pointer" rather than guess one.`,
           );
         }

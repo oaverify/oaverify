@@ -108,6 +108,29 @@ describe("loadRules", () => {
     await expect(loadRules(["./rules.mjs"], dir)).rejects.toThrow(RuleLoadError);
   });
 
+  // `export const rules = undefined` is a broken named export, not an
+  // absent one, so it is diagnosed rather than falling through.
+  it("diagnoses a named export that is undefined instead of using the default", async () => {
+    const dir = moduleDir(
+      `export const rules = undefined;\nexport default [{ code: "x-acme/o", run: () => [] }];`,
+    );
+    await expect(loadRules(["./rules.mjs"], dir)).rejects.toThrow(/exports "rules" as undefined/);
+  });
+
+  it("prefers the named export when both are present", async () => {
+    const dir = moduleDir(
+      `export const rules = [{ code: "x-acme/named", run: () => [] }];\n` +
+        `export default [{ code: "x-acme/defaulted", run: () => [] }];`,
+    );
+    const loaded = await loadRules(["./rules.mjs"], dir);
+    expect(loaded.map((r) => r.code)).toEqual(["x-acme/named"]);
+  });
+
+  it("keeps the reason when a module throws a non-Error on import", async () => {
+    const dir = moduleDir(`throw "module boom";`);
+    await expect(loadRules(["./rules.mjs"], dir)).rejects.toThrow(/module boom/);
+  });
+
   it("refuses two modules claiming one code", async () => {
     const dir = moduleDir(`export const rules = [{ code: "x-acme/one", run: () => [] }];`, "a.mjs");
     writeFileSync(
@@ -206,6 +229,40 @@ describe("runRules", () => {
         ctx,
       ),
     ).rejects.toThrow(/rule x-acme\/thing threw: boom/);
+  });
+
+  // `throw "boom"` is legal JS. Reading `.message` off it would report
+  // the failure as `undefined`, hiding the thing the error exists to say.
+  it.each([
+    ["a string", `"boom"`, /threw: boom/],
+    ["a number", "42", /threw: 42/],
+    ["an object with no message", "{ code: 7 }", /threw: \[object Object\]/],
+  ])("keeps the reason when a rule throws %s", async (_label, thrown, expected) => {
+    const dir = moduleDir(
+      `export const rules = [{ code: "x-acme/thrower", run() { throw ${thrown}; } }];`,
+    );
+    const [loaded] = await loadRules(["./rules.mjs"], dir);
+    await expect(runRules([loaded!], ctx)).rejects.toThrow(expected);
+  });
+
+  it("survives a thrown value whose toString throws", async () => {
+    const evil = {
+      toString: () => {
+        throw new Error("nope");
+      },
+    };
+    await expect(
+      runRules(
+        [
+          rule({
+            run: () => {
+              throw evil;
+            },
+          }),
+        ],
+        ctx,
+      ),
+    ).rejects.toThrow(/threw: an object/);
   });
 
   it("refuses a rule that returns nothing iterable", async () => {
