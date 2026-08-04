@@ -51,6 +51,13 @@ export interface CheckOptions {
    * `examples` class compiles schemas of its own accord and `redos`
    * reaches for a third-party analyser, so both are worth dropping on a
    * very large document that does not need them.
+   *
+   * The `schema` pass carries the only gradeability gate: building the
+   * validator is what throws {@link CheckAbortedError} on a document
+   * that is not OpenAPI at all. A subset that drops `schema` runs the
+   * remaining passes over whatever it was given, and on a foreign
+   * document (say Swagger 2.0) they can find nothing and return an
+   * empty, clean-looking list.
    */
   only?: readonly CheckClass[];
   /**
@@ -76,6 +83,11 @@ export interface CheckOptions {
  * document that is not an OpenAPI object), so there is no partial
  * result to hand back. The CLI reports it as exit 2, alongside a
  * document it could not read.
+ *
+ * Only the `schema` pass throws it, because building the validator is
+ * where ungradeability surfaces. A run whose {@link CheckOptions.only}
+ * excludes `schema` never gets this signal; see `only` for what that
+ * means on a document that is not OpenAPI.
  *
  * @public
  */
