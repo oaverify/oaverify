@@ -22,6 +22,10 @@ import { describe, expect, it } from "vitest";
 import type { CheckClass, CheckSeverity } from "@oaverify/check";
 import { checkCommand } from "../src/commands.js";
 import { memoryIo } from "./fixtures.js";
+// Shared with packages/check/test/check.test.ts, which grades the same
+// documents through checkSpec directly, so the two sides of the seam
+// are exercised on the same input.
+import { kitchenSink, malformedSpec } from "../../check/test/fixtures.js";
 
 const goldenDir = fileURLToPath(new URL("./golden/", import.meta.url));
 const updating = process.env["UPDATE_GOLDEN"] === "1";
@@ -47,104 +51,6 @@ function expectGolden(name: string, actual: string): void {
 }
 
 const textOpts = { out: undefined } as unknown as Parameters<typeof checkCommand>[0]["options"];
-
-/**
- * One document reaching five of the six classes, split across two files
- * so `target.source` is exercised rather than assumed.
- *
- * `malformed` is deliberately absent: it forces exit 4, which would mask
- * the `--fail-on` rows below. It gets its own fixture.
- */
-function kitchenSink(): Array<[string, unknown]> {
-  return [
-    [
-      "entry.json",
-      {
-        openapi: "3.1.0",
-        info: { title: "Kitchen Sink", version: "1.0.0" },
-        paths: {
-          // hygiene: `{petId}` is templated and never declared.
-          "/pets/{petId}": {
-            get: {
-              responses: {
-                "200": {
-                  description: "ok",
-                  content: {
-                    "application/json": { schema: { $ref: "./shared.json#/Pet" } },
-                  },
-                },
-              },
-            },
-          },
-          // conformance: `description` is required to be a string, and
-          // this is legal JSON, so only the meta-schema catches it.
-          "/status": { get: { responses: { "202": { description: null } } } },
-          "/search": {
-            post: {
-              requestBody: {
-                content: {
-                  "application/json": {
-                    // examples: "EFT" is not in the enum.
-                    schema: { type: "string", enum: ["ACH", "CHECK"] },
-                    example: "EFT",
-                  },
-                },
-              },
-              responses: { "200": { description: "ok" } },
-            },
-          },
-        },
-        components: {
-          schemas: {
-            // hygiene: nothing references this.
-            Orphan: { type: "object" },
-          },
-        },
-      },
-    ],
-    [
-      "shared.json",
-      {
-        Pet: {
-          type: "object",
-          properties: {
-            // redos: nested quantifier.
-            slug: { type: "string", pattern: "^(a+)+$" },
-            // schema: a format oaverify does not validate.
-            ref: { type: "string", format: "not-a-real-format" },
-            // schema: unsatisfiable, and a silent rewrite.
-            code: { type: "string", pattern: "^[0-9]{5}$", maxLength: 2 },
-          },
-          // schema: `required` names a property that is not declared.
-          required: ["slug", "absent"],
-        },
-      },
-    ],
-  ];
-}
-
-/** A schema that will not compile, for the exit-4 path. */
-function malformedSpec(): Array<[string, unknown]> {
-  return [
-    [
-      "spec.json",
-      {
-        openapi: "3.1.0",
-        info: { title: "Malformed", version: "1.0.0" },
-        paths: {
-          "/t": {
-            post: {
-              requestBody: {
-                content: { "application/json": { schema: { type: "object", required: 7 } } },
-              },
-              responses: { "200": { description: "ok" } },
-            },
-          },
-        },
-      },
-    ],
-  ];
-}
 
 /** Run `check` and hand back everything a caller could observe. */
 async function run(

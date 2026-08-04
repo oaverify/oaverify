@@ -3,65 +3,10 @@ import { describe, expect, it } from "vitest";
 import { CheckAbortedError, checkSpec } from "../src/check.js";
 import { parseSeverityMap } from "../src/severity.js";
 import type { CheckFinding } from "../src/finding.js";
-
-/**
- * The same two-file document `packages/cli/test/check-golden.test.ts`
- * grades through the CLI, so the two sides of the seam are exercised on
- * the same input. Reaches five of the six classes; `malformed` has its
- * own fixture because it says something different about the document.
- */
-function kitchenSink(): Array<[string, unknown]> {
-  return [
-    [
-      "entry.json",
-      {
-        openapi: "3.1.0",
-        info: { title: "Kitchen Sink", version: "1.0.0" },
-        paths: {
-          "/pets/{petId}": {
-            get: {
-              responses: {
-                "200": {
-                  description: "ok",
-                  content: { "application/json": { schema: { $ref: "./shared.json#/Pet" } } },
-                },
-              },
-            },
-          },
-          "/status": { get: { responses: { "202": { description: null } } } },
-          "/search": {
-            post: {
-              requestBody: {
-                content: {
-                  "application/json": {
-                    schema: { type: "string", enum: ["ACH", "CHECK"] },
-                    example: "EFT",
-                  },
-                },
-              },
-              responses: { "200": { description: "ok" } },
-            },
-          },
-        },
-        components: { schemas: { Orphan: { type: "object" } } },
-      },
-    ],
-    [
-      "shared.json",
-      {
-        Pet: {
-          type: "object",
-          properties: {
-            slug: { type: "string", pattern: "^(a+)+$" },
-            ref: { type: "string", format: "not-a-real-format" },
-            code: { type: "string", pattern: "^[0-9]{5}$", maxLength: 2 },
-          },
-          required: ["slug", "absent"],
-        },
-      },
-    ],
-  ];
-}
+// Shared with packages/cli/test/check-golden.test.ts, which grades the
+// same documents through the CLI, so the two sides of the seam are
+// exercised on the same input.
+import { kitchenSink, malformedSpec } from "./fixtures.js";
 
 async function resolve(
   entries: Array<[string, unknown]>,
@@ -147,31 +92,11 @@ describe("checkSpec", () => {
   });
 
   describe("a schema that will not compile", () => {
-    const malformed: Array<[string, unknown]> = [
-      [
-        "entry.json",
-        {
-          openapi: "3.1.0",
-          info: { title: "Malformed", version: "1.0.0" },
-          paths: {
-            "/t": {
-              post: {
-                requestBody: {
-                  content: { "application/json": { schema: { type: "object", required: 7 } } },
-                },
-                responses: { "200": { description: "ok" } },
-              },
-            },
-          },
-        },
-      ],
-    ];
-
     // The document is still graded and the report is still complete, so
     // this is a finding rather than a throw. The CLI reads exit 4 back
     // off the array rather than being told separately.
     it("reports it as a fatal finding rather than throwing", async () => {
-      const findings = checkSpec(await resolve(malformed));
+      const findings = checkSpec(await resolve(malformedSpec(), { entry: "spec.json" }));
       const fatal = findings.filter((f) => f.class === "malformed");
       expect(fatal).toHaveLength(1);
       expect(fatal[0]?.severity).toBe("fatal");
@@ -182,7 +107,9 @@ describe("checkSpec", () => {
     // tracks the class and a half-applied remap would look like it worked.
     it("stays fatal under a severity map", async () => {
       const severity = parseSeverityMap(["schema=warning"]);
-      const findings = checkSpec(await resolve(malformed), { severity });
+      const findings = checkSpec(await resolve(malformedSpec(), { entry: "spec.json" }), {
+        severity,
+      });
       expect(findings.find((f) => f.class === "malformed")?.severity).toBe("fatal");
     });
   });
