@@ -35,12 +35,7 @@
 
 import { isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import {
-  CHECK_CLASSES,
-  type CheckClass,
-  type CheckFinding,
-  type CheckSeverity,
-} from "./finding.js";
+import { type CheckClass, type CheckFinding, type CheckSeverity } from "./finding.js";
 
 /** The version this emitter targets, and the schema it declares. */
 const SARIF_VERSION = "2.1.0";
@@ -182,8 +177,11 @@ function rulesOf(findings: readonly CheckFinding[]): {
  * @param options - `version` names the tool and defaults to `"0.0.0"`;
  *   `base` is the directory local paths are made relative to, and
  *   defaults to the working directory; `classes` names the classes the
- *   run selected, so a consumer can tell a partial run from a clean
- *   document, and defaults to all of them.
+ *   run selected: the same list passed to `checkSpec` as `only`, or
+ *   `CHECK_CLASSES` for a full run. Required rather than defaulted,
+ *   because the log asserts it as `oaverify:classes` so a consumer can
+ *   tell a partial run from a clean document; a default of all five
+ *   would label a partial run complete.
  *
  * @public
  */
@@ -192,12 +190,12 @@ export function renderSarif(
   options: {
     version?: string;
     base?: string;
-    classes?: readonly CheckClass[];
-  } = {},
+    classes: readonly CheckClass[];
+  },
 ): string {
   const version = options.version ?? "0.0.0";
   const base = options.base ?? process.cwd();
-  const classes = options.classes ?? CHECK_CLASSES;
+  const classes = options.classes;
   const { rules, indexOf } = rulesOf(findings);
 
   const results = findings.map((finding) => {

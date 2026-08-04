@@ -238,10 +238,9 @@ describe("locations track the spec's provenance", () => {
     });
     const findings = checkSpec(resolved, { only: ["hygiene"] });
     expect(findings.length).toBeGreaterThan(0);
-    return JSON.parse(renderSarif(findings, { version: "1.2.3", base: "/repo" })) as Record<
-      string,
-      unknown
-    >;
+    return JSON.parse(
+      renderSarif(findings, { version: "1.2.3", base: "/repo", classes: ["hygiene"] }),
+    ) as Record<string, unknown>;
   };
 
   const resultsOf = (log: Record<string, unknown>): Array<Record<string, unknown>> =>
@@ -275,8 +274,10 @@ describe("locations track the spec's provenance", () => {
 });
 
 // A library caller that does not care about tool metadata should not
-// have to invent it. The CLI still passes its own values.
-describe("options default for a caller that supplies none", () => {
+// have to invent it. The CLI still passes its own values. `classes`
+// has no default, because the log asserts it as `oaverify:classes`
+// and a guess of all five would label a partial run complete.
+describe("option defaults for a caller that supplies only classes", () => {
   const finding: CheckFinding = {
     class: "hygiene",
     severity: "warning",
@@ -285,17 +286,17 @@ describe("options default for a caller that supplies none", () => {
     message: "declared but unreached",
   };
 
-  it("names the tool 0.0.0 and reports every class as selected", () => {
-    const log = JSON.parse(renderSarif([finding])) as Record<string, unknown>;
+  it("names the tool 0.0.0 and asserts the classes it was given, sorted", () => {
+    const log = JSON.parse(renderSarif([finding], { classes: ["redos", "hygiene"] })) as Record<
+      string,
+      unknown
+    >;
     const run = (log["runs"] as Array<Record<string, unknown>>)[0]!;
     const driver = (run["tool"] as Record<string, Record<string, unknown>>)["driver"]!;
     expect(driver["version"]).toBe("0.0.0");
     expect((run["properties"] as Record<string, unknown>)["oaverify:classes"]).toEqual([
-      "conformance",
-      "examples",
       "hygiene",
       "redos",
-      "schema",
     ]);
   });
 });

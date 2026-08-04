@@ -53,7 +53,7 @@ reach every `@oaverify/core` consumer.
 | `CheckCode`, `CHECK_CODES`                   | Every code a run can emit, as a type and as a set                       |
 | `DEFAULT_SEVERITY`, `severityFor`            | oaverify's grading, and how a regrading is applied                      |
 | `parseSeverityMap(entries)`                  | The `key=level` grammar the CLI spells `--severity`                     |
-| `renderSarif(findings, options?)`            | SARIF 2.1.0, for code scanning                                          |
+| `renderSarif(findings, options)`             | SARIF 2.1.0, for code scanning; `options.classes` is required           |
 | `checkDocumentFormats`, `checkDocumentRedos` | The two passes that have no other home                                  |
 
 `checkSpec` takes a resolved spec rather than a document, because two of

@@ -107,15 +107,21 @@ the semantics; build one directly if you have no string to parse.
 ## SARIF
 
 ```ts
-import { renderSarif } from "@oaverify/check";
+import { CHECK_CLASSES, renderSarif } from "@oaverify/check";
 
-await writeFile("check.sarif", renderSarif(findings, { version: "1.2.3" }));
+const sarif = renderSarif(findings, { version: "1.2.3", classes: CHECK_CLASSES });
+await writeFile("check.sarif", sarif);
 ```
 
 SARIF 2.1.0, for GitHub code scanning, GitLab, editors and security
 dashboards. Locations come from `target.source`, so upload a run
 produced from a spec loaded with `provenance: true`, and run from the
 repository root so paths are relative to the checkout.
+
+`classes` names the classes the run selected and has no default: the
+log asserts it as `oaverify:classes` so a consumer can tell a partial
+run from a clean document. Pass the same list you gave `checkSpec` as
+`only`, or `CHECK_CLASSES` for a full run.
 
 ## Node only
 
