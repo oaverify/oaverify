@@ -1,5 +1,5 @@
-import { readFileSync, realpathSync } from "node:fs";
-import { readFile, realpath } from "node:fs/promises";
+import { readFileSync, realpathSync, statSync } from "node:fs";
+import { readFile, realpath, stat } from "node:fs/promises";
 import { resolve as resolvePath, sep } from "node:path";
 
 /**
@@ -109,6 +109,50 @@ export interface FileReaderOptions {
    * log.
    */
   confine?: boolean;
+
+  /**
+   * Refuse to read a file larger than this many bytes.
+   *
+   * Unbounded by default, matching {@link HttpReaderOptions.maxBytes}.
+   * Set it whenever the spec is untrusted: a `$ref` is a file read, and
+   * `resolveSpec` hoists what it reads into the resolved document.
+   *
+   * Checked by size on disk before the read, so an oversized file is
+   * never held in memory. A file that grows between the check and the
+   * read is not caught; this bounds the ordinary case, not a racing
+   * writer.
+   */
+  maxBytes?: number;
+}
+
+/**
+ * Refuse a file larger than `maxBytes`, by size on disk.
+ *
+ * Shared with `@oaverify/yaml`'s file readers, which take the same
+ * {@link FileReaderOptions}: an option one reader honours and another
+ * ignores is worse than no option.
+ *
+ * @internal
+ */
+export async function assertWithinMaxBytes(
+  path: string,
+  uri: string,
+  maxBytes: number | undefined,
+): Promise<void> {
+  if (maxBytes === undefined) return;
+  const { size } = await stat(path);
+  if (size > maxBytes) throw new Error(`${uri}: file exceeds maxBytes (${maxBytes})`);
+}
+
+/** Synchronous {@link assertWithinMaxBytes}. @internal */
+export function assertWithinMaxBytesSync(
+  path: string,
+  uri: string,
+  maxBytes: number | undefined,
+): void {
+  if (maxBytes === undefined) return;
+  const { size } = statSync(path);
+  if (size > maxBytes) throw new Error(`${uri}: file exceeds maxBytes (${maxBytes})`);
 }
 
 /**
@@ -158,6 +202,7 @@ export function createFileReader(
       const decoded = stripped.replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
       const path = await resolveReadPath(root, decoded, uri, options.confine === true);
       if (hasYamlExtension(path)) throw new Error(`${uri}: ${YAML_HINT}`);
+      await assertWithinMaxBytes(path, uri, options.maxBytes);
       const raw = await readFile(path, "utf8");
       return JSON.parse(raw);
     },
@@ -521,6 +566,7 @@ export function createFileReaderSync(
       const decoded = stripped.replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
       const path = resolveReadPathSync(root, decoded, uri, options.confine === true);
       if (hasYamlExtension(path)) throw new Error(`${uri}: ${YAML_HINT}`);
+      assertWithinMaxBytesSync(path, uri, options.maxBytes);
       const raw = readFileSync(path, "utf8");
       return JSON.parse(raw);
     },
