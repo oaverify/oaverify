@@ -125,3 +125,15 @@ green and would also clear two of the four known suite errors. Resist it.
 The harness would then have a capability the library does not, which is
 the same failure mode as advertising a dialect the engine cannot compile.
 The fix belongs in the library or nowhere.
+
+The keyword benchmarks (`-k`) are all self-contained and do measure real
+work. Read them as compile throughput rather than validation speed: the
+harness compiles per case, and oaverify is a compiling validator, so
+codegen lands inside the timing. `additionalProperties` is the clearest
+case. It builds one schema of 99,999 properties (the benchmark's "Array
+length" parameter does not vary that; every size builds
+`max_array_length - 1` properties, which is why its timings are flat),
+and oaverify comes last of four at roughly 1.9x ajv. Measured in-process
+on that shape, compile is ~364ms against ~15ms per validate. The result
+is a statement about generating code for a 100k-property schema, not
+about validating one.
