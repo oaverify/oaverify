@@ -140,142 +140,10 @@
     "file": "dynamicRef.json",
     "groups": 21,
     "cases": 44,
-    "pass": 32,
-    "fail": 12,
+    "pass": 44,
+    "fail": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "A $dynamicRef resolves to the first $dynamicAnchor still in scope that is encountered when the schema is evaluated",
-        "test": "An array containing non-strings is invalid",
-        "data": [
-          "foo",
-          42
-        ],
-        "expected": false,
-        "actual": true
-      },
-      {
-        "group": "A $dynamicRef with intermediate scopes that don't include a matching $dynamicAnchor does not affect dynamic scope resolution",
-        "test": "An array containing non-strings is invalid",
-        "data": [
-          "foo",
-          42
-        ],
-        "expected": false,
-        "actual": true
-      },
-      {
-        "group": "A $dynamicRef that initially resolves to a schema with a matching $dynamicAnchor resolves to the first $dynamicAnchor in the dynamic scope",
-        "test": "The recursive part is not valid against the root",
-        "data": {
-          "foo": "pass",
-          "bar": {
-            "baz": {
-              "foo": "fail"
-            }
-          }
-        },
-        "expected": false,
-        "actual": true
-      },
-      {
-        "group": "multiple dynamic paths to the $dynamicRef keyword",
-        "test": "number list with string values",
-        "data": {
-          "kindOfList": "numbers",
-          "list": [
-            "foo"
-          ]
-        },
-        "expected": false,
-        "actual": true
-      },
-      {
-        "group": "multiple dynamic paths to the $dynamicRef keyword",
-        "test": "string list with number values",
-        "data": {
-          "kindOfList": "strings",
-          "list": [
-            1.1
-          ]
-        },
-        "expected": false,
-        "actual": true
-      },
-      {
-        "group": "after leaving a dynamic scope, it is not used by a $dynamicRef",
-        "test": "string matches /$defs/thingy, but the $dynamicRef does not stop here",
-        "data": "a string",
-        "expected": false,
-        "actual": true
-      },
-      {
-        "group": "after leaving a dynamic scope, it is not used by a $dynamicRef",
-        "test": "/then/$defs/thingy is the final stop for the $dynamicRef",
-        "data": null,
-        "expected": true,
-        "actual": false
-      },
-      {
-        "group": "strict-tree schema, guards against misspelled properties",
-        "test": "instance with misspelled field",
-        "data": {
-          "children": [
-            {
-              "daat": 1
-            }
-          ]
-        },
-        "expected": false,
-        "actual": true
-      },
-      {
-        "group": "tests for implementation dynamic anchor and reference link",
-        "test": "incorrect extended schema",
-        "data": {
-          "elements": [
-            {
-              "b": 1
-            }
-          ]
-        },
-        "expected": false,
-        "actual": true
-      },
-      {
-        "group": "$ref and $dynamicAnchor are independent of order - $defs first",
-        "test": "incorrect extended schema",
-        "data": {
-          "elements": [
-            {
-              "b": 1
-            }
-          ]
-        },
-        "expected": false,
-        "actual": true
-      },
-      {
-        "group": "$ref and $dynamicAnchor are independent of order - $ref first",
-        "test": "incorrect extended schema",
-        "data": {
-          "elements": [
-            {
-              "b": 1
-            }
-          ]
-        },
-        "expected": false,
-        "actual": true
-      },
-      {
-        "group": "$dynamicRef avoids the root of each schema, but scopes are still registered",
-        "test": "data is not sufficient for schema at second#/$defs/length",
-        "data": "hey",
-        "expected": false,
-        "actual": true
-      }
-    ]
+    "mismatches": []
   },
   {
     "file": "enum.json",
@@ -424,8 +292,8 @@
   {
     "file": "minProperties.json",
     "groups": 2,
-    "cases": 8,
-    "pass": 8,
+    "cases": 10,
+    "pass": 10,
     "fail": 0,
     "error": 0,
     "mismatches": []
@@ -433,8 +301,8 @@
   {
     "file": "multipleOf.json",
     "groups": 5,
-    "cases": 10,
-    "pass": 9,
+    "cases": 11,
+    "pass": 10,
     "fail": 1,
     "error": 0,
     "mismatches": [
@@ -504,8 +372,8 @@
   {
     "file": "propertyNames.json",
     "groups": 6,
-    "cases": 20,
-    "pass": 20,
+    "cases": 22,
+    "pass": 22,
     "fail": 0,
     "error": 0,
     "mismatches": []
@@ -571,41 +439,19 @@
     "file": "unevaluatedItems.json",
     "groups": 29,
     "cases": 71,
-    "pass": 70,
-    "fail": 1,
+    "pass": 71,
+    "fail": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "unevaluatedItems with $dynamicRef",
-        "test": "with no unevaluated items",
-        "data": [
-          "foo",
-          "bar"
-        ],
-        "expected": true,
-        "actual": false
-      }
-    ]
+    "mismatches": []
   },
   {
     "file": "unevaluatedProperties.json",
-    "groups": 42,
-    "cases": 125,
-    "pass": 124,
-    "fail": 1,
+    "groups": 44,
+    "cases": 129,
+    "pass": 129,
+    "fail": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "unevaluatedProperties with $dynamicRef",
-        "test": "with no unevaluated properties",
-        "data": {
-          "foo": "foo",
-          "bar": "bar"
-        },
-        "expected": true,
-        "actual": false
-      }
-    ]
+    "mismatches": []
   },
   {
     "file": "uniqueItems.json",

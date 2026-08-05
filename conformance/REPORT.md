@@ -1,6 +1,6 @@
 # Conformance report
 
-Generated 2026-06-19 against commit `b8d5dd7`.
+Generated 2026-08-05 against commit `bfb8e00`.
 
 Run against three upstream / hand-curated test corpora:
 
@@ -18,8 +18,8 @@ Run against three upstream / hand-curated test corpora:
 
 | Source                                | Cases | Pass | Mismatch | Error | % pass |
 | ------------------------------------- | ----- | ---- | -------- | ----- | ------ |
-| JSON Schema Test Suite (required)     | 1290  | 1270 | 16       | 4     | 98.4%  |
-| JSON Schema Test Suite (+ optional)   | 1452  | 1429 | 19       | 4     | 98.4%  |
+| JSON Schema Test Suite (required)     | 1299  | 1293 | 2        | 4     | 99.5%  |
+| JSON Schema Test Suite (+ optional)   | 1461  | 1452 | 5        | 4     | 99.4%  |
 | OpenAPI Overlay 1.0 (envelope)        | 32    | 32   | 0        | 0     | 100%   |
 | OpenAPI `petstore` via `oaverify` CLI | 32    | 32   | 0        | 0     | 100%   |
 
@@ -35,49 +35,65 @@ checkable.
 
 ## Where we diverge from the JSON Schema suite
 
-The 20 non-passing required-suite cases (16 mismatch + 4 error) fall
-into three groups.
-
-### `$dynamicRef` with runtime dynamic scope (12 cases)
-
-Partial implementation. Our `$dynamicRef` resolves statically against
-the anchor map, so tests that rely on a `$dynamicRef` rebinding at the
-outermost `$dynamicAnchor` encountered during validation fail
-(`dynamicRef.json`). Documented in `AGENTS.md`.
-
-Fix path: maintain a runtime stack of `$dynamicAnchor` scopes during
-validation, resolve `$dynamicRef` at call time.
+The 6 non-passing required-suite cases (2 mismatch + 4 error) fall into
+two groups. Every one of them is also a divergence from the ecosystem
+majority, measured through Bowtie against eight other JS/TS
+implementations plus boon, go-jsonschema and python-jsonschema.
 
 ### External / cross-document `$ref` loading (4 errors)
 
 `defs.json` and `ref.json` surface 2 errors each where a referenced
-document is not loaded into the schema map.
+document is not loaded into the schema map. `defs.json` is the pair
+that validates a definition against the 2020-12 meta-schema, so these
+four are what stands between us and shipping the JSON Schema
+meta-schema documents.
 
-### Residual singletons (4 mismatches)
+### Residual singletons (2 mismatches)
 
-One mismatch each in `multipleOf.json`, `unevaluatedItems.json`,
-`unevaluatedProperties.json`, and `vocabulary.json`.
+One mismatch each in `multipleOf.json` (float division reaching
+infinity) and `vocabulary.json` (a custom meta-schema that declares no
+validation vocabulary).
+
+### Closed since the last report
+
+`$dynamicRef` runtime dynamic scope, 14 cases, fixed in #663. The
+12 `dynamicRef.json` cases plus the `unevaluatedItems` and
+`unevaluatedProperties` "with `$dynamicRef`" singletons. `$dynamicRef`
+now resolves against a runtime stack of schema resources rather than a
+flattened anchor map. See #662 for what the old behaviour got wrong,
+which was a silent pass rather than a wrong rejection.
 
 ## Optional-suite breakdown
 
-Running with `--optional` widens to 1452 cases. The extra 162 cases
-live under `tests/draft2020-12/optional/`. The 23 non-passing optional
-cases (19 mismatch + 4 error):
+Running with `--optional` widens to 1461 cases. The extra 162 cases
+live under `tests/draft2020-12/optional/`. The 9 non-passing optional
+cases (5 mismatch + 4 error):
 
-| File                                                                                        | Status                                                    |
-| ------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `dynamicRef.json`                                                                           | 12 mismatches, the `$dynamicRef` runtime-scope group.     |
-| `defs.json`, `ref.json`                                                                     | 4 errors, external / cross-document ref loading.          |
-| `cross-draft.json`                                                                          | 1 mismatch, same ref-loading root.                        |
-| `format-assertion.json`                                                                     | 2 mismatches, requires meta-schema loading via `$schema`. |
-| `multipleOf.json`, `unevaluatedItems.json`, `unevaluatedProperties.json`, `vocabulary.json` | 1 mismatch each.                                          |
+| File                                 | Status                                                    |
+| ------------------------------------ | --------------------------------------------------------- |
+| `defs.json`, `ref.json`              | 4 errors, external / cross-document ref loading.          |
+| `cross-draft.json`                   | 1 mismatch, same ref-loading root.                        |
+| `format-assertion.json`              | 2 mismatches, requires meta-schema loading via `$schema`. |
+| `multipleOf.json`, `vocabulary.json` | 1 mismatch each.                                          |
 
-All other optional files pass. The per-format subtree (`optional/format/*.json`) isn't traversed by
-our runner. Those tests target strict-format-assertion behavior; by
-spec default and our default, format is annotation-only, so most tests
-there would vacuously pass. Enabling format-assertion and running them
-is a separate exercise: each format brings its own tail of RFC edge
-cases that the suite tightens every few revisions.
+All other optional files pass, including `dynamicRef.json` since #663.
+
+The per-format subtree (`optional/format/*.json`) still isn't traversed
+by our runner, and the reason has been measured rather than assumed.
+The subtree is 712 cases across 21 formats, of which 363 expect a
+rejection. By spec default and ours, `format` is annotation-only, so
+those 363 vacuously fail for every implementation that follows the
+default: a Bowtie run across ajv, hyperjump, boon, go-jsonschema and
+python-jsonschema returns the same 363 failures for all of them, with
+zero divergence between any two.
+
+Driving the engine directly with assertion on (the OpenAPI 3.1 dialect
+promotes `format` to an assertion) scores **605/712**. The gap is
+concentrated rather than spread: `hostname` and `idn-hostname` account
+for 56 of the 107 failures and are almost entirely IDNA / UTS-46 rules,
+while `duration`, `date-time` and `time` are bounded RFC 3339 details.
+Wiring that up as a gated runner is still a separate exercise, and it
+now has a baseline to ratchet from.
 
 ## OpenAPI Overlay 1.0
 
