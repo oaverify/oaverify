@@ -37,6 +37,7 @@ import { isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { type CheckClass, type CheckFinding, type CheckSeverity } from "./finding.js";
 import type { SkipReportEntry } from "./skip.js";
+import type { TermReport } from "./selection.js";
 
 /** The version this emitter targets, and the schema it declares. */
 const SARIF_VERSION = "2.1.0";
@@ -174,11 +175,17 @@ function rulesOf(findings: readonly CheckFinding[]): {
  * `ruleId`, `level`, `message` and the `oaverify:*` properties, and
  * they will not annotate a file. See {@link FindingTarget.source}.
  *
- * **Skipped findings are absent, and the log says so.** They were not
- * produced, so there is no result to suppress; `--skip` is reported as
- * a run notification instead of as `result.suppressions`, which would
+ * **Excluded findings are absent, and the log says so.** They were not
+ * produced, so there is no result to suppress; the exclusion is reported
+ * as a run notification instead of as `result.suppressions`, which would
  * mean emitting the results and contradicting that. The JSON report's
  * `skipped` block is the machine-readable form.
+ *
+ * The notification names the flag that did the excluding, because
+ * `--skip redos` and `--findings -redos` are the same operation reached
+ * two ways and a reader fixing a CI configuration needs the spelling
+ * they wrote. A term that changed nothing is reported the same way, at
+ * the same level, under its own descriptor.
  *
  * @param findings - The findings, after any regrading and any skipping.
  * @param options - `version` names the tool and defaults to `"0.0.0"`;
@@ -198,24 +205,52 @@ export function renderSarif(
     version?: string;
     base?: string;
     classes: readonly CheckClass[];
-    /** What `--skip` dropped, if anything. See {@link SkipReportEntry}. */
+    /** What the exclusions dropped, if anything. See {@link SkipReportEntry}. */
     skipped?: readonly SkipReportEntry[];
+    /**
+     * The flag those exclusions were written as, for the notification
+     * text. `"--findings"` also prefixes each key with `-`, which is how
+     * the user wrote it. Defaults to `"--skip"`.
+     */
+    excludedBy?: "--skip" | "--findings";
+    /**
+     * Terms that changed nothing, from a `--findings` selection. Absent
+     * from the log entirely when there are none, so a clean command
+     * produces no notification.
+     */
+    noopTerms?: readonly TermReport[];
   },
 ): string {
   const version = options.version ?? "0.0.0";
   const base = options.base ?? process.cwd();
   const classes = options.classes;
   const { rules, indexOf } = rulesOf(findings);
+  const excludedBy = options.excludedBy ?? "--skip";
+  const sign = excludedBy === "--findings" ? "-" : "";
   const skipNotifications = (options.skipped ?? []).map((entry) => ({
     level: "note",
     message: {
       text:
-        `--skip ${entry.key} suppressed ${entry.count} finding(s); ` +
+        `${excludedBy} ${sign}${entry.key} suppressed ${entry.count} finding(s); ` +
         `they are absent from this log.`,
     },
     descriptor: { id: "oaverify:skipped" },
-    properties: { "oaverify:skipKey": entry.key, "oaverify:skipCount": entry.count },
+    properties: { "oaverify:skipKey": `${sign}${entry.key}`, "oaverify:skipCount": entry.count },
   }));
+  // A no-op term changed nothing, so nothing is missing from the log
+  // because of it. It is reported anyway, for the reason the zero counts
+  // above are: a CI configuration naming work it no longer reaches is
+  // how a real defect eventually arrives suppressed and unnoticed.
+  const noopNotifications = (options.noopTerms ?? []).map((term) => ({
+    level: "note",
+    message: {
+      text: `--findings ${term.term} changed nothing (${term.noop ?? ""}).`,
+    },
+    descriptor: { id: "oaverify:noop-term" },
+    properties: { "oaverify:term": term.term, "oaverify:reason": term.noop ?? "" },
+  }));
+
+  const notifications = [...skipNotifications, ...noopNotifications];
 
   const results = findings.map((finding) => {
     const related = relatedLocationsOf(finding, base);
@@ -273,11 +308,11 @@ export function renderSarif(
         // Same reason, for the other way a report can be short of what
         // the passes found. A note rather than a result, because a
         // skipped finding was not produced.
-        ...(skipNotifications.length === 0
+        ...(notifications.length === 0
           ? {}
           : {
               invocations: [
-                { executionSuccessful: true, toolExecutionNotifications: skipNotifications },
+                { executionSuccessful: true, toolExecutionNotifications: notifications },
               ],
             }),
         results,

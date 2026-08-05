@@ -1,0 +1,384 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "oaverify",
+          "informationUri": "https://github.com/oaverify/oaverify",
+          "version": "0.0.0-golden",
+          "semanticVersion": "0.0.0-golden",
+          "rules": [
+            {
+              "id": "format-not-validated",
+              "name": "format-not-validated",
+              "shortDescription": {
+                "text": "format-not-validated"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "oaverify:class": "schema",
+                "tags": [
+                  "schema"
+                ]
+              }
+            },
+            {
+              "id": "type",
+              "name": "type",
+              "shortDescription": {
+                "text": "type"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "oaverify:class": "conformance",
+                "tags": [
+                  "conformance"
+                ]
+              }
+            },
+            {
+              "id": "example-invalid",
+              "name": "example-invalid",
+              "shortDescription": {
+                "text": "example-invalid"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "oaverify:class": "examples",
+                "tags": [
+                  "examples"
+                ]
+              }
+            },
+            {
+              "id": "ambiguous-pattern",
+              "name": "ambiguous-pattern",
+              "shortDescription": {
+                "text": "ambiguous-pattern"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "oaverify:class": "redos",
+                "tags": [
+                  "redos"
+                ]
+              }
+            },
+            {
+              "id": "silent-rewrite/required-not-in-properties",
+              "name": "silent-rewrite/required-not-in-properties",
+              "shortDescription": {
+                "text": "silent-rewrite/required-not-in-properties"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "oaverify:class": "schema",
+                "tags": [
+                  "schema"
+                ]
+              }
+            },
+            {
+              "id": "unsatisfiable/pattern-length",
+              "name": "unsatisfiable/pattern-length",
+              "shortDescription": {
+                "text": "unsatisfiable/pattern-length"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "oaverify:class": "schema",
+                "tags": [
+                  "schema"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "oaverify:classes": [
+          "conformance",
+          "examples",
+          "hygiene",
+          "redos",
+          "schema"
+        ]
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "toolExecutionNotifications": [
+            {
+              "level": "note",
+              "message": {
+                "text": "--findings -hygiene suppressed 2 finding(s); they are absent from this log."
+              },
+              "descriptor": {
+                "id": "oaverify:skipped"
+              },
+              "properties": {
+                "oaverify:skipKey": "-hygiene",
+                "oaverify:skipCount": 2
+              }
+            },
+            {
+              "level": "note",
+              "message": {
+                "text": "--findings -unused-tag changed nothing (already excluded by another term)."
+              },
+              "descriptor": {
+                "id": "oaverify:noop-term"
+              },
+              "properties": {
+                "oaverify:term": "-unused-tag",
+                "oaverify:reason": "already excluded by another term"
+              }
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "format-not-validated",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "\"not-a-real-format\" is not a format oaverify validates, so values are checked against \"type\" alone. This is legal: support for a format is optional and a tool may fall back to \"type\" for one it does not recognise. Register a validator through the formats option to enforce it, or read this as confirmation the name is an annotation."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "shared.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "entry.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              },
+              "message": {
+                "text": "reference 1 of 1 the resolver followed to reach this document: /paths/~1pets~1{petId}/get/responses/200/content/application~1json/schema"
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "oaverifyFindingV1": "format-not-validated shared.json/Pet/properties/ref/format"
+          },
+          "properties": {
+            "oaverify:class": "schema",
+            "oaverify:severity": "warning",
+            "oaverify:location": "/components/schemas/shared_Pet/properties/ref/format",
+            "oaverify:pointer": "/components/schemas/shared_Pet/properties/ref/format",
+            "oaverify:anchor": "node",
+            "oaverify:sourcePointer": "/Pet/properties/ref/format"
+          }
+        },
+        {
+          "ruleId": "type",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "must be string"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "entry.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "oaverifyFindingV1": "type entry.json/paths/~1status/get/responses/202/description"
+          },
+          "properties": {
+            "oaverify:class": "conformance",
+            "oaverify:severity": "error",
+            "oaverify:location": "/paths/~1status/get/responses/202/description",
+            "oaverify:pointer": "/paths/~1status/get/responses/202/description",
+            "oaverify:anchor": "node",
+            "oaverify:sourcePointer": "/paths/~1status/get/responses/202/description"
+          }
+        },
+        {
+          "ruleId": "example-invalid",
+          "ruleIndex": 2,
+          "level": "warning",
+          "message": {
+            "text": "oaverify rejects \"example\" against its schema: must be one of the allowed values (actual: \"EFT\", allowed: [\"ACH\",\"CHECK\"]) (example: \"EFT\")"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "entry.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "oaverifyFindingV1": "example-invalid entry.json/paths/~1search/post/requestBody/content/application~1json/example"
+          },
+          "properties": {
+            "oaverify:class": "examples",
+            "oaverify:severity": "warning",
+            "oaverify:location": "/paths/~1search/post/requestBody/content/application~1json/example",
+            "oaverify:pointer": "/paths/~1search/post/requestBody/content/application~1json/example",
+            "oaverify:anchor": "node",
+            "oaverify:sourcePointer": "/paths/~1search/post/requestBody/content/application~1json/example"
+          }
+        },
+        {
+          "ruleId": "ambiguous-pattern",
+          "ruleIndex": 3,
+          "level": "warning",
+          "message": {
+            "text": "\"^(a+)+$\" is ambiguous. An input of the form `aaaa` matches more than one way. A backtracking engine can be made to explore every way of matching, so a crafted value may cost superlinear time; whether it does depends on the engine running the pattern. Rewrite to remove the ambiguity, or compile patterns with a linear-time engine (the regexCompiler option)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "shared.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "entry.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              },
+              "message": {
+                "text": "reference 1 of 1 the resolver followed to reach this document: /paths/~1pets~1{petId}/get/responses/200/content/application~1json/schema"
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "oaverifyFindingV1": "ambiguous-pattern shared.json/Pet/properties/slug/pattern"
+          },
+          "properties": {
+            "oaverify:class": "redos",
+            "oaverify:severity": "warning",
+            "oaverify:location": "/components/schemas/shared_Pet/properties/slug/pattern",
+            "oaverify:pointer": "/components/schemas/shared_Pet/properties/slug/pattern",
+            "oaverify:anchor": "node",
+            "oaverify:sourcePointer": "/Pet/properties/slug/pattern"
+          }
+        },
+        {
+          "ruleId": "silent-rewrite/required-not-in-properties",
+          "ruleIndex": 4,
+          "level": "warning",
+          "message": {
+            "text": "required: \"absent\" at <root> is not declared in properties reachable here (likely a typo)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "shared.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "entry.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              },
+              "message": {
+                "text": "reference 1 of 1 the resolver followed to reach this document: /paths/~1pets~1{petId}/get/responses/200/content/application~1json/schema"
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "oaverifyFindingV1": "silent-rewrite/required-not-in-properties shared.json/Pet/required"
+          },
+          "properties": {
+            "oaverify:class": "schema",
+            "oaverify:severity": "warning",
+            "oaverify:location": "GET /pets/{petId} 200 response body (application/json) -> <root>",
+            "oaverify:pointer": "/components/schemas/shared_Pet/required",
+            "oaverify:anchor": "scoped-definition",
+            "oaverify:sourcePointer": "/Pet/required"
+          }
+        },
+        {
+          "ruleId": "unsatisfiable/pattern-length",
+          "ruleIndex": 5,
+          "level": "warning",
+          "message": {
+            "text": "\"pattern\" \"^[0-9]{5}$\" at \"properties.code\" matches only strings of length 5, so \"maxLength\": 2 can never be satisfied; no string validates here"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "shared.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "entry.json",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              },
+              "message": {
+                "text": "reference 1 of 1 the resolver followed to reach this document: /paths/~1pets~1{petId}/get/responses/200/content/application~1json/schema"
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "oaverifyFindingV1": "unsatisfiable/pattern-length shared.json/Pet/properties/code"
+          },
+          "properties": {
+            "oaverify:class": "schema",
+            "oaverify:severity": "warning",
+            "oaverify:location": "GET /pets/{petId} 200 response body (application/json) -> properties.code",
+            "oaverify:pointer": "/components/schemas/shared_Pet/properties/code",
+            "oaverify:anchor": "definition",
+            "oaverify:sourcePointer": "/Pet/properties/code"
+          }
+        }
+      ]
+    }
+  ]
+}

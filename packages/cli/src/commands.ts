@@ -514,7 +514,12 @@ export async function checkCommand(
   // lists, and refusing that would make exclusion lists uncomposable. It
   // changes no exit code; a CI configuration that has drifted is worth
   // saying out loud and is not worth failing a build over on its own.
-  const noopTerms = selection.terms.filter((t) => t.noop !== undefined);
+  // Only under `--findings`. `--only` resolves to a selection too, so
+  // its terms could carry a no-op (`--only hygiene,hygiene`), and
+  // reporting one would be an output change to a flag this work does
+  // not touch.
+  const noopTerms =
+    args.findings === undefined ? [] : selection.terms.filter((t) => t.noop !== undefined);
   const noopLine =
     noopTerms.length === 0
       ? ""
@@ -528,6 +533,8 @@ export async function checkCommand(
         base: args.cwd ?? process.cwd(),
         classes: [...classes],
         skipped,
+        ...(args.findings === undefined ? {} : { excludedBy: "--findings" as const }),
+        ...(noopTerms.length === 0 ? {} : { noopTerms }),
       }),
     );
   } else if (args.format === "json") {

@@ -350,6 +350,41 @@ describe("--findings (#661)", () => {
     expectGolden("findings-empty.stderr", stderr);
   });
 
+  it("names --findings in sarif, and carries the no-op terms", async () => {
+    // `--skip redos` and `--findings -redos` are the same operation
+    // reached two ways, and a reader fixing a CI configuration needs the
+    // spelling they wrote.
+    // `-hygiene` is live and `-unused-tag` is already covered by it, so
+    // one notification of each kind appears. (`-redos,-ambiguous-pattern`
+    // would cover each other, and which of a mutual pair is called
+    // redundant depends on the order written.)
+    const { exitCode, stdout } = await run(kitchenSink(), {
+      findings: "-hygiene,-unused-tag",
+      format: "sarif",
+    });
+    expect(exitCode).toBe(0);
+    const log = JSON.parse(stdout) as {
+      runs: { invocations?: { toolExecutionNotifications: { message: { text: string } }[] }[] }[];
+    };
+    const notes = (log.runs[0]?.invocations?.[0]?.toolExecutionNotifications ?? []).map(
+      (n) => n.message.text,
+    );
+    expect(notes[0]).toContain("--findings -hygiene suppressed 2 finding(s)");
+    expect(notes[1]).toContain("--findings -unused-tag changed nothing");
+    expectGolden("findings-sarif.sarif", stdout);
+  });
+
+  it("does not report a no-op term for --only, which this work does not touch", async () => {
+    // `--only` resolves to a selection too, so its terms can carry a
+    // no-op. Reporting one would be an output change to a flag that is
+    // not part of this.
+    const { exitCode, stdout } = await run(kitchenSink(), { only: ["hygiene", "hygiene"] });
+    expect(exitCode).toBe(0);
+    expect(stdout).not.toContain("no-op");
+    const single = await run(kitchenSink(), { only: ["hygiene"] });
+    expect(stdout).toBe(single.stdout);
+  });
+
   it("refuses to be combined with the flags it replaces", async () => {
     const withOnly = await run(kitchenSink(), { findings: "schema", only: ["hygiene"] });
     expect(withOnly.exitCode).toBe(3);
