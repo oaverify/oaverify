@@ -149,7 +149,7 @@ export interface FindingSelection {
 export function parseFindingTerms(value: string): FindingTerm[] {
   if (value.trim() === "") {
     throw new FindingTermError(
-      "no terms; omit the flag to report everything rather than passing an empty value",
+      "takes at least one term; omit the flag to report everything rather than passing an empty value",
     );
   }
 
@@ -175,7 +175,7 @@ export function parseFindingTerms(value: string): FindingTerm[] {
 
   if (terms.length === 0) {
     throw new FindingTermError(
-      "no terms; omit the flag to report everything rather than passing an empty value",
+      "takes at least one term; omit the flag to report everything rather than passing an empty value",
     );
   }
 

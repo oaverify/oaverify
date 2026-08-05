@@ -34,13 +34,17 @@ import { parseHttpFile } from "./http-parser.js";
 import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
 import {
   applySkip,
-  CHECK_CLASSES,
   CHECK_SEVERITIES,
   checkSpec,
   EMPTY_SEVERITY_MAP,
+  FindingTermError,
+  FULL_SELECTION,
+  parseFindingTerms,
   parseSeverityMap,
   parseSkipKeys,
   renderSarif,
+  resolveFindingSelection,
+  selectionForClasses,
   SeverityMapError,
   SkipKeyError,
   type CheckClass,
@@ -48,6 +52,7 @@ import {
   type CheckFinding,
   type CheckSeverity,
   type FindingKey,
+  type FindingSelection,
   type SeverityMap,
 } from "@oaverify/check";
 
@@ -342,6 +347,23 @@ export async function checkCommand(
      * promises `--severity` changes grading and nothing else.
      */
     skip?: readonly string[];
+    /**
+     * `--findings`, unparsed: one comma-separated list of terms, each a
+     * key in `--severity`'s key space, optionally prefixed `-` to
+     * exclude.
+     *
+     * One flag over the two questions `--only` and `--skip` ask
+     * separately, with the two stages split by sign rather than by flag
+     * name: a term without `-` decides what runs, a term with `-` drops
+     * findings the passes produced. See `parseFindingTerms` for the
+     * grammar and `resolveFindingSelection` for the rule.
+     *
+     * Refused alongside `--only` or `--skip`. They are competing
+     * spellings of one selection, and a run given both would have to
+     * pick an order to apply them in, which is the ambiguity one flag
+     * exists to remove.
+     */
+    findings?: string;
     /** `"text"` (default), `"json"`, or `"sarif"`. */
     format?: "text" | "json" | "sarif";
     /**
@@ -372,7 +394,30 @@ export async function checkCommand(
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
-  const classes = new Set<CheckClass>(args.only ?? CHECK_CLASSES);
+  // One selection, whichever flag spelled it. Both spellings resolve to
+  // the same object, so everything below (which passes run, which
+  // findings survive, what the report says) reads one thing.
+  let selection: FindingSelection;
+  if (args.findings === undefined) {
+    selection = args.only === undefined ? FULL_SELECTION : selectionForClasses(args.only);
+  } else if (args.only !== undefined || args.skip !== undefined) {
+    const other = args.only === undefined ? "--skip" : "--only";
+    io.stderr(
+      `check: --findings replaces ${other}; pass one of them\n` +
+        `  --only <classes>  is --findings <classes>\n` +
+        `  --skip <keys>     is --findings -<key>,-<key>\n`,
+    );
+    return { exitCode: 3 };
+  } else {
+    try {
+      selection = resolveFindingSelection(parseFindingTerms(args.findings));
+    } catch (err) {
+      if (!(err instanceof FindingTermError)) throw err;
+      io.stderr(`check: --findings ${err.message}\n`);
+      return { exitCode: 3 };
+    }
+  }
+  const classes = selection.classes;
 
   // Parsed before anything is read: a typo in a CI flag should fail on
   // the flag rather than after grading a document.
@@ -428,7 +473,7 @@ export async function checkCommand(
 
   let findings: CheckFinding[];
   try {
-    findings = checkSpec(resolved, { only: [...classes], severity: severityMap });
+    findings = checkSpec(resolved, { findings: selection, severity: severityMap });
   } catch (err) {
     // Only the abort. It means the same to a caller as a document that
     // would not read: nothing was graded, so there is no report. Any
@@ -443,15 +488,37 @@ export async function checkCommand(
   // A skipped finding is not produced: it leaves the array here, so it
   // gates on nothing below and counts toward nothing in the summary.
   // The report is what keeps that from being silent.
-  const skipResult = applySkip(findings, skipKeys);
+  // `--findings`' exclusions and `--skip`'s keys are the same operation
+  // and go through the same function; only the flag that named them
+  // differs, so only the report wording does.
+  const skipResult = applySkip(
+    findings,
+    args.findings === undefined ? skipKeys : selection.excludeKeys,
+  );
   findings = skipResult.findings;
   const skipped = skipResult.skipped;
+  const dropLabel = args.findings === undefined ? "skipped" : "excluded";
+  // Echoed the way the user wrote it. Under `--findings` an exclusion
+  // carries its sign, so a reader can match the report line back to the
+  // term without reconstructing it.
+  const dropSign = args.findings === undefined ? "" : "-";
   const skipLine =
     skipped.length === 0
       ? ""
-      : `skipped: ${skipResult.dropped} finding(s) (${skipped
-          .map((e) => `${e.key} x${e.count}`)
+      : `${dropLabel}: ${skipResult.dropped} finding(s) (${skipped
+          .map((e) => `${dropSign}${e.key} x${e.count}`)
           .join(", ")})\n`;
+
+  // A term that changes nothing is reported rather than refused, because
+  // `-a,-b` is what a script produces when it unions two exclusion
+  // lists, and refusing that would make exclusion lists uncomposable. It
+  // changes no exit code; a CI configuration that has drifted is worth
+  // saying out loud and is not worth failing a build over on its own.
+  const noopTerms = selection.terms.filter((t) => t.noop !== undefined);
+  const noopLine =
+    noopTerms.length === 0
+      ? ""
+      : `no-op terms: ${noopTerms.map((t) => `${t.term} (${t.noop ?? ""})`).join(", ")}\n`;
 
   const sink = primarySink(io, args.options);
   if (args.format === "sarif") {
@@ -465,11 +532,20 @@ export async function checkCommand(
     );
   } else if (args.format === "json") {
     await sink(
-      JSON.stringify({ findings, ...(skipped.length === 0 ? {} : { skipped }) }, null, 2) + "\n",
+      JSON.stringify(
+        {
+          findings,
+          ...(skipped.length === 0 ? {} : { skipped }),
+          ...(noopTerms.length === 0 ? {} : { noopTerms }),
+        },
+        null,
+        2,
+      ) + "\n",
     );
   } else if (findings.length === 0) {
     await sink(`check: no findings (${[...classes].sort().join(", ")})\n`);
     if (skipLine !== "") await sink(skipLine);
+    if (noopLine !== "") await sink(noopLine);
   } else {
     const width = args.width ?? DEFAULT_REPORT_WIDTH;
     for (const f of findings) {
@@ -515,6 +591,7 @@ export async function checkCommand(
     // After the total, because it qualifies it: the count above is what
     // survived, and this is what did not.
     if (skipLine !== "") await sink(skipLine);
+    if (noopLine !== "") await sink(noopLine);
   }
 
   // A malformed schema outranks the gate: the document cannot be

@@ -1,0 +1,1 @@
+check: --findings takes at least one term; omit the flag to report everything rather than passing an empty value

@@ -1,0 +1,3 @@
+check: --findings replaces --only; pass one of them
+  --only <classes>  is --findings <classes>
+  --skip <keys>     is --findings -<key>,-<key>

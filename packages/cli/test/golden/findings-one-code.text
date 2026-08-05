@@ -1,0 +1,5 @@
+warning  hygiene      unused-component
+  components.schemas.Orphan is declared but no operation reaches it
+    at /components/schemas/Orphan
+
+1 finding(s): 1 warning

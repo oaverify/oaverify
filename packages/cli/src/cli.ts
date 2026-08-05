@@ -148,6 +148,13 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
         }),
     )
     .option(
+      "--findings <terms>",
+      "which findings to report: comma-separated terms, each a code, a family as " +
+        "'name/*', or a class, prefixed '-' to exclude (e.g. 'schema,-unsatisfiable/*'). " +
+        "Terms without '-' also decide which passes run, so they are how a run avoids " +
+        "work; terms with '-' drop findings the passes produced",
+    )
+    .option(
       "--fail-on <level>",
       `non-zero exit when any finding at or above <level> appears: ${CHECK_SEVERITIES.join(", ")}`,
       (value: string): CheckSeverity => {
@@ -187,6 +194,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
         opts: {
           overlay: string[];
           only?: CheckClass[];
+          findings?: string;
           failOn?: CheckSeverity;
           severity?: string[];
           skip?: string[];
@@ -200,6 +208,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             spec,
             overlays: opts.overlay,
             only: opts.only,
+            findings: opts.findings,
             failOn: opts.failOn,
             severity: opts.severity,
             skip: opts.skip,

@@ -65,6 +65,7 @@ async function run(
     failOn?: CheckSeverity;
     severity?: readonly string[];
     skip?: readonly string[];
+    findings?: string;
     format?: "text" | "json" | "sarif";
     spec?: string;
   } = {},
@@ -78,6 +79,7 @@ async function run(
       ...(args.failOn !== undefined && { failOn: args.failOn }),
       ...(args.severity !== undefined && { severity: args.severity }),
       ...(args.skip !== undefined && { skip: args.skip }),
+      ...(args.findings !== undefined && { findings: args.findings }),
       ...(args.format !== undefined && { format: args.format }),
       // Pinned so SARIF paths do not depend on where the suite ran, and
       // so the tool version in the log is stable across releases.
@@ -259,5 +261,102 @@ describe("check output is byte-identical (#572)", () => {
     const { exitCode, stdout } = await run(clean);
     expect(exitCode).toBe(0);
     expectGolden("clean.text", stdout);
+  });
+});
+
+describe("--findings (#661)", () => {
+  it("an inclusion selects, and reports a term that selected nothing new", async () => {
+    // Case 1 of the acceptance table: the code is already inside the
+    // class, so deleting it would change nothing.
+    const { exitCode, stdout } = await run(kitchenSink(), {
+      findings: "schema,redos,unsatisfiable/pattern-length",
+    });
+    expect(exitCode).toBe(0);
+    expectGolden("findings-include-redundant.text", stdout);
+  });
+
+  it("an exclusion outside the selected base is a no-op, not a zero count", async () => {
+    // Case 2. `-redos` cannot drop anything from a schema base, and
+    // saying so is different from saying it dropped zero: the second is
+    // how a suppression that has gone stale announces itself.
+    const { exitCode, stdout } = await run(kitchenSink(), {
+      findings: "schema,-redos,unsatisfiable/pattern-length",
+    });
+    expect(exitCode).toBe(0);
+    expectGolden("findings-exclusion-outside-base.text", stdout);
+  });
+
+  it("reads the same whichever order the terms are written in", async () => {
+    // Case 5, the one the acceptance table calls the trap. A left-to-
+    // right reading would make these differ by every non-schema finding.
+    const forward = await run(kitchenSink(), {
+      findings: "schema,-unsatisfiable/pattern-length",
+    });
+    const reversed = await run(kitchenSink(), {
+      findings: "-unsatisfiable/pattern-length,schema",
+    });
+    expect(reversed.stdout).toBe(forward.stdout);
+    expectGolden("findings-order-independent.text", forward.stdout);
+  });
+
+  it("narrows below a class, which --only could not", async () => {
+    const { exitCode, stdout } = await run(kitchenSink(), { findings: "unused-component" });
+    expect(exitCode).toBe(0);
+    expectGolden("findings-one-code.text", stdout);
+  });
+
+  it("carries the terms into the json report", async () => {
+    const { exitCode, stdout } = await run(kitchenSink(), {
+      findings: "-format-not-validated,-schema",
+      format: "json",
+    });
+    expect(exitCode).toBe(0);
+    expectGolden("findings-json.json", stdout);
+  });
+
+  it("excludes a class and still exits 4 on a malformed schema", async () => {
+    // The guarantee that decides the whole design: an exclusion is
+    // post-run suppression, so the compile still happens and the fatal
+    // finding still lands. `--skip schema` behaves the same way today.
+    const { exitCode, stdout } = await run(malformedSpec(), {
+      spec: "spec.json",
+      findings: "-schema",
+    });
+    expect(exitCode).toBe(4);
+    expectGolden("findings-exclude-schema-malformed.text", stdout);
+  });
+
+  it("does not find a malformed schema when nothing selected a compiled code", async () => {
+    // The one place the guarantee is conditional, and `--only hygiene`
+    // has always been conditional in the same way.
+    const viaFindings = await run(malformedSpec(), { spec: "spec.json", findings: "hygiene" });
+    const viaOnly = await run(malformedSpec(), { spec: "spec.json", only: ["hygiene"] });
+    expect(viaFindings.exitCode).toBe(0);
+    expect(viaFindings.stdout).toBe(viaOnly.stdout);
+  });
+
+  it("refuses malformed as a term, in either polarity", async () => {
+    for (const findings of ["malformed", "-malformed", "malformed-schema", "-malformed-schema"]) {
+      const { exitCode, stderr } = await run(malformedSpec(), { spec: "spec.json", findings });
+      expect(exitCode).toBe(3);
+      expect(stderr).toContain("cannot be selected or excluded");
+    }
+  });
+
+  it("refuses an empty value rather than reading it as everything", async () => {
+    const { exitCode, stdout, stderr } = await run(kitchenSink(), { findings: "  " });
+    expect(exitCode).toBe(3);
+    expect(stdout).toBe("");
+    expectGolden("findings-empty.stderr", stderr);
+  });
+
+  it("refuses to be combined with the flags it replaces", async () => {
+    const withOnly = await run(kitchenSink(), { findings: "schema", only: ["hygiene"] });
+    expect(withOnly.exitCode).toBe(3);
+    expectGolden("findings-with-only.stderr", withOnly.stderr);
+
+    const withSkip = await run(kitchenSink(), { findings: "schema", skip: ["redos"] });
+    expect(withSkip.exitCode).toBe(3);
+    expect(withSkip.stderr).toContain("--findings replaces --skip");
   });
 });
