@@ -303,3 +303,19 @@ export function resolveFindingSelection(terms: readonly FindingTerm[]): FindingS
 
 /** The selection a run with no `--findings` gets: everything. */
 export const FULL_SELECTION: FindingSelection = resolveFindingSelection([]);
+
+/**
+ * The selection a list of classes names, for {@link CheckOptions.only}.
+ *
+ * `only` asks the same question one step coarser, so it resolves into
+ * the same object rather than being carried beside it. That is what
+ * keeps `checkSpec` from holding two notions of selection that can
+ * disagree, which is the hazard #661 names.
+ *
+ * @public
+ */
+export function selectionForClasses(classes: readonly CheckClass[]): FindingSelection {
+  return resolveFindingSelection(
+    classes.map((value) => ({ text: value, exclude: false, key: { kind: "class", value } })),
+  );
+}

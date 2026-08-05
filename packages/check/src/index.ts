@@ -34,6 +34,7 @@ export {
   FULL_SELECTION,
   parseFindingTerms,
   resolveFindingSelection,
+  selectionForClasses,
   SELECTABLE_CODES,
   type FindingSelection,
   type FindingTerm,

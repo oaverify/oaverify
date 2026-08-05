@@ -20,12 +20,14 @@ import { checkDocumentExamples, createValidator } from "@oaverify/internal-valid
 import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
 import { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
 import { checkDocumentRedos } from "./redos-check.js";
+import { type CheckClass, type CheckFinding, type FindingTarget } from "./finding.js";
 import {
-  CHECK_CLASSES,
-  type CheckClass,
-  type CheckFinding,
-  type FindingTarget,
-} from "./finding.js";
+  FORMAT_WALK_CODE,
+  FULL_SELECTION,
+  SELECTABLE_CODES,
+  selectionForClasses,
+  type FindingSelection,
+} from "./selection.js";
 import {
   defaultSeverityFor,
   EMPTY_SEVERITY_MAP,
@@ -60,6 +62,26 @@ export interface CheckOptions {
    * empty, clean-looking list.
    */
   only?: readonly CheckClass[];
+  /**
+   * Which findings to produce, at code granularity.
+   *
+   * The finer form of the question {@link CheckOptions.only} asks, and
+   * the one the CLI's `--findings` resolves to. Given both, this one
+   * wins and `only` is ignored: two notions of selection that can
+   * disagree is what one flag exists to remove.
+   *
+   * Build one with `resolveFindingSelection(parseFindingTerms(value))`,
+   * or take {@link FULL_SELECTION}, which is also the default. The
+   * resolved form rather than the strings, for the reason on
+   * {@link CheckOptions.severity}.
+   *
+   * Two things it decides beyond which findings survive. A pass runs
+   * only when the selection holds a code that pass owns, which is where
+   * the cost goes. And the schema class's compile prepass is separate
+   * from its document walk, so a selection naming `format-not-validated`
+   * alone skips the compile, which on `stripe.json` is 13.1s and 2.4GB.
+   */
+  findings?: FindingSelection;
   /**
    * A regrading, applied over every class after the defaults.
    *
@@ -124,7 +146,14 @@ export class CheckAbortedError extends Error {}
  * @public
  */
 export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): CheckFinding[] {
-  const classes = new Set<CheckClass>(options.only ?? CHECK_CLASSES);
+  // One notion of selection, whichever option expressed it. `only` is
+  // the class-granular spelling and resolves into the same object rather
+  // than being carried alongside it, so nothing downstream has to ask
+  // which one the caller used.
+  const selection =
+    options.findings ??
+    (options.only === undefined ? FULL_SELECTION : selectionForClasses(options.only));
+  const classes = selection.classes;
   const severityMap = options.severity ?? EMPTY_SEVERITY_MAP;
   const document: OpenAPIDocument = resolved.document;
   const regions: readonly SpecRegion[] = resolved.regions ?? [];
@@ -170,42 +199,55 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   if (classes.has("schema")) {
     try {
       const validator = createValidator(document, { schemaLint: "strict" });
-      // Compilation is lazy, so without this the schema class inspects
-      // nothing: no schema has been checked and schemaLintIssues is
-      // empty. `check` is exactly the caller that wants the whole
-      // document compiled.
+      // The class's two products cost 1600x apart on a large document,
+      // so they are gated apart. `format-not-validated` below is a
+      // document walk; everything in this block needs the whole document
+      // compiled (13.1s and 2.4GB on `stripe.json`, against 8ms for the
+      // build above).
       //
-      // `collect` rather than the default `throw`: a tool inspecting a
-      // document wants every finding, and stopping at the first
-      // malformed schema hid the rest of the file behind it (#515). A
-      // server wants the opposite and gets it by default.
-      for (const failure of validator.precompile({ onMalformed: "collect" })) {
-        addSchemaFinding(schemaFindings, {
-          class: "malformed",
-          severity: "fatal",
-          code: "malformed-schema",
-          location: failure.location,
-          message: failure.message,
-          target:
-            failure.pointer === undefined
-              ? undefined
-              : { pointer: failure.pointer, anchor: failure.anchor ?? "node" },
-        });
-      }
-      for (const issue of validator.stats.schemaLintIssues) {
-        // The path is relative to the schema that was compiled, which on
-        // a spec with many operations does not say where to look. The
-        // validator labels each compile with its operation, so prefer
-        // that when it is present.
-        const where = issue.path === "" ? "<root>" : issue.path;
-        addSchemaFinding(schemaFindings, {
-          class: "schema",
-          severity: defaultSeverityFor("schema", issue.code),
-          code: issue.code,
-          location: issue.location === undefined ? where : `${issue.location} -> ${where}`,
-          message: issue.message,
-          target: targetForSchemaLint(issue),
-        });
+      // This is also the switch that decides whether a `malformed`
+      // finding can exist, since compiling is what finds one. A
+      // selection that does not ask for a compiler-owned code does not
+      // compile and so cannot report one, which is what `--only hygiene`
+      // has always done.
+      if (selection.compileSchemas) {
+        // Compilation is lazy, so without this the schema class inspects
+        // nothing: no schema has been checked and schemaLintIssues is
+        // empty. `check` is exactly the caller that wants the whole
+        // document compiled.
+        //
+        // `collect` rather than the default `throw`: a tool inspecting a
+        // document wants every finding, and stopping at the first
+        // malformed schema hid the rest of the file behind it (#515). A
+        // server wants the opposite and gets it by default.
+        for (const failure of validator.precompile({ onMalformed: "collect" })) {
+          addSchemaFinding(schemaFindings, {
+            class: "malformed",
+            severity: "fatal",
+            code: "malformed-schema",
+            location: failure.location,
+            message: failure.message,
+            target:
+              failure.pointer === undefined
+                ? undefined
+                : { pointer: failure.pointer, anchor: failure.anchor ?? "node" },
+          });
+        }
+        for (const issue of validator.stats.schemaLintIssues) {
+          // The path is relative to the schema that was compiled, which
+          // on a spec with many operations does not say where to look.
+          // The validator labels each compile with its operation, so
+          // prefer that when it is present.
+          const where = issue.path === "" ? "<root>" : issue.path;
+          addSchemaFinding(schemaFindings, {
+            class: "schema",
+            severity: defaultSeverityFor("schema", issue.code),
+            code: issue.code,
+            location: issue.location === undefined ? where : `${issue.location} -> ${where}`,
+            message: issue.message,
+            target: targetForSchemaLint(issue),
+          });
+        }
       }
     } catch (err) {
       // Nothing survives building the validator at all: an unresolvable
@@ -216,16 +258,20 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     }
 
     // Outside the try: a document walk, not a compile, so a malformed
-    // schema elsewhere does not cost the reader this finding.
-    for (const issue of checkDocumentFormats(document, KNOWN_FORMATS)) {
-      findings.push({
-        class: "schema",
-        severity: defaultSeverityFor("schema", issue.code),
-        code: issue.code,
-        location: issue.pointer,
-        message: issue.message,
-        target: { pointer: issue.pointer, anchor: "node" },
-      });
+    // schema elsewhere does not cost the reader this finding. Gated on
+    // its own code rather than on the class, which is what lets a
+    // selection naming it alone skip the compile above.
+    if (selection.base.has(FORMAT_WALK_CODE)) {
+      for (const issue of checkDocumentFormats(document, KNOWN_FORMATS)) {
+        findings.push({
+          class: "schema",
+          severity: defaultSeverityFor("schema", issue.code),
+          code: issue.code,
+          location: issue.pointer,
+          message: issue.message,
+          target: { pointer: issue.pointer, anchor: "node" },
+        });
+      }
     }
   }
 
@@ -303,6 +349,23 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   }
 
   findings.push(...schemaFindings.values());
+
+  // Narrowing within a class, which the pass gates above cannot do: a
+  // selection naming one hygiene code still runs the whole hygiene pass.
+  //
+  // Two things survive it unconditionally. `malformed` is not in the
+  // selectable vocabulary at all, so no selection can name it and none
+  // can drop it; when the compile ran and found one, it is reported. And
+  // a code the registry does not know is kept rather than dropped, so
+  // drift between a pass and `codes.ts` surfaces as an unexpected
+  // finding instead of a silently missing one.
+  if (selection.base.size !== SELECTABLE_CODES.size) {
+    const kept = findings.filter(
+      (f) => f.class === "malformed" || !SELECTABLE_CODES.has(f.code) || selection.base.has(f.code),
+    );
+    findings.length = 0;
+    findings.push(...kept);
+  }
 
   // The caller's grading, applied once over every class rather than at
   // each site that builds a finding, so no class can quietly opt out of
