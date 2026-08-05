@@ -95,3 +95,33 @@ Check it against [`REPORT.md`](../REPORT.md) first,
 which documents the known gaps ($dynamicRef runtime scope, external and
 cross-document `$ref` loading, and four singletons). Only what survives
 that is news.
+
+## `bowtie perf`, and the benchmarks it cannot measure here
+
+`bowtie perf` compares timings across implementations. Two of its four
+default benchmarks are meaningless for oaverify, and they fail in the
+direction that flatters us, so check before quoting a number.
+
+`Draft2020-12_MetaSchema` and `nested_schemas` both `$ref` the 2020-12
+metaschema. oaverify does not ship the JSON Schema metaschema documents,
+so `compileSchema` throws `cannot resolve $ref` and every timed iteration
+measures how fast we raise an error. On `nested_schemas` that reads as a
+second-place finish and an 8x win over ajv, which is entirely an artifact.
+`OpenAPI_Spec_Schema` (internal `$defs` only) and `useless_keywords`
+(no refs) are self-contained, and their numbers are real.
+
+Confirm a benchmark before trusting it, by feeding its schema through the
+harness and checking for `errored`:
+
+```bash
+printf '%s\n' '{"cmd":"start","version":1}' \
+  '{"cmd":"dialect","dialect":"https://json-schema.org/draft/2020-12/schema"}' \
+  "{\"cmd\":\"run\",\"seq\":1,\"case\":{\"description\":\"x\",\"schema\":$SCHEMA,\"registry\":null,\"tests\":[{\"description\":\"t\",\"instance\":{}}]}}" \
+  '{"cmd":"stop"}' | docker run -i --rm localhost/oaverify-harness
+```
+
+Registering the metaschema in the harness would turn both benchmarks
+green and would also clear two of the four known suite errors. Resist it.
+The harness would then have a capability the library does not, which is
+the same failure mode as advertising a dialect the engine cannot compile.
+The fix belongs in the library or nowhere.
