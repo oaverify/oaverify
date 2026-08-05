@@ -272,6 +272,32 @@ describe("$dynamicRef scope hygiene", () => {
     expect(v.validate({ probe: 42 }).valid).toBe(false);
   });
 
+  /**
+   * A `$dynamicRef` site has no single static target, so the compiler
+   * cannot ask whether its callee is a recursion back-edge. It emits the
+   * `maxDepth` guard unconditionally instead, which has to hold the
+   * recursion to a `depth` error rather than a `RangeError`.
+   */
+  it("bounds recursion through a $dynamicRef with maxDepth", () => {
+    const schema = {
+      $id: "https://example.test/deep",
+      $dynamicAnchor: "node",
+      type: "object",
+      properties: { child: { $dynamicRef: "#node" } },
+    };
+    let data: Record<string, unknown> = {};
+    for (let i = 0; i < 200; i += 1) data = { child: data };
+
+    const guarded = compile(schema, { maxDepth: 8 });
+    const result = guarded.validate(data);
+    expect(result.valid).toBe(false);
+    expect(JSON.stringify(result)).toContain("depth");
+
+    // Unguarded, the same payload is simply valid: the recursion is
+    // bounded by the data, not by the schema.
+    expect(compile(schema).validate(data).valid).toBe(true);
+  });
+
   it("does not mistake an inherited object property for a binding", () => {
     // The candidate table is keyed by base URI, and base URIs come from
     // user `$id` values. Held in a plain object, a lookup for a base URI
