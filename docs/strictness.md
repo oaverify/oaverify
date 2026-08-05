@@ -480,6 +480,67 @@ drops the advisory finding that says a format is not asserted; it does
 not change what request validation accepts. That knob is `formats`, and
 it is above under [Format assertion](#format-assertion-is-not-one-of-these).
 
+#### One flag for both: `--findings`
+
+`--only` and `--skip` answer the same question from opposite sides, so
+`--findings` asks it once. A term is a class, a family written `name/*`,
+or an exact code, the same grammar `--severity` uses, and a leading `-`
+excludes it:
+
+```
+oaverify check spec.yaml --findings schema,redos      # these two, and nothing else
+oaverify check spec.yaml --findings -unused-tag       # everything except that code
+oaverify check spec.yaml --findings 'schema,-unsatisfiable/*'
+```
+
+The rule, whole: **the terms without `-` choose what you get, and with
+no such term you get everything; the terms with `-` are then taken
+away.** Order never matters, so `-a,b` and `b,-a` read the same.
+
+**The sign also decides what the run costs**, which is the part worth
+understanding before you reach for it:
+
+| You write             | oaverify                            | You get                                                                 |
+| --------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
+| `--findings hygiene`  | runs the hygiene check alone        | the cheapest useful run                                                 |
+| `--findings -hygiene` | runs everything, then drops hygiene | the full report minus one class, and an exact count of what was dropped |
+
+Both spellings of "I do not care about hygiene" give the same findings.
+Only the first one saves you the work. On a 7.6MB document that is 0.2
+seconds against 14, and 136MB against 2.7GB, so it is worth knowing
+which one you wrote.
+
+The asymmetry buys two things. An exclusion can report exactly how many
+findings it dropped, because the check ran; and an exclusion can never
+hide a finding that the check had to run to discover. The second matters
+for exactly one case:
+
+**`malformed` is reported, and never selectable.** A schema the compiler
+cannot interpret is found by compiling. `--findings -schema` still
+compiles, so it still finds one, and the run still exits 4. Asking for
+work that does not include compiling (`--findings hygiene`) means no
+compile happens and a malformed schema is not looked for, which is what
+`--only hygiene` has always done. Naming `malformed` in either direction
+is a usage error.
+
+`--findings` replaces `--only` and `--skip` rather than combining with
+them; passing it alongside either is a usage error with the translation
+in the message.
+
+**A term that changes nothing is reported, not refused:**
+
+```
+4 finding(s): 4 warning
+no-op terms: -redos (outside the selected findings)
+```
+
+`--findings schema,-redos` selects schema, so the exclusion has nothing
+to reach. That is worth saying and is not worth failing over, because
+`-a,-b` is what a script produces when it unions two exclusion lists and
+refusing it would make those lists impossible to compose. It is distinct
+from an exclusion that was live and dropped nothing, which prints
+`x0` and is how a suppression that has gone stale announces itself.
+
 ### Document conformance
 
 `conformance` validates the document against the JSON Schema OpenAPI

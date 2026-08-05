@@ -156,6 +156,34 @@ reported with what it dropped, including keys that dropped nothing.
 
 See [strictness.md](./strictness.md#when-you-do-not-want-the-finding-at-all).
 
+## New: `--findings` on `oaverify check`
+
+Not breaking. `--only` and `--skip` both keep working; `--findings` is
+one flag over the same question, and it can say things neither of them
+could.
+
+```
+oaverify check spec.yaml --findings schema,redos            # was --only schema,redos
+oaverify check spec.yaml --findings -unused-tag             # was --skip unused-tag
+oaverify check spec.yaml --findings 'schema,-unsatisfiable/*'   # was both flags together
+```
+
+Terms use `--severity`'s key grammar, so unlike `--only` they reach a
+code or a family and not only a class. Order never matters.
+
+The sign carries the difference the two flags used to carry. A term
+without `-` decides which checks run, so it is how a run avoids work; a
+term with `-` drops findings the checks produced, so it reports an exact
+count and can never hide something a check had to run to find. That
+second property is what keeps a malformed schema unsuppressable:
+`--findings -schema` still compiles and still exits 4.
+
+Naming `malformed` is refused in either direction, and passing
+`--findings` beside `--only` or `--skip` is a usage error with the
+translation in the message.
+
+See [strictness.md](./strictness.md#one-flag-for-both---findings).
+
 ## Checklist
 
 1. Run your test suite. A failure naming `must match format int32` or
