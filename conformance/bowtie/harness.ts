@@ -5,7 +5,7 @@
  * stop) over stdin/stdout, one JSON object per line. See
  * https://docs.bowtie.report/en/stable/implementers/
  *
- * The compile/validate path mirrors conformance/run-json-schema-suite.ts:
+ * The compile/validate path mirrors ../run-json-schema-suite.ts:
  * `compileSchema` with `jsonSchemaDialect` and `builtInFormats`, with the
  * test case's registry fed in through the `external` map the same way that
  * runner feeds the suite's `remotes/` directory.

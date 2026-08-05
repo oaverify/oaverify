@@ -3,7 +3,7 @@
 Runs oaverify's JSON Schema engine under
 [Bowtie](https://docs.bowtie.report/), the meta-validator that drives every
 JSON Schema implementation through the official test suite with one
-protocol. Bowtie gives two things `conformance/run-json-schema-suite.ts`
+protocol. Bowtie gives two things the sibling `run-json-schema-suite.ts`
 cannot: verdicts from other implementations on the same case, so a
 divergence can be read against what the rest of the ecosystem does, and a
 suite pulled live from upstream `main` rather than a local clone.
@@ -19,7 +19,7 @@ baseline CI ratchets against; this one is an outward comparison.
   file via esbuild, reading aliases from `workspace-aliases.ts`.
 - `Dockerfile` packages that bundle as the image Bowtie runs.
 
-The compile/validate path mirrors `conformance/run-json-schema-suite.ts`:
+The compile/validate path mirrors the sibling `run-json-schema-suite.ts`:
 `compileSchema` with `jsonSchemaDialect` and `builtInFormats`, with each
 case's `registry` fed through the `external` map the way that runner feeds
 the suite's `remotes/` directory.
@@ -35,7 +35,7 @@ Build the image from the repository root, so the engine sources are in
 context:
 
 ```bash
-docker build -f bowtie-harness/Dockerfile -t localhost/oaverify-harness .
+docker build -f conformance/bowtie/Dockerfile -t localhost/oaverify-harness .
 ```
 
 Smoke first. A broken harness reads exactly like a broken validator, so a
@@ -91,7 +91,7 @@ remaining cases down with it.
 ## Reading the results
 
 A divergence from the other implementations is a question, not a verdict.
-Check it against [`conformance/REPORT.md`](../conformance/REPORT.md) first,
+Check it against [`REPORT.md`](../REPORT.md) first,
 which documents the known gaps ($dynamicRef runtime scope, external and
 cross-document `$ref` loading, and four singletons). Only what survives
 that is news.

@@ -2,7 +2,7 @@
 #
 # Build from the repository root, so the engine sources are in context:
 #
-#   docker build -f bowtie-harness/Dockerfile -t localhost/oaverify-harness .
+#   docker build -f conformance/bowtie/Dockerfile -t localhost/oaverify-harness .
 #
 # The builder stage bundles harness.ts and the engine into one ESM file.
 # Only core, schema and formats are copied: those three are the whole
@@ -22,10 +22,10 @@ COPY package.json workspace-aliases.ts ./
 COPY packages/core/src ./packages/core/src
 COPY packages/schema/src ./packages/schema/src
 COPY packages/formats/src ./packages/formats/src
-COPY bowtie-harness/harness.ts bowtie-harness/build.mjs ./bowtie-harness/
-RUN node bowtie-harness/build.mjs
+COPY conformance/bowtie/harness.ts conformance/bowtie/build.mjs ./conformance/bowtie/
+RUN node conformance/bowtie/build.mjs
 
 FROM node:22-alpine
 WORKDIR /app
-COPY --from=builder /src/repo/bowtie-harness/dist/harness.mjs ./harness.mjs
+COPY --from=builder /src/repo/conformance/bowtie/dist/harness.mjs ./harness.mjs
 CMD ["node", "harness.mjs"]

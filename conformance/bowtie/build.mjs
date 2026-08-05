@@ -13,10 +13,10 @@ import { readFileSync } from "node:fs";
 
 import * as esbuild from "esbuild";
 
-import { workspaceAliases } from "../workspace-aliases.ts";
+import { workspaceAliases } from "../../workspace-aliases.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const rootDir = resolve(here, "..");
+const rootDir = resolve(here, "..", "..");
 const version = JSON.parse(readFileSync(resolve(rootDir, "package.json"), "utf8")).version;
 
 await esbuild.build({
