@@ -90,6 +90,21 @@ export interface CompileAndCallOptions {
 }
 
 /**
+ * A `$dynamicRef` site that has to resolve at runtime: the candidate
+ * bindings for its anchor name, keyed by the base URI of the resource
+ * that declares each, plus the statically resolved target to fall back
+ * to when no candidate is in scope.
+ *
+ * @public
+ */
+export interface DynamicRefTarget {
+  /** `[baseUri, functionName]` per resource declaring the anchor. */
+  readonly candidates: readonly (readonly [string, string])[];
+  /** Function name of the static target (the `$ref` behaviour). */
+  readonly fallback: string;
+}
+
+/**
  * The narrow context passed to each keyword's `compile()` function. Keyword
  * authors see only these names: no reference to the compiler, the full
  * vocabulary, or the validator instance.
@@ -159,6 +174,28 @@ export interface KeywordCompileContext {
    * recursion-depth guard. Forward refs return `false`.
    */
   isRecursiveRef(ref: string): boolean;
+  /**
+   * Resolve a `$dynamicRef` that has to bind at runtime, or `null` when
+   * it binds statically and should compile exactly as a `$ref`.
+   *
+   * `null` covers every case except a plain-name reference whose static
+   * target declares the matching `$dynamicAnchor` (the 2020-12
+   * bookending requirement), inside a compile unit that uses both
+   * keywords. Read only by the `$dynamicRef` keyword.
+   */
+  resolveDynamicRef(ref: string): DynamicRefTarget | null;
+  /**
+   * Generated-source name of the dynamic scope: the base URIs of the
+   * schema resources currently being evaluated, outermost first. The
+   * compiler maintains it; `$dynamicRef` is the only reader.
+   */
+  readonly dynamicScopeName: string;
+  /**
+   * Generated-source name of the helper that walks the dynamic scope
+   * outermost-first, returning the first candidate found in it or the
+   * fallback. Read only by `$dynamicRef`.
+   */
+  readonly dynamicLookupName: string;
   /** JS expression for the Set tracking evaluated properties, or `null`. */
   readonly evaluatedPropertiesVar: string | null;
   /** JS expression for the Set tracking evaluated items, or `null`. */
@@ -549,9 +586,9 @@ export interface KeywordDefinition {
    * mode (see {@link CompileOptions.schemaLint}) so users know they're
    * getting degraded semantics rather than a silent fallback.
    *
-   * Example: `$dynamicRef` sets `partial` because the implementation
-   * resolves statically against the anchor map rather than walking the
-   * runtime dynamic scope.
+   * No built-in keyword sets this today. `$dynamicRef` did, while it
+   * resolved statically against the anchor map, and dropped it when
+   * runtime dynamic-scope resolution landed.
    */
   partial?: string;
   /**

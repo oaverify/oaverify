@@ -3,6 +3,7 @@ import { NAMES, pathJoinExpr, rawExpr, type CodeGen } from "../codegen/index.js"
 import type {
   CompileAndCallOptions,
   CompileMode,
+  DynamicRefTarget,
   ErrorKind,
   KeywordCompileContext,
   KeywordDefinition,
@@ -38,6 +39,16 @@ export interface KeywordContextInputs {
    * the `$ref` keyword to decide whether to emit the `maxDepth` guard.
    */
   isRecursiveRef?: (ref: string) => boolean;
+  /**
+   * Whether a `$dynamicRef` binds at runtime, and to what. Defaults to
+   * always-`null` (static, `$ref` behaviour) when omitted, which is
+   * what a compile unit without dynamic scoping wants.
+   */
+  resolveDynamicRef?: (ref: string) => DynamicRefTarget | null;
+  /** Generated-source name of the dynamic scope array. */
+  dynamicScopeName?: string;
+  /** Generated-source name of the dynamic scope lookup helper. */
+  dynamicLookupName?: string;
   evaluatedPropertiesVar?: string | null;
   evaluatedItemsVar?: string | null;
   /**
@@ -211,6 +222,7 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
   const flat = inputs.flat ?? false;
   const unevaluatedTracking = inputs.unevaluatedTracking ?? false;
   const isRecursiveRef = inputs.isRecursiveRef ?? ((): boolean => false);
+  const resolveDynamicRef = inputs.resolveDynamicRef ?? ((): DynamicRefTarget | null => null);
   const pathSegments = inputs.pathSegments ?? EMPTY_PATH_SEGMENTS;
   const effectivePathExpr =
     pathSegments.length === 0
@@ -638,6 +650,9 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
     compileAndCallSubschema,
     resolveRef: inputs.resolveRef,
     isRecursiveRef,
+    resolveDynamicRef,
+    dynamicScopeName: inputs.dynamicScopeName ?? "dynScope",
+    dynamicLookupName: inputs.dynamicLookupName ?? "dynLookup",
     evaluatedPropertiesVar,
     evaluatedItemsVar,
     gated,
