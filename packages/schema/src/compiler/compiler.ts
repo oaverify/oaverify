@@ -978,7 +978,20 @@ export interface CompileOptions {
 
   /** Additional external named schemas that `$ref` can resolve to. */
   external?: Map<string, SchemaOrBoolean>;
-  /** Custom ref resolver; overrides the default (which resolves fragments within the root). */
+  /**
+   * Custom ref resolver; overrides the default (which resolves fragments
+   * within the root).
+   *
+   * @remarks
+   * `$dynamicRef` resolution sees only the documents the anchor scan
+   * walked, which is the root schema plus {@link CompileOptions.external}.
+   * A resolver that reaches schemas outside both is resolving documents
+   * the scan never saw, so a `$dynamicAnchor` declared only in one of
+   * them does not join the dynamic scope, and a `$dynamicRef` that would
+   * have bound to it binds to its static target instead. Register those
+   * schemas through `external` when their dynamic anchors need to
+   * participate.
+   */
   refResolver?: RefResolver;
   /**
    * Custom compiler for schema `pattern` keywords and the `format:
