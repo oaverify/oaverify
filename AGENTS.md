@@ -233,9 +233,16 @@ in the meantime.
   so self-recursive refs emit normal recursive calls. Codegen mechanics
   sit behind `@oaverify/core/schema/internals`, which is outside the
   semver contract.
-- **`@oaverify/internal-formats`**: pure string validators, shaped as
-  `Record<string, (s: string) => boolean>` because that shape is
-  `compileSchema`'s `formats` option.
+- **`@oaverify/internal-formats`**: the built-in format validators,
+  shaped as `Record<string, FormatDefinition>` because that shape is
+  `compileSchema`'s `formats` option. One registry whatever JSON type a
+  format constrains: string formats are bare predicates (the shorthand),
+  `int32` / `int64` declare `type: "number"`, and `false` registers a
+  name that asserts nothing. `FormatDefinition` and `normalizeFormat`
+  live in `internal-core`, which is the edge that stops this package
+  being a leaf. Keeping one registry is what leaves `KNOWN_FORMATS`,
+  `unknownFormats` and the stream options with nothing to change when
+  a numeric format is added.
 - **`@oaverify/internal-metaschema`**: the published OpenAPI meta-schemas,
   pinned per version, plus `metaschemaVersionOf()` dispatch. Consumed by
   `@oaverify/check`'s conformance pass through the `/conformance`
@@ -326,7 +333,7 @@ here before.
 
 ```
 core            (leaf)
-formats         (leaf)
+formats       → core
 schema        → core
 spec          → core
 router        → core
@@ -491,7 +498,8 @@ Output modes are user-facing: the zero-config default is `output:
 "flat"` + `maxErrors: 1` (Ajv parity), `output` is `"flat" | "tree" |
 "predicate"`, and the boolean aliases were removed in v5 (#497). See
 [docs/configuration.md](./docs/configuration.md) and the
-[v5](./docs/migration-v5.md) migration guide.
+[v5](./docs/migration-v5.md) and [v6](./docs/migration-v6.md)
+migration guides.
 
 ## Version support
 

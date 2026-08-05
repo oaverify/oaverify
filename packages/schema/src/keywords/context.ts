@@ -5,12 +5,14 @@ import type {
   CompileMode,
   DynamicRefTarget,
   ErrorKind,
+  FormatKind,
   KeywordCompileContext,
   KeywordDefinition,
   ValidateSubschemaOptions,
 } from "./types.js";
 
 const EMPTY_PATH_SEGMENTS: readonly string[] = Object.freeze([]);
+const EMPTY_FORMAT_TYPES: ReadonlyMap<string, FormatKind> = new Map<string, FormatKind>();
 
 /**
  * Inputs accepted by {@link createKeywordContext}. The compiler assembles
@@ -94,6 +96,13 @@ export interface KeywordContextInputs {
    * takes the function-call path.
    */
   byKeyword?: ReadonlyMap<string, KeywordDefinition>;
+  /**
+   * What each registered `format` name constrains. See
+   * {@link KeywordCompileContext.formatTypeOf}. Defaults to empty, so a
+   * context built without it treats every format as a string one, which
+   * is what `format` did before numeric formats existed.
+   */
+  formatTypes?: ReadonlyMap<string, FormatKind>;
   /**
    * Depth counter for recursive multi-keyword inlining. Callers never
    * set this directly; the context threads it through
@@ -221,6 +230,8 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
   const predicate = inputs.predicate ?? false;
   const flat = inputs.flat ?? false;
   const unevaluatedTracking = inputs.unevaluatedTracking ?? false;
+  const formatTypes = inputs.formatTypes ?? EMPTY_FORMAT_TYPES;
+  const formatTypeOf = (name: string): FormatKind => formatTypes.get(name) ?? "string";
   const isRecursiveRef = inputs.isRecursiveRef ?? ((): boolean => false);
   const resolveDynamicRef = inputs.resolveDynamicRef ?? ((): DynamicRefTarget | null => null);
   const pathSegments = inputs.pathSegments ?? EMPTY_PATH_SEGMENTS;
@@ -438,6 +449,7 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
         predicate,
         flat,
         byKeyword: inputs.byKeyword,
+        formatTypes,
         inlineDepth: inlineDepth + 1,
         hoistConstant: inputs.hoistConstant,
       });
@@ -505,6 +517,7 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
         predicate,
         flat,
         byKeyword: inputs.byKeyword,
+        formatTypes,
         inlineDepth: inlineDepth + 1,
         hoistConstant: inputs.hoistConstant,
       });
@@ -660,6 +673,7 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
     predicate,
     flat,
     unevaluatedTracking,
+    formatTypeOf,
     errorStatement,
     emitError,
     appendErrorsStatement,

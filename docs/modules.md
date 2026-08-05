@@ -10,7 +10,7 @@ five public subpath entrypoints (plus the not-semver-covered
 | `@oaverify/core/schema`       | `compileSchema`, dialects, vocabularies, custom keywords, keyword introspection |
 | `@oaverify/core/spec`         | `loadSpec`, `loadSpecSync`, `resolveSpec`, `applyOverlays`, `sourceOf`, readers |
 | `@oaverify/core/overlay-spec` | `translateOverlay`, `applySpecOverlay`: OpenAPI Overlay 1.0 → typed SpecOverlay |
-| `@oaverify/core/formats`      | Built-in string format validators                                               |
+| `@oaverify/core/formats`      | Built-in format validators, string and numeric                                  |
 | `@oaverify/core/core`         | Error tree model, shared OpenAPI / HTTP types                                   |
 
 `@oaverify/core` carries no runtime dependencies and parses JSON only.
@@ -53,6 +53,8 @@ reach every `@oaverify/core` consumer.
 | `CheckCode`, `CHECK_CODES`                   | Every code a run can emit, as a type and as a set                       |
 | `DEFAULT_SEVERITY`, `severityFor`            | oaverify's grading, and how a regrading is applied                      |
 | `parseSeverityMap(entries)`                  | The `key=level` grammar the CLI spells `--severity`                     |
+| `parseFindingKey(key)`                       | One key resolved to a code, family or class; shared by the two below    |
+| `parseSkipKeys(entries)`, `applySkip`        | The key list the CLI spells `--skip`, and the filter plus its report    |
 | `renderSarif(findings, options)`             | SARIF 2.1.0, for code scanning; `options.classes` is required           |
 | `checkDocumentFormats`, `checkDocumentRedos` | The two passes that have no other home                                  |
 

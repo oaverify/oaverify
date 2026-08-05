@@ -114,7 +114,11 @@ importers:
 
   packages/core: {}
 
-  packages/formats: {}
+  packages/formats:
+    dependencies:
+      '@oaverify/internal-core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/metaschema:
     dependencies:

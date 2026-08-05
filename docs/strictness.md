@@ -318,6 +318,31 @@ whether your spec is well written.
 Both produce ordinary validation errors on the request, at request time.
 Neither appears in `schemaLintIssues`.
 
+### Format assertion is not one of these
+
+If `format: "int32"` started rejecting traffic and you are looking for
+the knob, it is `formats`, and it is not a strictness class.
+
+The difference is whose choice is being enforced. `strictQueryParameters`
+rejects a request on the basis of something the document does not say:
+OpenAPI does not forbid an undeclared query parameter, so refusing one
+is oaverify's policy laid on top, and policy is opt-in.
+`validateSecurity: "strict"` is likewise a policy about oaverify's own
+coverage. A `format` assertion enforces what the document does say. The
+OpenAPI dialects declare `format` an assertion, so `format: "date-time"`
+has always rejected `"not-a-date"`; `int32` and `int64` were simply
+never implemented, and now are.
+
+So the off switch is the format registry rather than a strictness
+option, and it is per format:
+
+```ts
+createValidator(spec, { formats: { int64: false } });
+```
+
+See [configuration.md](./configuration.md#formats) for the registry,
+including why `int64` asserts only the safe-integer range.
+
 ## On the CLI
 
 Two verbs, one question each.
@@ -403,7 +428,7 @@ A key that names no real class, code or family is refused. The list is
 
 It changes the `severity` field in the report and what `--fail-on`
 gates on, and nothing else: `validate` has no notion of severity, and
-which findings are produced is `--only`'s question.
+which findings are produced is `--only`'s question, or `--skip`'s.
 
 **`malformed` cannot be remapped.** Its exit code is 4, which outranks
 `--fail-on` because a document that cannot be compiled is not a gate
@@ -412,6 +437,48 @@ matters. `--severity malformed=warning` is refused as a usage error
 rather than half-applied. Every other input error is refused too, on
 the same reasoning: a mistyped key that silently graded nothing is the
 failure this option exists to prevent.
+
+#### When you do not want the finding at all
+
+Regrading is for a finding you disagree with the ranking of. `--skip`
+is for one you do not want in the report:
+
+```
+oaverify check spec.yaml --skip format-not-validated
+oaverify check spec.yaml --skip 'unsatisfiable/*,unused-tag'
+```
+
+Same key grammar as `--severity`, same validation, and it sits on
+`--only`'s side of the fence: which findings exist is `--only`'s
+question, which is what keeps the sentence above true.
+
+A skipped finding is **not produced**. It is absent from `findings[]`,
+so `--fail-on` cannot see it and the summary does not count it. That is
+only safe because the skip is reported:
+
+```
+7 finding(s): 2 error, 5 warning
+skipped: 3 finding(s) (format-not-validated x3, unused-tag x0)
+```
+
+`--format json` carries the same thing as a `skipped` block, and SARIF
+records it as a run notification rather than as `result.suppressions`,
+because a suppressed result is still a result and these were not
+produced.
+
+Every key you give is reported, including ones that matched nothing.
+The `unused-tag x0` above is the case worth watching: a skip that no
+longer suppresses anything is how a real defect eventually arrives
+suppressed and unnoticed.
+
+**`malformed` cannot be skipped either**, in either spelling, for a
+sharper version of the reason it cannot be remapped: suppressing it
+would turn "this document does not compile" into a clean report.
+
+`--skip` names findings, never formats. `--skip format-not-validated`
+drops the advisory finding that says a format is not asserted; it does
+not change what request validation accepts. That knob is `formats`, and
+it is above under [Format assertion](#format-assertion-is-not-one-of-these).
 
 ### Document conformance
 

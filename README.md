@@ -261,6 +261,7 @@ predicate iterators) is documented in
 | Use custom formats, keywords, or limits    | [docs/configuration.md](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md)                             |
 | Work out what "strict" controls            | [docs/strictness.md](https://github.com/oaverify/oaverify/blob/main/docs/strictness.md)                                   |
 | Upgrade from v4 to v5                      | [docs/migration-v5.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v5.md)                               |
+| Upgrade from v5 to v6                      | [docs/migration-v6.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md)                               |
 
 ## How it compares
 

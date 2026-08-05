@@ -1,4 +1,4 @@
-import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import type { NormalizedFormat, SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import type { CodeEmitter } from "../codegen/index.js";
 
 /**
@@ -10,7 +10,13 @@ import type { CodeEmitter } from "../codegen/index.js";
  */
 export interface CompileRuntime {
   patterns: Map<string, RegExp>;
-  formats: Map<string, (value: string) => boolean>;
+  /**
+   * Format validators, normalized. `null` means the name is registered
+   * and asserts nothing (`formats: { int64: false }`), which a caller
+   * asking "is this format registered" has to tell apart from
+   * `undefined`.
+   */
+  formats: Map<string, NormalizedFormat | null>;
 }
 
 /**
@@ -23,6 +29,16 @@ export interface CompileRuntime {
  * @public
  */
 export type ErrorKind = "leaf" | "lift";
+
+/**
+ * What a `format` name constrains, as codegen sees it.
+ *
+ * `"none"` is a name registered as `false`: it asserts nothing, so no
+ * guard is emitted at all.
+ *
+ * @public
+ */
+export type FormatKind = "string" | "number" | "none";
 
 /**
  * The output shape a compiled (sub)validator produces:
@@ -255,6 +271,18 @@ export interface KeywordCompileContext {
    * contributes evaluated keys, so it ignores this.)
    */
   readonly unevaluatedTracking: boolean;
+  /**
+   * What the named `format` constrains, from the caller's `formats`
+   * option at compile time.
+   *
+   * A name the option does not mention answers `"string"`, which is
+   * both the historical behaviour and the only sound answer:
+   * `emitStandalone` compiles with no registry and runs against one
+   * loaded at module scope, so a name absent at compile time can be
+   * present at run time. Declared types survive that split because they
+   * come from the same registry on both sides; map contents do not.
+   */
+  formatTypeOf(name: string): FormatKind;
   /**
    * Hand this keyword's {@link KeywordDefinition.implements} entries
    * back, so they compile as if this keyword had not claimed them.

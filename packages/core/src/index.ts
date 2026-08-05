@@ -103,3 +103,5 @@ export {
 export { followsRef, refablePositionsFor, refPositionFor } from "./ref-positions.js";
 export type { RefNodeKind, RefPosition } from "./ref-positions.js";
 export { getOwn, setSpecKey } from "./own-key.js";
+export { normalizeFormat } from "./format-definition.js";
+export type { FormatDefinition, NormalizedFormat } from "./format-definition.js";

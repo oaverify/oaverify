@@ -1,8 +1,12 @@
 # @oaverify/core/formats
 
-Built-in string format validators for the `format` keyword. Each is a
-pure `(value: string) => boolean`; `builtInFormats` is the keyed map
-passed to `createValidator({ formats })` or `compileSchema({ formats })`.
+Built-in format validators for the `format` keyword. `builtInFormats`
+is the keyed map passed to `createValidator({ formats })` or
+`compileSchema({ formats })`.
+
+One registry, whatever JSON type a format constrains. String formats
+are pure `(value: string) => boolean` predicates; the two OpenAPI
+numeric formats declare the type they take.
 
 ```ts
 import { builtInFormats, validateUuid } from "@oaverify/core/formats";
@@ -30,11 +34,20 @@ replace them.
 - **URI**: `uri`, `uri-reference`, `iri`, `iri-reference`, `uri-template`
 - **JSON Pointer**: `json-pointer`, `relative-json-pointer`
 - **Misc**: `uuid`
+- **Numeric** (OpenAPI): `int32`, `int64`, as `{ type: "number", validate }`
 
 `regex` also works as a `format`, but it isn't a key in `builtInFormats`:
 `@oaverify/core/schema` registers it inside `createDeps` so it routes through the
 same compile path as the `pattern` keyword (and honors `regexCompiler`).
 The standalone `validateRegex` predicate is still exported for direct use.
+
+`float` and `double` are absent on purpose. Every JSON number is
+already an IEEE 754 double, so `double` asserts nothing, and a
+`Math.fround`-based `float` rejects values a producer legitimately
+sent. `int64` asserts the safe-integer range rather than the int64
+range, because a JSON number past 2^53 has already lost precision
+before it reaches any JavaScript validator; see
+[docs/configuration.md](../../docs/configuration.md#formats).
 
 ## Registering a custom format
 
@@ -46,10 +59,18 @@ import { createValidator } from "@oaverify/core";
 
 const v = createValidator(spec, {
   formats: {
+    // A bare function is a string format.
     "e164-phone": (s) => /^\+[1-9]\d{6,14}$/.test(s),
+    // Constraining numbers says the type out loud.
+    "basis-points": { type: "number", validate: (n) => n >= 0 && n <= 10000 },
+    // `false` registers the name and asserts nothing.
+    int64: false,
   },
 });
 ```
+
+A bare function is **always** a string format, including under a name
+whose built-in constrains numbers.
 
 In the spec, reference the format as you would any built-in:
 

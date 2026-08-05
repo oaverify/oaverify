@@ -2,6 +2,7 @@ import {
   createBranchError,
   createError,
   createLeafError,
+  type NormalizedFormat,
   type ValidationError,
 } from "@oaverify/internal-core";
 import type { CustomKeywordValidator } from "../keywords/custom.js";
@@ -90,7 +91,11 @@ export interface ValidatorDeps {
    * only for the object subset.
    */
   findDuplicate: (arr: readonly unknown[]) => { a: number; b: number } | null;
-  formats: Map<string, (value: string) => boolean>;
+  /**
+   * Format validators, normalized. `null` means registered and
+   * asserting nothing; `undefined` means not registered.
+   */
+  formats: Map<string, NormalizedFormat | null>;
   refs: Map<string, Validator>;
   /** User-registered keyword validators, keyed by keyword name. */
   customKeywords: Map<string, CustomKeywordValidator>;
@@ -515,14 +520,17 @@ export function createDeps(arg?: number | CreateDepsOptions): ValidatorDeps {
   // the `pattern` keyword (and the `regexCompiler` hook), but skips
   // the memoization to keep memory bounded: runtime values aren't
   // bounded by spec size.
-  const formats = new Map<string, (value: string) => boolean>();
-  formats.set("regex", (value: string) => {
-    try {
-      compileRegex(value);
-      return true;
-    } catch {
-      return false;
-    }
+  const formats = new Map<string, NormalizedFormat | null>();
+  formats.set("regex", {
+    type: "string",
+    validate: ((value: string) => {
+      try {
+        compileRegex(value);
+        return true;
+      } catch {
+        return false;
+      }
+    }) as (value: never) => boolean,
   });
 
   return {

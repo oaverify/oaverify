@@ -103,9 +103,20 @@ export const formatKeyword: KeywordDefinition = {
 
 /**
  * The JSON Schema 2020-12 `format` keyword, assertion mode. When a
- * validator is registered for the named format, the string must pass it.
+ * validator is registered for the named format, the value must pass it.
  * Callers activate this by including {@link formatAssertionVocabulary}
  * ahead of {@link formatVocabulary}.
+ *
+ * A format constrains one JSON type. String formats (`date-time`,
+ * `uuid`) are asserted on strings, numeric ones (`int32`, `int64`) on
+ * numbers, and a value of any other type is a no-op, per JSON Schema
+ * 2020-12 §6.3. So is a format name nothing is registered under, and so
+ * is one registered as `false`.
+ *
+ * Which guard is emitted comes from the format's declared type at
+ * compile time, so a site costs exactly one `typeof` test either way
+ * and a schema naming only string formats compiles to the same guard it
+ * always did.
  *
  * @public
  */
@@ -114,6 +125,15 @@ export const formatAssertionKeyword: KeywordDefinition = {
   vocabulary: FORMAT_ASSERTION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const formatName = ctx.schema as string;
+    // `false` registers the name and asserts nothing, so there is no
+    // guard to emit. Unregistered names still emit the string guard:
+    // `emitStandalone` compiles with a registry it does not run with,
+    // and a name absent at compile time may be present at run time.
+    // See `KeywordCompileContext.formatTypeOf`.
+    const declaredType = ctx.formatTypeOf(formatName);
+    if (declaredType === "none") return;
+    const jsType = declaredType === "number" ? "number" : "string";
+
     const formatLit = quoteString(formatName);
     // Hoisted to module scope: the Map lookup runs once when the
     // factory binds deps, not per validate() call (or per element when
@@ -121,9 +141,11 @@ export const formatAssertionKeyword: KeywordDefinition = {
     // registered before compileSchema returns, which the `formats`
     // option guarantees; mutating deps.formats afterwards is not
     // observed. Same lifecycle as the hoisted deps.compilePattern.
-    const fnVar = ctx.hoistConstant(`${NAMES.DEPS}.formats.get(${formatLit})`, "fmt");
+    // Reaching `.validate` here rather than per call is why the tagged
+    // registry costs nothing on the hot path.
+    const fnVar = ctx.hoistConstant(`${NAMES.DEPS}.formats.get(${formatLit})?.validate`, "fmt");
     ctx.gen.if(
-      `typeof ${ctx.data} === "string" && ${fnVar} !== undefined && !${fnVar}(${ctx.data})`,
+      `typeof ${ctx.data} === "${jsType}" && ${fnVar} !== undefined && !${fnVar}(${ctx.data})`,
       () => {
         ctx.emitError(
           "leaf",

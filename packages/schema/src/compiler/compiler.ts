@@ -1,8 +1,10 @@
-import type {
-  PathSegment,
-  SchemaObject,
-  SchemaOrBoolean,
-  ValidationError,
+import {
+  normalizeFormat,
+  type FormatDefinition,
+  type PathSegment,
+  type SchemaObject,
+  type SchemaOrBoolean,
+  type ValidationError,
 } from "@oaverify/internal-core";
 import { CodeGen, NAMES, quoteString } from "../codegen/index.js";
 import { buildKeywordMap } from "../introspection.js";
@@ -10,6 +12,7 @@ import type {
   CompileMode,
   Dialect,
   DynamicRefTarget,
+  FormatKind,
   KeywordDefinition,
 } from "../keywords/types.js";
 import { createKeywordContext, emitPushStatement } from "../keywords/context.js";
@@ -760,8 +763,23 @@ export interface CompileOptions {
 
   // --- 2. Shared extension points ---
 
-  /** Pre-registered format validators, keyed by format name. */
-  formats?: Record<string, (value: string) => boolean>;
+  /**
+   * Pre-registered format validators, keyed by format name.
+   *
+   * One registry for every format, whatever JSON type it constrains:
+   * `date-time` takes a string and `int32` takes a number, and both are
+   * configured here. See {@link FormatDefinition} for the four
+   * spellings, including `false`, which registers a name and asserts
+   * nothing.
+   *
+   * ```ts
+   * compileSchema(schema, {
+   *   dialect: oas30Dialect,
+   *   formats: { ...builtInFormats, int64: false },
+   * });
+   * ```
+   */
+  formats?: Record<string, FormatDefinition>;
   /**
    * User-registered keywords, keyed by keyword name. Each validator is
    * invoked whenever its name appears as a property in a schema object.
@@ -1125,6 +1143,11 @@ export interface CompileState {
    * never use these keywords, so the false path is the common case.
    */
   readonly unevaluatedTracking: boolean;
+  /**
+   * What each registered `format` name constrains. Threaded to every
+   * keyword context; see {@link KeywordCompileContext.formatTypeOf}.
+   */
+  readonly formatTypes: ReadonlyMap<string, FormatKind>;
   nextFn: number;
   /**
    * Set to `true` the first time any generated function actually
@@ -1359,10 +1382,28 @@ export function compileSchema(
     );
   }
   const deps = createDeps({ maxErrors, maxDepth, regexCompiler: options.regexCompiler });
+  // Two derived things, one walk: the normalized validators that
+  // generated code calls, and the declared types that codegen reads.
+  // The types are what a keyword may specialize on, because they are
+  // the same on both sides of `emitStandalone`'s compile / run split;
+  // see `KeywordCompileContext.formatTypeOf`.
+  const formatTypes = new Map<string, FormatKind>();
   if (options.formats) {
     for (const name of Object.keys(options.formats)) {
-      const fn = options.formats[name];
-      if (fn !== undefined) deps.formats.set(name, fn);
+      const definition = options.formats[name];
+      if (definition === undefined) continue;
+      // Rethrown with the key, because the bad entry is in the caller's
+      // map and `normalizeFormat` only ever sees the value.
+      let normalized: ReturnType<typeof normalizeFormat>;
+      try {
+        normalized = normalizeFormat(definition);
+      } catch (err) {
+        throw new Error(`formats[${JSON.stringify(name)}]: ${(err as Error).message}`, {
+          cause: err,
+        });
+      }
+      deps.formats.set(name, normalized);
+      formatTypes.set(name, normalized === null ? "none" : normalized.type);
     }
   }
   if (options.keywords) {
@@ -1450,6 +1491,7 @@ export function compileSchema(
     flat,
     refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
     unevaluatedTracking,
+    formatTypes,
     unevaluatedEmitted: false,
     dynamicScope,
     reachableResources: dynamicScope
@@ -2055,6 +2097,7 @@ function compileSchemaKeywords(
       predicate: mode === "predicate",
       flat: mode === "flat",
       unevaluatedTracking: state.unevaluatedTracking,
+      formatTypes: state.formatTypes,
       byKeyword: state.byKeyword,
       hoistConstant: (expr: string, prefix = "C"): string => {
         const name = `${prefix}_${state.nextHoistId}`;
