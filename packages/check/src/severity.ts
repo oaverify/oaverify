@@ -21,8 +21,8 @@
  * @packageDocumentation
  */
 
-import { CHECK_CODES, CHECK_FAMILIES } from "./codes.js";
-import { CHECK_CLASSES, CHECK_SEVERITIES, type CheckClass, type CheckSeverity } from "./finding.js";
+import { parseFindingKey } from "./finding-key.js";
+import { CHECK_SEVERITIES, type CheckClass, type CheckSeverity } from "./finding.js";
 
 /**
  * What oaverify grades each class as, before any `--severity` mapping.
@@ -125,18 +125,6 @@ export function defaultSeverityFor(cls: CheckClass, code: string): CheckSeverity
 export class SeverityMapError extends Error {}
 
 /**
- * A hint for a rejected code key, as a trailing clause. Dozens of codes
- * across six classes is too many to print, and a mistyped code is nearly
- * always the wrong member of a family the caller had right.
- */
-function nearestCode(key: string): string {
-  const family = key.slice(0, key.indexOf("/"));
-  const siblings = [...CHECK_CODES].filter((code) => code.startsWith(`${family}/`)).sort();
-  if (siblings.length > 0) return `; "${family}/" holds ${siblings.join(", ")}`;
-  return `; known families are ${[...CHECK_FAMILIES].sort().join(", ")}`;
-}
-
-/**
  * Parse the string grammar into a {@link SeverityMap}.
  *
  * The grammar is one comma-separated list of `key=level`. It exists
@@ -154,8 +142,9 @@ function nearestCode(key: string): string {
  * `warning`, `error`, `fatal`.
  *
  * All three key spaces are checked against what `check` can emit
- * ({@link CHECK_CODES}, {@link CHECK_FAMILIES}, {@link CHECK_CLASSES}).
- * A key matching nothing is refused, not stored.
+ * ({@link CHECK_CODES}, {@link CHECK_FAMILIES}, {@link CHECK_CLASSES}),
+ * by {@link parseFindingKey}, which `--skip` shares. A key matching
+ * nothing is refused, not stored.
  *
  * The key spaces are taken from this package rather than passed in.
  * Injecting them would let a caller accept a class `checkSpec` will
@@ -181,7 +170,6 @@ function nearestCode(key: string): string {
  * @public
  */
 export function parseSeverityMap(entries: readonly string[]): SeverityMap {
-  const knownClasses: readonly string[] = CHECK_CLASSES;
   const severities: readonly CheckSeverity[] = CHECK_SEVERITIES;
   const byCode = new Map<string, CheckSeverity>();
   const byFamily = new Map<string, CheckSeverity>();
@@ -210,33 +198,21 @@ export function parseSeverityMap(entries: readonly string[]): SeverityMap {
         `"${text}": malformed findings are always fatal and always exit 4, so they cannot be remapped`,
       );
     }
-    if (key === "") {
-      throw new SeverityMapError(`"${text}": no key`);
+    const parsed = parseFindingKey(key);
+    if (!parsed.ok) {
+      throw new SeverityMapError(`"${text}": ${parsed.reason}`);
     }
 
-    if (key.endsWith("/*")) {
-      const family = key.slice(0, -2);
-      if (!CHECK_FAMILIES.has(family)) {
-        throw new SeverityMapError(
-          `"${text}": "${family}" is not a code family (${[...CHECK_FAMILIES].sort().join(", ")})`,
-        );
-      }
-      byFamily.set(family, severity);
-    } else if (key.includes("*")) {
-      throw new SeverityMapError(`"${text}": "*" is only allowed as a trailing "/*"`);
-    } else if (knownClasses.includes(key)) {
-      // A class wins over a code of the same spelling; none collide today.
-      byClass.set(key, severity);
-    } else if (CHECK_CODES.has(key)) {
-      byCode.set(key, severity);
-    } else if (key.includes("/")) {
-      throw new SeverityMapError(
-        `"${text}": "${key}" is not a code oaverify emits${nearestCode(key)}`,
-      );
-    } else {
-      throw new SeverityMapError(
-        `"${text}": "${key}" is not a class (${knownClasses.join(", ")}) or a code oaverify emits`,
-      );
+    switch (parsed.key.kind) {
+      case "family":
+        byFamily.set(parsed.key.value, severity);
+        break;
+      case "class":
+        byClass.set(parsed.key.value, severity);
+        break;
+      case "code":
+        byCode.set(parsed.key.value, severity);
+        break;
     }
   }
 

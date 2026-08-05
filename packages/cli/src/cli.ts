@@ -163,6 +163,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
         "a family as 'name/*', or a class (e.g. 'unsatisfiable/*=error,redos=error')",
     )
     .option(
+      "--skip <keys...>",
+      "drop findings: comma-separated keys, each a code, a family as 'name/*', " +
+        "or a class (e.g. 'format-not-validated,unsatisfiable/*'); what was " +
+        "dropped is reported",
+    )
+    .option(
       "--format <shape>",
       "'text' (default; one finding per line), 'json' ({ findings }), or 'sarif' (SARIF 2.1.0)",
       (value: string): "text" | "json" | "sarif" => {
@@ -183,6 +189,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           only?: CheckClass[];
           failOn?: CheckSeverity;
           severity?: string[];
+          skip?: string[];
           format: "text" | "json" | "sarif";
           output?: string;
           quiet: boolean;
@@ -195,6 +202,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             only: opts.only,
             failOn: opts.failOn,
             severity: opts.severity,
+            skip: opts.skip,
             format: opts.format,
             version: options.version,
             // Terminal width only when stdout is one. Redirected or piped
