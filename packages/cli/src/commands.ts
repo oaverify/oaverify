@@ -41,17 +41,12 @@ import {
   FULL_SELECTION,
   parseFindingTerms,
   parseSeverityMap,
-  parseSkipKeys,
   renderSarif,
   resolveFindingSelection,
-  selectionForClasses,
   SeverityMapError,
-  SkipKeyError,
-  type CheckClass,
   CheckAbortedError,
   type CheckFinding,
   type CheckSeverity,
-  type FindingKey,
   type FindingSelection,
   type SeverityMap,
 } from "@oaverify/check";
@@ -323,7 +318,6 @@ export async function checkCommand(
     spec: string;
     overlays: string[];
     /** Classes to run. Defaults to all of {@link CHECK_CLASSES}. */
-    only?: CheckClass[];
     /**
      * Exit non-zero when any finding at or above this severity appears.
      * `"warning"` is the floor and keeps its historical meaning of "any
@@ -337,16 +331,6 @@ export async function checkCommand(
      * why `malformed` is refused.
      */
     severity?: readonly string[];
-    /**
-     * `--skip` entries, unparsed. Each is a comma-separated list of
-     * keys in `--severity`'s key space; see `parseSkipKeys` for the
-     * grammar and for why `malformed` is refused.
-     *
-     * Beside `--only` rather than `--severity` on purpose: which
-     * findings exist is `--only`'s question, and `docs/strictness.md`
-     * promises `--severity` changes grading and nothing else.
-     */
-    skip?: readonly string[];
     /**
      * `--findings`, unparsed: one comma-separated list of terms, each a
      * key in `--severity`'s key space, optionally prefixed `-` to
@@ -394,20 +378,11 @@ export async function checkCommand(
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
-  // One selection, whichever flag spelled it. Both spellings resolve to
-  // the same object, so everything below (which passes run, which
-  // findings survive, what the report says) reads one thing.
+  // One selection. Which passes run, which findings survive, and what
+  // the report says all read this one object.
   let selection: FindingSelection;
   if (args.findings === undefined) {
-    selection = args.only === undefined ? FULL_SELECTION : selectionForClasses(args.only);
-  } else if (args.only !== undefined || args.skip !== undefined) {
-    const other = args.only === undefined ? "--skip" : "--only";
-    io.stderr(
-      `check: --findings replaces ${other}; pass one of them\n` +
-        `  --only <classes>  is --findings <classes>\n` +
-        `  --skip <keys>     is --findings -<key>,-<key>\n`,
-    );
-    return { exitCode: 3 };
+    selection = FULL_SELECTION;
   } else {
     try {
       selection = resolveFindingSelection(parseFindingTerms(args.findings));
@@ -430,17 +405,6 @@ export async function checkCommand(
   } catch (err) {
     if (!(err instanceof SeverityMapError)) throw err;
     io.stderr(`check: --severity ${err.message}\n`);
-    return { exitCode: 3 };
-  }
-
-  // Same reasoning as `--severity`: parse before reading anything, so
-  // a typo fails on the flag rather than after grading a document.
-  let skipKeys: FindingKey[];
-  try {
-    skipKeys = args.skip === undefined || args.skip.length === 0 ? [] : parseSkipKeys(args.skip);
-  } catch (err) {
-    if (!(err instanceof SkipKeyError)) throw err;
-    io.stderr(`check: --skip ${err.message}\n`);
     return { exitCode: 3 };
   }
 
@@ -491,22 +455,16 @@ export async function checkCommand(
   // `--findings`' exclusions and `--skip`'s keys are the same operation
   // and go through the same function; only the flag that named them
   // differs, so only the report wording does.
-  const skipResult = applySkip(
-    findings,
-    args.findings === undefined ? skipKeys : selection.excludeKeys,
-  );
+  const skipResult = applySkip(findings, selection.excludeKeys);
   findings = skipResult.findings;
   const skipped = skipResult.skipped;
-  const dropLabel = args.findings === undefined ? "skipped" : "excluded";
-  // Echoed the way the user wrote it. Under `--findings` an exclusion
-  // carries its sign, so a reader can match the report line back to the
-  // term without reconstructing it.
-  const dropSign = args.findings === undefined ? "" : "-";
+  // Echoed the way it was written, sign included, so a reader can match
+  // the line back to the term without reconstructing it.
   const skipLine =
     skipped.length === 0
       ? ""
-      : `${dropLabel}: ${skipResult.dropped} finding(s) (${skipped
-          .map((e) => `${dropSign}${e.key} x${e.count}`)
+      : `skipped: ${skipResult.dropped} finding(s) (${skipped
+          .map((e) => `-${e.key} x${e.count}`)
           .join(", ")})\n`;
 
   // A term that changes nothing is reported rather than refused, because
@@ -514,12 +472,7 @@ export async function checkCommand(
   // lists, and refusing that would make exclusion lists uncomposable. It
   // changes no exit code; a CI configuration that has drifted is worth
   // saying out loud and is not worth failing a build over on its own.
-  // Only under `--findings`. `--only` resolves to a selection too, so
-  // its terms could carry a no-op (`--only hygiene,hygiene`), and
-  // reporting one would be an output change to a flag this work does
-  // not touch.
-  const noopTerms =
-    args.findings === undefined ? [] : selection.terms.filter((t) => t.noop !== undefined);
+  const noopTerms = selection.terms.filter((t) => t.noop !== undefined);
   const noopLine =
     noopTerms.length === 0
       ? ""
@@ -533,7 +486,6 @@ export async function checkCommand(
         base: args.cwd ?? process.cwd(),
         classes: [...classes],
         skipped,
-        ...(args.findings === undefined ? {} : { excludedBy: "--findings" as const }),
         ...(noopTerms.length === 0 ? {} : { noopTerms }),
       }),
     );

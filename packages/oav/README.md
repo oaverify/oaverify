@@ -293,5 +293,6 @@ and for bodies too large to buffer there is
 - [Top-level `README.md`](https://github.com/oaverify/oaverify/blob/main/README.md): rationale, install matrix, comparison.
 - [`docs/strictness.md`](https://github.com/oaverify/oaverify/blob/main/docs/strictness.md): what each `check` class grades, and how severity is decided.
 - [`docs/modules.md`](https://github.com/oaverify/oaverify/blob/main/docs/modules.md): what each package and subpath exports.
+- [`docs/migration-v6.md`](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md): upgrading from 5.x. Numeric formats now assert, and `check` replaces `--only` with `--findings`.
 - [`docs/integration.md`](https://github.com/oaverify/oaverify/blob/main/docs/integration.md): adapter recipes and manual wiring for Next.js, Hono, Bun, Deno.
 - [`packages/stream-validator/README.md`](https://github.com/oaverify/oaverify/blob/main/packages/stream-validator/README.md): streaming validation and the buffer-budget analyzer.

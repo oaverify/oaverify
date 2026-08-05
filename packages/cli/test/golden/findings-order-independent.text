@@ -12,4 +12,4 @@ warning  schema       silent-rewrite/required-not-in-properties
     at GET /pets/{petId} 200 response body (application/json) -> <root>
 
 2 finding(s): 2 warning
-excluded: 1 finding(s) (-unsatisfiable/pattern-length x1)
+skipped: 1 finding(s) (-unsatisfiable/pattern-length x1)

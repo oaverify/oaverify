@@ -241,8 +241,30 @@ export function resolveFindingSelection(terms: readonly FindingTerm[]): FindingS
   const at = (i: number): Set<string> => codes[i] ?? new Set<string>();
   const live = (i: number): boolean => noop[i] === undefined;
   const indices = terms.map((_, i) => i);
-  const includes = indices.filter((i) => !terms[i]?.exclude);
-  const excludes = indices.filter((i) => terms[i]?.exclude);
+
+  // Redundancy is decided most-specific-first, and that ordering is the
+  // whole reason the report is deterministic.
+  //
+  // A term is marked while the terms that cover it are still live, so
+  // whichever is examined first is the one reported. For a pair that
+  // covers *mutually* the choice would otherwise fall to writing order:
+  // `redos` expands to exactly `ambiguous-pattern`, so neither
+  // expansion is the smaller one and `-redos,-ambiguous-pattern` would
+  // report `-redos` while the reverse spelling reported the code. One of
+  // those messages is also plainly wrong to read, since excluding the
+  // class did drop the findings.
+  //
+  // Examining the narrower spelling first reports the code in both
+  // orderings, which is both stable and the true statement: naming a
+  // class and then its only member adds nothing by naming the member.
+  const SPECIFICITY = { code: 0, family: 1, class: 2 } as const;
+  const bySpecificity = (a: number, b: number): number => {
+    const ka = terms[a]?.key.kind ?? "class";
+    const kb = terms[b]?.key.kind ?? "class";
+    return SPECIFICITY[ka] - SPECIFICITY[kb] || a - b;
+  };
+  const includes = indices.filter((i) => !terms[i]?.exclude).sort(bySpecificity);
+  const excludes = indices.filter((i) => terms[i]?.exclude).sort(bySpecificity);
 
   const base = new Set<string>(
     includes.length === 0 ? SELECTABLE_CODES : includes.flatMap((i) => [...at(i)]),
@@ -259,9 +281,8 @@ export function resolveFindingSelection(terms: readonly FindingTerm[]): FindingS
   }
 
   // Two terms that cover each other cannot both be redundant, since
-  // deleting both would change the selection. The earlier one is the one
-  // reported, which is the only order-dependence in here: what a run
-  // selects never depends on the order the terms were written.
+  // deleting both would change the selection. The narrower spelling is
+  // the one reported; see the ordering above.
   const liveExcludes: number[] = [];
   for (const i of excludes) {
     if (!live(i)) continue;
@@ -277,6 +298,9 @@ export function resolveFindingSelection(terms: readonly FindingTerm[]): FindingS
     }
     liveExcludes.push(i);
   }
+  // Evaluated most-specific-first; reported in the order written, which
+  // is what `skipped[]` has always promised.
+  liveExcludes.sort((a, b) => a - b);
 
   const classes = new Set<CheckClass>(
     CHECK_CLASSES.filter((cls) => CODES_BY_CLASS[cls].some((code) => base.has(code))),

@@ -1,0 +1,1 @@
+check: --findings "-nonsense": "nonsense" is not a class (hygiene, schema, conformance, examples, redos) or a code oaverify emits

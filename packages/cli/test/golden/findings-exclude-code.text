@@ -1,0 +1,42 @@
+error    hygiene      path-param-undeclared
+  path template "/pets/{petId}" references "{petId}" but neither the operation
+  nor its path item declares a path parameter named "petId"
+    at /paths/~1pets~1{petId}/get
+
+warning  schema       format-not-validated
+  "not-a-real-format" is not a format oaverify validates, so values are checked
+  against "type" alone. This is legal: support for a format is optional and a
+  tool may fall back to "type" for one it does not recognise. Register a
+  validator through the formats option to enforce it, or read this as
+  confirmation the name is an annotation.
+    at /components/schemas/shared_Pet/properties/ref/format
+
+error    conformance  type
+  must be string
+    at /paths/~1status/get/responses/202/description
+
+warning  examples     example-invalid
+  oaverify rejects "example" against its schema: must be one of the allowed
+  values (actual: "EFT", allowed: ["ACH","CHECK"]) (example: "EFT")
+    at /paths/~1search/post/requestBody/content/application~1json/example
+
+warning  redos        ambiguous-pattern
+  "^(a+)+$" is ambiguous. An input of the form `aaaa` matches more than one way.
+  A backtracking engine can be made to explore every way of matching, so a
+  crafted value may cost superlinear time; whether it does depends on the engine
+  running the pattern. Rewrite to remove the ambiguity, or compile patterns with
+  a linear-time engine (the regexCompiler option).
+    at /components/schemas/shared_Pet/properties/slug/pattern
+
+warning  schema       silent-rewrite/required-not-in-properties
+  required: "absent" at <root> is not declared in properties reachable here
+  (likely a typo)
+    at GET /pets/{petId} 200 response body (application/json) -> <root>
+
+warning  schema       unsatisfiable/pattern-length
+  "pattern" "^[0-9]{5}$" at "properties.code" matches only strings of length 5,
+  so "maxLength": 2 can never be satisfied; no string validates here
+    at GET /pets/{petId} 200 response body (application/json) -> properties.code
+
+7 finding(s): 2 error, 5 warning
+skipped: 1 finding(s) (-unused-component x1)

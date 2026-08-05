@@ -112,15 +112,15 @@ describe("check output is byte-identical (#572)", () => {
     expectGolden("all-classes.sarif", stdout);
   });
 
-  it("--only subset", async () => {
-    const { exitCode, stdout } = await run(kitchenSink(), { only: ["hygiene", "redos"] });
+  it("a class subset", async () => {
+    const { exitCode, stdout } = await run(kitchenSink(), { findings: "hygiene,redos" });
     expect(exitCode).toBe(0);
-    expectGolden("only-hygiene-redos.text", stdout);
+    expectGolden("findings-hygiene-redos.text", stdout);
   });
 
-  it("--only subset is named in the sarif run properties", async () => {
-    const { stdout } = await run(kitchenSink(), { only: ["hygiene"], format: "sarif" });
-    expectGolden("only-hygiene.sarif", stdout);
+  it("a class subset is named in the sarif run properties", async () => {
+    const { stdout } = await run(kitchenSink(), { findings: "hygiene", format: "sarif" });
+    expectGolden("findings-hygiene.sarif", stdout);
   });
 
   it("--severity remaps across all three key spaces", async () => {
@@ -174,45 +174,44 @@ describe("check output is byte-identical (#572)", () => {
     expectGolden("unreadable.stderr", stderr);
   });
 
-  it("--skip drops a code and says what it dropped, text", async () => {
-    const { exitCode, stdout } = await run(kitchenSink(), { skip: ["unused-component"] });
+  it("an exclusion drops a code and says what it dropped, text", async () => {
+    const { exitCode, stdout } = await run(kitchenSink(), { findings: "-unused-component" });
     expect(exitCode).toBe(0);
-    expectGolden("skip-code.text", stdout);
+    expectGolden("findings-exclude-code.text", stdout);
   });
 
-  it("--skip reports a key that matched nothing", async () => {
+  it("reports an exclusion that matched nothing", async () => {
     // A stale CI flag suppressing a code that no longer fires is the
     // case the report exists for.
-    const { stdout } = await run(kitchenSink(), { skip: ["ambiguous-pattern,unused-tag"] });
-    expectGolden("skip-zero-count.text", stdout);
+    const { stdout } = await run(kitchenSink(), { findings: "-ambiguous-pattern,-unused-tag" });
+    expectGolden("findings-zero-count.text", stdout);
   });
 
-  it("--skip puts a skipped block in the json report", async () => {
+  it("puts a skipped block in the json report", async () => {
     const { exitCode, stdout } = await run(kitchenSink(), {
-      skip: ["unsatisfiable/*,unused-component"],
+      findings: "-unsatisfiable/*,-unused-component",
       format: "json",
     });
     expect(exitCode).toBe(0);
-    expectGolden("skip-two-keys.json", stdout);
+    expectGolden("findings-two-exclusions.json", stdout);
   });
 
-  it("--skip records a run notification in sarif, and no suppressed results", async () => {
-    const { stdout } = await run(kitchenSink(), { skip: ["unused-component"], format: "sarif" });
-    expectGolden("skip-code.sarif", stdout);
+  it("records a run notification in sarif, and no suppressed results", async () => {
+    const { stdout } = await run(kitchenSink(), { findings: "-unused-component", format: "sarif" });
+    expectGolden("findings-exclude-code.sarif", stdout);
   });
 
-  it("--skip composes with --only and --severity", async () => {
+  it("include and exclude compose with --severity", async () => {
     const { exitCode, stdout } = await run(kitchenSink(), {
-      only: ["hygiene", "redos"],
+      findings: "hygiene,redos,-unused-component",
       severity: ["redos=error"],
-      skip: ["unused-component"],
       format: "json",
     });
     expect(exitCode).toBe(0);
-    expectGolden("skip-with-only-and-severity.json", stdout);
+    expectGolden("findings-with-severity.json", stdout);
   });
 
-  it("a skipped finding gates on nothing", async () => {
+  it("an excluded finding gates on nothing", async () => {
     // Not produced, so --fail-on cannot see it. Skipping every finding
     // a gate would have fired on turns a red run green, which is why
     // the report above is not optional.
@@ -220,31 +219,16 @@ describe("check output is byte-identical (#572)", () => {
     expect(before.exitCode).toBe(1);
     const after = await run(kitchenSink(), {
       failOn: "error",
-      skip: ["hygiene", "conformance", "examples"],
+      findings: "-hygiene,-conformance,-examples",
     });
     expect(after.exitCode).toBe(0);
   });
 
-  it("--skip rejects an unknown key before reading the document", async () => {
-    const { exitCode, stdout, stderr } = await run(kitchenSink(), { skip: ["nonsense"] });
+  it("rejects an unknown key before reading the document", async () => {
+    const { exitCode, stdout, stderr } = await run(kitchenSink(), { findings: "-nonsense" });
     expect(exitCode).toBe(3);
     expect(stdout).toBe("");
-    expectGolden("skip-bad-key.stderr", stderr);
-  });
-
-  it("--skip refuses malformed, in both spellings", async () => {
-    // The exit-4 signal is not skippable: a document that cannot be
-    // compiled is not a gate result.
-    for (const key of ["malformed", "malformed-schema"]) {
-      const { exitCode, stderr } = await run(malformedSpec(), { spec: "spec.json", skip: [key] });
-      expect(exitCode).toBe(3);
-      expect(stderr).toContain("cannot be skipped");
-    }
-  });
-
-  it("a malformed schema still exits 4 when other things are skipped", async () => {
-    const { exitCode } = await run(malformedSpec(), { spec: "spec.json", skip: ["redos"] });
-    expect(exitCode).toBe(4);
+    expectGolden("findings-bad-key.stderr", stderr);
   });
 
   it("a clean document says so", async () => {
@@ -299,7 +283,7 @@ describe("--findings (#661)", () => {
     expectGolden("findings-order-independent.text", forward.stdout);
   });
 
-  it("narrows below a class, which --only could not", async () => {
+  it("narrows below a class", async () => {
     const { exitCode, stdout } = await run(kitchenSink(), { findings: "unused-component" });
     expect(exitCode).toBe(0);
     expectGolden("findings-one-code.text", stdout);
@@ -317,7 +301,7 @@ describe("--findings (#661)", () => {
   it("excludes a class and still exits 4 on a malformed schema", async () => {
     // The guarantee that decides the whole design: an exclusion is
     // post-run suppression, so the compile still happens and the fatal
-    // finding still lands. `--skip schema` behaves the same way today.
+    // finding still lands. Only declining to select the pass loses it.
     const { exitCode, stdout } = await run(malformedSpec(), {
       spec: "spec.json",
       findings: "-schema",
@@ -327,12 +311,14 @@ describe("--findings (#661)", () => {
   });
 
   it("does not find a malformed schema when nothing selected a compiled code", async () => {
-    // The one place the guarantee is conditional, and `--only hygiene`
-    // has always been conditional in the same way.
-    const viaFindings = await run(malformedSpec(), { spec: "spec.json", findings: "hygiene" });
-    const viaOnly = await run(malformedSpec(), { spec: "spec.json", only: ["hygiene"] });
-    expect(viaFindings.exitCode).toBe(0);
-    expect(viaFindings.stdout).toBe(viaOnly.stdout);
+    // The one place the guarantee is conditional: `malformed` is lost by
+    // not asking for the pass that finds it, never by excluding it.
+    const { exitCode, stdout } = await run(malformedSpec(), {
+      spec: "spec.json",
+      findings: "hygiene",
+    });
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("no findings");
   });
 
   it("refuses malformed as a term, in either polarity", async () => {
@@ -351,9 +337,8 @@ describe("--findings (#661)", () => {
   });
 
   it("names --findings in sarif, and carries the no-op terms", async () => {
-    // `--skip redos` and `--findings -redos` are the same operation
-    // reached two ways, and a reader fixing a CI configuration needs the
-    // spelling they wrote.
+    // The report echoes the term as written, sign included, so a reader
+    // fixing a CI configuration can match a line back to what they typed.
     // `-hygiene` is live and `-unused-tag` is already covered by it, so
     // one notification of each kind appears. (`-redos,-ambiguous-pattern`
     // would cover each other, and which of a mutual pair is called
@@ -372,26 +357,5 @@ describe("--findings (#661)", () => {
     expect(notes[0]).toContain("--findings -hygiene suppressed 2 finding(s)");
     expect(notes[1]).toContain("--findings -unused-tag changed nothing");
     expectGolden("findings-sarif.sarif", stdout);
-  });
-
-  it("does not report a no-op term for --only, which this work does not touch", async () => {
-    // `--only` resolves to a selection too, so its terms can carry a
-    // no-op. Reporting one would be an output change to a flag that is
-    // not part of this.
-    const { exitCode, stdout } = await run(kitchenSink(), { only: ["hygiene", "hygiene"] });
-    expect(exitCode).toBe(0);
-    expect(stdout).not.toContain("no-op");
-    const single = await run(kitchenSink(), { only: ["hygiene"] });
-    expect(stdout).toBe(single.stdout);
-  });
-
-  it("refuses to be combined with the flags it replaces", async () => {
-    const withOnly = await run(kitchenSink(), { findings: "schema", only: ["hygiene"] });
-    expect(withOnly.exitCode).toBe(3);
-    expectGolden("findings-with-only.stderr", withOnly.stderr);
-
-    const withSkip = await run(kitchenSink(), { findings: "schema", skip: ["redos"] });
-    expect(withSkip.exitCode).toBe(3);
-    expect(withSkip.stderr).toContain("--findings replaces --skip");
   });
 });

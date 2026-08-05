@@ -4,4 +4,4 @@ fatal    malformed    malformed-schema
     at POST /t request body (application/json)
 
 1 finding(s): 1 fatal
-excluded: 0 finding(s) (-schema x0)
+skipped: 0 finding(s) (-schema x0)

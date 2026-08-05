@@ -107,6 +107,40 @@ describe("the six worked cases (#661 brief, §3e)", () => {
   });
 });
 
+describe("a mutually covering pair", () => {
+  // `redos` expands to exactly `ambiguous-pattern`, so neither term is
+  // the narrower by expansion and only the spelling separates them.
+  // Exactly one must be reported: deleting both would change the
+  // selection, so neither is redundant on its own.
+  it("reports the code, whichever order it is written in", () => {
+    for (const input of ["-redos,-ambiguous-pattern", "-ambiguous-pattern,-redos"]) {
+      const s = select(input);
+      const reported = s.terms.filter((t) => t.noop !== undefined).map((t) => t.term);
+      expect(reported).toEqual(["-ambiguous-pattern"]);
+      expect(s.excludeKeys).toEqual([{ kind: "class", value: "redos" }]);
+    }
+  });
+
+  it("selects the same findings either way", () => {
+    const forward = select("-redos,-ambiguous-pattern");
+    const reversed = select("-ambiguous-pattern,-redos");
+    expect(reversed.base).toEqual(forward.base);
+    expect(reversed.classes).toEqual(forward.classes);
+  });
+
+  it("keeps skipped[] in the order the terms were written", () => {
+    // Evaluation is most-specific-first; the report is not.
+    expect(select("-schema,-unused-component").excludeKeys.map((k) => k.value)).toEqual([
+      "schema",
+      "unused-component",
+    ]);
+    expect(select("-unused-component,-schema").excludeKeys.map((k) => k.value)).toEqual([
+      "unused-component",
+      "schema",
+    ]);
+  });
+});
+
 describe("resolveFindingSelection", () => {
   it("runs everything with no terms at all", () => {
     const s = resolveFindingSelection([]);

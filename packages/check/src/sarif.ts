@@ -181,11 +181,10 @@ function rulesOf(findings: readonly CheckFinding[]): {
  * mean emitting the results and contradicting that. The JSON report's
  * `skipped` block is the machine-readable form.
  *
- * The notification names the flag that did the excluding, because
- * `--skip redos` and `--findings -redos` are the same operation reached
- * two ways and a reader fixing a CI configuration needs the spelling
- * they wrote. A term that changed nothing is reported the same way, at
- * the same level, under its own descriptor.
+ * The notification echoes the term as it was written, sign included, so
+ * a reader fixing a CI configuration can match a line back to what they
+ * typed. A term that changed nothing is reported the same way, at the
+ * same level, under its own descriptor.
  *
  * @param findings - The findings, after any regrading and any skipping.
  * @param options - `version` names the tool and defaults to `"0.0.0"`;
@@ -208,13 +207,7 @@ export function renderSarif(
     /** What the exclusions dropped, if anything. See {@link SkipReportEntry}. */
     skipped?: readonly SkipReportEntry[];
     /**
-     * The flag those exclusions were written as, for the notification
-     * text. `"--findings"` also prefixes each key with `-`, which is how
-     * the user wrote it. Defaults to `"--skip"`.
-     */
-    excludedBy?: "--skip" | "--findings";
-    /**
-     * Terms that changed nothing, from a `--findings` selection. Absent
+     * Terms that changed nothing. Absent
      * from the log entirely when there are none, so a clean command
      * produces no notification.
      */
@@ -225,17 +218,15 @@ export function renderSarif(
   const base = options.base ?? process.cwd();
   const classes = options.classes;
   const { rules, indexOf } = rulesOf(findings);
-  const excludedBy = options.excludedBy ?? "--skip";
-  const sign = excludedBy === "--findings" ? "-" : "";
   const skipNotifications = (options.skipped ?? []).map((entry) => ({
     level: "note",
     message: {
       text:
-        `${excludedBy} ${sign}${entry.key} suppressed ${entry.count} finding(s); ` +
+        `--findings -${entry.key} suppressed ${entry.count} finding(s); ` +
         `they are absent from this log.`,
     },
     descriptor: { id: "oaverify:skipped" },
-    properties: { "oaverify:skipKey": `${sign}${entry.key}`, "oaverify:skipCount": entry.count },
+    properties: { "oaverify:skipKey": `-${entry.key}`, "oaverify:skipCount": entry.count },
   }));
   // A no-op term changed nothing, so nothing is missing from the log
   // because of it. It is reported anyway, for the reason the zero counts
