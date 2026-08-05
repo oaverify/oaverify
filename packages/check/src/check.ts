@@ -20,12 +20,11 @@ import { checkDocumentExamples, createValidator } from "@oaverify/internal-valid
 import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
 import { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
 import { checkDocumentRedos } from "./redos-check.js";
-import { type CheckClass, type CheckFinding, type FindingTarget } from "./finding.js";
+import { type CheckFinding, type FindingTarget } from "./finding.js";
 import {
   FORMAT_WALK_CODE,
   FULL_SELECTION,
   SELECTABLE_CODES,
-  selectionForClasses,
   type FindingSelection,
 } from "./selection.js";
 import {
@@ -47,39 +46,39 @@ import {
  */
 export interface CheckOptions {
   /**
-   * Which classes to run. Defaults to all of {@link CHECK_CLASSES}.
+   * Which findings to produce. Defaults to {@link FULL_SELECTION}, every
+   * code every class can emit.
    *
-   * Selecting a subset is the only way to opt out of a pass's cost. The
-   * `examples` class compiles schemas of its own accord and `redos`
-   * reaches for a third-party analyser, so both are worth dropping on a
-   * very large document that does not need them.
+   * The one selection option, at code granularity. It replaced a
+   * class-granular `only`, which asked the same question one step
+   * coarser: two options over one question meant two answers that could
+   * disagree, and a caller had to know which won.
    *
-   * The `schema` pass carries the only gradeability gate: building the
+   * Build one with `resolveFindingSelection(parseFindingTerms(value))`
+   * from the CLI's `--findings` grammar, or with
+   * {@link selectionForClasses} from a list of classes, which is what
+   * `--only` maps to. The resolved form rather than the strings, for
+   * the reason on {@link CheckOptions.severity}.
+   *
+   * Two things it decides beyond which findings survive.
+   *
+   * A pass runs only when the selection holds a code that pass owns,
+   * which is where the cost goes. Selecting a subset is the only way to
+   * opt out of a pass's cost: the `examples` class compiles schemas of
+   * its own accord and `redos` reaches for a third-party analyser, so
+   * both are worth dropping on a very large document that does not need
+   * them.
+   *
+   * And the schema class's compile prepass is gated separately from its
+   * document walk, so a selection naming `format-not-validated` alone
+   * skips the compile, which on `stripe.json` is 13.1s and 2.4GB.
+   *
+   * **The schema pass carries the only gradeability gate**: building the
    * validator is what throws {@link CheckAbortedError} on a document
-   * that is not OpenAPI at all. A subset that drops `schema` runs the
-   * remaining passes over whatever it was given, and on a foreign
-   * document (say Swagger 2.0) they can find nothing and return an
-   * empty, clean-looking list.
-   */
-  only?: readonly CheckClass[];
-  /**
-   * Which findings to produce, at code granularity.
-   *
-   * The finer form of the question {@link CheckOptions.only} asks, and
-   * the one the CLI's `--findings` resolves to. Given both, this one
-   * wins and `only` is ignored: two notions of selection that can
-   * disagree is what one flag exists to remove.
-   *
-   * Build one with `resolveFindingSelection(parseFindingTerms(value))`,
-   * or take {@link FULL_SELECTION}, which is also the default. The
-   * resolved form rather than the strings, for the reason on
-   * {@link CheckOptions.severity}.
-   *
-   * Two things it decides beyond which findings survive. A pass runs
-   * only when the selection holds a code that pass owns, which is where
-   * the cost goes. And the schema class's compile prepass is separate
-   * from its document walk, so a selection naming `format-not-validated`
-   * alone skips the compile, which on `stripe.json` is 13.1s and 2.4GB.
+   * that is not OpenAPI at all. A selection that reaches no schema code
+   * runs the remaining passes over whatever it was given, and on a
+   * foreign document (say Swagger 2.0) they can find nothing and return
+   * an empty, clean-looking list.
    */
   findings?: FindingSelection;
   /**
@@ -107,9 +106,10 @@ export interface CheckOptions {
  * document it could not read.
  *
  * Only the `schema` pass throws it, because building the validator is
- * where ungradeability surfaces. A run whose {@link CheckOptions.only}
- * excludes `schema` never gets this signal; see `only` for what that
- * means on a document that is not OpenAPI.
+ * where ungradeability surfaces. A run whose
+ * {@link CheckOptions.findings} reaches no schema code never gets this
+ * signal; see that option for what it means on a document that is not
+ * OpenAPI.
  *
  * @public
  */
@@ -146,13 +146,7 @@ export class CheckAbortedError extends Error {}
  * @public
  */
 export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): CheckFinding[] {
-  // One notion of selection, whichever option expressed it. `only` is
-  // the class-granular spelling and resolves into the same object rather
-  // than being carried alongside it, so nothing downstream has to ask
-  // which one the caller used.
-  const selection =
-    options.findings ??
-    (options.only === undefined ? FULL_SELECTION : selectionForClasses(options.only));
+  const selection = options.findings ?? FULL_SELECTION;
   const classes = selection.classes;
   const severityMap = options.severity ?? EMPTY_SEVERITY_MAP;
   const document: OpenAPIDocument = resolved.document;
@@ -161,8 +155,8 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   const findings: CheckFinding[] = [];
 
   // Recomputed here rather than read from `resolved.specHygieneIssues`,
-  // so that `only` is the single switch deciding whether this class
-  // runs. Reading the field would mean a caller who loaded without
+  // so that the selection is the single switch deciding whether this
+  // class runs. Reading the field would mean a caller who loaded without
   // `lint: true` and asked for the hygiene class got an empty answer
   // and no error.
   const specHygieneIssues = classes.has("hygiene")

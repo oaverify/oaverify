@@ -7,6 +7,7 @@ import type { CheckFinding } from "../src/finding.js";
 // same documents through the CLI, so the two sides of the seam are
 // exercised on the same input.
 import { kitchenSink, malformedSpec } from "./fixtures.js";
+import { selectionForClasses } from "../src/selection.js";
 
 async function resolve(
   entries: Array<[string, unknown]>,
@@ -34,7 +35,9 @@ describe("checkSpec", () => {
   });
 
   it("runs only the classes asked for", async () => {
-    const findings = checkSpec(await resolve(kitchenSink()), { only: ["hygiene", "redos"] });
+    const findings = checkSpec(await resolve(kitchenSink()), {
+      findings: selectionForClasses(["hygiene", "redos"]),
+    });
     expect([...new Set(findings.map((f) => f.class))].sort()).toEqual(["hygiene", "redos"]);
   });
 
@@ -46,7 +49,7 @@ describe("checkSpec", () => {
   it("reports hygiene from a spec loaded without lint", async () => {
     const resolved = await resolve(kitchenSink());
     expect(resolved.specHygieneIssues).toEqual([]);
-    const findings = checkSpec(resolved, { only: ["hygiene"] });
+    const findings = checkSpec(resolved, { findings: selectionForClasses(["hygiene"]) });
     expect(codesOf(findings)).toEqual(["path-param-undeclared", "unused-component"]);
   });
 
@@ -145,7 +148,9 @@ describe("checkSpec", () => {
     // select it still reports what it can.
     it("does not abort when the schema class was not selected", async () => {
       const resolved = await resolve(notOpenApi);
-      expect(() => checkSpec(resolved, { only: ["hygiene"] })).not.toThrow();
+      expect(() =>
+        checkSpec(resolved, { findings: selectionForClasses(["hygiene"]) }),
+      ).not.toThrow();
     });
   });
 });

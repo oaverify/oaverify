@@ -45,7 +45,7 @@ describe("a selection decides what runs", () => {
 
   it("narrows within a class, which a class-granular selection could not", async () => {
     const resolved = await resolve(kitchenSink());
-    const whole = codesOf(checkSpec(resolved, { only: ["hygiene"] }));
+    const whole = codesOf(checkSpec(resolved, { findings: selectionForClasses(["hygiene"]) }));
     expect(whole).toEqual(["path-param-undeclared", "unused-component"]);
     expect(codesOf(run(resolved, "unused-component"))).toEqual(["unused-component"]);
   });
@@ -98,7 +98,7 @@ describe("what a selection may never turn off", () => {
     // malformed schema, because compiling is what finds one.
     const resolved = await resolve(malformedSpec(), "spec.json");
     expect(run(resolved, "hygiene")).toEqual([]);
-    expect(checkSpec(resolved, { only: ["hygiene"] })).toEqual([]);
+    expect(checkSpec(resolved, { findings: selectionForClasses(["hygiene"]) })).toEqual([]);
   });
 
   it("cannot be named by any term", () => {
@@ -108,20 +108,36 @@ describe("what a selection may never turn off", () => {
   });
 });
 
-describe("`only` and `findings` are one notion", () => {
-  it("resolves `only` through the same selection", async () => {
+describe("one selection option, and its two empty cases", () => {
+  it("gives a class list the same answer its term spelling gives", async () => {
+    // `--only hygiene,redos` and `--findings hygiene,redos` are two
+    // spellings of one selection, so they resolve to one object.
     const resolved = await resolve(kitchenSink());
-    const viaOnly = checkSpec(resolved, { only: ["hygiene", "redos"] });
-    const viaSelection = checkSpec(resolved, {
+    const viaClasses = checkSpec(resolved, {
       findings: selectionForClasses(["hygiene", "redos"]),
     });
-    expect(codesOf(viaSelection)).toEqual(codesOf(viaOnly));
+    expect(codesOf(viaClasses)).toEqual(codesOf(run(resolved, "hygiene,redos")));
   });
 
-  it("lets `findings` win when both are given", async () => {
+  it("reads an empty class list as nothing and an empty term list as everything", async () => {
+    // The two look alike and mean opposite things. A term list with no
+    // inclusion term is a user saying "everything, less what I
+    // excluded"; a class list with no members is a caller naming zero
+    // classes. Reading the second as the first turns "run nothing" into
+    // "run everything" with no error, which is a caller getting the
+    // opposite of what they asked for.
     const resolved = await resolve(kitchenSink());
-    const findings = checkSpec(resolved, { only: ["hygiene"], findings: select("redos") });
-    expect(codesOf(findings)).toEqual(["ambiguous-pattern"]);
+    expect(checkSpec(resolved, { findings: selectionForClasses([]) })).toEqual([]);
+    expect(selectionForClasses([]).compileSchemas).toBe(false);
+    expect(checkSpec(resolved, { findings: resolveFindingSelection([]) }).length).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("defaults to everything when no selection is given", async () => {
+    const resolved = await resolve(kitchenSink());
+    const explicit = checkSpec(resolved, { findings: resolveFindingSelection([]) });
+    expect(codesOf(checkSpec(resolved))).toEqual(codesOf(explicit));
   });
 });
 

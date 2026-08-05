@@ -304,17 +304,33 @@ export function resolveFindingSelection(terms: readonly FindingTerm[]): FindingS
 /** The selection a run with no `--findings` gets: everything. */
 export const FULL_SELECTION: FindingSelection = resolveFindingSelection([]);
 
+/** The selection that reports nothing, which no term list can express. */
+const EMPTY_SELECTION: FindingSelection = {
+  base: new Set(),
+  classes: new Set(),
+  compileSchemas: false,
+  excludeKeys: [],
+  terms: [],
+};
+
 /**
- * The selection a list of classes names, for {@link CheckOptions.only}.
+ * The selection a list of classes names, for the CLI's `--only`.
  *
- * `only` asks the same question one step coarser, so it resolves into
- * the same object rather than being carried beside it. That is what
- * keeps `checkSpec` from holding two notions of selection that can
- * disagree, which is the hazard #661 names.
+ * **An empty list selects nothing**, which is the opposite of what
+ * `resolveFindingSelection([])` means. The two look alike and are not:
+ * a term list with no inclusion term is a user saying "everything, less
+ * what I excluded", while a class list with no members is a caller
+ * naming zero classes. Reading the second as the first turns "run
+ * nothing" into "run everything" with no error, which is a caller
+ * getting the opposite of what they asked for.
+ *
+ * Stated here rather than inherited from the term path, because it is
+ * the one place the two spellings disagree.
  *
  * @public
  */
 export function selectionForClasses(classes: readonly CheckClass[]): FindingSelection {
+  if (classes.length === 0) return EMPTY_SELECTION;
   return resolveFindingSelection(
     classes.map((value) => ({ text: value, exclude: false, key: { kind: "class", value } })),
   );
