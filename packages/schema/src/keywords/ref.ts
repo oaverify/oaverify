@@ -66,8 +66,14 @@ function compileGuardedRefCall(
  * `RangeError`.
  */
 function compileDynamicRefCall(ctx: KeywordCompileContext, target: DynamicRefTarget): void {
+  // A Map, not an object. The keys are base URIs, which come from user
+  // `$id` values, and a plain object would answer a lookup for
+  // `constructor` (or any other inherited name) with something that is
+  // not a validator, then call it.
   const table = ctx.hoistConstant(
-    `{ ${target.candidates.map(([base, fn]) => `${quoteString(base)}: ${fn}`).join(", ")} }`,
+    `new Map([${target.candidates
+      .map(([base, fn]) => `[${quoteString(base)}, ${fn}]`)
+      .join(", ")}])`,
     "DYN",
   );
   const fn = ctx.gen.scope.name("dynFn");

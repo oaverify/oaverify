@@ -1442,7 +1442,10 @@ export function compileSchema(
     reachableResources: dynamicScope
       ? collectReachableResources(schema, graph, refResolver)
       : new Set<string>(),
-    rootBaseUri: graph.schemaBaseUri.get(schema as object) ?? graph.baseUri,
+    rootBaseUri:
+      (typeof schema === "object" && schema !== null
+        ? graph.schemaBaseUri.get(schema)
+        : undefined) ?? graph.baseUri,
     compileValidator(sub, mode) {
       return compileValidator(sub, state, mode);
     },
@@ -1457,7 +1460,7 @@ export function compileSchema(
     state.hoistedConsts.push(
       `const ${DYN_LOOKUP} = (table, fallback) => {\n` +
         `  for (let i = 0; i < ${DYN_SCOPE}.length; i += 1) {\n` +
-        `    const found = table[${DYN_SCOPE}[i]];\n` +
+        `    const found = table.get(${DYN_SCOPE}[i]);\n` +
         `    if (found !== undefined) return found;\n` +
         `  }\n` +
         `  return fallback;\n` +
@@ -1746,23 +1749,45 @@ function collectReachableResources(
   graph: ResolvedGraph,
   refResolver: RefResolver,
 ): Set<string> {
-  const reachable = new Set<string>([graph.schemaBaseUri.get(root as object) ?? graph.baseUri]);
-  walkSubschemas(
-    root,
-    (sub) => {
-      if (typeof sub === "object" && sub !== null) {
-        reachable.add(graph.schemaBaseUri.get(sub) ?? graph.baseUri);
-      }
-    },
-    (ref) => {
+  const baseOf = (schema: SchemaOrBoolean): string =>
+    (typeof schema === "object" && schema !== null ? graph.schemaBaseUri.get(schema) : undefined) ??
+    graph.baseUri;
+
+  const reachable = new Set<string>();
+  const visited = new WeakSet<object>();
+  const pending: SchemaOrBoolean[] = [root];
+
+  // Every reference is resolved against the base URI of the schema that
+  // makes it, the way `compileSchemaKeywords` does. Resolving against
+  // the root base instead would mis-target a relative `$ref` under a
+  // nested `$id`, and a resource dropped from this set changes which
+  // anchor a `$dynamicRef` binds to.
+  const handle = (node: SchemaOrBoolean): void => {
+    if (typeof node !== "object" || node === null) return;
+    if (visited.has(node)) return;
+    visited.add(node);
+    const base = baseOf(node);
+    reachable.add(base);
+    for (const key of ["$ref", "$dynamicRef"] as const) {
+      const ref = (node as Record<string, unknown>)[key];
+      if (typeof ref !== "string") continue;
       try {
-        return refResolver.resolve(ref);
+        pending.push(refResolver.resolve(ref, base));
       } catch {
         // Not decidable here; see the doc comment.
-        return undefined;
       }
-    },
-  );
+    }
+  };
+
+  while (pending.length > 0) {
+    const document = pending.pop() as SchemaOrBoolean;
+    if (typeof document !== "object" || document === null) continue;
+    if (visited.has(document)) continue;
+    handle(document);
+    walkSubschemas(document, (sub) => {
+      handle(sub);
+    });
+  }
   return reachable;
 }
 
