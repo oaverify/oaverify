@@ -10,6 +10,7 @@
     "bench:render": "tsx render.ts",
     "bench:mem": "tsx mem.ts",
     "bench:large": "tsx large-payload.ts",
+    "bench:dynamic": "tsx bench-dynamic-ref.ts",
     "bench:anatomy": "node --expose-gc --import tsx error-tree-anatomy.ts",
     "bench:stream": "tsx bench-stream.ts",
     "bench:stream-profile": "tsx profile-stream.ts",

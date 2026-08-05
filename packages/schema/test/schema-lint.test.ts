@@ -17,9 +17,27 @@ describe("schema lint", () => {
     minimumx: 5, // also a typo
   } as unknown as SchemaOrBoolean;
 
-  it("defaults to warn: flags $dynamicRef but not unknown keywords", () => {
+  // $dynamicRef carried the only `partial` in the built-in dialect
+  // while it resolved statically against the anchor map. It resolves
+  // against the runtime dynamic scope now, so there are no degraded
+  // semantics to report and warn mode has nothing to say here.
+  it("defaults to warn: reports neither $dynamicRef nor unknown keywords", () => {
     const issues = compileSchema(dynamicSchema, { dialect: jsonSchemaDialect }).stats
       .schemaLintIssues;
+    expect(issues).toEqual([]);
+  });
+
+  it("reports a partial feature when a dialect declares one", () => {
+    const partialDialect = {
+      ...jsonSchemaDialect,
+      vocabularies: jsonSchemaDialect.vocabularies.map((vocab) => ({
+        ...vocab,
+        keywords: vocab.keywords.map((kw) =>
+          kw.keyword === "$dynamicRef" ? { ...kw, partial: "only partly supported" } : kw,
+        ),
+      })),
+    };
+    const issues = compileSchema(dynamicSchema, { dialect: partialDialect }).stats.schemaLintIssues;
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({
       code: "partial-feature",

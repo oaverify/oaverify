@@ -4,9 +4,14 @@ import type {
   SchemaOrBoolean,
   ValidationError,
 } from "@oaverify/internal-core";
-import { CodeGen, NAMES } from "../codegen/index.js";
+import { CodeGen, NAMES, quoteString } from "../codegen/index.js";
 import { buildKeywordMap } from "../introspection.js";
-import type { CompileMode, Dialect, KeywordDefinition } from "../keywords/types.js";
+import type {
+  CompileMode,
+  Dialect,
+  DynamicRefTarget,
+  KeywordDefinition,
+} from "../keywords/types.js";
 import { createKeywordContext, emitPushStatement } from "../keywords/context.js";
 import { createCustomKeywordDefinition, type CustomKeywordValidator } from "../keywords/custom.js";
 import {
@@ -38,6 +43,16 @@ import { assertWellFormedSchema } from "./well-formed.js";
 // happens to contain "wrapErrors") don't count; every real emission
 // spells the helper as a bare identifier.
 const TREE_RUNTIME_HELPERS = /\b(?:createLeafError|createBranchError|wrapErrors)\b/;
+
+/**
+ * Generated-source identifiers for the dynamic scope: the stack of base
+ * URIs of the schema resources currently being evaluated, outermost
+ * first, and the lookup that walks it. Both live in the generated
+ * closure rather than on `deps`, so the state belongs to one compiled
+ * validator. Only emitted when {@link CompileState.dynamicScope} is set.
+ */
+const DYN_SCOPE = "dynScope";
+const DYN_LOOKUP = "dynLookup";
 
 /**
  * Default mode for {@link CompileOptions.schemaLint}. Warns on partially-
@@ -963,7 +978,20 @@ export interface CompileOptions {
 
   /** Additional external named schemas that `$ref` can resolve to. */
   external?: Map<string, SchemaOrBoolean>;
-  /** Custom ref resolver; overrides the default (which resolves fragments within the root). */
+  /**
+   * Custom ref resolver; overrides the default (which resolves fragments
+   * within the root).
+   *
+   * @remarks
+   * `$dynamicRef` resolution sees only the documents the anchor scan
+   * walked, which is the root schema plus {@link CompileOptions.external}.
+   * A resolver that reaches schemas outside both is resolving documents
+   * the scan never saw, so a `$dynamicAnchor` declared only in one of
+   * them does not join the dynamic scope, and a `$dynamicRef` that would
+   * have bound to it binds to its static target instead. Register those
+   * schemas through `external` when their dynamic anchors need to
+   * participate.
+   */
   refResolver?: RefResolver;
   /**
    * Custom compiler for schema `pattern` keywords and the `format:
@@ -999,7 +1027,7 @@ export interface CompileState {
    * (the two-phase composition optimization compiles branches in both).
    * Use {@link cacheFor} to get the inner map for a mode.
    */
-  readonly compiledFor: Map<CompileMode, Map<SchemaOrBoolean, string>>;
+  readonly compiledFor: Map<string, Map<SchemaOrBoolean, string>>;
   readonly functionBodies: string[];
   /**
    * `const <name> = <expr>;` lines emitted at module scope above every
@@ -1033,6 +1061,31 @@ export interface CompileState {
    * unset, refs compile to a plain call with no runtime overhead.
    */
   readonly depthGated: boolean;
+  /**
+   * `true` when this compile unit both declares a `$dynamicAnchor` and
+   * references one with a `$dynamicRef`, so `$dynamicRef` has to resolve
+   * against the dynamic scope at runtime rather than statically.
+   *
+   * When unset, nothing dynamic-scope-related is emitted anywhere: no
+   * scope array, no resource-entry wrappers, and `$dynamicRef` compiles
+   * through the same path as `$ref`. The generated source is then
+   * byte-identical to what the compiler produced before dynamic scoping
+   * existed, which `dynamic-ref-zero-cost.test.ts` pins.
+   */
+  readonly dynamicScope: boolean;
+  /**
+   * Base URI of the root schema, seeded into the dynamic scope at the
+   * top of each `validate()` call. Only read when
+   * {@link CompileState.dynamicScope} is set.
+   */
+  readonly rootBaseUri: string;
+  /**
+   * Base URIs of the resources this compile unit can enter. Bounds the
+   * candidate set a `$dynamicRef` compiles; see
+   * {@link collectReachableResources}. Empty when
+   * {@link CompileState.dynamicScope} is off.
+   */
+  readonly reachableResources: ReadonlySet<string>;
   /**
    * Schemas whose function body is currently being generated (the
    * compile stack). A `$ref` whose target is in this set is a back-edge:
@@ -1122,6 +1175,57 @@ export function schemaUsesUnevaluated(schema: SchemaOrBoolean): boolean {
     return false;
   };
   return walk(schema);
+}
+
+/**
+ * Does this compile unit need a runtime dynamic scope?
+ *
+ * Only when it declares a `$dynamicAnchor` *and* references one with a
+ * `$dynamicRef`. Either keyword alone is inert: an anchor nothing points
+ * at binds nothing, and a `$dynamicRef` with no anchor to rebind to is a
+ * `$ref` (see the `$dynamicRef` keyword). Both flags are collected in
+ * one pass so a caller can union them across the root and every
+ * external schema before deciding.
+ *
+ * Cycle-safe and conservative in the same way as
+ * {@link schemaUsesUnevaluated}: the walk never follows a `$ref`, so
+ * this is a syntactic question about the documents in hand. A false
+ * positive costs one wrapper function; a miss would silently restore
+ * the static-resolution bug, so the walk covers every subschema
+ * position rather than the ones anchors usually appear in.
+ *
+ * @internal
+ */
+export function scanDynamicScopeUsage(schema: SchemaOrBoolean): {
+  anchor: boolean;
+  ref: boolean;
+} {
+  const seen = new WeakSet<object>();
+  let anchor = false;
+  let ref = false;
+  const walk = (s: unknown): void => {
+    if (typeof s !== "object" || s === null || Array.isArray(s)) return;
+    if (seen.has(s)) return;
+    seen.add(s);
+    if ("$dynamicAnchor" in s) anchor = true;
+    if ("$dynamicRef" in s) ref = true;
+    if (anchor && ref) return;
+    for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
+      if (key in s) walk((s as Record<string, unknown>)[key]);
+    }
+    for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
+      const arr = (s as Record<string, unknown>)[key];
+      if (Array.isArray(arr)) for (const item of arr) walk(item);
+    }
+    for (const key of SUBSCHEMA_MAP_POSITIONS) {
+      const obj = (s as Record<string, unknown>)[key];
+      if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
+        for (const v of Object.values(obj)) walk(v);
+      }
+    }
+  };
+  walk(schema);
+  return { anchor, ref };
 }
 
 /** `output` selects the result shape; absent it, the default is `"flat"`. */
@@ -1305,6 +1409,21 @@ export function compileSchema(
     }
   }
 
+  // Same one-pass shape as the `unevaluated*` gate above, and the same
+  // reason: when this is off, nothing below emits anything, and the
+  // generated source is identical to what a compiler without dynamic
+  // scoping would produce.
+  const dynUsage = scanDynamicScopeUsage(schema);
+  if (options.external) {
+    for (const ext of options.external.values()) {
+      if (dynUsage.anchor && dynUsage.ref) break;
+      const extUsage = scanDynamicScopeUsage(ext);
+      dynUsage.anchor ||= extUsage.anchor;
+      dynUsage.ref ||= extUsage.ref;
+    }
+  }
+  const dynamicScope = dynUsage.anchor && dynUsage.ref;
+
   const state: CompileState = {
     gen: new CodeGen(),
     byKeyword,
@@ -1332,10 +1451,35 @@ export function compileSchema(
     refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
     unevaluatedTracking,
     unevaluatedEmitted: false,
+    dynamicScope,
+    reachableResources: dynamicScope
+      ? collectReachableResources(schema, graph, refResolver)
+      : new Set<string>(),
+    rootBaseUri:
+      (typeof schema === "object" && schema !== null
+        ? graph.schemaBaseUri.get(schema)
+        : undefined) ?? graph.baseUri,
     compileValidator(sub, mode) {
       return compileValidator(sub, state, mode);
     },
   };
+
+  // The scope lives in the generated closure rather than on `deps`, so
+  // it is per-compiled-validator state and cannot be shared by two
+  // validators built from one `deps`. Declared before any table so the
+  // lookup helper can close over it.
+  if (dynamicScope) {
+    state.hoistedConsts.push(`const ${DYN_SCOPE} = [];`);
+    state.hoistedConsts.push(
+      `const ${DYN_LOOKUP} = (table, fallback) => {\n` +
+        `  for (let i = 0; i < ${DYN_SCOPE}.length; i += 1) {\n` +
+        `    const found = table.get(${DYN_SCOPE}[i]);\n` +
+        `    if (found !== undefined) return found;\n` +
+        `  }\n` +
+        `  return fallback;\n` +
+        `};`,
+    );
+  }
 
   // Top-level output shape. Subschemas default to this; the composition
   // keywords request `"predicate"` per-branch on top of it.
@@ -1413,17 +1557,88 @@ interface CompiledPredicateFactory {
   validate: (data: unknown) => boolean;
 }
 
-/** Per-mode slice of {@link CompileState.compiledFor}, created on demand. */
-function cacheFor(state: CompileState, mode: CompileMode): Map<SchemaOrBoolean, string> {
-  let m = state.compiledFor.get(mode);
+/**
+ * Per-mode slice of {@link CompileState.compiledFor}, created on demand.
+ *
+ * A schema entered across a resource boundary gets a second entry point
+ * (see {@link compileValidator}), so the key carries that too. Both
+ * entry points share one body; only the wrapper differs.
+ */
+function cacheFor(
+  state: CompileState,
+  mode: CompileMode,
+  entersResource = false,
+): Map<SchemaOrBoolean, string> {
+  const key = entersResource ? `${mode}#enter` : mode;
+  let m = state.compiledFor.get(key);
   if (m === undefined) {
     m = new Map();
-    state.compiledFor.set(mode, m);
+    state.compiledFor.set(key, m);
   }
   return m;
 }
 
-function compileValidator(schema: SchemaOrBoolean, state: CompileState, mode: CompileMode): string {
+/** Base URI of the resource a schema belongs to. */
+function baseUriOf(schema: SchemaOrBoolean, state: CompileState): string {
+  if (typeof schema !== "object" || schema === null) return state.graph.baseUri;
+  return state.graph.schemaBaseUri.get(schema) ?? state.graph.baseUri;
+}
+
+/**
+ * The parameter list every compiled function in this unit takes, so a
+ * wrapper can forward its arguments verbatim.
+ */
+function signatureParams(state: CompileState, mode: CompileMode): string {
+  const evalParams = state.unevaluatedTracking
+    ? `, ${NAMES.OUT_EVAL_PROPS}, ${NAMES.OUT_EVAL_ITEMS}`
+    : "";
+  return mode === "predicate"
+    ? `${NAMES.DATA}${evalParams}`
+    : `${NAMES.DATA}, ${NAMES.PATH}${evalParams}`;
+}
+
+/**
+ * Compile `schema` and return the name of its validator function.
+ *
+ * `entersResource` asks for the entry point that enters a schema
+ * resource: a wrapper that pushes this schema's base URI onto the
+ * dynamic scope, calls the ordinary function, and pops. Callers set it
+ * when the call crosses a base URI, which is the only way the dynamic
+ * scope changes.
+ *
+ * The wrapper exists so that unwinding is structural. It has one call
+ * and one return and no branches, so the pop cannot be skipped by a
+ * predicate-mode `return false`, a `maxErrors` short-circuit, or the
+ * `maxDepth` guard declining to descend. Every one of those lives
+ * inside the wrapped function and returns through the pop.
+ */
+function compileValidator(
+  schema: SchemaOrBoolean,
+  state: CompileState,
+  mode: CompileMode,
+  entersResource = false,
+): string {
+  if (entersResource && state.dynamicScope) {
+    const cache = cacheFor(state, mode, true);
+    const cached = cache.get(schema);
+    if (cached !== undefined) return cached;
+    const name = `enter_${state.nextFn}`;
+    state.nextFn += 1;
+    cache.set(schema, name);
+    const inner = compileValidator(schema, state, mode, false);
+    const params = signatureParams(state, mode);
+    const resultVar = "entered";
+    state.functionBodies.push(
+      `function ${name}(${params}) {\n` +
+        `  ${DYN_SCOPE}.push(${quoteString(baseUriOf(schema, state))});\n` +
+        `  const ${resultVar} = ${inner}(${params});\n` +
+        `  ${DYN_SCOPE}.pop();\n` +
+        `  return ${resultVar};\n` +
+        `}`,
+    );
+    return name;
+  }
+
   const cache = cacheFor(state, mode);
   const cached = cache.get(schema);
   if (cached !== undefined) return cached;
@@ -1449,7 +1664,16 @@ function compileValidator(schema: SchemaOrBoolean, state: CompileState, mode: Co
     // wrapper: eliding it would route the recursive call through the
     // caller (properties / items / composition), bypassing the `$ref`
     // keyword where the depth guard is emitted. Forward refs still elide.
-    if (target !== null && !(state.depthGated && state.compiling.has(target))) {
+    // A pure-`$ref` schema that crosses a resource boundary must keep
+    // its wrapper too. `$id` is an annotation keyword, so a resource
+    // root whose only other keyword is `$ref` looks elidable, and
+    // eliding it would drop the base URI it contributes to the dynamic
+    // scope. The intermediate-scopes suite case has exactly that shape.
+    const crossesResource =
+      state.dynamicScope &&
+      target !== null &&
+      baseUriOf(target, state) !== baseUriOf(schema, state);
+    if (target !== null && !crossesResource && !(state.depthGated && state.compiling.has(target))) {
       const targetName = compileValidator(target, state, mode);
       if (targetName !== name) {
         cache.set(schema, targetName);
@@ -1474,13 +1698,7 @@ function compileValidator(schema: SchemaOrBoolean, state: CompileState, mode: Co
   // happens when the compile unit uses `unevaluated*`. When tracking is
   // globally off (the common OpenAPI case), nothing reads them and no
   // call site passes them, so drop them from every signature.
-  const evalParams = state.unevaluatedTracking
-    ? `, ${NAMES.OUT_EVAL_PROPS}, ${NAMES.OUT_EVAL_ITEMS}`
-    : "";
-  const params =
-    mode === "predicate"
-      ? `${NAMES.DATA}${evalParams}`
-      : `${NAMES.DATA}, ${NAMES.PATH}${evalParams}`;
+  const params = signatureParams(state, mode);
   state.functionBodies.push(`function ${name}(${params}) {\n${body}\n}`);
   return name;
 }
@@ -1521,6 +1739,124 @@ function resolvePureRefSchema(schema: SchemaObject, state: CompileState): Schema
   if (typeof ref !== "string") return null;
   const currentBaseUri = state.graph.schemaBaseUri.get(schema) ?? state.graph.baseUri;
   return state.refResolver.resolve(ref, currentBaseUri);
+}
+
+/**
+ * Base URIs of the schema resources this compile unit can actually
+ * enter: the root's own, plus every resource reachable from it through
+ * a subschema position or a resolvable `$ref` / `$dynamicRef`.
+ *
+ * `$dynamicRef` needs this because it compiles every binding its anchor
+ * name could take, and the anchor tables cover every registered
+ * document. Without the filter, registering an external schema that
+ * happens to declare the same anchor name would pull it into the
+ * compile whether or not anything references it, and a compile that
+ * succeeds today would start failing on an unresolvable `$ref` inside a
+ * document it never uses.
+ *
+ * Refs that do not resolve are skipped rather than raised. A reference
+ * that matters is compiled through the ordinary path, which reports it.
+ */
+function collectReachableResources(
+  root: SchemaOrBoolean,
+  graph: ResolvedGraph,
+  refResolver: RefResolver,
+): Set<string> {
+  const baseOf = (schema: SchemaOrBoolean): string =>
+    (typeof schema === "object" && schema !== null ? graph.schemaBaseUri.get(schema) : undefined) ??
+    graph.baseUri;
+
+  const reachable = new Set<string>();
+  const visited = new WeakSet<object>();
+  const pending: SchemaOrBoolean[] = [root];
+
+  // Every reference is resolved against the base URI of the schema that
+  // makes it, the way `compileSchemaKeywords` does. Resolving against
+  // the root base instead would mis-target a relative `$ref` under a
+  // nested `$id`, and a resource dropped from this set changes which
+  // anchor a `$dynamicRef` binds to.
+  const handle = (node: SchemaOrBoolean): void => {
+    if (typeof node !== "object" || node === null) return;
+    if (visited.has(node)) return;
+    visited.add(node);
+    const base = baseOf(node);
+    reachable.add(base);
+    for (const key of ["$ref", "$dynamicRef"] as const) {
+      const ref = (node as Record<string, unknown>)[key];
+      if (typeof ref !== "string") continue;
+      try {
+        pending.push(refResolver.resolve(ref, base));
+      } catch {
+        // Not decidable here; see the doc comment.
+      }
+    }
+  };
+
+  while (pending.length > 0) {
+    const document = pending.pop() as SchemaOrBoolean;
+    if (typeof document !== "object" || document === null) continue;
+    if (visited.has(document)) continue;
+    handle(document);
+    walkSubschemas(document, (sub) => {
+      handle(sub);
+    });
+  }
+  return reachable;
+}
+
+/**
+ * Decide whether a `$dynamicRef` binds dynamically, and if so compile
+ * every candidate it could bind to.
+ *
+ * Two conditions, both from the 2020-12 core spec. The reference has to
+ * end in a plain-name fragment (`#name`, not `#/a/b`), and the schema it
+ * statically resolves to has to declare `$dynamicAnchor: name` itself.
+ * That second condition is the bookending requirement, and it is what
+ * makes the leaving-a-dynamic-scope case work in both directions: a
+ * `$dynamicRef` that lands somewhere without the matching anchor stays
+ * put rather than searching the scope.
+ *
+ * Returns `null` when either condition fails, which is the signal to
+ * compile the site exactly as `$ref` (see the `$dynamicRef` keyword).
+ */
+function buildDynamicRefTarget(
+  ref: string,
+  state: CompileState,
+  mode: CompileMode,
+  currentBaseUri: string,
+  entersResource: (target: SchemaOrBoolean) => boolean,
+): DynamicRefTarget | null {
+  if (!state.dynamicScope) return null;
+  const hashIdx = ref.indexOf("#");
+  if (hashIdx < 0) return null;
+  const name = ref.slice(hashIdx + 1);
+  if (name === "" || name.startsWith("/")) return null;
+
+  let target: SchemaOrBoolean;
+  try {
+    target = state.refResolver.resolve(ref, currentBaseUri);
+  } catch {
+    return null;
+  }
+  if (typeof target !== "object" || target === null) return null;
+  if ((target as SchemaObject).$dynamicAnchor !== name) return null;
+
+  const candidates: (readonly [string, string])[] = [];
+  for (const [baseUri, anchors] of state.graph.dynamicAnchorScopes) {
+    if (!state.reachableResources.has(baseUri)) continue;
+    const anchored = anchors.get(name);
+    if (anchored === undefined) continue;
+    candidates.push([
+      baseUri,
+      compileValidator(anchored, state, mode, entersResource(anchored)),
+    ] as const);
+  }
+  if (candidates.length === 0) return null;
+
+  return {
+    candidates,
+    fallback: compileValidator(target, state, mode, entersResource(target)),
+  };
 }
 
 /**
@@ -1663,13 +1999,22 @@ function compileSchemaKeywords(
 ): void {
   // Subschemas default to this function's mode; composition keywords
   // pass `"predicate"` for branches whose result is only a boolean.
-  const subCompiler = (subSchema: SchemaOrBoolean, subMode: CompileMode = mode): string =>
-    compileValidator(subSchema, state, subMode);
   const currentBaseUri = state.graph.schemaBaseUri.get(schema) ?? state.graph.baseUri;
+  // The dynamic scope changes on exactly two edges, and both are here:
+  // an applicator descending into a subschema that declares its own
+  // `$id`, and a `$ref` / `$dynamicRef` landing in another resource.
+  // Both are statically decidable, so no keyword has to know the scope
+  // exists.
+  const entersResource = (target: SchemaOrBoolean): boolean =>
+    state.dynamicScope && baseUriOf(target, state) !== currentBaseUri;
+  const subCompiler = (subSchema: SchemaOrBoolean, subMode: CompileMode = mode): string =>
+    compileValidator(subSchema, state, subMode, entersResource(subSchema));
   const resolveRefToFunction = (ref: string): string => {
     const target = state.refResolver.resolve(ref, currentBaseUri);
-    return compileValidator(target, state, mode);
+    return compileValidator(target, state, mode, entersResource(target));
   };
+  const resolveDynamicRef = (ref: string): DynamicRefTarget | null =>
+    buildDynamicRefTarget(ref, state, mode, currentBaseUri, entersResource);
   // A ref is recursive (a back-edge) when its target is still on the
   // compile stack: resolving it here only walks the ref graph, it does
   // not trigger compilation, so the result is independent of whether
@@ -1699,6 +2044,9 @@ function compileSchemaKeywords(
       errors: NAMES.ERRORS,
       compileSubschema: subCompiler,
       resolveRef: resolveRefToFunction,
+      resolveDynamicRef,
+      dynamicScopeName: DYN_SCOPE,
+      dynamicLookupName: DYN_LOOKUP,
       isRecursiveRef,
       evaluatedPropertiesVar,
       evaluatedItemsVar,
@@ -1737,6 +2085,17 @@ function orderKeywordsForSchema(schema: SchemaObject, state: CompileState): Keyw
   return [...lead, ...trail];
 }
 
+/**
+ * Reset the dynamic scope and seed it with the root schema's resource,
+ * emitted at the top of each `validate()` call next to the `deps.depth`
+ * reset and for the same reason: consecutive calls have to be
+ * independent, and a throw part-way through a validation would
+ * otherwise leave the scope pushed for whoever calls next.
+ */
+function seedDynamicScope(state: CompileState): string[] {
+  return [`  ${DYN_SCOPE}.length = 0;`, `  ${DYN_SCOPE}.push(${quoteString(state.rootBaseUri)});`];
+}
+
 function assembleSource(state: CompileState, rootName: string): string {
   const parts: string[] = [];
   parts.push(`"use strict";`);
@@ -1756,6 +2115,7 @@ function assembleSource(state: CompileState, rootName: string): string {
     // Reset the per-call recursion counter so consecutive validate()
     // calls are independent.
     if (state.depthGated) parts.push(`  ${NAMES.DEPS}.depth = 0;`);
+    if (state.dynamicScope) parts.push(...seedDynamicScope(state));
     parts.push(`  return ${rootName}(${NAMES.DATA});`);
     parts.push(`}`);
   } else if (state.flat) {
@@ -1767,6 +2127,7 @@ function assembleSource(state: CompileState, rootName: string): string {
       parts.push(`  ${NAMES.DEPS}.truncated = false;`);
     }
     if (state.depthGated) parts.push(`  ${NAMES.DEPS}.depth = 0;`);
+    if (state.dynamicScope) parts.push(...seedDynamicScope(state));
     parts.push(
       `  const errs = ${rootName}(${NAMES.DATA}, startPath !== undefined ? [...startPath] : []);`,
     );
@@ -1789,6 +2150,7 @@ function assembleSource(state: CompileState, rootName: string): string {
     // Reset the per-call recursion counter (independent of the error
     // budget; maxDepth and maxErrors gate separately).
     if (state.depthGated) parts.push(`  ${NAMES.DEPS}.depth = 0;`);
+    if (state.dynamicScope) parts.push(...seedDynamicScope(state));
     parts.push(
       `  const err = ${rootName}(${NAMES.DATA}, startPath !== undefined ? [...startPath] : []);`,
     );

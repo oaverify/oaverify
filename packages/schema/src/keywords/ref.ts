@@ -1,5 +1,5 @@
 import { NAMES, quoteString } from "../codegen/index.js";
-import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
+import type { DynamicRefTarget, KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { CORE_VOCAB } from "./vocabulary-uris.js";
 
 /**
@@ -51,6 +51,49 @@ function compileGuardedRefCall(
   );
 }
 
+/**
+ * Emit the call for a `$dynamicRef` that binds at runtime.
+ *
+ * The callee is picked per call by walking the dynamic scope
+ * outermost-first, so the same compiled function serves every call site
+ * and the compiler's schema-identity cache is untouched.
+ *
+ * The depth guard goes on unconditionally when a `maxDepth` was
+ * configured. `isRecursiveRef` asks whether one statically known target
+ * is on the compile stack, and a site with several possible callees has
+ * no such target. A guard that was not needed costs a counter
+ * increment; a guard that was needed and missing is an uncaught
+ * `RangeError`.
+ */
+function compileDynamicRefCall(ctx: KeywordCompileContext, target: DynamicRefTarget): void {
+  // A Map, not an object. The keys are base URIs, which come from user
+  // `$id` values, and a plain object would answer a lookup for
+  // `constructor` (or any other inherited name) with something that is
+  // not a validator, then call it.
+  const table = ctx.hoistConstant(
+    `new Map([${target.candidates
+      .map(([base, fn]) => `[${quoteString(base)}, ${fn}]`)
+      .join(", ")}])`,
+    "DYN",
+  );
+  const fn = ctx.gen.scope.name("dynFn");
+  ctx.gen.const(fn, `${ctx.dynamicLookupName}(${table}, ${target.fallback})`);
+
+  const passProps = ctx.evaluatedPropertiesVar ?? "undefined";
+  const passItems = ctx.evaluatedItemsVar ?? "undefined";
+  if (ctx.depthGated) {
+    compileGuardedRefCall(ctx, fn, passProps, passItems);
+    return;
+  }
+  if (ctx.predicate) {
+    ctx.gen.line(`if (!${fn}(${ctx.data}, ${passProps}, ${passItems})) return false;`);
+    return;
+  }
+  const errVar = ctx.gen.scope.name("dynErr");
+  ctx.gen.const(errVar, `${fn}(${ctx.data}, ${ctx.path}, ${passProps}, ${passItems})`);
+  ctx.gen.if(`${errVar} !== null`, () => ctx.emitError("lift", errVar));
+}
+
 function compileRefCall(ctx: KeywordCompileContext, ref: string): void {
   const fn = ctx.resolveRef(ref);
   // A $ref targets a single schema whose annotations (evaluated keys)
@@ -94,26 +137,51 @@ export const refKeyword: KeywordDefinition = {
 };
 
 /**
- * The JSON Schema 2020-12 `$dynamicRef` keyword. For schemas that do not use
- * `$dynamicAnchor` extension points this behaves exactly like `$ref`: the
- * anchor is resolved statically against the schema tree.
+ * The JSON Schema 2020-12 `$dynamicRef` keyword.
+ *
+ * A plain-name reference whose target declares the matching
+ * `$dynamicAnchor` (the bookending requirement) binds to the
+ * **outermost** declaration of that anchor in the current dynamic
+ * scope, resolved per call at runtime. Everything else behaves exactly
+ * like `$ref` and compiles through the same path: a pointer fragment, a
+ * target that declares no matching `$dynamicAnchor`, a target that
+ * carries only a plain `$anchor`, and any schema whose compile unit
+ * does not use both `$dynamicRef` and `$dynamicAnchor`.
+ *
+ * `$dynamicRef` to an anchor with no declaration in scope falls back to
+ * its static target, which is the same schema `$ref` would have reached.
+ *
+ * @remarks
+ * The candidate anchors are the ones the resolver found in the root
+ * schema and in `external`. A caller who supplies its own
+ * `refResolver` reaching schemas outside both is resolving documents
+ * the anchor scan never saw, and a `$dynamicAnchor` declared only in
+ * one of those does not join the dynamic scope; such a `$dynamicRef`
+ * binds to its static target.
  *
  * @public
  */
 export const dynamicRefKeyword: KeywordDefinition = {
   keyword: "$dynamicRef",
   vocabulary: CORE_VOCAB,
-  partial:
-    "resolves statically against the anchor map; runtime dynamic-scope rebinding is not implemented",
   compile(ctx) {
     const ref = ctx.schema as string;
-    compileRefCall(ctx, ref);
+    const dynamic = ctx.resolveDynamicRef(ref);
+    if (dynamic === null) {
+      compileRefCall(ctx, ref);
+      return;
+    }
+    compileDynamicRefCall(ctx, dynamic);
   },
 };
 
 /**
- * Declarative `$dynamicAnchor` keyword. Collected during resolution; no
- * runtime code is emitted.
+ * Declarative `$dynamicAnchor` keyword. Collected during resolution.
+ *
+ * No runtime code is emitted here. An anchor is registered by the
+ * resource that declares it, so the compiler pushes the base URI at the
+ * boundary rather than at the anchor; see the compiler's
+ * `compileValidator`.
  *
  * @public
  */
