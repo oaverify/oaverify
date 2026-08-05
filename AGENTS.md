@@ -406,6 +406,13 @@ ones have READMEs with the details:
 | `framework-tests/` | Real-server integration tests for the three adapters (#295) | `cd framework-tests && pnpm install`          | tests + typecheck   |
 | `detection/`       | Labelled corpus: which OpenAPI defects each tool catches    | `cd detection && pnpm install && pnpm detect` | no (see its README) |
 
+`conformance/bowtie/` is a fifth dev-only tree and is deliberately
+absent from that table: it is not a pnpm root. Its toolchain is Docker
+plus the `bowtie` CLI (`uv tool install bowtie-json-schema`), so it has
+no `package.json`, no lockfile, and therefore nothing for the
+dependabot rule below to declare. Its one build input is esbuild,
+pinned in its `Dockerfile`. See its README.
+
 Their external dev-dependencies (benchmark runners, competing
 validators and linters, framework runtimes, `tsx`) are deliberately
 absent from the main workspace install. Adapter-package unit tests

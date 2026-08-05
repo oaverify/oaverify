@@ -59,6 +59,15 @@ baselines that CI compares against with `--check-baseline`;
 `openapi-results.json` and the `+optional` JSON Schema variant are
 gitignored as moving targets.
 
+## Cross-checking against other implementations
+
+[`bowtie/`](./bowtie) runs the same engine through
+[Bowtie](https://docs.bowtie.report/), which drives every JSON Schema
+implementation over one protocol. That answers a question this package
+cannot: when a case fails, whether the rest of the ecosystem agrees with
+us or with the suite. It needs Docker and the `bowtie` CLI rather than a
+`pnpm install`, and it is not part of `pnpm test`. See its README.
+
 ## Where to add new cases
 
 - **Schema-level**: upstream. The harness reads
