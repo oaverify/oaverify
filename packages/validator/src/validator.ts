@@ -909,6 +909,37 @@ export interface ValidatorOptions {
 }
 
 /**
+ * Refuse a bare function that overrides a built-in constraining numbers.
+ *
+ * A bare function is always a string format, deliberately: inferring the
+ * type from the name would make two identical-looking overrides mean
+ * different things by way of a table the caller cannot see. The cost of
+ * not inferring is that a bare function under a numeric name registers a
+ * string format, where it never runs and where it also displaces the
+ * built-in that would have. Both the override and the assertion are lost,
+ * and nothing says so.
+ *
+ * So the guess stays refused and the silence does not. Naming the two
+ * spellings that work is the point of the message: a caller who wrote the
+ * shorthand wants either the full form or `false`.
+ */
+function assertFormatTypesMatch(supplied: Record<string, FormatDefinition> | undefined): void {
+  if (supplied === undefined) return;
+  for (const name of Object.keys(supplied)) {
+    const definition = supplied[name];
+    if (typeof definition !== "function") continue;
+    const builtIn = builtInFormats[name];
+    if (builtIn === undefined || typeof builtIn === "function" || builtIn === false) continue;
+    if (builtIn.type !== "number") continue;
+    throw new Error(
+      `createValidator: formats.${name} is a bare function, which registers a string ` +
+        `format, but the built-in ${name} constrains numbers. Write ` +
+        `{ type: "number", validate } to override it, or false to turn it off.`,
+    );
+  }
+}
+
+/**
  * Build a {@link Validator} from a resolved OpenAPI 3.1 document.
  *
  * @param spec - The fully-resolved OpenAPI document (no external `$ref`s).
@@ -978,6 +1009,7 @@ export function createValidator(
   const maxErrors = options.maxErrors ?? 1;
   const paths = spec.paths ?? {};
   const router: Router = createRouter(paths);
+  assertFormatTypesMatch(options.formats);
   const formats = { ...builtInFormats, ...options.formats };
 
   // Warnings are accumulated passively (no I/O from the library); a

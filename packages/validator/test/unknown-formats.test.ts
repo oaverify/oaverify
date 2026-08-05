@@ -60,3 +60,45 @@ describe('createValidator with unknownFormats: "error"', () => {
     expect(failures[0]?.message).toMatch(/no validator registered for format "iban"/);
   });
 });
+
+describe("a bare function over a numeric built-in", () => {
+  const bare = { openapi: "3.1.0", info: { title: "t", version: "1" }, paths: {} };
+
+  it("is refused, because it would silently assert nothing", () => {
+    // A bare function is a string format, so under `int64` it never runs
+    // and it displaces the built-in that would have. Losing both without
+    // a word is the failure this refuses.
+    expect(() =>
+      createValidator(bare as never, { formats: { int64: () => true } } as never),
+    ).toThrow(/formats\.int64 is a bare function/);
+  });
+
+  it("names both spellings that work", () => {
+    expect(() =>
+      createValidator(bare as never, { formats: { int32: () => true } } as never),
+    ).toThrow(/\{ type: "number", validate \}|false to turn it off/);
+  });
+
+  it("accepts the full form, and false", () => {
+    expect(() =>
+      createValidator(
+        bare as never,
+        {
+          formats: { int64: { type: "number", validate: () => true } },
+        } as never,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      createValidator(bare as never, { formats: { int64: false } } as never),
+    ).not.toThrow();
+  });
+
+  it("leaves string built-ins and new names alone", () => {
+    expect(() =>
+      createValidator(bare as never, { formats: { email: () => true } } as never),
+    ).not.toThrow();
+    expect(() =>
+      createValidator(bare as never, { formats: { "x-mine": () => true } } as never),
+    ).not.toThrow();
+  });
+});
