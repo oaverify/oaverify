@@ -91,10 +91,16 @@ remaining cases down with it.
 ## Reading the results
 
 A divergence from the other implementations is a question, not a verdict.
-Check it against [`REPORT.md`](../REPORT.md) first,
-which documents the known gaps ($dynamicRef runtime scope, external and
-cross-document `$ref` loading, and four singletons). Only what survives
-that is news.
+Check it against [`REPORT.md`](../REPORT.md) first, which documents the
+known gaps (external and cross-document `$ref` loading, plus two
+singletons). Only what survives that is news.
+
+Worth knowing what that check was worth the first time it ran: all 20
+divergences of the day matched REPORT.md one for one, in both
+directions, with nothing new. A harness that agrees exactly with the
+record you already keep is one you can then trust on a question the
+record does not answer, which is how the `$dynamicRef` gap behind #663
+got measured.
 
 ## `bowtie perf`, and the benchmarks it cannot measure here
 
