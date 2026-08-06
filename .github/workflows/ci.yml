@@ -219,6 +219,108 @@ jobs:
         working-directory: conformance
         run: pnpm parse --check-baseline
 
+  nightly-upstream:
+    # The larger checks, run against upstream HEAD rather than the pin.
+    # The PR gate answers "did this diff break anything"; the pin makes
+    # that reproducible and hermetic. It cannot answer "does the code still
+    # pass against what upstream has now", because the corpus it uses is
+    # frozen by design. This job is that second question.
+    #
+    # It fetches HEAD and leaves corpora.json alone: bumping a pin stays a
+    # reviewed commit rather than something a scheduled job does behind
+    # you. `--floating` swaps the strict ratchet for the grew-vs-broke
+    # classification in conformance/floating.ts, because against a moving
+    # corpus "more failures than the baseline" has two very different
+    # causes and a nightly that conflates them gets muted.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: install conformance deps
+        working-directory: conformance
+        run: pnpm install --frozen-lockfile
+      - name: fetch every corpus at upstream HEAD
+        working-directory: conformance
+        run: pnpm corpora --latest
+      - name: JSON Schema suite against upstream HEAD
+        working-directory: conformance
+        run: pnpm suite --check-baseline --floating
+      - name: format corpus against upstream HEAD
+        working-directory: conformance
+        run: pnpm format-suite --check-baseline --floating
+      - name: OpenAPI cases (corpus-independent, so pinned semantics hold)
+        working-directory: conformance
+        run: pnpm openapi
+      - name: have the vendored OpenAPI metaschemas changed under their pins?
+        run: pnpm metaschema:stale
+
+  nightly-report:
+    # A failing scheduled workflow notifies almost nobody: GitHub mails
+    # whoever last touched the cron, and that is easy to miss for months.
+    # So the durable signal is an issue, opened once and updated after, kept
+    # unique by its label so a fortnight of failures is one thread rather
+    # than fourteen. Closed automatically when the nightly goes green again.
+    needs: [nightly-upstream, corpus-freshness]
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: open, update or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: ${{ needs.nightly-upstream.result }}
+          FRESHNESS: ${{ needs.corpus-freshness.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          LABEL="nightly-upstream"
+          EXISTING=$(gh issue list --label "$LABEL" --state open --limit 1 --json number --jq '.[0].number // empty')
+
+          if [ "$UPSTREAM" = "success" ] && [ "$FRESHNESS" = "success" ]; then
+            if [ -n "$EXISTING" ]; then
+              gh issue comment "$EXISTING" --body "Nightly is green again. Closing. ($RUN_URL)"
+              gh issue close "$EXISTING"
+            fi
+            echo "nightly green; nothing to report"
+            exit 0
+          fi
+
+          BODY=$(printf '%s\n' \
+            "The nightly upstream run did not pass." \
+            "" \
+            "| job | result |" \
+            "| --- | --- |" \
+            "| \`nightly-upstream\` (suites against upstream HEAD) | $UPSTREAM |" \
+            "| \`corpus-freshness\` (pins behind upstream) | $FRESHNESS |" \
+            "" \
+            "Logs: $RUN_URL" \
+            "" \
+            "Neither job blocks a pull request. \`nightly-upstream\` failing means a" \
+            "unit regressed against a corpus that did not grow, which is ours rather" \
+            "than upstream's; see conformance/floating.ts for how that is told apart." \
+            "\`corpus-freshness\` failing means a pin is behind, which is a bump" \
+            "decision rather than a defect.")
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+            echo "updated issue #$EXISTING"
+          else
+            gh issue create --label "$LABEL" \
+              --title "Nightly upstream run is failing" --body "$BODY"
+          fi
+
   corpus-freshness:
     # The pin in corpora.json makes the committed baselines reproducible.
     # On its own it would also make the corpora invisible: a frozen suite

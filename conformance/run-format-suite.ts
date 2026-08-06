@@ -29,11 +29,13 @@
  *   pnpm format-suite --filter=uri     # only files matching "uri"
  */
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { compileSchema, openapi31Dialect } from "../packages/schema/src/index.ts";
 import { builtInFormats } from "../packages/formats/src/index.ts";
 import { assertPinned, corpusPath } from "./corpora.ts";
+import { classifyFloating, reportFloating } from "./floating.ts";
 
 const SUITE = "JSON-Schema-Test-Suite";
 const FORMAT_DIR = join(corpusPath(SUITE), "tests", "draft2020-12", "optional", "format");
@@ -69,6 +71,11 @@ interface FormatResult {
 
 const argv = process.argv.slice(2);
 const checkBaseline = argv.includes("--check-baseline");
+// `--floating` is for the nightly, which fetches upstream HEAD rather than
+// the pin. It skips the pin assertion and swaps the strict ratchet for the
+// grew-vs-broke classification in floating.ts, because against a moving
+// corpus "more failures than the baseline" has two very different causes.
+const floating = argv.includes("--floating");
 const filterPattern = argv.find((a) => a.startsWith("--filter="))?.slice("--filter=".length);
 
 function runFile(path: string): FormatResult {
@@ -138,7 +145,7 @@ function runFile(path: string): FormatResult {
   return result;
 }
 
-assertPinned(SUITE);
+if (!floating) assertPinned(SUITE);
 
 const files = readdirSync(FORMAT_DIR)
   .filter((f) => f.endsWith(".json"))
@@ -201,6 +208,20 @@ if (!existsSync(summaryPath)) {
 // for a regression in another. A format the baseline does not mention
 // is new upstream coverage and is held to zero.
 const baseline = JSON.parse(readFileSync(summaryPath, "utf8")) as FormatResult[];
+
+if (floating) {
+  const unit = (r: FormatResult) => ({
+    name: r.format,
+    cases: r.cases,
+    failures: r.falseAccept + r.falseReject + r.error,
+  });
+  const rev = execFileSync("git", ["-C", corpusPath(SUITE), "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+  process.exit(
+    reportFloating("optional/format", classifyFloating(results.map(unit), baseline.map(unit)), rev),
+  );
+}
 const byFormat = new Map(baseline.map((r) => [r.format, r]));
 const regressions: string[] = [];
 for (const r of results) {
