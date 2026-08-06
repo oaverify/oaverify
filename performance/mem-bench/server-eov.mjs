@@ -53,9 +53,13 @@ app.post("/invoices", (_req, res) => res.status(201).json(ok201inv));
 app.post("/subscriptions", (_req, res) => res.status(201).json(ok201));
 
 // eov's default error shape.
-app.use((err, _req, res, _next) => {
-  res.status(err.status ?? 500).json({ message: err.message, errors: err.errors });
-});
+app.use(
+  /** @type {import("express").ErrorRequestHandler} */ (
+    (err, _req, res, _next) => {
+      res.status(err.status ?? 500).json({ message: err.message, errors: err.errors });
+    }
+  ),
+);
 
 const PORT = Number(process.env.PORT ?? 3810);
 app.listen(PORT, () => console.log(`eov listening on ${PORT}`));

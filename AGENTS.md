@@ -145,6 +145,7 @@ locally too (`pnpm pack` + `npm install` in `/tmp`).
 ```bash
 pnpm install
 pnpm build                        # tsup: @oaverify/core + stream + yaml + check + the oaverify CLI
+pnpm check                        # the PR gate: test + typecheck + lint + lint:type-aware
 pnpm test                         # vitest for everything
 pnpm vitest run packages/schema   # run a single package's tests (path filter)
 pnpm lint                         # oxlint + oxfmt --check + check:deps
@@ -152,6 +153,7 @@ pnpm lint:type-aware              # oxlint --type-aware (NOT part of `pnpm lint`
 pnpm check:deps                   # assert the @oaverify/internal-* dependency graph (see below)
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)
+pnpm clean                        # drop dist/, coverage/, *.tsbuildinfo
 pnpm oaverify <args>              # run the built CLI (e.g. pnpm oaverify stream-check spec.yaml)
 ```
 
@@ -172,6 +174,12 @@ that CI runs:
 ```bash
 pnpm test && pnpm typecheck && pnpm lint && pnpm lint:type-aware
 ```
+
+If `pnpm typecheck` reports errors in files you have not touched, the
+incremental `tsc -b` state is stale rather than the code being wrong;
+`pnpm clean && pnpm typecheck` settles it. A fresh clone typechecks with
+no build at all, so this is always a local-state problem and CI never
+sees it.
 
 `pnpm oaverify` runs `packages/oav/dist/cli.js`, so it needs a prior `pnpm build`
 (which builds `@oaverify/core`, `@oaverify/stream`, `@oaverify/yaml`,
@@ -403,15 +411,63 @@ contract tracks the core/schema semantics.
 `packages/` holds the workspace. Four top-level directories are
 standalone roots, plus `performance/mem-bench/` nested inside one of
 them. Each has its own `package.json` + `pnpm-workspace.yaml` (empty
-`packages:` list, so pnpm treats them as isolated); the four top-level
-ones have READMEs with the details:
+`packages:` list, so pnpm treats them as isolated), a README, and a
+`typecheck` script over the same `tsconfig.json` template:
 
-| Directory          | What it is                                                  | Bootstrap                                     | In CI               |
-| ------------------ | ----------------------------------------------------------- | --------------------------------------------- | ------------------- |
-| `conformance/`     | Upstream JSON Schema Test Suite + OpenAPI case harness      | `cd conformance && pnpm install`              | tests only          |
-| `performance/`     | Compile / validate benchmarks against other validators      | `cd performance && pnpm install`              | no                  |
-| `framework-tests/` | Real-server integration tests for the three adapters (#295) | `cd framework-tests && pnpm install`          | tests + typecheck   |
-| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches    | `cd detection && pnpm install && pnpm detect` | no (see its README) |
+| Directory          | What it is                                                  | Bootstrap                                        | In CI               |
+| ------------------ | ----------------------------------------------------------- | ------------------------------------------------ | ------------------- |
+| `conformance/`     | Upstream JSON Schema Test Suite + OpenAPI case harness      | `cd conformance && pnpm install && pnpm corpora` | all of it, on PRs   |
+| `performance/`     | Compile / validate benchmarks against other validators      | `cd performance && pnpm install`                 | no                  |
+| `framework-tests/` | Real-server integration tests for the three adapters (#295) | `cd framework-tests && pnpm install`             | typecheck + tests   |
+| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches    | `cd detection && pnpm install && pnpm detect`    | no (see its README) |
+
+`pnpm corpora` is the bootstrap step that is easy to miss: the upstream
+corpora are gitignored and pinned in `corpora.json`, and every runner
+that compares against a committed baseline calls `assertPinned` and
+refuses to report numbers from a drifted checkout.
+
+`performance/mem-bench/` is a fifth root nested inside `performance/`,
+and needs its own `pnpm install` before `pnpm bench:mem` will start. It
+holds two Express servers (oav and express-openapi-validator) that exist
+to be measured rather than run; see its README. Its sources are `.mjs`,
+so its `typecheck` runs `checkJs` over the two servers instead of the
+usual `*.ts` include.
+
+Every one of them answers to `pnpm check`, which runs what CI gates for
+that directory, so the verb means the same kind of thing in each root and
+at the top level. `detection/`'s is typecheck only, because `pnpm detect`
+rewrites three committed files under `results/` and a command called
+`check` should not dirty the tree. `mem-bench`'s is typecheck only too,
+because its servers exist to be measured and a benchmark is not a gate. `performance/`'s runs the smallest
+cross-library benchmark and still takes ~30s, because tinybench warms up
+every task against ajv's ~2.7ms compile and warmup dominates any budget.
+
+CI invokes these through their own package scripts (`pnpm openapi`,
+`pnpm suite --check-baseline`, …) rather than `pnpm tsx run-<x>.ts`, so
+the commands in the docs and the commands in the gate are the same
+commands. Keep it that way when adding a runner: add the script, reference
+the script, and fold it into that root's `check`.
+
+`check` is deliberately not what CI _invokes_, though: CI keeps one step
+per runner so a failure names itself in the UI. For `conformance/` the two
+sets are now identical, so a new runner has to be added in both places.
+
+Scheduled jobs cover what the pin cannot. Every conformance runner gates
+PRs against the pinned corpus, cached so the required check never needs the
+network. `nightly-upstream` then re-runs the suites against upstream HEAD
+with `--floating`, which classifies extra failures as ours or upstream's by
+whether the unit gained cases (`conformance/floating.ts`); and
+`corpus-freshness` reports pins that are behind, plus (via
+`pnpm metaschema:stale`) a vendored metaschema whose dated URL now
+serves different bytes.
+
+None of the three blocks a PR, and a red scheduled workflow notifies almost
+nobody, so `nightly-report` opens or updates one issue labelled
+`nightly-upstream` and closes it when that job recovers. Only
+`nightly-upstream` gates the issue: a pin being behind is the expected
+state much of the time, so the freshness result is reported in the issue
+body rather than holding it open. That is the "something goes red" for
+the larger checks.
 
 `conformance/bowtie/` is a fifth dev-only tree and is deliberately
 absent from that table: it is not a pnpm root. Its toolchain is Docker

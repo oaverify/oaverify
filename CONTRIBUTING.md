@@ -46,19 +46,84 @@ Release-please uses these on merge:
 
 ```bash
 pnpm install
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
+pnpm check
 ```
+
+`pnpm check` is the PR gate: test, typecheck, lint, and `lint:type-aware`,
+in that order, about six seconds cold. Run them individually for a tighter
+loop, but run `pnpm check` before pushing. A green `pnpm lint` with a red
+`lint` job in CI is almost always the missing `lint:type-aware`, which
+needs type information and is a separate pass that `pnpm lint` does not
+include. That mistake is what `pnpm check` exists to stop.
+
+`pnpm build` is not part of the gate, but the CLI-driven harnesses below
+need it because they execute `packages/oav/dist/cli.js`.
+
+If `pnpm typecheck` reports errors in files you have not touched, the
+incremental `tsc -b` state is stale rather than your change being wrong.
+`pnpm clean && pnpm typecheck` settles it.
+
+## The other harnesses
+
+Each is a **separate pnpm root**: its dependencies are deliberately absent
+from the main install, so each needs its own `pnpm install` once. All of
+them are optional for most changes.
+
+Each one also answers to `pnpm check`, which runs what CI gates for that
+directory, so the same command means the same kind of thing everywhere.
+
+| Directory          | What it covers                                                                          | Bootstrap                      | `pnpm check` runs                                          | In CI         |
+| ------------------ | --------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------- | ------------- |
+| `conformance/`     | Upstream JSON Schema / JSON-parse / Overlay suites, plus OpenAPI request/response cases | `pnpm install && pnpm corpora` | typecheck + all five runners against their baselines (~5s) | yes, all five |
+| `framework-tests/` | Real Express 4 / 5 and Fastify servers against the adapters                             | `pnpm install`                 | typecheck + test (~2s)                                     | yes           |
+| `performance/`     | Compile and validate benchmarks vs ajv, and memory vs express-openapi-validator         | `pnpm install`                 | typecheck + the smallest cross-library benchmark (~30s)    | no            |
+| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches                                | `pnpm install`                 | typecheck only, see below (~1s)                            | no            |
+
+Two of those need explaining. `performance/` takes ~30 seconds for one
+schema at the minimum budget because tinybench warms up every task and
+ajv's compile is ~2.7ms per operation, so warmup dominates whatever
+budget you set. And `detection/`'s `check` is typecheck only because
+`pnpm detect` rewrites `results/audit.md`, `results/matrix.md` and
+`results/raw.json`, which are committed; a command called `check` should
+not leave you with a dirty working tree.
+
+`pnpm corpora` is the step people miss in `conformance/`: the upstream
+corpora are gitignored and pinned in `corpora.json`, and every runner that
+compares against a committed baseline refuses to report numbers from a
+checkout that has drifted off its pin.
 
 For schema or validator changes that could affect HTTP behavior:
 
 ```bash
+pnpm build               # the OpenAPI runner drives the built CLI
 cd conformance
 pnpm install             # first time only
-pnpm tsx run-openapi-cases.ts
+pnpm openapi
 ```
+
+The full set, once bootstrapped:
+
+```bash
+cd conformance
+pnpm typecheck
+pnpm openapi                    # OpenAPI request/response cases via the CLI
+pnpm suite                      # JSON Schema Test Suite (required)
+pnpm format-suite               # optional/format under an asserting dialect
+pnpm parse                      # JSON parser corpus vs the stream tokenizer
+pnpm overlay                    # OpenAPI Overlay 1.0
+pnpm corpora:stale              # are the pinned corpora behind upstream?
+```
+
+The baseline runners (`suite`, `format-suite`, `parse`, `overlay`) take
+`--check-baseline`, which is the form CI uses: it compares against the
+committed results file and fails on a regression instead of on any single
+mismatch. `pnpm openapi` has no baseline and takes no flags; it fails on
+any mismatch.
+
+`pnpm corpora:stale` reports which pinned corpora are behind upstream and
+exits 0 either way, because being behind is a maintenance signal rather
+than a test failure and is expected much of the time. CI runs it with
+`--fail-if-stale`, where the exit code is the only thing visible.
 
 ## Release process
 

@@ -25,6 +25,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { resolve, join, basename } from "node:path";
 import { assertPinned, corpusPath } from "./corpora.ts";
+import { enterFloating, exitFloating } from "./floating.ts";
 import { compileSchema, jsonSchemaDialect } from "../packages/schema/src/index.ts";
 import { builtInFormats } from "../packages/formats/src/index.ts";
 
@@ -61,9 +62,20 @@ const TESTS_DIR = join(SUITE_ROOT, "tests", "draft2020-12");
 const REMOTES_DIR = join(SUITE_ROOT, "remotes");
 const REMOTE_BASE = "http://localhost:1234";
 
+const args = new Set(process.argv.slice(2));
+const checkBaseline = args.has("--check-baseline");
+// See floating.ts: the nightly runs this against upstream HEAD, where the
+// strict pass-count ratchet cannot tell a regression from new cases.
+const floating = args.has("--floating");
+const includeOptional = args.has("--optional");
+const filterArg = process.argv.slice(2).find((a) => a.startsWith("--filter="));
+const filterPattern = filterArg?.slice("--filter=".length);
+
 // Baselines were measured at the pin in corpora.json; refuse to report
-// numbers from a different revision.
-assertPinned(SUITE);
+// numbers from a different revision. A floating run accepts any revision
+// but validates the flag combination and the checkout instead.
+if (floating) enterFloating(SUITE, { checkBaseline, filtered: filterPattern !== undefined });
+else assertPinned(SUITE);
 
 function loadRemoteSchemas(): Map<string, unknown> {
   const map = new Map<string, unknown>();
@@ -87,12 +99,6 @@ function loadRemoteSchemas(): Map<string, unknown> {
 }
 
 const remoteSchemas = loadRemoteSchemas();
-
-const args = new Set(process.argv.slice(2));
-const includeOptional = args.has("--optional");
-const checkBaseline = args.has("--check-baseline");
-const filterArg = process.argv.slice(2).find((a) => a.startsWith("--filter="));
-const filterPattern = filterArg?.slice("--filter=".length);
 
 function listJsonFiles(dir: string): string[] {
   const out: string[] = [];
@@ -231,6 +237,19 @@ if (checkBaseline) {
     process.exit(2);
   }
   const baseline = JSON.parse(readFileSync(summaryPath, "utf8")) as FileResult[];
+  if (floating) {
+    const unit = (r: FileResult) => ({
+      name: r.file,
+      cases: r.cases,
+      failures: r.fail + r.error,
+    });
+    exitFloating(
+      includeOptional ? "suite + optional" : "required suite",
+      SUITE,
+      results.map(unit),
+      baseline.map(unit),
+    );
+  }
   const baselinePass = baseline.reduce((n, r) => n + r.pass, 0);
   const baselineCases = baseline.reduce((n, r) => n + r.cases, 0);
   console.log(`\nbaseline: ${baselinePass}/${baselineCases} pass`);

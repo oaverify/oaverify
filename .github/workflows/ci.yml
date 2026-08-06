@@ -5,7 +5,11 @@ on:
   push:
     branches: [main]
   schedule:
-    # Nightly (08:30 UTC) run of the upstream JSON Schema Test Suite.
+    # Nightly (08:30 UTC). Every conformance runner gates PRs at the pin;
+    # upstream moving is the one thing a schedule can catch. Three jobs
+    # run on it: nightly-upstream (the suites against upstream HEAD),
+    # corpus-freshness (which pins are behind), and nightly-report (the
+    # tracking issue for the first of those).
     - cron: "30 8 * * *"
   workflow_dispatch:
 
@@ -98,7 +102,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:coverage
       # Advisory: the global thresholds average ~9400 statements, so
-      # print the split a single number hides. Never fails the job.
+      # print the split a single number hides. It exits non-zero only when
+      # coverage-summary.json is absent, which means `pnpm test:coverage`
+      # above already failed before writing it, so in practice this step
+      # never turns a passing job red. `if: always()` is so the split
+      # still prints when a threshold fails.
       - name: coverage by package
         if: always()
         run: pnpm coverage:by-package
@@ -151,6 +159,16 @@ jobs:
         run: pnpm test
 
   conformance:
+    # Every conformance runner, gating PRs. `suite` and `format-suite`
+    # used to be nightly-only, on the grounds that the suite is ~1300
+    # cases and its clone ~15 MB. Both halves of that are now false: the
+    # pinned depth-1 fetch is 4.3 MB and the two runners take ~1s
+    # combined, so a PR could regress the JSON Schema suite or the format
+    # corpus and merge green while nobody found out until the morning.
+    #
+    # This job is the same set as `pnpm check` in conformance/, kept as
+    # one step per runner so a failure names itself in the UI rather than
+    # hiding inside a single script. Add a runner to both.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -166,29 +184,66 @@ jobs:
       - name: install conformance deps
         working-directory: conformance
         run: pnpm install --frozen-lockfile
+      - name: typecheck
+        working-directory: conformance
+        run: pnpm typecheck
+      # Keyed on corpora.json, so the key changes exactly when a pin does.
+      # On a hit `pnpm corpora` sees each checkout already at its pin and
+      # returns without touching the network, which is the point: a
+      # required check should not block on GitHub's git endpoints being
+      # reachable. On a miss it fetches, and the save below warms the next
+      # run. restore-keys makes a pin bump incremental: the previous
+      # cache restores and `pnpm corpora` moves only the checkout that
+      # drifted, instead of recloning ~225 MB. The path list is derived
+      # from corpora.json so a fourth corpus cannot be silently absent
+      # from the save while the key (hashed over the same file) pretends
+      # it is covered.
+      - name: derive corpus cache paths from corpora.json
+        id: corpora-paths
+        run: |
+          {
+            echo 'paths<<EOF'
+            jq -r '.corpora | keys[] | "conformance/" + .' conformance/corpora.json
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+      - name: restore pinned corpora
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ steps.corpora-paths.outputs.paths }}
+          key: corpora-${{ hashFiles('conformance/corpora.json') }}
+          restore-keys: corpora-
+      - name: fetch any corpus the cache did not supply
+        working-directory: conformance
+        run: pnpm corpora
       - name: OpenAPI conformance cases
         working-directory: conformance
-        run: pnpm tsx run-openapi-cases.ts
-      - name: clone Overlay-Specification at its pin
+        run: pnpm openapi
+      - name: JSON Schema suite (required)
         working-directory: conformance
-        run: pnpm corpora:overlay
+        run: pnpm suite --check-baseline
+      - name: format corpus (optional/format under an asserting dialect)
+        working-directory: conformance
+        run: pnpm format-suite --check-baseline
       - name: OpenAPI Overlay 1.0 suite
         working-directory: conformance
-        run: pnpm tsx run-overlay-suite.ts --check-baseline
-      - name: clone JSONTestSuite at its pin
-        working-directory: conformance
-        run: pnpm corpora:json-parse
+        run: pnpm overlay --check-baseline
       - name: JSON parser-conformance suite (stream-validator tokenizer)
         working-directory: conformance
-        run: pnpm tsx run-json-parse-suite.ts --check-baseline
+        run: pnpm parse --check-baseline
 
-  json-schema-suite:
-    # Full upstream JSON Schema Test Suite, plus the optional/format
-    # corpus. Runs nightly and on workflow_dispatch, not on every PR,
-    # because the suite is ~1300 cases and its clone is ~15 MB; the
-    # format corpus shares that clone, so it rides along here rather
-    # than paying for it again in the PR job. Both fail only against
-    # their committed baseline.
+  nightly-upstream:
+    # The larger checks, run against upstream HEAD rather than the pin.
+    # The PR gate answers "did this diff break anything"; the pin makes
+    # that reproducible and hermetic. It cannot answer "does the code still
+    # pass against what upstream has now", because the corpus it uses is
+    # frozen by design. This job is that second question.
+    #
+    # It fetches HEAD and leaves corpora.json alone: bumping a pin stays a
+    # reviewed commit rather than something a scheduled job does behind
+    # you. `--floating` swaps the strict ratchet for the grew-vs-broke
+    # classification in conformance/floating.ts, because against a moving
+    # corpus "more failures than the baseline" has two very different
+    # causes and a nightly that conflates them gets muted.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
@@ -201,18 +256,95 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - name: install conformance deps
         working-directory: conformance
         run: pnpm install --frozen-lockfile
-      - name: clone upstream suite at its pin
+      # Only the corpus the floating steps below read. JSONTestSuite and
+      # Overlay-Specification have no floating runner: the former is
+      # effectively frozen upstream and the latter's churn rarely touches
+      # its test fixtures, so their radar is corpus-freshness and their
+      # measurement happens at the pin bump. Fetching them here (~220 MB,
+      # nearly all JSONTestSuite) would be downloaded and discarded.
+      - name: fetch the floating corpus at upstream HEAD
         working-directory: conformance
-        run: pnpm corpora:json-schema
-      - name: JSON Schema suite (required)
+        run: pnpm corpora --latest JSON-Schema-Test-Suite
+      - name: JSON Schema suite against upstream HEAD
         working-directory: conformance
-        run: pnpm tsx run-json-schema-suite.ts --check-baseline
-      - name: format corpus (optional/format under an asserting dialect)
+        run: pnpm suite --check-baseline --floating
+      - name: format corpus against upstream HEAD
         working-directory: conformance
-        run: pnpm tsx run-format-suite.ts --check-baseline
+        run: pnpm format-suite --check-baseline --floating
+      - name: OpenAPI cases (corpus-independent, so pinned semantics hold)
+        working-directory: conformance
+        run: pnpm openapi
+
+  nightly-report:
+    # A failing scheduled workflow notifies almost nobody: GitHub mails
+    # whoever last touched the cron, and that is easy to miss for months.
+    # So the durable signal is an issue, opened once and updated after, kept
+    # unique by its label so a fortnight of failures is one thread rather
+    # than fourteen. Closed automatically when the nightly goes green again.
+    #
+    # Only nightly-upstream gates the issue. A pin being behind is the
+    # expected state much of the time, so keying the issue on
+    # corpus-freshness too would leave it permanently open and train
+    # everyone to ignore the one thread a real regression lands in. The
+    # freshness result rides along in the body as context instead.
+    needs: [nightly-upstream, corpus-freshness]
+    # not always(): a cancelled nightly is not a failed one, and must not
+    # file a false alarm in the tracking issue.
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: open, update or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: ${{ needs.nightly-upstream.result }}
+          FRESHNESS: ${{ needs.corpus-freshness.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          LABEL="nightly-upstream"
+          EXISTING=$(gh issue list --label "$LABEL" --state open --limit 1 --json number --jq '.[0].number // empty')
+
+          if [ "$UPSTREAM" = "success" ]; then
+            if [ -n "$EXISTING" ]; then
+              gh issue comment "$EXISTING" --body "nightly-upstream is green again. Closing. ($RUN_URL)"
+              gh issue close "$EXISTING"
+            fi
+            echo "nightly-upstream green; nothing to report"
+            exit 0
+          fi
+
+          BODY=$(printf '%s\n' \
+            "The nightly upstream run did not pass." \
+            "" \
+            "| job | result |" \
+            "| --- | --- |" \
+            "| \`nightly-upstream\` (suites against upstream HEAD) | $UPSTREAM |" \
+            "| \`corpus-freshness\` (pins behind upstream) | $FRESHNESS |" \
+            "" \
+            "Logs: $RUN_URL" \
+            "" \
+            "Neither job blocks a pull request. \`nightly-upstream\` failing means a" \
+            "unit regressed against a corpus that did not grow, which is ours rather" \
+            "than upstream's; see conformance/floating.ts for how that is told apart." \
+            "The \`corpus-freshness\` row is context only: a pin being behind is a" \
+            "bump decision rather than a defect, and does not by itself open or" \
+            "hold this issue open.")
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+            echo "updated issue #$EXISTING"
+          else
+            gh issue create --label "$LABEL" \
+              --title "Nightly upstream run is failing" --body "$BODY"
+          fi
 
   corpus-freshness:
     # The pin in corpora.json makes the committed baselines reproducible.
@@ -240,7 +372,16 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: are the pinned corpora behind upstream?
         working-directory: conformance
-        run: pnpm tsx check-corpus-freshness.ts
+        run: pnpm corpora:stale --fail-if-stale
+      # Same class of signal: something we pinned may have moved upstream.
+      # It lives here rather than in nightly-upstream so that a third
+      # party republishing a metaschema, or spec.openapis.org being
+      # unreachable, cannot read as a code regression or open the
+      # tracking issue. Plain node, so it needs no install. `if: always()`
+      # so a stale pin above does not mask a drift report.
+      - name: have the vendored OpenAPI metaschemas changed under their pins?
+        if: always()
+        run: pnpm metaschema:stale
 
   pack-smoke:
     # Catches `exports` map / `files` / bundler regressions that unit
