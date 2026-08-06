@@ -186,7 +186,21 @@ jobs:
       - name: typecheck
         working-directory: conformance
         run: pnpm typecheck
-      - name: clone all three corpora at their pins
+      # Keyed on corpora.json, so the key changes exactly when a pin does.
+      # On a hit `pnpm corpora` sees each checkout already at its pin and
+      # returns without touching the network, which is the point: a
+      # required check should not block on GitHub's git endpoints being
+      # reachable. On a miss it fetches, and the save below warms the next
+      # run.
+      - name: restore pinned corpora
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            conformance/JSON-Schema-Test-Suite
+            conformance/JSONTestSuite
+            conformance/Overlay-Specification
+          key: corpora-${{ hashFiles('conformance/corpora.json') }}
+      - name: fetch any corpus the cache did not supply
         working-directory: conformance
         run: pnpm corpora
       - name: OpenAPI conformance cases
