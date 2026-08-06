@@ -26,6 +26,7 @@ export const SCHEMA_CODES = [
   "silent-rewrite/required-not-in-properties",
   "silent-rewrite/redundant-composition-branches",
   "silent-rewrite/discriminator-unroutable",
+  "silent-rewrite/pattern-not-unicode-mode",
   "unsatisfiable/pattern-length",
   "unsatisfiable/enum-member-type",
 ] as const satisfies readonly SchemaLintIssue["code"][];
