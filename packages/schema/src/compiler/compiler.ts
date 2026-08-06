@@ -788,7 +788,12 @@ export interface SchemaLintIssue {
  */
 export type CompiledSchema = {
   validate: (data: unknown, startPath?: readonly PathSegment[]) => ValidationResult;
-  /** The generated source. Exposed for debugging/snapshot testing only. */
+  /**
+   * The generated source. Empty unless the compile asked for it with
+   * {@link CompileOptions.retainSource}, since keeping it costs memory
+   * for as long as the validator lives and only a caller that reads it
+   * gains anything.
+   */
   source: string;
   /** Compile-time stats about the generated validator. */
   stats: CompileStats;
@@ -1009,6 +1014,25 @@ export interface CompileOptions {
    * ```
    */
   unknownFormats?: "ignore" | "error";
+
+  /**
+   * Whether the compiled validator keeps the generated source that
+   * built it, on {@link CompiledSchema.source}.
+   *
+   * `false` (default) drops it: `source` is the empty string, and the
+   * text becomes collectable as soon as the validator is built. `true`
+   * keeps it, which is what reading `source` for debugging, snapshot
+   * testing, or emitting a standalone module needs.
+   *
+   * A memory decision and nothing else; the validator behaves
+   * identically either way. The text is worth what it costs only to a
+   * caller that reads it. One compile unit emits code for the whole
+   * transitive closure of what it `$ref`s, so a caller compiling a
+   * document operation by operation keeps that text once per
+   * operation: retained, Stripe's OpenAPI document is 842 MB across
+   * 2271 units (#624).
+   */
+  retainSource?: boolean;
 
   // --- 4. Schema-compile-specific extras ---
 
@@ -1649,6 +1673,10 @@ export function compileSchema(
             }
           },
         });
+  // Dropping the reference here is the whole of the default:
+  // `wholeSource` is still live for the `new Function` calls below, and
+  // becomes collectable when this call returns.
+  const retainedSource = options.retainSource === true ? wholeSource : "";
   const stats: CompileStats = {
     functionCount: state.nextFn,
     unevaluatedTrackingEmitted: state.unevaluatedEmitted,
@@ -1660,20 +1688,20 @@ export function compileSchema(
       deps: ValidatorDeps,
     ) => CompiledPredicateFactory;
     const { validate } = factory(deps);
-    return { validate, source: wholeSource, stats };
+    return { validate, source: retainedSource, stats };
   }
   if (flat) {
     const factory = new Function(NAMES.DEPS, wholeSource) as (
       deps: ValidatorDeps,
     ) => CompiledFlatSchemaFactory;
     const { validate } = factory(deps);
-    return { validate, source: wholeSource, stats };
+    return { validate, source: retainedSource, stats };
   }
   const factory = new Function(NAMES.DEPS, wholeSource) as (
     deps: ValidatorDeps,
   ) => CompiledTreeSchemaFactory;
   const { validate } = factory(deps);
-  return { validate, source: wholeSource, stats };
+  return { validate, source: retainedSource, stats };
 }
 
 /** Flat-mode (default) runtime factory: `validate()` returns a {@link ValidationResult}. */

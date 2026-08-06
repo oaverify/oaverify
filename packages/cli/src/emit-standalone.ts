@@ -89,7 +89,13 @@ export function emitStandalone(schema: SchemaOrBoolean, options: EmitStandaloneO
   // format's declared type is the same on both sides. Codegen reads
   // those types (an `int32` site emits a number guard), and before
   // numeric formats existed this call passed no registry at all.
-  const { source } = compileSchema(schema, { dialect, formats: builtInFormats });
+  // The emitted module *is* the generated source, so this is one of the
+  // two callers that needs it kept; see CompileOptions.retainSource.
+  const { source } = compileSchema(schema, {
+    dialect,
+    formats: builtInFormats,
+    retainSource: true,
+  });
 
   // Assemble the module:
   //   - ESM imports for runtime helpers and the built-in format set.
