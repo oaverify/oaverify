@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "detect": "tsx run.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm typecheck"
   },
   "devDependencies": {
     "@redocly/cli": "^2.43.2",

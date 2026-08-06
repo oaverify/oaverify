@@ -145,6 +145,7 @@ locally too (`pnpm pack` + `npm install` in `/tmp`).
 ```bash
 pnpm install
 pnpm build                        # tsup: @oaverify/core + stream + yaml + check + the oaverify CLI
+pnpm check                        # the PR gate: test + typecheck + lint + lint:type-aware
 pnpm test                         # vitest for everything
 pnpm vitest run packages/schema   # run a single package's tests (path filter)
 pnpm lint                         # oxlint + oxfmt --check + check:deps
@@ -430,11 +431,24 @@ and needs its own `pnpm install` before `pnpm bench:mem` will start. It
 holds two Express servers (oav and express-openapi-validator) that exist
 to be measured rather than run; see its README.
 
+Every one of them answers to `pnpm check`, which runs what CI gates for
+that directory, so the verb means the same kind of thing in each root and
+at the top level. `detection/`'s is typecheck only, because `pnpm detect`
+rewrites three committed files under `results/` and a command called
+`check` should not dirty the tree. `performance/`'s runs the smallest
+cross-library benchmark and still takes ~30s, because tinybench warms up
+every task against ajv's ~2.7ms compile and warmup dominates any budget.
+
 CI invokes these through their own package scripts (`pnpm openapi`,
 `pnpm suite --check-baseline`, …) rather than `pnpm tsx run-<x>.ts`, so
 the commands in the docs and the commands in the gate are the same
-commands. Keep it that way when adding a runner: add the script, then
-reference the script.
+commands. Keep it that way when adding a runner: add the script, reference
+the script, and fold it into that root's `check`.
+
+`check` is deliberately not what CI _invokes_, though: CI keeps one step
+per runner so a failure names itself in the UI, and `conformance/`'s
+runners are split across the PR job and the nightly one. `check` is the
+local equivalent of their union.
 
 `conformance/bowtie/` is a fifth dev-only tree and is deliberately
 absent from that table: it is not a pnpm root. Its toolchain is Docker

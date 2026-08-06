@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm typecheck && pnpm test"
   },
   "devDependencies": {
     "@types/express-4": "npm:@types/express@4.17.21",

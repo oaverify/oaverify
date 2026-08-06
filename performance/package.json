@@ -16,7 +16,8 @@
     "bench:stream-profile": "tsx profile-stream.ts",
     "bench:endpoint": "tsx bench-endpoint.ts",
     "bench:http": "tsx bench-http-validator.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm typecheck && pnpm bench --filter=tiny --time=50"
   },
   "devDependencies": {
     "@apidevtools/json-schema-ref-parser": "^15.5.1",

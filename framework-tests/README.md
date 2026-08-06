@@ -25,6 +25,7 @@ See issue #295 for the full rationale.
 ```sh
 cd framework-tests
 pnpm install --frozen-lockfile
+pnpm check        # typecheck + test, which is exactly what CI runs here
 pnpm test         # vitest run
 pnpm typecheck    # tsc --noEmit
 ```

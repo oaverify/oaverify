@@ -18,6 +18,7 @@ pnpm install
 ### `run.ts`: cross-library schema benchmark
 
 ```bash
+pnpm check                                      # typecheck + smallest cross-library run (~30s)
 pnpm bench                                      # default 500ms per task
 pnpm bench:long                                 # 1500ms per task
 pnpm bench -- --filter=petstore                 # one schema only

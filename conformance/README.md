@@ -59,6 +59,7 @@ add failures. That is the reason to look.
 
 ```bash
 cd conformance
+pnpm check                          # typecheck + every runner below, against its baseline
 pnpm suite                          # JSON Schema Test Suite (required only)
 pnpm suite:optional                 # + optional/ suite (format edge cases, etc.)
 pnpm suite -- --filter=ref          # just files matching "ref"

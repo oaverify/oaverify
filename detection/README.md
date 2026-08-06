@@ -40,9 +40,14 @@ the looser of the two labels.
 
 ```bash
 pnpm install
+pnpm check                 # typecheck only; see below
 pnpm --dir .. build        # oaverify runs through its built CLI
 pnpm detect
 ```
+
+`pnpm check` runs the typecheck and stops there. `pnpm detect` rewrites
+the three committed files below, and a command called `check` should not
+leave a dirty working tree.
 
 Writes three files to `results/`:
 

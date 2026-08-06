@@ -16,7 +16,8 @@
     "corpora:json-schema": "tsx fetch-corpora.ts JSON-Schema-Test-Suite",
     "corpora:json-parse": "tsx fetch-corpora.ts JSONTestSuite",
     "corpora:overlay": "tsx fetch-corpora.ts Overlay-Specification",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm typecheck && pnpm openapi && pnpm suite --check-baseline && pnpm format-suite --check-baseline && pnpm parse --check-baseline && pnpm overlay --check-baseline"
   },
   "devDependencies": {
     "tsx": "^4.23.1",
