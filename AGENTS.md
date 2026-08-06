@@ -322,10 +322,13 @@ in the meantime.
   byproducts of resolution that a document cannot reconstruct, and
   without them every finding loses `target.source` and SARIF loses its
   locations. Two hazards live here. The `precompile` /
-  `stats.schemaLintIssues` pair in `check.ts` must stay adjacent and in
-  order, because `precompile` is a generator and the stats array is read
-  live as it drains (#624 measures that class at 2.67GB on
-  `stripe.json`). And only a failure to build the validator becomes
+  `stats.schemaLintIssues` pair in `check.ts` must stay in that order,
+  because compiling is what fills the stats array: read it first and the
+  schema class inspects a document nothing has compiled, and reports
+  nothing. `precompile` returns a materialised
+  `readonly PrecompileFailure[]`, so the two only have to be ordered,
+  not adjacent. That compile is also what the class costs (#624
+  measures it at 2.7GB on `stripe.json`). And only a failure to build the validator becomes
   `CheckAbortedError` / exit 2; a throw from any other pass propagates
   to exit 3, as it did before the move.
 - **`@oaverify/express4` / `@oaverify/express5` / `@oaverify/fastify`**: thin
