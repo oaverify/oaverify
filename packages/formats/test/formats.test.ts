@@ -13,6 +13,8 @@ import {
   validateInt64,
   validateIpv4,
   validateIpv6,
+  validateIri,
+  validateIriReference,
   validateJsonPointer,
   validateRegex,
   validateRelativeJsonPointer,
@@ -46,12 +48,66 @@ describe("date / time / date-time / duration", () => {
     expect(validateDateTime("2024-01-31 12:34:56Z")).toBe(false);
   });
 
-  it("accepts ISO 8601 durations", () => {
+  it("accepts RFC 3339 durations", () => {
     expect(validateDuration("P1Y")).toBe(true);
     expect(validateDuration("P1Y2M10DT2H30M")).toBe(true);
     expect(validateDuration("P")).toBe(false);
     expect(validateDuration("PT")).toBe(false);
     expect(validateDuration("nope")).toBe(false);
+  });
+});
+
+describe("duration (RFC 3339 ABNF ordering)", () => {
+  // Each unit carries only the next smaller one, so an absent middle
+  // unit is a syntax error rather than an implied zero.
+  it("requires the intervening unit", () => {
+    expect(validateDuration("P1Y2M3D")).toBe(true);
+    expect(validateDuration("P1Y2D")).toBe(false);
+    expect(validateDuration("PT1H2M3S")).toBe(true);
+    expect(validateDuration("PT1H2S")).toBe(false);
+  });
+
+  it("keeps each unit optional at the outside", () => {
+    for (const value of ["P1Y", "P1M", "P1D", "PT1H", "PT1M", "PT1S", "P1M2D", "PT2M3S"]) {
+      expect(validateDuration(value), value).toBe(true);
+    }
+  });
+
+  // `dur-week` is its own top-level alternative, so it combines with
+  // nothing: not another date unit, not a zero-valued one, not a time.
+  it("only accepts weeks alone", () => {
+    expect(validateDuration("P1W")).toBe(true);
+    expect(validateDuration("P1Y2W")).toBe(false);
+    expect(validateDuration("P0Y1W")).toBe(false);
+    expect(validateDuration("P1WT1H")).toBe(false);
+    expect(validateDuration("P1W2D")).toBe(false);
+  });
+
+  it("rejects a fractional component", () => {
+    expect(validateDuration("PT0.5S")).toBe(false);
+    expect(validateDuration("PT1.5H")).toBe(false);
+    expect(validateDuration("P0.5Y")).toBe(false);
+  });
+
+  it("rejects a sign, an exponent, and stray whitespace", () => {
+    expect(validateDuration("-P1Y")).toBe(false);
+    expect(validateDuration("P-1Y")).toBe(false);
+    expect(validateDuration("P1e3Y")).toBe(false);
+    expect(validateDuration("P1Y\n")).toBe(false);
+    expect(validateDuration("P1D T1H")).toBe(false);
+  });
+
+  it("rejects a bare number with no unit", () => {
+    expect(validateDuration("P1")).toBe(false);
+    expect(validateDuration("P1T1H")).toBe(false);
+    expect(validateDuration("PT1")).toBe(false);
+  });
+
+  it("accepts multi-digit and zero components", () => {
+    expect(validateDuration("P100Y")).toBe(true);
+    expect(validateDuration("P0D")).toBe(true);
+    expect(validateDuration("PT0S")).toBe(true);
+    expect(validateDuration("P0W")).toBe(true);
   });
 });
 
@@ -80,6 +136,72 @@ describe("email / hostname", () => {
     // Still needs an @ and a non-empty local/domain.
     expect(validateIdnEmail("用户例子.广告")).toBe(false);
     expect(validateIdnEmail("@例子.广告")).toBe(false);
+  });
+});
+
+describe("email (RFC 5321 Mailbox grammar)", () => {
+  const DQ = '"';
+  const BACKSLASH = String.fromCharCode(92);
+  const BEL = String.fromCharCode(7);
+
+  // A quoted local part is the one place a space, a double dot and a
+  // second `@` are all legal. The unquoted form forbids each of them,
+  // which is why the two shapes are checked separately.
+  it("accepts a quoted local part", () => {
+    expect(validateEmail(`${DQ}joe bloggs${DQ}@example.com`)).toBe(true);
+    expect(validateEmail(`${DQ}joe..bloggs${DQ}@example.com`)).toBe(true);
+    expect(validateEmail(`${DQ}joe@bloggs${DQ}@example.com`)).toBe(true);
+    expect(validateEmail(`${DQ}${DQ}@example.com`)).toBe(true);
+  });
+
+  it("keeps the Dot-string rules for an unquoted local part", () => {
+    expect(validateEmail("te.s.t@example.com")).toBe(true);
+    expect(validateEmail("te..st@example.com")).toBe(false);
+    expect(validateEmail(".test@example.com")).toBe(false);
+    expect(validateEmail("test.@example.com")).toBe(false);
+    expect(validateEmail("joe bloggs@example.com")).toBe(false);
+  });
+
+  it("applies quoted-pair rules inside a quoted local part", () => {
+    expect(validateEmail(`${DQ}a${BACKSLASH}${DQ}b${DQ}@example.com`)).toBe(true);
+    expect(validateEmail(`${DQ}a${DQ}b${DQ}@example.com`)).toBe(false);
+    expect(validateEmail(`${DQ}a${BEL}b${DQ}@example.com`)).toBe(false);
+    expect(validateEmail(`${DQ}a${BACKSLASH}${DQ}@example.com`)).toBe(false);
+  });
+
+  it("accepts an address-literal domain", () => {
+    expect(validateEmail("joe.bloggs@[127.0.0.1]")).toBe(true);
+    expect(validateEmail("joe.bloggs@[IPv6:::1]")).toBe(true);
+    expect(validateEmail("joe.bloggs@[IPv6:2001:db8::1]")).toBe(true);
+  });
+
+  it("rejects an address literal that is not an address", () => {
+    expect(validateEmail("joe.bloggs@[127.0.0.300]")).toBe(false);
+    // The `IPv6:` tag is mandatory, and no General-address-literal tag
+    // has been registered, so a bare bracketed IPv6 address is not one.
+    expect(validateEmail("joe.bloggs@[::1]")).toBe(false);
+    expect(validateEmail("joe.bloggs@[anything]")).toBe(false);
+  });
+
+  it("rejects a header or a list rather than a single mailbox", () => {
+    expect(validateEmail("user1@oceania.org, user2@oceania.org")).toBe(false);
+    expect(
+      validateEmail(`${DQ}Winston Smith${DQ} <winston.smith@recdep.minitrue> (Records Department)`),
+    ).toBe(false);
+  });
+
+  it("widens qtext to non-ASCII for idn-email only", () => {
+    expect(validateIdnEmail(`${DQ}δοκιμή${DQ}@example.com`)).toBe(true);
+    expect(validateEmail(`${DQ}δοκιμή${DQ}@example.com`)).toBe(false);
+    expect(validateIdnEmail(`${DQ}\u{1D54F}${DQ}@example.com`)).toBe(true);
+    // The double quote and the backslash stay excluded when the range
+    // widens, which a single `]`-to-U+10FFFF range would have lost.
+    expect(validateIdnEmail(`${DQ}a${DQ}b${DQ}@example.com`)).toBe(false);
+  });
+
+  it("caps a local part at 64 characters", () => {
+    expect(validateEmail(`${"a".repeat(64)}@example.com`)).toBe(true);
+    expect(validateEmail(`${"a".repeat(65)}@example.com`)).toBe(false);
   });
 });
 
@@ -119,6 +241,104 @@ describe("uri / uri-reference / uri-template", () => {
     expect(validateUriTemplate("/pets/{id}")).toBe(true);
     expect(validateUriTemplate("/search{?q,page}")).toBe(true);
     expect(validateUriTemplate("/pets/{id/")).toBe(false);
+  });
+});
+
+describe("uri / iri (RFC 3986 and RFC 3987 grammar)", () => {
+  // A host that looks like a dotted-decimal address but is not one is
+  // still a legal `reg-name`, because `IPv4address` is a subset of
+  // `reg-name`. `new URL` rejected both of these, which under the
+  // OpenAPI dialects refused real traffic.
+  it("accepts a dotted-decimal host that is not a valid IPv4 address", () => {
+    for (const value of [
+      "http://087.10.0.1/",
+      "http://999.999.999.999/",
+      "http://1.2.3.4.5/",
+      "http://0300.0250.0.1/",
+    ]) {
+      expect(validateUri(value), value).toBe(true);
+      expect(validateUriReference(value), value).toBe(true);
+    }
+  });
+
+  it("still accepts genuine IPv4 and IPv6 hosts", () => {
+    expect(validateUri("http://127.0.0.1:8080/x")).toBe(true);
+    expect(validateUri("http://[2001:db8::1]/x")).toBe(true);
+    expect(validateUri("http://[::ffff:192.0.2.1]/x")).toBe(true);
+    expect(validateUri("http://[v7.aBc:1]/x")).toBe(true);
+  });
+
+  it("rejects an unterminated IP-literal host", () => {
+    expect(validateUri("https://[@example.org/test.txt")).toBe(false);
+    expect(validateUri("http://[2001:db8::1/x")).toBe(false);
+    expect(validateUri("http://[not-an-address]/x")).toBe(false);
+  });
+
+  // `new URL` percent-encoded these instead of rejecting them, so every
+  // one was accepted before.
+  it("rejects characters the grammar excludes", () => {
+    for (const value of [
+      "https://example.org/foobar®.txt",
+      "https://example.org/foobar\\.txt",
+      'https://example.org/foobar".txt',
+      "https://example.org/foobar<>.txt",
+      "https://example.org/foobar{}.txt",
+      "https://example.org/foobar^.txt",
+      "https://example.org/foobar`.txt",
+      "https://example.org/foobar|.txt",
+    ]) {
+      expect(validateUri(value), value).toBe(false);
+    }
+  });
+
+  it("rejects malformed percent-encoding", () => {
+    expect(validateUri("http://example.com/%6G")).toBe(false);
+    expect(validateUri("http://example.com/%A")).toBe(false);
+    expect(validateUri("http://example.com/%")).toBe(false);
+    expect(validateUri("http://example.com/%41")).toBe(true);
+  });
+
+  it("rejects a backslash in a uri-reference path or fragment", () => {
+    expect(validateUriReference("\\\\WINDOWS\\fileshare")).toBe(false);
+    expect(validateUriReference("#frag\\ment")).toBe(false);
+  });
+
+  // RFC 3987 widens `unreserved` to `iunreserved`, so non-ASCII is legal
+  // in an IRI where it is not in a URI. A backslash is excluded by both.
+  it("accepts non-ASCII in an iri but not a backslash", () => {
+    expect(validateIri("https://example.org/foobar®.txt")).toBe(true);
+    expect(validateIriReference("/föö/bär")).toBe(true);
+    expect(validateIriReference("#ƒräg\\mênt")).toBe(false);
+    expect(validateIriReference("\\\\WINDOWS\\filëré")).toBe(false);
+  });
+
+  it("keeps the iri and uri grammars distinct", () => {
+    const nonAscii = "https://example.org/é";
+    expect(validateIri(nonAscii)).toBe(true);
+    expect(validateUri(nonAscii)).toBe(false);
+  });
+
+  it("requires a scheme for the absolute forms only", () => {
+    expect(validateUri("/relative/path")).toBe(false);
+    expect(validateIri("/relative/path")).toBe(false);
+    expect(validateUriReference("/relative/path")).toBe(true);
+    expect(validateIriReference("/relative/path")).toBe(true);
+  });
+
+  it("accepts an empty reference and a bare query or fragment", () => {
+    expect(validateUriReference("")).toBe(true);
+    expect(validateUriReference("?q=1")).toBe(true);
+    expect(validateUriReference("#frag")).toBe(true);
+    expect(validateUriReference("//example.com/path")).toBe(true);
+  });
+
+  // `segment-nz-nc` forbids a colon in the *first* segment of a relative
+  // reference, so a string whose leading segment looks like a scheme but
+  // is not a legal one cannot fall back to being read as a path.
+  it("forbids a colon in the first segment of a relative reference", () => {
+    expect(validateUriReference("1foo:bar")).toBe(false);
+    expect(validateUriReference("./foo:bar")).toBe(true);
+    expect(validateUriReference("foo:bar")).toBe(true);
   });
 });
 

@@ -1,12 +1,18 @@
 # Migrating to v6
 
-Two changes, and most callers meet only the first.
+Three changes, and most callers meet only the first two.
 
 **`format` is one registry, and the OpenAPI numeric formats assert.** If
 you never pass `formats` and never read `builtInFormats`, this is a
 version bump plus one behaviour change: a request whose field is
 declared `int32` or `int64` and whose value is out of range is now a
 validation error.
+
+**Several string formats got their grammars right.** `uri` and its
+siblings stopped delegating to `new URL`, which repaired illegal input
+instead of refusing it. These are correctness fixes, and they change
+verdicts in both directions, so a value your spec declares `format: uri`
+may now be rejected. The per-format sections below say which values.
 
 **`oaverify check` replaces `--only` with `--findings`.** A one-line
 edit wherever you invoke it, and the new flag reaches an exact code or a
@@ -126,6 +132,89 @@ Passing the registry on is unaffected:
 compileSchema(schema, { dialect, formats: builtInFormats }); // unchanged
 ```
 
+## Breaking: `uri` and `iri` match the grammar, not `new URL`
+
+`uri`, `uri-reference`, `iri` and `iri-reference` now match the RFC 3986
+and RFC 3987 grammars directly. They used to hand the value to
+`new URL()`, which is a parser with repairs rather than a grammar
+checker, so it was wrong in both directions at once.
+
+It **accepts more** than before, in one place: a host that looks like a
+dotted-decimal address but is not a valid one. `IPv4address` is a subset
+of `reg-name` in the grammar, so `http://087.10.0.1/` and
+`http://999.999.999.999/` are legal URIs. `new URL` read them as
+addresses and threw. If you were relying on `format: uri` to reject
+these, that check was never the grammar's to make; validate the host
+with `format: ipv4` or your own rule.
+
+It **rejects more** everywhere else, because `new URL` silently repaired
+illegal input instead of refusing it:
+
+| Value                              | Before   | Now      | Why                           |
+| ---------------------------------- | -------- | -------- | ----------------------------- |
+| `https://example.org/foobar<>.txt` | accepted | rejected | percent-encoded to `%3C%3E`   |
+| `https://example.org/foobar\.txt`  | accepted | rejected | backslash rewritten to `/`    |
+| `http://example.com/%6G`           | accepted | rejected | non-hex digit in a triplet    |
+| `http://example.com/%`             | accepted | rejected | lone percent sign             |
+| `https://[@example.org/test.txt`   | accepted | rejected | `[` moved into userinfo       |
+| `https://example.org/foobar®.txt`  | accepted | rejected | non-ASCII is `iri`, not `uri` |
+
+Browsers accept those because they repair them. The grammar does not,
+and under the OpenAPI dialects `format` is an assertion, so they now
+fail validation.
+
+The most likely thing to break is a spec that declares `format: uri` on
+a field carrying a value with `|`, `^`, a backtick, `{}`, or unescaped
+non-ASCII. Those are legal in an **IRI** but not a URI, so the fix is
+usually `format: iri` or `format: iri-reference`. To opt out of the
+assertion entirely, `formats: { uri: false }` registers the name and
+checks nothing.
+
+## Breaking: `duration` enforces RFC 3339 unit ordering
+
+JSON Schema defines `duration` against RFC 3339 Appendix A, whose ABNF
+nests the units: each one carries only the next smaller one, weeks are
+their own alternative, and nothing takes a fraction. The old pattern
+accepted any subset of components in order, which is the looser ISO 8601
+reading.
+
+| Value    | Before   | Now      | Why                                    |
+| -------- | -------- | -------- | -------------------------------------- |
+| `P1Y2D`  | accepted | rejected | days reachable only through months     |
+| `PT1H2S` | accepted | rejected | seconds reachable only through minutes |
+| `P1Y2W`  | accepted | rejected | weeks combine with nothing             |
+| `P0Y1W`  | accepted | rejected | including a zero-valued component      |
+| `P1WT1H` | accepted | rejected | including a time part                  |
+| `PT0.5S` | accepted | rejected | no component takes a fraction          |
+
+`P1Y2M3D` and `PT1H2M3S` are unaffected: spelling the intervening unit
+is what the grammar asks for. If you need the looser reading, register
+your own: `formats: { duration: (v) => myIso8601Check(v) }`.
+
+## Breaking: the `regex` format asserts ECMA-262 u-mode
+
+`format: regex` used to share the `pattern` keyword's compile path,
+which tries `u` mode and falls back to no-flag. It now uses `u` mode
+alone, so a value that is a legal regex only outside `u` mode is
+rejected. Annex B identity escapes are the case that shows up: `\a`
+compiles without the flag and is a SyntaxError with it.
+
+The `pattern` keyword is unchanged and keeps the fallback. The asymmetry
+is intentional. They ask different questions:
+
+- `format: regex` asserts about a **data value**: is this string a valid
+  ECMA-262 regular expression? One that needs Annex B is not.
+- `pattern` consumes **spec input**. Refusing it means the document
+  cannot be opened at all, rather than one value failing validation, and
+  real specs carry patterns that only compile without the flag.
+
+If you want one policy for both, supply `regexCompiler`. It still
+governs the format:
+
+```ts
+createValidator(spec, { regexCompiler: (p) => new RegExp(p) }); // no u-mode anywhere
+```
+
 ## Breaking: `fromAjvFormats` routes `type: "number"`
 
 Its return type widens the same way, and its behaviour changes for one
@@ -174,3 +263,8 @@ See [strictness.md](./strictness.md#which-findings-you-get---findings).
 3. Grep your Ajv format map for `type: "number"`. Those definitions now
    run against numbers.
 4. If you need a numeric format off, `formats: { int64: false }`.
+5. Grep your specs for `format: uri` and `format: uri-reference`. A
+   field whose values carry `|`, `^`, a backtick, `{}` or non-ASCII
+   wants `iri` / `iri-reference` instead.
+6. Grep for `format: duration`. A value that skips a unit (`P1Y2D`) or
+   carries a fraction (`PT0.5S`) is now rejected.

@@ -169,24 +169,26 @@ jobs:
       - name: OpenAPI conformance cases
         working-directory: conformance
         run: pnpm tsx run-openapi-cases.ts
-      - name: clone Overlay-Specification
+      - name: clone Overlay-Specification at its pin
         working-directory: conformance
-        run: git clone --depth 1 https://github.com/OAI/Overlay-Specification.git
+        run: pnpm corpora:overlay
       - name: OpenAPI Overlay 1.0 suite
         working-directory: conformance
         run: pnpm tsx run-overlay-suite.ts --check-baseline
-      - name: clone JSONTestSuite
+      - name: clone JSONTestSuite at its pin
         working-directory: conformance
-        run: git clone --depth 1 https://github.com/nst/JSONTestSuite.git
+        run: pnpm corpora:json-parse
       - name: JSON parser-conformance suite (stream-validator tokenizer)
         working-directory: conformance
         run: pnpm tsx run-json-parse-suite.ts --check-baseline
 
   json-schema-suite:
-    # Full upstream JSON Schema Test Suite. Runs nightly and on
-    # workflow_dispatch — not on every PR, because the suite is ~1300
-    # cases and its clone is ~15 MB. Fails only when the current pass
-    # count regresses below the committed baseline.
+    # Full upstream JSON Schema Test Suite, plus the optional/format
+    # corpus. Runs nightly and on workflow_dispatch, not on every PR,
+    # because the suite is ~1300 cases and its clone is ~15 MB; the
+    # format corpus shares that clone, so it rides along here rather
+    # than paying for it again in the PR job. Both fail only against
+    # their committed baseline.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
@@ -202,12 +204,43 @@ jobs:
       - name: install conformance deps
         working-directory: conformance
         run: pnpm install --frozen-lockfile
-      - name: clone upstream suite
+      - name: clone upstream suite at its pin
         working-directory: conformance
-        run: git clone --depth 1 https://github.com/json-schema-org/JSON-Schema-Test-Suite.git
+        run: pnpm corpora:json-schema
       - name: JSON Schema suite (required)
         working-directory: conformance
         run: pnpm tsx run-json-schema-suite.ts --check-baseline
+      - name: format corpus (optional/format under an asserting dialect)
+        working-directory: conformance
+        run: pnpm tsx run-format-suite.ts --check-baseline
+
+  corpus-freshness:
+    # The pin in corpora.json makes the committed baselines reproducible.
+    # On its own it would also make the corpora invisible: a frozen suite
+    # means the runs above go green forever while upstream adds cases we
+    # have never been measured against. This job is the other half. It
+    # reports which pins are behind and what landed.
+    #
+    # Its own job on purpose. Being behind upstream is a maintenance
+    # signal rather than a defect, and folding it into the runs above
+    # would turn them red for a reason that is not a regression.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: install conformance deps
+        working-directory: conformance
+        run: pnpm install --frozen-lockfile
+      - name: are the pinned corpora behind upstream?
+        working-directory: conformance
+        run: pnpm tsx check-corpus-freshness.ts
 
   pack-smoke:
     # Catches `exports` map / `files` / bundler regressions that unit

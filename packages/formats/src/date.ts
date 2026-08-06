@@ -11,7 +11,34 @@ const DATE_TIME_RE =
 
 /** Minutes past midnight of the last minute of a UTC day, `23:59`. */
 const LAST_MINUTE_UTC = 23 * 60 + 59;
-const DURATION_RE = /^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+(?:\.\d+)?S)?)?$/;
+/**
+ * RFC 3339 Appendix A `duration`, composed from the ABNF.
+ *
+ * The nesting is the point, and a flat run of optional components does
+ * not express it: each unit carries **only the next smaller one**, so a
+ * missing middle unit is a syntax error rather than an implied zero.
+ * `P1Y2D` is invalid because `dur-year` reaches days only through
+ * `dur-month`, and `PT1H2S` is invalid because `dur-hour` reaches
+ * seconds only through `dur-minute`.
+ *
+ * `dur-week` is its own alternative at the top, so weeks combine with
+ * nothing, not even a zero-valued component (`P0Y1W`) or a time part
+ * (`P1WT1H`). And no component takes a fraction: `PT0.5S` is ISO 8601
+ * but not RFC 3339.
+ */
+const DURATION_RE = (() => {
+  const digits = "[0-9]+";
+  const second = `${digits}S`;
+  const minute = `${digits}M(?:${second})?`;
+  const hour = `${digits}H(?:${minute})?`;
+  const time = `T(?:${hour}|${minute}|${second})`;
+  const day = `${digits}D`;
+  const month = `${digits}M(?:${day})?`;
+  const year = `${digits}Y(?:${month})?`;
+  const date = `(?:${year}|${month}|${day})(?:${time})?`;
+  const week = `${digits}W`;
+  return new RegExp(`^P(?:${date}|${time}|${week})$`);
+})();
 
 function isValidMonthDay(year: number, month: number, day: number): boolean {
   if (month < 1 || month > 12) return false;
@@ -114,7 +141,11 @@ export function validateDateTime(value: string): boolean {
 }
 
 /**
- * ISO 8601 `duration` (e.g. `"P1Y2M10DT2H30M"`).
+ * RFC 3339 `duration` (e.g. `"P1Y2M10DT2H30M"`).
+ *
+ * Stricter than ISO 8601, which JSON Schema's `duration` is defined
+ * against: unit ordering is enforced, weeks stand alone, and no
+ * component may carry a fraction. See {@link DURATION_RE}.
  *
  * @public
  */

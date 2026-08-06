@@ -6,10 +6,11 @@ Run against three upstream / hand-curated test corpora:
 
 - **JSON Schema Test Suite**: the canonical draft-2020-12 cases at
   <https://github.com/json-schema-org/JSON-Schema-Test-Suite>,
-  cloned into `conformance/JSON-Schema-Test-Suite/` by `pnpm setup`.
+  cloned at a pinned revision into
+  `conformance/JSON-Schema-Test-Suite/` by `pnpm corpora`.
 - **OpenAPI Overlay 1.0 Test Suite**: the envelope-schema fixtures
   at <https://github.com/OAI/Overlay-Specification>, cloned into
-  `conformance/Overlay-Specification/` by `pnpm setup:overlay`.
+  `conformance/Overlay-Specification/` by `pnpm corpora:overlay`.
 - **OpenAPI cases**: hand-curated request/response scenarios under
   `conformance/openapi-cases/<group>/`, covering the petstore shape
   across 3.0, 3.1, and 3.2.
@@ -78,22 +79,32 @@ cases (5 mismatch + 4 error):
 
 All other optional files pass, including `dynamicRef.json` since #663.
 
-The per-format subtree (`optional/format/*.json`) still isn't traversed
-by our runner, and the reason has been measured rather than assumed.
-The subtree is 712 cases across 21 formats, of which 363 expect a
-rejection. By spec default and ours, `format` is annotation-only, so
-those 363 vacuously fail for every implementation that follows the
-default: a Bowtie run across ajv, hyperjump, boon, go-jsonschema and
+The per-format subtree (`optional/format/*.json`) has its own runner,
+`pnpm format-suite`, because `suite:optional` cannot measure it. The
+subtree is 720 cases across 21 formats, of which 363 expect a rejection.
+By spec default and ours, `format` is annotation-only, so those 363
+vacuously fail for every implementation that follows the default: a
+Bowtie run across ajv, hyperjump, boon, go-jsonschema and
 python-jsonschema returns the same 363 failures for all of them, with
-zero divergence between any two.
+zero divergence between any two. No published comparative format number
+exists for anyone, which is why this one is measured locally.
 
-Driving the engine directly with assertion on (the OpenAPI 3.1 dialect
-promotes `format` to an assertion) scores **605/712**. The gap is
-concentrated rather than spread: `hostname` and `idn-hostname` account
-for 56 of the 107 failures and are almost entirely IDNA / UTS-46 rules,
-while `duration`, `date-time` and `time` are bounded RFC 3339 details.
-Wiring that up as a gated runner is still a separate exercise, and it
-now has a baseline to ratchet from.
+`format-suite` compiles with the OpenAPI 3.1 dialect, which promotes
+`format` to an assertion, and scores **629/720**. It reports the two
+directions separately, because they carry different consequences: 63
+**false accepts** (we allowed a value the format forbids, a missed
+catch) and 28 **false rejects** (we refused a value the format allows,
+which under the OpenAPI dialects refuses live traffic).
+
+The gap is concentrated rather than spread. `hostname` and
+`idn-hostname` are 56 of the 91 failures and are almost entirely
+IDNA / UTS-46 rules, deliberately punted. The rest are bounded:
+`uri` / `uri-reference` / `iri-reference` character and host handling,
+`duration` RFC 3339 ABNF ordering, `email` RFC 5321 quoted local parts
+and address literals, and one `regex` case.
+
+`format-results.json` is the committed baseline, gated per format so a
+fix in one cannot pay for a regression in another.
 
 ## OpenAPI Overlay 1.0
 
@@ -151,8 +162,7 @@ workspace install). Bootstrap it once, then run the harness:
 ```bash
 cd conformance
 pnpm install
-pnpm setup                      # clones JSON-Schema-Test-Suite (gitignored)
-pnpm setup:overlay              # clones Overlay-Specification   (gitignored)
+pnpm corpora                    # clones all three corpora at their pins
 cd ..
 pnpm build                      # builds the CLI the OpenAPI runner shells out to
 

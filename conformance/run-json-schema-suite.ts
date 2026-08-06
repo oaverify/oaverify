@@ -24,6 +24,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { resolve, join, basename } from "node:path";
+import { assertPinned, corpusPath } from "./corpora.ts";
 import { compileSchema, jsonSchemaDialect } from "../packages/schema/src/index.ts";
 import { builtInFormats } from "../packages/formats/src/index.ts";
 
@@ -54,10 +55,15 @@ interface FileResult {
   }>;
 }
 
-const SUITE_ROOT = resolve(new URL(".", import.meta.url).pathname, "JSON-Schema-Test-Suite");
+const SUITE = "JSON-Schema-Test-Suite";
+const SUITE_ROOT = corpusPath(SUITE);
 const TESTS_DIR = join(SUITE_ROOT, "tests", "draft2020-12");
 const REMOTES_DIR = join(SUITE_ROOT, "remotes");
 const REMOTE_BASE = "http://localhost:1234";
+
+// Baselines were measured at the pin in corpora.json; refuse to report
+// numbers from a different revision.
+assertPinned(SUITE);
 
 function loadRemoteSchemas(): Map<string, unknown> {
   const map = new Map<string, unknown>();

@@ -29,15 +29,21 @@
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join, basename } from "node:path";
+import { assertPinned, corpusPath } from "./corpora.ts";
 import { parse as parseYaml } from "yaml";
 import { compileSchema, jsonSchemaDialect } from "../packages/schema/src/index.ts";
 import { builtInFormats } from "../packages/formats/src/index.ts";
 import { translateOverlay, UnrecognisedTargetError } from "../packages/overlay-spec/src/index.ts";
 
-const SUITE_ROOT = resolve(new URL(".", import.meta.url).pathname, "Overlay-Specification");
+const SUITE = "Overlay-Specification";
+const SUITE_ROOT = corpusPath(SUITE);
 const SCHEMA_PATH = join(SUITE_ROOT, "schemas", "v1.0", "schema.yaml");
 const PASS_DIR = join(SUITE_ROOT, "tests", "v1.0", "pass");
 const FAIL_DIR = join(SUITE_ROOT, "tests", "v1.0", "fail");
+
+// Baselines were measured at the pin in corpora.json; refuse to report
+// numbers from a different revision.
+assertPinned(SUITE);
 
 interface CaseResult {
   file: string;
@@ -66,7 +72,7 @@ const filterPattern = filterArg?.slice("--filter=".length);
 function loadOverlaySchema(): unknown {
   if (!existsSync(SCHEMA_PATH)) {
     console.error(
-      `Overlay schema not found at ${SCHEMA_PATH}. Run \`pnpm setup:overlay\` from conformance/ first.`,
+      `Overlay schema not found at ${SCHEMA_PATH}. Run \`pnpm corpora:overlay\` from conformance/ first.`,
     );
     process.exit(2);
   }

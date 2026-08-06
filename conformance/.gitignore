@@ -2,11 +2,17 @@ node_modules/
 JSON-Schema-Test-Suite/
 JSONTestSuite/
 Overlay-Specification/
-# json-schema-results.json and overlay-results.json are committed
-# baselines that the respective runners compare against in CI with
-# --check-baseline. The --optional variant of the JSON Schema suite
-# is still gitignored — we don't track that baseline because the
-# optional suite is a moving target we don't claim conformance
-# against.
+# json-schema-results.json, format-results.json and overlay-results.json
+# are committed baselines that the respective runners compare against in
+# CI with --check-baseline. The --optional variant of the JSON Schema
+# suite is still gitignored: we don't track that baseline because the
+# optional suite is a moving target we don't claim conformance against.
+#
+# format-results.json is the exception to that rule and is tracked, even
+# though optional/format sits under the same optional/ tree. Two reasons.
+# The corpus is pinned in corpora.json, so it stops being a moving
+# target. And we do make a claim about format behavior: REPORT.md carries
+# the headline number, and under the OpenAPI dialects format is an
+# assertion, so a false reject there refuses real traffic.
 json-schema-results-with-optional.json
 openapi-results.json
