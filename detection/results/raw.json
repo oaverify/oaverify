@@ -779,6 +779,125 @@
       ]
     }
   },
+  "lint/enum-type-mismatch": {
+    "oaverify": {
+      "findings": [
+        {
+          "rule": "unsatisfiable/enum-member-type",
+          "message": "\"enum\" at \"properties.status\" has 3 members that \"type\": string can never admit: [0] 1, [1] 2, [2] 3; every member is dead, so no value validates here",
+          "location": "GET /things 200 response body (application/json) -> properties.status",
+          "severity": "warn"
+        }
+      ]
+    },
+    "ajv": {
+      "findings": []
+    },
+    "spectral": {
+      "findings": [
+        {
+          "rule": "oas3-api-servers",
+          "message": "OpenAPI \"servers\" must be present and non-empty array.",
+          "location": "",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-contact",
+          "message": "Info object must have \"contact\" object.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-description",
+          "message": "Info \"description\" must be present and non-empty string.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-description",
+          "message": "Operation \"description\" must be present and non-empty string.",
+          "location": "paths//things/get",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-tags",
+          "message": "Operation must have non-empty \"tags\" array.",
+          "location": "paths//things/get",
+          "severity": "warn"
+        },
+        {
+          "rule": "typed-enum",
+          "message": "Enum value 1 must be \"string\".",
+          "location": "paths//things/get/responses/200/content/application/json/schema/properties/status/enum/0",
+          "severity": "warn"
+        },
+        {
+          "rule": "typed-enum",
+          "message": "Enum value 2 must be \"string\".",
+          "location": "paths//things/get/responses/200/content/application/json/schema/properties/status/enum/1",
+          "severity": "warn"
+        },
+        {
+          "rule": "typed-enum",
+          "message": "Enum value 3 must be \"string\".",
+          "location": "paths//things/get/responses/200/content/application/json/schema/properties/status/enum/2",
+          "severity": "warn"
+        }
+      ]
+    },
+    "redocly": {
+      "findings": [
+        {
+          "rule": "no-empty-servers",
+          "message": "Servers must be present.",
+          "location": "#/openapi",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-summary",
+          "message": "Operation object should contain `summary` field.",
+          "location": "#/paths/~1things/get/summary",
+          "severity": "error"
+        },
+        {
+          "rule": "no-enum-type-mismatch",
+          "message": "All values of `enum` field must be of the same type as the `type` field: expected \"string\" but received \"integer\".",
+          "location": "#/paths/~1things/get/responses/200/content/application~1json/schema/properties/status/enum/0",
+          "severity": "error"
+        },
+        {
+          "rule": "no-enum-type-mismatch",
+          "message": "All values of `enum` field must be of the same type as the `type` field: expected \"string\" but received \"integer\".",
+          "location": "#/paths/~1things/get/responses/200/content/application~1json/schema/properties/status/enum/1",
+          "severity": "error"
+        },
+        {
+          "rule": "no-enum-type-mismatch",
+          "message": "All values of `enum` field must be of the same type as the `type` field: expected \"string\" but received \"integer\".",
+          "location": "#/paths/~1things/get/responses/200/content/application~1json/schema/properties/status/enum/2",
+          "severity": "error"
+        },
+        {
+          "rule": "security-defined",
+          "message": "Every operation should have security defined on it or on the root level.",
+          "location": "#/paths/~1things/get",
+          "severity": "error"
+        },
+        {
+          "rule": "info-license",
+          "message": "Info object should contain `license` field.",
+          "location": "#/info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-4xx-response",
+          "message": "Operation must have at least one `4XX` response.",
+          "location": "#/paths/~1things/get/responses",
+          "severity": "warn"
+        }
+      ]
+    }
+  },
   "lint/ref-siblings-oas30": {
     "oaverify": {
       "findings": [
@@ -1127,18 +1246,6 @@
           "rule": "additionalProperties",
           "message": "additional property \"prefixItems\" is not allowed",
           "location": "/paths/~1things/get/responses/200/content/application~1json/schema/prefixItems",
-          "severity": "warn"
-        },
-        {
-          "rule": "required",
-          "message": "must have required property \"$ref\"",
-          "location": "/paths/~1things/get/responses/200/content/application~1json/schema/$ref",
-          "severity": "warn"
-        },
-        {
-          "rule": "required",
-          "message": "must have required property \"$ref\"",
-          "location": "/paths/~1things/get/responses/200/$ref",
           "severity": "warn"
         }
       ]
@@ -1723,7 +1830,7 @@
       "findings": [
         {
           "rule": "example-invalid",
-          "message": "oaverify rejects \"example\" against its schema: count: must be integer (example: {\"count\":\"not-an-integer\"})",
+          "message": "oaverify rejects \"example\" against its schema: count: must be integer (actual: string) (example: {\"count\":\"not-an-integer\"})",
           "location": "/paths/~1things/get/responses/200/content/application~1json/example",
           "severity": "warn"
         }

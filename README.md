@@ -285,6 +285,15 @@ comparison, and the methodology; raw benchmark data lives in
 Migrating from `express-openapi-validator`:
 [docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md).
 
+`oaverify check` is a different comparison, against spec linters rather
+than runtime validators.
+[`detection/`](https://github.com/oaverify/oaverify/blob/main/detection/README.md)
+is a labelled corpus for it: minimal documents carrying one seeded defect
+each, run through oaverify, Spectral, Redocly and Ajv, where a tool
+scores only when it reports that document's defect. It shows what each
+tool can catch, not how often the defect occurs, and the cases oaverify
+misses are in there too.
+
 ## Conformance
 
 The [`conformance/`](https://github.com/oaverify/oaverify/blob/main/conformance/README.md) sub-package drives the

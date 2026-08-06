@@ -48,6 +48,12 @@
 - spectral: no matching finding (5 raised)
 - **redocly**: no-required-schema-properties-undefined: Required property 'total' is not defined. [#/components/schemas/Item/required/1]
 
+## `lint/enum-type-mismatch` (lint)
+- **oaverify**: unsatisfiable/enum-member-type: "enum" at "properties.status" has 3 members that "type": string can never admit: [0] 1, [1] 2, [2] 3; every member is dead, so no value validates here [GET /things 200 response body (application/json) -> properties.status]
+- ajv: no matching finding (0 raised)
+- **spectral**: typed-enum: Enum value 1 must be "string". [paths//things/get/responses/200/content/application/json/schema/properties/status/enum/0]
+- **redocly**: no-enum-type-mismatch: All values of `enum` field must be of the same type as the `type` field: expected "string" but received "integer". [#/paths/~1things/get/responses/200/content/application~1json/schema/properties/status/enum/0]
+
 ## `lint/ref-siblings-oas30` (lint)
 - **oaverify**: silent-rewrite/ref-siblings-oas30: OAS 3.0: "required" sibling of $ref at <root> is silently dropped (only description/summary survive) [GET /things 200 response body (application/json) -> <root>]
 - ajv: no matching finding (1 raised)
@@ -109,7 +115,7 @@
 - **redocly**: security-defined: There is no `notDefinedAnywhere` security scheme defined. [#/paths/~1things/get/security/0/notDefinedAnywhere]
 
 ## `style/example-contradicts-schema` (style)
-- **oaverify**: example-invalid: oaverify rejects "example" against its schema: count: must be integer (example: {"count":"not-an-integer"}) [/paths/~1things/get/responses/200/content/application~1json/example]
+- **oaverify**: example-invalid: oaverify rejects "example" against its schema: count: must be integer (actual: string) (example: {"count":"not-an-integer"}) [/paths/~1things/get/responses/200/content/application~1json/example]
 - ajv: no matching finding (0 raised)
 - **spectral**: oas3-valid-media-example: "count" property type must be integer [paths//things/get/responses/200/content/application/json/example/count]
 - **redocly**: no-invalid-media-type-examples: Example value must conform to the schema: `count` property type must be integer. [#/paths/~1things/get/responses/200/content/application~1json/example/count]
