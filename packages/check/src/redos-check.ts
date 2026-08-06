@@ -78,7 +78,7 @@ const PATTERN_ECHO_LIMIT = 60;
  * than `u` is skipped for the same reason the other pattern rules skip
  * it: the two readings disagree about what some constructs mean.
  */
-function ambiguityWitness(pattern: string): string | undefined {
+export function ambiguityWitness(pattern: string): string | undefined {
   let regexp: RegExp;
   try {
     regexp = new RegExp(pattern, "u");

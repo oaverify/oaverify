@@ -155,3 +155,45 @@ describe("checkSpec", () => {
     });
   });
 });
+
+describe("examples pass under a catastrophic pattern (#687)", () => {
+  // The beezup shape: an ambiguous pattern beside an example that does
+  // not match it. Without the guard this test does not fail, it hangs;
+  // completing under vitest's timeout is the load-bearing assertion.
+  const AMBIGUOUS = "^(https?:\\/\\/)?([\\da-z\\.-]+)\\.([a-z\\.]{2,6})([\\/\\w \\.-]*)*\\/?$";
+  const spec = {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1.0.0" },
+    paths: {
+      "/things": {
+        post: {
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: { type: "string", pattern: AMBIGUOUS },
+                example: "https://www.example.com/avatar/205e460b479e2e5b48aec07710c08d50?d=mm",
+              },
+            },
+          },
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+
+  it("reports the example uncheckable and the pattern ambiguous, and terminates", async () => {
+    const resolved = await resolve([["entry.json", spec]]);
+    const findings = checkSpec(resolved);
+    const uncheckable = findings.filter((f) => f.code === "example-uncheckable");
+    expect(uncheckable).toHaveLength(1);
+    expect(uncheckable[0]?.message).toContain("superlinear");
+    expect(findings.some((f) => f.code === "ambiguous-pattern")).toBe(true);
+  });
+
+  it("stays protected when only the examples class is selected", async () => {
+    const resolved = await resolve([["entry.json", spec]]);
+    const findings = checkSpec(resolved, { findings: selectionForClasses(["examples"]) });
+    expect(findings.some((f) => f.code === "example-uncheckable")).toBe(true);
+    expect(findings.some((f) => f.code === "ambiguous-pattern")).toBe(false);
+  });
+});

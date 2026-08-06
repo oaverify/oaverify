@@ -1014,3 +1014,75 @@ describe("what it builds, and when (#611)", () => {
     expect(issues[0]?.reasons.map((r) => r.path.join("."))).toEqual(["a", "b"]);
   });
 });
+
+describe("the pattern guard (#687)", () => {
+  // A textbook catastrophic backtracker paired with a value that does
+  // not match it. Executed, this pair hangs the process; every test
+  // below completing at all is the real assertion.
+  const AMBIGUOUS = "^(https?:\\/\\/)?([\\da-z\\.-]+)\\.([a-z\\.]{2,6})([\\/\\w \\.-]*)*\\/?$";
+  const NON_MATCHING = "https://www.example.com/avatar/205e460b479e2e5b48aec07710c08d50?d=mm";
+  const guard = (pattern: string) => pattern === AMBIGUOUS;
+
+  it("reports the example as uncheckable instead of executing the pattern", () => {
+    const issues = checkDocumentExamples(
+      withJsonBody({
+        schema: { type: "string", pattern: AMBIGUOUS, example: NON_MATCHING },
+      }),
+      { patternGuard: guard },
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.code).toBe("example-uncheckable");
+    expect(issues[0]?.message).toContain("superlinear");
+    expect(issues[0]?.message).toContain("([\\da-z");
+  });
+
+  it("finds a guarded pattern behind a $ref", () => {
+    const document = doc({
+      paths: {
+        "/things": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/Url" },
+                  example: NON_MATCHING,
+                },
+              },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: {
+        schemas: { Url: { type: "string", pattern: AMBIGUOUS } },
+      },
+    });
+    const issues = checkDocumentExamples(document, { patternGuard: guard });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.code).toBe("example-uncheckable");
+  });
+
+  it("does not descend into literal values looking for patterns", () => {
+    // A `pattern` key inside an example object is data, not a
+    // constraint; the guard must not fire on it.
+    const issues = checkDocumentExamples(
+      withJsonBody({
+        schema: {
+          type: "object",
+          example: { pattern: AMBIGUOUS },
+        },
+      }),
+      { patternGuard: guard },
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("leaves unguarded schemas validating as before", () => {
+    const issues = checkDocumentExamples(
+      withJsonBody({ schema: { type: "string", pattern: "^[a-z]+$", example: "NOPE" } }),
+      { patternGuard: guard },
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.code).toBe("example-invalid");
+  });
+});

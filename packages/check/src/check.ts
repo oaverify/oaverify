@@ -19,7 +19,7 @@ import type { SchemaLintIssue } from "@oaverify/internal-schema";
 import { checkDocumentExamples, createValidator } from "@oaverify/internal-validator";
 import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
 import { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
-import { checkDocumentRedos } from "./redos-check.js";
+import { ambiguityWitness, checkDocumentRedos } from "./redos-check.js";
 import { type CheckFinding, type FindingTarget } from "./finding.js";
 import {
   FORMAT_WALK_CODE,
@@ -316,7 +316,25 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     // Separate class also gives the cost its own switch: this is the
     // one check that compiles schemas of its own accord, so
     // `--only hygiene,schema` opts out of it.
-    for (const issue of checkDocumentExamples(document)) {
+    //
+    // The guard hands the pass the same ambiguity analysis the redos
+    // class runs, so an example whose schema reaches a catastrophic
+    // pattern is reported as uncheckable instead of executed (#687:
+    // a non-matching example against such a pattern hangs the
+    // process). Wired here regardless of whether the redos class is
+    // selected: `--findings examples` has to be protected too, so the
+    // shared thing is the analysis, not the selection. Cached per
+    // pattern source; the analysis is the expensive part.
+    const ambiguity = new Map<string, boolean>();
+    const patternGuard = (pattern: string): boolean => {
+      let verdict = ambiguity.get(pattern);
+      if (verdict === undefined) {
+        verdict = ambiguityWitness(pattern) !== undefined;
+        ambiguity.set(pattern, verdict);
+      }
+      return verdict;
+    };
+    for (const issue of checkDocumentExamples(document, { patternGuard })) {
       findings.push({
         class: "examples",
         severity: defaultSeverityFor("examples", issue.code),

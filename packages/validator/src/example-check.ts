@@ -68,8 +68,11 @@ import { escapePointer, walkDocumentSchemas } from "./document-walk.js";
 export interface ExampleIssue {
   /**
    * - `"example-invalid"`: the schema rejects the example.
-   * - `"example-uncheckable"`: the validator threw, so nothing is known
-   *   about the example either way.
+   * - `"example-uncheckable"`: nothing is known about the example
+   *   either way: the validator threw, or executing it was refused
+   *   because the schema reaches a pattern the caller's
+   *   {@link CheckDocumentExamplesOptions.patternGuard} marked unsafe
+   *   to run (#687).
    */
   code: "example-invalid" | "example-uncheckable";
   /**
@@ -321,6 +324,21 @@ export interface CheckDocumentExamplesOptions {
    * these schemas under.
    */
   dialect?: Dialect;
+  /**
+   * Screen for `pattern` sources that must not be executed. Called once
+   * per distinct pattern reachable from an example's schema ($refs
+   * followed); returning `true` reports the example as
+   * `example-uncheckable` instead of validating it.
+   *
+   * This is the ReDoS guard (#687): validating an example runs its
+   * schema's patterns against the example value, and a catastrophic
+   * pattern paired with a non-matching example hangs the process. The
+   * caller supplies the verdict (the `check` package backs it with the
+   * same analysis its redos pass uses) so this package does not grow an
+   * analyser dependency. Unset, nothing is screened, which matches the
+   * pre-guard behavior.
+   */
+  patternGuard?: (pattern: string) => boolean;
 }
 
 /**
@@ -466,6 +484,29 @@ export function checkDocumentExamples(
     const cached = compiled.get(schema);
     if (cached !== undefined) return cached;
 
+    // The ReDoS guard, ahead of the compile: executing a validator runs
+    // its patterns against the example value, so a schema that reaches
+    // a guarded pattern is never executed at all. The example is
+    // reported as uncheckable, which is the truth: nothing is known
+    // about it either way, and running the check is not safe (#687).
+    if (options.patternGuard !== undefined) {
+      const guarded = findGuardedPattern(schema, refResolver, options.patternGuard);
+      if (guarded !== undefined) {
+        const echoed =
+          guarded.length <= VALUE_ECHO_LIMIT ? guarded : `${guarded.slice(0, VALUE_ECHO_LIMIT)}...`;
+        const check: ExampleCheck = () => ({
+          code: "example-uncheckable",
+          summary:
+            `its schema reaches the pattern "${echoed}", whose worst-case matching ` +
+            `time is superlinear, so the example was not run against it ` +
+            `(the redos class reports the pattern itself)`,
+          reasons: [],
+        });
+        compiled.set(schema, check);
+        return check;
+      }
+    }
+
     let checkers: ExampleCheckers;
     try {
       checkers = {
@@ -572,4 +613,68 @@ function lazyDocumentRefResolver(document: OpenAPIDocument): RefResolver {
  */
 function dialectForDocument(document: OpenAPIDocument): Dialect {
   return detectOpenAPIVersion(document) === "3.0" ? oas30Dialect : openapi31Dialect;
+}
+
+/**
+ * Literal-value keywords whose contents are data, not subschemas; the
+ * guard walk does not descend into them, so a `pattern` key inside an
+ * example object is not mistaken for a constraint.
+ */
+const LITERAL_KEYWORDS = new Set(["enum", "const", "default", "example", "examples"]);
+
+/**
+ * First guarded `pattern` reachable from `schema`, following `$ref`
+ * through the document resolver with a cycle guard.
+ *
+ * The walk is deliberately over-approximate: it recurses into every
+ * nested object and array outside {@link LITERAL_KEYWORDS}, collecting
+ * `pattern` string values and `patternProperties` keys, without
+ * modelling which keyword each node sits under. A false hit skips a
+ * validation that would have been safe, which is the cheap direction
+ * to be wrong in; a miss hangs the process (#687).
+ */
+function findGuardedPattern(
+  node: unknown,
+  refResolver: RefResolver,
+  guard: (pattern: string) => boolean,
+  visited: Set<unknown> = new Set(),
+): string | undefined {
+  if (typeof node !== "object" || node === null) return undefined;
+  if (visited.has(node)) return undefined;
+  visited.add(node);
+  if (Array.isArray(node)) {
+    for (const entry of node) {
+      const hit = findGuardedPattern(entry, refResolver, guard, visited);
+      if (hit !== undefined) return hit;
+    }
+    return undefined;
+  }
+  const obj = node as Record<string, unknown>;
+  const pattern = obj["pattern"];
+  if (typeof pattern === "string" && guard(pattern)) return pattern;
+  const patternProperties = obj["patternProperties"];
+  if (isObj(patternProperties)) {
+    for (const key of Object.keys(patternProperties)) {
+      if (guard(key)) return key;
+    }
+  }
+  const ref = obj["$ref"];
+  if (typeof ref === "string") {
+    let target: unknown;
+    try {
+      target = refResolver.resolve(ref);
+    } catch {
+      // Unresolvable here means uncompilable later; the existing
+      // uncheckable path reports that with the real error.
+      target = undefined;
+    }
+    const hit = findGuardedPattern(target, refResolver, guard, visited);
+    if (hit !== undefined) return hit;
+  }
+  for (const [key, value] of Object.entries(obj)) {
+    if (LITERAL_KEYWORDS.has(key)) continue;
+    const hit = findGuardedPattern(value, refResolver, guard, visited);
+    if (hit !== undefined) return hit;
+  }
+  return undefined;
 }
