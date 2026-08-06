@@ -170,6 +170,27 @@ usually `format: iri` or `format: iri-reference`. To opt out of the
 assertion entirely, `formats: { uri: false }` registers the name and
 checks nothing.
 
+## Breaking: `duration` enforces RFC 3339 unit ordering
+
+JSON Schema defines `duration` against RFC 3339 Appendix A, whose ABNF
+nests the units: each one carries only the next smaller one, weeks are
+their own alternative, and nothing takes a fraction. The old pattern
+accepted any subset of components in order, which is the looser ISO 8601
+reading.
+
+| Value    | Before   | Now      | Why                                    |
+| -------- | -------- | -------- | -------------------------------------- |
+| `P1Y2D`  | accepted | rejected | days reachable only through months     |
+| `PT1H2S` | accepted | rejected | seconds reachable only through minutes |
+| `P1Y2W`  | accepted | rejected | weeks combine with nothing             |
+| `P0Y1W`  | accepted | rejected | including a zero-valued component      |
+| `P1WT1H` | accepted | rejected | including a time part                  |
+| `PT0.5S` | accepted | rejected | no component takes a fraction          |
+
+`P1Y2M3D` and `PT1H2M3S` are unaffected: spelling the intervening unit
+is what the grammar asks for. If you need the looser reading, register
+your own: `formats: { duration: (v) => myIso8601Check(v) }`.
+
 ## Breaking: `fromAjvFormats` routes `type: "number"`
 
 Its return type widens the same way, and its behaviour changes for one
@@ -221,3 +242,5 @@ See [strictness.md](./strictness.md#which-findings-you-get---findings).
 5. Grep your specs for `format: uri` and `format: uri-reference`. A
    field whose values carry `|`, `^`, a backtick, `{}` or non-ASCII
    wants `iri` / `iri-reference` instead.
+6. Grep for `format: duration`. A value that skips a unit (`P1Y2D`) or
+   carries a fraction (`PT0.5S`) is now rejected.

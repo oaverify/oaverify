@@ -48,12 +48,66 @@ describe("date / time / date-time / duration", () => {
     expect(validateDateTime("2024-01-31 12:34:56Z")).toBe(false);
   });
 
-  it("accepts ISO 8601 durations", () => {
+  it("accepts RFC 3339 durations", () => {
     expect(validateDuration("P1Y")).toBe(true);
     expect(validateDuration("P1Y2M10DT2H30M")).toBe(true);
     expect(validateDuration("P")).toBe(false);
     expect(validateDuration("PT")).toBe(false);
     expect(validateDuration("nope")).toBe(false);
+  });
+});
+
+describe("duration (RFC 3339 ABNF ordering)", () => {
+  // Each unit carries only the next smaller one, so an absent middle
+  // unit is a syntax error rather than an implied zero.
+  it("requires the intervening unit", () => {
+    expect(validateDuration("P1Y2M3D")).toBe(true);
+    expect(validateDuration("P1Y2D")).toBe(false);
+    expect(validateDuration("PT1H2M3S")).toBe(true);
+    expect(validateDuration("PT1H2S")).toBe(false);
+  });
+
+  it("keeps each unit optional at the outside", () => {
+    for (const value of ["P1Y", "P1M", "P1D", "PT1H", "PT1M", "PT1S", "P1M2D", "PT2M3S"]) {
+      expect(validateDuration(value), value).toBe(true);
+    }
+  });
+
+  // `dur-week` is its own top-level alternative, so it combines with
+  // nothing: not another date unit, not a zero-valued one, not a time.
+  it("only accepts weeks alone", () => {
+    expect(validateDuration("P1W")).toBe(true);
+    expect(validateDuration("P1Y2W")).toBe(false);
+    expect(validateDuration("P0Y1W")).toBe(false);
+    expect(validateDuration("P1WT1H")).toBe(false);
+    expect(validateDuration("P1W2D")).toBe(false);
+  });
+
+  it("rejects a fractional component", () => {
+    expect(validateDuration("PT0.5S")).toBe(false);
+    expect(validateDuration("PT1.5H")).toBe(false);
+    expect(validateDuration("P0.5Y")).toBe(false);
+  });
+
+  it("rejects a sign, an exponent, and stray whitespace", () => {
+    expect(validateDuration("-P1Y")).toBe(false);
+    expect(validateDuration("P-1Y")).toBe(false);
+    expect(validateDuration("P1e3Y")).toBe(false);
+    expect(validateDuration("P1Y\n")).toBe(false);
+    expect(validateDuration("P1D T1H")).toBe(false);
+  });
+
+  it("rejects a bare number with no unit", () => {
+    expect(validateDuration("P1")).toBe(false);
+    expect(validateDuration("P1T1H")).toBe(false);
+    expect(validateDuration("PT1")).toBe(false);
+  });
+
+  it("accepts multi-digit and zero components", () => {
+    expect(validateDuration("P100Y")).toBe(true);
+    expect(validateDuration("P0D")).toBe(true);
+    expect(validateDuration("PT0S")).toBe(true);
+    expect(validateDuration("P0W")).toBe(true);
   });
 });
 

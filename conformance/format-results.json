@@ -20,48 +20,11 @@
   {
     "format": "duration",
     "cases": 52,
-    "pass": 46,
-    "falseAccept": 6,
+    "pass": 52,
+    "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "validation of duration strings",
-        "test": "weeks cannot be combined with other units",
-        "data": "P1Y2W",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of duration strings",
-        "test": "fractional duration is not allowed by RFC 3339 ABNF",
-        "data": "PT0.5S",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of duration strings",
-        "test": "years and days cannot appear without months",
-        "data": "P1Y2D",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of duration strings",
-        "test": "hours and seconds cannot appear without minutes",
-        "data": "PT1H2S",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of duration strings",
-        "test": "weeks cannot be combined with a time component",
-        "data": "P1WT1H",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of duration strings",
-        "test": "weeks cannot be combined with a zero-valued component",
-        "data": "P0Y1W",
-        "direction": "false-accept"
-      }
-    ]
+    "mismatches": []
   },
   {
     "format": "ecmascript-regex",
