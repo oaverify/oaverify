@@ -1,6 +1,6 @@
 /**
  * Result reshaping, factored out of `validator.ts` so it can be
- * re-exported through `@oaverify/internal-validator/internals` without dragging the
+ * re-exported through `@oaverify/internal-validator/codegen-runtime` without dragging the
  * validator's full module graph (`@oaverify/internal-spec` -> `node:fs`, etc.) into
  * `oaverify compile-spec`'s standalone esbuild bundle. The only runtime
  * dependency here is `@oaverify/internal-core`'s `collectLeaves`.
@@ -42,7 +42,7 @@ function trimTreeToLeaves(root: ValidationError, max: number): ValidationError {
  * into the requested output, applying the per-call `maxErrors` total.
  * `truncated` reports that the cap was reached (more problems may exist).
  *
- * Exported through `@oaverify/internal-validator/internals` so `oaverify compile-spec`'s
+ * Exported through `@oaverify/internal-validator/codegen-runtime` so `oaverify compile-spec`'s
  * emitted standalone module reshapes its hand-built tree the same way,
  * keeping the AOT output's result shape identical to this validator's.
  *
@@ -70,7 +70,7 @@ export function reshapeResult(
  * `{ ok: true, body }` on success, or `{ ok: false }` plus the failure
  * fields (`errors`/`error` + `truncated`, or nothing in predicate mode).
  *
- * Exported through `@oaverify/internal-validator/internals` for the `oaverify compile-spec`
+ * Exported through `@oaverify/internal-validator/codegen-runtime` for the `oaverify compile-spec`
  * emitted module's `validateFetch*` wrappers (same reason as
  * {@link reshapeResult}).
  *

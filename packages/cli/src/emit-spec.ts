@@ -243,7 +243,11 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     `import { createLeafError, createBranchError, createError, normalizeFormat } from "${importPrefix}/core";`,
     `import { createDeps, deepEqual, typeOf, wrapErrors } from "${importPrefix}/schema/internals";`,
     `import { builtInFormats } from "${importPrefix}/formats";`,
-    `import { deserialize, matchParsedMediaType, matchResponseKey, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/validator/internals";`,
+    // Everything on this line is the semver-covered emit-side runtime;
+    // membership in `@oaverify/core/codegen-runtime` follows this import
+    // (see that module's header). Do not point it at a subpath that
+    // promises less.
+    `import { deserialize, matchParsedMediaType, matchResponseKey, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
     "",
     "void createBranchError; void createError; void deepEqual; void typeOf; void wrapErrors;",
     "void resolveOperationRef;",

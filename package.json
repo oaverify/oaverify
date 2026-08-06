@@ -136,6 +136,16 @@
         "default": "./dist/validator-internals.cjs"
       }
     },
+    "./codegen-runtime": {
+      "import": {
+        "types": "./dist/codegen-runtime.d.ts",
+        "default": "./dist/codegen-runtime.js"
+      },
+      "require": {
+        "types": "./dist/codegen-runtime.d.cts",
+        "default": "./dist/codegen-runtime.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {

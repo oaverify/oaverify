@@ -35,6 +35,7 @@ export default defineConfig({
     formats: "src/formats.ts",
     core: "src/core.ts",
     "validator-internals": "src/validator-internals.ts",
+    "codegen-runtime": "src/codegen-runtime.ts",
   },
   format: ["esm", "cjs"],
   dts: true,

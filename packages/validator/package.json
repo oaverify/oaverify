@@ -14,6 +14,10 @@
     "./internals": {
       "types": "./src/internals.ts",
       "import": "./src/internals.ts"
+    },
+    "./codegen-runtime": {
+      "types": "./src/codegen-runtime.ts",
+      "import": "./src/codegen-runtime.ts"
     }
   },
   "dependencies": {

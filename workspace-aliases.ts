@@ -75,6 +75,10 @@ export function workspaceAliases(rootDir: string): Record<string, string> {
       "@oaverify/core/validator/internals",
       resolve(rootDir, "packages", "validator", "src", "internals.ts"),
     ],
+    [
+      "@oaverify/core/codegen-runtime",
+      resolve(rootDir, "packages", "validator", "src", "codegen-runtime.ts"),
+    ],
     ["@oaverify/core/schema", resolve(rootDir, "packages", "schema", "src", "index.ts")],
     ["@oaverify/core/spec", resolve(rootDir, "packages", "spec", "src", "index.ts")],
     [
