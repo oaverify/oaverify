@@ -1,1 +1,9 @@
 dist/
+
+# Bowtie run output. These are JSON Lines, one object per line, which is
+# not parseable as a single JSON document: leaving them untracked makes
+# `oxfmt --check` (and so `pnpm lint`) fail on them. They were ignored
+# only by a personal global gitignore until now, so the repo looked clean
+# on one machine and broke lint on a fresh clone.
+out/
+report-*.json

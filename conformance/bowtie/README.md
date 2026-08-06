@@ -45,15 +45,18 @@ green smoke run is the gate before trusting any suite numbers:
 bowtie smoke -i localhost/oaverify-harness
 ```
 
-Then the suite, against whichever implementations you want to compare with:
+Then the suite, against whichever implementations you want to compare
+with. `out/` is gitignored; Bowtie reports are JSON Lines and will fail
+`pnpm lint` if they land anywhere tracked.
 
 ```bash
+mkdir -p out
 bowtie suite 2020-12 \
   -i localhost/oaverify-harness \
   -i js-ajv -i js-hyperjump -i python-jsonschema -i rust-boon -i go-jsonschema \
-  > report-2020-12.json
+  > out/report-2020-12.json
 
-bowtie summary -s failures -f markdown < report-2020-12.json
+bowtie summary -s failures -f markdown < out/report-2020-12.json
 ```
 
 ### The optional suite needs staging
@@ -82,7 +85,7 @@ cp -R JSON-Schema-Test-Suite/remotes "$STAGE/remotes"
 
 bowtie suite "$STAGE/tests/draft2020-12" \
   -i localhost/oaverify-harness -i js-ajv -i js-hyperjump -i js-schemasafe \
-  > report-optional.json
+  > out/report-optional.json
 ```
 
 Swap `optional/*.json` for `optional/format/*.json` to run the 720-case
