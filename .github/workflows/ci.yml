@@ -166,21 +166,24 @@ jobs:
       - name: install conformance deps
         working-directory: conformance
         run: pnpm install --frozen-lockfile
+      - name: typecheck
+        working-directory: conformance
+        run: pnpm typecheck
       - name: OpenAPI conformance cases
         working-directory: conformance
-        run: pnpm tsx run-openapi-cases.ts
+        run: pnpm openapi
       - name: clone Overlay-Specification at its pin
         working-directory: conformance
         run: pnpm corpora:overlay
       - name: OpenAPI Overlay 1.0 suite
         working-directory: conformance
-        run: pnpm tsx run-overlay-suite.ts --check-baseline
+        run: pnpm overlay --check-baseline
       - name: clone JSONTestSuite at its pin
         working-directory: conformance
         run: pnpm corpora:json-parse
       - name: JSON parser-conformance suite (stream-validator tokenizer)
         working-directory: conformance
-        run: pnpm tsx run-json-parse-suite.ts --check-baseline
+        run: pnpm parse --check-baseline
 
   json-schema-suite:
     # Full upstream JSON Schema Test Suite, plus the optional/format
@@ -209,10 +212,10 @@ jobs:
         run: pnpm corpora:json-schema
       - name: JSON Schema suite (required)
         working-directory: conformance
-        run: pnpm tsx run-json-schema-suite.ts --check-baseline
+        run: pnpm suite --check-baseline
       - name: format corpus (optional/format under an asserting dialect)
         working-directory: conformance
-        run: pnpm tsx run-format-suite.ts --check-baseline
+        run: pnpm format-suite --check-baseline
 
   corpus-freshness:
     # The pin in corpora.json makes the committed baselines reproducible.
@@ -240,7 +243,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: are the pinned corpora behind upstream?
         working-directory: conformance
-        run: pnpm tsx check-corpus-freshness.ts
+        run: pnpm corpora:stale
 
   pack-smoke:
     # Catches `exports` map / `files` / bundler regressions that unit

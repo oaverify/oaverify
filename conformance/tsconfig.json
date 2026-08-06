@@ -1,0 +1,26 @@
+{
+  // Mirrors performance/tsconfig.json and detection/tsconfig.json; the
+  // three sub-roots are typechecked the same way.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true,
+    "allowImportingTsExtensions": true,
+    // The top-level runners import engine sources by relative path and
+    // need nothing here. `bowtie/harness.ts` is the exception: it imports
+    // by package name because esbuild rewrites those at bundle time from
+    // workspace-aliases.ts, which tsc does not read. Only the two the
+    // harness actually uses are listed, so this does not become a third
+    // copy of the full alias map (tsconfig.build.json and
+    // tsconfig.tests.json carry deliberately-scoped subsets already).
+    "paths": {
+      "@oaverify/internal-schema": ["../packages/schema/src/index.ts"],
+      "@oaverify/internal-formats": ["../packages/formats/src/index.ts"]
+    }
+  },
+  "include": ["*.ts", "bowtie/*.ts"]
+}
