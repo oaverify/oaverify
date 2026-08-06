@@ -265,6 +265,6 @@ if (checkBaseline) {
   }
   console.log("OK: meets or exceeds baseline.");
 } else {
-  writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+  writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
   console.log(`\nResults written to ${summaryPath}`);
 }

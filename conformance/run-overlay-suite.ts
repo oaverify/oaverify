@@ -195,6 +195,6 @@ if (checkBaseline) {
   }
   console.log("OK: counts meet or exceed baseline.");
 } else {
-  writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+  writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
   console.log(`\nPer-case results written to ${summaryPath}`);
 }

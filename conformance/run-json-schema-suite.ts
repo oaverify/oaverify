@@ -262,6 +262,6 @@ if (checkBaseline) {
   }
   console.log("OK: pass count meets or exceeds baseline.");
 } else {
-  writeFileSync(summaryPath, JSON.stringify(results, null, 2));
+  writeFileSync(summaryPath, `${JSON.stringify(results, null, 2)}\n`);
   console.log(`\nPer-file mismatches written to ${summaryPath}`);
 }
