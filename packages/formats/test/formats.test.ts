@@ -374,3 +374,53 @@ describe("uri (js/polynomial-redos regression)", () => {
     expect(performance.now() - started).toBeLessThan(2000);
   });
 });
+
+describe("leap seconds and UTC offsets", () => {
+  // A leap second is only ever inserted at the end of a UTC day, so
+  // whether `:60` is legal depends on the instant rather than on the
+  // digits. Each of these spells 23:59:60Z in a different local time.
+  it.each([
+    ["23:59:60Z", "Zulu"],
+    ["23:59:60+00:00", "zero offset"],
+    ["15:59:60-08:00", "negative offset"],
+    ["01:29:60+01:30", "positive offset, crossing midnight backwards"],
+    ["00:29:60-23:30", "maximum negative offset"],
+    ["23:29:60+23:30", "maximum positive offset"],
+  ])("accepts %s (%s)", (value) => {
+    expect(validateTime(value)).toBe(true);
+  });
+
+  it.each([
+    ["22:59:60Z", "wrong hour"],
+    ["23:58:60Z", "wrong minute"],
+    ["22:59:60+00:00", "wrong hour, zero offset"],
+    ["23:58:60+00:00", "wrong minute, zero offset"],
+    ["23:59:60+01:00", "local 23:59 but 22:59 UTC"],
+    ["23:59:60+00:30", "local 23:59 but 23:29 UTC"],
+    ["23:59:60-01:00", "local 23:59 but 00:59 UTC"],
+    ["23:59:60-00:30", "local 23:59 but 00:29 UTC"],
+  ])("rejects %s (%s)", (value) => {
+    expect(validateTime(value)).toBe(false);
+  });
+
+  it("bounds the offset's own fields", () => {
+    expect(validateTime("01:02:03+24:00")).toBe(false);
+    expect(validateTime("01:02:03+00:60")).toBe(false);
+    expect(validateTime("01:02:03+23:59")).toBe(true);
+  });
+
+  it("applies the same rule to date-time", () => {
+    expect(validateDateTime("1998-12-31T23:59:60Z")).toBe(true);
+    expect(validateDateTime("1998-12-31T15:59:60.123-08:00")).toBe(true);
+    expect(validateDateTime("1998-12-31T22:59:60Z")).toBe(false);
+    expect(validateDateTime("1998-12-31T23:58:60Z")).toBe(false);
+    expect(validateDateTime("1990-12-31T15:59:59-24:00")).toBe(false);
+    expect(validateDateTime("1990-12-31T10:00:00+10:60")).toBe(false);
+  });
+
+  it("leaves ordinary times alone", () => {
+    expect(validateTime("12:34:56Z")).toBe(true);
+    expect(validateTime("12:34:56+02:00")).toBe(true);
+    expect(validateDateTime("2024-01-31T12:34:56-05:00")).toBe(true);
+  });
+});

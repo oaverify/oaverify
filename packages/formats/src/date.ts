@@ -5,9 +5,12 @@
  */
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-const TIME_RE = /^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i;
+const TIME_RE = /^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/i;
 const DATE_TIME_RE =
-  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/i;
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/i;
+
+/** Minutes past midnight of the last minute of a UTC day, `23:59`. */
+const LAST_MINUTE_UTC = 23 * 60 + 59;
 const DURATION_RE = /^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+(?:\.\d+)?S)?)?$/;
 
 function isValidMonthDay(year: number, month: number, day: number): boolean {
@@ -32,6 +35,47 @@ export function validateDate(value: string): boolean {
 }
 
 /**
+ * The time of day in minutes past midnight **UTC**, or `undefined` when
+ * the local time or the offset is out of range.
+ *
+ * The offset is what makes this worth computing rather than checking the
+ * fields where they are written. RFC 3339 puts a leap second at
+ * `23:59:60Z` and nowhere else, but a local time may spell that instant
+ * as `15:59:60-08:00` or `00:29:60-23:30`, so whether `:60` is legal is a
+ * property of the instant rather than of the digits. Normalising first
+ * makes the leap-second rule one comparison.
+ *
+ * The offset's own fields are bounded here too: `+24:00` and `+00:60`
+ * match the shape and are not offsets.
+ */
+function utcMinuteOfDay(hour: number, minute: number, offset: string): number | undefined {
+  if (hour > 23 || minute > 59) return undefined;
+  let offsetMinutes = 0;
+  if (offset !== "Z" && offset !== "z") {
+    const offsetHour = Number.parseInt(offset.slice(1, 3), 10);
+    const offsetMinute = Number.parseInt(offset.slice(4, 6), 10);
+    if (offsetHour > 23 || offsetMinute > 59) return undefined;
+    const sign = offset.startsWith("-") ? -1 : 1;
+    offsetMinutes = sign * (offsetHour * 60 + offsetMinute);
+  }
+  // Wrap into [0, 1440): an offset can carry the instant across midnight
+  // in either direction, and `00:29:60-23:30` is the same instant as
+  // `23:59:60Z`.
+  return (((hour * 60 + minute - offsetMinutes) % 1440) + 1440) % 1440;
+}
+
+/**
+ * True when a `:60` seconds field names a real leap second.
+ *
+ * Leap seconds are only ever inserted at the end of a UTC day, so the
+ * instant has to be `23:59:60Z` once the offset is applied. `22:59:60Z`
+ * and `23:58:60Z` are the near misses this rejects.
+ */
+function isLeapSecondPosition(second: number, utcMinute: number): boolean {
+  return second !== 60 || utcMinute === LAST_MINUTE_UTC;
+}
+
+/**
  * RFC 3339 `full-time` (e.g. `"12:34:56Z"` or `"12:34:56+02:00"`).
  *
  * @public
@@ -42,11 +86,10 @@ export function validateTime(value: string): boolean {
   const hour = Number.parseInt(match[1] ?? "0", 10);
   const minute = Number.parseInt(match[2] ?? "0", 10);
   const second = Number.parseInt(match[3] ?? "0", 10);
-  if (hour > 23) return false;
-  if (minute > 59) return false;
-  // accept second 60 as a leap second at any minute
   if (second > 60) return false;
-  return true;
+  const utcMinute = utcMinuteOfDay(hour, minute, match[4] ?? "Z");
+  if (utcMinute === undefined) return false;
+  return isLeapSecondPosition(second, utcMinute);
 }
 
 /**
@@ -64,8 +107,10 @@ export function validateDateTime(value: string): boolean {
   const minute = Number.parseInt(match[5] ?? "0", 10);
   const second = Number.parseInt(match[6] ?? "0", 10);
   if (!isValidMonthDay(year, month, day)) return false;
-  if (hour > 23 || minute > 59 || second > 60) return false;
-  return true;
+  if (second > 60) return false;
+  const utcMinute = utcMinuteOfDay(hour, minute, match[7] ?? "Z");
+  if (utcMinute === undefined) return false;
+  return isLeapSecondPosition(second, utcMinute);
 }
 
 /**
