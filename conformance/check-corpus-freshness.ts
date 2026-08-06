@@ -1,0 +1,104 @@
+/**
+ * Report which pinned corpora have fallen behind upstream.
+ *
+ * The pin in `corpora.json` makes a committed baseline reproducible, and
+ * on its own it would also make the corpus invisible: a frozen suite
+ * means the nightly run goes green forever while upstream adds cases we
+ * have never been measured against. That is the failure this script
+ * exists to prevent. The pin is the gate; this is the radar.
+ *
+ * It is deliberately not a `--check-baseline` style gate on correctness.
+ * Being behind upstream is not a defect, it is a maintenance signal, so
+ * the exit code says "someone should bump this" and the output says what
+ * landed. Bumping is a decision, because a bump can add cases we fail
+ * and that has to be triaged rather than absorbed.
+ *
+ * Usage:
+ *   pnpm corpora:stale        # exit 1 if any corpus is behind
+ *   pnpm corpora:stale --quiet-if-current
+ */
+
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { corpora, corpusPath } from "./corpora.ts";
+
+/** How much history to fetch when listing what landed. */
+const LOG_DEPTH = 200;
+/** Commit subjects to print before truncating. */
+const LOG_LIMIT = 15;
+
+function tryGit(args: string[], cwd?: string): string | undefined {
+  try {
+    return execFileSync("git", args, {
+      encoding: "utf8",
+      cwd,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+/** The SHA upstream's default branch points at, without needing a checkout. */
+function upstreamHead(url: string): string | undefined {
+  const out = tryGit(["ls-remote", url, "HEAD"]);
+  return out?.split(/\s+/)[0];
+}
+
+/**
+ * The commits between the pin and upstream, newest first.
+ *
+ * Needs a local checkout to fetch into, and the range can still be
+ * unavailable when the pin is older than `LOG_DEPTH` or the shallow
+ * boundary cuts it. Both cases return undefined and the caller falls
+ * back to reporting the two revisions.
+ */
+function commitsSincePin(dir: string, rev: string): string[] | undefined {
+  if (!existsSync(dir)) return undefined;
+  if (
+    tryGit(["fetch", "--quiet", "--depth", String(LOG_DEPTH), "origin", "HEAD"], dir) === undefined
+  )
+    return undefined;
+  const log = tryGit(["log", "--oneline", "--no-decorate", `${rev}..FETCH_HEAD`], dir);
+  if (log === undefined) return undefined;
+  return log.length === 0 ? [] : log.split("\n");
+}
+
+const quietIfCurrent = process.argv.slice(2).includes("--quiet-if-current");
+const stale: string[] = [];
+
+for (const [name, entry] of Object.entries(corpora())) {
+  const head = upstreamHead(entry.url);
+  if (head === undefined) {
+    console.log(`${name}: could not reach ${entry.url}, skipping`);
+    continue;
+  }
+  if (head === entry.rev) {
+    if (!quietIfCurrent) console.log(`${name}: current (${entry.rev.slice(0, 10)})`);
+    continue;
+  }
+
+  stale.push(name);
+  const commits = commitsSincePin(corpusPath(name), entry.rev);
+  const behind = commits === undefined ? "behind" : `${commits.length} commits behind`;
+  console.log(`\n${name}: ${behind} upstream`);
+  console.log(`  pinned:   ${entry.rev}`);
+  console.log(`  upstream: ${head}`);
+  if (commits !== undefined && commits.length > 0) {
+    for (const line of commits.slice(0, LOG_LIMIT)) console.log(`    ${line}`);
+    if (commits.length > LOG_LIMIT) console.log(`    ... ${commits.length - LOG_LIMIT} more`);
+  }
+}
+
+if (stale.length === 0) {
+  if (!quietIfCurrent) console.log("\nAll corpora are at upstream HEAD.");
+  process.exit(0);
+}
+
+console.log(
+  `\n${stale.length} corpus/corpora behind upstream: ${stale.join(", ")}.\n` +
+    `To take the new cases, bump "rev" in corpora.json, run \`pnpm corpora\`,\n` +
+    `then re-measure the affected baselines in the same commit. Expect the\n` +
+    `bump to add failures; that is the point of looking.`,
+);
+process.exit(1);

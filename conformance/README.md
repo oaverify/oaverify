@@ -27,17 +27,31 @@ pnpm build            # the OpenAPI runner shells out to packages/oav/dist/cli.j
 ```
 
 `pnpm corpora:json-schema` / `:json-parse` / `:overlay` fetch one at a
-time (~12k schema cases, ~318 parser cases, ~32 overlay fixtures). The
-checkouts are gitignored, so the revision each committed baseline was
-measured against lives in `corpora.json` and nowhere else. Every runner
-that compares against a baseline asserts its checkout is at the pin and
-refuses to report numbers otherwise, because a floating clone is how a
-measurement in an issue and a measurement from a fresh clone come to
-disagree with nothing to point at. Bump a `rev` deliberately, in a
-commit that also re-measures the baselines it moves.
+time (~12k schema cases, ~318 parser cases, ~32 overlay fixtures).
 
 The script is `pnpm corpora`, not `pnpm setup`, because `setup` is one
 of pnpm's own built-in commands and shadows a script of that name.
+
+## The pin, and why there is a second half
+
+The checkouts are gitignored, so the revision each committed baseline
+was measured against lives in `corpora.json` and nowhere else. Every
+runner that compares against a baseline asserts its checkout is at the
+pin and refuses to report numbers otherwise. A floating clone is how a
+measurement recorded in an issue and a measurement from a fresh clone
+come to disagree with nothing in the repo to point at.
+
+A pin alone would trade that problem for a worse one: a frozen corpus
+means every run goes green forever while upstream adds cases we have
+never been measured against, so the conformance claim ages silently.
+`pnpm corpora:stale` is the other half. It asks upstream for its HEAD,
+reports which pins are behind and what landed, and exits non-zero so
+the nightly `corpus-freshness` job surfaces it. The pin is the gate; that
+is the radar.
+
+So bumping is a deliberate act: change `rev`, run `pnpm corpora`, and
+re-measure the affected baselines in the same commit. Expect a bump to
+add failures. That is the reason to look.
 
 ## Commands
 
@@ -48,6 +62,7 @@ pnpm suite:optional                 # + optional/ suite (format edge cases, etc.
 pnpm suite -- --filter=ref          # just files matching "ref"
 pnpm format-suite                   # optional/format under an asserting dialect
 pnpm format-suite -- --filter=uri   # just files matching "uri"
+pnpm corpora:stale                  # which pinned corpora are behind upstream
 pnpm parse                          # JSONTestSuite parser corpus vs the stream-validator tokenizer
 pnpm parse -- --filter=number       # just files matching "number"
 pnpm overlay                        # OpenAPI Overlay 1.0 envelope + translator

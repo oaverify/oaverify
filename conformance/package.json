@@ -12,6 +12,7 @@
     "openapi": "tsx run-openapi-cases.ts",
     "overlay": "tsx run-overlay-suite.ts",
     "corpora": "tsx fetch-corpora.ts",
+    "corpora:stale": "tsx check-corpus-freshness.ts",
     "corpora:json-schema": "tsx fetch-corpora.ts JSON-Schema-Test-Suite",
     "corpora:json-parse": "tsx fetch-corpora.ts JSONTestSuite",
     "corpora:overlay": "tsx fetch-corpora.ts Overlay-Specification"
