@@ -123,6 +123,33 @@ log asserts it as `oaverify:classes` so a consumer can tell a partial
 run from a clean document. Pass the same list you gave `checkSpec` as
 `only`, or `CHECK_CLASSES` for a full run.
 
+## Your own rules
+
+There is no rule loader, and `oaverify check` runs its built-in passes
+only. A rule of your own composes here instead:
+
+```ts
+import { CHECK_CLASSES, checkSpec, renderSarif, severityFor } from "@oaverify/check";
+
+const findings = [...checkSpec(resolved), ...houseRules(resolved)];
+const graded = findings.map((f) => ({ ...f, severity: severityFor(severity, f, "warning") }));
+const sarif = renderSarif(graded, { version: "1.2.3", classes: CHECK_CLASSES });
+```
+
+One array, one grading, one SARIF document. `houseRules` is a plain
+function over the `ResolvedSpec`: `resolveJsonPointer` and `sourceOf`
+come from `@oaverify/core/spec`, `walkSubschemas` from
+`@oaverify/core/schema`. `CheckFinding["code"]` accepts a code outside
+the built-in set, and `severityFor` grades on `class` and `code`, so your
+findings regrade with the same `--severity` grammar. Pick the closest of
+the six classes above; the union is closed.
+
+For house policy that does not need oaverify's view of the document,
+such as naming, required descriptions or tag conventions,
+[Spectral](https://github.com/stoplightio/spectral) is the better tool. A
+rule that does need it, one that turns on how oaverify compiles a schema,
+is a candidate for a built-in: open an issue.
+
 ## Node only
 
 This package formats file addresses, so it uses `node:path` and
