@@ -20,7 +20,7 @@
  *
  * Usage:
  *   pnpm corpora:stale                   # always exits 0; report only
- *   pnpm corpora:stale --fail-if-stale   # exit 1 if behind (what CI runs)
+ *   pnpm corpora:stale --fail-if-stale   # exit 1 if behind or unreachable (what CI runs)
  *   pnpm corpora:stale --quiet-if-current
  */
 
@@ -74,11 +74,13 @@ const argv = process.argv.slice(2);
 const quietIfCurrent = argv.includes("--quiet-if-current");
 const failIfStale = argv.includes("--fail-if-stale");
 const stale: string[] = [];
+const unreachable: string[] = [];
 
 for (const [name, entry] of Object.entries(corpora())) {
   const head = upstreamHead(entry.url);
   if (head === undefined) {
-    console.log(`${name}: could not reach ${entry.url}, skipping`);
+    unreachable.push(name);
+    console.log(`${name}: could not reach ${entry.url}`);
     continue;
   }
   if (head === entry.rev) {
@@ -98,16 +100,27 @@ for (const [name, entry] of Object.entries(corpora())) {
   }
 }
 
-if (stale.length === 0) {
+if (stale.length === 0 && unreachable.length === 0) {
   if (!quietIfCurrent) console.log("\nAll corpora are at upstream HEAD.");
   process.exit(0);
 }
 
-console.log(
-  `\n${stale.length} corpus/corpora behind upstream: ${stale.join(", ")}.\n` +
-    `To take the new cases, bump "rev" in corpora.json, run \`pnpm corpora\`,\n` +
-    `then re-measure the affected baselines in the same commit. Expect the\n` +
-    `bump to add failures; that is the point of looking.\n` +
-    `\nThis is a maintenance signal, not a failed test.`,
-);
+// A corpus that could not be checked is not fresh, it is unknown. Under
+// --fail-if-stale the exit code is the only signal anyone sees, so an
+// unreachable upstream must not read as "all current" (and let the
+// nightly close its tracking issue as recovered).
+if (unreachable.length > 0) {
+  console.log(
+    `\n${unreachable.length} corpus/corpora could not be checked: ${unreachable.join(", ")}.`,
+  );
+}
+if (stale.length > 0) {
+  console.log(
+    `\n${stale.length} corpus/corpora behind upstream: ${stale.join(", ")}.\n` +
+      `To take the new cases, bump "rev" in corpora.json, run \`pnpm corpora\`,\n` +
+      `then re-measure the affected baselines in the same commit. Expect the\n` +
+      `bump to add failures; that is the point of looking.\n` +
+      `\nThis is a maintenance signal, not a failed test.`,
+  );
+}
 process.exit(failIfStale ? 1 : 0);
