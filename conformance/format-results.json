@@ -512,24 +512,11 @@
   {
     "format": "iri-reference",
     "cases": 13,
-    "pass": 11,
-    "falseAccept": 2,
+    "pass": 13,
+    "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "validation of IRI References",
-        "test": "an invalid IRI Reference",
-        "data": "\\\\WINDOWS\\filëßåré",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of IRI References",
-        "test": "an invalid IRI fragment",
-        "data": "#ƒräg\\mênt",
-        "direction": "false-accept"
-      }
-    ]
+    "mismatches": []
   },
   {
     "format": "iri",
@@ -588,48 +575,11 @@
   {
     "format": "uri-reference",
     "cases": 17,
-    "pass": 11,
-    "falseAccept": 4,
-    "falseReject": 2,
+    "pass": 17,
+    "falseAccept": 0,
+    "falseReject": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "validation of URI References",
-        "test": "an invalid URI Reference",
-        "data": "\\\\WINDOWS\\fileshare",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URI References",
-        "test": "an invalid URI fragment",
-        "data": "#frag\\ment",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URI References",
-        "test": "unescaped non US-ASCII characters",
-        "data": "/foobar®.txt",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URI References",
-        "test": "invalid backslash character",
-        "data": "https://example.org/foobar\\.txt",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URI References",
-        "test": "URI with leading-zero IPv4 is structurally valid as a reg-name",
-        "data": "http://087.10.0.1/",
-        "direction": "false-reject"
-      },
-      {
-        "group": "validation of URI References",
-        "test": "URI with out-of-bounds IPv4 is structurally valid as a reg-name",
-        "data": "http://999.999.999.999/",
-        "direction": "false-reject"
-      }
-    ]
+    "mismatches": []
   },
   {
     "format": "uri-template",
@@ -643,96 +593,11 @@
   {
     "format": "uri",
     "cases": 44,
-    "pass": 30,
-    "falseAccept": 12,
-    "falseReject": 2,
+    "pass": 44,
+    "falseAccept": 0,
+    "falseReject": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "validation of URIs",
-        "test": "invalid userinfo",
-        "data": "https://[@example.org/test.txt",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "unescaped non US-ASCII characters",
-        "data": "https://example.org/foobar®.txt",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "invalid backslash character",
-        "data": "https://example.org/foobar\\.txt",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "invalid \" character",
-        "data": "https://example.org/foobar\".txt",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "invalid <> characters",
-        "data": "https://example.org/foobar<>.txt",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "invalid {} characters",
-        "data": "https://example.org/foobar{}.txt",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "invalid ^ character",
-        "data": "https://example.org/foobar^.txt",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "invalid ` character",
-        "data": "https://example.org/foobar`.txt",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "invalid | character",
-        "data": "https://example.org/foobar|.txt",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "URI with leading-zero IPv4 is structurally valid as a reg-name",
-        "data": "http://087.10.0.1/",
-        "direction": "false-reject"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "URI with out-of-bounds IPv4 is structurally valid as a reg-name",
-        "data": "http://999.999.999.999/",
-        "direction": "false-reject"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "invalid percent-encoding with non-hex digits",
-        "data": "http://example.com/%6G",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "incomplete percent-encoding triplet",
-        "data": "http://example.com/%A",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of URIs",
-        "test": "lone percent sign is invalid",
-        "data": "http://example.com/%",
-        "direction": "false-accept"
-      }
-    ]
+    "mismatches": []
   },
   {
     "format": "uuid",

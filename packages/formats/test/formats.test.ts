@@ -13,6 +13,8 @@ import {
   validateInt64,
   validateIpv4,
   validateIpv6,
+  validateIri,
+  validateIriReference,
   validateJsonPointer,
   validateRegex,
   validateRelativeJsonPointer,
@@ -119,6 +121,104 @@ describe("uri / uri-reference / uri-template", () => {
     expect(validateUriTemplate("/pets/{id}")).toBe(true);
     expect(validateUriTemplate("/search{?q,page}")).toBe(true);
     expect(validateUriTemplate("/pets/{id/")).toBe(false);
+  });
+});
+
+describe("uri / iri (RFC 3986 and RFC 3987 grammar)", () => {
+  // A host that looks like a dotted-decimal address but is not one is
+  // still a legal `reg-name`, because `IPv4address` is a subset of
+  // `reg-name`. `new URL` rejected both of these, which under the
+  // OpenAPI dialects refused real traffic.
+  it("accepts a dotted-decimal host that is not a valid IPv4 address", () => {
+    for (const value of [
+      "http://087.10.0.1/",
+      "http://999.999.999.999/",
+      "http://1.2.3.4.5/",
+      "http://0300.0250.0.1/",
+    ]) {
+      expect(validateUri(value), value).toBe(true);
+      expect(validateUriReference(value), value).toBe(true);
+    }
+  });
+
+  it("still accepts genuine IPv4 and IPv6 hosts", () => {
+    expect(validateUri("http://127.0.0.1:8080/x")).toBe(true);
+    expect(validateUri("http://[2001:db8::1]/x")).toBe(true);
+    expect(validateUri("http://[::ffff:192.0.2.1]/x")).toBe(true);
+    expect(validateUri("http://[v7.aBc:1]/x")).toBe(true);
+  });
+
+  it("rejects an unterminated IP-literal host", () => {
+    expect(validateUri("https://[@example.org/test.txt")).toBe(false);
+    expect(validateUri("http://[2001:db8::1/x")).toBe(false);
+    expect(validateUri("http://[not-an-address]/x")).toBe(false);
+  });
+
+  // `new URL` percent-encoded these instead of rejecting them, so every
+  // one was accepted before.
+  it("rejects characters the grammar excludes", () => {
+    for (const value of [
+      "https://example.org/foobar®.txt",
+      "https://example.org/foobar\\.txt",
+      'https://example.org/foobar".txt',
+      "https://example.org/foobar<>.txt",
+      "https://example.org/foobar{}.txt",
+      "https://example.org/foobar^.txt",
+      "https://example.org/foobar`.txt",
+      "https://example.org/foobar|.txt",
+    ]) {
+      expect(validateUri(value), value).toBe(false);
+    }
+  });
+
+  it("rejects malformed percent-encoding", () => {
+    expect(validateUri("http://example.com/%6G")).toBe(false);
+    expect(validateUri("http://example.com/%A")).toBe(false);
+    expect(validateUri("http://example.com/%")).toBe(false);
+    expect(validateUri("http://example.com/%41")).toBe(true);
+  });
+
+  it("rejects a backslash in a uri-reference path or fragment", () => {
+    expect(validateUriReference("\\\\WINDOWS\\fileshare")).toBe(false);
+    expect(validateUriReference("#frag\\ment")).toBe(false);
+  });
+
+  // RFC 3987 widens `unreserved` to `iunreserved`, so non-ASCII is legal
+  // in an IRI where it is not in a URI. A backslash is excluded by both.
+  it("accepts non-ASCII in an iri but not a backslash", () => {
+    expect(validateIri("https://example.org/foobar®.txt")).toBe(true);
+    expect(validateIriReference("/föö/bär")).toBe(true);
+    expect(validateIriReference("#ƒräg\\mênt")).toBe(false);
+    expect(validateIriReference("\\\\WINDOWS\\filëré")).toBe(false);
+  });
+
+  it("keeps the iri and uri grammars distinct", () => {
+    const nonAscii = "https://example.org/é";
+    expect(validateIri(nonAscii)).toBe(true);
+    expect(validateUri(nonAscii)).toBe(false);
+  });
+
+  it("requires a scheme for the absolute forms only", () => {
+    expect(validateUri("/relative/path")).toBe(false);
+    expect(validateIri("/relative/path")).toBe(false);
+    expect(validateUriReference("/relative/path")).toBe(true);
+    expect(validateIriReference("/relative/path")).toBe(true);
+  });
+
+  it("accepts an empty reference and a bare query or fragment", () => {
+    expect(validateUriReference("")).toBe(true);
+    expect(validateUriReference("?q=1")).toBe(true);
+    expect(validateUriReference("#frag")).toBe(true);
+    expect(validateUriReference("//example.com/path")).toBe(true);
+  });
+
+  // `segment-nz-nc` forbids a colon in the *first* segment of a relative
+  // reference, so a string whose leading segment looks like a scheme but
+  // is not a legal one cannot fall back to being read as a path.
+  it("forbids a colon in the first segment of a relative reference", () => {
+    expect(validateUriReference("1foo:bar")).toBe(false);
+    expect(validateUriReference("./foo:bar")).toBe(true);
+    expect(validateUriReference("foo:bar")).toBe(true);
   });
 });
 
