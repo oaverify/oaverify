@@ -303,9 +303,12 @@ function wrapText(text: string, width: number, first: string, rest: string): str
  *   cannot follow references, so cross-reference defects are out of
  *   scope (see docs/strictness.md).
  *
- * @returns 0 clean, 1 findings met `--fail-on`, 2 the document could not be
- *          read at all (nothing was graded, nothing printed), 3 usage error,
- *          4 the document was graded and at least one schema is malformed.
+ * @returns 0 clean (or every finding sits below the gate), 1 findings met
+ *          the `--fail-on` gate (default `error`, so a specification
+ *          violation fails with no flag; `--fail-on none` restores the
+ *          advisory exit 0), 2 the document could not be read at all
+ *          (nothing was graded, nothing printed), 3 usage error, 4 the
+ *          document was graded and at least one schema is malformed.
  *
  * The 2-versus-4 split is what a script can act on. Exit 2 means there
  * is no report to read, and it means the same thing in every command
@@ -324,11 +327,16 @@ export async function checkCommand(
     /** Classes to run. Defaults to all of {@link CHECK_CLASSES}. */
     /**
      * Exit non-zero when any finding at or above this severity appears.
-     * `"warning"` is the floor and keeps its historical meaning of "any
-     * finding at all"; `"error"` is the new capability, gating on
-     * specification violations while ignoring the rest.
+     * Defaults to `"error"` (#549): a document that violates the
+     * OpenAPI specification fails the run with no flag, because in CI
+     * the exit code is the only signal anyone sees. `"none"` restores
+     * the advisory behavior (report everything, exit 0); `"warning"`
+     * is the floor and keeps its historical meaning of "any finding at
+     * all". Note the default makes `--severity` gate-affecting: a map
+     * that promotes a code to `error` moves the exit code unless
+     * `--fail-on` pins otherwise.
      */
-    failOn?: CheckSeverity;
+    failOn?: CheckSeverity | "none";
     /**
      * `--severity` entries, unparsed. Each is a comma-separated list of
      * `<key>=<level>`; see `parseSeverityMap` for the grammar and for
@@ -562,8 +570,9 @@ export async function checkCommand(
   // which means the document could not be read and nothing was printed;
   // here the report is complete and one of its findings is fatal.
   if (findings.some((f) => f.class === "malformed")) return { exitCode: 4 };
-  if (args.failOn !== undefined) {
-    const threshold = CHECK_SEVERITIES.indexOf(args.failOn);
+  const failOn = args.failOn ?? "error";
+  if (failOn !== "none") {
+    const threshold = CHECK_SEVERITIES.indexOf(failOn);
     const hit = findings.some((f) => CHECK_SEVERITIES.indexOf(f.severity) >= threshold);
     if (hit) return { exitCode: 1 };
   }
