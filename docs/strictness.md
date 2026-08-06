@@ -154,7 +154,14 @@ the same document is reported there, and the difference is the dialect
 rather than an inconsistency.
 
 The `silent-rewrite/*` family reports a constraint the validator does
-not enforce as written. `silent-rewrite/discriminator-unroutable` is
+not enforce as written. `silent-rewrite/pattern-not-unicode-mode` is
+the quiet one: a `pattern` (or `patternProperties` key) that only
+compiles without the `u` flag is still accepted, because refusing spec
+input would make the document unusable over one legacy escape, but the
+validator then runs it under non-unicode semantics. The same source
+text offered as a `format: regex` data value is rejected, which is
+correct and confusing until this finding points at the divergence.
+`silent-rewrite/discriminator-unroutable` is
 worth calling out because of what oaverify does about it: a
 `discriminator` whose values cannot be matched to the sibling `oneOf` /
 `anyOf` branches is **ignored**, and the composition validates every

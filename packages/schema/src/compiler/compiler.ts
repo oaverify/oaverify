@@ -156,6 +156,12 @@ function runSchemaLint(
   context: string | undefined,
   rules: {
     refSuppressesSiblings: boolean;
+    /**
+     * A custom `regexCompiler` replaces the runtime's u-mode-with-
+     * fallback compile, so the fallback the pattern-not-unicode-mode
+     * rule reports can never fire; the rule is suppressed.
+     */
+    customRegexCompiler: boolean;
     resolveRef?: (ref: string) => unknown;
     pointer?: string;
     anchor?: "node" | "definition";
@@ -284,6 +290,17 @@ function runSchemaLint(
       const patternIssue = collectPatternLengthIssue(obj, path);
       if (patternIssue !== undefined) issues.push(patternIssue);
 
+      // The runtime compiles each pattern with the "u" flag and falls
+      // back to a no-flag compile when that throws (compilePatternRegex
+      // in runtime.ts). The fallback is deliberate; what it is not is
+      // visible, and it means the validator reads some escapes
+      // differently from the u-mode pattern the author wrote. With a
+      // custom regexCompiler that path never runs, so nothing is
+      // reported.
+      if (!rules.customRegexCompiler) {
+        for (const issue of collectPatternUnicodeModeIssues(obj, path)) issues.push(issue);
+      }
+
       // Same footing: reading the enum members against the sibling
       // `type` costs one pass over a list the author wrote by hand.
       // `nullable` is honoured only where the dialect defines it, which
@@ -350,6 +367,67 @@ function runSchemaLint(
   return context === undefined
     ? issues
     : issues.map((issue) => ({ ...issue, context, location: context }));
+}
+
+/**
+ * True when `source` compiles only without the `"u"` flag, which is the
+ * condition under which the runtime's fallback fires. A source invalid
+ * under both modes is not this rule's business: the compile throws its
+ * u-mode error, a failure rather than a rewrite.
+ */
+function uModeFallsBack(source: string): boolean {
+  try {
+    new RegExp(source, "u");
+    return false;
+  } catch {
+    try {
+      new RegExp(source);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/** The pattern-not-unicode-mode rule, over `pattern` and each `patternProperties` key. */
+function collectPatternUnicodeModeIssues(
+  obj: Record<string, unknown>,
+  path: string,
+): SchemaLintIssue[] {
+  const out: SchemaLintIssue[] = [];
+  const where = path.length === 0 ? "<root>" : `"${path}"`;
+  const pattern = obj["pattern"];
+  if (typeof pattern === "string" && uModeFallsBack(pattern)) {
+    out.push({
+      code: "silent-rewrite/pattern-not-unicode-mode",
+      keyword: "pattern",
+      path,
+      message:
+        `"pattern" at ${where} compiles only without the "u" flag; the validator falls back to ` +
+        `non-unicode mode, which reads some escapes differently from the u-mode pattern as written ` +
+        `(and "format: regex" rejects this same source as a data value)`,
+    });
+  }
+  const patternProperties = obj["patternProperties"];
+  if (
+    typeof patternProperties === "object" &&
+    patternProperties !== null &&
+    !Array.isArray(patternProperties)
+  ) {
+    for (const key of Object.keys(patternProperties)) {
+      if (!uModeFallsBack(key)) continue;
+      out.push({
+        code: "silent-rewrite/pattern-not-unicode-mode",
+        keyword: "patternProperties",
+        path,
+        message:
+          `"patternProperties" key ${JSON.stringify(key)} at ${where} compiles only without the ` +
+          `"u" flag; the validator falls back to non-unicode mode, which reads some escapes ` +
+          `differently from the u-mode pattern as written`,
+      });
+    }
+  }
+  return out;
 }
 
 /**
@@ -535,6 +613,17 @@ export interface SchemaLintIssue {
    *   and the composition validates every branch, which is the verdict
    *   the spec asks for; the routing table the author wrote is not
    *   being used.
+   * - `"silent-rewrite/pattern-not-unicode-mode"`: a `pattern` or
+   *   `patternProperties` key that `new RegExp(p, "u")` rejects and
+   *   `new RegExp(p)` accepts, Annex B identity escapes being the
+   *   common case. The runtime deliberately falls back to the no-flag
+   *   compile so one legacy pattern does not make the document
+   *   unusable, but the compiled validator then reads some escapes
+   *   differently from the u-mode pattern as written, and `format:
+   *   regex` rejects the same source text as a data value. Suppressed
+   *   when a custom `regexCompiler` is supplied, since the fallback
+   *   never runs there; a source invalid under both modes is not
+   *   reported either, since the compile throws rather than rewriting.
    * - `"unsatisfiable/pattern-length"`: a `pattern` whose match length
    *   cannot overlap the sibling `minLength` / `maxLength` bounds, so
    *   no string validates at that position. Usually a quantifier typo
@@ -566,6 +655,7 @@ export interface SchemaLintIssue {
     | "silent-rewrite/required-not-in-properties"
     | "silent-rewrite/redundant-composition-branches"
     | "silent-rewrite/discriminator-unroutable"
+    | "silent-rewrite/pattern-not-unicode-mode"
     | "unsatisfiable/pattern-length"
     | "unsatisfiable/enum-member-type";
   /** The offending keyword / key name as written in the schema. */
@@ -1535,6 +1625,7 @@ export function compileSchema(
       ? []
       : runSchemaLint(schema, byKeyword, lintMode, options.label, {
           refSuppressesSiblings: state.refSuppressesSiblings,
+          customRegexCompiler: options.regexCompiler !== undefined,
           pointer: options.pointer,
           anchor: options.anchor,
           // Lets the `required` rule see through `$ref` into component

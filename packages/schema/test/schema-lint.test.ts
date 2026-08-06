@@ -415,6 +415,7 @@ describe("the two frames `path` renders in (#594)", () => {
     "silent-rewrite/ref-siblings-oas30": "definition",
     "silent-rewrite/redundant-composition-branches": "definition",
     "silent-rewrite/discriminator-unroutable": "definition",
+    "silent-rewrite/pattern-not-unicode-mode": "definition",
     "unsatisfiable/pattern-length": "definition",
     "unsatisfiable/enum-member-type": "definition",
     // The one rule whose verdict depends on the route that reached the
@@ -713,6 +714,59 @@ describe("strict mode: silent-rewrite/redundant-composition-branches", () => {
     } as unknown as SchemaOrBoolean;
     const issues = lint(schema).filter(
       (i) => i.code === "silent-rewrite/redundant-composition-branches",
+    );
+    expect(issues).toEqual([]);
+  });
+});
+
+describe("silent-rewrite/pattern-not-unicode-mode", () => {
+  const CODE = "silent-rewrite/pattern-not-unicode-mode";
+  const lintFor = (schema: SchemaOrBoolean, regexCompiler?: (source: string) => RegExp) =>
+    compileSchema(schema, {
+      dialect: jsonSchemaDialect,
+      regexCompiler,
+    }).stats.schemaLintIssues.filter((i) => i.code === CODE);
+
+  it("flags a pattern that only compiles without the u flag", () => {
+    // `\_` is an Annex B identity escape: fine flagless, a SyntaxError
+    // under "u". The runtime falls back, which is what this reports.
+    const issues = lintFor({ type: "string", pattern: "\\_" } as unknown as SchemaOrBoolean);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.keyword).toBe("pattern");
+    expect(issues[0]?.message).toContain('"u" flag');
+  });
+
+  it("flags a patternProperties key the same way", () => {
+    const schema = {
+      type: "object",
+      patternProperties: { "a{,2}": { type: "string" } },
+    } as unknown as SchemaOrBoolean;
+    const issues = lintFor(schema);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.keyword).toBe("patternProperties");
+    expect(issues[0]?.message).toContain('"a{,2}"');
+  });
+
+  it("stays silent for a pattern that compiles under u", () => {
+    expect(lintFor({ type: "string", pattern: "^[a-z]+$" } as unknown as SchemaOrBoolean)).toEqual(
+      [],
+    );
+  });
+
+  it("stays out of the way of a pattern invalid under both modes", () => {
+    // Not a rewrite: the compile throws (with the more informative
+    // u-mode error), so there is no finding for this rule to make.
+    expect(() => lintFor({ type: "string", pattern: "(" } as unknown as SchemaOrBoolean)).toThrow(
+      SyntaxError,
+    );
+  });
+
+  it("is suppressed when a custom regexCompiler is supplied", () => {
+    // The custom compiler replaces the u-mode-with-fallback path
+    // entirely, so the fallback this rule reports can never fire.
+    const issues = lintFor(
+      { type: "string", pattern: "\\_" } as unknown as SchemaOrBoolean,
+      (source) => new RegExp(source),
     );
     expect(issues).toEqual([]);
   });
