@@ -290,8 +290,8 @@ Capabilities oaverify has that Ajv (alone or with
   `examples` entry satisfy the schema it illustrates), and `redos` (can a
   `pattern` be made to backtrack). Findings carry a class and a severity
   as separate fields, because they cut across each other: `hygiene` holds
-  both a specification violation and pure housekeeping. `--only` selects
-  classes, `--fail-on warning|error|fatal` is the CI gate. Ajv validates
+  both a specification violation and pure housekeeping. `--findings` selects
+  what is reported, `--fail-on warning|error|fatal` is the CI gate. Ajv validates
   schemas, not documents, and `express-openapi-validator` reports document
   problems only as a side effect of failing to build. See
   [`strictness.md`](./strictness.md) for the class model and

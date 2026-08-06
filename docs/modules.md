@@ -45,18 +45,19 @@ check`, in its own package because the ReDoS pass depends on
 entry imports it. Behind a `@oaverify/core` subpath that weight would
 reach every `@oaverify/core` consumer.
 
-| Export                                       | Purpose                                                                 |
-| -------------------------------------------- | ----------------------------------------------------------------------- |
-| `checkSpec(resolved, options?)`              | Every selected pass over a `ResolvedSpec`, graded into `CheckFinding[]` |
-| `CheckFinding`, `FindingTarget`              | What a finding is, and how it addresses the document                    |
-| `CHECK_CLASSES`, `CHECK_SEVERITIES`          | The classes a run selects, and the severity ranking                     |
-| `CheckCode`, `CHECK_CODES`                   | Every code a run can emit, as a type and as a set                       |
-| `DEFAULT_SEVERITY`, `severityFor`            | oaverify's grading, and how a regrading is applied                      |
-| `parseSeverityMap(entries)`                  | The `key=level` grammar the CLI spells `--severity`                     |
-| `parseFindingKey(key)`                       | One key resolved to a code, family or class; shared by the two below    |
-| `parseSkipKeys(entries)`, `applySkip`        | The key list the CLI spells `--skip`, and the filter plus its report    |
-| `renderSarif(findings, options)`             | SARIF 2.1.0, for code scanning; `options.classes` is required           |
-| `checkDocumentFormats`, `checkDocumentRedos` | The two passes that have no other home                                  |
+| Export                                                | Purpose                                                                               |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `checkSpec(resolved, options?)`                       | Every selected pass over a `ResolvedSpec`, graded into `CheckFinding[]`               |
+| `CheckFinding`, `FindingTarget`                       | What a finding is, and how it addresses the document                                  |
+| `CHECK_CLASSES`, `CHECK_SEVERITIES`                   | The classes a run selects, and the severity ranking                                   |
+| `CheckCode`, `CHECK_CODES`                            | Every code a run can emit, as a type and as a set                                     |
+| `DEFAULT_SEVERITY`, `severityFor`                     | oaverify's grading, and how a regrading is applied                                    |
+| `parseSeverityMap(entries)`                           | The `key=level` grammar the CLI spells `--severity`                                   |
+| `parseFindingKey(key)`                                | One key resolved to a code, family or class; shared by the two below                  |
+| `parseFindingTerms(value)`, `resolveFindingSelection` | The term grammar the CLI spells `--findings`, resolved to what runs and what survives |
+| `parseSkipKeys(entries)`, `applySkip`                 | A key list and the filter plus its report; what `--findings` exclusions resolve to    |
+| `renderSarif(findings, options)`                      | SARIF 2.1.0, for code scanning; `options.classes` is required                         |
+| `checkDocumentFormats`, `checkDocumentRedos`          | The two passes that have no other home                                                |
 
 `checkSpec` takes a resolved spec rather than a document, because two of
 its inputs are byproducts of resolution: the regions each finding's

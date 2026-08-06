@@ -30,6 +30,17 @@ export { checkDocumentRedos } from "./redos-check.js";
 export { renderSarif } from "./sarif.js";
 export { applySkip, parseSkipKeys, SkipKeyError, type SkipReportEntry } from "./skip.js";
 export {
+  FindingTermError,
+  FULL_SELECTION,
+  parseFindingTerms,
+  resolveFindingSelection,
+  selectionForClasses,
+  SELECTABLE_CODES,
+  type FindingSelection,
+  type FindingTerm,
+  type TermReport,
+} from "./selection.js";
+export {
   defaultSeverityFor,
   DEFAULT_SEVERITY,
   EMPTY_SEVERITY_MAP,

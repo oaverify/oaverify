@@ -123,11 +123,17 @@ describe("buildProgram: argv-level", () => {
     for (const f of payload.findings) expect(f.class).toBeTruthy();
   });
 
-  it("check rejects an unknown --only class as a usage error", async () => {
-    const mem = memoryIo([["spec.json", spec]]);
-    await expect(runCli(["check", "spec.json", "--only", "nonsense"], mem)).rejects.toThrow(
-      /unknown check class/,
-    );
+  it("check no longer accepts --only or --skip", async () => {
+    // Replaced by `--findings`, which spells both polarities. Commander
+    // rejects the unknown option, so a stale CI invocation fails loudly
+    // rather than silently checking everything.
+    for (const argv of [
+      ["check", "spec.json", "--only", "hygiene"],
+      ["check", "spec.json", "--skip", "redos"],
+    ]) {
+      const mem = memoryIo([["spec.json", spec]]);
+      await expect(runCli(argv, mem)).rejects.toThrow(/unknown option/);
+    }
   });
 
   it("resolve no longer accepts --lint", async () => {

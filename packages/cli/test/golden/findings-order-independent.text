@@ -1,0 +1,15 @@
+warning  schema       format-not-validated
+  "not-a-real-format" is not a format oaverify validates, so values are checked
+  against "type" alone. This is legal: support for a format is optional and a
+  tool may fall back to "type" for one it does not recognise. Register a
+  validator through the formats option to enforce it, or read this as
+  confirmation the name is an annotation.
+    at /components/schemas/shared_Pet/properties/ref/format
+
+warning  schema       silent-rewrite/required-not-in-properties
+  required: "absent" at <root> is not declared in properties reachable here
+  (likely a typo)
+    at GET /pets/{petId} 200 response body (application/json) -> <root>
+
+2 finding(s): 2 warning
+skipped: 1 finding(s) (-unsatisfiable/pattern-length x1)

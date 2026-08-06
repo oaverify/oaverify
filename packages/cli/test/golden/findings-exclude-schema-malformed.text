@@ -1,0 +1,7 @@
+fatal    malformed    malformed-schema
+  POST /t request body (application/json): keyword "required" requires an array
+  of strings; got number 7
+    at POST /t request body (application/json)
+
+1 finding(s): 1 fatal
+skipped: 0 finding(s) (-schema x0)

@@ -259,9 +259,9 @@ not compile.
 
 This is the one class that compiles schemas of its own accord, so it is
 also the one with a cost worth naming: on a 278-component document it
-adds roughly 60ms. Omit `examples` from `--only` to opt out of it, and
-note that a `--only` list omits everything it does not name, so
-`--only hygiene,schema,conformance` drops the `redos` class as well.
+adds roughly 60ms. `--findings -examples` opts out and still runs everything else;
+`--findings hygiene,schema,conformance` also opts out and skips the
+work of every class it does not name.
 
 ## Patterns: can a regex be made to backtrack
 
@@ -300,7 +300,7 @@ your deployment:
   A linear-time engine such as `re2` removes the risk for _your_
   process; it does not change the document. It also does not support
   backreferences or lookaround, so it is not a free swap.
-- `--only hygiene,schema,conformance,examples` opts out. This is the one
+- `--findings -redos` opts out. This is the one
   check that reaches for a third-party analyser, which is why it is
   its own class.
 
@@ -362,7 +362,8 @@ hide every other finding in the file.
 
 Every finding carries both, and neither implies the other.
 
-**Class** says which pass produced it, and is what `--only` selects:
+**Class** says which pass produced it, and is the coarsest thing
+`--findings` selects:
 
 | Class         | Question it answers                               |
 | ------------- | ------------------------------------------------- |
@@ -395,7 +396,8 @@ oaverify check spec.yaml --fail-on error    # break the build on what is actuall
 oaverify check spec.yaml --fail-on warning  # break the build on anything at all
 ```
 
-`--only` takes the selectable classes from the table above. A malformed
+`--findings` takes the selectable classes from the table above, and
+reaches a family or an exact code besides. A malformed
 schema is found by compiling, which is what the `schema` check does, so
 it cannot be asked for on its own and appears whenever that check runs.
 
@@ -428,7 +430,7 @@ A key that names no real class, code or family is refused. The list is
 
 It changes the `severity` field in the report and what `--fail-on`
 gates on, and nothing else: `validate` has no notion of severity, and
-which findings are produced is `--only`'s question, or `--skip`'s.
+which findings are produced is `--findings`'s question.
 
 **`malformed` cannot be remapped.** Its exit code is 4, which outranks
 `--fail-on` because a document that cannot be compiled is not a gate
@@ -438,47 +440,86 @@ rather than half-applied. Every other input error is refused too, on
 the same reasoning: a mistyped key that silently graded nothing is the
 failure this option exists to prevent.
 
-#### When you do not want the finding at all
+#### Which findings you get: `--findings`
 
-Regrading is for a finding you disagree with the ranking of. `--skip`
-is for one you do not want in the report:
+Regrading is for a finding you disagree with the ranking of.
+`--findings` is for choosing which ones exist at all. A term is a class,
+a family written `name/*`, or an exact code, the same grammar
+`--severity` uses, and a leading `-` excludes it:
 
 ```
-oaverify check spec.yaml --skip format-not-validated
-oaverify check spec.yaml --skip 'unsatisfiable/*,unused-tag'
+oaverify check spec.yaml --findings schema,redos      # these two, and nothing else
+oaverify check spec.yaml --findings -unused-tag       # everything except that code
+oaverify check spec.yaml --findings 'schema,-unsatisfiable/*'
 ```
 
-Same key grammar as `--severity`, same validation, and it sits on
-`--only`'s side of the fence: which findings exist is `--only`'s
-question, which is what keeps the sentence above true.
+The rule, whole: **the terms without `-` choose what you get, and with
+no such term you get everything; the terms with `-` are then taken
+away.** Order never matters, so `-a,b` and `b,-a` read the same.
 
-A skipped finding is **not produced**. It is absent from `findings[]`,
+**The sign also decides what the run costs**, which is the part worth
+understanding before you reach for it:
+
+| You write             | oaverify                            | You get                                                                 |
+| --------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
+| `--findings hygiene`  | runs the hygiene check alone        | the cheapest useful run                                                 |
+| `--findings -hygiene` | runs everything, then drops hygiene | the full report minus one class, and an exact count of what was dropped |
+
+Both spellings of "I do not care about hygiene" give the same findings.
+Only the first one saves you the work. On a 7.6MB document that is 0.2
+seconds against 13, and 136MB against 2.7GB, so it is worth knowing
+which one you wrote.
+
+The asymmetry buys two things. An exclusion can report exactly how many
+findings it dropped, because the check ran; and an exclusion can never
+hide a finding that the check had to run to discover. The second matters
+for exactly one case:
+
+**`malformed` is reported, and never selectable.** A schema the compiler
+cannot interpret is found by compiling. `--findings -schema` still
+compiles, so it still finds one, and the run still exits 4. Asking for
+work that does not include compiling (`--findings hygiene`) means no
+compile happens and a malformed schema is not looked for. Naming
+`malformed` in either direction is a usage error.
+
+An excluded finding is **not produced**. It is absent from `findings[]`,
 so `--fail-on` cannot see it and the summary does not count it. That is
-only safe because the skip is reported:
+only safe because the exclusion is reported:
 
 ```
 7 finding(s): 2 error, 5 warning
-skipped: 3 finding(s) (format-not-validated x3, unused-tag x0)
+skipped: 3 finding(s) (-format-not-validated x3, -unused-tag x0)
 ```
 
 `--format json` carries the same thing as a `skipped` block, and SARIF
 records it as a run notification rather than as `result.suppressions`,
 because a suppressed result is still a result and these were not
-produced.
+produced. The `unused-tag x0` above is the case worth watching: an
+exclusion that no longer suppresses anything is how a real defect
+eventually arrives suppressed and unnoticed.
 
-Every key you give is reported, including ones that matched nothing.
-The `unused-tag x0` above is the case worth watching: a skip that no
-longer suppresses anything is how a real defect eventually arrives
-suppressed and unnoticed.
+**A term that changes nothing is reported, not refused:**
 
-**`malformed` cannot be skipped either**, in either spelling, for a
-sharper version of the reason it cannot be remapped: suppressing it
-would turn "this document does not compile" into a clean report.
+```
+4 finding(s): 4 warning
+no-op terms: -redos (outside the selected findings)
+```
 
-`--skip` names findings, never formats. `--skip format-not-validated`
-drops the advisory finding that says a format is not asserted; it does
-not change what request validation accepts. That knob is `formats`, and
-it is above under [Format assertion](#format-assertion-is-not-one-of-these).
+`--findings schema,-redos` selects schema, so the exclusion has nothing
+to reach. That is worth saying and is not worth failing over, because
+`-a,-b` is what a script produces when it unions two exclusion lists and
+refusing it would make those lists impossible to compose. It is distinct
+from an exclusion that was live and dropped nothing, which prints `x0`.
+
+Where two terms cover each other, the narrower spelling is the one
+reported: `-redos,-ambiguous-pattern` names a class and its only member,
+so the member is what changed nothing, whichever order you wrote them.
+
+`--findings` names findings, never formats. `--findings
+-format-not-validated` drops the advisory finding that says a format is
+not asserted; it does not change what request validation accepts. That
+knob is `formats`, and it is above under
+[Format assertion](#format-assertion-is-not-one-of-these).
 
 ### Document conformance
 
@@ -505,7 +546,7 @@ Two limits worth knowing:
   overlap and one defect can be reported by both.
 
 ```
-oaverify check spec.yaml --only schema --fail-on warning --format json
+oaverify check spec.yaml --findings schema --fail-on warning --format json
 ```
 
 The full exit-code table is in
@@ -529,7 +570,7 @@ validated at runtime, which is a library setting.
 - _"My spec has a typo and I want to know at build time."_ → `schemaLint: "strict"`.
 - _"I want unexpected query parameters rejected."_ → `strictQueryParameters: true`.
 - _"I want to be told my spec is not **structurally** valid OpenAPI."_ →
-  `oaverify check --only conformance`, or `--fail-on error` in CI. It
+  `oaverify check --findings conformance`, or `--fail-on error` in CI. It
   validates the document against the JSON Schema OpenAPI publishes for
   the version it declares, which covers the shape of every object but
   does not follow cross-references. A clean run means the document is

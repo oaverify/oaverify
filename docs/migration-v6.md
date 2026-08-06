@@ -1,13 +1,16 @@
 # Migrating to v6
 
-v6 is one change with one consequence: **`format` is one registry, and
-the OpenAPI numeric formats assert.**
+Two changes, and most callers meet only the first.
 
-If you never pass `formats` and never read `builtInFormats`, the upgrade
-is a version bump plus one behaviour change to know about: a request
-whose field is declared `int32` or `int64` and whose value is out of
-range is now a validation error. That is the whole migration for most
-callers.
+**`format` is one registry, and the OpenAPI numeric formats assert.** If
+you never pass `formats` and never read `builtInFormats`, this is a
+version bump plus one behaviour change: a request whose field is
+declared `int32` or `int64` and whose value is out of range is now a
+validation error.
+
+**`oaverify check` replaces `--only` with `--findings`.** A one-line
+edit wherever you invoke it, and the new flag reaches an exact code or a
+family where `--only` reached only a class.
 
 ## Why `int32` started rejecting
 
@@ -139,22 +142,27 @@ old behaviour was a validator that could not do its job; the new
 behaviour is a validator that can, and a format that was silently inert
 may now reject payloads it always should have.
 
-## New: `--skip` on `oaverify check`
-
-Not breaking, and it may replace a post-processing step you have.
+## Breaking: `--only` becomes `--findings`
 
 ```
-oaverify check spec.yaml --skip format-not-validated
-oaverify check spec.yaml --skip 'unsatisfiable/*,unused-tag'
+oaverify check spec.yaml --findings schema,redos      # was --only schema,redos
+oaverify check spec.yaml --findings -unused-tag       # no --only equivalent
+oaverify check spec.yaml --findings 'schema,-unsatisfiable/*'
 ```
 
-Same key grammar as `--severity`: an exact code, a family as `name/*`,
-or a class. A skipped finding is not produced, so `--fail-on` cannot
-see it and the summary does not count it, and every key given is
-reported with what it dropped, including keys that dropped nothing.
-`malformed` cannot be skipped.
+Terms use `--severity`'s key grammar, so one can be an exact code, a
+family as `name/*`, or a class, and `-` excludes. Order never matters.
+Naming `malformed` is refused in either direction.
 
-See [strictness.md](./strictness.md#when-you-do-not-want-the-finding-at-all).
+The sign carries a difference `--only` could not express. A term without
+`-` decides which checks run, so it is how a run avoids work: on a 7.6MB
+document `--findings hygiene` is 0.2 seconds against 13, and 136MB
+against 2.7GB. A term with `-` drops findings the checks produced, so it
+reports an exact count and can never hide something a check had to run
+to find. That is what keeps a malformed schema unsuppressable:
+`--findings -schema` still compiles and still exits 4.
+
+See [strictness.md](./strictness.md#which-findings-you-get---findings).
 
 ## Checklist
 

@@ -1,11 +1,6 @@
 import { Command } from "commander";
 import { KNOWN_OUTPUT_FORMATS, isOutputFormat, type OutputFormat } from "@oaverify/internal-core";
-import {
-  CHECK_CLASSES,
-  CHECK_SEVERITIES,
-  type CheckClass,
-  type CheckSeverity,
-} from "@oaverify/check";
+import { CHECK_SEVERITIES, type CheckSeverity } from "@oaverify/check";
 import {
   checkCommand,
   compileSchemaCommand,
@@ -136,16 +131,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       [],
     )
     .option(
-      "--only <classes>",
-      `comma-separated subset of: ${CHECK_CLASSES.join(", ")} (default: all)`,
-      (value: string): CheckClass[] =>
-        value.split(",").map((raw) => {
-          const name = raw.trim();
-          if (!(CHECK_CLASSES as readonly string[]).includes(name)) {
-            throw new Error(`unknown check class: ${name} (expected ${CHECK_CLASSES.join(", ")})`);
-          }
-          return name as CheckClass;
-        }),
+      "--findings <terms>",
+      "which findings to report (default: all): comma-separated terms, each a code, " +
+        "a family as 'name/*', or a class, '-' prefixed to exclude " +
+        "(e.g. 'schema,-unsatisfiable/*'). A term without '-' also decides which " +
+        "checks run, so it is how a run avoids work",
     )
     .option(
       "--fail-on <level>",
@@ -161,12 +151,6 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       "--severity <map...>",
       "regrade findings: comma-separated <key>=<level>, key being a code, " +
         "a family as 'name/*', or a class (e.g. 'unsatisfiable/*=error,redos=error')",
-    )
-    .option(
-      "--skip <keys...>",
-      "drop findings: comma-separated keys, each a code, a family as 'name/*', " +
-        "or a class (e.g. 'format-not-validated,unsatisfiable/*'); what was " +
-        "dropped is reported",
     )
     .option(
       "--format <shape>",
@@ -186,10 +170,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
         spec: string,
         opts: {
           overlay: string[];
-          only?: CheckClass[];
+          findings?: string;
           failOn?: CheckSeverity;
           severity?: string[];
-          skip?: string[];
           format: "text" | "json" | "sarif";
           output?: string;
           quiet: boolean;
@@ -199,10 +182,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           {
             spec,
             overlays: opts.overlay,
-            only: opts.only,
+            findings: opts.findings,
             failOn: opts.failOn,
             severity: opts.severity,
-            skip: opts.skip,
             format: opts.format,
             version: options.version,
             // Terminal width only when stdout is one. Redirected or piped

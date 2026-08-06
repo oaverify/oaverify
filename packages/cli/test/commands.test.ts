@@ -654,7 +654,7 @@ describe("resolveCommand", () => {
   it("check --only conformance runs neither hygiene nor the schema compile", async () => {
     const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
     const result = await checkCommand(
-      { spec: "spec.json", overlays: [], only: ["conformance"], options: textOpts },
+      { spec: "spec.json", overlays: [], findings: "conformance", options: textOpts },
       io,
     );
     expect(result.exitCode).toBe(0);
@@ -850,7 +850,7 @@ describe("resolveCommand", () => {
     // failures against a guessed schema would be worse than silence.
     const { io, stdout } = memoryIo([["spec.json", { swagger: "2.0", info: {}, paths: {} }]]);
     await checkCommand(
-      { spec: "spec.json", overlays: [], only: ["conformance"], options: textOpts },
+      { spec: "spec.json", overlays: [], findings: "conformance", options: textOpts },
       io,
     );
     expect(stdout.value).not.toMatch(/^\w+\s+conformance\s/m);
@@ -898,7 +898,7 @@ describe("resolveCommand", () => {
     };
     const { io, stdout } = memoryIo([["spec.json", shared]]);
     await checkCommand(
-      { spec: "spec.json", overlays: [], only: ["schema"], format: "json", options: textOpts },
+      { spec: "spec.json", overlays: [], findings: "schema", format: "json", options: textOpts },
       io,
     );
     const { findings } = JSON.parse(stdout.value) as {
@@ -936,7 +936,7 @@ describe("resolveCommand", () => {
       ],
     ]);
     await checkCommand(
-      { spec: "spec.json", overlays: [], only: ["schema"], format: "json", options: textOpts },
+      { spec: "spec.json", overlays: [], findings: "schema", format: "json", options: textOpts },
       io,
     );
     const { findings } = JSON.parse(stdout.value) as { findings: { occurrences?: number }[] };
@@ -1058,7 +1058,7 @@ describe("resolveCommand", () => {
   it("check --only narrows the classes that run", async () => {
     const { io, stdout } = memoryIo([["spec.json", dirtySpec()]]);
     await checkCommand(
-      { spec: "spec.json", overlays: [], only: ["schema"], format: "json", options: textOpts },
+      { spec: "spec.json", overlays: [], findings: "schema", format: "json", options: textOpts },
       io,
     );
     const payload = JSON.parse(stdout.value) as { findings: { class: string }[] };
@@ -1128,7 +1128,7 @@ describe("resolveCommand", () => {
       ],
     ]);
     const result = await checkCommand(
-      { spec: "spec.json", overlays: [], only: ["schema"], format: "json", options: textOpts },
+      { spec: "spec.json", overlays: [], findings: "schema", format: "json", options: textOpts },
       io,
     );
     expect(result.exitCode).toBe(4);

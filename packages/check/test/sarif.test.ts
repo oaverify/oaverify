@@ -4,6 +4,7 @@ import { createMemoryReader, loadSpec } from "@oaverify/internal-spec";
 import { checkSpec } from "../src/check.js";
 import type { CheckFinding } from "../src/finding.js";
 import { artifactLocation, renderSarif } from "../src/sarif.js";
+import { selectionForClasses } from "../src/selection.js";
 
 const BASE = "/repo";
 
@@ -236,7 +237,7 @@ describe("locations track the spec's provenance", () => {
       entry: "entry.json",
       ...(provenance && { provenance: true }),
     });
-    const findings = checkSpec(resolved, { only: ["hygiene"] });
+    const findings = checkSpec(resolved, { findings: selectionForClasses(["hygiene"]) });
     expect(findings.length).toBeGreaterThan(0);
     return JSON.parse(
       renderSarif(findings, { version: "1.2.3", base: "/repo", classes: ["hygiene"] }),
