@@ -153,6 +153,7 @@
     "lint:type-aware": "oxlint --type-aware -c .oxlintrc.type-aware.json packages",
     "check:deps": "node ./scripts/check-deps.mjs",
     "fmt": "oxfmt --write .",
+    "clean": "node ./scripts/clean.mjs",
     "typecheck": "tsc -b && tsc -p examples && tsc -p tsconfig.tests.json",
     "prepack": "pnpm build && node ./scripts/pack-devdeps.mjs strip",
     "postpack": "node ./scripts/pack-devdeps.mjs restore",
