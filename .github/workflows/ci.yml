@@ -243,7 +243,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: are the pinned corpora behind upstream?
         working-directory: conformance
-        run: pnpm corpora:stale
+        run: pnpm corpora:stale --fail-if-stale
 
   pack-smoke:
     # Catches `exports` map / `files` / bundler regressions that unit

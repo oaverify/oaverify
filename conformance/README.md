@@ -44,10 +44,12 @@ come to disagree with nothing in the repo to point at.
 A pin alone would trade that problem for a worse one: a frozen corpus
 means every run goes green forever while upstream adds cases we have
 never been measured against, so the conformance claim ages silently.
-`pnpm corpora:stale` is the other half. It asks upstream for its HEAD,
-reports which pins are behind and what landed, and exits non-zero so
-the nightly `corpus-freshness` job surfaces it. The pin is the gate; that
-is the radar.
+`pnpm corpora:stale` is the other half. It asks upstream for its HEAD and
+reports which pins are behind and what landed. It exits 0 doing so: being
+behind is expected most of the time, and handing a newcomer a failure for
+it would be noise. The nightly `corpus-freshness` job adds
+`--fail-if-stale`, where a non-zero exit is the only signal anyone sees.
+The pin is the gate; that is the radar.
 
 So bumping is a deliberate act: change `rev`, run `pnpm corpora`, and
 re-measure the affected baselines in the same commit. Expect a bump to

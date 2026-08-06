@@ -8,13 +8,19 @@
  * exists to prevent. The pin is the gate; this is the radar.
  *
  * It is deliberately not a `--check-baseline` style gate on correctness.
- * Being behind upstream is not a defect, it is a maintenance signal, so
- * the exit code says "someone should bump this" and the output says what
- * landed. Bumping is a decision, because a bump can add cases we fail
- * and that has to be triaged rather than absorbed.
+ * Being behind upstream is not a defect, it is a maintenance signal.
+ * Bumping is a decision, because a bump can add cases we fail and that
+ * has to be triaged rather than absorbed.
+ *
+ * Which is why being behind exits **zero** by default. Someone following
+ * the README should not be handed a failure for a condition that is
+ * expected to hold most of the time; the report is the output, not the
+ * exit code. CI passes `--fail-if-stale`, because there the exit code is
+ * the only thing anyone sees.
  *
  * Usage:
- *   pnpm corpora:stale        # exit 1 if any corpus is behind
+ *   pnpm corpora:stale                   # always exits 0; report only
+ *   pnpm corpora:stale --fail-if-stale   # exit 1 if behind (what CI runs)
  *   pnpm corpora:stale --quiet-if-current
  */
 
@@ -64,7 +70,9 @@ function commitsSincePin(dir: string, rev: string): string[] | undefined {
   return log.length === 0 ? [] : log.split("\n");
 }
 
-const quietIfCurrent = process.argv.slice(2).includes("--quiet-if-current");
+const argv = process.argv.slice(2);
+const quietIfCurrent = argv.includes("--quiet-if-current");
+const failIfStale = argv.includes("--fail-if-stale");
 const stale: string[] = [];
 
 for (const [name, entry] of Object.entries(corpora())) {
@@ -99,6 +107,7 @@ console.log(
   `\n${stale.length} corpus/corpora behind upstream: ${stale.join(", ")}.\n` +
     `To take the new cases, bump "rev" in corpora.json, run \`pnpm corpora\`,\n` +
     `then re-measure the affected baselines in the same commit. Expect the\n` +
-    `bump to add failures; that is the point of looking.`,
+    `bump to add failures; that is the point of looking.\n` +
+    `\nThis is a maintenance signal, not a failed test.`,
 );
-process.exit(1);
+process.exit(failIfStale ? 1 : 0);

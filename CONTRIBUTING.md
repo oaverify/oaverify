@@ -108,9 +108,10 @@ Every runner above takes `--check-baseline`, which is the form CI uses: it
 compares against the committed results file and fails on a regression
 instead of on any single mismatch.
 
-`pnpm corpora:stale` exits non-zero when a pin is behind upstream. That is
-a maintenance signal rather than a test failure, and it is expected to be
-non-zero much of the time.
+`pnpm corpora:stale` reports which pinned corpora are behind upstream and
+exits 0 either way, because being behind is a maintenance signal rather
+than a test failure and is expected much of the time. CI runs it with
+`--fail-if-stale`, where the exit code is the only thing visible.
 
 ## Release process
 
