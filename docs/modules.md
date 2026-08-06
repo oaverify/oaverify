@@ -111,7 +111,18 @@ against the public barrel before reaching for them.
 | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | `@oaverify/core/schema/internals`    | Codegen mechanics, runtime helpers, and resolve internals below the keyword-author API            |
 | `@oaverify/core/spec/internals`      | Synchronous resolver primitives (`resolveSpecSync`, `createFileReaderSync`, `composeReadersSync`) |
-| `@oaverify/core/validator/internals` | Parameter deserialization, query assembly, and the operation-level `$ref` resolver                |
+| `@oaverify/core/validator/internals` | Parameter deserialization primitives, query assembly, and the shared document traversal           |
+
+## The emitted-output runtime (semver-covered)
+
+`@oaverify/core/codegen-runtime` is the one lower-level subpath that IS
+semver-covered, and the reason is who imports it: `oaverify
+compile-spec` writes the specifier into the consumer's generated
+module, so its members are load-bearing in files this repo does not
+control. A member leaves it only across a major, together with the
+emitter. Membership is mechanical (exactly what emitted output
+imports); see the module header in
+`packages/validator/src/codegen-runtime.ts` for the contract.
 
 ## Companion adapter packages
 

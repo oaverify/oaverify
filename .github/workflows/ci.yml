@@ -556,6 +556,23 @@ jobs:
           # stream-check imports analyzeSpec from @oaverify/stream, so this
           # fails if that dependency is missing or stale in the tree.
           npx oaverify stream-check spec.yaml > /dev/null
+          # compile-spec resolves @oaverify/core/codegen-runtime at the
+          # consumer's install and bundles it into the emitted module
+          # (#656). This job is the only place that resolution runs
+          # against a packed tarball rather than the workspace aliases,
+          # so a subpath missing from the published exports map is
+          # visible here and nowhere else. esbuild is compile-spec's
+          # declared peer.
+          npm install esbuild > /dev/null
+          npx oaverify compile-spec spec.yaml -o compiled.mjs
+          node --input-type=module -e '
+            import { pathToFileURL } from "node:url";
+            const aot = await import(pathToFileURL("compiled.mjs").href);
+            const ok = aot.validateRequest({ method: "POST", path: "/x", contentType: "application/json", body: { a: 1 } });
+            if (!ok.valid) throw new Error("emitted module rejected a valid request");
+            const bad = aot.validateRequest({ method: "POST", path: "/x", contentType: "application/json", body: {} });
+            if (bad.valid) throw new Error("emitted module accepted an invalid request");
+          '
           # A report larger than the 64 KiB pipe buffer must survive being
           # piped. `process.exit` used to drop the tail and still exit 0,
           # so `check --format json | jq` got JSON that stopped mid-token
