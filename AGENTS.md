@@ -429,13 +429,16 @@ refuses to report numbers from a drifted checkout.
 `performance/mem-bench/` is a fifth root nested inside `performance/`,
 and needs its own `pnpm install` before `pnpm bench:mem` will start. It
 holds two Express servers (oav and express-openapi-validator) that exist
-to be measured rather than run; see its README.
+to be measured rather than run; see its README. Its sources are `.mjs`,
+so its `typecheck` runs `checkJs` over the two servers instead of the
+usual `*.ts` include.
 
 Every one of them answers to `pnpm check`, which runs what CI gates for
 that directory, so the verb means the same kind of thing in each root and
 at the top level. `detection/`'s is typecheck only, because `pnpm detect`
 rewrites three committed files under `results/` and a command called
-`check` should not dirty the tree. `performance/`'s runs the smallest
+`check` should not dirty the tree. `mem-bench`'s is typecheck only too,
+because its servers exist to be measured and a benchmark is not a gate. `performance/`'s runs the smallest
 cross-library benchmark and still takes ~30s, because tinybench warms up
 every task against ajv's ~2.7ms compile and warmup dominates any budget.
 

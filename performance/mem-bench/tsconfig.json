@@ -1,0 +1,17 @@
+{
+  // Mirrors the other sub-root tsconfigs (see performance/tsconfig.json),
+  // except the sources here are the two .mjs servers, so allowJs/checkJs
+  // stand in for the usual "*.ts" include.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "incremental": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true,
+    "allowJs": true,
+    "checkJs": true
+  },
+  "include": ["*.mjs"]
+}

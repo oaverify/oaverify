@@ -40,14 +40,21 @@ app.get("/__memory", (req, res) => {
   });
 });
 
-// Validator adapter.
+// Validator adapter. Header values are copied to drop the `undefined`s
+// express's typing allows, and `query` is cast the same way the real
+// adapter's extract.ts does; the strings pass through unchanged.
 app.use(async (req, res, next) => {
   if (req.path === "/__memory") return next();
+  /** @type {Record<string, string | string[]>} */
+  const headers = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value !== undefined) headers[key] = value;
+  }
   const result = validator.validateRequest({
     method: req.method,
     path: req.path,
-    query: req.query,
-    headers: req.headers,
+    query: /** @type {Record<string, string | string[]>} */ (req.query),
+    headers,
     contentType: req.get("content-type") ?? undefined,
     body: req.body,
   });
