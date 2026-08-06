@@ -401,6 +401,62 @@ describe("compile-spec: equivalence vs createValidator", () => {
     ).toEqual({ valid: true });
   });
 
+  it("emits the same content-type messages as the runtime validator", async () => {
+    // `equivalent` above compares codes, not message text, which is how
+    // the emitted response wording came to drop the status and reuse the
+    // request's "is not accepted". Compare the strings.
+    const aot = await buildAot(petstore);
+    const runtime = createValidator(petstore);
+    const runtimeLeaf = (r: { valid: boolean; errors?: ValidationError[] }) =>
+      r.valid ? undefined : r.errors?.[0];
+
+    for (const extra of [
+      { contentType: "text/plain" }, // genuine mismatch
+      { headers: { "content-type": "application/json" } }, // the unset-field trap
+      {}, // genuinely absent
+    ]) {
+      const req = { method: "POST", path: "/pets", body: { name: "Fido" }, ...extra };
+      const fromAot = flatErrors(aot.validateRequest(req))[0];
+      const fromRuntime = runtimeLeaf(runtime.validateRequest(req as never));
+      expect(fromAot?.code, JSON.stringify(extra)).toBe("content-type");
+      expect(fromAot?.message, JSON.stringify(extra)).toBe(fromRuntime?.message);
+    }
+
+    // The response half needs a response that declares `content`; the
+    // petstore's 201 declares none, so the media-type branch there never
+    // runs and a check against it would pass vacuously.
+    const withResponseBody: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "ct", version: "1" },
+      paths: {
+        "/p": {
+          get: {
+            responses: {
+              "200": {
+                description: "ok",
+                content: { "application/json": { schema: { type: "object" } } },
+              },
+            },
+          },
+        },
+      },
+    };
+    const aot2 = await buildAot(withResponseBody);
+    const runtime2 = createValidator(withResponseBody);
+    const req2 = { method: "GET", path: "/p" };
+    for (const res of [
+      { status: 200, body: {}, contentType: "application/xml" }, // mismatch
+      { status: 200, body: {}, headers: { "content-type": "application/json" } }, // the trap
+      { status: 200, body: {} }, // genuinely absent
+    ]) {
+      const fromAot = flatErrors(aot2.validateResponse(req2, res))[0];
+      const fromRuntime = runtimeLeaf(runtime2.validateResponse(req2 as never, res as never));
+      expect(fromAot?.code, JSON.stringify(res)).toBe("content-type");
+      expect(fromAot?.message, JSON.stringify(res)).toContain("is not declared for status 200");
+      expect(fromAot?.message, JSON.stringify(res)).toBe(fromRuntime?.message);
+    }
+  });
+
   it("detectedVersion matches the spec's openapi bucket", async () => {
     const aot = await buildAot(petstore);
     expect(aot.detectedVersion).toBe("3.1");

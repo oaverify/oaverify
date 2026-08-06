@@ -7,7 +7,7 @@ import {
 import type { RouteMatch } from "@oaverify/internal-router";
 import type { CompiledTreeSchema } from "@oaverify/internal-schema";
 import { deserialize, matchParsedMediaType } from "./deserialize.js";
-import { getHeaderValue, getHeaderValueFast, getOwn } from "./headers.js";
+import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast, getOwn } from "./headers.js";
 import type { OperationCache } from "./operation-cache.js";
 import { assembleObjectQueryParam } from "./query-assembly.js";
 
@@ -214,7 +214,7 @@ export function matchRequestBodyMediaType(
   return createLeafError(
     "content-type",
     ["body"],
-    `request Content-Type "${req.contentType ?? "<missing>"}" is not accepted`,
+    contentTypeErrorMessage("request", req.contentType, req.headers),
     { contentType: req.contentType, accepted: [...cache.bodyValidators.keys()] },
   );
 }

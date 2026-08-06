@@ -243,7 +243,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     `import { createLeafError, createBranchError, createError, normalizeFormat } from "${importPrefix}/core";`,
     `import { createDeps, deepEqual, typeOf, wrapErrors } from "${importPrefix}/schema/internals";`,
     `import { builtInFormats } from "${importPrefix}/formats";`,
-    `import { deserialize, matchParsedMediaType, matchResponseKey, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult } from "${importPrefix}/validator/internals";`,
+    `import { deserialize, matchParsedMediaType, matchResponseKey, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/validator/internals";`,
     "",
     "void createBranchError; void createError; void deepEqual; void typeOf; void wrapErrors;",
     "void resolveOperationRef;",
@@ -733,7 +733,7 @@ function renderValidateRequestTree(): string {
         \`\${method} \${match.pathPattern}: request validation failed\`,
         [createLeafError(
           "content-type", ["body"],
-          \`request Content-Type "\${req.contentType ?? "<missing>"}" is not accepted\`,
+          contentTypeErrorMessage("request", req.contentType, req.headers),
           { contentType: req.contentType, accepted: bodyMediaTypes.map((mt) => mt.pattern) },
         )],
         { method, pathPattern: match.pathPattern },
@@ -863,7 +863,7 @@ function renderValidateResponseTree(): string {
       if (bodyMediaTypes.length > 0 && res.body !== undefined) {
         const mt = matchParsedMediaType(res.contentType, bodyMediaTypes);
         if (mt === undefined) {
-          children.push(createLeafError("content-type", ["body"], \`response Content-Type "\${res.contentType ?? "<missing>"}" is not accepted\`, { contentType: res.contentType, accepted: bodyMediaTypes.map((m) => m.pattern) }));
+          children.push(createLeafError("content-type", ["body"], contentTypeErrorMessage("response", res.contentType, res.headers, statusKey), { contentType: res.contentType, accepted: bodyMediaTypes.map((m) => m.pattern) }));
         } else {
           const v = resp.bodyValidators[mt];
           const r = v.validate(res.body, ["body"]);
