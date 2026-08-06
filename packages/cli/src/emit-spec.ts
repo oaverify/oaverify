@@ -22,7 +22,11 @@
  */
 
 import { builtInFormats } from "@oaverify/internal-formats";
-import { compileMediaTypePatterns } from "@oaverify/internal-validator/internals";
+import {
+  compileMediaTypePatterns,
+  walkDocumentSchemas,
+} from "@oaverify/internal-validator/internals";
+import { isUnknownFormat } from "./emit-standalone.js";
 import {
   compileSchema,
   createRefResolver,
@@ -86,6 +90,23 @@ export interface EmitSpecOptions {
    * `Number.POSITIVE_INFINITY` collects every error.
    */
   maxErrors?: number;
+  /**
+   * Policy for `format` names outside the built-in set, over the
+   * document's schema positions (the walk is document-level, so an
+   * operation dropped by `only` still counts; conservative on
+   * purpose). `"error"` (the default) throws, naming the formats;
+   * `"ignore"` emits guards that never fire, matching the runtime, and
+   * records each name in the module's `warnings` export. Mirrors
+   * `CompileOptions.unknownFormats`; see `emitStandalone` for the
+   * policy-vs-capability distinction (#660).
+   */
+  unknownFormats?: "ignore" | "error";
+  /**
+   * Called once with the sorted unknown-format names when
+   * `unknownFormats: "ignore"` found any. The CLI prints them to
+   * stderr; the module's `warnings` export carries them regardless.
+   */
+  onUnknownFormats?: (names: readonly string[]) => void;
 }
 
 const DIALECT_MAP: Record<StandaloneDialect, Dialect> = {
@@ -110,6 +131,29 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     : "Number.POSITIVE_INFINITY";
   const warnings: string[] = [];
   const dialect = resolveDialect(document, options.dialect, warnings);
+
+  // Formats outside the built-in set, before any compile work so the
+  // error mode fails fast. The walk is document-level rather than
+  // per-compiled-schema, because compilation follows $refs into
+  // component schemas where a plain subschema walk does not; the cost
+  // is that an operation dropped by `only` still counts, which errs in
+  // the conservative direction (#660).
+  const unknownNames = collectDocumentUnknownFormats(document);
+  if (unknownNames.length > 0) {
+    const list = unknownNames.map((f) => `"${f}"`).join(", ");
+    if ((options.unknownFormats ?? "error") === "error") {
+      throw new Error(
+        `Spec references format${unknownNames.length > 1 ? "s" : ""} not in the built-in set: ${list}. ` +
+          `Standalone compilation asserts only the built-in formats from @oaverify/core/formats; ` +
+          `pass --unknown-formats ignore to emit without asserting them.`,
+      );
+    }
+    for (const name of unknownNames) {
+      warnings.push(`format "${name}" is not in the built-in set and is not asserted`);
+    }
+    options.onUnknownFormats?.(unknownNames);
+  }
+
   const graph = resolve(document as unknown as SchemaOrBoolean);
   const refResolver: RefResolver = createRefResolver(graph);
 
@@ -931,4 +975,21 @@ function renderGetOperation(): string {
   };
 }
 `;
+}
+
+/**
+ * Every `format` name in the document's schema positions with no
+ * validator behind it, sorted. Shares the walk `check`'s
+ * format-not-validated pass uses, so the two commands and the finding
+ * see the same positions.
+ */
+function collectDocumentUnknownFormats(document: OpenAPIDocument): string[] {
+  const found = new Set<string>();
+  walkDocumentSchemas(document, {
+    onSchemaNode: (schema) => {
+      const format = schema["format"];
+      if (typeof format === "string" && isUnknownFormat(format)) found.add(format);
+    },
+  });
+  return [...found].sort();
 }

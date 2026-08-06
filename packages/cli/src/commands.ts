@@ -28,7 +28,11 @@ import {
 import type * as Esbuild from "esbuild";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { analyzeSpec } from "@oaverify/stream";
-import { emitStandalone, type StandaloneDialect } from "./emit-standalone.js";
+import {
+  collectUnknownFormats,
+  emitStandalone,
+  type StandaloneDialect,
+} from "./emit-standalone.js";
 import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
 import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
@@ -749,6 +753,8 @@ export async function compileSchemaCommand(
     schema: string;
     output?: string;
     dialect?: StandaloneDialect;
+    /** Policy for formats outside the built-in set. Default `"error"`. */
+    unknownFormats?: "ignore" | "error";
     /**
      * Override the `@oaverify/core` prefix used in the intermediate
      * pre-bundle module's imports. Tests use workspace aliases for
@@ -781,11 +787,37 @@ export async function compileSchemaCommand(
     io.stderr(`compile-schema: ${args.schema} is not valid JSON (${(err as Error).message})\n`);
     return { exitCode: 3 };
   }
+  // An OpenAPI document is a legal-but-meaningless input here: every
+  // top-level key is an unknown keyword to JSON Schema, so the emitted
+  // validate() would accept everything, silently. Refuse with a pointer
+  // instead (the same class of early error as the JSON reader's
+  // .yaml install hint).
+  if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+    const marker = ["openapi", "swagger"].find((k) => k in (parsed as Record<string, unknown>));
+    if (marker !== undefined) {
+      io.stderr(
+        `compile-schema: ${args.schema} looks like an OpenAPI document (it has ` +
+          `an "${marker}" field), not a JSON Schema. Compiled as a schema it would ` +
+          `accept every value. Use compile-spec for an HTTP validator, or pass the ` +
+          `schema object itself.\n`,
+      );
+      return { exitCode: 2 };
+    }
+  }
+  const unknownFormatsMode = args.unknownFormats ?? "error";
+  if (unknownFormatsMode === "ignore") {
+    for (const name of collectUnknownFormats(parsed as SchemaOrBoolean)) {
+      io.stderr(
+        `compile-schema: warning: format "${name}" is not in the built-in set; the emitted validator does not assert it\n`,
+      );
+    }
+  }
   let source: string;
   try {
     source = emitStandalone(parsed as SchemaOrBoolean, {
       dialect: args.dialect ?? "2020-12",
       importPrefix: args.importPrefix,
+      unknownFormats: unknownFormatsMode,
     });
   } catch (err) {
     io.stderr(`compile-schema: ${(err as Error).message}\n`);
@@ -869,6 +901,8 @@ export async function compileSpecCommand(
     outputMode?: "flat" | "tree" | "predicate";
     /** Leaf-error cap baked into the emitted validators. Default `1`. */
     maxErrors?: number;
+    /** Policy for formats outside the built-in set. Default `"error"`. */
+    unknownFormats?: "ignore" | "error";
     /** Test-only: override the emitted module's import prefix. */
     importPrefix?: string;
     /** Test-only: override esbuild's resolveDir for in-workspace bundle. */
@@ -907,6 +941,14 @@ export async function compileSpecCommand(
       outputMode: args.outputMode,
       maxErrors: args.maxErrors,
       importPrefix: args.importPrefix,
+      unknownFormats: args.unknownFormats,
+      onUnknownFormats: (names) => {
+        for (const name of names) {
+          io.stderr(
+            `compile-spec: warning: format "${name}" is not in the built-in set; the emitted validator does not assert it\n`,
+          );
+        }
+      },
     });
   } catch (err) {
     io.stderr(`compile-spec: ${(err as Error).message}\n`);

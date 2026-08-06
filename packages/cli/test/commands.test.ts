@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CheckFinding } from "@oaverify/check";
 import {
   checkCommand,
+  compileSchemaCommand,
   defaultCommandIo,
   resolveCommand,
   validateCommand,
@@ -1357,5 +1358,31 @@ describe("validateCommand", () => {
     expect(writes[0]?.[1]).toMatch(/required/i);
     // Regression: `-o` used to write both to the file AND stdout.
     expect(stdout.value).toBe("");
+  });
+});
+
+describe("compile-schema input guards", () => {
+  it("refuses an OpenAPI document with a pointer at compile-spec", async () => {
+    // Fed a spec, every top-level key is an unknown JSON Schema keyword,
+    // so the emitted validate() would accept everything, silently.
+    const doc = JSON.stringify({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {},
+    });
+    const mem = memoryIo([], [["spec.json", doc]]);
+    const res = await compileSchemaCommand({ schema: "spec.json" }, mem.io);
+    expect(res.exitCode).toBe(2);
+    expect(mem.stderr.value).toContain("Use compile-spec");
+    expect(mem.stderr.value).toContain('"openapi" field');
+  });
+
+  it("refuses an unknown format by default, naming the escape hatch", async () => {
+    const schema = JSON.stringify({ type: "string", format: "iban" });
+    const mem = memoryIo([], [["s.json", schema]]);
+    const res = await compileSchemaCommand({ schema: "s.json" }, mem.io);
+    expect(res.exitCode).toBe(3);
+    expect(mem.stderr.value).toContain('"iban"');
+    expect(mem.stderr.value).toContain("--unknown-formats ignore");
   });
 });

@@ -37,6 +37,17 @@ export interface EmitStandaloneOptions {
    * output exercises the real import path.
    */
   importPrefix?: string;
+  /**
+   * Policy for `format` names outside the built-in set. `"error"`
+   * (the default) refuses the schema, naming the formats; `"ignore"`
+   * emits a validator that does not assert them, matching the
+   * runtime's behavior for an unregistered name. Mirrors
+   * `CompileOptions.unknownFormats`. This is policy, not capability:
+   * an unknown name has no validator function to serialise either
+   * way, so both modes produce the same (correct) module when they
+   * produce one.
+   */
+  unknownFormats?: "ignore" | "error";
 }
 
 /**
@@ -48,11 +59,14 @@ export interface EmitStandaloneOptions {
  * runtimes (Cloudflare Workers, Vercel Edge) and build-time-prepared
  * validator bundles.
  *
- * Rejects schemas that use `format: "..."` values outside
- * {@link @oaverify/core/formats!builtInFormats}. Custom formats and
- * custom keywords aren't serialisable and require a more involved
- * emission path; out of scope for the CLI entry. `int32` and `int64`
- * are inside that set, so they emit rather than being refused.
+ * By default, rejects schemas that use `format: "..."` values outside
+ * {@link @oaverify/core/formats!builtInFormats}; `unknownFormats:
+ * "ignore"` emits anyway, without asserting them (#660). That is
+ * policy. The hard constraint is different and unconditional: a custom
+ * format *function* or custom keyword registered at runtime is not
+ * serialisable to standalone source, and no option changes that.
+ * `int32` and `int64` are built-ins, so they emit rather than being
+ * refused.
  *
  * @internal
  */
@@ -60,12 +74,14 @@ export function emitStandalone(schema: SchemaOrBoolean, options: EmitStandaloneO
   const dialect = DIALECT_MAP[options.dialect];
   const importPrefix = options.importPrefix ?? "@oaverify/core";
 
-  const unknownFormats = collectUnknownFormats(schema);
+  const unknownFormats =
+    (options.unknownFormats ?? "error") === "error" ? collectUnknownFormats(schema) : [];
   if (unknownFormats.length > 0) {
     throw new Error(
       `Schema references format${unknownFormats.length > 1 ? "s" : ""} ` +
         `not in the built-in set: ${unknownFormats.map((f) => `"${f}"`).join(", ")}. ` +
-        `Standalone compilation only supports the built-in formats from @oaverify/core/formats.`,
+        `Standalone compilation asserts only the built-in formats from @oaverify/core/formats; ` +
+        `pass --unknown-formats ignore to emit without asserting them.`,
     );
   }
 
@@ -119,23 +135,29 @@ export function emitStandalone(schema: SchemaOrBoolean, options: EmitStandaloneO
 const SCHEMA_AUTO_REGISTERED_FORMATS: ReadonlySet<string> = new Set(["regex"]);
 
 /**
+ * True when `name` has no validator in the set the emitted module
+ * registers (the built-ins plus the schema-auto-registered `regex`), so
+ * a guard emitted for it can never fire.
+ */
+export function isUnknownFormat(name: string): boolean {
+  return !(name in builtInFormats) && !SCHEMA_AUTO_REGISTERED_FORMATS.has(name);
+}
+
+/**
  * Walk the schema looking for `format: "..."` values referenced on
  * object subschemas; return those not covered by the built-in set or
  * the schema-auto-registered set. Using {@link walkSubschemas} keeps
  * us out of `enum` / `const` / `default` literal values, which might
  * incidentally contain a string under a `format` key without being a
- * format assertion.
+ * format assertion. Does not follow `$ref`; the document-level
+ * collector in emit-spec.ts covers the spec case.
  */
-function collectUnknownFormats(schema: SchemaOrBoolean): string[] {
+export function collectUnknownFormats(schema: SchemaOrBoolean): string[] {
   const found = new Set<string>();
   walkSubschemas(schema, (node) => {
     if (typeof node !== "object" || node === null || Array.isArray(node)) return;
     const format = (node as SchemaObject).format;
-    if (
-      typeof format === "string" &&
-      !(format in builtInFormats) &&
-      !SCHEMA_AUTO_REGISTERED_FORMATS.has(format)
-    ) {
+    if (typeof format === "string" && isUnknownFormat(format)) {
       found.add(format);
     }
   });

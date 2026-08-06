@@ -329,18 +329,34 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       },
       "2020-12" as StandaloneDialect,
     )
+    .option(
+      "--unknown-formats <mode>",
+      "formats outside the built-in set: error (refuse) | ignore (emit without asserting them, with a warning)",
+      parseUnknownFormats,
+      "error" as const,
+    )
     .option("-o, --output <file>", "write output to a file instead of stdout")
-    .action(async (schema: string, opts: { dialect: StandaloneDialect; output?: string }) => {
-      const res = await compileSchemaCommand(
-        {
-          schema,
-          output: opts.output,
-          dialect: opts.dialect,
+    .action(
+      async (
+        schema: string,
+        opts: {
+          dialect: StandaloneDialect;
+          unknownFormats: "ignore" | "error";
+          output?: string;
         },
-        io,
-      );
-      exit(res.exitCode);
-    });
+      ) => {
+        const res = await compileSchemaCommand(
+          {
+            schema,
+            output: opts.output,
+            dialect: opts.dialect,
+            unknownFormats: opts.unknownFormats,
+          },
+          io,
+        );
+        exit(res.exitCode);
+      },
+    );
 
   program
     .command("compile-spec <spec>")
@@ -378,6 +394,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       'leaf-error cap baked into the validators: a positive integer or "all" (default: 1)',
       parseMaxErrors,
     )
+    .option(
+      "--unknown-formats <mode>",
+      "formats outside the built-in set: error (refuse) | ignore (emit without asserting them, with a warning)",
+      parseUnknownFormats,
+      "error" as const,
+    )
     .option("-o, --output <file>", "write output to a file instead of stdout")
     .action(
       async (
@@ -389,6 +411,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           only: Array<{ method: string; path: string }>;
           outputMode?: "flat" | "tree" | "predicate";
           maxErrors?: number;
+          unknownFormats: "ignore" | "error";
           output?: string;
         },
       ) => {
@@ -402,6 +425,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             only: opts.only,
             outputMode: opts.outputMode,
             maxErrors: opts.maxErrors,
+            unknownFormats: opts.unknownFormats,
           },
           io,
         );
@@ -425,6 +449,13 @@ function collectOnly(
 
 function collectOverlays(value: string, previous: string[]): string[] {
   return [...previous, value];
+}
+
+function parseUnknownFormats(value: string): "ignore" | "error" {
+  if (value !== "ignore" && value !== "error") {
+    throw new Error(`--unknown-formats must be ignore | error, got ${JSON.stringify(value)}`);
+  }
+  return value;
 }
 
 function parseOutputMode(value: string): "flat" | "tree" | "predicate" {
