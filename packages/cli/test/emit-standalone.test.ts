@@ -16,10 +16,14 @@ import { emitStandalone } from "../src/emit-standalone.js";
  */
 async function compileModule<T = unknown>(
   schema: SchemaOrBoolean,
-  opts?: { dialect?: "2020-12" | "openapi-3.1" | "openapi-3.0" },
+  opts?: {
+    dialect?: "2020-12" | "openapi-3.1" | "openapi-3.0";
+    unknownFormats?: "ignore" | "error";
+  },
 ): Promise<{ validate: (data: unknown) => { valid: boolean; error?: unknown }; dir: string }> {
   const source = emitStandalone(schema, {
     dialect: opts?.dialect ?? "2020-12",
+    unknownFormats: opts?.unknownFormats,
   });
   const dir = await mkdtemp(join(tmpdir(), "oav-emit-"));
   const file = join(dir, "v.mjs");
@@ -68,6 +72,20 @@ describe("emitStandalone", () => {
       // formats regardless; stricter behavior requires the assertion
       // vocabulary, which isn't the JSON-Schema default.
       expect(validate({ contact: "not-an-email" }).valid).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true });
+    }
+  });
+
+  it('emits under unknownFormats: "ignore", not asserting the unknown name', async () => {
+    // The policy half of #660: an unknown name has no validator to
+    // serialise, so the emitted module simply does not assert it,
+    // matching the runtime. Type constraints still apply.
+    const schema = { type: "string", format: "custom-thing" } as unknown as SchemaOrBoolean;
+    const { validate, dir } = await compileModule(schema, { unknownFormats: "ignore" });
+    try {
+      expect(validate("anything")).toEqual({ valid: true });
+      expect(validate(5).valid).toBe(false);
     } finally {
       await rm(dir, { recursive: true });
     }

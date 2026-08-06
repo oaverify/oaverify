@@ -195,6 +195,7 @@ below for the expected shape.
 | `--only <method-path...>`                     | compile-spec                                     | Repeatable; restrict emit to given ops, e.g. `--only "POST /pets"`.                                                                                                                                                                                                                                                                         |
 | `--output-mode flat\|tree\|predicate`         | compile-spec                                     | Result shape of the emitted validators. Default `flat`. Mirrors `output`.                                                                                                                                                                                                                                                                   |
 | `--max-errors <n>`                            | compile-spec                                     | Leaf-error cap baked in: a positive integer or `all`. Default `1`. Mirrors `maxErrors`.                                                                                                                                                                                                                                                     |
+| `--unknown-formats error\|ignore`             | compile-schema / compile-spec                    | Policy for `format` names outside the built-in set. `error` (default): refuse, naming them, exit 3. `ignore`: emit without asserting them, one stderr warning per name; compile-spec also records each in the module's `warnings` export. Mirrors `unknownFormats`.                                                                         |
 | `--fail-on-unbounded`                         | stream-check                                     | Exit non-zero if any request/response body has an unbounded peak buffer. CI gate.                                                                                                                                                                                                                                                           |
 | `--verbose`                                   | stream-check                                     | List each unbounded buffering position with its path under its body.                                                                                                                                                                                                                                                                        |
 | `--max-buffered-bytes <n>`                    | stream-check                                     | Buffer cap the effective peak is computed against (clamps over-cap positions to the cap).                                                                                                                                                                                                                                                   |
@@ -216,12 +217,22 @@ library footprint is unwanted.
 
 Constraints on the input schema:
 
-- **Built-in formats only.** If the schema references `format: "..."`
-  names outside `@oaverify/core/formats`, compile fails with exit
-  code 3 and a listing of the unknown names. Custom formats aren't
-  serialisable to standalone source.
-- **No custom keywords.** Same reason: the keyword's validator
-  function can't be serialised.
+- **No custom keywords or registered format functions.** A validator
+  function registered at runtime can't be serialised to standalone
+  source. This is the hard constraint; no option changes it.
+- **Unknown format names are policy, not capability.** A `format`
+  name outside `@oaverify/core/formats` has no validator behind it
+  either way, so the question is only whether to say so loudly. By
+  default both compile commands refuse with exit code 3 and a listing
+  of the names; `--unknown-formats ignore` emits anyway, without
+  asserting them (matching the runtime) and with a stderr warning per
+  name. The warnings go to stderr, so `compile-schema s.json > v.mjs`
+  still writes a clean module.
+- **The input must be a JSON Schema, not an OpenAPI document.** Fed a
+  spec, every top-level key is an unknown keyword and the emitted
+  `validate()` would accept everything; `compile-schema` detects a
+  top-level `openapi` / `swagger` field and refuses with exit code 2,
+  pointing at `compile-spec`.
 - **External `$ref`s must be pre-inlined.** Run `oaverify resolve` over
   a multi-file input first, or use `@oaverify/core/spec`'s `resolveSpec`
   programmatically, before piping the schema into `compile-schema`.

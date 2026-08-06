@@ -628,3 +628,74 @@ describe("compile-spec --output-mode / --max-errors (result-shape parity)", () =
     expect(aot.validateRequest(validReq)).toBe(true);
   });
 });
+
+describe("unknown formats (#660)", () => {
+  // The vendor format sits behind a $ref into components, pinning the
+  // document-level walk: a per-schema subschema walk would miss it.
+  const vendorDoc = {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/x": {
+        post: {
+          requestBody: {
+            content: { "application/json": { schema: { $ref: "#/components/schemas/M" } } },
+          },
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        M: { type: "object", properties: { id: { type: "string", format: "iban" } } },
+      },
+    },
+  } as unknown as OpenAPIDocument;
+
+  it("refuses by default, naming the format and the escape hatch", async () => {
+    const mem = memoryIo([["spec.json", vendorDoc]]);
+    const res = await compileSpecCommand(
+      {
+        spec: "spec.json",
+        overlays: [],
+        output: "out.mjs",
+        resolveDir: RESOLVE_DIR,
+        bundleAlias: CORE_ALIASES,
+      },
+      mem.io,
+    );
+    expect(res.exitCode).toBe(3);
+    expect(mem.stderr.value).toContain('"iban"');
+    expect(mem.stderr.value).toContain("--unknown-formats ignore");
+  });
+
+  it("emits under ignore: warns on stderr, records in warnings, asserts nothing", async () => {
+    const mem = memoryIo([["spec.json", vendorDoc]]);
+    const res = await compileSpecCommand(
+      {
+        spec: "spec.json",
+        overlays: [],
+        output: "out.mjs",
+        resolveDir: RESOLVE_DIR,
+        bundleAlias: CORE_ALIASES,
+        unknownFormats: "ignore",
+      },
+      mem.io,
+    );
+    expect(res.exitCode).toBe(0);
+    expect(mem.stderr.value).toContain('format "iban"');
+    const bundled = mem.writes[0]?.[1];
+    if (bundled === undefined) throw new Error("no output written");
+    const aot = (await import(
+      `data:text/javascript;base64,${Buffer.from(bundled).toString("base64")}`
+    )) as AotValidator;
+    expect(aot.warnings.some((w) => w.includes('"iban"'))).toBe(true);
+    const r = aot.validateRequest({
+      method: "POST",
+      path: "/x",
+      contentType: "application/json",
+      body: { id: "not-an-iban" },
+    });
+    expect(r).toMatchObject({ valid: true });
+  });
+});
