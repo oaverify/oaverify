@@ -484,16 +484,13 @@ export function createDeps(arg?: number | CreateDepsOptions): ValidatorDeps {
   const regexCompiler = options.regexCompiler;
   const patterns = new Map<string, CompiledRegex>();
 
-  // The actual compile path (with `u`-then-fallback or the
-  // user-supplied compiler). Used by:
-  //   - `compilePattern` (below), which memoizes against `patterns`.
-  //     Safe to cache: callers pass schema-authored pattern strings,
-  //     bounded by spec size.
-  //   - the `regex` format validator, which receives runtime data
-  //     values. Caching those would grow `patterns` without bound on
-  //     a long-lived validator that sees many unique inputs, so it
-  //     bypasses the cache.
-  const compileRegex = (pattern: string): CompiledRegex => {
+  // The `pattern` keyword's compile path: `u`-mode, falling back to
+  // no-flag. The fallback is deliberate and load-bearing. Real specs
+  // carry patterns that are legal ECMA-262 only outside `u` mode (Annex
+  // B identity escapes are the common case), and a pattern is *spec
+  // input*: refusing it means the document cannot be opened at all,
+  // rather than one value failing validation.
+  const compilePatternRegex = (pattern: string): CompiledRegex => {
     if (regexCompiler !== undefined) return regexCompiler(pattern);
     try {
       return new RegExp(pattern, "u");
@@ -508,24 +505,42 @@ export function createDeps(arg?: number | CreateDepsOptions): ValidatorDeps {
     }
   };
 
+  // The `regex` format's compile path: `u`-mode only, no fallback.
+  //
+  // This asks a different question from the keyword. `format: regex` is
+  // an assertion *about a data value* ("is this string a valid ECMA-262
+  // regular expression?"), and a string that compiles only outside `u`
+  // mode is not one. The suite is explicit about it: `\a` is not an
+  // ECMA 262 control escape. Sharing the keyword's fallback made the
+  // format inherit lenience meant for spec input and quietly accept it.
+  //
+  // Deliberately asymmetric, in other words, and the asymmetry is the
+  // correct reading of two different contracts rather than an oversight.
+  // A caller who wants one policy for both supplies `regexCompiler`,
+  // which still wins here.
+  const compileFormatRegex = (value: string): CompiledRegex => {
+    if (regexCompiler !== undefined) return regexCompiler(value);
+    return new RegExp(value, "u");
+  };
+
   const compilePattern = (pattern: string): CompiledRegex => {
     const cached = patterns.get(pattern);
     if (cached !== undefined) return cached;
-    const re = compileRegex(pattern);
+    const re = compilePatternRegex(pattern);
     patterns.set(pattern, re);
     return re;
   };
 
-  // Auto-register the `regex` format. It shares the compile path with
-  // the `pattern` keyword (and the `regexCompiler` hook), but skips
-  // the memoization to keep memory bounded: runtime values aren't
-  // bounded by spec size.
+  // Auto-register the `regex` format. It shares the `regexCompiler`
+  // hook with the `pattern` keyword but not the `u`-mode fallback (see
+  // above), and skips the memoization to keep memory bounded: runtime
+  // values aren't bounded by spec size.
   const formats = new Map<string, NormalizedFormat | null>();
   formats.set("regex", {
     type: "string",
     validate: ((value: string) => {
       try {
-        compileRegex(value);
+        compileFormatRegex(value);
         return true;
       } catch {
         return false;

@@ -135,6 +135,46 @@ describe("regexCompiler option", () => {
     expect(userCompilerCalls).toBe(1);
   });
 
+  // `\a` is a legal ECMA-262 regex outside `u` mode (Annex B identity
+  // escape) and a SyntaxError inside it. That makes it the case where
+  // the keyword and the format have to disagree, so it pins both halves.
+  const ANNEX_B_ONLY = `${String.fromCharCode(92)}a`;
+
+  it("the `regex` format asserts u-mode and rejects an Annex B escape", () => {
+    const { validate } = compileSchema(
+      { type: "string", format: "regex" },
+      { dialect: openapi31Dialect },
+    );
+    expect(validate(ANNEX_B_ONLY).valid).toBe(false);
+    // Still accepts what u-mode accepts.
+    expect(validate("^a+$").valid).toBe(true);
+    expect(validate("\\u{1F600}").valid).toBe(true);
+  });
+
+  it("the `pattern` keyword keeps its no-flag fallback for the same source", () => {
+    // Deliberately asymmetric with the format above. A pattern is spec
+    // input: refusing it means the document cannot be opened, so the
+    // fallback stays. Dropping it here would turn a loadable spec into a
+    // compile error.
+    const { validate } = compileSchema(
+      { type: "string", pattern: ANNEX_B_ONLY },
+      { dialect: jsonSchemaDialect },
+    );
+    expect(validate("a").valid).toBe(true);
+    expect(validate("b").valid).toBe(false);
+  });
+
+  it("a custom regexCompiler still governs the `regex` format's policy", () => {
+    // The strict path is only the default. A caller who wants one policy
+    // for both supplies a compiler, and it wins.
+    const permissive: RegexCompiler = (pattern) => new RegExp(pattern);
+    const { validate } = compileSchema(
+      { type: "string", format: "regex" },
+      { dialect: openapi31Dialect, regexCompiler: permissive },
+    );
+    expect(validate(ANNEX_B_ONLY).valid).toBe(true);
+  });
+
   it("createDeps(maxErrors) legacy positional form still works", () => {
     // AOT-emitted modules built before the options-bag landed call
     // `createDeps()` and `createDeps(N)`. Pin both shapes to catch a

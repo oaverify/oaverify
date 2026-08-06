@@ -29,18 +29,11 @@
   {
     "format": "ecmascript-regex",
     "cases": 12,
-    "pass": 11,
-    "falseAccept": 1,
+    "pass": 12,
+    "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "\\a is not an ECMA 262 control escape",
-        "test": "when used as a pattern",
-        "data": "\\a",
-        "direction": "false-accept"
-      }
-    ]
+    "mismatches": []
   },
   {
     "format": "email",

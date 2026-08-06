@@ -191,6 +191,30 @@ reading.
 is what the grammar asks for. If you need the looser reading, register
 your own: `formats: { duration: (v) => myIso8601Check(v) }`.
 
+## Breaking: the `regex` format asserts ECMA-262 u-mode
+
+`format: regex` used to share the `pattern` keyword's compile path,
+which tries `u` mode and falls back to no-flag. It now uses `u` mode
+alone, so a value that is a legal regex only outside `u` mode is
+rejected. Annex B identity escapes are the case that shows up: `\a`
+compiles without the flag and is a SyntaxError with it.
+
+The `pattern` keyword is unchanged and keeps the fallback. The asymmetry
+is intentional. They ask different questions:
+
+- `format: regex` asserts about a **data value**: is this string a valid
+  ECMA-262 regular expression? One that needs Annex B is not.
+- `pattern` consumes **spec input**. Refusing it means the document
+  cannot be opened at all, rather than one value failing validation, and
+  real specs carry patterns that only compile without the flag.
+
+If you want one policy for both, supply `regexCompiler`. It still
+governs the format:
+
+```ts
+createValidator(spec, { regexCompiler: (p) => new RegExp(p) }); // no u-mode anywhere
+```
+
 ## Breaking: `fromAjvFormats` routes `type: "number"`
 
 Its return type widens the same way, and its behaviour changes for one

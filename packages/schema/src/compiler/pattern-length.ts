@@ -82,8 +82,9 @@ function mul(a: number, b: number): number {
  */
 export function stringLengthRange(pattern: string): LengthSpan | undefined {
   // This parser reads `u`-mode syntax. The runtime falls back to a
-  // no-flag `RegExp` when the `u` compile throws (see `compileRegex` in
-  // runtime.ts), and under that fallback the *source length* of some
+  // no-flag `RegExp` when the `u` compile throws (see
+  // `compilePatternRegex` in runtime.ts), and under that fallback the
+  // *source length* of some
   // constructs is read differently: `\01` is one octal escape rather
   // than `\0` plus a literal `1`, and `\u{ZZ}` is a literal `u`
   // followed by a quantifier rather than one code point. Both make the
