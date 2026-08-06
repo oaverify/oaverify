@@ -462,8 +462,11 @@ reports a vendored metaschema whose dated URL now serves different bytes.
 
 None of the three blocks a PR, and a red scheduled workflow notifies almost
 nobody, so `nightly-report` opens or updates one issue labelled
-`nightly-upstream` and closes it when the nightly recovers. That is the
-"something goes red" for the larger checks.
+`nightly-upstream` and closes it when that job recovers. Only
+`nightly-upstream` gates the issue: a pin being behind is the expected
+state much of the time, so the freshness result is reported in the issue
+body rather than holding it open. That is the "something goes red" for
+the larger checks.
 
 `conformance/bowtie/` is a fifth dev-only tree and is deliberately
 absent from that table: it is not a pnpm root. Its toolchain is Docker

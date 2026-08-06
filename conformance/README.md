@@ -62,9 +62,11 @@ time (~12k schema cases, ~318 parser cases, ~32 overlay fixtures).
 Every runner here gates pull requests, in the `conformance` job, which is
 a required check on `main`. `pnpm check` is the same set locally.
 
-Each runner takes `--check-baseline`, the form CI uses: it compares
-against the committed results file and fails on a regression rather than
-on any single mismatch. What counts as a regression differs per runner,
+The four baseline runners (`suite`, `format-suite`, `parse`, `overlay`)
+take `--check-baseline`, the form CI uses: it compares against the
+committed results file and fails on a regression rather than on any
+single mismatch. `openapi` has no baseline and takes no flags; it fails
+on any mismatch. What counts as a regression differs per runner,
 deliberately:
 
 | Runner         | Fails when                                                      |
@@ -105,8 +107,11 @@ Two things run nightly instead, because the pin cannot answer them:
   measurement happens at the pin bump.
 - `pnpm corpora:stale --fail-if-stale`, as above.
 
-Neither blocks a pull request. A failure opens or updates one labelled
-issue, because a red scheduled workflow notifies almost nobody.
+Neither blocks a pull request. A `nightly-upstream` failure opens or
+updates one labelled issue, because a red scheduled workflow notifies
+almost nobody. A stale pin alone does not open it (that is the expected
+state much of the time); the freshness result is reported in the issue
+body instead.
 
 ## Reading the results
 

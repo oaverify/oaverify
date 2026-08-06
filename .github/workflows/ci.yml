@@ -5,10 +5,11 @@ on:
   push:
     branches: [main]
   schedule:
-    # Nightly (08:30 UTC). The only scheduled job left is corpus-freshness:
-    # every conformance runner gates PRs now, and re-running a pinned
-    # corpus against unchanged code tells you nothing a PR did not.
-    # Upstream moving is the one thing a schedule can catch.
+    # Nightly (08:30 UTC). Every conformance runner gates PRs at the pin;
+    # upstream moving is the one thing a schedule can catch. Three jobs
+    # run on it: nightly-upstream (the suites against upstream HEAD),
+    # corpus-freshness (which pins are behind), and nightly-report (the
+    # tracking issue for the first of those).
     - cron: "30 8 * * *"
   workflow_dispatch:
 
@@ -275,6 +276,12 @@ jobs:
     # So the durable signal is an issue, opened once and updated after, kept
     # unique by its label so a fortnight of failures is one thread rather
     # than fourteen. Closed automatically when the nightly goes green again.
+    #
+    # Only nightly-upstream gates the issue. A pin being behind is the
+    # expected state much of the time, so keying the issue on
+    # corpus-freshness too would leave it permanently open and train
+    # everyone to ignore the one thread a real regression lands in. The
+    # freshness result rides along in the body as context instead.
     needs: [nightly-upstream, corpus-freshness]
     if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
@@ -294,12 +301,12 @@ jobs:
           LABEL="nightly-upstream"
           EXISTING=$(gh issue list --label "$LABEL" --state open --limit 1 --json number --jq '.[0].number // empty')
 
-          if [ "$UPSTREAM" = "success" ] && [ "$FRESHNESS" = "success" ]; then
+          if [ "$UPSTREAM" = "success" ]; then
             if [ -n "$EXISTING" ]; then
-              gh issue comment "$EXISTING" --body "Nightly is green again. Closing. ($RUN_URL)"
+              gh issue comment "$EXISTING" --body "nightly-upstream is green again. Closing. ($RUN_URL)"
               gh issue close "$EXISTING"
             fi
-            echo "nightly green; nothing to report"
+            echo "nightly-upstream green; nothing to report"
             exit 0
           fi
 
@@ -316,8 +323,9 @@ jobs:
             "Neither job blocks a pull request. \`nightly-upstream\` failing means a" \
             "unit regressed against a corpus that did not grow, which is ours rather" \
             "than upstream's; see conformance/floating.ts for how that is told apart." \
-            "\`corpus-freshness\` failing means a pin is behind, which is a bump" \
-            "decision rather than a defect.")
+            "The \`corpus-freshness\` row is context only: a pin being behind is a" \
+            "bump decision rather than a defect, and does not by itself open or" \
+            "hold this issue open.")
 
           if [ -n "$EXISTING" ]; then
             gh issue comment "$EXISTING" --body "$BODY"
