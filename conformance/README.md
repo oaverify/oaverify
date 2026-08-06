@@ -84,6 +84,24 @@ behind, because being behind is expected most of the time. The nightly
 `corpus-freshness` job passes `--fail-if-stale`, where the exit code is
 the only signal anyone sees.
 
+The PR gate never reaches the network: CI caches the corpora keyed on
+`corpora.json`, so a required check does not depend on GitHub's git
+endpoints being up. A pinned fetch is as reproducible as a lockfile
+install; what it adds is an availability dependency, and the cache is what
+removes it.
+
+Two things run nightly instead, because the pin cannot answer them:
+
+- `pnpm corpora --latest` fetches upstream HEAD, and `suite` /
+  `format-suite` run with `--floating`. That swaps the strict ratchet for
+  the classification in [`floating.ts`](./floating.ts), which separates
+  "we regressed" from "upstream added cases we fail" by whether the unit's
+  case count grew. Without that split the nightly is noise and gets muted.
+- `pnpm corpora:stale --fail-if-stale`, as above.
+
+Neither blocks a pull request. A failure opens or updates one labelled
+issue, because a red scheduled workflow notifies almost nobody.
+
 ## Reading the results
 
 A per-file table on stdout, plus raw JSON per runner:

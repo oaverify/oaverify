@@ -449,9 +449,18 @@ the script, and fold it into that root's `check`.
 per runner so a failure names itself in the UI. For `conformance/` the two
 sets are now identical, so a new runner has to be added in both places.
 
-`corpus-freshness` is the only scheduled job left. Every conformance runner
-gates PRs, and re-running a pinned corpus against unchanged code proves
-nothing a PR did not; upstream moving is the one thing a schedule catches.
+Scheduled jobs cover what the pin cannot. Every conformance runner gates
+PRs against the pinned corpus, cached so the required check never needs the
+network. `nightly-upstream` then re-runs the suites against upstream HEAD
+with `--floating`, which classifies extra failures as ours or upstream's by
+whether the unit gained cases (`conformance/floating.ts`);
+`corpus-freshness` reports pins that are behind; and `pnpm metaschema:stale`
+reports a vendored metaschema whose dated URL now serves different bytes.
+
+None of the three blocks a PR, and a red scheduled workflow notifies almost
+nobody, so `nightly-report` opens or updates one issue labelled
+`nightly-upstream` and closes it when the nightly recovers. That is the
+"something goes red" for the larger checks.
 
 `conformance/bowtie/` is a fifth dev-only tree and is deliberately
 absent from that table: it is not a pnpm root. Its toolchain is Docker
