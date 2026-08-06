@@ -144,13 +144,14 @@ describe("checkSpec", () => {
       }
     });
 
-    // Only the schema class builds a validator, so a run that does not
-    // select it still reports what it can.
-    it("does not abort when the schema class was not selected", async () => {
+    // The gradeability gate is unconditional on the selection: before
+    // #674 a hygiene-only run returned an empty report with exit 0 on a
+    // document nothing could grade, which read as a clean bill.
+    it("aborts even when the selection reaches no schema code", async () => {
       const resolved = await resolve(notOpenApi);
-      expect(() =>
-        checkSpec(resolved, { findings: selectionForClasses(["hygiene"]) }),
-      ).not.toThrow();
+      expect(() => checkSpec(resolved, { findings: selectionForClasses(["hygiene"]) })).toThrow(
+        CheckAbortedError,
+      );
     });
   });
 });
