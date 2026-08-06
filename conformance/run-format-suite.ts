@@ -76,6 +76,14 @@ const checkBaseline = argv.includes("--check-baseline");
 // grew-vs-broke classification in floating.ts, because against a moving
 // corpus "more failures than the baseline" has two very different causes.
 const floating = argv.includes("--floating");
+// --floating only changes how the baseline comparison is judged; without
+// --check-baseline the run would fall through to the write branch and
+// record a baseline measured off-pin, which is exactly what assertPinned
+// exists to refuse.
+if (floating && !checkBaseline) {
+  console.error("--floating requires --check-baseline");
+  process.exit(2);
+}
 const filterPattern = argv.find((a) => a.startsWith("--filter="))?.slice("--filter=".length);
 
 function runFile(path: string): FormatResult {

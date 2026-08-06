@@ -68,6 +68,14 @@ const checkBaseline = args.has("--check-baseline");
 // See floating.ts: the nightly runs this against upstream HEAD, where the
 // strict pass-count ratchet cannot tell a regression from new cases.
 const floating = args.has("--floating");
+// --floating only changes how the baseline comparison is judged; without
+// --check-baseline the run would fall through to the write branch and
+// record a baseline measured off-pin, which is exactly what assertPinned
+// exists to refuse.
+if (floating && !checkBaseline) {
+  console.error("--floating requires --check-baseline");
+  process.exit(2);
+}
 // Baselines were measured at the pin in corpora.json; refuse to report
 // numbers from a different revision.
 if (!floating) assertPinned(SUITE);
