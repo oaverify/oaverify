@@ -192,15 +192,26 @@ jobs:
       # returns without touching the network, which is the point: a
       # required check should not block on GitHub's git endpoints being
       # reachable. On a miss it fetches, and the save below warms the next
-      # run.
+      # run. restore-keys makes a pin bump incremental: the previous
+      # cache restores and `pnpm corpora` moves only the checkout that
+      # drifted, instead of recloning ~225 MB. The path list is derived
+      # from corpora.json so a fourth corpus cannot be silently absent
+      # from the save while the key (hashed over the same file) pretends
+      # it is covered.
+      - name: derive corpus cache paths from corpora.json
+        id: corpora-paths
+        run: |
+          {
+            echo 'paths<<EOF'
+            jq -r '.corpora | keys[] | "conformance/" + .' conformance/corpora.json
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
       - name: restore pinned corpora
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: |
-            conformance/JSON-Schema-Test-Suite
-            conformance/JSONTestSuite
-            conformance/Overlay-Specification
+          path: ${{ steps.corpora-paths.outputs.paths }}
           key: corpora-${{ hashFiles('conformance/corpora.json') }}
+          restore-keys: corpora-
       - name: fetch any corpus the cache did not supply
         working-directory: conformance
         run: pnpm corpora
