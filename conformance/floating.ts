@@ -28,6 +28,8 @@
  * regression fails there whatever upstream did.
  */
 
+import { assertPresent, corpusPath, headRev } from "./corpora.ts";
+
 /** One comparable unit of a baseline: a format, a suite file, a fixture group. */
 export interface FloatingUnit {
   name: string;
@@ -51,6 +53,10 @@ export interface FloatingVerdict {
   improvements: string[];
   /** Units absent from the baseline entirely. */
   added: string[];
+  /** Baseline units absent from this run: upstream deleted or renamed
+   * the file. Report-only, like `added`; a vanished unit must not be
+   * silently invisible until the next pin bump. */
+  removed: string[];
 }
 
 /**
@@ -71,6 +77,7 @@ export function classifyFloating(
     absorbed: [],
     improvements: [],
     added: [],
+    removed: [],
   };
 
   for (const unit of current) {
@@ -97,13 +104,71 @@ export function classifyFloating(
       verdict.newCoverage.push(
         `${unit.name}: +${unit.cases - before.cases} cases, ${before.failures} -> ${unit.failures} failing`,
       );
-    } else if (casesGrew) {
-      verdict.absorbed.push(`${unit.name}: +${unit.cases - before.cases} cases, all passing`);
-    } else if (unit.failures < before.failures) {
-      verdict.improvements.push(`${unit.name}: ${before.failures} -> ${unit.failures} failing`);
+    } else {
+      // Failures held or dropped. Growth and improvement can coincide
+      // (upstream adds cases the same night old failures get fixed), so
+      // these two are not exclusive branches: swallowing the improvement
+      // would hide the ratchet cue for the next pin bump.
+      if (casesGrew) {
+        const remaining = unit.failures === 0 ? "all passing" : `${unit.failures} still failing`;
+        verdict.absorbed.push(`${unit.name}: +${unit.cases - before.cases} cases, ${remaining}`);
+      }
+      if (unit.failures < before.failures) {
+        verdict.improvements.push(`${unit.name}: ${before.failures} -> ${unit.failures} failing`);
+      }
+    }
+  }
+
+  const seen = new Set(current.map((u) => u.name));
+  for (const before of baseline) {
+    if (!seen.has(before.name)) {
+      verdict.removed.push(
+        `${before.name}: ${before.cases} cases in the baseline, absent from this run`,
+      );
     }
   }
   return verdict;
+}
+
+/**
+ * Flag validation and checkout check for a floating run, shared by the
+ * suite runners so the rules cannot drift between them.
+ *
+ * `--check-baseline` is required because without it the runner falls
+ * through to its baseline-write branch and records numbers measured
+ * off-pin. `--filter` is rejected because the classifier reports on the
+ * units the run produced: a filtered run omits most baseline units and
+ * would exit 0 with a false global verdict. The checkout check replaces
+ * the `assertPinned` a floating run skips, so a missing corpus still
+ * gets the clean exit-2 message instead of a raw ENOENT.
+ */
+export function enterFloating(
+  suite: string,
+  opts: { checkBaseline: boolean; filtered: boolean },
+): void {
+  if (!opts.checkBaseline) {
+    console.error("--floating requires --check-baseline");
+    process.exit(2);
+  }
+  if (opts.filtered) {
+    console.error("--floating does not combine with --filter: a partial run has no global verdict");
+    process.exit(2);
+  }
+  assertPresent(suite);
+}
+
+/**
+ * The floating epilogue shared by the suite runners: resolve the
+ * checkout's revision, classify against the baseline, report, exit.
+ */
+export function exitFloating(
+  label: string,
+  suite: string,
+  current: readonly FloatingUnit[],
+  baseline: readonly FloatingUnit[],
+): never {
+  const rev = headRev(corpusPath(suite)) ?? "unknown";
+  process.exit(reportFloating(label, classifyFloating(current, baseline), rev));
 }
 
 /** Print the verdict and return the exit code a floating run should use. */
@@ -121,6 +186,7 @@ export function reportFloating(label: string, verdict: FloatingVerdict, rev: str
   section("new upstream cases we pass:", verdict.absorbed);
   section("now passing that the baseline records as failing:", verdict.improvements);
   section("units absent from the baseline:", verdict.added);
+  section("baseline units absent from this run (deleted or renamed upstream):", verdict.removed);
 
   if (verdict.regressions.length > 0) {
     console.error(

@@ -69,6 +69,7 @@ describe("classifyFloating", () => {
       absorbed: [],
       improvements: [],
       added: [],
+      removed: [],
     });
   });
 
@@ -90,6 +91,37 @@ describe("classifyFloating", () => {
     const verdict = classifyFloating([unit("idn-email", 18, 1)], [unit("idn-email", 19, 2)]);
     expect(verdict.regressions).toEqual([]);
     expect(verdict.improvements).toHaveLength(1);
+  });
+
+  it("reports a baseline unit absent from the run instead of dropping it", () => {
+    // Upstream renamed anchor.json to anchors.json. The old unit must
+    // not vanish silently: its baseline record is the only trace that
+    // 52 cases stopped being measured.
+    const verdict = classifyFloating([unit("anchors.json", 54, 0)], [unit("anchor.json", 52, 0)]);
+    expect(verdict.regressions).toEqual([]);
+    expect(verdict.added).toHaveLength(1);
+    expect(verdict.removed).toHaveLength(1);
+    expect(verdict.removed[0]).toContain("anchor.json");
+    expect(verdict.removed[0]).toContain("52 cases");
+  });
+
+  it("reports growth and improvement together when both happen", () => {
+    // Upstream adds 4 cases the same night 2 old failures get fixed.
+    // The growth must not swallow the improvement: the 5 -> 3 drop is
+    // the ratchet cue for the next pin bump.
+    const verdict = classifyFloating([unit("idn-hostname", 56, 3)], [unit("idn-hostname", 52, 5)]);
+    expect(verdict.absorbed).toHaveLength(1);
+    expect(verdict.absorbed[0]).toContain("3 still failing");
+    expect(verdict.absorbed[0]).not.toContain("all passing");
+    expect(verdict.improvements).toHaveLength(1);
+    expect(verdict.improvements[0]).toContain("5 -> 3");
+  });
+
+  it("says 'all passing' only when the unit has no failures at all", () => {
+    const verdict = classifyFloating([unit("uuid", 32, 5)], [unit("uuid", 28, 5)]);
+    expect(verdict.absorbed).toHaveLength(1);
+    expect(verdict.absorbed[0]).toContain("5 still failing");
+    expect(verdict.improvements).toEqual([]);
   });
 
   it("reports, but does not fail, a shrunken unit whose failures grew", () => {

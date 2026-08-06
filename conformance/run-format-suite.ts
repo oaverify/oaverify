@@ -29,13 +29,12 @@
  *   pnpm format-suite --filter=uri     # only files matching "uri"
  */
 
-import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { compileSchema, openapi31Dialect } from "../packages/schema/src/index.ts";
 import { builtInFormats } from "../packages/formats/src/index.ts";
 import { assertPinned, corpusPath } from "./corpora.ts";
-import { classifyFloating, reportFloating } from "./floating.ts";
+import { enterFloating, exitFloating } from "./floating.ts";
 
 const SUITE = "JSON-Schema-Test-Suite";
 const FORMAT_DIR = join(corpusPath(SUITE), "tests", "draft2020-12", "optional", "format");
@@ -76,14 +75,6 @@ const checkBaseline = argv.includes("--check-baseline");
 // grew-vs-broke classification in floating.ts, because against a moving
 // corpus "more failures than the baseline" has two very different causes.
 const floating = argv.includes("--floating");
-// --floating only changes how the baseline comparison is judged; without
-// --check-baseline the run would fall through to the write branch and
-// record a baseline measured off-pin, which is exactly what assertPinned
-// exists to refuse.
-if (floating && !checkBaseline) {
-  console.error("--floating requires --check-baseline");
-  process.exit(2);
-}
 const filterPattern = argv.find((a) => a.startsWith("--filter="))?.slice("--filter=".length);
 
 function runFile(path: string): FormatResult {
@@ -153,7 +144,11 @@ function runFile(path: string): FormatResult {
   return result;
 }
 
-if (!floating) assertPinned(SUITE);
+// Baselines were measured at the pin in corpora.json. A floating run
+// accepts any revision but validates the flag combination and the
+// checkout instead.
+if (floating) enterFloating(SUITE, { checkBaseline, filtered: filterPattern !== undefined });
+else assertPinned(SUITE);
 
 const files = readdirSync(FORMAT_DIR)
   .filter((f) => f.endsWith(".json"))
@@ -223,12 +218,7 @@ if (floating) {
     cases: r.cases,
     failures: r.falseAccept + r.falseReject + r.error,
   });
-  const rev = execFileSync("git", ["-C", corpusPath(SUITE), "rev-parse", "HEAD"], {
-    encoding: "utf8",
-  }).trim();
-  process.exit(
-    reportFloating("optional/format", classifyFloating(results.map(unit), baseline.map(unit)), rev),
-  );
+  exitFloating("optional/format", SUITE, results.map(unit), baseline.map(unit));
 }
 const byFormat = new Map(baseline.map((r) => [r.format, r]));
 const regressions: string[] = [];

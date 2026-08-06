@@ -38,7 +38,8 @@ export function corpusPath(name: string): string {
   return join(ROOT, name);
 }
 
-function headRev(dir: string): string | undefined {
+/** The checkout's HEAD revision, or undefined for a missing or non-git dir. */
+export function headRev(dir: string): string | undefined {
   try {
     return execFileSync("git", ["-C", dir, "rev-parse", "HEAD"], {
       encoding: "utf8",
@@ -46,6 +47,25 @@ function headRev(dir: string): string | undefined {
     }).trim();
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Exit with a usable message unless `name` has a git checkout at all.
+ *
+ * The floating runners' lighter sibling of `assertPinned`: any revision
+ * is acceptable there, but a missing or non-git directory still wants
+ * the clean exit-2 message rather than a raw ENOENT or git stderr.
+ */
+export function assertPresent(name: string): void {
+  const dir = corpusPath(name);
+  if (!existsSync(dir)) {
+    console.error(`${name}: not cloned. Run: pnpm corpora`);
+    process.exit(2);
+  }
+  if (headRev(dir) === undefined) {
+    console.error(`${name}: ${dir} is not a git checkout; remove it and run: pnpm corpora`);
+    process.exit(2);
   }
 }
 
@@ -63,16 +83,9 @@ export function assertPinned(name: string): void {
     console.error(`${name}: not listed in corpora.json.`);
     process.exit(2);
   }
+  assertPresent(name);
   const dir = corpusPath(name);
-  if (!existsSync(dir)) {
-    console.error(`${name}: not cloned. Run: pnpm corpora`);
-    process.exit(2);
-  }
   const head = headRev(dir);
-  if (head === undefined) {
-    console.error(`${name}: ${dir} is not a git checkout; remove it and run: pnpm corpora`);
-    process.exit(2);
-  }
   if (head !== entry.rev) {
     console.error(
       `${name}: checkout drifted from the pin.\n` +

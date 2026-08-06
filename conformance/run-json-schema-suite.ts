@@ -22,11 +22,10 @@
  *     # catch regressions without failing on any single mismatch.
  */
 
-import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { resolve, join, basename } from "node:path";
 import { assertPinned, corpusPath } from "./corpora.ts";
-import { classifyFloating, reportFloating } from "./floating.ts";
+import { enterFloating, exitFloating } from "./floating.ts";
 import { compileSchema, jsonSchemaDialect } from "../packages/schema/src/index.ts";
 import { builtInFormats } from "../packages/formats/src/index.ts";
 
@@ -68,17 +67,15 @@ const checkBaseline = args.has("--check-baseline");
 // See floating.ts: the nightly runs this against upstream HEAD, where the
 // strict pass-count ratchet cannot tell a regression from new cases.
 const floating = args.has("--floating");
-// --floating only changes how the baseline comparison is judged; without
-// --check-baseline the run would fall through to the write branch and
-// record a baseline measured off-pin, which is exactly what assertPinned
-// exists to refuse.
-if (floating && !checkBaseline) {
-  console.error("--floating requires --check-baseline");
-  process.exit(2);
-}
+const includeOptional = args.has("--optional");
+const filterArg = process.argv.slice(2).find((a) => a.startsWith("--filter="));
+const filterPattern = filterArg?.slice("--filter=".length);
+
 // Baselines were measured at the pin in corpora.json; refuse to report
-// numbers from a different revision.
-if (!floating) assertPinned(SUITE);
+// numbers from a different revision. A floating run accepts any revision
+// but validates the flag combination and the checkout instead.
+if (floating) enterFloating(SUITE, { checkBaseline, filtered: filterPattern !== undefined });
+else assertPinned(SUITE);
 
 function loadRemoteSchemas(): Map<string, unknown> {
   const map = new Map<string, unknown>();
@@ -102,10 +99,6 @@ function loadRemoteSchemas(): Map<string, unknown> {
 }
 
 const remoteSchemas = loadRemoteSchemas();
-
-const includeOptional = args.has("--optional");
-const filterArg = process.argv.slice(2).find((a) => a.startsWith("--filter="));
-const filterPattern = filterArg?.slice("--filter=".length);
 
 function listJsonFiles(dir: string): string[] {
   const out: string[] = [];
@@ -250,15 +243,11 @@ if (checkBaseline) {
       cases: r.cases,
       failures: r.fail + r.error,
     });
-    const rev = execFileSync("git", ["-C", corpusPath(SUITE), "rev-parse", "HEAD"], {
-      encoding: "utf8",
-    }).trim();
-    process.exit(
-      reportFloating(
-        includeOptional ? "suite + optional" : "required suite",
-        classifyFloating(results.map(unit), baseline.map(unit)),
-        rev,
-      ),
+    exitFloating(
+      includeOptional ? "suite + optional" : "required suite",
+      SUITE,
+      results.map(unit),
+      baseline.map(unit),
     );
   }
   const baselinePass = baseline.reduce((n, r) => n + r.pass, 0);
