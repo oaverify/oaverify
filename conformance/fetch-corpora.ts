@@ -45,6 +45,14 @@ function headRev(dir: string): string | undefined {
 
 const argv = process.argv.slice(2);
 const latest = argv.includes("--latest");
+// A typo like --lastest silently fetching the pins while the caller
+// believes they fetched HEAD is a debugging dead end; refuse it the way
+// an unknown corpus name is refused below.
+const unknown = argv.filter((a) => a.startsWith("--") && a !== "--latest");
+if (unknown.length > 0) {
+  console.error(`unknown flag(s): ${unknown.join(", ")}`);
+  process.exit(2);
+}
 const requested = argv.filter((a) => !a.startsWith("--"));
 const all = corpora();
 const names = requested.length > 0 ? requested : Object.keys(all);
