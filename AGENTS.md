@@ -416,7 +416,7 @@ them. Each has its own `package.json` + `pnpm-workspace.yaml` (empty
 
 | Directory          | What it is                                                  | Bootstrap                                        | In CI               |
 | ------------------ | ----------------------------------------------------------- | ------------------------------------------------ | ------------------- |
-| `conformance/`     | Upstream JSON Schema Test Suite + OpenAPI case harness      | `cd conformance && pnpm install && pnpm corpora` | typecheck + tests   |
+| `conformance/`     | Upstream JSON Schema Test Suite + OpenAPI case harness      | `cd conformance && pnpm install && pnpm corpora` | all of it, on PRs   |
 | `performance/`     | Compile / validate benchmarks against other validators      | `cd performance && pnpm install`                 | no                  |
 | `framework-tests/` | Real-server integration tests for the three adapters (#295) | `cd framework-tests && pnpm install`             | typecheck + tests   |
 | `detection/`       | Labelled corpus: which OpenAPI defects each tool catches    | `cd detection && pnpm install && pnpm detect`    | no (see its README) |
@@ -446,9 +446,12 @@ commands. Keep it that way when adding a runner: add the script, reference
 the script, and fold it into that root's `check`.
 
 `check` is deliberately not what CI _invokes_, though: CI keeps one step
-per runner so a failure names itself in the UI, and `conformance/`'s
-runners are split across the PR job and the nightly one. `check` is the
-local equivalent of their union.
+per runner so a failure names itself in the UI. For `conformance/` the two
+sets are now identical, so a new runner has to be added in both places.
+
+`corpus-freshness` is the only scheduled job left. Every conformance runner
+gates PRs, and re-running a pinned corpus against unchanged code proves
+nothing a PR did not; upstream moving is the one thing a schedule catches.
 
 `conformance/bowtie/` is a fifth dev-only tree and is deliberately
 absent from that table: it is not a pnpm root. Its toolchain is Docker

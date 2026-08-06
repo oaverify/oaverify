@@ -72,12 +72,12 @@ them are optional for most changes.
 Each one also answers to `pnpm check`, which runs what CI gates for that
 directory, so the same command means the same kind of thing everywhere.
 
-| Directory          | What it covers                                                                          | Bootstrap                      | `pnpm check` runs                                          | In CI |
-| ------------------ | --------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------- | ----- |
-| `conformance/`     | Upstream JSON Schema / JSON-parse / Overlay suites, plus OpenAPI request/response cases | `pnpm install && pnpm corpora` | typecheck + all five runners against their baselines (~5s) | yes   |
-| `framework-tests/` | Real Express 4 / 5 and Fastify servers against the adapters                             | `pnpm install`                 | typecheck + test (~2s)                                     | yes   |
-| `performance/`     | Compile and validate benchmarks vs ajv, and memory vs express-openapi-validator         | `pnpm install`                 | typecheck + the smallest cross-library benchmark (~30s)    | no    |
-| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches                                | `pnpm install`                 | typecheck only, see below (~1s)                            | no    |
+| Directory          | What it covers                                                                          | Bootstrap                      | `pnpm check` runs                                          | In CI         |
+| ------------------ | --------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------- | ------------- |
+| `conformance/`     | Upstream JSON Schema / JSON-parse / Overlay suites, plus OpenAPI request/response cases | `pnpm install && pnpm corpora` | typecheck + all five runners against their baselines (~5s) | yes, all five |
+| `framework-tests/` | Real Express 4 / 5 and Fastify servers against the adapters                             | `pnpm install`                 | typecheck + test (~2s)                                     | yes           |
+| `performance/`     | Compile and validate benchmarks vs ajv, and memory vs express-openapi-validator         | `pnpm install`                 | typecheck + the smallest cross-library benchmark (~30s)    | no            |
+| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches                                | `pnpm install`                 | typecheck only, see below (~1s)                            | no            |
 
 Two of those need explaining. `performance/` takes ~30 seconds for one
 schema at the minimum budget because tinybench warms up every task and

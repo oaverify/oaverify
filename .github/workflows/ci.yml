@@ -5,7 +5,10 @@ on:
   push:
     branches: [main]
   schedule:
-    # Nightly (08:30 UTC) run of the upstream JSON Schema Test Suite.
+    # Nightly (08:30 UTC). The only scheduled job left is corpus-freshness:
+    # every conformance runner gates PRs now, and re-running a pinned
+    # corpus against unchanged code tells you nothing a PR did not.
+    # Upstream moving is the one thing a schedule can catch.
     - cron: "30 8 * * *"
   workflow_dispatch:
 
@@ -98,7 +101,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:coverage
       # Advisory: the global thresholds average ~9400 statements, so
-      # print the split a single number hides. Never fails the job.
+      # print the split a single number hides. It exits non-zero only when
+      # coverage-summary.json is absent, which means `pnpm test:coverage`
+      # above already failed before writing it, so in practice this step
+      # never turns a passing job red. `if: always()` is so the split
+      # still prints when a threshold fails.
       - name: coverage by package
         if: always()
         run: pnpm coverage:by-package
@@ -151,6 +158,16 @@ jobs:
         run: pnpm test
 
   conformance:
+    # Every conformance runner, gating PRs. `suite` and `format-suite`
+    # used to be nightly-only, on the grounds that the suite is ~1300
+    # cases and its clone ~15 MB. Both halves of that are now false: the
+    # pinned depth-1 fetch is 4.3 MB and the two runners take ~1s
+    # combined, so a PR could regress the JSON Schema suite or the format
+    # corpus and merge green while nobody found out until the morning.
+    #
+    # This job is the same set as `pnpm check` in conformance/, kept as
+    # one step per runner so a failure names itself in the UI rather than
+    # hiding inside a single script. Add a runner to both.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -169,53 +186,24 @@ jobs:
       - name: typecheck
         working-directory: conformance
         run: pnpm typecheck
+      - name: clone all three corpora at their pins
+        working-directory: conformance
+        run: pnpm corpora
       - name: OpenAPI conformance cases
         working-directory: conformance
         run: pnpm openapi
-      - name: clone Overlay-Specification at its pin
-        working-directory: conformance
-        run: pnpm corpora:overlay
-      - name: OpenAPI Overlay 1.0 suite
-        working-directory: conformance
-        run: pnpm overlay --check-baseline
-      - name: clone JSONTestSuite at its pin
-        working-directory: conformance
-        run: pnpm corpora:json-parse
-      - name: JSON parser-conformance suite (stream-validator tokenizer)
-        working-directory: conformance
-        run: pnpm parse --check-baseline
-
-  json-schema-suite:
-    # Full upstream JSON Schema Test Suite, plus the optional/format
-    # corpus. Runs nightly and on workflow_dispatch, not on every PR,
-    # because the suite is ~1300 cases and its clone is ~15 MB; the
-    # format corpus shares that clone, so it rides along here rather
-    # than paying for it again in the PR job. Both fail only against
-    # their committed baseline.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-        with:
-          version: 10.33.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: install conformance deps
-        working-directory: conformance
-        run: pnpm install --frozen-lockfile
-      - name: clone upstream suite at its pin
-        working-directory: conformance
-        run: pnpm corpora:json-schema
       - name: JSON Schema suite (required)
         working-directory: conformance
         run: pnpm suite --check-baseline
       - name: format corpus (optional/format under an asserting dialect)
         working-directory: conformance
         run: pnpm format-suite --check-baseline
+      - name: OpenAPI Overlay 1.0 suite
+        working-directory: conformance
+        run: pnpm overlay --check-baseline
+      - name: JSON parser-conformance suite (stream-validator tokenizer)
+        working-directory: conformance
+        run: pnpm parse --check-baseline
 
   corpus-freshness:
     # The pin in corpora.json makes the committed baselines reproducible.
