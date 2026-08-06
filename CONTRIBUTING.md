@@ -44,21 +44,73 @@ Release-please uses these on merge:
 
 ## Running checks locally
 
+These four are what the PR gate runs. Run all four; a green `pnpm lint`
+with a red `lint` job in CI is almost always the missing fourth one,
+because `lint:type-aware` needs type information and is a separate pass
+that plain `pnpm lint` does not include.
+
 ```bash
 pnpm install
-pnpm lint
-pnpm typecheck
 pnpm test
-pnpm build
+pnpm typecheck
+pnpm lint
+pnpm lint:type-aware     # NOT part of `pnpm lint`; CI runs it separately
 ```
+
+`pnpm build` is not part of the gate, but the CLI-driven harnesses below
+need it because they execute `packages/oav/dist/cli.js`.
+
+If `pnpm typecheck` reports errors in files you have not touched, the
+incremental `tsc -b` state is stale rather than your change being wrong.
+`pnpm clean && pnpm typecheck` settles it.
+
+## The other harnesses
+
+Each is a **separate pnpm root**: its dependencies are deliberately absent
+from the main install, so each needs its own `pnpm install` once. All of
+them are optional for most changes.
+
+| Directory          | What it covers                                                                          | Bootstrap                      | In CI |
+| ------------------ | --------------------------------------------------------------------------------------- | ------------------------------ | ----- |
+| `conformance/`     | Upstream JSON Schema / JSON-parse / Overlay suites, plus OpenAPI request/response cases | `pnpm install && pnpm corpora` | yes   |
+| `framework-tests/` | Real Express 4 / 5 and Fastify servers against the adapters                             | `pnpm install`                 | yes   |
+| `performance/`     | Compile and validate benchmarks vs ajv, and memory vs express-openapi-validator         | `pnpm install`                 | no    |
+| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches                                | `pnpm install`                 | no    |
+
+`pnpm corpora` is the step people miss in `conformance/`: the upstream
+corpora are gitignored and pinned in `corpora.json`, and every runner that
+compares against a committed baseline refuses to report numbers from a
+checkout that has drifted off its pin.
 
 For schema or validator changes that could affect HTTP behavior:
 
 ```bash
+pnpm build               # the OpenAPI runner drives the built CLI
 cd conformance
 pnpm install             # first time only
-pnpm tsx run-openapi-cases.ts
+pnpm openapi
 ```
+
+The full set, once bootstrapped:
+
+```bash
+cd conformance
+pnpm typecheck
+pnpm openapi                    # OpenAPI request/response cases via the CLI
+pnpm suite                      # JSON Schema Test Suite (required)
+pnpm format-suite               # optional/format under an asserting dialect
+pnpm parse                      # JSON parser corpus vs the stream tokenizer
+pnpm overlay                    # OpenAPI Overlay 1.0
+pnpm corpora:stale              # are the pinned corpora behind upstream?
+```
+
+Every runner above takes `--check-baseline`, which is the form CI uses: it
+compares against the committed results file and fails on a regression
+instead of on any single mismatch.
+
+`pnpm corpora:stale` exits non-zero when a pin is behind upstream. That is
+a maintenance signal rather than a test failure, and it is expected to be
+non-zero much of the time.
 
 ## Release process
 

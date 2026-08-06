@@ -152,6 +152,7 @@ pnpm lint:type-aware              # oxlint --type-aware (NOT part of `pnpm lint`
 pnpm check:deps                   # assert the @oaverify/internal-* dependency graph (see below)
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)
+pnpm clean                        # drop dist/, coverage/, *.tsbuildinfo
 pnpm oaverify <args>              # run the built CLI (e.g. pnpm oaverify stream-check spec.yaml)
 ```
 
@@ -172,6 +173,12 @@ that CI runs:
 ```bash
 pnpm test && pnpm typecheck && pnpm lint && pnpm lint:type-aware
 ```
+
+If `pnpm typecheck` reports errors in files you have not touched, the
+incremental `tsc -b` state is stale rather than the code being wrong;
+`pnpm clean && pnpm typecheck` settles it. A fresh clone typechecks with
+no build at all, so this is always a local-state problem and CI never
+sees it.
 
 `pnpm oaverify` runs `packages/oav/dist/cli.js`, so it needs a prior `pnpm build`
 (which builds `@oaverify/core`, `@oaverify/stream`, `@oaverify/yaml`,
@@ -403,15 +410,31 @@ contract tracks the core/schema semantics.
 `packages/` holds the workspace. Four top-level directories are
 standalone roots, plus `performance/mem-bench/` nested inside one of
 them. Each has its own `package.json` + `pnpm-workspace.yaml` (empty
-`packages:` list, so pnpm treats them as isolated); the four top-level
-ones have READMEs with the details:
+`packages:` list, so pnpm treats them as isolated), a README, and a
+`typecheck` script over the same `tsconfig.json` template:
 
-| Directory          | What it is                                                  | Bootstrap                                     | In CI               |
-| ------------------ | ----------------------------------------------------------- | --------------------------------------------- | ------------------- |
-| `conformance/`     | Upstream JSON Schema Test Suite + OpenAPI case harness      | `cd conformance && pnpm install`              | tests only          |
-| `performance/`     | Compile / validate benchmarks against other validators      | `cd performance && pnpm install`              | no                  |
-| `framework-tests/` | Real-server integration tests for the three adapters (#295) | `cd framework-tests && pnpm install`          | tests + typecheck   |
-| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches    | `cd detection && pnpm install && pnpm detect` | no (see its README) |
+| Directory          | What it is                                                  | Bootstrap                                        | In CI               |
+| ------------------ | ----------------------------------------------------------- | ------------------------------------------------ | ------------------- |
+| `conformance/`     | Upstream JSON Schema Test Suite + OpenAPI case harness      | `cd conformance && pnpm install && pnpm corpora` | typecheck + tests   |
+| `performance/`     | Compile / validate benchmarks against other validators      | `cd performance && pnpm install`                 | no                  |
+| `framework-tests/` | Real-server integration tests for the three adapters (#295) | `cd framework-tests && pnpm install`             | typecheck + tests   |
+| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches    | `cd detection && pnpm install && pnpm detect`    | no (see its README) |
+
+`pnpm corpora` is the bootstrap step that is easy to miss: the upstream
+corpora are gitignored and pinned in `corpora.json`, and every runner
+that compares against a committed baseline calls `assertPinned` and
+refuses to report numbers from a drifted checkout.
+
+`performance/mem-bench/` is a fifth root nested inside `performance/`,
+and needs its own `pnpm install` before `pnpm bench:mem` will start. It
+holds two Express servers (oav and express-openapi-validator) that exist
+to be measured rather than run; see its README.
+
+CI invokes these through their own package scripts (`pnpm openapi`,
+`pnpm suite --check-baseline`, …) rather than `pnpm tsx run-<x>.ts`, so
+the commands in the docs and the commands in the gate are the same
+commands. Keep it that way when adding a runner: add the script, then
+reference the script.
 
 `conformance/bowtie/` is a fifth dev-only tree and is deliberately
 absent from that table: it is not a pnpm root. Its toolchain is Docker
