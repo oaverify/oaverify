@@ -93,11 +93,16 @@ removes it.
 
 Two things run nightly instead, because the pin cannot answer them:
 
-- `pnpm corpora --latest` fetches upstream HEAD, and `suite` /
-  `format-suite` run with `--floating`. That swaps the strict ratchet for
-  the classification in [`floating.ts`](./floating.ts), which separates
-  "we regressed" from "upstream added cases we fail" by whether the unit's
-  case count grew. Without that split the nightly is noise and gets muted.
+- `pnpm corpora --latest JSON-Schema-Test-Suite` fetches that corpus at
+  upstream HEAD, and `suite` / `format-suite` run with `--floating`. That
+  swaps the strict ratchet for the classification in
+  [`floating.ts`](./floating.ts), which separates "we regressed" from
+  "upstream added cases we fail" by whether the unit's case count grew.
+  Without that split the nightly is noise and gets muted. The other two
+  corpora have no floating runner, deliberately: JSONTestSuite is
+  effectively frozen upstream and Overlay-Specification's churn rarely
+  touches its fixtures, so their radar is the staleness check and their
+  measurement happens at the pin bump.
 - `pnpm corpora:stale --fail-if-stale`, as above.
 
 Neither blocks a pull request. A failure opens or updates one labelled

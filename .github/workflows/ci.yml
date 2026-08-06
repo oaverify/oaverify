@@ -248,9 +248,15 @@ jobs:
       - name: install conformance deps
         working-directory: conformance
         run: pnpm install --frozen-lockfile
-      - name: fetch every corpus at upstream HEAD
+      # Only the corpus the floating steps below read. JSONTestSuite and
+      # Overlay-Specification have no floating runner: the former is
+      # effectively frozen upstream and the latter's churn rarely touches
+      # its test fixtures, so their radar is corpus-freshness and their
+      # measurement happens at the pin bump. Fetching them here (~220 MB,
+      # nearly all JSONTestSuite) would be downloaded and discarded.
+      - name: fetch the floating corpus at upstream HEAD
         working-directory: conformance
-        run: pnpm corpora --latest
+        run: pnpm corpora --latest JSON-Schema-Test-Suite
       - name: JSON Schema suite against upstream HEAD
         working-directory: conformance
         run: pnpm suite --check-baseline --floating
