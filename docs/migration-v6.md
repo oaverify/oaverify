@@ -1,6 +1,12 @@
 # Migrating to v6
 
-Three changes, and most callers meet only the first two.
+The library half: `format` becomes one registry and the OpenAPI numeric
+formats assert; several string formats got their grammars right; the
+emit-side runtime `compile-spec` writes into generated modules moves to
+its own semver-covered subpath. The CLI half: `check` replaces `--only`
+with `--findings`, gates on `error` severity by default, and aborts on
+an ungradeable document at every selection; the compile commands refuse
+unknown formats by default. Most callers meet only the first two.
 
 **`format` is one registry, and the OpenAPI numeric formats assert.** If
 you never pass `formats` and never read `builtInFormats`, this is a
@@ -252,6 +258,79 @@ to find. That is what keeps a malformed schema unsuppressable:
 `--findings -schema` still compiles and still exits 4.
 
 See [strictness.md](./strictness.md#which-findings-you-get---findings).
+
+## Breaking: `check` aborts on an ungradeable document at every selection
+
+`oaverify check swagger2.json --findings hygiene` used to exit 0 saying
+"no findings": the gradeability gate lived inside the schema pass, so a
+selection that skipped it never learned the document could not be
+graded at all. The gate now runs at every selection (it costs ~8ms on a
+large document), so a Swagger 2.0 document, a non-document, or a
+dangling-`$ref` document exits 2 whatever `--findings` says. If a
+script treated that exit 0 as meaningful, it was reading "the run
+declined to look" as a clean bill; exit 2 is the honest answer and
+already meant "nothing was graded" everywhere else.
+
+## Breaking: the emit-side runtime moves to `@oaverify/core/codegen-runtime`
+
+Everything `oaverify compile-spec` writes into a generated module's
+import line now lives on `@oaverify/core/codegen-runtime`, which is
+semver-covered for exactly that reason. The same members are gone from
+`@oaverify/core/validator/internals`, whose "nothing here is covered by
+semver" warning is now true. Modules previously emitted by
+`compile-spec` keep working (they are bundled); regenerate with the
+current CLI to pick up the new specifier. If your own code imported the
+moved members (`createRouter`, `reshapeResult`, `toFetchResult`, the
+fetch adapters, the security pair, `deserialize` and its siblings,
+`resolveOperationRef`, `contentTypeErrorMessage`) from
+`validator/internals`, change the specifier; the members themselves are
+unchanged.
+
+## Breaking: the compile commands refuse unknown formats by default
+
+`compile-schema` always refused a schema using a `format` name outside
+the built-in set; `compile-spec` silently emitted a guard that could
+never fire. Both now take `--unknown-formats error|ignore` with a
+shared default of `error`, so `compile-spec` on a document using vendor
+formats exits 3 where it used to exit 0. Pass `--unknown-formats
+ignore` for the old behavior: the emitted validator does not assert
+those formats (matching the runtime), each name is warned once on
+stderr, and `compile-spec` records them in the module's `warnings`
+export. `compile-schema` also now refuses an OpenAPI document (exit 2,
+pointing at `compile-spec`) instead of emitting a validator that
+accepts everything.
+
+## Breaking: `check` gates on `error` severity by default
+
+`oaverify check spec.yaml` now exits 1 when any finding is graded
+`error` or above. Before v6 it printed the findings and exited 0 unless
+you passed `--fail-on`; "your spec is not valid OpenAPI, exit 0" was a
+surprising default, and in CI the exit code is the only signal anyone
+sees.
+
+Two audiences:
+
+- **You had `check` in CI without `--fail-on`**, treating it as
+  informational. Your pipeline now fails on a specification violation.
+  If that is unwanted, `--fail-on none` restores the advisory behavior;
+  if it is wanted, you have the gate you probably assumed you had.
+- **You pass `--severity` for report ranking.** Regrading is
+  gate-affecting by default now: a map that promotes a code to `error`
+  moves the exit code. Pin `--fail-on none` (or `fatal`) to keep a
+  cosmetic regrade cosmetic.
+
+`--fail-on warning` still means "any finding at all", and exit 4
+(malformed, attached to the class) outranks the gate exactly as before.
+
+Measured incidence, re-run for this release. Across 300 public specs
+(the seven large well-known documents: github, stripe, asana, twilio,
+box, digitalocean, adyen, plus an apis.guru sample), 3 carry an
+error-severity finding and flip from exit 0 to exit 1; the seven large
+specs all stay at exit 0, carrying only warnings (from 4 on stripe to
+456 on github). On an audited corpus of 18 production documents, one
+exit flips. Error findings are rare because they mark genuine
+specification violations; when your spec acquires one, the flip is the
+point.
 
 ## Checklist
 

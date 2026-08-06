@@ -76,7 +76,10 @@ async function run(
       spec: args.spec ?? "entry.json",
       overlays: [],
       ...(args.only !== undefined && { only: args.only }),
-      ...(args.failOn !== undefined && { failOn: args.failOn }),
+      // Golden tests pin the report, not the gate; "none" keeps their
+      // exit codes stable under the default-error gate (#549). The gate
+      // has its own tests in commands.test.ts.
+      failOn: args.failOn ?? "none",
       ...(args.severity !== undefined && { severity: args.severity }),
       ...(args.skip !== undefined && { skip: args.skip }),
       ...(args.findings !== undefined && { findings: args.findings }),

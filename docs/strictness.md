@@ -399,9 +399,17 @@ both `path-param-undeclared`, which is a specification violation, and
 findings meant gating on both or neither.
 
 ```
-oaverify check spec.yaml --fail-on error    # break the build on what is actually wrong
+oaverify check spec.yaml                    # breaks the build on error severity (the default gate)
 oaverify check spec.yaml --fail-on warning  # break the build on anything at all
+oaverify check spec.yaml --fail-on none     # advisory: report everything, exit 0
 ```
+
+The gate defaults to `error` (v6, #549): a document that violates the
+OpenAPI specification fails the run with no flag, because in CI the
+exit code is the only signal anyone sees. `--fail-on none` restores the
+advisory behavior. One consequence to know about: `--severity` is
+gate-affecting by default, so a map that promotes a code to `error`
+moves the exit code unless `--fail-on` pins otherwise.
 
 `--findings` takes the selectable classes from the table above, and
 reaches a family or an exact code besides. A malformed

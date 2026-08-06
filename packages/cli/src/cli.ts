@@ -139,12 +139,15 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .option(
       "--fail-on <level>",
-      `non-zero exit when any finding at or above <level> appears: ${CHECK_SEVERITIES.join(", ")}`,
-      (value: string): CheckSeverity => {
-        if (!(CHECK_SEVERITIES as readonly string[]).includes(value)) {
-          throw new Error(`unknown level: ${value} (expected ${CHECK_SEVERITIES.join(", ")})`);
+      `non-zero exit when any finding at or above <level> appears: ` +
+        `none, ${CHECK_SEVERITIES.join(", ")} (default: error; none restores the advisory behavior)`,
+      (value: string): CheckSeverity | "none" => {
+        if (value !== "none" && !(CHECK_SEVERITIES as readonly string[]).includes(value)) {
+          throw new Error(
+            `unknown level: ${value} (expected none, ${CHECK_SEVERITIES.join(", ")})`,
+          );
         }
-        return value as CheckSeverity;
+        return value as CheckSeverity | "none";
       },
     )
     .option(
@@ -171,7 +174,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
         opts: {
           overlay: string[];
           findings?: string;
-          failOn?: CheckSeverity;
+          failOn?: CheckSeverity | "none";
           severity?: string[];
           format: "text" | "json" | "sarif";
           output?: string;

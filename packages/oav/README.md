@@ -89,13 +89,13 @@ fetched over HTTP where the server advertises YAML by `Content-Type`.
 
 One taxonomy across every command, rather than a per-command meaning.
 
-| Code | Meaning                                                                      |
-| ---- | ---------------------------------------------------------------------------- |
-| 0    | clean                                                                        |
-| 1    | a domain check failed: validation errors, or findings met a `--fail-on` gate |
-| 2    | the input could not be read, resolved, or parsed                             |
-| 3    | CLI usage error                                                              |
-| 4    | `check` graded the document and at least one schema is malformed             |
+| Code | Meaning                                                                                                                                    |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0    | clean                                                                                                                                      |
+| 1    | a domain check failed: validation errors, or findings met the `--fail-on` gate (default `error` for `check`; `--fail-on none` is advisory) |
+| 2    | the input could not be read, resolved, or parsed                                                                                           |
+| 3    | CLI usage error                                                                                                                            |
+| 4    | `check` graded the document and at least one schema is malformed                                                                           |
 
 Exit 2 means there is no report to read: the file could not be opened,
 a `$ref` would not resolve, the YAML would not parse. It means the same

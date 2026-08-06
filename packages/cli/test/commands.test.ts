@@ -231,7 +231,9 @@ describe("resolveCommand", () => {
     };
     const { io, stdout } = memoryIo([["spec.json", spec]]);
     const result = await checkCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
-    expect(result.exitCode).toBe(0);
+    // A conformance violation is error severity, and the gate defaults
+    // to error (#549), so this exits 1 with no flag.
+    expect(result.exitCode).toBe(1);
     expect(stdout.value).toContain("conformance  type");
     expect(stdout.value).toContain("/paths/~1t/get/responses/202/description");
   });
@@ -1384,5 +1386,53 @@ describe("compile-schema input guards", () => {
     expect(res.exitCode).toBe(3);
     expect(mem.stderr.value).toContain('"iban"');
     expect(mem.stderr.value).toContain("--unknown-formats ignore");
+  });
+});
+
+describe("the default gate (#549)", () => {
+  // A conformance violation: error severity out of the box.
+  const violating = {
+    openapi: "3.1.0",
+    info: { title: "X", version: "1.0.0" },
+    paths: { "/t": { get: { responses: { "202": { description: null } } } } },
+  };
+  // Hygiene-warning-only: an unused tag.
+  const warningsOnly = {
+    openapi: "3.1.0",
+    info: { title: "X", version: "1.0.0" },
+    tags: [{ name: "unused" }],
+    paths: { "/t": { get: { responses: { "200": { description: "ok" } } } } },
+  };
+
+  it("--fail-on none restores the advisory exit 0", async () => {
+    const { io } = memoryIo([["spec.json", violating]]);
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], failOn: "none", options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("warnings alone do not trip the default gate", async () => {
+    const { io, stdout } = memoryIo([["spec.json", warningsOnly]]);
+    const result = await checkCommand({ spec: "spec.json", overlays: [], options: textOpts }, io);
+    expect(stdout.value).toContain("unused-tag");
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("a --severity promotion moves the exit code under the default", async () => {
+    // The interaction the migration note calls out: regrading is
+    // gate-affecting by default now.
+    const { io } = memoryIo([["spec.json", warningsOnly]]);
+    const result = await checkCommand(
+      {
+        spec: "spec.json",
+        overlays: [],
+        severity: ["unused-tag=error"],
+        options: textOpts,
+      },
+      io,
+    );
+    expect(result.exitCode).toBe(1);
   });
 });

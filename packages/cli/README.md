@@ -39,12 +39,12 @@ against it. Everything else here builds artifacts (`resolve`,
 ## Commands
 
 ```bash
-oaverify check <spec>                                         # conformance + hygiene + schema + examples + redos findings
+oaverify check <spec>                                         # every class; exits 1 on spec violations (default gate: error)
 oaverify check <spec> --findings conformance                  # one class only, and only that work
 oaverify check <spec> --findings -unused-tag                  # everything except one code
-oaverify check <spec> --fail-on error                         # CI gate: exit 1 on spec violations
-oaverify check <spec> --fail-on warning                       # CI gate: exit 1 on any finding
-oaverify check <spec> --severity 'unsatisfiable/*=error' --fail-on error  # regrade, then gate
+oaverify check <spec> --fail-on warning                       # tighten: exit 1 on any finding
+oaverify check <spec> --fail-on none                          # advisory: report everything, exit 0
+oaverify check <spec> --severity 'unsatisfiable/*=error'      # regrade; the default gate reads the result
 oaverify check <spec> --format sarif -o results.sarif             # SARIF 2.1.0 for code scanning
 oaverify check <spec> --format json                           # { findings: [...] }, each classed
 ```
@@ -188,7 +188,7 @@ below for the expected shape.
 | `--overlay <file>`                            | resolve / validate / compile-spec / stream-check | Repeatable; applies overlays in order. Accepts a standard OpenAPI Overlay 1.0 document or a typed `SpecOverlay`; anything else exits 3.                                                                                                                                                                                                     |
 | `--findings <terms>`                          | check                                            | Which findings to report (default: all): comma-separated terms in `--severity`'s key grammar, `-` prefixed to exclude. A term without `-` also decides which checks run, so it is how a run avoids work. Order is irrelevant; `malformed` is refused. See [docs/strictness.md](../../docs/strictness.md#which-findings-you-get---findings). |
 | `--severity <map...>`                         | check                                            | Regrade findings before `--fail-on` reads them: comma-separated `<key>=<level>`, key being a code, a family as `name/*`, or a class. Most specific wins. `malformed` is refused. See [docs/strictness.md](../../docs/strictness.md#when-you-disagree-with-the-grading).                                                                     |
-| `--fail-on <level>`                           | check                                            | Non-zero exit on any finding at or above `<level>`: `warning` (any finding), `error` (specification violations), `fatal`.                                                                                                                                                                                                                   |
+| `--fail-on <level>`                           | check                                            | Non-zero exit on any finding at or above `<level>`: `none` (advisory, always exit 0 short of malformed), `warning` (any finding), `error` (specification violations), `fatal`. Default `error`, so a spec violation fails with no flag; note this makes `--severity` gate-affecting.                                                        |
 | `--format text\|json`                         | check / stream-check                             | check: one finding per line, or `{ findings }` plus `skipped` when an exclusion dropped anything. stream-check: per-operation table, or the `SpecBudget`.                                                                                                                                                                                   |
 | `--dialect 2020-12\|openapi-3.1\|openapi-3.0` | compile-schema / compile-spec                    | Schema dialect. Defaults: 2020-12 (compile-schema), auto-detect from `openapi` field (compile-spec).                                                                                                                                                                                                                                        |
 | `--requests-only`                             | compile-spec                                     | Skip response-validator emit. Smaller output.                                                                                                                                                                                                                                                                                               |
