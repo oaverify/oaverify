@@ -1681,6 +1681,24 @@ export function createValidator(
         }
         void status;
       }
+      // Spike #624: crude release-as-you-go, to size the ceiling of that
+      // fix family. Not shippable (it drops the memoization the request
+      // path depends on); measurement only.
+      if (process.env.OAV_SPIKE_RELEASE === "1") {
+        compiledCache.clear();
+        // OAV_SPIKE_KEEP_TRANSFORMS=1 keeps the clipped schema clones,
+        // separating "recompiling code" from "recloning schemas" in the
+        // wall-time cost of releasing.
+        if (process.env.OAV_SPIKE_KEEP_TRANSFORMS !== "1") {
+          directionTransformCache.request.clear();
+          directionTransformCache.response.clear();
+        }
+        operationCache.delete(match.operation);
+        for (const response of cache.responses.values()) {
+          response.bodyValidators.clear();
+          response.headerValidators.clear();
+        }
+      }
     }
     return failures;
   };

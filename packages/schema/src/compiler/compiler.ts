@@ -40,6 +40,7 @@ import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
 import { assertFormatsRegistered } from "./unknown-formats.js";
 import { assertWellFormedSchema } from "./well-formed.js";
+import { SPIKE_DROP_SOURCE, spikeRecordSchema, spikeRecordUnit } from "./spike-instrument.js";
 
 // Token scan fed into CompileStats.emittedTreeRuntime. Word-boundaried
 // so stray mentions inside string literals (e.g. an error message that
@@ -1649,6 +1650,7 @@ export function compileSchema(
             }
           },
         });
+  spikeRecordUnit(wholeSource.length, state.nextFn);
   const stats: CompileStats = {
     functionCount: state.nextFn,
     unevaluatedTrackingEmitted: state.unevaluatedEmitted,
@@ -1660,20 +1662,20 @@ export function compileSchema(
       deps: ValidatorDeps,
     ) => CompiledPredicateFactory;
     const { validate } = factory(deps);
-    return { validate, source: wholeSource, stats };
+    return { validate, source: SPIKE_DROP_SOURCE ? "" : wholeSource, stats };
   }
   if (flat) {
     const factory = new Function(NAMES.DEPS, wholeSource) as (
       deps: ValidatorDeps,
     ) => CompiledFlatSchemaFactory;
     const { validate } = factory(deps);
-    return { validate, source: wholeSource, stats };
+    return { validate, source: SPIKE_DROP_SOURCE ? "" : wholeSource, stats };
   }
   const factory = new Function(NAMES.DEPS, wholeSource) as (
     deps: ValidatorDeps,
   ) => CompiledTreeSchemaFactory;
   const { validate } = factory(deps);
-  return { validate, source: wholeSource, stats };
+  return { validate, source: SPIKE_DROP_SOURCE ? "" : wholeSource, stats };
 }
 
 /** Flat-mode (default) runtime factory: `validate()` returns a {@link ValidationResult}. */
@@ -1781,6 +1783,7 @@ function compileValidator(
   const name = `validate_${state.nextFn}`;
   state.nextFn += 1;
   cache.set(schema, name);
+  spikeRecordSchema(schema);
 
   // Pure-`$ref` elision: a schema whose only non-annotation keyword is
   // `$ref` compiles to a pass-through wrapper today (allocates a
