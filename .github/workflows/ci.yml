@@ -281,7 +281,9 @@ jobs:
     # everyone to ignore the one thread a real regression lands in. The
     # freshness result rides along in the body as context instead.
     needs: [nightly-upstream, corpus-freshness]
-    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    # not always(): a cancelled nightly is not a failed one, and must not
+    # file a false alarm in the tracking issue.
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
