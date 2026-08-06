@@ -40,7 +40,7 @@ import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
 import { assertFormatsRegistered } from "./unknown-formats.js";
 import { assertWellFormedSchema } from "./well-formed.js";
-import { SPIKE_DROP_SOURCE, spikeRecordSchema, spikeRecordUnit } from "./spike-instrument.js";
+import { spikeRecordSchema, spikeRecordUnit } from "./spike-instrument.js";
 
 // Token scan fed into CompileStats.emittedTreeRuntime. Word-boundaried
 // so stray mentions inside string literals (e.g. an error message that
@@ -789,7 +789,11 @@ export interface SchemaLintIssue {
  */
 export type CompiledSchema = {
   validate: (data: unknown, startPath?: readonly PathSegment[]) => ValidationResult;
-  /** The generated source. Exposed for debugging/snapshot testing only. */
+  /**
+   * The generated source. Exposed for debugging/snapshot testing only,
+   * and empty when the compile set
+   * {@link CompileOptions.retainSource} to `false`.
+   */
   source: string;
   /** Compile-time stats about the generated validator. */
   stats: CompileStats;
@@ -1010,6 +1014,26 @@ export interface CompileOptions {
    * ```
    */
   unknownFormats?: "ignore" | "error";
+
+  /**
+   * Whether the compiled validator keeps the generated source that
+   * built it, on {@link CompiledSchema.source}.
+   *
+   * `true` (default) keeps it, which is what a caller reading `source`
+   * for debugging or snapshot testing needs. `false` puts an empty
+   * string there instead, and the text becomes collectable as soon as
+   * the validator is built.
+   *
+   * This is a memory decision and nothing else: the validator behaves
+   * identically either way. Whether the text is worth keeping depends
+   * on how many schemas a caller compiles. One compile unit emits code
+   * for the whole transitive closure of what it `$ref`s, so a caller
+   * compiling a large document operation by operation retains that
+   * text once per operation: 842 MB across 2271 units on Stripe's
+   * OpenAPI document (#624). `createValidator` passes `false` for the
+   * validators it builds internally, whose `source` nothing can reach.
+   */
+  retainSource?: boolean;
 
   // --- 4. Schema-compile-specific extras ---
 
@@ -1651,6 +1675,10 @@ export function compileSchema(
           },
         });
   spikeRecordUnit(wholeSource.length, state.nextFn);
+  // Dropping the reference here is the whole of `retainSource: false`:
+  // `wholeSource` is still live for the `new Function` calls below, and
+  // becomes collectable when this call returns.
+  const retainedSource = options.retainSource === false ? "" : wholeSource;
   const stats: CompileStats = {
     functionCount: state.nextFn,
     unevaluatedTrackingEmitted: state.unevaluatedEmitted,
@@ -1662,20 +1690,20 @@ export function compileSchema(
       deps: ValidatorDeps,
     ) => CompiledPredicateFactory;
     const { validate } = factory(deps);
-    return { validate, source: SPIKE_DROP_SOURCE ? "" : wholeSource, stats };
+    return { validate, source: retainedSource, stats };
   }
   if (flat) {
     const factory = new Function(NAMES.DEPS, wholeSource) as (
       deps: ValidatorDeps,
     ) => CompiledFlatSchemaFactory;
     const { validate } = factory(deps);
-    return { validate, source: SPIKE_DROP_SOURCE ? "" : wholeSource, stats };
+    return { validate, source: retainedSource, stats };
   }
   const factory = new Function(NAMES.DEPS, wholeSource) as (
     deps: ValidatorDeps,
   ) => CompiledTreeSchemaFactory;
   const { validate } = factory(deps);
-  return { validate, source: SPIKE_DROP_SOURCE ? "" : wholeSource, stats };
+  return { validate, source: retainedSource, stats };
 }
 
 /** Flat-mode (default) runtime factory: `validate()` returns a {@link ValidationResult}. */

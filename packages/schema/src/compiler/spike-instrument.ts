@@ -9,9 +9,6 @@
 
 export const SPIKE_ENABLED = process.env.OAV_SPIKE_STATS === "1";
 
-/** Drop the retained generated source, to size what it costs. */
-export const SPIKE_DROP_SOURCE = process.env.OAV_SPIKE_DROP_SOURCE === "1";
-
 interface SpikeStats {
   units: number;
   sourceBytes: number;

@@ -1112,6 +1112,12 @@ export function createValidator(
       // huge location from running away); `reshapeResult` then enforces
       // the per-call total across all locations.
       output: "tree",
+      // Nothing can reach these validators' `source`: they live in
+      // `compiledCache` and the validator never returns them. Keeping
+      // it retained one copy of the generated text per compile unit,
+      // which on a large document is most of the validator's footprint
+      // (#624).
+      retainSource: false,
       maxErrors,
       maxDepth: options.maxDepth,
       keywords: options.keywords,
