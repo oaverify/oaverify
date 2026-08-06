@@ -267,8 +267,6 @@ jobs:
       - name: OpenAPI cases (corpus-independent, so pinned semantics hold)
         working-directory: conformance
         run: pnpm openapi
-      - name: have the vendored OpenAPI metaschemas changed under their pins?
-        run: pnpm metaschema:stale
 
   nightly-report:
     # A failing scheduled workflow notifies almost nobody: GitHub mails
@@ -362,6 +360,15 @@ jobs:
       - name: are the pinned corpora behind upstream?
         working-directory: conformance
         run: pnpm corpora:stale --fail-if-stale
+      # Same class of signal: something we pinned may have moved upstream.
+      # It lives here rather than in nightly-upstream so that a third
+      # party republishing a metaschema, or spec.openapis.org being
+      # unreachable, cannot read as a code regression or open the
+      # tracking issue. Plain node, so it needs no install. `if: always()`
+      # so a stale pin above does not mask a drift report.
+      - name: have the vendored OpenAPI metaschemas changed under their pins?
+        if: always()
+        run: pnpm metaschema:stale
 
   pack-smoke:
     # Catches `exports` map / `files` / bundler regressions that unit

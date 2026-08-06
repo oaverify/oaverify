@@ -17,9 +17,13 @@
 // how the 3.1 pin was first set two revisions behind.
 //
 // So: staying current is a manual check, and this script does not
-// pretend otherwise. Deliberately NOT wired into CI. A job that turns
-// red because a third party published something is noise, and the same
-// reasoning keeps detection/ out of CI.
+// pretend otherwise. In CI this runs in the scheduled corpus-freshness
+// job, deliberately NOT in nightly-upstream or the PR gate: that job is
+// the "did something we pinned move upstream" radar, never blocks a PR,
+// and does not open the nightly tracking issue, so a third party
+// republishing a schema (or spec.openapis.org being unreachable, exit 2)
+// cannot read as a code regression. Similar reasoning keeps detection/
+// out of CI entirely.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

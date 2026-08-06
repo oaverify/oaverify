@@ -456,9 +456,10 @@ Scheduled jobs cover what the pin cannot. Every conformance runner gates
 PRs against the pinned corpus, cached so the required check never needs the
 network. `nightly-upstream` then re-runs the suites against upstream HEAD
 with `--floating`, which classifies extra failures as ours or upstream's by
-whether the unit gained cases (`conformance/floating.ts`);
-`corpus-freshness` reports pins that are behind; and `pnpm metaschema:stale`
-reports a vendored metaschema whose dated URL now serves different bytes.
+whether the unit gained cases (`conformance/floating.ts`); and
+`corpus-freshness` reports pins that are behind, plus (via
+`pnpm metaschema:stale`) a vendored metaschema whose dated URL now
+serves different bytes.
 
 None of the three blocks a PR, and a red scheduled workflow notifies almost
 nobody, so `nightly-report` opens or updates one issue labelled
