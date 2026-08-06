@@ -36,7 +36,7 @@ describe("maxDepth: option validation", () => {
 
 describe("maxDepth: codegen specialization", () => {
   it("emits no depth instrumentation when unset (zero overhead)", () => {
-    const v = compile(recursive);
+    const v = compile(recursive, { retainSource: true });
     expect(v.source).not.toContain("deps.depth");
     expect(v.source).not.toContain("maxDepth");
   });
@@ -47,14 +47,14 @@ describe("maxDepth: codegen specialization", () => {
     // when not. What the guard expression looks like is not a contract,
     // and the behaviour it produces is covered below by the cap
     // boundary, the counter reset, and the unwind cases.
-    const v = compile(recursive, { maxDepth: 4 });
+    const v = compile(recursive, { maxDepth: 4, retainSource: true });
     expect(v.source).toContain("deps.depth");
     expect(v.source).toContain("maxDepth");
   });
 
   it("does not instrument a non-recursive schema even when set", () => {
     const flat = { type: "object", properties: { a: { type: "string" } } };
-    const v = compile(flat, { maxDepth: 4 });
+    const v = compile(flat, { maxDepth: 4, retainSource: true });
     expect(v.source).not.toContain("++deps.depth");
     expect(v.validate({ a: "x" }).valid).toBe(true);
     expect(v.validate({ a: 1 }).valid).toBe(false);

@@ -3,7 +3,8 @@
 The library half: `format` becomes one registry and the OpenAPI numeric
 formats assert; several string formats got their grammars right; the
 emit-side runtime `compile-spec` writes into generated modules moves to
-its own semver-covered subpath. The CLI half: `check` replaces `--only`
+its own semver-covered subpath; a compiled validator stops keeping the
+source it was generated from. The CLI half: `check` replaces `--only`
 with `--findings`, gates on `error` severity by default, and aborts on
 an ungradeable document at every selection; the compile commands refuse
 unknown formats by default. Most callers meet only the first two.
@@ -332,6 +333,28 @@ exit flips. Error findings are rare because they mark genuine
 specification violations; when your spec acquires one, the flip is the
 point.
 
+## Breaking: `compileSchema` drops the generated source by default
+
+`CompiledSchema.source` carries the JavaScript a compile generated, for
+debugging and snapshot testing. Keeping it costs memory for as long as
+the validator lives, and a compile unit emits code for the whole
+transitive closure of what it `$ref`s, so a caller compiling a document
+operation by operation kept that text once per operation: 842 MB across
+2271 units on Stripe's OpenAPI document, roughly half of what
+`oaverify check` retained there.
+
+`source` is now the empty string unless the compile asks for it:
+
+```ts
+const compiled = compileSchema(schema, { dialect, retainSource: true });
+compiled.source; // the generated JavaScript, as before
+```
+
+Only a caller that reads `source` is affected; the compiled validator
+behaves identically either way. `createValidator` and `oaverify check`
+take the new default, and the `compile-spec` command asks for the
+source it emits.
+
 ## Checklist
 
 1. Run your test suite. A failure naming `must match format int32` or
@@ -347,3 +370,5 @@ point.
    wants `iri` / `iri-reference` instead.
 6. Grep for `format: duration`. A value that skips a unit (`P1Y2D`) or
    carries a fraction (`PT0.5S`) is now rejected.
+7. Grep for `.source` on a `compileSchema` result. It is empty unless
+   the compile passes `retainSource: true`.

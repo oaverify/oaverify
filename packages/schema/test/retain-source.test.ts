@@ -14,19 +14,27 @@ const schema = {
 } as const;
 
 describe("retainSource", () => {
-  it("keeps the generated source by default", () => {
+  it("drops the generated source by default", () => {
     const v = compileSchema(schema as never, { dialect: jsonSchemaDialect });
-    expect(v.source.length).toBeGreaterThan(0);
+    expect(v.source).toBe("");
   });
 
-  it("drops the generated source when asked, leaving the validator unchanged", () => {
-    const kept = compileSchema(schema as never, { dialect: jsonSchemaDialect });
-    const dropped = compileSchema(schema as never, {
+  it("keeps the generated source when asked", () => {
+    const v = compileSchema(schema as never, {
       dialect: jsonSchemaDialect,
-      retainSource: false,
+      retainSource: true,
     });
+    expect(v.source.length).toBeGreaterThan(0);
+    expect(() => new Function(v.source)).not.toThrow();
+  });
 
-    expect(dropped.source).toBe("");
+  it("validates identically either way", () => {
+    const kept = compileSchema(schema as never, {
+      dialect: jsonSchemaDialect,
+      retainSource: true,
+    });
+    const dropped = compileSchema(schema as never, { dialect: jsonSchemaDialect });
+
     expect(dropped.stats).toEqual(kept.stats);
 
     for (const data of [
@@ -40,15 +48,17 @@ describe("retainSource", () => {
     }
   });
 
-  it("drops the source in every output mode", () => {
+  it("applies to every output mode", () => {
     for (const output of ["flat", "tree", "predicate"] as const) {
-      const v = compileSchema(schema as never, {
+      const dropped = compileSchema(schema as never, { dialect: jsonSchemaDialect, output });
+      const kept = compileSchema(schema as never, {
         dialect: jsonSchemaDialect,
         output,
-        retainSource: false,
+        retainSource: true,
       });
-      expect(v.source).toBe("");
-      expect(v.validate({ id: "a" })).toEqual(output === "predicate" ? true : { valid: true });
+      expect(dropped.source).toBe("");
+      expect(kept.source.length).toBeGreaterThan(0);
+      expect(dropped.validate({ id: "a" })).toEqual(kept.validate({ id: "a" }));
     }
   });
 });

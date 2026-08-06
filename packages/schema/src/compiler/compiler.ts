@@ -789,9 +789,10 @@ export interface SchemaLintIssue {
 export type CompiledSchema = {
   validate: (data: unknown, startPath?: readonly PathSegment[]) => ValidationResult;
   /**
-   * The generated source. Exposed for debugging/snapshot testing only,
-   * and empty when the compile set
-   * {@link CompileOptions.retainSource} to `false`.
+   * The generated source. Empty unless the compile asked for it with
+   * {@link CompileOptions.retainSource}, since keeping it costs memory
+   * for as long as the validator lives and only a caller that reads it
+   * gains anything.
    */
   source: string;
   /** Compile-time stats about the generated validator. */
@@ -1018,19 +1019,18 @@ export interface CompileOptions {
    * Whether the compiled validator keeps the generated source that
    * built it, on {@link CompiledSchema.source}.
    *
-   * `true` (default) keeps it, which is what a caller reading `source`
-   * for debugging or snapshot testing needs. `false` puts an empty
-   * string there instead, and the text becomes collectable as soon as
-   * the validator is built.
+   * `false` (default) drops it: `source` is the empty string, and the
+   * text becomes collectable as soon as the validator is built. `true`
+   * keeps it, which is what reading `source` for debugging, snapshot
+   * testing, or emitting a standalone module needs.
    *
-   * This is a memory decision and nothing else: the validator behaves
-   * identically either way. Whether the text is worth keeping depends
-   * on how many schemas a caller compiles. One compile unit emits code
-   * for the whole transitive closure of what it `$ref`s, so a caller
-   * compiling a large document operation by operation retains that
-   * text once per operation: 842 MB across 2271 units on Stripe's
-   * OpenAPI document (#624). `createValidator` passes `false` for the
-   * validators it builds internally, whose `source` nothing can reach.
+   * A memory decision and nothing else; the validator behaves
+   * identically either way. The text is worth what it costs only to a
+   * caller that reads it. One compile unit emits code for the whole
+   * transitive closure of what it `$ref`s, so a caller compiling a
+   * document operation by operation keeps that text once per
+   * operation: retained, Stripe's OpenAPI document is 842 MB across
+   * 2271 units (#624).
    */
   retainSource?: boolean;
 
@@ -1673,10 +1673,10 @@ export function compileSchema(
             }
           },
         });
-  // Dropping the reference here is the whole of `retainSource: false`:
+  // Dropping the reference here is the whole of the default:
   // `wholeSource` is still live for the `new Function` calls below, and
   // becomes collectable when this call returns.
-  const retainedSource = options.retainSource === false ? "" : wholeSource;
+  const retainedSource = options.retainSource === true ? wholeSource : "";
   const stats: CompileStats = {
     functionCount: state.nextFn,
     unevaluatedTrackingEmitted: state.unevaluatedEmitted,
