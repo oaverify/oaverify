@@ -65,6 +65,7 @@ describe("classifyFloating", () => {
     expect(verdict).toEqual({
       regressions: [],
       newCoverage: [],
+      churned: [],
       absorbed: [],
       improvements: [],
       added: [],
@@ -89,5 +90,17 @@ describe("classifyFloating", () => {
     const verdict = classifyFloating([unit("idn-email", 18, 1)], [unit("idn-email", 19, 2)]);
     expect(verdict.regressions).toEqual([]);
     expect(verdict.improvements).toHaveLength(1);
+  });
+
+  it("reports, but does not fail, a shrunken unit whose failures grew", () => {
+    // Upstream removed 6 cases and replaced 4; we fail 2 of the
+    // replacements. The count moved, so the extra failures cannot be
+    // attributed to us, and calling them ours is how a nightly cries
+    // wolf. The pinned run is the backstop for a real regression.
+    const verdict = classifyFloating([unit("uri", 42, 2)], [unit("uri", 44, 0)]);
+    expect(verdict.regressions).toEqual([]);
+    expect(verdict.churned).toHaveLength(1);
+    expect(verdict.churned[0]).toContain("44 -> 42 cases");
+    expect(verdict.churned[0]).toContain("0 -> 2 failing");
   });
 });

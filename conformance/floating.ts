@@ -18,11 +18,14 @@
  * That is a heuristic and it is worth being precise about how it is wrong.
  * If upstream adds two cases we fail *and* breaks one we passed, in the
  * same file, on the same night, this reports three new failures and does
- * not fail the run. Catching that needs the baseline to record every case
- * identity rather than just the mismatches, which is a much larger file
- * for a case that has not come up. The pinned run in the same nightly is
- * the backstop: it uses the exact corpus the baseline was measured on, so
- * a real regression fails there whatever upstream did.
+ * not fail the run. A shrunken unit is the same blind spot in the other
+ * direction: upstream deleted or replaced cases, so extra failures there
+ * cannot be attributed either, and are reported rather than failed.
+ * Catching either needs the baseline to record every case identity rather
+ * than just the mismatches, which is a much larger file for a case that
+ * has not come up. The pinned run in the same nightly is the backstop: it
+ * uses the exact corpus the baseline was measured on, so a real
+ * regression fails there whatever upstream did.
  */
 
 /** One comparable unit of a baseline: a format, a suite file, a fixture group. */
@@ -39,6 +42,9 @@ export interface FloatingVerdict {
   regressions: string[];
   /** Units that gained cases and gained failures. Upstream's, probably. */
   newCoverage: string[];
+  /** Units that lost cases yet gained failures. Upstream deleted or
+   * replaced cases, so the extra failures cannot be attributed. */
+  churned: string[];
   /** Units that gained cases with no new failures. Free coverage. */
   absorbed: string[];
   /** Units whose failures dropped. Good news; never fails a floating run. */
@@ -61,6 +67,7 @@ export function classifyFloating(
   const verdict: FloatingVerdict = {
     regressions: [],
     newCoverage: [],
+    churned: [],
     absorbed: [],
     improvements: [],
     added: [],
@@ -75,11 +82,16 @@ export function classifyFloating(
       continue;
     }
     const casesGrew = unit.cases > before.cases;
+    const casesShrank = unit.cases < before.cases;
     const failuresGrew = unit.failures > before.failures;
 
-    if (failuresGrew && !casesGrew) {
+    if (failuresGrew && !casesGrew && !casesShrank) {
       verdict.regressions.push(
         `${unit.name}: ${before.failures} -> ${unit.failures} failing with the case count unchanged at ${unit.cases}`,
+      );
+    } else if (failuresGrew && casesShrank) {
+      verdict.churned.push(
+        `${unit.name}: ${before.cases} -> ${unit.cases} cases, ${before.failures} -> ${unit.failures} failing`,
       );
     } else if (failuresGrew) {
       verdict.newCoverage.push(
@@ -105,6 +117,7 @@ export function reportFloating(label: string, verdict: FloatingVerdict, rev: str
   console.log(`\n=== ${label} against upstream ${rev.slice(0, 10)} ===`);
   section("REGRESSED (case count unchanged, so this is ours):", verdict.regressions);
   section("new upstream cases we do not pass:", verdict.newCoverage);
+  section("cases deleted upstream with new failures (not attributable):", verdict.churned);
   section("new upstream cases we pass:", verdict.absorbed);
   section("now passing that the baseline records as failing:", verdict.improvements);
   section("units absent from the baseline:", verdict.added);
@@ -115,10 +128,10 @@ export function reportFloating(label: string, verdict: FloatingVerdict, rev: str
     );
     return 1;
   }
-  const news = verdict.newCoverage.length;
+  const news = verdict.newCoverage.length + verdict.churned.length;
   console.log(
     news > 0
-      ? `\nOK: no regression. ${news} unit(s) gained cases we do not pass; see above.`
+      ? `\nOK: no regression. ${news} unit(s) changed upstream in ways we do not pass; see above.`
       : "\nOK: no regression against upstream HEAD.",
   );
   return 0;
