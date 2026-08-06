@@ -12,7 +12,7 @@
  * detection matrix that cannot be audited is a marketing asset.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CASES, type DetectionCase } from "./cases.ts";
@@ -201,6 +201,33 @@ const TOOLS: readonly (readonly [string, Runner])[] = [
   ["redocly", runRedocly],
 ];
 
+// --- provenance -----------------------------------------------------
+//
+// The matrix is quoted outside this directory, so it has to say which
+// versions produced it. Read from the installed tree rather than from
+// package.json, whose ranges say what was asked for, not what ran.
+
+/** Package directory each tool's version is read from. */
+const TOOL_PACKAGES: Record<string, string> = {
+  oaverify: join(HERE, "..", "packages", "oav"),
+  ajv: join(HERE, "node_modules", "ajv"),
+  spectral: join(HERE, "node_modules", "@stoplight", "spectral-cli"),
+  redocly: join(HERE, "node_modules", "@redocly", "cli"),
+};
+
+function versionOf(tool: string): string {
+  const dir = TOOL_PACKAGES[tool];
+  if (dir === undefined) return "unknown";
+  try {
+    const manifest = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as {
+      version?: string;
+    };
+    return manifest.version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 /**
  * Did this run identify *this* defect? One finding must match one
  * signal. Signals are therefore written to be discriminating -- the
@@ -262,6 +289,10 @@ const mark = (hit: boolean, cls: string): string => {
 };
 
 const lines: string[] = [];
+lines.push(`Run ${new Date().toISOString().slice(0, 10)} against:`);
+lines.push("");
+for (const name of names) lines.push(`- ${name} ${versionOf(name)}`);
+lines.push("");
 lines.push(`| case | class | ${names.join(" | ")} |`);
 lines.push(`| --- | --- | ${names.map(() => "---").join(" | ")} |`);
 for (const row of rows) {

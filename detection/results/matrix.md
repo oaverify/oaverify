@@ -1,3 +1,10 @@
+Run 2026-08-06 against:
+
+- oaverify 5.4.0
+- ajv 8.20.0
+- spectral 6.16.2
+- redocly 2.43.2
+
 | case | class | oaverify | ajv | spectral | redocly |
 | --- | --- | --- | --- | --- | --- |
 | `malformed/items-array` | malformed | yes | yes | yes | yes |
@@ -8,6 +15,7 @@
 | `malformed/properties-array` | malformed | yes | yes | yes | yes |
 | `lint/required-typo` | lint | yes | yes | - | - |
 | `lint/required-typo-behind-ref` | lint | yes | yes | - | yes |
+| `lint/enum-type-mismatch` | lint | yes | - | yes | yes |
 | `lint/ref-siblings-oas30` | lint | yes | - | yes | - |
 | `lint/redundant-oneof` | lint | yes | - | - | - |
 | `lint/unknown-keyword` | lint | yes | yes | - | yes |
@@ -35,8 +43,8 @@
 | class | oaverify | ajv | spectral | redocly |
 | --- | --- | --- | --- | --- |
 | malformed (6) | 6/6 | 4/6 | 5/6 | 5/6 |
-| lint (7) | 7/7 | 5/7 | 2/7 | 4/7 |
+| lint (8) | 8/8 | 5/8 | 3/8 | 5/8 |
 | structural (8) | 7/8 | 2/8 | 7/8 | 5/8 |
 | style (6) | 3/6 | 0/6 | 6/6 | 6/6 |
 | control false positives (4) | 0 | 0 | 0 | 0 |
-| total findings raised | 25 | 19 | 170 | 182 |
+| total findings raised | 24 | 19 | 178 | 190 |
