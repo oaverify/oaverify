@@ -37,6 +37,9 @@ describe("maxDepth: option validation", () => {
 describe("maxDepth: codegen specialization", () => {
   it("emits no depth instrumentation when unset (zero overhead)", () => {
     const v = compile(recursive, { retainSource: true });
+    // Without the ask above, `source` is empty and both negatives below
+    // pass for the wrong reason.
+    expect(v.source.length).toBeGreaterThan(0);
     expect(v.source).not.toContain("deps.depth");
     expect(v.source).not.toContain("maxDepth");
   });
@@ -55,6 +58,7 @@ describe("maxDepth: codegen specialization", () => {
   it("does not instrument a non-recursive schema even when set", () => {
     const flat = { type: "object", properties: { a: { type: "string" } } };
     const v = compile(flat, { maxDepth: 4, retainSource: true });
+    expect(v.source.length).toBeGreaterThan(0);
     expect(v.source).not.toContain("++deps.depth");
     expect(v.validate({ a: "x" }).valid).toBe(true);
     expect(v.validate({ a: 1 }).valid).toBe(false);
