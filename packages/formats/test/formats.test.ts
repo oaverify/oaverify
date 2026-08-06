@@ -85,6 +85,72 @@ describe("email / hostname", () => {
   });
 });
 
+describe("email (RFC 5321 Mailbox grammar)", () => {
+  const DQ = '"';
+  const BACKSLASH = String.fromCharCode(92);
+  const BEL = String.fromCharCode(7);
+
+  // A quoted local part is the one place a space, a double dot and a
+  // second `@` are all legal. The unquoted form forbids each of them,
+  // which is why the two shapes are checked separately.
+  it("accepts a quoted local part", () => {
+    expect(validateEmail(`${DQ}joe bloggs${DQ}@example.com`)).toBe(true);
+    expect(validateEmail(`${DQ}joe..bloggs${DQ}@example.com`)).toBe(true);
+    expect(validateEmail(`${DQ}joe@bloggs${DQ}@example.com`)).toBe(true);
+    expect(validateEmail(`${DQ}${DQ}@example.com`)).toBe(true);
+  });
+
+  it("keeps the Dot-string rules for an unquoted local part", () => {
+    expect(validateEmail("te.s.t@example.com")).toBe(true);
+    expect(validateEmail("te..st@example.com")).toBe(false);
+    expect(validateEmail(".test@example.com")).toBe(false);
+    expect(validateEmail("test.@example.com")).toBe(false);
+    expect(validateEmail("joe bloggs@example.com")).toBe(false);
+  });
+
+  it("applies quoted-pair rules inside a quoted local part", () => {
+    expect(validateEmail(`${DQ}a${BACKSLASH}${DQ}b${DQ}@example.com`)).toBe(true);
+    expect(validateEmail(`${DQ}a${DQ}b${DQ}@example.com`)).toBe(false);
+    expect(validateEmail(`${DQ}a${BEL}b${DQ}@example.com`)).toBe(false);
+    expect(validateEmail(`${DQ}a${BACKSLASH}${DQ}@example.com`)).toBe(false);
+  });
+
+  it("accepts an address-literal domain", () => {
+    expect(validateEmail("joe.bloggs@[127.0.0.1]")).toBe(true);
+    expect(validateEmail("joe.bloggs@[IPv6:::1]")).toBe(true);
+    expect(validateEmail("joe.bloggs@[IPv6:2001:db8::1]")).toBe(true);
+  });
+
+  it("rejects an address literal that is not an address", () => {
+    expect(validateEmail("joe.bloggs@[127.0.0.300]")).toBe(false);
+    // The `IPv6:` tag is mandatory, and no General-address-literal tag
+    // has been registered, so a bare bracketed IPv6 address is not one.
+    expect(validateEmail("joe.bloggs@[::1]")).toBe(false);
+    expect(validateEmail("joe.bloggs@[anything]")).toBe(false);
+  });
+
+  it("rejects a header or a list rather than a single mailbox", () => {
+    expect(validateEmail("user1@oceania.org, user2@oceania.org")).toBe(false);
+    expect(
+      validateEmail(`${DQ}Winston Smith${DQ} <winston.smith@recdep.minitrue> (Records Department)`),
+    ).toBe(false);
+  });
+
+  it("widens qtext to non-ASCII for idn-email only", () => {
+    expect(validateIdnEmail(`${DQ}δοκιμή${DQ}@example.com`)).toBe(true);
+    expect(validateEmail(`${DQ}δοκιμή${DQ}@example.com`)).toBe(false);
+    expect(validateIdnEmail(`${DQ}\u{1D54F}${DQ}@example.com`)).toBe(true);
+    // The double quote and the backslash stay excluded when the range
+    // widens, which a single `]`-to-U+10FFFF range would have lost.
+    expect(validateIdnEmail(`${DQ}a${DQ}b${DQ}@example.com`)).toBe(false);
+  });
+
+  it("caps a local part at 64 characters", () => {
+    expect(validateEmail(`${"a".repeat(64)}@example.com`)).toBe(true);
+    expect(validateEmail(`${"a".repeat(65)}@example.com`)).toBe(false);
+  });
+});
+
 describe("ipv4 / ipv6", () => {
   it("accepts well-formed ipv4", () => {
     expect(validateIpv4("192.168.1.1")).toBe(true);

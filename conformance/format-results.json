@@ -82,42 +82,11 @@
   {
     "format": "email",
     "cases": 27,
-    "pass": 22,
+    "pass": 27,
     "falseAccept": 0,
-    "falseReject": 5,
+    "falseReject": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "validation of e-mail addresses",
-        "test": "a quoted string with a space in the local part is valid",
-        "data": "\"joe bloggs\"@example.com",
-        "direction": "false-reject"
-      },
-      {
-        "group": "validation of e-mail addresses",
-        "test": "a quoted string with a double dot in the local part is valid",
-        "data": "\"joe..bloggs\"@example.com",
-        "direction": "false-reject"
-      },
-      {
-        "group": "validation of e-mail addresses",
-        "test": "a quoted string with a @ in the local part is valid",
-        "data": "\"joe@bloggs\"@example.com",
-        "direction": "false-reject"
-      },
-      {
-        "group": "validation of e-mail addresses",
-        "test": "an IPv4-address-literal after the @ is valid",
-        "data": "joe.bloggs@[127.0.0.1]",
-        "direction": "false-reject"
-      },
-      {
-        "group": "validation of e-mail addresses",
-        "test": "an IPv6-address-literal after the @ is valid",
-        "data": "joe.bloggs@[IPv6:::1]",
-        "direction": "false-reject"
-      }
-    ]
+    "mismatches": []
   },
   {
     "format": "hostname",
