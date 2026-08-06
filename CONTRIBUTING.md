@@ -114,9 +114,11 @@ pnpm overlay                    # OpenAPI Overlay 1.0
 pnpm corpora:stale              # are the pinned corpora behind upstream?
 ```
 
-Every runner above takes `--check-baseline`, which is the form CI uses: it
-compares against the committed results file and fails on a regression
-instead of on any single mismatch.
+The baseline runners (`suite`, `format-suite`, `parse`, `overlay`) take
+`--check-baseline`, which is the form CI uses: it compares against the
+committed results file and fails on a regression instead of on any single
+mismatch. `pnpm openapi` has no baseline and takes no flags; it fails on
+any mismatch.
 
 `pnpm corpora:stale` reports which pinned corpora are behind upstream and
 exits 0 either way, because being behind is a maintenance signal rather
