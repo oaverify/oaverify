@@ -153,6 +153,7 @@
     "lint": "oxlint && oxfmt --check . && pnpm check:deps",
     "lint:type-aware": "oxlint --type-aware -c .oxlintrc.type-aware.json packages",
     "check:deps": "node ./scripts/check-deps.mjs",
+    "metaschema:stale": "node ./packages/metaschema/scripts/check-drift.mjs",
     "fmt": "oxfmt --write .",
     "clean": "node ./scripts/clean.mjs",
     "typecheck": "tsc -b && tsc -p examples && tsc -p tsconfig.tests.json",
