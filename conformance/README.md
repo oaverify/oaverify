@@ -40,7 +40,7 @@ pnpm corpora                        # all three corpora at their pins
 cd .. && pnpm build                 # only needed for `pnpm openapi`
 
 cd conformance
-pnpm check                          # typecheck + every runner below, against its baseline
+pnpm check                          # typecheck + the five gating runners, as CI runs them
 pnpm suite                          # JSON Schema Test Suite (required only)
 pnpm suite:optional                 # + optional/ suite (format edge cases, etc.)
 pnpm suite -- --filter=ref          # just files matching "ref"

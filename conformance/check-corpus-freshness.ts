@@ -107,8 +107,9 @@ if (stale.length === 0 && unreachable.length === 0) {
 
 // A corpus that could not be checked is not fresh, it is unknown. Under
 // --fail-if-stale the exit code is the only signal anyone sees, so an
-// unreachable upstream must not read as "all current" (and let the
-// nightly close its tracking issue as recovered).
+// unreachable upstream must not read as "all current". The failure shows
+// up as a red corpus-freshness job and as that job's row in the nightly
+// tracking issue's body; it does not itself open or hold the issue.
 if (unreachable.length > 0) {
   console.log(
     `\n${unreachable.length} corpus/corpora could not be checked: ${unreachable.join(", ")}.`,
