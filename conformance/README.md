@@ -22,7 +22,8 @@ parity, flagging every mismatch. Four targets:
   the main workspace install.
 - **`pnpm corpora`**, which fetches all three upstream corpora at the
   revisions pinned in `corpora.json`. Needs network the first time. The
-  checkouts are gitignored and total ~4.3 MB at depth 1.
+  checkouts are gitignored and total ~225 MB at depth 1, nearly all of
+  it JSONTestSuite (the two schema corpora are ~9 MB together).
 - **A prior root `pnpm build`** for `pnpm openapi` only, which drives
   `packages/oav/dist/cli.js` as a subprocess. It errors telling you so if
   the binary is absent.
