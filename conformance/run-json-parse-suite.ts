@@ -4,7 +4,7 @@
  * `@oaverify/internal-stream-validator` SAX tokenizer.
  *
  * A clone of that repo lives under ./JSONTestSuite (gitignored; cloned
- * by `pnpm setup:json-parse`). This script walks `test_parsing/*.json`,
+ * by `pnpm corpora:json-parse`). This script walks `test_parsing/*.json`,
  * whose filenames are prefixed `y_` (must accept), `n_` (must reject), or
  * `i_` (implementation-defined). The tokenizer's contract is to **match
  * `JSON.parse`**, so the oracle for every
@@ -28,11 +28,17 @@
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { assertPinned, corpusPath } from "./corpora.ts";
 import type { JsonEventHandler } from "../packages/stream-validator/src/tokenizer/index.ts";
 import { JsonParseError, JsonTokenizer } from "../packages/stream-validator/src/tokenizer/index.ts";
 
-const SUITE_ROOT = resolve(new URL(".", import.meta.url).pathname, "JSONTestSuite");
+const SUITE = "JSONTestSuite";
+const SUITE_ROOT = corpusPath(SUITE);
 const PARSING_DIR = join(SUITE_ROOT, "test_parsing");
+
+// Baselines were measured at the pin in corpora.json; refuse to report
+// numbers from a different revision.
+assertPinned(SUITE);
 
 const args = process.argv.slice(2);
 const checkBaseline = args.includes("--check-baseline");
@@ -159,7 +165,7 @@ function replayChunkSizes(len: number): number[] {
 
 function run(): Summary {
   if (!existsSync(PARSING_DIR)) {
-    console.error(`no corpus at ${PARSING_DIR}; run \`pnpm setup:json-parse\` first.`);
+    console.error(`no corpus at ${PARSING_DIR}; run \`pnpm corpora:json-parse\` first.`);
     process.exit(2);
   }
   const files = readdirSync(PARSING_DIR)

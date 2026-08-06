@@ -1,0 +1,20 @@
+{
+  "$comment": "Pinned upstream corpora. Every checkout under conformance/ is gitignored, so without a pin here nothing records which revision a committed baseline was measured against. Bump a rev deliberately, in a commit that also re-measures whatever baseline it moves.",
+  "corpora": {
+    "JSON-Schema-Test-Suite": {
+      "url": "https://github.com/json-schema-org/JSON-Schema-Test-Suite.git",
+      "rev": "cc73f5fa64c3b0d11f6c277db4edc22938994b54",
+      "note": "2026-08-04. Baselines: json-schema-results.json, format-results.json."
+    },
+    "JSONTestSuite": {
+      "url": "https://github.com/nst/JSONTestSuite.git",
+      "rev": "1ef36fa01286573e846ac449e8683f8833c5b26a",
+      "note": "2024-11-22. Baseline: json-parse-results.json."
+    },
+    "Overlay-Specification": {
+      "url": "https://github.com/OAI/Overlay-Specification.git",
+      "rev": "62cf11188ab83f12d87963a6cda2ee74989ce877",
+      "note": "2026-05-18. Baseline: overlay-results.json."
+    }
+  }
+}
