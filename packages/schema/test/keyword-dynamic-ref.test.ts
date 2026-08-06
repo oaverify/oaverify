@@ -333,7 +333,10 @@ describe("$dynamicRef zero cost when unused", () => {
 
   const expectNoDynamicCode = (schema: Record<string, unknown>) => {
     for (const output of ["flat", "tree", "predicate"] as const) {
-      const { source } = compile(schema, { output });
+      const { source } = compile(schema, { output, retainSource: true });
+      // Without this these assertions pass on an empty string, which is
+      // what `retainSource` defaults to.
+      expect(source.length).toBeGreaterThan(0);
       for (const token of DYNAMIC_TOKENS) {
         expect(source, `${output} mode emitted ${token}`).not.toContain(token);
       }

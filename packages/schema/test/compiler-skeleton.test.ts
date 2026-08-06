@@ -35,7 +35,7 @@ describe("compileSchema", () => {
   });
 
   it("generates syntactically valid JavaScript", () => {
-    const v = compileSchema({}, { dialect: emptyDialect });
+    const v = compileSchema({}, { dialect: emptyDialect, retainSource: true });
     expect(() => new Function(v.source)).not.toThrow();
   });
 

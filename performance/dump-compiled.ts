@@ -33,6 +33,7 @@ for (const s of perfSchemas) {
   const oav = compileSchema(s.schema, {
     dialect: jsonSchemaDialect,
     formats: builtInFormats,
+    retainSource: true,
   });
   writeFileSync(
     join(OUT, `${s.name}.oav-flat.js`),
@@ -42,6 +43,7 @@ for (const s of perfSchemas) {
   const oavAll = compileSchema(s.schema, {
     dialect: jsonSchemaDialect,
     formats: builtInFormats,
+    retainSource: true,
     maxErrors: Number.POSITIVE_INFINITY,
   });
   writeFileSync(
@@ -52,6 +54,7 @@ for (const s of perfSchemas) {
   const oavTree = compileSchema(s.schema, {
     dialect: jsonSchemaDialect,
     formats: builtInFormats,
+    retainSource: true,
     output: "tree",
   });
   writeFileSync(join(OUT, `${s.name}.oav-tree.js`), "// oav (tree)\n" + oavTree.source + "\n");
@@ -59,6 +62,7 @@ for (const s of perfSchemas) {
   const oavPred = compileSchema(s.schema, {
     dialect: jsonSchemaDialect,
     formats: builtInFormats,
+    retainSource: true,
     output: "predicate",
   });
   writeFileSync(

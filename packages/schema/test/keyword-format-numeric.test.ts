@@ -178,6 +178,7 @@ describe("generated source", () => {
     compileSchema(schema as SchemaOrBoolean, {
       dialect: oas30Dialect,
       formats: formats as never,
+      retainSource: true,
     }).source;
 
   it("emits a string guard for a string format", () => {

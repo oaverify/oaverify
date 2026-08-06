@@ -187,6 +187,10 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
       formats: builtInFormats,
       output: "tree",
       maxErrors: Number.POSITIVE_INFINITY,
+      // The emitted module *is* the generated source, so this is one of
+      // the two callers that needs it kept; see
+      // CompileOptions.retainSource.
+      retainSource: true,
     });
     const name = `S${compiled.length}`;
     compiled.push({ name, source: c.source });
