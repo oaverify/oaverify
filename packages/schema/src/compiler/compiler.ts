@@ -40,7 +40,6 @@ import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
 import { assertFormatsRegistered } from "./unknown-formats.js";
 import { assertWellFormedSchema } from "./well-formed.js";
-import { spikeRecordSchema, spikeRecordUnit } from "./spike-instrument.js";
 
 // Token scan fed into CompileStats.emittedTreeRuntime. Word-boundaried
 // so stray mentions inside string literals (e.g. an error message that
@@ -1674,7 +1673,6 @@ export function compileSchema(
             }
           },
         });
-  spikeRecordUnit(wholeSource.length, state.nextFn);
   // Dropping the reference here is the whole of `retainSource: false`:
   // `wholeSource` is still live for the `new Function` calls below, and
   // becomes collectable when this call returns.
@@ -1811,7 +1809,6 @@ function compileValidator(
   const name = `validate_${state.nextFn}`;
   state.nextFn += 1;
   cache.set(schema, name);
-  spikeRecordSchema(schema);
 
   // Pure-`$ref` elision: a schema whose only non-annotation keyword is
   // `$ref` compiles to a pass-through wrapper today (allocates a
