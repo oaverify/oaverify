@@ -56,15 +56,56 @@ bowtie suite 2020-12 \
 bowtie summary -s failures -f markdown < report-2020-12.json
 ```
 
-The optional suite takes a URL instead of the short name:
+### The optional suite needs staging
+
+Bowtie accepts a dialect directory (`tests/draft2020-12`) or a file
+directly inside one. It rejects **anything below** that level, so neither
+of these works, as of Bowtie 2026.7.4:
+
+```
+Invalid value for 'DIALECT': .../tests/draft2020-12/optional/ does not
+contain JSON Schema Test Suite cases.
+```
+
+That applies to the GitHub URL form and to local paths alike, which is
+why the command that used to be printed here no longer runs. Copy the
+subtree into a directory shaped like a dialect root instead. `remotes/`
+has to come along: Bowtie looks for it as a sibling of `tests/` and
+crashes with `FileNotFoundError` without it.
 
 ```bash
-bowtie suite \
-  https://github.com/json-schema-org/JSON-Schema-Test-Suite/blob/main/tests/draft2020-12/optional/ \
-  -i localhost/oaverify-harness -i js-ajv -i js-hyperjump \
-  -i python-jsonschema -i rust-boon -i go-jsonschema \
+# From conformance/, with the corpus already fetched (pnpm corpora).
+STAGE=$(mktemp -d)
+mkdir -p "$STAGE/tests/draft2020-12"
+cp JSON-Schema-Test-Suite/tests/draft2020-12/optional/*.json "$STAGE/tests/draft2020-12/"
+cp -R JSON-Schema-Test-Suite/remotes "$STAGE/remotes"
+
+bowtie suite "$STAGE/tests/draft2020-12" \
+  -i localhost/oaverify-harness -i js-ajv -i js-hyperjump -i js-schemasafe \
   > report-optional.json
 ```
+
+Swap `optional/*.json` for `optional/format/*.json` to run the 720-case
+format subtree. **That run tells you nothing about format correctness**,
+and the reason is arithmetic rather than opinion: 368 of the 720 cases
+expect a rejection, `format` is annotation-only under 2020-12, so a
+conforming implementation accepts everything and fails exactly those 368.
+oaverify and hyperjump both score 352 pass / 368 fail, identical to each
+other and to that prediction. ajv errors on all 720, because Bowtie's ajv
+harness has no `ajv-formats` and strict mode throws on an unknown format.
+
+The measurement that does mean something is `pnpm format-suite` in the
+parent directory, which compiles with `openapi31Dialect` so that `format`
+actually asserts. See [../REPORT.md](../REPORT.md).
+
+### Which implementations are reachable
+
+`bowtie filter-implementations -l javascript` returns nothing useful
+without network access to Bowtie's registry, so the practical way to find
+out is `bowtie smoke -i <name>`. As of this writing the 2020-12-capable
+JavaScript set is `js-ajv`, `js-hyperjump`, `js-schemasafe`, plus this
+harness. `js-jsonschema` exists but stops at draft 7; `js-cfworker`,
+`js-djv` and `js-json-schema-library` did not resolve to runnable images.
 
 Bowtie itself installs with `uv tool install bowtie-json-schema` and needs a
 container runtime; reference implementation images are pulled on first use.
