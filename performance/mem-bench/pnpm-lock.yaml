@@ -7,6 +7,7 @@ settings:
 overrides:
   '@oaverify/core': link:../..
   esbuild: '>=0.28.1'
+  '@oaverify/yaml': link:../../packages/yaml
 
 importers:
 
@@ -15,15 +16,15 @@ importers:
       '@oaverify/core':
         specifier: link:../..
         version: link:../..
+      '@oaverify/yaml':
+        specifier: link:../../packages/yaml
+        version: link:../../packages/yaml
       express:
         specifier: ^4.21.2
         version: 4.22.2
       express-openapi-validator:
         specifier: ^5.5.9
         version: 5.6.2(@types/json-schema@7.0.15)(express@4.22.2)
-      oaverify:
-        specifier: link:../../packages/oav
-        version: link:../../packages/oav
 
 packages:
 

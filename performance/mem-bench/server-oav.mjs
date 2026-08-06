@@ -4,14 +4,13 @@
 // Instruments /__memory (and /__memory?gc=1 to force a GC first).
 
 import express from "express";
-import {
-  allowHeaderFor,
-  createValidator,
-  createYamlFileReader,
-  httpStatusFor,
-  toProblemDetails,
-} from "oaverify";
-import { loadSpec } from "oaverify/spec";
+// `oaverify` is the CLI package and exports nothing importable; these
+// live in the library packages. `loadSpec` is async and sits in the
+// `/spec` subpath, while the YAML reader is in `@oaverify/yaml` because
+// `@oaverify/core` is JSON-only and dependency-free.
+import { allowHeaderFor, createValidator, httpStatusFor, toProblemDetails } from "@oaverify/core";
+import { loadSpec } from "@oaverify/core/spec";
+import { createYamlFileReader } from "@oaverify/yaml";
 import { fileURLToPath } from "node:url";
 
 const specPath = fileURLToPath(new URL("./openapi.yaml", import.meta.url));

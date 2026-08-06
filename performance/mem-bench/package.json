@@ -6,9 +6,9 @@
   "type": "module",
   "devDependencies": {
     "@oaverify/core": "link:../..",
+    "@oaverify/yaml": "link:../../packages/yaml",
     "express": "^4.21.2",
-    "express-openapi-validator": "^5.5.9",
-    "oaverify": "link:../../packages/oav"
+    "express-openapi-validator": "^5.5.9"
   },
   "engines": {
     "node": ">=20"
@@ -16,7 +16,8 @@
   "pnpm": {
     "overrides": {
       "@oaverify/core": "link:../..",
-      "esbuild": ">=0.28.1"
+      "esbuild": ">=0.28.1",
+      "@oaverify/yaml": "link:../../packages/yaml"
     }
   }
 }
