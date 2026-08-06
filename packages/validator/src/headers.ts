@@ -48,3 +48,43 @@ export function getHeaderValueFast(
 }
 
 export { getOwn } from "@oaverify/internal-core";
+
+/**
+ * The `Content-Type` mismatch message, for both the request and the
+ * response side and for both the interpreted and the AOT-emitted
+ * validator.
+ *
+ * Shared for two reasons. The four call sites had drifted: the emitted
+ * response path said `is not accepted` where the interpreted one said
+ * `is not declared for status N`, so the same condition read differently
+ * depending on whether you went through `compile-spec`. And the
+ * unset-but-supplied case below needs the same wording everywhere.
+ *
+ * `HttpRequest.contentType` / `HttpResponse.contentType` is the only
+ * place the validator reads the media type; it is deliberately not
+ * derived from `headers`, so that a caller sees one explicit field
+ * rather than two sources that can disagree. The cost is a trap: a
+ * hand-built request that fills in `headers["content-type"]` and leaves
+ * the field unset used to be told the type was `"<missing>"`, which is
+ * false and sends the reader looking for something they did supply.
+ * Naming the header makes it a one-line fix instead.
+ *
+ * The header is only consulted on this path, which has already failed,
+ * so the hot path pays nothing for it.
+ *
+ * @internal
+ */
+export function contentTypeErrorMessage(
+  subject: "request" | "response",
+  contentType: string | undefined,
+  headers: Record<string, string | string[]> | undefined,
+  statusKey?: string,
+): string {
+  const tail =
+    subject === "request" ? "is not accepted" : `is not declared for status ${statusKey ?? ""}`;
+  const base = `${subject} Content-Type "${contentType ?? "<missing>"}" ${tail}`;
+  if (contentType !== undefined) return base;
+  if (getHeaderValue(headers, "content-type") === undefined) return base;
+  const field = subject === "request" ? "HttpRequest" : "HttpResponse";
+  return `${base} (set ${field}.contentType; the "content-type" header is not read)`;
+}

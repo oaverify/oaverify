@@ -498,6 +498,21 @@ export interface HttpRequest {
    */
   headers?: Record<string, string | string[]>;
   cookies?: Record<string, string>;
+  /**
+   * The request's media type, `"; charset=utf-8"` and all. Matched
+   * against the operation's `requestBody.content` keys.
+   *
+   * **The only place the validator looks for the media type.** It is not
+   * read from {@link HttpRequest.headers}, even though `Content-Type` is
+   * a header and even though header *parameters* are matched there
+   * case-insensitively. One explicit field beats two sources that can
+   * disagree, and the adapters all populate it
+   * (`req.get("content-type")`, `request.headers.get("content-type")`).
+   *
+   * A hand-built request therefore has to set it. Filling in
+   * `headers["content-type"]` and leaving this unset yields a
+   * `content-type` error that says so.
+   */
   contentType?: string;
   /**
    * Already-parsed request body. Typed as `unknown` because the shape
@@ -524,6 +539,7 @@ export interface HttpResponse {
    * for the fastest lookup path.
    */
   headers?: Record<string, string | string[]>;
+  /** See {@link HttpRequest.contentType}: this is not read from {@link HttpResponse.headers} either. */
   contentType?: string;
   /** See {@link HttpRequest.body}. */
   body?: unknown;

@@ -39,7 +39,7 @@ import {
 } from "@oaverify/internal-schema";
 import { deserialize, matchParsedMediaType, matchResponseKey } from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
-import { getHeaderValue, getHeaderValueFast } from "./headers.js";
+import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast } from "./headers.js";
 import { reshapeResult, toFetchResult } from "./reshape.js";
 import {
   bodySchemaCompiledPointer,
@@ -1489,7 +1489,7 @@ export function createValidator(
               createLeafError(
                 "content-type",
                 ["body"],
-                `response Content-Type "${res.contentType ?? "<missing>"}" is not declared for status ${statusKey}`,
+                contentTypeErrorMessage("response", res.contentType, res.headers, statusKey),
                 {
                   contentType: res.contentType,
                   declared: [...responseCompiled.bodySchemas.keys()],

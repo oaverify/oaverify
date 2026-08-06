@@ -46,18 +46,27 @@ interface HttpRequest {
   path: string; // pathname only, no query
   query?: Record<string, string | string[]>;
   headers?: Record<string, string | string[]>; // adapters lowercase; matching is case-insensitive
-  contentType?: string; // may carry "; charset=utf-8"
+  contentType?: string; // the only media-type source; NOT read from headers
   body?: unknown; // already-parsed
   cookies?: Record<string, string>;
 }
 
 interface HttpResponse {
   status: number;
-  contentType?: string;
+  contentType?: string; // same rule as HttpRequest.contentType
   headers?: Record<string, string | string[]>; // matched case-insensitively
   body?: unknown;
 }
 ```
+
+`contentType` is the only place the validator looks for the media type,
+and it is deliberately **not** derived from `headers`, even though
+`Content-Type` is a header and header _parameters_ are matched there
+case-insensitively. One explicit field beats two sources that can
+disagree. Every adapter recipe below sets it, and a hand-built request
+has to: filling in `headers["content-type"]` and leaving the field unset
+produces a `content-type` error that says as much. The contract lives on
+`HttpRequest.contentType`'s TSDoc.
 
 Both methods return a result object: `{ valid: true }` on success, or
 `{ valid: false, errors, truncated }` on failure. By default `errors`

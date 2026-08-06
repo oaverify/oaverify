@@ -64,6 +64,11 @@ export {
 // request time.
 export { checkSecurity, compileOperationSecurity } from "./security.js";
 
+// The AOT-emitted validator builds the same content-type diagnostics as
+// the interpreted one. Sharing the builder is what stops the two
+// wordings drifting apart again.
+export { contentTypeErrorMessage } from "./headers.js";
+
 // The router is a workspace-private package (`@oaverify/internal-router`) that
 // isn't published on its own. `oaverify compile-spec`'s emitted output
 // needs `createRouter` at module load to build its dispatch table;

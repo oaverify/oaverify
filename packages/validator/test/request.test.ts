@@ -1141,3 +1141,75 @@ describe("createValidator option validation", () => {
     expect(Object.isFrozen(v.specHygieneIssues)).toBe(true);
   });
 });
+
+describe("Content-Type is read from the field, not the header", () => {
+  // `HttpRequest.contentType` is the only source, deliberately. The trap
+  // is that `Content-Type` *is* a header and header parameters are
+  // matched case-insensitively, so filling in `headers` and leaving the
+  // field unset looks right. The old message said the type was
+  // "<missing>" for something the caller had supplied.
+  const spec: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "ct", version: "1" },
+    paths: {
+      "/p": {
+        post: {
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { type: "object" } } },
+          },
+          responses: {
+            "200": {
+              description: "ok",
+              content: { "application/json": { schema: { type: "object" } } },
+            },
+          },
+        },
+      },
+    },
+  };
+  const sv = createValidator(spec);
+
+  const requestLeaf = (extra: Record<string, unknown>) => {
+    const err = sv.validateRequest({ method: "POST", path: "/p", body: {}, ...extra });
+    return err === null ? undefined : collectLeaves(err)[0];
+  };
+
+  it("does not accept a request whose media type is only in headers", () => {
+    for (const headers of [
+      { "content-type": "application/json" },
+      { "Content-Type": "application/json" },
+    ]) {
+      expect(requestLeaf({ headers })?.code).toBe("content-type");
+    }
+    expect(requestLeaf({ contentType: "application/json" })).toBeUndefined();
+  });
+
+  it("names the ignored header instead of claiming the type is missing", () => {
+    const message = requestLeaf({ headers: { "content-type": "application/json" } })?.message;
+    expect(message).toContain("set HttpRequest.contentType");
+    expect(message).toContain('the "content-type" header is not read');
+  });
+
+  it("leaves the genuinely-absent and genuinely-mismatched messages alone", () => {
+    // No hint here: there is no header to point at, so the type really
+    // is missing and the original wording is the accurate one.
+    expect(requestLeaf({})?.message).toBe('request Content-Type "<missing>" is not accepted');
+    expect(requestLeaf({ contentType: "text/plain" })?.message).toBe(
+      'request Content-Type "text/plain" is not accepted',
+    );
+  });
+
+  it("applies the same rule to the response side, keeping the status", () => {
+    const err = sv.validateResponse(
+      { method: "POST", path: "/p" },
+      { status: 200, body: {}, headers: { "content-type": "application/json" } },
+    );
+    const leaf = collectLeaves(err!)[0];
+    expect(leaf?.code).toBe("content-type");
+    expect(leaf?.message).toContain("set HttpResponse.contentType");
+    // The status belongs in the response wording. The AOT emitter used
+    // to drop it and reuse the request's "is not accepted" instead.
+    expect(leaf?.message).toContain("is not declared for status 200");
+  });
+});
