@@ -151,6 +151,7 @@ pnpm vitest run packages/schema   # run a single package's tests (path filter)
 pnpm lint                         # oxlint + oxfmt --check + check:deps
 pnpm lint:type-aware              # oxlint --type-aware (NOT part of `pnpm lint`; CI runs it)
 pnpm check:deps                   # assert the @oaverify/internal-* dependency graph (see below)
+pnpm check:release                # assert release.yml's package lists against release-please-config.json
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)
 pnpm clean                        # drop dist/, coverage/, *.tsbuildinfo
@@ -184,7 +185,17 @@ sees it.
 `pnpm oaverify` runs `packages/oav/dist/cli.js`, so it needs a prior `pnpm build`
 (which builds `@oaverify/core`, `@oaverify/stream`, `@oaverify/yaml`,
 `@oaverify/check`, and the CLI; the CLI loads `@oaverify/check` at runtime,
-so a build that skips it leaves every subcommand crashing on import). The
+so a build that skips it leaves every subcommand crashing on import).
+That set is not "everything publishable": `pnpm build` means "make the
+CLI runnable from the repo", so it covers exactly the CLI's runtime
+dependency closure and deliberately skips the three adapters, whose
+`dist/` nothing in-repo consumes (tests run from `src` via aliases;
+publishing rebuilds via each `prepack`). `scripts/check-release-lists.mjs`
+(wired into `pnpm lint` as `check:release`) derives that closure from
+`packages/oav/package.json` and asserts the build script matches, and
+asserts `release.yml`'s three hand-maintained package lists (dispatch
+tag validator, Pack loop, publish ORDER) against
+`release-please-config.json`. The
 standalone-tsup packages (`oaverify`, `stream-validator`, `check`, the three adapters)
 set `emitDeclarationOnly: true` in their `tsconfig.json`: their `dist/` is
 the tsup-built runtime artifact, and without this `tsc -b` (typecheck)
