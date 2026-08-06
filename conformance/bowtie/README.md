@@ -29,7 +29,23 @@ and the other two (`openapi31Dialect`, `oas30Dialect`) are OpenAPI flavours
 rather than JSON Schema drafts. Advertising a draft the engine does not
 compile would report suite failures that are really harness lies.
 
-## Running it
+## What it needs
+
+Not a pnpm root, and deliberately so: nothing here is installed by
+`pnpm install` anywhere.
+
+- **A container runtime.** Docker or equivalent. Reference implementation
+  images are pulled on first use.
+- **The `bowtie` CLI**, via `uv tool install bowtie-json-schema`.
+- **The repository root as build context**, so the engine sources are
+  visible to the image build.
+- **`pnpm corpora` in the parent directory**, but only for the staged local
+  runs below. The plain `bowtie suite 2020-12` form pulls the suite from
+  upstream itself.
+- **esbuild**, pinned in the `Dockerfile`. It is the one build input and is
+  not a pnpm dependency.
+
+## Run
 
 Build the image from the repository root, so the engine sources are in
 context:
@@ -112,6 +128,13 @@ harness. `js-jsonschema` exists but stops at draft 7; `js-cfworker`,
 
 Bowtie itself installs with `uv tool install bowtie-json-schema` and needs a
 container runtime; reference implementation images are pulled on first use.
+
+## What it gates
+
+Nothing. This is not wired into CI and is not part of `pnpm test` or
+`pnpm check`. It answers a question the gated runners cannot: when a case
+fails, whether the rest of the ecosystem agrees with us or with the suite.
+See "Reading the results" below for how to weigh what it says.
 
 ## Iterating on the harness
 
