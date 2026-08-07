@@ -307,7 +307,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     // membership in `@oaverify/core/codegen-runtime` follows this import
     // (see that module's header). Do not point it at a subpath that
     // promises less.
-    `import { deserialize, matchParsedMediaType, matchResponseKey, FetchBodyParseError, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
+    `import { deserialize, matchParsedMediaType, matchResponseKey, normalizeRequestQuery, FetchBodyParseError, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
     "",
     "void createBranchError; void createError; void deepEqual; void typeOf; void wrapErrors;",
     "void resolveOperationRef;",
@@ -775,7 +775,10 @@ function renderValidateRequestTree(): string {
   //   - no strict-query-parameter option surfaced yet
   // Returns the nested error tree (or null when valid); the exported
   // validateRequest wrapper reshapes it to the configured output.
-  return `function __validateRequestTree(req) {
+  return `function __validateRequestTree(rawReq) {
+  // A query string embedded in path folds into query, matching
+  // createValidator; the explicit field wins when both are present.
+  const req = normalizeRequestQuery(rawReq);
   const method = (req.method ?? "GET").toUpperCase();
   const match = router.match(method, req.path);
   if (match === undefined) {

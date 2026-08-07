@@ -763,6 +763,32 @@ describe("validateRequest", () => {
     expect(v.validateRequest({ method: "GET", path: "/w", query: { n: "42" } })).not.toBeNull();
   });
 
+  it("validates a query string embedded in the path", () => {
+    // The router strips "?..." to match, so path: "/pets?limit=x"
+    // routed fine while the parameters in it went unvalidated: optional
+    // ones silently, required ones with a false "missing" report.
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/w": {
+          get: {
+            parameters: [{ name: "n", in: "query", required: true, schema: { type: "integer" } }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const v = createValidator(spec);
+    expect(v.validateRequest({ method: "GET", path: "/w?n=42" })).toBeNull();
+    const err = v.validateRequest({ method: "GET", path: "/w?n=abc" });
+    expect(err).not.toBeNull();
+    expect(leafCodes(err)).toContain("type");
+    // An explicit query field wins; the path's copy is not a second
+    // source (same doctrine as contentType vs the content-type header).
+    expect(v.validateRequest({ method: "GET", path: "/w?n=abc", query: { n: "42" } })).toBeNull();
+  });
+
   it("coerces a parameter behind an $id-based ref", () => {
     // #726: coercion used the pointer-only resolver, which refuses
     // anything that is not a `#` fragment, so this parameter compiled

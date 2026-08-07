@@ -834,6 +834,18 @@ describe("compile-spec: OAS 3.0 $ref sibling coercion parity", () => {
   });
 });
 
+describe("compile-spec: query embedded in path", () => {
+  it("validates it, matching createValidator", async () => {
+    const aot = await buildAot(petstore);
+    const runtime = createValidator(petstore, {});
+    const bad = { method: "GET", path: "/pets?limit=xyz" };
+    expect(runtime.validateRequest(bad as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(bad as never)).map((e) => e.code)).toEqual(["type"]);
+    const good = { method: "GET", path: "/pets?limit=5" };
+    expect(aot.validateRequest(good as never)).toMatchObject({ valid: true });
+  });
+});
+
 describe("compile-spec: emitted validateFetch* wrappers", () => {
   // The emitted wrappers destructured `bodyValue` from extractors that
   // return `{ ..., body }`, so every AOT `validateFetchRequest` handed

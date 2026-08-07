@@ -489,6 +489,14 @@ export interface HeaderObject {
  */
 export interface HttpRequest {
   method: string;
+  /**
+   * The request path (`"/pets/42"`). A query string left in it
+   * (`"/pets?limit=5"`) is parsed into {@link HttpRequest.query} when
+   * that field is unset, since a combined string is what every HTTP
+   * framework hands the caller. When both are present the explicit
+   * `query` field wins and the embedded string is ignored, so there is
+   * one deliberate source rather than two that can disagree.
+   */
   path: string;
   query?: Record<string, string | string[]>;
   /**

@@ -40,6 +40,7 @@ import {
 import {
   coercionView,
   deserialize,
+  normalizeRequestQuery,
   matchParsedMediaType,
   matchResponseKey,
   schemaRefResolverFor,
@@ -1335,7 +1336,11 @@ export function createValidator(
     return { kind: "match", match };
   };
 
-  const validateRequestTree = (req: HttpRequest): ValidationError | null => {
+  const validateRequestTree = (rawReq: HttpRequest): ValidationError | null => {
+    // A query string embedded in `path` folds into `query` here, once,
+    // so routing, security (apiKey-in-query), and parameter validation
+    // all see the same request. See normalizeRequestQuery.
+    const req = normalizeRequestQuery(rawReq);
     const routed = resolveRoute(req);
     if (routed.kind === "skip") return null;
     if (routed.kind === "error") return routed.error;

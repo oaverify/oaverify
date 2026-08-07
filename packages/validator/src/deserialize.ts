@@ -1,6 +1,7 @@
 import {
   getOwn,
   setSpecKey,
+  type HttpRequest,
   type ParameterObject,
   type ParameterStyle,
   type SchemaObject,
@@ -294,6 +295,43 @@ export function coercionView(
       ...(properties === undefined ? {} : { properties }),
     },
   };
+}
+
+/**
+ * Fold a query string embedded in `path` into the `query` field.
+ *
+ * The router strips `?...` before matching, so `path: "/w?n=abc"`
+ * routed while the parameters in it went unvalidated: optional ones
+ * silently, required ones with a false "missing" report. Every HTTP
+ * framework hands the caller exactly that combined string, so parsing
+ * it is what a hand-built request means.
+ *
+ * An explicit `query` field wins and the embedded string is ignored:
+ * two sources that can disagree is the trap the `contentType` field's
+ * design already refuses, and the explicit field is the deliberate
+ * one. No `?` in the path, or an explicit `query`, returns the request
+ * unchanged by identity.
+ *
+ * Parsed with `URLSearchParams` and repeated keys collapsed into
+ * arrays, matching `httpRequestFromFetch`.
+ *
+ * Called at the top of `validateRequest` in both the interpreted
+ * validator and the `oaverify compile-spec` emitted module, which is
+ * why it lives on the codegen-runtime surface.
+ *
+ * @internal
+ */
+export function normalizeRequestQuery(req: HttpRequest): HttpRequest {
+  const q = req.path.indexOf("?");
+  if (q === -1 || req.query !== undefined) return req;
+  const query: Record<string, string | string[]> = {};
+  const params = new URLSearchParams(req.path.slice(q + 1));
+  for (const key of new Set(params.keys())) {
+    if (key === "") continue;
+    const values = params.getAll(key);
+    setSpecKey(query, key, values.length === 1 ? (values[0] ?? "") : values);
+  }
+  return { ...req, path: req.path.slice(0, q), query };
 }
 
 function defaultStyle(location: string): ParameterStyle {
