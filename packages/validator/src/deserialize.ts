@@ -295,10 +295,24 @@ function itemSchema(
   return items;
 }
 
+/**
+ * A decimal number as a query or path value spells one: optional sign,
+ * digits with an optional fraction (or a bare fraction), optional
+ * exponent. Deliberately wider than JSON's grammar (`+5`, `.5`, `5.`,
+ * and `007` all coerce; a URL is not JSON and clients emit all four)
+ * and deliberately narrower than `Number()`, which reads `""` and
+ * whitespace as 0, `0x1A` as 26, and `Infinity` as a number a
+ * `type: number` schema then accepts. None of those is a decimal
+ * number the client plausibly meant, so each stays a string and fails
+ * the type check instead of validating as a value it never sent.
+ */
+const DECIMAL_NUMBER_RE = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
 function coerceScalar(value: string, schema: SchemaObject | boolean | undefined): unknown {
   if (schema === undefined || typeof schema === "boolean") return value;
   const type = extractType(schema);
   if (type === "number" || type === "integer") {
+    if (!DECIMAL_NUMBER_RE.test(value)) return value;
     const n = Number(value);
     return Number.isNaN(n) ? value : n;
   }

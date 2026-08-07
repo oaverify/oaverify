@@ -24,6 +24,28 @@ describe("deserialize", () => {
     expect(deserialize("abc", { name: "x", in: "query", schema: { type: "integer" } })).toBe("abc");
   });
 
+  it("coerces only strings spelling a decimal number", () => {
+    const num = (v: string) =>
+      deserialize(v, { name: "x", in: "query", schema: { type: "number" } });
+    // Number() reads all of these as numbers, and none of them is a
+    // decimal number a client plausibly meant: "" and "  " became 0,
+    // "0x1A" became 26, and "Infinity" sailed through a type: number
+    // schema. Each stays a string and fails the type check instead.
+    expect(num("")).toBe("");
+    expect(num("  ")).toBe("  ");
+    expect(num("0x1A")).toBe("0x1A");
+    expect(num("Infinity")).toBe("Infinity");
+    expect(num("-Infinity")).toBe("-Infinity");
+    expect(num(" 7 ")).toBe(" 7 ");
+    // Decimal spellings all coerce, sign and exponent included.
+    expect(num("-3.5")).toBe(-3.5);
+    expect(num("+5")).toBe(5);
+    expect(num("1e3")).toBe(1000);
+    expect(num(".5")).toBe(0.5);
+    expect(num("5.")).toBe(5);
+    expect(num("007")).toBe(7);
+  });
+
   it("coerces boolean scalars", () => {
     expect(deserialize("true", { name: "x", in: "query", schema: { type: "boolean" } })).toBe(true);
     expect(deserialize("false", { name: "x", in: "query", schema: { type: "boolean" } })).toBe(
