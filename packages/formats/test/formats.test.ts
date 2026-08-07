@@ -28,6 +28,7 @@ import {
   validateIriReference,
   validateJsonPointer,
   validateLanguage,
+  validateMediaRange,
   validateRegex,
   validateRelativeJsonPointer,
   validateTime,
@@ -1133,5 +1134,120 @@ describe("language: the cases RFC 5646 names by hand", () => {
     expect(validateLanguage("de-419-DE")).toBe(false);
     // 2.2.6 rule 1: a tag cannot begin with an extension.
     expect(validateLanguage("a-DE")).toBe(false);
+  });
+});
+
+describe("media-range", () => {
+  it("accepts a plain media type", () => {
+    expect(validateMediaRange("application/json")).toBe(true);
+    expect(validateMediaRange("text/plain")).toBe(true);
+    expect(validateMediaRange("application/vnd.api+json")).toBe(true);
+    expect(validateMediaRange("application/x-www-form-urlencoded")).toBe(true);
+  });
+
+  it("accepts every wildcard shape the grammar derives", () => {
+    expect(validateMediaRange("*/*")).toBe(true);
+    expect(validateMediaRange("text/*")).toBe(true);
+    // Denotes nothing, and the ABNF still derives it: "*" is a tchar,
+    // so the `type "/" subtype` alternative covers it. Rejecting it
+    // would be overruling the specification the format name cites.
+    expect(validateMediaRange("*/plain")).toBe(true);
+  });
+
+  it("rejects anything that is not two tokens around one slash", () => {
+    expect(validateMediaRange("")).toBe(false);
+    expect(validateMediaRange("json")).toBe(false);
+    expect(validateMediaRange("/json")).toBe(false);
+    expect(validateMediaRange("text/")).toBe(false);
+    expect(validateMediaRange("text/plain/extra")).toBe(false);
+    expect(validateMediaRange("text plain")).toBe(false);
+    expect(validateMediaRange("text/pl ain")).toBe(false);
+    expect(validateMediaRange("te(xt)/plain")).toBe(false);
+  });
+
+  it("accepts parameters, quoted and bare", () => {
+    expect(validateMediaRange("text/html;charset=utf-8")).toBe(true);
+    expect(validateMediaRange('text/html;charset="utf-8"')).toBe(true);
+    expect(validateMediaRange("multipart/form-data;boundary=--abc;charset=utf-8")).toBe(true);
+    expect(validateMediaRange('text/html;title="a;b"')).toBe(true);
+    expect(validateMediaRange('text/html;title="say \\"hi\\""')).toBe(true);
+  });
+
+  it("takes OWS before the semicolon and after it, and nowhere else", () => {
+    expect(validateMediaRange("text/html ;charset=utf-8")).toBe(true);
+    expect(validateMediaRange("text/html; charset=utf-8")).toBe(true);
+    expect(validateMediaRange("text/html \t; \tcharset=utf-8")).toBe(true);
+    // `parameter` puts no OWS around its "=".
+    expect(validateMediaRange("text/html;charset =utf-8")).toBe(false);
+    expect(validateMediaRange("text/html;charset= utf-8")).toBe(false);
+    // Trailing OWS is not part of the production.
+    expect(validateMediaRange("text/html ")).toBe(false);
+    expect(validateMediaRange(" text/html")).toBe(false);
+  });
+
+  it("accepts an empty parameter, which the grammar makes optional", () => {
+    // parameters = *( OWS ";" OWS [ parameter ] ), so a stray
+    // separator parses rather than failing.
+    expect(validateMediaRange("text/html;")).toBe(true);
+    expect(validateMediaRange("text/html;;charset=utf-8")).toBe(true);
+    expect(validateMediaRange("text/html; ; charset=utf-8")).toBe(true);
+    expect(validateMediaRange("text/html; ")).toBe(true);
+  });
+
+  it("rejects a malformed parameter", () => {
+    expect(validateMediaRange("text/html;charset")).toBe(false);
+    expect(validateMediaRange("text/html;=utf-8")).toBe(false);
+    expect(validateMediaRange("text/html;charset=")).toBe(false);
+    expect(validateMediaRange("text/html;charset=utf 8")).toBe(false);
+    expect(validateMediaRange("text/html,charset=utf-8")).toBe(false);
+  });
+
+  it("rejects a quoted string that never closes, or escapes nothing", () => {
+    expect(validateMediaRange('text/html;title="unterminated')).toBe(false);
+    // The closing quote is escaped, so the string never ends.
+    expect(validateMediaRange('text/html;title="trailing\\"')).toBe(false);
+    expect(validateMediaRange('text/html;title="bad\\')).toBe(false);
+    // A raw control character is not qdtext, escaped or not.
+    expect(validateMediaRange('text/html;title="a\u0001b"')).toBe(false);
+    expect(validateMediaRange('text/html;title="a\\\u0001b"')).toBe(false);
+  });
+
+  it("reads a quality value as an ordinary parameter", () => {
+    // RFC 9110 separates `weight` from `media-range` in the Accept
+    // grammar, above the level this format names.
+    expect(validateMediaRange("text/html;q=0.8")).toBe(true);
+  });
+
+  it("takes obs-text in a quoted string, but only as a single octet", () => {
+    expect(validateMediaRange('text/html;title="café"')).toBe(true);
+    // Above U+00FF no single octet spells it.
+    expect(validateMediaRange('text/html;title="☃"')).toBe(false);
+  });
+});
+
+describe("media-range: the boundaries of tchar and quoted-string", () => {
+  it("accepts every tchar in a type and a subtype", () => {
+    const tchars = "!#$%&'*+-.^_`|~0aZ";
+    expect(validateMediaRange(`${tchars}/${tchars}`)).toBe(true);
+  });
+
+  it("rejects obs-text outside a quoted string, where tchar is ASCII only", () => {
+    expect(validateMediaRange("café/plain")).toBe(false);
+    expect(validateMediaRange("text/html;é=b")).toBe(false);
+    expect(validateMediaRange("text/html;a=é")).toBe(false);
+  });
+
+  it("accepts an empty quoted value, and rejects junk after the closing quote", () => {
+    expect(validateMediaRange('text/html;a=""')).toBe(true);
+    expect(validateMediaRange('text/html;a="b"c')).toBe(false);
+  });
+
+  it("escapes what quoted-pair reaches, and no more", () => {
+    expect(validateMediaRange('text/html;a="x\ty"')).toBe(true);
+    expect(validateMediaRange('text/html;a="\\\t"')).toBe(true);
+    expect(validateMediaRange('text/html;a="\\é"')).toBe(true);
+    // DEL is neither qdtext nor a quoted-pair tail.
+    expect(validateMediaRange('text/html;a="\u007F"')).toBe(false);
+    expect(validateMediaRange('text/html;a="\\\u007F"')).toBe(false);
   });
 });

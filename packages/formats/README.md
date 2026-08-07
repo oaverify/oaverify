@@ -45,6 +45,8 @@ replace them.
 - **Misc**: `uuid`, `char`, `language` (RFC 5646: the grammar, plus the
   no-duplicate-variant and no-duplicate-singleton rules; a subtag is not
   checked against the IANA registry, so `qq-ZZ` passes)
+- **Misc**: `uuid`, `char`, `media-range` (RFC 9110 §12.5.1, parameters
+  included; a `q` value reads as an ordinary parameter)
 - **Numeric** (OpenAPI): `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`,
   `uint32`, `uint64`, `double-int`, `unixtime`, each as
   `{ type: "number", validate }`
@@ -72,12 +74,9 @@ display hints with nothing to check.
 precision before it reaches any JavaScript validator; see
 [docs/configuration.md](../../docs/configuration.md#formats).
 
-The remaining registry names (`media-range`, `decimal`, `decimal128`,
-and the six `sf-*` structured-field formats) are assertable and not yet
+The remaining registry names (`decimal`, `decimal128`, and the six
+`sf-*` structured-field formats) are assertable and not yet
 implemented. `oaverify check` tells
-those two groups apart in its report, so a document using one is told
-whether waiting will help. Register your own through the `formats`
-option in the meantime.
 
 ## Registering a custom format
 
