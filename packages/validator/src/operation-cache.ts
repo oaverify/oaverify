@@ -164,6 +164,12 @@ export interface OperationCacheDeps {
    * target, which left coercion disagreeing with the compiled schema.
    */
   resolveSchemaRef: SchemaRefResolver;
+  /**
+   * The compiling dialect's `rules.refSuppressesSiblings`, so the
+   * coercion views drop `$ref` siblings exactly when the compiler does
+   * (OAS 3.0). Default `false`.
+   */
+  refSuppressesSiblings?: boolean;
   compile: (schema: SchemaOrBoolean, origin?: SchemaOrigin) => CompiledTreeSchema;
   compileForDirection: (
     schema: SchemaOrBoolean,
@@ -418,7 +424,9 @@ export function buildOperationCache(
   // unresolved originals, because the compiler follows refs itself and
   // the origin pointers address the document as written.
   const parameters: ParameterObject[] = parameterEntries.map((e) =>
-    coercionView(e.object, deps.resolveSchemaRef),
+    coercionView(e.object, deps.resolveSchemaRef, {
+      refSuppressesSiblings: deps.refSuppressesSiblings,
+    }),
   );
   const knownQueryParameters = new Set<string>();
   let requestParameterReadsRequireOwnProperties = false;

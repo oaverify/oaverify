@@ -39,4 +39,40 @@ describe("parseHttpFile", () => {
   it("throws on a missing request line", () => {
     expect(() => parseHttpFile("")).toThrow();
   });
+
+  // Query parsing goes through URLSearchParams, the same machinery the
+  // fetch adapter uses, so one request text means one query whichever
+  // door it comes in through.
+  it('keeps "=" inside a query value', () => {
+    const req = parseHttpFile("GET /p?tok=a=b&pad=YQ== HTTP/1.1\n\n");
+    expect(req.query).toEqual({ tok: "a=b", pad: "YQ==" });
+  });
+
+  it('decodes "+" as a space, matching URLSearchParams', () => {
+    const req = parseHttpFile("GET /p?q=hello+world HTTP/1.1\n\n");
+    expect(req.query).toEqual({ q: "hello world" });
+  });
+
+  it('keeps a second "?" as query text (RFC 3986 allows it there)', () => {
+    const req = parseHttpFile("GET /p?a=1?b=2 HTTP/1.1\n\n");
+    expect(req.path).toBe("/p");
+    expect(req.query).toEqual({ a: "1?b=2" });
+  });
+
+  it("tolerates a malformed percent escape instead of throwing", () => {
+    const req = parseHttpFile("GET /p?bad=%zz HTTP/1.1\n\n");
+    expect(req.query).toEqual({ bad: "%zz" });
+  });
+
+  it("throws a clear error when a declared-JSON body does not parse", () => {
+    const text = 'POST /p HTTP/1.1\nContent-Type: application/json\n\n{"a":';
+    // Silent fallback validated the broken text as a string body, and
+    // the resulting schema error pointed everywhere except the typo.
+    expect(() => parseHttpFile(text)).toThrow(/not valid JSON/);
+  });
+
+  it("keeps the sniffed-JSON fallback for undeclared bodies", () => {
+    const req = parseHttpFile("POST /p HTTP/1.1\n\n{oops");
+    expect(req.body).toBe("{oops");
+  });
 });

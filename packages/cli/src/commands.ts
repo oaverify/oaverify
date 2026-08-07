@@ -820,7 +820,17 @@ export async function validateCommand(
   let err: ValidationError | null;
   if (args.mode.kind === "request") {
     const raw = await io.readText(args.mode.file);
-    const req = parseHttpFile(raw);
+    // parseHttpFile throws on a malformed file (bad request line,
+    // declared-JSON body that does not parse). That is a usage
+    // problem with the input file, so it exits 3 like the other
+    // pre-validation failures rather than escaping the action.
+    let req: ReturnType<typeof parseHttpFile>;
+    try {
+      req = parseHttpFile(raw);
+    } catch (parseErr) {
+      io.stderr(`validate: ${args.mode.file}: ${(parseErr as Error).message}\n`);
+      return { exitCode: 3 };
+    }
     const r = validator.validateRequest(req);
     err = r.valid ? null : r.error;
   } else if (args.mode.kind === "bodyForPath") {

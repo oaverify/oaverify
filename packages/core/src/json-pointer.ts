@@ -52,7 +52,8 @@ export function pointerFromFragment(text: string): string {
  *     empty-string key is rare and legal, and treating `"/"` as the
  *     root would resolve a present pointer to the wrong node.
  *   - Any other pointer MUST start with `/`.
- *   - Numeric pointer segments traverse arrays by index.
+ *   - Arrays are indexed by the §4 `array-index` token only: `0`, or
+ *     digits with no leading zero. `01`, `1abc`, and `-` all throw.
  *   - Missing targets and pointers that walk into a primitive throw
  *     `Error`; use a `try`/`catch` at call sites that expect the
  *     reference to optionally exist.
@@ -63,6 +64,9 @@ export function pointerFromFragment(text: string): string {
  *
  * @public
  */
+/** RFC 6901 §4 `array-index`: `0`, or digits with no leading zero. */
+const ARRAY_INDEX_RE = /^(?:0|[1-9]\d*)$/;
+
 export function resolveJsonPointer(root: unknown, pointer: string): JsonValue {
   if (pointer === "") return root as JsonValue;
   if (!pointer.startsWith("/")) {
@@ -78,6 +82,13 @@ export function resolveJsonPointer(root: unknown, pointer: string): JsonValue {
       throw new Error(`JSON pointer ${pointer} traverses a primitive at ${part}`);
     }
     const asArr = Array.isArray(cur);
+    if (asArr && !ARRAY_INDEX_RE.test(part)) {
+      // §4: an array reference token is `0` or a digit run with no
+      // leading zero. `parseInt` read `1abc`, `01`, and ` 1` all as
+      // index 1, so a malformed token resolved to a real element
+      // instead of failing, and two different pointers named one node.
+      throw new Error(`JSON pointer ${pointer} not found (at ${part}: not an array index)`);
+    }
     const key = asArr ? Number.parseInt(part, 10) : part;
     cur = (cur as Record<string, unknown>)[key as never];
     if (cur === undefined) {

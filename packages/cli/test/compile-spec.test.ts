@@ -795,3 +795,111 @@ describe("unknown formats (#660)", () => {
     expect(r).toMatchObject({ valid: true });
   });
 });
+
+describe("compile-spec: OAS 3.0 $ref sibling coercion parity", () => {
+  // The emitted module carries pre-resolved coercion views, so it has
+  // to drop $ref siblings under 3.0 the way createValidator now does;
+  // without the dialect flag the AOT output would keep the bug the
+  // runtime fixed.
+  const spec30: OpenAPIDocument = {
+    openapi: "3.0.3",
+    info: { title: "t", version: "1" },
+    components: { schemas: { Id: { type: "integer" } } },
+    paths: {
+      "/w": {
+        get: {
+          parameters: [
+            {
+              name: "n",
+              in: "query",
+              required: true,
+              schema: { $ref: "#/components/schemas/Id", type: "string" } as never,
+            },
+          ],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+
+  it("coerces through the referenced schema, matching createValidator", async () => {
+    const aot = await buildAot(spec30);
+    const runtime = createValidator(spec30);
+    const req = { method: "GET", path: "/w", query: { n: "42" } };
+    expect(runtime.validateRequest(req as never).valid).toBe(true);
+    expect(aot.validateRequest(req as never)).toMatchObject({ valid: true });
+    const bad = { method: "GET", path: "/w", query: { n: "abc" } };
+    expect(runtime.validateRequest(bad as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(bad as never)).map((e) => e.code)).toEqual(["type"]);
+  });
+});
+
+describe("compile-spec: query embedded in path", () => {
+  it("validates it, matching createValidator", async () => {
+    const aot = await buildAot(petstore);
+    const runtime = createValidator(petstore, {});
+    const bad = { method: "GET", path: "/pets?limit=xyz" };
+    expect(runtime.validateRequest(bad as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(bad as never)).map((e) => e.code)).toEqual(["type"]);
+    const good = { method: "GET", path: "/pets?limit=5" };
+    expect(aot.validateRequest(good as never)).toMatchObject({ valid: true });
+  });
+});
+
+describe("compile-spec: emitted validateFetch* wrappers", () => {
+  // The emitted wrappers destructured `bodyValue` from extractors that
+  // return `{ ..., body }`, so every AOT `validateFetchRequest` handed
+  // back `body: undefined` while validation itself worked, and the
+  // response wrapper consumed the caller's request stream that the
+  // interpreted validator deliberately leaves unread.
+  type FetchAot = AotValidator & {
+    validateFetchRequest: (req: Request) => Promise<{ ok: boolean; body?: unknown }>;
+    validateFetchResponse: (
+      req: Request,
+      res: Response,
+    ) => Promise<{ ok: boolean; body?: unknown }>;
+  };
+
+  it("returns the parsed request body, matching validateFetchRequest at runtime", async () => {
+    const aot = (await buildAot(petstore)) as FetchAot;
+    const request = new Request("http://x/pets", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant": "t1" },
+      body: JSON.stringify({ name: "Fido" }),
+    });
+    const r = await aot.validateFetchRequest(request);
+    expect(r.ok).toBe(true);
+    expect(r.body).toEqual({ name: "Fido" });
+  });
+
+  it("returns the parsed response body and leaves the request stream unread", async () => {
+    const aot = (await buildAot(petstore)) as FetchAot;
+    const request = new Request("http://x/pets", { method: "GET" });
+    const response = new Response(JSON.stringify([{ name: "Fido" }]), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+    const r = await aot.validateFetchResponse(request, response);
+    expect(r.ok).toBe(true);
+    expect(r.body).toEqual([{ name: "Fido" }]);
+    expect(request.bodyUsed).toBe(false);
+  });
+
+  it("returns ok:false with a body error for unparseable JSON, matching createValidator", async () => {
+    const aot = (await buildAot(petstore)) as unknown as {
+      validateFetchRequest: (req: Request) => Promise<{
+        ok: boolean;
+        errors?: Array<{ code: string; message: string }>;
+      }>;
+    };
+    const request = new Request("http://x/pets", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant": "t1" },
+      body: '{"name": "Fido",',
+    });
+    const r = await aot.validateFetchRequest(request);
+    expect(r.ok).toBe(false);
+    expect(r.errors?.[0]?.code).toBe("body");
+    expect(r.errors?.[0]?.message).toContain("could not be parsed");
+  });
+});

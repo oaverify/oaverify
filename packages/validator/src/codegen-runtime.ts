@@ -36,6 +36,7 @@ export { reshapeResult, toFetchResult } from "./reshape.js";
 // Fetch-adapter halves of the emitted `validateFetchRequest` /
 // `validateFetchResponse` helpers.
 export {
+  FetchBodyParseError,
   httpRequestFromFetch,
   httpResponseFromFetch,
   type FetchRequestOptions,
@@ -44,7 +45,12 @@ export {
 // Request-time halves of validation the emitted module performs
 // itself: parameter deserialisation, content-type negotiation,
 // response-status key matching, and the pre-compiled security plan.
-export { deserialize, matchParsedMediaType, matchResponseKey } from "./deserialize.js";
+export {
+  deserialize,
+  matchParsedMediaType,
+  matchResponseKey,
+  normalizeRequestQuery,
+} from "./deserialize.js";
 export { checkSecurity, compileOperationSecurity } from "./security.js";
 
 // Operation-level `$ref` resolver, called while the emitted module

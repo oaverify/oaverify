@@ -456,3 +456,62 @@ describe("validator.validateFetchResponse", () => {
     expect(req.bodyUsed).toBe(false);
   });
 });
+
+describe("malformed body handling", () => {
+  // A request body is attacker-controlled, so an unparseable one is a
+  // validation verdict rather than a thrown exception: JSON.parse used
+  // to throw straight out of validateFetchRequest, turning a garbage
+  // payload into a 500 for every caller that did not wrap the await.
+  const v = createValidator(petSpec());
+
+  it("returns ok:false with a body error for unparseable JSON", async () => {
+    const req = new Request("https://example.com/pets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: '{"name": "Fido",',
+    });
+    const result = await v.validateFetchRequest(req);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors[0]?.code).toBe("body");
+      expect(result.errors[0]?.path).toEqual(["body"]);
+      expect(result.errors[0]?.message).toContain("could not be parsed");
+    }
+  });
+
+  it("returns ok:false with a body error for an unparseable JSON response", async () => {
+    const req = new Request("https://example.com/pets", { method: "GET" });
+    const res = new Response("[{oops", {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+    const result = await v.validateFetchResponse(req, res);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors[0]?.code).toBe("body");
+    }
+  });
+
+  it("readBodyFromFetch throws FetchBodyParseError, so readBody overrides can delegate", async () => {
+    const { FetchBodyParseError } = await import("../src/from-fetch.js");
+    const req = new Request("https://example.com/pets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "nope{",
+    });
+    await expect(readBodyFromFetch(req)).rejects.toBeInstanceOf(FetchBodyParseError);
+  });
+
+  it("propagates non-parse errors from a readBody override unchanged", async () => {
+    const req = new Request("https://example.com/pets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    await expect(
+      v.validateFetchRequest(req, {
+        readBody: () => Promise.reject(new Error("disk full")),
+      }),
+    ).rejects.toThrow("disk full");
+  });
+});

@@ -62,6 +62,20 @@ describe("resolveJsonPointer", () => {
     expect(resolveJsonPointer(doc, "/list/1")).toBe("one");
   });
 
+  it("rejects malformed array reference tokens (RFC 6901 section 4)", () => {
+    // An array token is `0` or a digit run with no leading zero. Node's
+    // parseInt used to read `1abc`, `01`, `1.5`, and ` 1` all as index 1,
+    // so two textually different pointers silently aliased one element
+    // and a malformed $ref resolved instead of failing.
+    for (const token of ["1abc", "01", "1.5", " 1", "+1", "0x1"]) {
+      expect(() => resolveJsonPointer(doc, `/list/${token}`)).toThrow(/not found|array index/);
+    }
+  });
+
+  it("still rejects the past-the-end token `-`", () => {
+    expect(() => resolveJsonPointer(doc, "/list/-")).toThrow();
+  });
+
   it("throws when the path walks into a primitive", () => {
     expect(() => resolveJsonPointer(doc, "/a/b/c")).toThrow(/traverses a primitive/);
   });

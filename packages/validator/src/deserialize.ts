@@ -1,6 +1,7 @@
 import {
   getOwn,
   setSpecKey,
+  type HttpRequest,
   type ParameterObject,
   type ParameterStyle,
   type SchemaObject,
@@ -55,22 +56,60 @@ export function deserialize(
 
   if (type === "array") {
     if (raw === "") return [];
-    const separator = arraySeparator(style, explode);
     const items = itemSchema(schema);
+    // Label and matrix arrays strip their style prefix from the whole
+    // token before splitting; splitting first and stripping per item
+    // read every exploded form wrong (".a.b.c" as one element,
+    // ";c=a;c=b" as ["b"]). RFC 6570 gives each form its shape:
+    // {.list} is ".a,b,c", {.list*} is ".a.b.c", {;list} is ";c=a,b,c",
+    // {;list*} is ";c=a;c=b;c=c".
+    if (style === "label") {
+      const body = raw.startsWith(".") ? raw.slice(1) : raw;
+      if (body === "") return [];
+      return body.split(explode ? "." : ",").map((v) => coerceScalar(v, items));
+    }
+    if (style === "matrix") {
+      if (explode) {
+        const values: string[] = [];
+        for (const group of raw.split(";")) {
+          if (group === "") continue;
+          const eq = group.indexOf("=");
+          const groupName = eq === -1 ? group : group.slice(0, eq);
+          // A group naming some other parameter is not one of ours;
+          // RFC 6570 never emits one here, so it contributes nothing.
+          if (groupName !== parameter.name) continue;
+          values.push(eq === -1 ? "" : group.slice(eq + 1));
+        }
+        return values.map((v) => coerceScalar(v, items));
+      }
+      const body = stripStyle(raw, style);
+      if (body === "") return [];
+      return body.split(",").map((v) => coerceScalar(v, items));
+    }
+    const separator = arraySeparator(style, explode);
     return raw.split(separator).map((v) => coerceScalar(stripStyle(v, style), items));
   }
 
   if (type === "object") {
     if (style === "deepObject") return raw;
     if (explode) {
-      const pairs = raw.split("&").map((kv) => kv.split("="));
       const out: Record<string, unknown> = {};
-      for (const pair of pairs) setSpecKey(out, pair[0] ?? "", pair[1] ?? "");
+      for (const kv of raw.split("&")) {
+        // Split at the first "=" only: the value may carry more of them
+        // (base64 padding, a nested pair), and `kv.split("=")[1]` was
+        // silently truncating "token=a=b" to "a".
+        const eq = kv.indexOf("=");
+        if (eq === -1) setSpecKey(out, kv, "");
+        else setSpecKey(out, kv.slice(0, eq), kv.slice(eq + 1));
+      }
       return out;
     }
     const parts = raw.split(",");
     const out: Record<string, unknown> = {};
-    for (let i = 0; i < parts.length - 1; i += 2) {
+    for (let i = 0; i < parts.length; i += 2) {
+      // An odd part count is malformed serialization; giving the
+      // trailing key an empty value keeps the defect visible to schema
+      // validation, where dropping the key hid it entirely.
       setSpecKey(out, parts[i] ?? "", parts[i + 1] ?? "");
     }
     return out;
@@ -145,6 +184,14 @@ const MAX_REF_HOPS = 32;
  * disagree on the type and coercion has to pick one before validation
  * says which branch applies.
  *
+ * Sibling handling follows the dialect, because the compiler's does.
+ * Under 2020-12 a `$ref`'s siblings are a conjunction and the view
+ * merges them in, use site winning. Under OAS 3.0
+ * (`refSuppressesSiblings`) the compiler ignores every sibling, so the
+ * view ignores them too: merging read a `type` the compiler never
+ * enforces, and `{ $ref: Id, type: "string" }` compiled as integer but
+ * coerced as string, rejecting `?n=42` on correct input.
+ *
  * Built once per operation when the cache is built, rather than per
  * request: `createRefResolver` does not memoize, so resolving on the hot
  * path would re-walk a JSON pointer for every `$ref`'d parameter of
@@ -162,9 +209,19 @@ const MAX_REF_HOPS = 32;
  *
  * @internal
  */
+export interface CoercionViewOptions {
+  /**
+   * OAS 3.0 semantics: every sibling keyword of a `$ref` is ignored,
+   * matching `DialectRules.refSuppressesSiblings` in the compiler.
+   * Default `false` (2020-12 semantics, siblings merge).
+   */
+  refSuppressesSiblings?: boolean;
+}
+
 export function coercionView(
   parameter: ParameterObject,
   resolveSchemaRef: SchemaRefResolver,
+  options?: CoercionViewOptions,
 ): ParameterObject {
   const schema = parameter.schema;
   if (schema === undefined || typeof schema === "boolean") return parameter;
@@ -184,15 +241,20 @@ export function coercionView(
   // best-effort by construction, so that is not a reason to fail the
   // build: the compiler resolves and validates the same schema through
   // the same resolver, and only the coercion is lost.
+  const keepSiblings = options?.refSuppressesSiblings !== true;
   const resolveChain = (s: SchemaOrBoolean | undefined): SchemaOrBoolean | undefined => {
     if (s === undefined || typeof s === "boolean" || typeof s.$ref !== "string") return s;
-    // Outermost first, so the use site is applied last and wins.
+    // Outermost first, so the use site is applied last and wins. Under
+    // a sibling-suppressing dialect the array stays empty and only the
+    // chain's final target survives, matching the compiler.
     const siblingLayers: SchemaObject[] = [];
     let current: SchemaOrBoolean = s;
     for (let hops = 0; hops < MAX_REF_HOPS; hops += 1) {
       if (typeof current === "boolean" || typeof current.$ref !== "string") break;
       const { $ref: _ref, ...siblings } = current;
-      if (Object.keys(siblings).length > 0) siblingLayers.push(siblings as SchemaObject);
+      if (keepSiblings && Object.keys(siblings).length > 0) {
+        siblingLayers.push(siblings as SchemaObject);
+      }
       let next: SchemaOrBoolean | undefined;
       try {
         next = resolveSchemaRef(current);
@@ -235,6 +297,47 @@ export function coercionView(
   };
 }
 
+/**
+ * Fold a query string embedded in `path` into the `query` field.
+ *
+ * The router strips `?...` before matching, so `path: "/w?n=abc"`
+ * routed while the parameters in it went unvalidated: optional ones
+ * silently, required ones with a false "missing" report. Every HTTP
+ * framework hands the caller exactly that combined string, so parsing
+ * it is what a hand-built request means.
+ *
+ * An explicit `query` field wins and the embedded string is ignored:
+ * two sources that can disagree is the trap the `contentType` field's
+ * design already refuses, and the explicit field is the deliberate
+ * one. No `?` in the path, or an explicit `query`, returns the request
+ * unchanged by identity.
+ *
+ * Parsed with `URLSearchParams` and repeated keys collapsed into
+ * arrays, matching `httpRequestFromFetch`.
+ *
+ * Called at the top of `validateRequest` in both the interpreted
+ * validator and the `oaverify compile-spec` emitted module, which is
+ * why it lives on the codegen-runtime surface.
+ *
+ * @internal
+ */
+export function normalizeRequestQuery(req: HttpRequest): HttpRequest {
+  const q = req.path.indexOf("?");
+  const hash = req.path.indexOf("#");
+  // A "?" inside a fragment ("/w#f?x=1") opens no query, and a
+  // fragment after one ("/w?n=42#frag") is not part of the last value;
+  // the router cuts both the same way before matching.
+  if (q === -1 || (hash !== -1 && hash < q) || req.query !== undefined) return req;
+  const query: Record<string, string | string[]> = {};
+  const params = new URLSearchParams(req.path.slice(q + 1, hash === -1 ? undefined : hash));
+  for (const key of new Set(params.keys())) {
+    if (key === "") continue;
+    const values = params.getAll(key);
+    setSpecKey(query, key, values.length === 1 ? (values[0] ?? "") : values);
+  }
+  return { ...req, path: req.path.slice(0, q), query };
+}
+
 function defaultStyle(location: string): ParameterStyle {
   if (location === "query" || location === "cookie") return "form";
   return "simple";
@@ -251,7 +354,14 @@ function arraySeparator(style: ParameterStyle, explode: boolean): string {
 }
 
 function stripStyle(value: string, style: ParameterStyle): string {
-  if (style === "matrix" && value.startsWith(";")) return value.slice(1).split("=").pop() ?? "";
+  if (style === "matrix" && value.startsWith(";")) {
+    // Drop the ";name=" prefix and nothing more: `.split("=").pop()`
+    // returned the text after the *last* "=", truncating a value that
+    // carries one (";v=a=b" read as "b").
+    const rest = value.slice(1);
+    const eq = rest.indexOf("=");
+    return eq === -1 ? rest : rest.slice(eq + 1);
+  }
   if (style === "label" && value.startsWith(".")) return value.slice(1);
   return value;
 }
@@ -295,10 +405,24 @@ function itemSchema(
   return items;
 }
 
+/**
+ * A decimal number as a query or path value spells one: optional sign,
+ * digits with an optional fraction (or a bare fraction), optional
+ * exponent. Deliberately wider than JSON's grammar (`+5`, `.5`, `5.`,
+ * and `007` all coerce; a URL is not JSON and clients emit all four)
+ * and deliberately narrower than `Number()`, which reads `""` and
+ * whitespace as 0, `0x1A` as 26, and `Infinity` as a number a
+ * `type: number` schema then accepts. None of those is a decimal
+ * number the client plausibly meant, so each stays a string and fails
+ * the type check instead of validating as a value it never sent.
+ */
+const DECIMAL_NUMBER_RE = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
 function coerceScalar(value: string, schema: SchemaObject | boolean | undefined): unknown {
   if (schema === undefined || typeof schema === "boolean") return value;
   const type = extractType(schema);
   if (type === "number" || type === "integer") {
+    if (!DECIMAL_NUMBER_RE.test(value)) return value;
     const n = Number(value);
     return Number.isNaN(n) ? value : n;
   }

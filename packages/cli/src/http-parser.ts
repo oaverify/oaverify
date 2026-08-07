@@ -1,8 +1,17 @@
-import type { HttpRequest, JsonValue } from "@oaverify/internal-core";
+import { setSpecKey, type HttpRequest, type JsonValue } from "@oaverify/internal-core";
 
 /**
  * Parse a string in the standard `.http` file format (method/path line,
  * headers, blank line, body) into an {@link HttpRequest}.
+ *
+ * **The body is whitespace-trimmed**, `rawBody` included. Text files
+ * end with a newline the author never meant as payload, and without
+ * the trim a `maxLength` or an anchored `pattern` fails on the
+ * invisible character. The cost is that a text body whose leading or
+ * trailing whitespace is significant cannot be expressed in a `.http`
+ * file; exercise such a body through `HttpRequest.body` directly, or
+ * through a real client and the fetch bridge, which both deliver the
+ * bytes as sent.
  *
  * @param text - Raw contents of the .http file.
  * @returns An {@link HttpRequest} ready for the validator.
@@ -28,19 +37,22 @@ export function parseHttpFile(text: string): HttpRequest {
   if (!match) throw new Error(`invalid request line: "${requestLine}"`);
   const method = (match[1] ?? "").toUpperCase();
   const fullPath = match[2] ?? "/";
-  const [path, queryString = ""] = fullPath.split("?") as [string, string | undefined];
+  // Everything after the first "?" is the query; RFC 3986 allows more
+  // "?" inside it, so splitting on every one dropped query text.
+  const qIdx = fullPath.indexOf("?");
+  const path = qIdx === -1 ? fullPath : fullPath.slice(0, qIdx);
+  const queryString = qIdx === -1 ? "" : fullPath.slice(qIdx + 1);
   const query: Record<string, string | string[]> = {};
   if (queryString !== "") {
-    const pairs = queryString.split("&");
-    for (const pair of pairs) {
-      const [rawKey, rawValue = ""] = pair.split("=");
-      if (rawKey === undefined || rawKey === "") continue;
-      const key = decodeURIComponent(rawKey);
-      const value = decodeURIComponent(rawValue);
-      const prev = query[key];
-      if (prev === undefined) query[key] = value;
-      else if (Array.isArray(prev)) prev.push(value);
-      else query[key] = [prev, value];
+    // URLSearchParams is what the fetch adapter parses with, so one
+    // request text means one query whichever door it comes in through.
+    // The hand-rolled loop this replaces truncated values at a second
+    // "=", left "+" undecoded, and threw on a malformed escape.
+    const params = new URLSearchParams(queryString);
+    for (const key of new Set(params.keys())) {
+      if (key === "") continue;
+      const values = params.getAll(key);
+      setSpecKey(query, key, values.length === 1 ? (values[0] ?? "") : values);
     }
   }
   const headers: Record<string, string | string[]> = {};
@@ -61,7 +73,25 @@ export function parseHttpFile(text: string): HttpRequest {
   let body: JsonValue | undefined;
   const rawBody: string | undefined = bodyText.length > 0 ? bodyText : undefined;
   if (bodyText.length > 0) {
-    if (contentType?.includes("json") || bodyText.startsWith("{") || bodyText.startsWith("[")) {
+    const mediaType = (contentType?.split(";")[0] ?? "").trim().toLowerCase();
+    const declaredJson = mediaType === "application/json" || mediaType.endsWith("+json");
+    if (declaredJson) {
+      // A declared-JSON body that does not parse is a defect in the
+      // file, and the author wants to hear about the typo. The silent
+      // string fallback validated the broken text against the JSON
+      // schema, producing a type error that pointed everywhere except
+      // the missing brace.
+      try {
+        body = JSON.parse(bodyText) as JsonValue;
+      } catch (err) {
+        throw new Error(
+          `request body is not valid JSON (Content-Type ${contentType}): ${(err as Error).message}`,
+          { cause: err },
+        );
+      }
+    } else if (bodyText.startsWith("{") || bodyText.startsWith("[")) {
+      // No declared type; the brace is a guess, so a parse failure
+      // falls back to the raw string rather than rejecting the file.
       try {
         body = JSON.parse(bodyText) as JsonValue;
       } catch {

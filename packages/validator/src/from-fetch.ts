@@ -16,7 +16,7 @@
  */
 
 import type { HttpRequest, HttpResponse } from "@oaverify/internal-core";
-import { getOwn, setSpecKey } from "@oaverify/internal-core";
+import { getOwn, markLowercaseKeys, setSpecKey } from "@oaverify/internal-core";
 
 /**
  * Options shared by the `validateFetchRequest` family and
@@ -57,6 +57,32 @@ export interface FetchRequestOptions {
    * ```
    */
   readBody?: (request: Request) => Promise<unknown>;
+}
+
+/**
+ * Thrown by the default body reader when a payload does not parse as
+ * the media type it declares: JSON that fails `JSON.parse`, multipart
+ * that `formData()` rejects. The body is attacker-controlled, so
+ * `validateFetchRequest` / `validateFetchResponse` catch this and
+ * return an invalid result with a `body` leaf error instead of letting
+ * the exception escape.
+ *
+ * A custom {@link FetchRequestOptions.readBody} can throw this to opt
+ * into the same conversion; any other error it throws propagates
+ * unchanged, since an IO failure is not a validation verdict.
+ *
+ * @public
+ */
+export class FetchBodyParseError extends Error {
+  /** The declared media type the payload failed to parse as. */
+  readonly mediaType: string;
+
+  constructor(mediaType: string, cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    super(`body could not be parsed as ${mediaType}: ${detail}`, { cause });
+    this.name = "FetchBodyParseError";
+    this.mediaType = mediaType;
+  }
 }
 
 /**
@@ -159,7 +185,9 @@ export async function httpResponseFromFetch(response: Response): Promise<{
 }
 
 function headersToRecord(h: Headers): Record<string, string | string[]> {
-  const out: Record<string, string | string[]> = {};
+  // Every key below is lowercased, which earns the mark: header
+  // lookups skip their case-insensitive fallback scan on a miss.
+  const out = markLowercaseKeys<Record<string, string | string[]>>({});
   for (const [key, value] of h.entries()) {
     const lower = key.toLowerCase();
     // Own-property read and write: a request header literally named
@@ -205,7 +233,11 @@ async function readBody(
   if (mediaType === "application/json" || mediaType.endsWith("+json")) {
     const text = await message.text();
     if (text === "") return undefined;
-    return JSON.parse(text);
+    try {
+      return JSON.parse(text);
+    } catch (err) {
+      throw new FetchBodyParseError(mediaType, err);
+    }
   }
   if (mediaType === "application/x-www-form-urlencoded") {
     const raw = await message.text();
@@ -213,7 +245,12 @@ async function readBody(
     return objectFromSearchParams(new URLSearchParams(raw));
   }
   if (mediaType === "multipart/form-data") {
-    const formData = await message.formData();
+    let formData: FormData;
+    try {
+      formData = await message.formData();
+    } catch (err) {
+      throw new FetchBodyParseError(mediaType, err);
+    }
     const out: Record<string, unknown> = {};
     for (const name of new Set(formData.keys())) {
       const values = formData.getAll(name);

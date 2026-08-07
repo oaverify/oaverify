@@ -1,6 +1,7 @@
 import type { Request, RequestHandler, Response } from "express";
 import {
   collectLeaves,
+  markLowercaseKeys,
   type HttpRequest,
   type HttpResponse,
   type ValidationError,
@@ -68,7 +69,9 @@ const WRAPPED = Symbol("oaverify.validateResponses");
 // setHeader(name, number)) as numbers; the validator's header
 // deserializer expects strings.
 function responseHeaders(res: Response): Record<string, string | string[]> {
-  const headers: Record<string, string | string[]> = {};
+  // getHeaders() reports lowercased names, which earns the mark: the
+  // validator's header lookups skip their fallback scan on a miss.
+  const headers = markLowercaseKeys<Record<string, string | string[]>>({});
   for (const [key, value] of Object.entries(res.getHeaders())) {
     if (value === undefined) continue;
     headers[key] = Array.isArray(value) ? value : String(value);

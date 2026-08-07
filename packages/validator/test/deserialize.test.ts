@@ -24,6 +24,54 @@ describe("deserialize", () => {
     expect(deserialize("abc", { name: "x", in: "query", schema: { type: "integer" } })).toBe("abc");
   });
 
+  it("coerces only strings spelling a decimal number", () => {
+    const num = (v: string) =>
+      deserialize(v, { name: "x", in: "query", schema: { type: "number" } });
+    // Number() reads all of these as numbers, and none of them is a
+    // decimal number a client plausibly meant: "" and "  " became 0,
+    // "0x1A" became 26, and "Infinity" sailed through a type: number
+    // schema. Each stays a string and fails the type check instead.
+    expect(num("")).toBe("");
+    expect(num("  ")).toBe("  ");
+    expect(num("0x1A")).toBe("0x1A");
+    expect(num("Infinity")).toBe("Infinity");
+    expect(num("-Infinity")).toBe("-Infinity");
+    expect(num(" 7 ")).toBe(" 7 ");
+    // Decimal spellings all coerce, sign and exponent included.
+    expect(num("-3.5")).toBe(-3.5);
+    expect(num("+5")).toBe(5);
+    expect(num("1e3")).toBe(1000);
+    expect(num(".5")).toBe(0.5);
+    expect(num("5.")).toBe(5);
+    expect(num("007")).toBe(7);
+  });
+
+  it('keeps "=" inside an exploded object value', () => {
+    const p = {
+      name: "o",
+      in: "query",
+      style: "form",
+      explode: true,
+      schema: { type: "object" },
+    } as const;
+    // kv.split("=") took element [1], so a value carrying "=" (base64
+    // padding, a nested pair) was silently truncated at the second "=".
+    expect(deserialize("token=a=b&pad=YQ==", p)).toEqual({ token: "a=b", pad: "YQ==" });
+  });
+
+  it('keeps "=" inside a matrix scalar value', () => {
+    const p = { name: "v", in: "path", style: "matrix", schema: { type: "string" } } as const;
+    expect(deserialize(";v=a=b", p)).toBe("a=b");
+  });
+
+  it("surfaces the trailing key of an odd-count non-explode object", () => {
+    const p = { name: "o", in: "path", style: "simple", schema: { type: "object" } } as const;
+    // "R,100,G" is malformed serialization. Dropping G hid the defect
+    // from schema validation entirely; an empty-string value lets a
+    // required or typed property report it.
+    expect(deserialize("R,100,G", p)).toEqual({ R: "100", G: "" });
+  });
+
   it("coerces boolean scalars", () => {
     expect(deserialize("true", { name: "x", in: "query", schema: { type: "boolean" } })).toBe(true);
     expect(deserialize("false", { name: "x", in: "query", schema: { type: "boolean" } })).toBe(
@@ -61,6 +109,59 @@ describe("deserialize", () => {
       schema: { type: "array", items: { type: "number" } },
     });
     expect(out).toEqual([1, 2, 3]);
+  });
+
+  it("splits an exploded label path array on dots (RFC 6570 {.list*})", () => {
+    // ".blue.black.brown" came back as one garbled element, so item
+    // constraints validated a shape the client never sent.
+    const p = {
+      name: "c",
+      in: "path",
+      style: "label",
+      explode: true,
+      schema: { type: "array", items: { type: "string" } },
+    } as const;
+    expect(deserialize(".blue.black.brown", p)).toEqual(["blue", "black", "brown"]);
+    expect(deserialize(".blue", p)).toEqual(["blue"]);
+  });
+
+  it("still splits a non-explode label path array on commas (RFC 6570 {.list})", () => {
+    const p = {
+      name: "c",
+      in: "path",
+      style: "label",
+      explode: false,
+      schema: { type: "array", items: { type: "string" } },
+    } as const;
+    expect(deserialize(".blue,black,brown", p)).toEqual(["blue", "black", "brown"]);
+  });
+
+  it("reads an exploded matrix path array from its repeated groups (RFC 6570 {;list*})", () => {
+    // ";c=blue;c=black" came back as ["black"]: the comma split found
+    // nothing and stripStyle took the text after the last "=".
+    const p = {
+      name: "c",
+      in: "path",
+      style: "matrix",
+      explode: true,
+      schema: { type: "array", items: { type: "string" } },
+    } as const;
+    expect(deserialize(";c=blue;c=black;c=brown", p)).toEqual(["blue", "black", "brown"]);
+    expect(deserialize(";c=blue", p)).toEqual(["blue"]);
+    // A group naming some other parameter is not one of ours; RFC 6570
+    // would never emit it here, so it contributes nothing.
+    expect(deserialize(";c=blue;other=x;c=black", p)).toEqual(["blue", "black"]);
+  });
+
+  it("still splits a non-explode matrix path array on commas (RFC 6570 {;list})", () => {
+    const p = {
+      name: "c",
+      in: "path",
+      style: "matrix",
+      explode: false,
+      schema: { type: "array", items: { type: "number" } },
+    } as const;
+    expect(deserialize(";c=1,2,3", p)).toEqual([1, 2, 3]);
   });
 
   it("coerces boolean array items", () => {
@@ -382,6 +483,36 @@ describe("coercionView", () => {
       resolveRef,
     );
     expect(view.schema).toMatchObject({ type: "integer" });
+  });
+
+  it("drops $ref siblings when the dialect suppresses them (OAS 3.0)", () => {
+    // Under 3.0 the compiler ignores every sibling of a $ref (the
+    // silent-rewrite/ref-siblings-oas30 hygiene warning says so), so a
+    // view that merges them reads a type the compiler never enforces:
+    // { $ref: Id, type: "string" } compiled as integer but coerced as
+    // string, and ?n=42 was rejected on correct input.
+    const p = {
+      name: "a",
+      in: "query",
+      schema: { $ref: "#/components/schemas/Id", type: "string" },
+    } as const;
+    const merged = coercionView(p, resolveRef);
+    expect(merged.schema).toMatchObject({ type: "string" });
+    const suppressed = coercionView(p, resolveRef, { refSuppressesSiblings: true });
+    expect(suppressed.schema).toMatchObject({ type: "integer" });
+  });
+
+  it("drops hop siblings too when the dialect suppresses them", () => {
+    const p = {
+      name: "a",
+      in: "query",
+      schema: { $ref: "#/components/schemas/ArrOfId" },
+    } as const;
+    // ArrOfId carries an items sibling on its own $ref; 3.0 drops it,
+    // so the view resolves to the bare array with no item type.
+    const suppressed = coercionView(p, resolveRef, { refSuppressesSiblings: true });
+    expect(suppressed.schema).toMatchObject({ type: "array" });
+    expect((suppressed.schema as { items?: unknown }).items).toBeUndefined();
   });
 
   it("keeps use-site siblings of a $ref, which are a conjunction", () => {

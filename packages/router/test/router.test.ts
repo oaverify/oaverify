@@ -116,12 +116,13 @@ describe("router", () => {
 
   it("enumerates declared (method, pathPattern) pairs, uppercased, in sort order", () => {
     const list = r.routes();
-    // Sort: more literal segments first (mine and .../tags/... both have
-    // 2), then longer paths first, then ALL_METHODS order (get before
-    // put/post) within a path.
+    // Sort: left-to-right positional specificity ("/pets/mine" pins its
+    // second segment with a literal, so it precedes both templated
+    // siblings), longer paths first among positional ties, then
+    // ALL_METHODS order (get before put/post) within a path.
     expect(list).toEqual([
-      { method: "GET", pathPattern: "/pets/{id}/tags/{tag}" },
       { method: "GET", pathPattern: "/pets/mine" },
+      { method: "GET", pathPattern: "/pets/{id}/tags/{tag}" },
       { method: "GET", pathPattern: "/pets/{id}" },
       { method: "PUT", pathPattern: "/pets/{id}" },
       { method: "GET", pathPattern: "/pets" },
@@ -544,5 +545,80 @@ describe("slash trimming (js/polynomial-redos regression)", () => {
     const started = performance.now();
     r.match("get", path);
     expect(performance.now() - started).toBeLessThan(2000);
+  });
+});
+
+describe("fragment handling", () => {
+  // A request target never carries a fragment on the wire (RFC 9112),
+  // so one in `path` is a hand-built URL-shaped string. `?` was already
+  // tolerated; stopping there let "#section" corrupt the last capture.
+  it("strips a #fragment before matching, as it does a ?query", () => {
+    const router = createRouter({ "/pets/{id}": { get: op("pet") } as PathItem });
+    const m = matched(router.match("get", "/pets/1#section"));
+    expect(m.pathParams).toEqual({ id: "1" });
+    const withQuery = matched(router.match("get", "/pets/1?x=2#section"));
+    expect(withQuery.pathParams).toEqual({ id: "1" });
+  });
+
+  it("still delivers a literal # sent as %23", () => {
+    // Decoding happens after the strip, so an encoded "#" is data.
+    const router = createRouter({ "/pets/{id}": { get: op("pet") } as PathItem });
+    const m = matched(router.match("get", "/pets/a%23b"));
+    expect(m.pathParams).toEqual({ id: "a#b" });
+  });
+});
+
+describe("route precedence is positional", () => {
+  // Left-to-right, static-beats-parameter at the first differing
+  // position: the rule find-my-way, path-to-regexp orderings, and
+  // gorilla/mux all apply. The count-based sort this replaces called
+  // /a/{x}/c and /{y}/b/c equally specific (two literals each) and let
+  // the alphabetical tie-break route the request.
+  it("prefers the route whose literal comes first", () => {
+    const router = createRouter({
+      "/{y}/b/c": { get: op("late-literal") } as PathItem,
+      "/a/{x}/c": { get: op("early-literal") } as PathItem,
+    });
+    const m = matched(router.match("get", "/a/b/c"));
+    expect(m.operation.operationId).toBe("early-literal");
+  });
+
+  it("an early literal beats a higher literal count later", () => {
+    const router = createRouter({
+      "/{x}/b/c": { get: op("two-late-literals") } as PathItem,
+      "/a/{x}/{y}": { get: op("one-early-literal") } as PathItem,
+    });
+    const m = matched(router.match("get", "/a/b/c"));
+    expect(m.operation.operationId).toBe("one-early-literal");
+  });
+
+  it("a compound beats a bare template at the same position", () => {
+    const router = createRouter({
+      "/p/{v}": { get: op("template") } as PathItem,
+      "/p/{v}.json": { get: op("compound") } as PathItem,
+    });
+    const m = matched(router.match("get", "/p/x.json"));
+    expect(m.operation.operationId).toBe("compound");
+  });
+});
+
+describe("route sort determinism", () => {
+  // The final specificity tie-break orders by code point, so the route
+  // list is identical on every host. `localeCompare` consults the ICU
+  // locale, and "/" (0x2F) sorting relative to letters is exactly the
+  // kind of comparison collation tables reorder; route precedence must
+  // not vary with LANG.
+  it("breaks specificity ties by code point, not locale collation", () => {
+    // Structurally identical positions (literal, template) on disjoint
+    // methods, so the sort falls through position, length, and lands on
+    // the name comparison. Code-point order puts "/p/{a}" before
+    // "/pz/{b}" ("/" is 0x2F); a collation that weighs punctuation
+    // lightly compares "{" (0x7B) against "z" (0x7A) instead and could
+    // swap them, so route order would vary with the host locale.
+    const router = createRouter({
+      "/pz/{b}": { post: op("second") } as PathItem,
+      "/p/{a}": { get: op("first") } as PathItem,
+    });
+    expect(router.routes().map((r) => r.pathPattern)).toEqual(["/p/{a}", "/pz/{b}"]);
   });
 });

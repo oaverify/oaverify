@@ -270,6 +270,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
           document,
           resolveRef,
           resolveSchemaRef,
+          refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
           named,
           requestsOnly: options.requestsOnly === true,
         }),
@@ -306,7 +307,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     // membership in `@oaverify/core/codegen-runtime` follows this import
     // (see that module's header). Do not point it at a subpath that
     // promises less.
-    `import { deserialize, matchParsedMediaType, matchResponseKey, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
+    `import { deserialize, matchParsedMediaType, matchResponseKey, normalizeRequestQuery, FetchBodyParseError, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
     "",
     "void createBranchError; void createError; void deepEqual; void typeOf; void wrapErrors;",
     "void resolveOperationRef;",
@@ -408,6 +409,12 @@ interface BuildEmittedOpArgs {
   document: OpenAPIDocument;
   resolveRef: <T>(v: T | ReferenceObject | undefined) => T | undefined;
   resolveSchemaRef: SchemaRefResolver;
+  /**
+   * The compiling dialect's `rules.refSuppressesSiblings`, so the
+   * emitted coercion views drop `$ref` siblings exactly when the
+   * compiled schemas do (OAS 3.0).
+   */
+  refSuppressesSiblings: boolean;
   named: (schema: SchemaOrBoolean) => string;
   requestsOnly: boolean;
 }
@@ -421,6 +428,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     document,
     resolveRef,
     resolveSchemaRef,
+    refSuppressesSiblings,
     named,
     requestsOnly,
   } = args;
@@ -497,6 +505,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
           schema: coercionView(
             { name: headerName, in: "header", schema: hdr.schema },
             resolveSchemaRef,
+            { refSuppressesSiblings },
           ).schema,
           validator: schema !== undefined ? named(schema) : null,
         });
@@ -525,7 +534,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
         // so it carries the resolved view. Without this a compiled
         // validator keeps #714 while createValidator no longer has it.
         parameters: parameters
-          .map((raw) => coercionView(raw, resolveSchemaRef))
+          .map((raw) => coercionView(raw, resolveSchemaRef, { refSuppressesSiblings }))
           .map((p) => ({
             name: p.name,
             in: p.in,
@@ -766,7 +775,10 @@ function renderValidateRequestTree(): string {
   //   - no strict-query-parameter option surfaced yet
   // Returns the nested error tree (or null when valid); the exported
   // validateRequest wrapper reshapes it to the configured output.
-  return `function __validateRequestTree(req) {
+  return `function __validateRequestTree(rawReq) {
+  // A query string embedded in path folds into query, matching
+  // createValidator; the explicit field wins when both are present.
+  const req = normalizeRequestQuery(rawReq);
   const method = (req.method ?? "GET").toUpperCase();
   const match = router.match(method, req.path);
   if (match === undefined) {
@@ -981,15 +993,45 @@ export function validateResponse(req, res) {
   return reshapeResult(__validateResponseTree(req, res), __outputMode, __maxErrors);
 }
 
+function __bodyParseFailure(err) {
+  // Mirrors createValidator: an unparseable payload is a validation
+  // verdict, so only FetchBodyParseError converts to a result; IO and
+  // user-callback failures propagate unchanged.
+  const leaf = {
+    code: "body",
+    path: ["body"],
+    message: err.message,
+    params: { mediaType: err.mediaType },
+    children: [],
+  };
+  return toFetchResult(reshapeResult(leaf, __outputMode, __maxErrors), undefined);
+}
+
 export async function validateFetchRequest(request, options) {
-  const { httpRequest, bodyValue } = await httpRequestFromFetch(request, options);
-  return toFetchResult(validateRequest(httpRequest), bodyValue);
+  let extracted;
+  try {
+    extracted = await httpRequestFromFetch(request, options);
+  } catch (err) {
+    if (err instanceof FetchBodyParseError) return __bodyParseFailure(err);
+    throw err;
+  }
+  return toFetchResult(validateRequest(extracted.httpRequest), extracted.body);
 }
 
 export async function validateFetchResponse(request, response) {
-  const requestHttp = await httpRequestFromFetch(request);
-  const { httpResponse, bodyValue } = await httpResponseFromFetch(response);
-  return toFetchResult(validateResponse(requestHttp.httpRequest, httpResponse), bodyValue);
+  // Method and path are all response matching needs; building the
+  // request through the extractor would consume the caller's request
+  // body stream, which the interpreted validator leaves unread.
+  const url = new URL(request.url);
+  const httpRequest = { method: request.method.toUpperCase(), path: url.pathname };
+  let extracted;
+  try {
+    extracted = await httpResponseFromFetch(response);
+  } catch (err) {
+    if (err instanceof FetchBodyParseError) return __bodyParseFailure(err);
+    throw err;
+  }
+  return toFetchResult(validateResponse(httpRequest, extracted.httpResponse), extracted.body);
 }
 `;
 }

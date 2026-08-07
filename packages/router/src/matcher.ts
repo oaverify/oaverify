@@ -157,7 +157,8 @@ export interface Router {
   match(method: string, path: string): RouteMatch | MethodNotAllowed | undefined;
   /**
    * Every declared (method, pathPattern) pair, in the router's
-   * specificity sort order (more literal segments first). Static for
+   * specificity sort order (left-to-right positional; see
+   * {@link createRouter}). Static for
    * the router's lifetime; the same frozen array is returned each call.
    * Used for spec introspection and cross-router overlap checks (see
    * `@oaverify/internal-validator`'s `combineValidators`).
@@ -382,10 +383,12 @@ export function routeSignature(pathPattern: string): string {
 }
 
 /**
- * Build a router from a map of `pathTemplate → PathItem`. Paths with more
- * literal (non-template) segments win over more template-heavy siblings;
- * the route list is sorted once at construction, then each `match` call is
- * a linear scan: O(routes × segments). That is cheap for the route counts
+ * Build a router from a map of `pathTemplate → PathItem`. Precedence is
+ * positional, left to right: at the first segment where two templates
+ * differ in kind, a literal beats a compound beats a bare `{name}`, so
+ * `/pets/mine` wins over `/pets/{id}` and `/a/{x}/c` wins over
+ * `/{y}/b/c`. The route list is sorted once at construction, then each
+ * `match` call is a linear scan: O(routes × segments). That is cheap for the route counts
  * typical in OpenAPI specs (tens to low hundreds); swap in a proper radix
  * tree here if you're routing thousands of paths.
  *
@@ -443,21 +446,36 @@ export function createRouter(paths: Record<string, PathItem>): Router {
     }
     routes.push({ segments, pathPattern: pattern, pathItem: item });
   }
-  // Sort by specificity:
-  //   1. more pure-literal segments win
-  //   2. more compound segments win (compounds carry literal anchors,
-  //      so they're stricter than a bare `{name}` at the same position)
-  //   3. longer paths win
-  //   4. alphabetical tie-break for stability
+  // Sort by specificity, left to right:
+  //   1. at the first position where the two differ in kind, a literal
+  //      beats a compound beats a bare template. This is the rule
+  //      find-my-way, path-to-regexp orderings, and gorilla/mux apply:
+  //      the earlier a segment pins the path, the more specific the
+  //      route. Counting literal segments instead (the rule this
+  //      replaces) called /a/{x}/c and /{y}/b/c equally specific and
+  //      let the name tie-break route requests in their intersection.
+  //      A compound sits between the other two because it carries
+  //      literal anchors, so it is stricter than a bare `{name}` and
+  //      looser than a full literal at the same position.
+  //   2. longer paths win. Routes of different lengths never compete
+  //      for one request, so this is presentation order for routes().
+  //   3. code-point tie-break for stability. Not `localeCompare`: that
+  //      consults the host ICU locale, so two deployments of the same
+  //      spec could order tied routes differently and route the same
+  //      request to different operations. Precedence is part of the
+  //      router's contract and must not vary with LANG.
+  const kindRank = (s: Segment): number =>
+    s.kind === "literal" ? 0 : s.kind === "compound" ? 1 : 2;
   routes.sort((a, b) => {
-    const aLit = a.segments.filter((s) => s.kind === "literal").length;
-    const bLit = b.segments.filter((s) => s.kind === "literal").length;
-    if (aLit !== bLit) return bLit - aLit;
-    const aComp = a.segments.filter((s) => s.kind === "compound").length;
-    const bComp = b.segments.filter((s) => s.kind === "compound").length;
-    if (aComp !== bComp) return bComp - aComp;
+    const shared = Math.min(a.segments.length, b.segments.length);
+    for (let i = 0; i < shared; i += 1) {
+      const d = kindRank(a.segments[i]!) - kindRank(b.segments[i]!);
+      if (d !== 0) return d;
+    }
     if (a.segments.length !== b.segments.length) return b.segments.length - a.segments.length;
-    return a.pathPattern.localeCompare(b.pathPattern);
+    if (a.pathPattern < b.pathPattern) return -1;
+    if (a.pathPattern > b.pathPattern) return 1;
+    return 0;
   });
 
   // Enumerate declared operations once, in sort order. Frozen so the
@@ -477,7 +495,16 @@ export function createRouter(paths: Record<string, PathItem>): Router {
     },
     match(method, path) {
       const normMethod = method.toLowerCase() as HttpMethod;
-      const stripped = path.split("?")[0] ?? path;
+      // Cut at the first "?" or "#". A request target never carries a
+      // fragment on the wire (RFC 9112), so one here is a hand-built
+      // URL-shaped string; "?" was already tolerated, and stopping
+      // there let "#section" corrupt the last capture ({id} bound
+      // "1#section"). A literal "#" in a path arrives as %23 and
+      // decodes after this cut, so nothing legitimate is lost.
+      const qIdx = path.indexOf("?");
+      const hIdx = path.indexOf("#");
+      const cut = qIdx === -1 ? hIdx : hIdx === -1 ? qIdx : Math.min(qIdx, hIdx);
+      const stripped = cut === -1 ? path : path.slice(0, cut);
       const trimmed = trimSlashes(stripped);
       // Decode in place instead of mapping: split already allocated the
       // array, and most tokens carry no escapes to decode.
