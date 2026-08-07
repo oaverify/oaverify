@@ -45,9 +45,9 @@ the host-stamped per-shape numbers are below.
 
 - **Host:** AWS c7i.large, Intel Xeon Platinum 8488C (Sapphire Rapids),
   x86_64, 2 vCPU, Linux
-- **Runtime:** Node v22.23.1, Ajv 8.20.0
+- **Runtime:** Node v22.23.2, Ajv 8.20.0
 - **Method:** synthetic shape suite, 1000 ms/task, 500 ms cooldown,
-  median of 3 runs; commit `6270795`, 2026-07-05
+  median of 3 runs; commit `2cd9140`, 2026-08-07
 
 The harness measures five configurations: Ajv fast-fail
 (`allErrors: false`), Ajv full-collect (`allErrors: true`), oaverify fast-fail
@@ -67,13 +67,13 @@ AOT module emit).
 
 | shape               | Ajv     | oaverify | speedup |
 | ------------------- | ------- | -------- | ------- |
-| `tiny`              | 7.82 ms | 27.4 µs  | 285×    |
-| `petstore`          | 6.69 ms | 132.1 µs | 51×     |
-| `tree`              | 7.05 ms | 70.0 µs  | 101×    |
-| `composition`       | 7.04 ms | 297.9 µs | 24×     |
-| `array-heavy`       | 6.68 ms | 97.7 µs  | 68×     |
-| `unique-primitives` | 6.10 ms | 41.1 µs  | 149×    |
-| `long-string`       | 6.29 ms | 73.5 µs  | 86×     |
+| `tiny`              | 7.89 ms | 39.6 µs  | 199×    |
+| `petstore`          | 6.66 ms | 180.8 µs | 37×     |
+| `tree`              | 6.63 ms | 132.4 µs | 50×     |
+| `composition`       | 6.97 ms | 429.5 µs | 16×     |
+| `array-heavy`       | 6.46 ms | 141.6 µs | 46×     |
+| `unique-primitives` | 6.04 ms | 55.2 µs  | 109×    |
+| `long-string`       | 6.03 ms | 98.1 µs  | 61×     |
 
 ### Validate
 
@@ -92,28 +92,28 @@ Valid input:
 
 | shape               | oaverify fast-fail | oaverify full-collect | oaverify predicate |
 | ------------------- | ------------------ | --------------------- | ------------------ |
-| `tiny`              | 138%               | 153%                  | 136%               |
-| `petstore`          | 95%                | 97%                   | 110%               |
-| `tree`              | 112%               | 110%                  | 131%               |
-| `composition`       | 181%               | 178%                  | 216%               |
-| `array-heavy`       | 117%               | 114%                  | 209%               |
-| `unique-primitives` | 174%               | 167%                  | 173%               |
+| `tiny`              | 138%               | 141%                  | 136%               |
+| `petstore`          | 89%                | 97%                   | 109%               |
+| `tree`              | 100%               | 92%                   | 124%               |
+| `composition`       | 137%               | 157%                  | 171%               |
+| `array-heavy`       | 118%               | 115%                  | 210%               |
+| `unique-primitives` | 172%               | 174%                  | 174%               |
 | `long-string`       | >1000×†            | >1000×†               | >1000×†            |
 
 Invalid input (averaged across failure-position fixtures):
 
 | shape               | oaverify fast-fail | oaverify full-collect | oaverify predicate |
 | ------------------- | ------------------ | --------------------- | ------------------ |
-| `tiny`              | 84%                | 105%                  | 121%               |
-| `petstore`          | 85%                | 97%                   | 160%               |
-| `tree`              | 87%                | 108%                  | 180%               |
-| `composition`       | 109%               | 74%                   | 219%               |
-| `array-heavy`       | 112%               | 77%                   | 210%               |
-| `unique-primitives` | 323%               | 309%                  | 319%               |
-| `long-string`       | 43%                | 87%                   | >1000×†            |
+| `tiny`              | 84%                | 102%                  | 122%               |
+| `petstore`          | 94%                | 95%                   | 142%               |
+| `tree`              | 89%                | 108%                  | 183%               |
+| `composition`       | 111%               | 79%                   | 214%               |
+| `array-heavy`       | 109%               | 77%                   | 208%               |
+| `unique-primitives` | 330%               | 315%                  | 330%               |
+| `long-string`       | 42%                | 85%                   | >1000×†            |
 
 The trade-off: oaverify fast-fail trails Ajv fast-fail modestly on plain
-object rejection (`tiny`/`petstore`/`tree` at 84–87%), leads on
+object rejection (`tiny`/`petstore`/`tree` at 84–94%), leads on
 `composition` and `array-heavy`, and leads clearly on `uniqueItems`.
 oaverify full-collect stays close to Ajv full-collect: ahead on most
 accept-path shapes, mixed on rejection (trailing on `composition` and
@@ -122,11 +122,13 @@ mode, which skips error materialisation, is at or above parity
 everywhere.
 
 † `long-string` is a pathological shape. On the accept path oaverify is
-roughly three to four thousand times faster than Ajv (capped here to
-`>1000×`), because Ajv's handling of very long length-bounded strings is
-expensive on this input while oaverify short-circuits. The reject path is
-noisier and swings the other way for fast-fail (oaverify at 43%). Read this
-row as a shape-specific signal, not a typical result.
+several thousand times faster than Ajv (capped here to `>1000×`),
+because Ajv's handling of very long length-bounded strings is expensive
+on this input while oaverify short-circuits. The reject path is noisier
+and swings the other way for fast-fail (oaverify at 42%), while
+predicate mode, which allocates no error at all, is faster still than
+the accept path and is capped the same way. Read this row as a
+shape-specific signal, not a typical result.
 
 ### Memory
 
@@ -136,11 +138,11 @@ same 40-schema spec and identical traffic:
 
 | metric                          | oaverify | eov + Ajv |
 | ------------------------------- | -------- | --------- |
-| Baseline RSS                    | 77.1 MB  | 85.8 MB   |
-| Steady-state RSS (avg)          | 102.3 MB | 102.7 MB  |
-| Steady-state heap used (avg)    | 12.6 MB  | 14.5 MB   |
-| Post-idle RSS                   | 102.2 MB | 102.6 MB  |
-| Throughput (ms / 500-req batch) | 894 ms   | 920 ms    |
+| Baseline RSS                    | 77.1 MB  | 71.4 MB   |
+| Steady-state RSS (avg)          | 102.3 MB | 103.9 MB  |
+| Steady-state heap used (avg)    | 13.2 MB  | 14.6 MB   |
+| Post-idle RSS                   | 102.0 MB | 104.7 MB  |
+| Throughput (ms / 500-req batch) | 871 ms   | 909 ms    |
 
 The steady-state footprints track each other closely; oaverify carries a
 little less heap and turns the same workload over a few percent faster.
