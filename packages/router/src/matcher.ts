@@ -374,14 +374,18 @@ export function createRouter(paths: Record<string, PathItem>): Router {
         const verb = method.toUpperCase();
         // The parameter-name clause explains why two textually different
         // templates collide, which is the common case and worth saying.
-        // It is wrong for a pair that carries no placeholder at all:
-        // `/bad%zz` and `/bad%25zz` name the same path once decoded, and
-        // blaming parameter names sends the reader looking for a
-        // placeholder neither template has.
-        const named = existing.includes("{") || pattern.includes("{");
-        const why = named
+        // It is wrong for a pair carrying no placeholder: `/a` and `/a/`,
+        // or `/bad%zz` and `/bad%25zz`, name the same path, and blaming
+        // parameter names sends the reader looking for one neither has.
+        //
+        // Read off the signature rather than the text. The `\0{}` marker
+        // is present exactly when a segment parsed as a template or a
+        // compound, so `/a{b`, which `parseSegment` treats as literal
+        // text, is correctly reported as the literal collision it is.
+        const hasPlaceholder = signature.includes("\0{}");
+        const why = hasPlaceholder
           ? `parameter names differ but every ${verb} request would match both`
-          : `every ${verb} request would match both`;
+          : `they name the same path`;
         throw new Error(
           `createRouter: path templates "${existing}" and "${pattern}" both declare ${verb} on the same path structure (${why}). Rename one or merge them.`,
         );

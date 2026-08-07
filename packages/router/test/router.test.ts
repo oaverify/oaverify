@@ -196,7 +196,30 @@ describe("router", () => {
         "/bad%zz": { get: op("a") },
         "/bad%25zz": { get: op("b") },
       } as Record<string, PathItem>),
-    ).toThrow(/both declare GET on the same path structure \(every GET request would match both\)/);
+    ).toThrow(/both declare GET on the same path structure \(they name the same path\)/);
+  });
+
+  it("explains a trailing-slash collision the same way", () => {
+    // Likelier in a real spec than the encoding case: trimSlashes gives
+    // "/a" and "/a/" the same signature, and neither carries a placeholder.
+    expect(() =>
+      createRouter({
+        "/a": { get: op("a") },
+        "/a/": { get: op("b") },
+      } as Record<string, PathItem>),
+    ).toThrow(/\(they name the same path\)/);
+  });
+
+  it("reports a {-bearing literal as a literal collision", () => {
+    // `/a{b` has an unterminated brace, so parseSegment treats it as
+    // literal text. Reading the signature rather than the raw text is
+    // what keeps the message off parameter names here.
+    expect(() =>
+      createRouter({
+        "/a{b": { get: op("a") },
+        "/a%7Bb": { get: op("b") },
+      } as Record<string, PathItem>),
+    ).toThrow(/\(they name the same path\)/);
   });
 
   it("keeps the parameter-name clause when a placeholder is involved", () => {
