@@ -100,16 +100,17 @@ export interface CheckOptions {
  *
  * Distinct from a malformed schema, which is a *finding*: the document
  * is still graded and the report is complete. This is the case where
- * nothing survives building the validator (an unresolvable `$ref`, a
- * document that is not an OpenAPI object), so there is no partial
- * result to hand back. The CLI reports it as exit 2, alongside a
- * document it could not read.
+ * building the validator fails (an unresolvable `$ref`, a document that
+ * is not an OpenAPI object), so no complete report exists. The CLI
+ * reports it as exit 2, alongside a document it could not read.
+ * Whatever the passes had already produced rides out on
+ * {@link CheckAbortedError.findings} rather than being discarded.
  *
  * Thrown at every selection: building the validator is where
- * ungradeability surfaces, and {@link checkSpec} builds it before the
- * selection decides which passes run. A run asking only for, say, the
- * hygiene class still aborts on a document nothing could grade, rather
- * than returning an empty report that reads as a clean bill (#674).
+ * ungradeability surfaces, and no selection can switch that off. A run
+ * asking only for, say, the hygiene class still aborts on a document
+ * nothing could grade, rather than returning an empty report that reads
+ * as a clean bill (#674).
  *
  * @public
  */
@@ -122,6 +123,11 @@ export class CheckAbortedError extends Error {
    * away located, actionable findings on the way out: a spec whose path
    * templates collide aborts in the router, and the hygiene finding
    * naming the offending template is exactly what explains why.
+   *
+   * Graded exactly like a returned finding: narrowed to the selection,
+   * remapped by the caller's severity map, and given its `target.source`.
+   * A selection naming one code would otherwise report more on an abort
+   * than on a clean run.
    *
    * Empty when nothing had run, which is the common case.
    */
@@ -172,14 +178,6 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
 
   const findings: CheckFinding[] = [];
 
-  // The gradeability gate, ahead of every pass and unconditional on the
-  // selection. Building the validator is what surfaces a document that
-  // cannot be graded at all (not an OpenAPI object, an unresolvable
-  // ref), and it costs ~8ms and 2MB on stripe.json, against the
-  // 13s/2.5GB compile prepass it used to hide behind. When it was gated
-  // on the schema class, a selection like `--findings hygiene` returned
-  // an empty report with exit 0 on a document nothing could grade
-  // (#674).
   // Recomputed here rather than read from `resolved.specHygieneIssues`,
   // so that the selection is the single switch deciding whether this
   // class runs. Reading the field would mean a caller who loaded without
@@ -188,17 +186,21 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   //
   // Ahead of the gate because it needs only the document, so a document
   // that fails the gate still carries located findings out on the error.
-  // Its own failure is swallowed: the gate below is what reports an
-  // ungradeable document, and a throw from here would pre-empt it with a
-  // worse message and a different exit code.
   let specHygieneIssues: ReturnType<typeof lintResolvedSpec> = [];
+  let lintError: unknown;
   if (classes.has("hygiene")) {
     try {
       specHygieneIssues = lintResolvedSpec(document, {
         inlinedComponents: resolved.inlinedComponents ?? [],
       });
-    } catch {
-      specHygieneIssues = [];
+    } catch (err) {
+      // Held rather than swallowed. If the gate below rejects the
+      // document, it is the authority and reports; a throw from here
+      // would pre-empt it with a worse message and a different exit
+      // code. If the gate passes, the document was gradeable and this
+      // was a defect, so it is rethrown below rather than leaving the
+      // hygiene section silently empty on an exit-0 report.
+      lintError = err;
     }
   }
 
@@ -213,12 +215,21 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     });
   }
 
+  // The gradeability gate, unconditional on the selection. Building the
+  // validator is what surfaces a document that cannot be graded at all
+  // (not an OpenAPI object, an unresolvable ref), and it costs ~8ms and
+  // 2MB on stripe.json, against the 13s/2.5GB compile prepass it used to
+  // hide behind. When it was gated on the schema class, a selection like
+  // `--findings hygiene` returned an empty report with exit 0 on a
+  // document nothing could grade (#674).
   let validator: ReturnType<typeof createValidator>;
   try {
     validator = createValidator(document, { schemaLint: "strict" });
   } catch (err) {
+    gradeFindings(findings, selection, severityMap, regions);
     throw new CheckAbortedError((err as Error).message, { cause: err, findings });
   }
+  if (lintError !== undefined) throw lintError;
 
   // One defect reached from several operations is one thing to fix, and
   // printing it once per operation buries the rest of the report: on
@@ -397,6 +408,27 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
 
   findings.push(...schemaFindings.values());
 
+  gradeFindings(findings, selection, severityMap, regions);
+
+  return findings;
+}
+
+/**
+ * The steps every finding goes through after the passes have run:
+ * code-level narrowing, the caller's severity map, and provenance.
+ *
+ * Extracted so the aborted path can run them too. A finding handed out
+ * on {@link CheckAbortedError} is graded exactly like a returned one, or
+ * a selection naming a single code would report more on an abort than it
+ * does on a clean run, which is the failure this whole area exists to
+ * avoid.
+ */
+function gradeFindings(
+  findings: CheckFinding[],
+  selection: FindingSelection,
+  severityMap: SeverityMap,
+  regions: readonly SpecRegion[],
+): void {
   // Narrowing within a class, which the pass gates above cannot do: a
   // selection naming one hygiene code still runs the whole hygiene pass.
   //
@@ -440,8 +472,6 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     const source = sourceOf(regions, finding.target.pointer);
     if (source !== undefined) finding.target = { ...finding.target, source };
   }
-
-  return findings;
 }
 
 /**

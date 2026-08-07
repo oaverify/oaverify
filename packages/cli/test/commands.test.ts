@@ -1020,6 +1020,54 @@ describe("resolveCommand", () => {
     expect(stdout.value).toBe("");
   });
 
+  it("check keeps stdout empty on an aborted --format json run", async () => {
+    // The partial block stays text on stderr whatever --format says, so
+    // a json consumer never parses a half report.
+    const spec = {
+      openapi: "3.1.0",
+      info: { title: "X", version: "1" },
+      paths: {
+        "/bad%zz": { get: { responses: { "200": { description: "ok" } } } },
+        "/bad%25zz": { get: { responses: { "200": { description: "ok" } } } },
+      },
+    };
+    const { io, stderr, stdout } = memoryIo([["spec.json", spec]]);
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], format: "json", options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(2);
+    expect(stdout.value).toBe("");
+    expect(stderr.value).toContain("path-template-malformed");
+  });
+
+  it("check honours --skip for findings carried out of an abort", async () => {
+    // A code suppressed in CI stays suppressed, or the abort path would
+    // report what a clean run does not.
+    const spec = {
+      openapi: "3.1.0",
+      info: { title: "X", version: "1" },
+      paths: {
+        "/bad%zz": { get: { responses: { "200": { description: "ok" } } } },
+        "/bad%25zz": { get: { responses: { "200": { description: "ok" } } } },
+      },
+    };
+    const { io, stderr } = memoryIo([["spec.json", spec]]);
+    const result = await checkCommand(
+      {
+        spec: "spec.json",
+        overlays: [],
+        format: "text",
+        findings: "-path-template-malformed",
+        options: textOpts,
+      },
+      io,
+    );
+    expect(result.exitCode).toBe(2);
+    expect(stderr.value).not.toContain("path-template-malformed");
+    expect(stderr.value).not.toContain("produced before the check was aborted");
+  });
+
   it("check exits 4 for a malformed schema even under --fail-on warning", async () => {
     const { io } = memoryIo([
       [

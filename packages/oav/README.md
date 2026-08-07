@@ -129,9 +129,13 @@ One taxonomy across every command, rather than a per-command meaning.
 | 3    | CLI usage error                                                                                                                            |
 | 4    | `check` graded the document and at least one schema is malformed                                                                           |
 
-Exit 2 means there is no report to read: the file could not be opened,
-a `$ref` would not resolve, the YAML would not parse. It means the same
-thing in every command that loads a spec.
+Exit 2 means there is no report to read on stdout: the file could not
+be opened, a `$ref` would not resolve, the YAML would not parse. It
+means the same thing in every command that loads a spec. When `check`
+aborts partway, any findings the passes had already produced are
+written to stderr under the abort message, which is diagnostics rather
+than a report: stdout stays empty, so `--format json` never carries a
+partial body.
 
 Exit 4 is `check`-only and means the opposite. The document was graded
 in full and the report on stdout is complete, but one or more findings

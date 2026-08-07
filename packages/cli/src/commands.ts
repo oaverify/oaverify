@@ -597,12 +597,14 @@ export async function checkCommand(
     // this report is partial by construction. They go to stderr with the
     // abort rather than to the report sink, so a `--format json` consumer
     // never sees a partial body where a complete one belongs.
-    if (err.findings.length > 0) {
-      io.stderr(
-        `check: ${err.findings.length} finding(s) produced before the check was aborted:\n`,
-      );
+    // Through the same exclusion the returned path uses, so a code
+    // suppressed in CI stays suppressed on an abort. `checkSpec` has
+    // already narrowed and graded these; this is the CLI-side half.
+    const partial = applySkip([...err.findings], selection.excludeKeys).findings;
+    if (partial.length > 0) {
+      io.stderr(`check: ${partial.length} finding(s) produced before the check was aborted:\n`);
       const width = args.width ?? DEFAULT_REPORT_WIDTH;
-      for (const f of err.findings) {
+      for (const f of partial) {
         for (const line of formatFinding(f, width)) io.stderr(line);
       }
     }
