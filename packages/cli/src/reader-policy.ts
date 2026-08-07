@@ -50,6 +50,17 @@ export interface ReaderPolicy {
   entry: string;
   remoteRefs: RemoteRefsMode;
   untrusted: boolean;
+  /**
+   * Called once per remote read that succeeded, the entry excluded.
+   * The command counts these to decide whether to print the notice; see
+   * {@link remoteRefsNotice}.
+   */
+  onRemoteRead?: () => void;
+}
+
+/** The posture a command starts from before flags are applied. */
+export function defaultPolicy(entry: string): ReaderPolicy {
+  return { entry, remoteRefs: DEFAULT_REMOTE_REFS, untrusted: false };
 }
 
 /** True for a URI the http reader would claim. */
@@ -182,7 +193,7 @@ export function fileOptionsFor(policy: ReaderPolicy): FileReaderOptions {
 export function policyHttpReader(
   inner: DocumentReader,
   policy: ReaderPolicy,
-  onRemoteRead: () => void,
+  onRemoteRead: (() => void) | undefined = policy.onRemoteRead,
 ): DocumentReader {
   return {
     canRead: (uri) => inner.canRead(uri),
@@ -194,7 +205,7 @@ export function policyHttpReader(
       // is not a remote $ref. Counting it would report a ref to a user
       // who has none and warn them about a default that never applied
       // to what they did.
-      if (uri !== policy.entry) onRemoteRead();
+      if (uri !== policy.entry) onRemoteRead?.();
       return doc;
     },
   };

@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 export {};
 
+// Type-only, so it is erased and does not defeat the lazy imports below.
+import type { ReaderPolicy } from "@oaverify/internal-cli";
+
 // `commander` is a regular dependency of `oaverify`, so a normal install
 // puts it in node_modules. If it's missing, the install is corrupted;
 // catch the dynamic import up front and print a clearer message than
@@ -22,7 +25,14 @@ try {
   throw err;
 }
 
-const { buildProgram, defaultCommandIo } = await import("@oaverify/internal-cli");
+const {
+  buildProgram,
+  confineRootFor,
+  defaultCommandIo,
+  fileOptionsFor,
+  httpOptionsFor,
+  policyHttpReader,
+} = await import("@oaverify/internal-cli");
 const { composeReaders } = await import("@oaverify/internal-spec");
 const { createSmartHttpReader, createYamlFileReader, createYamlStdinReader } =
   await import("@oaverify/yaml");
@@ -40,12 +50,18 @@ const io = {
   // non-HTTP, non-memory URI, so anything after it would take `-` and
   // look for a file of that name. The YAML one shadows the JSON-only
   // reader inside baseIo, so a piped spec may be either format.
-  reader: composeReaders([
-    createYamlStdinReader(),
-    createYamlFileReader(),
-    createSmartHttpReader(),
-    baseIo.reader,
-  ]),
+  // createSmartHttpReader claims every http(s) URI and sits in front of
+  // the core one inside baseIo, so this is the reader that serves every
+  // remote read in the shipped binary. The posture has to be applied
+  // here as well as there, or --remote-refs holds in the unit tests and
+  // does nothing in the CLI.
+  reader: (policy: ReaderPolicy) =>
+    composeReaders([
+      createYamlStdinReader(),
+      createYamlFileReader(confineRootFor(policy), fileOptionsFor(policy)),
+      policyHttpReader(createSmartHttpReader(httpOptionsFor(policy)), policy),
+      baseIo.reader(policy),
+    ]),
 };
 // Read from this package's own manifest rather than a constant, so the
 // reported version cannot drift from the installed package and there is
