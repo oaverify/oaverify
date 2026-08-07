@@ -295,11 +295,20 @@ function escapeRegex(s: string): string {
  * each `{name}`, so `{a}.{b}` and `{x}.{y}` both produce `\0{}.\0{}`
  * (correctly flagged as ambiguous on overlapping methods); `{a}.{b}`
  * vs `{a}-{b}` produce different signatures (correctly distinct).
+ *
+ * The literal runs decode, because that is what they match on: a
+ * literal segment's signature is its decoded `value`, and a compound
+ * built from raw text would call `/caf%C3%A9-{id}` and `/café-{slug}`
+ * distinct while both match `café-42`, so the collision would go
+ * unreported and one route would silently shadow the other.
  */
 function segmentSignature(s: Segment): string {
   if (s.kind === "literal") return s.value;
   if (s.kind === "template") return "\0{}";
-  return s.raw.replaceAll(/\{[^{}]+\}/g, "\0{}");
+  return s.raw
+    .split(/(\{[^{}]+\})/g)
+    .map((part) => (/^\{[^{}]+\}$/.test(part) ? "\0{}" : decodePathToken(part)))
+    .join("");
 }
 
 /**

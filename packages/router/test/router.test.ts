@@ -176,6 +176,26 @@ describe("router", () => {
     expect(matched(rt.match("get", "/caf%C3%A9")).operation.operationId).toBe("plain");
   });
 
+  it("detects ambiguity between compound segments that decode alike", () => {
+    // The ambiguity index compares a literal segment by its decoded
+    // value, so a compound built from raw text would call these two
+    // distinct while both match "caf\u00e9-42", and one would silently
+    // shadow the other.
+    expect(() =>
+      createRouter({
+        "/caf%C3%A9-{id}": { get: op("encoded") },
+        "/caf\u00e9-{slug}": { get: op("literal") },
+      } as Record<string, PathItem>),
+    ).toThrow(/same path structure/);
+    // Genuinely distinct compounds stay distinct.
+    expect(() =>
+      createRouter({
+        "/a-{id}": { get: op("dash") },
+        "/a.{id}": { get: op("dot") },
+      } as Record<string, PathItem>),
+    ).not.toThrow();
+  });
+
   it("leaves an undecodable literal run raw inside a compound segment", () => {
     // decodePathToken is total, so a bad escape falls back to raw here
     // exactly as it does for a whole literal segment.
