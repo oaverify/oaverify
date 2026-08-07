@@ -187,6 +187,27 @@ describe("router", () => {
     expect(rt.match("get", "/aXb-7")).toBeUndefined();
   });
 
+  it("explains a literal collision without blaming parameter names", () => {
+    // #725: these two name the same path once decoded and carry no
+    // placeholder, so the parameter-name clause sent the reader looking
+    // for one neither template has.
+    expect(() =>
+      createRouter({
+        "/bad%zz": { get: op("a") },
+        "/bad%25zz": { get: op("b") },
+      } as Record<string, PathItem>),
+    ).toThrow(/both declare GET on the same path structure \(every GET request would match both\)/);
+  });
+
+  it("keeps the parameter-name clause when a placeholder is involved", () => {
+    expect(() =>
+      createRouter({
+        "/pets/{id}": { get: op("a") },
+        "/pets/{slug}": { get: op("b") },
+      } as Record<string, PathItem>),
+    ).toThrow(/parameter names differ but every GET request would match both/);
+  });
+
   it("detects ambiguity between compound segments that decode alike", () => {
     // The ambiguity index compares a literal segment by its decoded
     // value, so a compound built from raw text would call these two

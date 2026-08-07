@@ -371,8 +371,19 @@ export function createRouter(paths: Record<string, PathItem>): Router {
       const key = `${method}\t${signature}`;
       const existing = byMethodSignature.get(key);
       if (existing !== undefined) {
+        const verb = method.toUpperCase();
+        // The parameter-name clause explains why two textually different
+        // templates collide, which is the common case and worth saying.
+        // It is wrong for a pair that carries no placeholder at all:
+        // `/bad%zz` and `/bad%25zz` name the same path once decoded, and
+        // blaming parameter names sends the reader looking for a
+        // placeholder neither template has.
+        const named = existing.includes("{") || pattern.includes("{");
+        const why = named
+          ? `parameter names differ but every ${verb} request would match both`
+          : `every ${verb} request would match both`;
         throw new Error(
-          `createRouter: path templates "${existing}" and "${pattern}" both declare ${method.toUpperCase()} on the same path structure (parameter names differ but every ${method.toUpperCase()} request would match both). Rename one or merge them.`,
+          `createRouter: path templates "${existing}" and "${pattern}" both declare ${verb} on the same path structure (${why}). Rename one or merge them.`,
         );
       }
       byMethodSignature.set(key, pattern);
