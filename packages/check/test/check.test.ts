@@ -7,7 +7,11 @@ import type { CheckFinding } from "../src/finding.js";
 // same documents through the CLI, so the two sides of the seam are
 // exercised on the same input.
 import { kitchenSink, malformedSpec } from "./fixtures.js";
-import { selectionForClasses } from "../src/selection.js";
+import {
+  parseFindingTerms,
+  resolveFindingSelection,
+  selectionForClasses,
+} from "../src/selection.js";
 
 async function resolve(
   entries: Array<[string, unknown]>,
@@ -55,6 +59,117 @@ describe("checkSpec", () => {
     // A spec violation, so it grades as an error rather than a warning.
     expect(f?.severity).toBe("error");
     expect(f?.target?.pointer).toBe("/paths/~1bad%zz");
+  });
+
+  it("carries findings produced before an abort on the error", async () => {
+    // #716. These two templates collide once the malformed escape is
+    // taken literally, so createRouter throws and the check aborts. The
+    // hygiene finding naming the bad escape is what explains why, and
+    // used to be discarded with it.
+    const spec: Array<[string, unknown]> = [
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          paths: {
+            "/bad%zz": { get: { responses: { "200": { description: "ok" } } } },
+            "/bad%25zz": { get: { responses: { "200": { description: "ok" } } } },
+          },
+        },
+      ],
+    ];
+    const resolved = await resolve(spec);
+    try {
+      checkSpec(resolved);
+      expect.unreachable("expected CheckAbortedError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(CheckAbortedError);
+      const findings = (err as CheckAbortedError).findings;
+      expect(findings.map((f) => f.code)).toContain("path-template-malformed");
+      // Graded like a returned finding: provenance attached, not just
+      // the raw hygiene issue.
+      expect(findings[0]?.target?.source).toBeDefined();
+    }
+  });
+
+  it("narrows and remaps findings carried on an abort, like a returned one", async () => {
+    // Without this the abort path reports codes the selection excluded,
+    // so running fewer checks would report more.
+    const spec: Array<[string, unknown]> = [
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          paths: {
+            "/bad%zz": { get: { responses: { "200": { description: "ok" } } } },
+            "/bad%25zz": { get: { responses: { "200": { description: "ok" } } } },
+          },
+        },
+      ],
+    ];
+    const resolved = await resolve(spec);
+
+    // A selection naming a different hygiene code drops this one.
+    try {
+      checkSpec(resolved, {
+        findings: resolveFindingSelection(parseFindingTerms("unused-tag")),
+      });
+      expect.unreachable("expected CheckAbortedError");
+    } catch (err) {
+      expect((err as CheckAbortedError).findings.map((f) => f.code)).not.toContain(
+        "path-template-malformed",
+      );
+    }
+
+    // And the caller's severity map applies.
+    try {
+      checkSpec(resolved, { severity: parseSeverityMap(["path-template-malformed=warning"]) });
+      expect.unreachable("expected CheckAbortedError");
+    } catch (err) {
+      const f = (err as CheckAbortedError).findings.find(
+        (x) => x.code === "path-template-malformed",
+      );
+      expect(f?.severity).toBe("warning");
+    }
+  });
+
+  it("rethrows a hygiene lint failure when the document is otherwise gradeable", async () => {
+    // The lint runs ahead of the gate, so its failure is held rather
+    // than thrown. Holding it must not swallow it: a gradeable document
+    // whose lint threw is a defect, not a clean report with an empty
+    // hygiene section.
+    const spec: Array<[string, unknown]> = [
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          // `parameters` must be an array; the lint iterates it. The
+          // validator builds fine, so the document is gradeable.
+          paths: {
+            "/p": { get: { parameters: {}, responses: { "200": { description: "ok" } } } },
+          },
+        },
+      ],
+    ];
+    const resolved = await resolve(spec);
+    expect(() => checkSpec(resolved)).toThrow();
+    expect(() => checkSpec(resolved)).not.toThrow(CheckAbortedError);
+  });
+
+  it("reports no findings on an abort when nothing had run", async () => {
+    // The common case: a document that is not OpenAPI at all aborts with
+    // nothing to say beyond the abort itself.
+    const resolved = await resolve([["entry.json", { not: "openapi" }]]);
+    try {
+      checkSpec(resolved);
+      expect.unreachable("expected CheckAbortedError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(CheckAbortedError);
+      expect((err as CheckAbortedError).findings).toEqual([]);
+    }
   });
 
   it("runs only the classes asked for", async () => {
