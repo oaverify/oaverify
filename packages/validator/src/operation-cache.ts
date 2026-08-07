@@ -22,6 +22,7 @@ import {
   coercionView,
   compileMediaTypePatterns,
   type ParsedMediaTypePattern,
+  type SchemaRefResolver,
 } from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
 import type { CompiledSecurity } from "./security.js";
@@ -156,6 +157,13 @@ export interface SchemaOrigin {
  */
 export interface OperationCacheDeps {
   resolveRef: <T>(value: T | ReferenceObject | undefined) => T | undefined;
+  /**
+   * Resolves one `$ref` hop for the coercion views, through the resolver
+   * schemas compile with. Separate from {@link OperationCacheDeps.resolveRef}
+   * because that one walks JSON pointers and cannot follow an `$id`-based
+   * target, which left coercion disagreeing with the compiled schema.
+   */
+  resolveSchemaRef: SchemaRefResolver;
   compile: (schema: SchemaOrBoolean, origin?: SchemaOrigin) => CompiledTreeSchema;
   compileForDirection: (
     schema: SchemaOrBoolean,
@@ -410,7 +418,7 @@ export function buildOperationCache(
   // unresolved originals, because the compiler follows refs itself and
   // the origin pointers address the document as written.
   const parameters: ParameterObject[] = parameterEntries.map((e) =>
-    coercionView(e.object, deps.resolveRef),
+    coercionView(e.object, deps.resolveSchemaRef),
   );
   const knownQueryParameters = new Set<string>();
   let requestParameterReadsRequireOwnProperties = false;

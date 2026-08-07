@@ -3,7 +3,6 @@ import {
   setSpecKey,
   type ParameterObject,
   type ParameterStyle,
-  type ReferenceObject,
   type SchemaObject,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
@@ -96,10 +95,23 @@ export function deserialize(
  * `properties`. Nothing deeper matters, because nothing deeper is
  * coerced.
  *
+ * Composition is not followed. A type reachable only through `allOf`,
+ * `oneOf` or `anyOf` is invisible here, so such a parameter validates
+ * against the composed schema and coerces against nothing, leaving the
+ * value a string. Following it would mean deciding which branch's type
+ * wins, which is a question coercion has no answer to when the branches
+ * disagree.
+ *
  * Built once per operation when the cache is built, rather than per
  * request: `createRefResolver` does not memoize, so resolving on the hot
  * path would re-walk a JSON pointer for every `$ref`'d parameter of
  * every request.
+ *
+ * The resolver is the one the schema compiler uses, so the two agree on
+ * what a ref points at. They did not: coercion went through the
+ * pointer-only resolver, which cannot follow an `$id`-based target, so a
+ * parameter behind one compiled against the right schema and coerced
+ * against nothing.
  *
  * Returns the parameter unchanged, identity included, when no position
  * was a `$ref`. That is the common case, and it allocates no new
@@ -109,26 +121,35 @@ export function deserialize(
  */
 export function coercionView(
   parameter: ParameterObject,
-  resolveRef: <T>(value: T | ReferenceObject | undefined) => T | undefined,
+  resolveSchemaRef: SchemaRefResolver,
 ): ParameterObject {
   const schema = parameter.schema;
   if (schema === undefined || typeof schema === "boolean") return parameter;
 
-  // `resolveRef` follows the whole chain itself, so one call is enough.
-  // It throws on a ref it will not follow, an `$id`-based target or a
-  // cycle among them. The schema compiler resolves those through its own
-  // resolver and validates them correctly, so a throw here is not a
-  // reason to fail the build. Coercion is best-effort by construction:
-  // giving up leaves the value a string, which is what every other
-  // unresolvable case already does.
+  // One hop per call, so a ref whose target is itself a ref needs the
+  // loop. Bounded: a cycle among them would spin here otherwise, and
+  // giving up leaves the value a string, which is the right failure for
+  // a schema that never yields a `type`.
+  //
+  // The resolver throws on a ref it cannot resolve. Coercion is
+  // best-effort by construction, so that is not a reason to fail the
+  // build: the compiler resolves and validates the same schema through
+  // the same resolver, and only the coercion is lost.
   const deref = (s: SchemaOrBoolean | undefined): SchemaOrBoolean | undefined => {
-    if (s === undefined || typeof s === "boolean") return s;
-    if (typeof s.$ref !== "string") return s;
-    try {
-      return resolveRef<SchemaOrBoolean>(s) ?? s;
-    } catch {
-      return s;
+    let current = s;
+    for (let hops = 0; hops < MAX_REF_HOPS; hops += 1) {
+      if (current === undefined || typeof current === "boolean") return current;
+      if (typeof current.$ref !== "string") return current;
+      let next: SchemaOrBoolean | undefined;
+      try {
+        next = resolveSchemaRef(current);
+      } catch {
+        return current;
+      }
+      if (next === undefined || next === current) return current;
+      current = next;
     }
+    return current;
   };
 
   const target = deref(schema);
@@ -225,6 +246,19 @@ function itemSchema(
   if (Array.isArray(items)) return undefined;
   return items;
 }
+
+/**
+ * Resolves one `$ref` hop for {@link coercionView}, through whatever
+ * resolver the caller compiles schemas with. Returns the value unchanged
+ * when it is not a reference; may throw when the reference cannot be
+ * resolved.
+ *
+ * @internal
+ */
+export type SchemaRefResolver = (schema: SchemaObject) => SchemaOrBoolean | undefined;
+
+/** Ref hops {@link coercionView} will follow before giving up. */
+const MAX_REF_HOPS = 8;
 
 function coerceScalar(value: string, schema: SchemaObject | boolean | undefined): unknown {
   if (schema === undefined || typeof schema === "boolean") return value;

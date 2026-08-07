@@ -30,6 +30,7 @@ export {
   compileMediaTypePatterns,
   matchMediaType,
   type ParsedMediaTypePattern,
+  type SchemaRefResolver,
 } from "./deserialize.js";
 
 // Query-object assembly helpers. Handle the two OAS query shapes that

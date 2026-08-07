@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ReferenceObject, SchemaObject } from "@oaverify/internal-core";
-import { resolveOperationRef } from "../src/operation-cache.js";
+import type { SchemaObject } from "@oaverify/internal-core";
+import { createRefResolver, resolve } from "@oaverify/internal-schema";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import type { SchemaRefResolver } from "../src/deserialize.js";
 import { coercionView, deserialize, matchMediaType, matchResponseKey } from "../src/deserialize.js";
 
 describe("deserialize", () => {
@@ -310,8 +312,15 @@ describe("coercionView", () => {
       },
     },
   };
-  const resolveRef = <T>(v: T | ReferenceObject | undefined): T | undefined =>
-    resolveOperationRef<T>(doc, v);
+  // Mirrors what createValidator binds: one hop, through the resolver
+  // schemas compile with, throwing on a ref it cannot resolve.
+  const graph = resolve(doc as unknown as SchemaOrBoolean);
+  const refResolver = createRefResolver(graph);
+  const resolveRef: SchemaRefResolver = (schema) => {
+    const ref = schema.$ref;
+    if (typeof ref !== "string") return schema;
+    return refResolver.resolve(ref);
+  };
 
   it("returns the parameter unchanged, by identity, when nothing is a $ref", () => {
     const p = { name: "a", in: "query", schema: { type: "integer" } } as const;
@@ -369,15 +378,24 @@ describe("coercionView", () => {
     expect(view.schema).toMatchObject({ items: { type: "integer" } });
   });
 
+  it("gives up on a ref cycle rather than spinning", () => {
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "#/components/schemas/Loop" } },
+      resolveRef,
+    );
+    expect(() => deserialize("1", view)).not.toThrow();
+    expect(deserialize("1", view)).toBe("1");
+  });
+
   it("leaves the value a string when the resolver throws", () => {
-    // A cycle and an $id-based target both throw out of this resolver.
-    // The compiler resolves them through its own and validates them, so
-    // giving up here must not fail the build.
-    for (const ref of ["#/components/schemas/Loop", "https://example.com/Name"]) {
-      const view = coercionView({ name: "a", in: "query", schema: { $ref: ref } }, resolveRef);
-      expect(() => deserialize("1", view)).not.toThrow();
-      expect(deserialize("1", view)).toBe("1");
-    }
+    // Coercion is best-effort: the compiler resolves and validates the
+    // same schema, and only the coercion is lost.
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "https://nowhere.example/Missing" } },
+      resolveRef,
+    );
+    expect(() => deserialize("1", view)).not.toThrow();
+    expect(deserialize("1", view)).toBe("1");
   });
 
   it("leaves the value a string when the ref does not resolve", () => {
