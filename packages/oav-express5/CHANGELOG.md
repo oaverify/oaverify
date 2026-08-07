@@ -2,10 +2,11 @@
 
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/express5-v5.4.0...express5-v6.0.0) (2026-08-07)
 
+No source changes in this package. The version tracks the linked release group so the whole set moves together.
 
-### Chore
+The adapter's own exports (`validateRequests`, `validateResponses`, `httpRequestFromExpress`, `renderProblemDetails` and their option and error types) are unchanged. What reaches your app is the validator's behaviour: requests carrying a value declared with one of the newly-asserting formats can now fail where they passed before.
 
-* **express5:** Synchronize oaverify versions
+The changes are in `@oaverify/core` 6.0.0: see [its changelog](https://github.com/oaverify/oaverify/blob/main/CHANGELOG.md) and [the v6 migration guide](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md).
 
 ## [5.4.0](https://github.com/oaverify/oaverify/compare/express5-v5.3.0...express5-v5.4.0) (2026-08-04)
 

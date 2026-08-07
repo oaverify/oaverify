@@ -2,56 +2,57 @@
 
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/core-v5.4.0...core-v6.0.0) (2026-08-07)
 
+**`format` became one registry, and a lot of it now asserts.** Formats that were annotations reject traffic in 6.0: the integer widths, the base64 pair, `char`, and the string formats whose grammars were wrong. If you never pass `formats` and never read `builtInFormats`, that is the whole upgrade. **On the CLI, `check` gates by default**: it exits 1 on an error-severity finding where it used to exit 0 advisory.
+
+Every breaking change below has a section in [the v6 migration guide](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md), which is the place to read before upgrading.
 
 ### ⚠ BREAKING CHANGES
 
-* **schema:** compileSchema returns an empty CompiledSchema.source unless the compile passes retainSource: true.
-* **cli:** oaverify check exits 1 on any error-severity finding with no flag; runs relying on the advisory exit 0 need --fail-on none. Fixes #549.
-* **cli:** compile-spec on a document using formats outside the built-in set now exits 3 instead of emitting silently; pass --unknown-formats ignore for the old behavior. Fixes #660.
-* **core:** deserialize, matchParsedMediaType, matchResponseKey, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage and the FetchRequestOptions / Router / RouteMatch types are no longer exported from @oaverify/core/validator/internals; import them from @oaverify/core/codegen-runtime. Modules previously emitted by compile-spec keep working (they are bundled); regenerate with the current CLI to pick up the new specifier. Fixes #656.
-* **check:** check now exits 2 (CheckAbortedError) on a document it cannot grade even when the selection reaches no schema code; such runs previously exited 0 with an empty report. Fixes #674.
-* **formats:** get uri, email, duration and regex to match their grammars ([#676](https://github.com/oaverify/oaverify/issues/676))
-* **formats:** a leap second is only legal at the end of a UTC day ([#672](https://github.com/oaverify/oaverify/issues/672))
-* **check,cli:** `CheckOptions.only` is removed. `checkSpec(spec, { only: ["hygiene"] })` becomes `checkSpec(spec, { findings: selectionForClasses(["hygiene"]) })`. The CLI is untouched; `--only` now resolves to a selection at the CLI layer.
-* **formats:** builtInFormats values are FormatDefinition, not (value: string) => boolean. Reading one back as a function needs a narrow; the 18 string entries are still bare functions at runtime. fromAjvFormats returns the same widened shape and now carries `type: "number"` through as a numeric format instead of dropping it into the string map, where it was called with strings. Passing `formats: { name: (s) => ... }` is unaffected.
+**Formats now assert**
+
+* **formats:** the integer widths (`int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`, `uint32`, `uint64`, `double-int`), the base64 pair (`byte`, `base64url`) and `char` gained validators, so a value declared with one of them and out of range is now a validation error. `byte` is the one most likely to be in a document you already have, and it rejects RFC 2045 line-wrapped base64. `int64` and `uint64` assert the safe-integer range rather than the full 64-bit range, because a JSON number past 2^53 is provably not the value that was on the wire. `float`, `double`, `binary` and `password` are not asserted and will not be. ([#671](https://github.com/oaverify/oaverify/issues/671), [#697](https://github.com/oaverify/oaverify/issues/697)) — migration guide: "Why `int32` started rejecting", "`int64` accepts less than int64", "`byte` rejects line-wrapped base64"
+* **formats:** `uri`, `uri-reference`, `iri` and `iri-reference` match the RFC 3986 / 3987 grammars instead of delegating to `new URL()`, which repaired illegal input rather than refusing it. `email`, `duration` and `regex` were tightened in the same pass. Verdicts change in both directions. ([#676](https://github.com/oaverify/oaverify/issues/676)) — migration guide: "`uri` and `iri` match the grammar, not `new URL`", "`duration` enforces RFC 3339 unit ordering", "the `regex` format asserts ECMA-262 u-mode"
+* **formats:** `time` and `date-time` accept `:60` only at the end of a UTC day, and bound the offset's own fields, so `22:59:60Z` and `01:02:03+24:00` are rejected. The three offset spellings of the real leap second still pass. ([#672](https://github.com/oaverify/oaverify/issues/672)) — migration guide: "`time` and `date-time` bound the leap second and the offset"
+* **formats:** `builtInFormats` values are `FormatDefinition`, not `(value: string) => boolean`. Reading one back as a function needs a narrow; the 21 string entries are still bare functions at runtime. `fromAjvFormats` returns the same widened shape and now carries `type: "number"` through as a numeric format instead of dropping it into the string map, where it was called with strings. Passing `formats: { name: (s) => ... }` is unaffected. ([#671](https://github.com/oaverify/oaverify/issues/671)) — migration guide: "`builtInFormats` values are `FormatDefinition`", "`fromAjvFormats` routes `type: \"number\"`"
+
+**CLI and `check`**
+
+* **cli:** `oaverify check` exits 1 on any error-severity finding with no flag; runs relying on the advisory exit 0 need `--fail-on none`. Fixes [#549](https://github.com/oaverify/oaverify/issues/549). ([#686](https://github.com/oaverify/oaverify/issues/686)) — migration guide: "`check` gates on `error` severity by default"
+* **check,cli:** `CheckOptions.only` is removed. `checkSpec(spec, { only: ["hygiene"] })` becomes `checkSpec(spec, { findings: selectionForClasses(["hygiene"]) })`. On the CLI, `--only` becomes `--findings`, which reaches an exact code or a family where `--only` reached only a class. ([#673](https://github.com/oaverify/oaverify/issues/673)) — migration guide: "`--only` becomes `--findings`"
+* **check:** `check` now exits 2 (`CheckAbortedError`) on a document it cannot grade even when the selection reaches no schema code; such runs previously exited 0 with an empty report. Fixes [#674](https://github.com/oaverify/oaverify/issues/674). ([#680](https://github.com/oaverify/oaverify/issues/680)) — migration guide: "`check` aborts on an ungradeable document at every selection"
+* **cli:** `compile-spec` on a document using formats outside the built-in set now exits 3 instead of emitting silently; pass `--unknown-formats ignore` for the old behavior. Fixes [#660](https://github.com/oaverify/oaverify/issues/660). ([#685](https://github.com/oaverify/oaverify/issues/685)) — migration guide: "the compile commands refuse unknown formats by default"
+
+**Library surface**
+
+* **core:** `deserialize`, `matchParsedMediaType`, `matchResponseKey`, `httpRequestFromFetch`, `httpResponseFromFetch`, `checkSecurity`, `compileOperationSecurity`, `resolveOperationRef`, `createRouter`, `reshapeResult`, `toFetchResult`, `contentTypeErrorMessage` and the `FetchRequestOptions` / `Router` / `RouteMatch` types are no longer exported from `@oaverify/core/validator/internals`; import them from `@oaverify/core/codegen-runtime`. Modules previously emitted by `compile-spec` keep working (they are bundled); regenerate with the current CLI to pick up the new specifier. Fixes [#656](https://github.com/oaverify/oaverify/issues/656). ([#682](https://github.com/oaverify/oaverify/issues/682)) — migration guide: "the emit-side runtime moves to `@oaverify/core/codegen-runtime`"
+* **schema:** `compileSchema` returns an empty `CompiledSchema.source` unless the compile passes `retainSource: true`. ([#691](https://github.com/oaverify/oaverify/issues/691)) — migration guide: "`compileSchema` drops the generated source by default"
 
 ### Features
 
-* **check,cli:** add --skip, and share one key parser with --severity ([#667](https://github.com/oaverify/oaverify/issues/667)) ([5d4a757](https://github.com/oaverify/oaverify/commit/5d4a757eb999608659404aeb04b37239125e6b95))
-* **check,cli:** one findings flag, replacing --only and --skip ([#673](https://github.com/oaverify/oaverify/issues/673)) ([5e66e45](https://github.com/oaverify/oaverify/commit/5e66e451c0934c21290375ea72ecb36622b0ea8f))
-* **cli:** check gates on error severity by default ([#686](https://github.com/oaverify/oaverify/issues/686)) ([57e573c](https://github.com/oaverify/oaverify/commit/57e573c3ca3ffebb49fd00196ef189c6c9b4171b))
-* **cli:** flags for reader containment and outbound requests ([#693](https://github.com/oaverify/oaverify/issues/693)) ([b875639](https://github.com/oaverify/oaverify/commit/b875639a904b79a3b3d76f55de99f17a9dfdd1b2))
-* **cli:** one --unknown-formats policy for both compile commands ([#685](https://github.com/oaverify/oaverify/issues/685)) ([865ffb5](https://github.com/oaverify/oaverify/commit/865ffb5766f1fb1d69cc7c2d0dea7899a26c6cc6))
-* **core:** split the emit-side runtime into @oaverify/core/codegen-runtime ([#682](https://github.com/oaverify/oaverify/issues/682)) ([47f6759](https://github.com/oaverify/oaverify/commit/47f6759e0664d3a6d1d12fb8ae978b9acbff2f79))
-* **formats:** cover the assertable OpenAPI Format Registry names ([#697](https://github.com/oaverify/oaverify/issues/697)) ([2cd9140](https://github.com/oaverify/oaverify/commit/2cd9140ad34c598e5784df084c4174f3366b4c10))
-* **formats:** one format registry, and assert int32 and int64 ([#671](https://github.com/oaverify/oaverify/issues/671)) ([dab091e](https://github.com/oaverify/oaverify/commit/dab091eb0eaecad6a2ff500e12df7278dc7ef89a))
-* **schema:** resolve $dynamicRef against the runtime dynamic scope ([#663](https://github.com/oaverify/oaverify/issues/663)) ([bfb8e00](https://github.com/oaverify/oaverify/commit/bfb8e00706aa5621d5472d9a40b77e063c3d94f1))
-* **schema:** surface the pattern u-mode fallback as a schema-lint finding ([#684](https://github.com/oaverify/oaverify/issues/684)) ([4995e1f](https://github.com/oaverify/oaverify/commit/4995e1f1f26bdb570767619fd097e2e58a74f32e))
-
+* **schema:** resolve `$dynamicRef` against the runtime dynamic scope ([#663](https://github.com/oaverify/oaverify/issues/663)) ([bfb8e00](https://github.com/oaverify/oaverify/commit/bfb8e00706aa5621d5472d9a40b77e063c3d94f1)). It resolved statically against a flattened anchor map, so a schema declaring the same `$dynamicAnchor` in more than one scope bound every reference to whichever declaration the flattening kept, and the failure mode was a silent pass. All 12 upstream `dynamicRef.json` cases now pass.
+* **cli:** flags for reader containment and outbound requests ([#693](https://github.com/oaverify/oaverify/issues/693)) ([b875639](https://github.com/oaverify/oaverify/commit/b875639a904b79a3b3d76f55de99f17a9dfdd1b2)). `--remote-refs` bounds how far `http(s)` reads may go, the entry document included; `--untrusted` confines file reads to the entry's directory and tightens the caps.
+* **schema:** surface the `pattern` u-mode fallback as a schema-lint finding ([#684](https://github.com/oaverify/oaverify/issues/684)) ([4995e1f](https://github.com/oaverify/oaverify/commit/4995e1f1f26bdb570767619fd097e2e58a74f32e))
+* **core:** split the emit-side runtime into `@oaverify/core/codegen-runtime` ([#682](https://github.com/oaverify/oaverify/issues/682)) ([47f6759](https://github.com/oaverify/oaverify/commit/47f6759e0664d3a6d1d12fb8ae978b9acbff2f79))
 
 ### Bug Fixes
 
-* **check:** abort on an ungradeable document at every selection ([#680](https://github.com/oaverify/oaverify/issues/680)) ([22da155](https://github.com/oaverify/oaverify/commit/22da1552e906cb66b8c26b4539618bc69cac43a9))
 * **check:** guard the examples pass against catastrophic patterns ([#688](https://github.com/oaverify/oaverify/issues/688)) ([dc70741](https://github.com/oaverify/oaverify/commit/dc707411cdce0872d4c8c20ab4fa648579ea1392))
-* **formats:** a leap second is only legal at the end of a UTC day ([86ffa02](https://github.com/oaverify/oaverify/commit/86ffa0297b07cb93107d9e11bb55f897412fdf58))
-* **formats:** a leap second is only legal at the end of a UTC day ([#672](https://github.com/oaverify/oaverify/issues/672)) ([86ffa02](https://github.com/oaverify/oaverify/commit/86ffa0297b07cb93107d9e11bb55f897412fdf58))
-* **formats:** get uri, email, duration and regex to match their grammars ([#676](https://github.com/oaverify/oaverify/issues/676)) ([343c5cc](https://github.com/oaverify/oaverify/commit/343c5cc23cd4d8bc977804d4c89380ef33b1dc9f))
 * **validator:** name the ignored content-type header, and stop the AOT message drifting ([#677](https://github.com/oaverify/oaverify/issues/677)) ([f6c862c](https://github.com/oaverify/oaverify/commit/f6c862cb3e296b58d9f25e7c269d0e369cdd12c3))
-
 
 ### Performance
 
 * **schema:** drop the generated source unless asked for it ([#691](https://github.com/oaverify/oaverify/issues/691)) ([2913c15](https://github.com/oaverify/oaverify/commit/2913c15884b3b4108023e208affdab3d944eb387))
 
+Compile got slower this cycle, and the refreshed numbers say so. On the same host as the previous run, every synthetic shape is 36-89% slower to compile than at 5.4.0, against an Ajv control that moved 1-6%. The cause is compile-time work that accumulated as schema-lint passes were added; it is measured and tracked in [#702](https://github.com/oaverify/oaverify/issues/702) and [#701](https://github.com/oaverify/oaverify/issues/701). Compile remains 16x to 199x faster than Ajv. Validate throughput is unchanged. See [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md#performance).
 
 ### Documentation
 
-* **cli:** document the reader-containment flags ([#700](https://github.com/oaverify/oaverify/issues/700)) ([58465de](https://github.com/oaverify/oaverify/commit/58465de32aab4fa246ccf2af228a0fd81afb1067))
 * **comparison:** refresh the benchmark numbers on c7i.large ([#703](https://github.com/oaverify/oaverify/issues/703)) ([2d5331c](https://github.com/oaverify/oaverify/commit/2d5331c64fb7e60271ea876274d77fb3797e2d35))
 * correct the claims 6.0 made stale ([#698](https://github.com/oaverify/oaverify/issues/698)) ([2c93f7f](https://github.com/oaverify/oaverify/commit/2c93f7f4866f1a902a09869c250a3bd41e2f720a))
 * **migration-v6:** cover the leap-second and offset tightening ([#704](https://github.com/oaverify/oaverify/issues/704)) ([472fdac](https://github.com/oaverify/oaverify/commit/472fdac256d3da660cfee1b3f669cb2b456479c3))
-* publish the detection corpus by pointing at it, and answer the custom-rule question ([#689](https://github.com/oaverify/oaverify/issues/689)) ([519e283](https://github.com/oaverify/oaverify/commit/519e28330e873ca94a18d6a705dbb282f58d654b))
 * **readme:** describe both verbs, not just the traffic one ([#699](https://github.com/oaverify/oaverify/issues/699)) ([ac43978](https://github.com/oaverify/oaverify/commit/ac439782700a4d8dea9efebbd3cc7d625df61033))
+* **cli:** document the reader-containment flags ([#700](https://github.com/oaverify/oaverify/issues/700)) ([58465de](https://github.com/oaverify/oaverify/commit/58465de32aab4fa246ccf2af228a0fd81afb1067))
+* publish the detection corpus by pointing at it, and answer the custom-rule question ([#689](https://github.com/oaverify/oaverify/issues/689)) ([519e283](https://github.com/oaverify/oaverify/commit/519e28330e873ca94a18d6a705dbb282f58d654b))
 
 ## [5.4.0](https://github.com/oaverify/oaverify/compare/core-v5.3.0...core-v5.4.0) (2026-08-04)
 

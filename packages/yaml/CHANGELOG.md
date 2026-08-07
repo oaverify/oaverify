@@ -2,10 +2,11 @@
 
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/yaml-v5.4.0...yaml-v6.0.0) (2026-08-07)
 
+No source changes in this package. The version tracks the linked release group so the whole set moves together.
 
-### Chore
+`@oaverify/yaml` is a reader and loader; it neither compiles schemas nor validates traffic, so nothing in 6.0 changes its behaviour.
 
-* **yaml:** Synchronize oaverify versions
+The changes are in `@oaverify/core` 6.0.0: see [its changelog](https://github.com/oaverify/oaverify/blob/main/CHANGELOG.md) and [the v6 migration guide](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md).
 
 ## [5.4.0](https://github.com/oaverify/oaverify/compare/yaml-v5.3.0...yaml-v5.4.0) (2026-08-04)
 
