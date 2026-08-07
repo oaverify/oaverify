@@ -773,8 +773,10 @@ function renderValidateRequestTree(): string {
     }
   }
 
-  // Content-type gate (only if there's a request body).
-  const hasBody = req.body !== undefined && req.body !== null;
+  // Content-type gate (only if there's a request body). Only \`undefined\`
+  // means absent; a parsed JSON \`null\` is a value and reaches the schema.
+  // Mirrors validate-step.ts.
+  const hasBody = req.body !== undefined;
   const bodyMediaTypes = op.bodyMediaTypes;
   let requestBodyMediaType;
   if (op.hasRequestBody && hasBody && bodyMediaTypes.length > 0) {

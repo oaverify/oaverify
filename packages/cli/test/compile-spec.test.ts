@@ -236,6 +236,56 @@ describe("compile-spec: format assertion parity", () => {
   });
 });
 
+describe("compile-spec: explicit null body parity", () => {
+  // #706. Both engines gated on `body !== undefined && body !== null`,
+  // so an explicit JSON null read as an absent body. The emitted module
+  // carries its own copy of that gate, so it takes the same fix or the
+  // two disagree.
+  const nullSpec = (schema: unknown, required: boolean): OpenAPIDocument =>
+    ({
+      openapi: "3.1.0",
+      info: { title: "Null", version: "1" },
+      paths: {
+        "/n": {
+          post: {
+            requestBody: { required, content: { "application/json": { schema } } },
+            responses: { "204": { description: "ok" } },
+          },
+        },
+      },
+    }) as OpenAPIDocument;
+
+  const nullReq = {
+    method: "POST",
+    path: "/n",
+    contentType: "application/json",
+    body: null,
+  } as const;
+
+  it("accepts null against a required type:null body, matching createValidator", async () => {
+    const spec = nullSpec({ type: "null" }, true);
+    expect(createValidator(spec).validateRequest(nullReq as never).valid).toBe(true);
+    expect(flatErrors((await buildAot(spec)).validateRequest(nullReq as never))).toEqual([]);
+  });
+
+  it("validates null against an optional type:string body, matching createValidator", async () => {
+    const spec = nullSpec({ type: "string" }, false);
+    expect(createValidator(spec).validateRequest(nullReq as never).valid).toBe(false);
+    expect(
+      flatErrors((await buildAot(spec)).validateRequest(nullReq as never)).map((e) => e.code),
+    ).toEqual(["type"]);
+  });
+
+  it("still treats an omitted body as absent", async () => {
+    const spec = nullSpec({ type: "null" }, true);
+    const req = { method: "POST", path: "/n" } as const;
+    expect(createValidator(spec).validateRequest(req as never).valid).toBe(false);
+    expect(
+      flatErrors((await buildAot(spec)).validateRequest(req as never)).map((e) => e.code),
+    ).toEqual(["body"]);
+  });
+});
+
 describe("compile-spec: equivalence vs createValidator", () => {
   it("does not satisfy required parameters from inherited record members", async () => {
     const spec: OpenAPIDocument = {

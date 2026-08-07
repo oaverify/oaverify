@@ -563,6 +563,17 @@ describe("validateRequest", () => {
       path: "/n",
     });
     expect(leafCodes(missing)).toContain("body");
+
+    // A null body with no Content-Type now reads as "a body was sent
+    // with no media type declared", so the content-type gate fires
+    // rather than body-required. Same answer `body: {}` already gives;
+    // the header is the actionable signal.
+    const noCt = createValidator(spec({ type: "null" }, true)).validateRequest({
+      method: "POST",
+      path: "/n",
+      body: null,
+    });
+    expect(leafCodes(noCt)).toEqual(["content-type"]);
   });
 
   it("accepts Buffer / Uint8Array for type:string, format:binary body fields", () => {

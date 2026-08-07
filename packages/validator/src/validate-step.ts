@@ -204,6 +204,7 @@ export function matchRequestBodyMediaType(
 ): string | ValidationError | null {
   if (cache.requestBody === undefined) return null;
   if (cache.bodyValidators.size === 0) return null;
+  // See validateBody: only `undefined` means absent.
   const hasBody = req.body !== undefined;
   // No body and no Content-Type: the client said nothing about the
   // payload, so the actionable signal is the missing body, not a 415
