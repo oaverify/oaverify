@@ -5,16 +5,29 @@
 [![types included](https://img.shields.io/badge/types-included-blue)](https://www.typescriptlang.org/)
 [![license: MIT](https://img.shields.io/npm/l/oaverify)](https://github.com/oaverify/oaverify/blob/main/LICENSE)
 
-oaverify validates HTTP requests and responses against OpenAPI 3.0,
-3.1, and 3.2 documents in JavaScript and TypeScript services. Use it
+oaverify checks OpenAPI 3.0, 3.1 and 3.2 documents, and validates HTTP
+traffic against them, in JavaScript and TypeScript services. Use it
 when an OpenAPI spec is the contract for a service, gateway, test
-suite, or edge deployment and you need framework-neutral validation
-with structured errors.
+suite, or edge deployment.
+
+Two questions, and a verb for each:
+
+| Question                                        | Verb                                    |
+| ----------------------------------------------- | --------------------------------------- |
+| Is this request or response what the spec says? | `validateRequest` / `oaverify validate` |
+| Is the spec itself any good?                    | `checkSpec` / `oaverify check`          |
+
+The first is framework-neutral validation with structured errors. The
+second grades the document: unused components, schemas oaverify had to
+rewrite or could not satisfy, OpenAPI conformance, examples that do not
+match the schema beside them, and patterns that can be made to
+backtrack catastrophically.
 
 The core package builds a validator from a parsed OpenAPI document.
 Companion packages add YAML loading, Express and Fastify adapters, a
-CLI, standalone validator generation, and streaming validation for
-large JSON bodies.
+CLI, standalone validator generation, document checking with SARIF
+output, spec overlays, and streaming validation with peak-buffer
+budgets for large JSON bodies.
 
 ```ts
 import { createValidator } from "@oaverify/core";
@@ -311,6 +324,15 @@ Out-of-scope categories:
 - External / cross-document `$ref` loading.
 - A small tail of isolated optional cases (float-overflow handling,
   a meta-schema declaring no validation vocabulary).
+
+That first entry is about the suite's default, not about coverage. The
+OpenAPI dialects declare `format` an assertion, so under 3.0 / 3.1 /
+3.2 the built-ins bind. Every format JSON Schema 2020-12 names has a
+validator, as does every name in the
+[OpenAPI Format Registry](https://spec.openapis.org/registry/format/)
+that is assertable and cheap to assert; `packages/formats/README.md`
+lists what is left and says why. The subtree has its own runner,
+`pnpm format-suite`, with its own pinned baseline.
 
 OpenAPI specs hand-authored or generated for typical APIs rarely
 touch any of these. If they matter for your use case, the
