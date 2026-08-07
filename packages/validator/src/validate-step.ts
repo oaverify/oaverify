@@ -204,7 +204,8 @@ export function matchRequestBodyMediaType(
 ): string | ValidationError | null {
   if (cache.requestBody === undefined) return null;
   if (cache.bodyValidators.size === 0) return null;
-  const hasBody = req.body !== undefined && req.body !== null;
+  // See validateBody: only `undefined` means absent.
+  const hasBody = req.body !== undefined;
   // No body and no Content-Type: the client said nothing about the
   // payload, so the actionable signal is the missing body, not a 415
   // for an unsent header. Defer to validateBody.
@@ -236,7 +237,11 @@ export function validateBody(
 ): ValidationError | null {
   const body = cache.requestBody;
   if (body === undefined) return null;
-  const hasBody = req.body !== undefined && req.body !== null;
+  // Only `undefined` means absent. A parsed JSON `null` is a value, and
+  // has to reach the schema: `type: "null"` accepts it, anything else
+  // rejects it. Adapters establish the same boundary, setting `body`
+  // only when it is not `undefined`.
+  const hasBody = req.body !== undefined;
   if (!hasBody) {
     if (body.required) {
       return createLeafError("body", ["body"], "missing required request body", {});

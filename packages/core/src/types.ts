@@ -521,6 +521,12 @@ export interface HttpRequest {
    * `{ [fieldname]: string | Uint8Array }`; `application/octet-stream`
    * as raw bytes. The validator's `format: "binary"` body-schema
    * bypass accepts `Buffer` / `Uint8Array` for fields declared that way.
+   *
+   * Only `undefined` means "no body was sent". `null` is a value: it is
+   * what `JSON.parse("null")` yields, so it reaches the schema and is
+   * accepted or rejected on its merits. A caller that means "absent"
+   * has to leave this unset rather than pass `null`; every shipped
+   * adapter does. The same rule governs {@link HttpResponse.body}.
    */
   body?: unknown;
   rawBody?: string | undefined;
