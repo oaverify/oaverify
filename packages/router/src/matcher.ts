@@ -14,6 +14,12 @@ import {
  * `validateRequest`. Falling back to the raw token keeps matching
  * total: a malformed token simply fails to equal any literal segment
  * (yielding the normal 404) instead of crashing.
+ *
+ * Spec-side literal segments decode through here too. A path template
+ * such as `/bad%zz` used to throw `URIError` straight out of
+ * `createValidator`; now it parses to its raw form, and the malformed
+ * escape is reported as a located `path-template-malformed` finding by
+ * `lintResolvedSpec` rather than as a crash with no location.
  */
 function decodePathToken(token: string): string {
   // No "%" means nothing to decode; skip the decodeURIComponent call
@@ -220,7 +226,7 @@ export function parseTemplate(template: string): Segment[] {
 function parseSegment(seg: string): Segment {
   // Pure literal: no template syntax at all. Common case; skip parsing.
   if (!seg.includes("{")) {
-    return { kind: "literal", value: decodeURIComponent(seg) };
+    return { kind: "literal", value: decodePathToken(seg) };
   }
   // Pure template: the whole segment is one `{name}`.
   const pure = /^\{([^{}]+)\}$/.exec(seg);
@@ -266,7 +272,7 @@ function parseSegment(seg: string): Segment {
   // No template parts ended up in the segment despite a `{`; degenerate.
   // Fall back to literal so behavior matches the !includes("{") branch.
   if (names.length === 0) {
-    return { kind: "literal", value: decodeURIComponent(seg) };
+    return { kind: "literal", value: decodePathToken(seg) };
   }
   return { kind: "compound", regex: new RegExp(regexSrc), names, raw: seg };
 }

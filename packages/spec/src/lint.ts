@@ -34,13 +34,19 @@ export interface SpecHygieneIssue {
    * - `"path-param-unused"`: a `parameters: [{ in: "path", name }]`
    *   declaration whose name doesn't appear as a placeholder in the path
    *   template.
+   * - `"path-template-malformed"`: a path template whose literal text
+   *   carries a percent escape that is not decodable (`/bad%zz`, a
+   *   trailing `%`). The router keeps such a segment in its raw form, so
+   *   the route only matches a request path that repeats the same broken
+   *   escape.
    */
   code:
     | "unused-component"
     | "unused-tag"
     | "unreachable-defs"
     | "path-param-undeclared"
-    | "path-param-unused";
+    | "path-param-unused"
+    | "path-template-malformed";
   /** RFC 6901 JSON Pointer to the offending node in the resolved document. */
   pointer: string;
   /** Human-readable explanation. */
@@ -137,6 +143,7 @@ export function lintResolvedSpec(
   issues.push(...findUnusedTags(document));
   issues.push(...findUnreachableDefs(document));
   issues.push(...findPathParamMismatches(document));
+  issues.push(...findMalformedPathTemplates(document));
   return issues;
 }
 
@@ -486,6 +493,54 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
     }
   }
   return issues;
+}
+
+/**
+ * Path templates carrying a segment whose percent-encoding does not
+ * decode. Only literal segments are checked: a `{name}` placeholder is
+ * matched as a captured token, never decoded as spec text.
+ *
+ * The router tolerates these (it falls back to the raw segment rather
+ * than throwing `URIError` out of `createValidator`), which makes the
+ * route quietly unreachable for any sane client. Reporting it here is
+ * what turns that into something with a location and a remedy.
+ */
+function findMalformedPathTemplates(document: OpenAPIDocument): SpecHygieneIssue[] {
+  const issues: SpecHygieneIssue[] = [];
+  for (const pathTemplate of Object.keys(document.paths ?? {})) {
+    const bad = firstUndecodableSegment(pathTemplate);
+    if (bad === undefined) continue;
+    issues.push({
+      code: "path-template-malformed",
+      pointer: `/paths/${escapePointerSegment(pathTemplate)}`,
+      message: `path template "${pathTemplate}" has a segment "${bad}" whose percent-encoding does not decode; percent-encode a literal "%" as "%25"`,
+    });
+  }
+  return issues;
+}
+
+/**
+ * The first path segment whose percent-encoding `decodeURIComponent`
+ * rejects, or `undefined` when the whole template decodes.
+ *
+ * Mirrors the router's `parseSegment`: it splits on `/` and decodes only
+ * segments with no `{`, so this asks the same question of the same text.
+ * Decoding whole segments rather than individual `%XX` runs is what keeps
+ * a valid multi-byte sequence legal: `%C3%A9` is one two-byte UTF-8
+ * character, and each half throws on its own.
+ */
+function firstUndecodableSegment(template: string): string | undefined {
+  for (const segment of template.split("/")) {
+    // A `{` makes this a template or compound segment: captured, never
+    // decoded as spec text, so a `%` inside it is not a defect.
+    if (segment.includes("{") || !segment.includes("%")) continue;
+    try {
+      decodeURIComponent(segment);
+    } catch {
+      return segment;
+    }
+  }
+  return undefined;
 }
 
 function extractPathTemplateNames(template: string): Set<string> {

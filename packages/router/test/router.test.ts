@@ -143,6 +143,24 @@ describe("router", () => {
     expect(matched(m).pathParams).toEqual({ id: "%zz" });
   });
 
+  it("does not throw on a spec path template with a bad escape", () => {
+    // #708: request-path decoding was guarded, spec-path literal decoding
+    // was not, so `/bad%zz` in the spec threw URIError out of
+    // parseTemplate (and so out of createValidator). The literal keeps its
+    // raw form; `lintResolvedSpec` reports the escape as a located finding.
+    expect(() => parseTemplate("/bad%zz")).not.toThrow();
+    expect(parseTemplate("/bad%zz")).toEqual([{ kind: "literal", value: "bad%zz" }]);
+    // Trailing `%`, and the degenerate `{`-bearing segment that falls
+    // through to the literal branch.
+    expect(parseTemplate("/a%")).toEqual([{ kind: "literal", value: "a%" }]);
+    expect(parseTemplate("/x%zz{")).toEqual([{ kind: "literal", value: "x%zz{" }]);
+    // Well-formed escapes still decode.
+    expect(parseTemplate("/a%2Fb")).toEqual([{ kind: "literal", value: "a/b" }]);
+
+    const rt = createRouter({ "/bad%zz": { get: op("bad") } } as Record<string, PathItem>);
+    expect(matched(rt.match("get", "/bad%zz")).operation.operationId).toBe("bad");
+  });
+
   it("ignores trailing slashes", () => {
     expect(matched(r.match("get", "/pets/")).operation.operationId).toBe("listPets");
   });

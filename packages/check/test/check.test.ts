@@ -34,6 +34,29 @@ describe("checkSpec", () => {
     ]);
   });
 
+  it("reports a malformed path template as a located hygiene error, not a throw", async () => {
+    // #708: the router used to throw a raw URIError out of the validator
+    // build, which surfaced as exit 2 with "check: URI malformed" and no
+    // location. It is a graded finding now.
+    const spec: Array<[string, unknown]> = [
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          paths: { "/bad%zz": { get: { responses: { "200": { description: "ok" } } } } },
+        },
+      ],
+    ];
+    const findings = checkSpec(await resolve(spec));
+    const f = findings.find((x) => x.code === "path-template-malformed");
+    expect(f).toBeDefined();
+    expect(f?.class).toBe("hygiene");
+    // A spec violation, so it grades as an error rather than a warning.
+    expect(f?.severity).toBe("error");
+    expect(f?.target?.pointer).toBe("/paths/~1bad%zz");
+  });
+
   it("runs only the classes asked for", async () => {
     const findings = checkSpec(await resolve(kitchenSink()), {
       findings: selectionForClasses(["hygiene", "redos"]),
