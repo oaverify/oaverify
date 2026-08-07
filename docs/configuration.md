@@ -304,35 +304,25 @@ const reader = composeReaders([
 
 ### The same choice from the CLI
 
-Everything above is opt-in because the library never composes a reader
-you did not ask for: `loadSpec` requires one and `loadSpecSync` defaults
-to a filesystem-only reader.
+The controls above are opt-in because the library composes no reader you
+did not ask for: `loadSpec` requires one, `loadSpecSync` defaults to a
+filesystem-only reader.
 
-The CLI has to compose readers to be useful, so it makes the choice a
-flag instead. `--remote-refs allow | same-origin | deny` and
-`--untrusted` are on every command that takes a spec:
+The CLI has to compose readers to be useful, so it takes the same choice
+as a flag. Every command that reads a spec accepts `--remote-refs
+allow | same-origin | deny` and `--untrusted`:
 
 ```bash
 oaverify check vendor.yaml --remote-refs same-origin
 oaverify check /srv/uploads/tenant-42/openapi.json --untrusted
 ```
 
-`--untrusted` sets `confine` against the entry's directory, tightens the
-caps, and implies `--remote-refs same-origin`. `confine` and
-`same-origin` are the same control on two surfaces: one bounds where a
-file read may go, the other where a network read may go, so setting one
-without the other leaves half a boundary.
-
-The individual options stay off the command line. A control may be
-exposed on its own only when it can only subtract capability, and
-`allowUri` fails that test for the redirect reason above: an allowlist
-without `redirects: "error"` looks like containment and is not. A mode
-passes, because each of its values is a whole posture rather than a
-part. `--remote-refs same-origin` and `deny` both carry
-`redirects: "error"`.
-
-Reach for programmatic readers when you need a specific allowlist rather
-than a posture, for instance pinning one internal spec host.
+`--untrusted` confines file reads to the entry's directory, tightens the
+caps, and implies `--remote-refs same-origin`. The individual options
+have no flags of their own; see `ReaderPolicy` and `policyFor` in
+`@oaverify/internal-cli` for what each posture sets and why a posture
+rather than a part. Compose readers yourself when you need something a
+posture does not express, such as pinning one internal spec host.
 
 ## Guarding against deeply nested payloads
 

@@ -237,10 +237,9 @@ function openReader(
     return { refusal: { exitCode: 3 } };
   }
   let remoteReads = 0;
-  // Counted only under the default posture, because the notice exists
-  // to reach a user who has not chosen one. Someone who passed
-  // --remote-refs same-origin has already adopted the future default,
-  // and telling them about it is noise on every run.
+  // Counted only under the default posture: the notice exists to reach
+  // a user who has not chosen one, so telling anyone who has is noise on
+  // every run.
   const counting = policy.remoteRefs === "allow";
   const reader = io.reader({
     ...policy,

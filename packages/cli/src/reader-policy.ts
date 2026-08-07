@@ -24,16 +24,16 @@ export const REMOTE_REFS_MODES = ["allow", "same-origin", "deny"] as const;
 /** @see {@link REMOTE_REFS_MODES} */
 export type RemoteRefsMode = (typeof REMOTE_REFS_MODES)[number];
 
-/** The default posture. v5 and v6 behaviour, unchanged. */
+/** The default posture. */
 export const DEFAULT_REMOTE_REFS: RemoteRefsMode = "allow";
 
 /**
  * Size and time caps applied whatever the posture.
  *
- * Generous on purpose: the largest document in this repo's real-world
- * corpus is `github.json` at 12MB, so 64MiB is not a limit a spec meets
- * by being large. It is there so a `$ref` at something that is not a
- * spec at all fails quickly.
+ * Generous on purpose. The largest document these are calibrated
+ * against is 12MB, so 64MiB is not a limit a spec meets by being large.
+ * It is there so a `$ref` at something that is not a spec fails
+ * quickly.
  */
 export const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
 /** @see {@link DEFAULT_MAX_BYTES} */
@@ -170,8 +170,7 @@ export function httpOptionsFor(policy: ReaderPolicy): HttpReaderOptions {
 /**
  * Whether a posture admits a URI. The single statement of the rule:
  * {@link httpOptionsFor} enforces it and {@link policyHttpReader}
- * explains it, so a change here cannot leave the message describing a
- * rule the reader no longer applies.
+ * explains it, so the refusal message and the refusal cannot disagree.
  *
  * A local or stdin entry gave no opt-in, so there is no origin to match
  * and nothing remote resolves.
@@ -213,9 +212,9 @@ export function fileOptionsFor(policy: ReaderPolicy): FileReaderOptions {
  * Wrap an http reader so a refusal names the posture that refused, and
  * a success is counted.
  *
- * The count is what the `allow` posture reports afterwards: a user who
- * never sets the flag is the one who breaks when the default changes,
- * so the notice has to reach them without their doing anything.
+ * The count is what the `allow` posture reports afterwards. The notice
+ * it drives has to reach a user who has set no flag, so nothing about
+ * it depends on their having asked.
  */
 export function policyHttpReader(
   inner: DocumentReader,

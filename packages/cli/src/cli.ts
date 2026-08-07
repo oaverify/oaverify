@@ -110,15 +110,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("--quiet", "print nothing; exit code only", false)
     .option(
       "--remote-refs <mode>",
-      "how http(s) reads are treated, the entry document included: " +
-        "allow (default), same-origin (only the origin a remote entry was served from), " +
-        "deny (no http(s) reads at all, so a remote entry is refused)",
+      "how far http(s) reads may go, the entry included: allow (default), same-origin, deny",
       parseRemoteRefs,
     )
     .option(
       "--untrusted",
-      "treat the document as hostile: confine file reads to the entry's directory, " +
-        "tighten the size and time caps, and imply --remote-refs same-origin",
+      "confine file reads to the entry's directory, tighten the caps, imply --remote-refs same-origin",
       false,
     )
     .action(
@@ -195,15 +192,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("--quiet", "print nothing; exit code only", false)
     .option(
       "--remote-refs <mode>",
-      "how http(s) reads are treated, the entry document included: " +
-        "allow (default), same-origin (only the origin a remote entry was served from), " +
-        "deny (no http(s) reads at all, so a remote entry is refused)",
+      "how far http(s) reads may go, the entry included: allow (default), same-origin, deny",
       parseRemoteRefs,
     )
     .option(
       "--untrusted",
-      "treat the document as hostile: confine file reads to the entry's directory, " +
-        "tighten the size and time caps, and imply --remote-refs same-origin",
+      "confine file reads to the entry's directory, tighten the caps, imply --remote-refs same-origin",
       false,
     )
     .action(
@@ -270,15 +264,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("--quiet", "print nothing; exit code only", false)
     .option(
       "--remote-refs <mode>",
-      "how http(s) reads are treated, the entry document included: " +
-        "allow (default), same-origin (only the origin a remote entry was served from), " +
-        "deny (no http(s) reads at all, so a remote entry is refused)",
+      "how far http(s) reads may go, the entry included: allow (default), same-origin, deny",
       parseRemoteRefs,
     )
     .option(
       "--untrusted",
-      "treat the document as hostile: confine file reads to the entry's directory, " +
-        "tighten the size and time caps, and imply --remote-refs same-origin",
+      "confine file reads to the entry's directory, tighten the caps, imply --remote-refs same-origin",
       false,
     )
     .action(async (spec: string, opts) => {
@@ -344,15 +335,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("--quiet", "print nothing; exit code only", false)
     .option(
       "--remote-refs <mode>",
-      "how http(s) reads are treated, the entry document included: " +
-        "allow (default), same-origin (only the origin a remote entry was served from), " +
-        "deny (no http(s) reads at all, so a remote entry is refused)",
+      "how far http(s) reads may go, the entry included: allow (default), same-origin, deny",
       parseRemoteRefs,
     )
     .option(
       "--untrusted",
-      "treat the document as hostile: confine file reads to the entry's directory, " +
-        "tighten the size and time caps, and imply --remote-refs same-origin",
+      "confine file reads to the entry's directory, tighten the caps, imply --remote-refs same-origin",
       false,
     )
     .action(
@@ -478,15 +466,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("-o, --output <file>", "write output to a file instead of stdout")
     .option(
       "--remote-refs <mode>",
-      "how http(s) reads are treated, the entry document included: " +
-        "allow (default), same-origin (only the origin a remote entry was served from), " +
-        "deny (no http(s) reads at all, so a remote entry is refused)",
+      "how far http(s) reads may go, the entry included: allow (default), same-origin, deny",
       parseRemoteRefs,
     )
     .option(
       "--untrusted",
-      "treat the document as hostile: confine file reads to the entry's directory, " +
-        "tighten the size and time caps, and imply --remote-refs same-origin",
+      "confine file reads to the entry's directory, tighten the caps, imply --remote-refs same-origin",
       false,
     )
     .action(

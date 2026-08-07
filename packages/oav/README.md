@@ -87,9 +87,9 @@ fetched over HTTP where the server advertises YAML by `Content-Type`.
 
 ## Reading a spec you did not write
 
-A `$ref` is a file read or an outbound HTTP request, and `resolveSpec`
-hoists what it names into the resolved document. Every command that
-takes a spec accepts two flags that decide how far those reads may go.
+A `$ref` is a file read or an outbound HTTP request, and what it names
+ends up in the resolved document. Every command that reads a spec takes
+two flags that bound how far those reads go.
 
 ```bash
 oaverify check vendor.yaml --remote-refs same-origin
@@ -99,34 +99,23 @@ oaverify check /srv/uploads/tenant-42/openapi.json --untrusted
 `--remote-refs` governs every http(s) read, **the entry document
 included**:
 
-| Value             | Effect                                                                                                                  |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `allow` (default) | any http(s) URI resolves                                                                                                |
-| `same-origin`     | only the origin a remote entry was served from; a local or piped entry opted into no origin, so nothing remote resolves |
-| `deny`            | no http(s) read at all, so a remote entry is refused as a usage error                                                   |
+| Value             | Effect                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `allow` (default) | any http(s) URI resolves                                                                                           |
+| `same-origin`     | only the origin a remote entry was served from; a local or piped entry opted into none, so nothing remote resolves |
+| `deny`            | no http(s) read at all, so a remote entry is refused                                                               |
 
-`same-origin` treats handing the tool a remote spec as consent to that
-origin rather than to one URI: whoever served the entry already controls
-the document, so `https://api.example.com/schemas/pet.json` beside
-`https://api.example.com/openapi.json` resolves. A hop to another host
-does not, which is the case that matters.
+Pointing the tool at a remote spec is consent to that origin rather than
+to one URI, so a sibling file on the same host resolves under
+`same-origin`. A hop to another host does not.
 
-`--untrusted` treats the document as hostile. It confines file reads to
-the entry's directory, tightens the size and time caps, and implies
-`--remote-refs same-origin`. An explicit `--remote-refs` overrides that
-implication.
+`--untrusted` treats the document as hostile: file reads confined to the
+entry's directory, tighter size and time caps, and `--remote-refs
+same-origin` implied. An explicit `--remote-refs` overrides that.
 
-Whatever the posture, reads are capped at 64MiB and http requests time
-out after 30s (8MiB and 5s under `--untrusted`). The largest document in
-this project's real-world corpus is 12MB, so these are not limits a spec
-meets by being large.
-
-The library has always worked this way by default. `loadSpec` takes no
-reader unless you give it one and `loadSpecSync` defaults to a
-filesystem-only reader, so an embedder opts into remote reads by
-composing an HTTP reader. These flags are the CLI's version of that
-choice; see [docs/configuration.md](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md#resolving-untrusted-specs)
-for the programmatic form.
+The library makes the same choice by composing readers rather than by
+flag. See
+[docs/configuration.md](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md#resolving-untrusted-specs).
 
 ## Exit codes
 

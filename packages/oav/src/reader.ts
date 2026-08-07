@@ -1,11 +1,10 @@
 /**
- * The reader chain the `oaverify` binary actually runs.
+ * The reader chain the `oaverify` binary runs.
  *
- * Extracted from `cli.ts` so it can be tested. The chain in `cli.ts` was
- * built inline at module load, which meant nothing exercised it: the CLI
- * package's tests cover `defaultCommandIo`, and this chain shadows that
- * one for every http(s) URI, so a posture that held in those tests could
- * still do nothing in the shipped binary.
+ * It shadows the one `defaultCommandIo` builds for every http(s) URI, so
+ * this is the reader a remote `$ref` reaches and the posture has to be
+ * applied here too. A module rather than a literal in `cli.ts` so that
+ * is testable.
  */
 import { composeReaders, type DocumentReader } from "@oaverify/internal-spec";
 import {
