@@ -18,7 +18,11 @@ import {
 import type { RouteMatch } from "@oaverify/internal-router";
 import type { CompiledTreeSchema } from "@oaverify/internal-schema";
 import type { BodyDirection } from "./body-schema-transform.js";
-import { compileMediaTypePatterns, type ParsedMediaTypePattern } from "./deserialize.js";
+import {
+  coercionView,
+  compileMediaTypePatterns,
+  type ParsedMediaTypePattern,
+} from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
 import type { CompiledSecurity } from "./security.js";
 
@@ -400,7 +404,14 @@ export function buildOperationCache(
     });
   }
   const parameterEntries = [...byKey.values()];
-  const parameters: ParameterObject[] = parameterEntries.map((e) => e.object);
+  // Coercion reads `type` off the schema governing a value, and a `$ref`
+  // carries none, so these views resolve the three positions coercion
+  // looks at. Compilation below still uses `parameterEntries`, the
+  // unresolved originals, because the compiler follows refs itself and
+  // the origin pointers address the document as written.
+  const parameters: ParameterObject[] = parameterEntries.map((e) =>
+    coercionView(e.object, deps.resolveRef),
+  );
   const knownQueryParameters = new Set<string>();
   let requestParameterReadsRequireOwnProperties = false;
   for (const p of parameters) {

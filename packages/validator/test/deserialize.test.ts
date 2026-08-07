@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SchemaObject } from "@oaverify/internal-core";
-import { deserialize, matchMediaType, matchResponseKey } from "../src/deserialize.js";
+import type { ReferenceObject, SchemaObject } from "@oaverify/internal-core";
+import { coercionView, deserialize, matchMediaType, matchResponseKey } from "../src/deserialize.js";
 
 describe("deserialize", () => {
   it("returns undefined for absent values", () => {
@@ -293,5 +293,82 @@ describe("matchResponseKey", () => {
 
   it("returns undefined when no applicable key exists", () => {
     expect(matchResponseKey(500, { "200": {} })).toBeUndefined();
+  });
+});
+
+describe("coercionView", () => {
+  const schemas: Record<string, unknown> = {
+    Id: { type: "integer" },
+    Ref: { $ref: "#/components/schemas/Id" },
+    Loop: { $ref: "#/components/schemas/Loop" },
+  };
+  // Stands in for the validator's resolveRef: follows one hop, mirroring
+  // the real one's contract of returning the value unchanged when it is
+  // not a reference.
+  const resolveRef = <T>(v: T | ReferenceObject | undefined): T | undefined => {
+    if (v === undefined || typeof v !== "object" || v === null) return v as T;
+    const ref = (v as { $ref?: unknown }).$ref;
+    if (typeof ref !== "string") return v as T;
+    return schemas[ref.replace("#/components/schemas/", "")] as T | undefined;
+  };
+
+  it("returns the parameter unchanged, by identity, when nothing is a $ref", () => {
+    const p = { name: "a", in: "query", schema: { type: "integer" } } as const;
+    expect(coercionView(p, resolveRef)).toBe(p);
+  });
+
+  it("returns the parameter unchanged when it has no schema or a boolean one", () => {
+    const bare = { name: "a", in: "query" } as const;
+    expect(coercionView(bare, resolveRef)).toBe(bare);
+    const boolean = { name: "a", in: "query", schema: true } as const;
+    expect(coercionView(boolean, resolveRef)).toBe(boolean);
+  });
+
+  it("resolves the schema, its items, and its properties", () => {
+    const view = coercionView(
+      {
+        name: "a",
+        in: "query",
+        schema: { type: "array", items: { $ref: "#/components/schemas/Id" } },
+      },
+      resolveRef,
+    );
+    expect(view.schema).toMatchObject({ type: "array", items: { type: "integer" } });
+
+    const obj = coercionView(
+      {
+        name: "b",
+        in: "query",
+        schema: { type: "object", properties: { id: { $ref: "#/components/schemas/Id" } } },
+      },
+      resolveRef,
+    );
+    expect(obj.schema).toMatchObject({ properties: { id: { type: "integer" } } });
+  });
+
+  it("follows a chain of refs", () => {
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "#/components/schemas/Ref" } },
+      resolveRef,
+    );
+    expect(view.schema).toMatchObject({ type: "integer" });
+  });
+
+  it("gives up on a self-referential ref rather than spinning", () => {
+    // Coercion only needs a `type`; leaving the value a string is the
+    // right failure for a schema that never yields one.
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "#/components/schemas/Loop" } },
+      resolveRef,
+    );
+    expect(deserialize("1", view)).toBe("1");
+  });
+
+  it("leaves the value a string when the ref does not resolve", () => {
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "#/components/schemas/Missing" } },
+      resolveRef,
+    );
+    expect(deserialize("1", view)).toBe("1");
   });
 });

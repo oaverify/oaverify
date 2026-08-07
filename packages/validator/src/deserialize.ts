@@ -3,7 +3,9 @@ import {
   setSpecKey,
   type ParameterObject,
   type ParameterStyle,
+  type ReferenceObject,
   type SchemaObject,
+  type SchemaOrBoolean,
 } from "@oaverify/internal-core";
 
 /**
@@ -76,6 +78,79 @@ export function deserialize(
   }
 
   return coerceScalar(stripStyle(raw, style), schema);
+}
+
+/**
+ * A parameter whose schema is resolved one level down, so scalar
+ * coercion can read a `type` off it.
+ *
+ * Coercion works by reading `type` from the schema governing a value,
+ * and a `$ref` carries none, so a parameter behind one coerced nothing
+ * and reported `must be integer` on input that was correct. That is not
+ * an edge case: `resolveSpec` hoists external schema targets into
+ * `components.schemas` and leaves an internal `$ref` at each use site,
+ * and internal refs in the authored document are never inlined either.
+ *
+ * Three positions are followed, which is every position coercion reads:
+ * the parameter's own schema, its `items`, and each entry of its
+ * `properties`. Nothing deeper matters, because nothing deeper is
+ * coerced.
+ *
+ * Built once per operation when the cache is built, rather than per
+ * request: `createRefResolver` does not memoize, so resolving on the hot
+ * path would re-walk a JSON pointer for every `$ref`'d parameter of
+ * every request.
+ *
+ * Returns the parameter unchanged, identity included, when no position
+ * was a `$ref`. That is the common case and it allocates nothing.
+ *
+ * @internal
+ */
+export function coercionView(
+  parameter: ParameterObject,
+  resolveRef: <T>(value: T | ReferenceObject | undefined) => T | undefined,
+): ParameterObject {
+  const schema = parameter.schema;
+  if (schema === undefined || typeof schema === "boolean") return parameter;
+
+  const deref = (s: SchemaOrBoolean | undefined): SchemaOrBoolean | undefined => {
+    let current = s;
+    // Bounded: a ref whose target is itself a ref is legal, and a cycle
+    // among them would otherwise spin here. Coercion only needs a `type`,
+    // so giving up and leaving the value a string is the right failure.
+    for (let hops = 0; hops < 8; hops += 1) {
+      if (current === undefined || typeof current === "boolean") return current;
+      if (typeof current.$ref !== "string") return current;
+      const next = resolveRef<SchemaOrBoolean>(current);
+      if (next === undefined || next === current) return current;
+      current = next;
+    }
+    return current;
+  };
+
+  const self = deref(schema);
+  if (self === undefined || typeof self === "boolean") return parameter;
+
+  const items = deref(self.items);
+  let properties: Record<string, SchemaOrBoolean> | undefined;
+  if (self.properties !== undefined) {
+    for (const [name, value] of Object.entries(self.properties)) {
+      const resolvedValue = deref(value);
+      if (resolvedValue === value) continue;
+      properties ??= { ...self.properties };
+      if (resolvedValue !== undefined) setSpecKey(properties, name, resolvedValue);
+    }
+  }
+
+  if (self === schema && items === self.items && properties === undefined) return parameter;
+  return {
+    ...parameter,
+    schema: {
+      ...self,
+      ...(items === self.items ? {} : { items }),
+      ...(properties === undefined ? {} : { properties }),
+    },
+  };
 }
 
 function defaultStyle(location: string): ParameterStyle {

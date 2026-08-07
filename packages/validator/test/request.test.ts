@@ -628,6 +628,80 @@ describe("validateRequest", () => {
     expect(leafCodes(err)).toContain("type");
   });
 
+  it("coerces parameters whose schemas sit behind a $ref", () => {
+    // #714. Coercion reads `type` off the governing schema and a $ref
+    // carries none, so every one of these reported "must be integer" or
+    // "must be boolean" on correct input. resolveSpec leaves internal
+    // $refs at their use sites, so this is the ordinary shape.
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      components: {
+        schemas: {
+          Id: { type: "integer" },
+          Flag: { type: "boolean" },
+          IdList: { type: "array", items: { $ref: "#/components/schemas/Id" } },
+          Filter: {
+            type: "object",
+            properties: { id: { $ref: "#/components/schemas/Id" } },
+          },
+        },
+      },
+      paths: {
+        "/pets/{id}": {
+          get: {
+            parameters: [
+              // The scalar case, which never coerced behind a $ref.
+              {
+                name: "id",
+                in: "path",
+                required: true,
+                schema: { $ref: "#/components/schemas/Id" },
+              },
+              // The whole array schema behind a $ref.
+              {
+                name: "tags",
+                in: "query",
+                explode: false,
+                schema: { $ref: "#/components/schemas/IdList" },
+              },
+              // Only the items behind a $ref.
+              {
+                name: "more",
+                in: "query",
+                explode: false,
+                schema: { type: "array", items: { $ref: "#/components/schemas/Id" } },
+              },
+              // deepObject property behind a $ref.
+              {
+                name: "filter",
+                in: "query",
+                style: "deepObject",
+                schema: { $ref: "#/components/schemas/Filter" },
+              },
+              { name: "x-flag", in: "header", schema: { $ref: "#/components/schemas/Flag" } },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const sv = createValidator(spec);
+    expect(
+      sv.validateRequest({
+        method: "GET",
+        path: "/pets/1",
+        query: { tags: "2,3", more: "4,5", "filter[id]": "6" },
+        headers: { "x-flag": "true" },
+      }),
+    ).toBeNull();
+
+    // Genuinely wrong input still fails, so this widened coercion and
+    // not the verdict.
+    const err = sv.validateRequest({ method: "GET", path: "/pets/nope", query: {} });
+    expect(leafCodes(err)).toContain("type");
+  });
+
   it("accepts Buffer / Uint8Array for type:string, format:binary body fields", () => {
     // openapi-backend #860 / #809: multipart binary fields arrive as
     // Buffer / Uint8Array / framework-specific objects, not JS strings.
