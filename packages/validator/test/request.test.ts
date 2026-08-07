@@ -789,6 +789,27 @@ describe("validateRequest", () => {
     expect(v.validateRequest({ method: "GET", path: "/w?n=abc", query: { n: "42" } })).toBeNull();
   });
 
+  it("keeps a #fragment out of an embedded query value", () => {
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/w": {
+          get: {
+            parameters: [
+              { name: "n", in: "query", required: true, schema: { type: "integer" } },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const v = createValidator(spec);
+    // Without the cut, URLSearchParams read n as "42#frag" and the
+    // integer coercion refused it.
+    expect(v.validateRequest({ method: "GET", path: "/w?n=42#frag" })).toBeNull();
+  });
+
   it("coerces a parameter behind an $id-based ref", () => {
     // #726: coercion used the pointer-only resolver, which refuses
     // anything that is not a `#` fragment, so this parameter compiled

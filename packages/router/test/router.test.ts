@@ -548,6 +548,26 @@ describe("slash trimming (js/polynomial-redos regression)", () => {
   });
 });
 
+describe("fragment handling", () => {
+  // A request target never carries a fragment on the wire (RFC 9112),
+  // so one in `path` is a hand-built URL-shaped string. `?` was already
+  // tolerated; stopping there let "#section" corrupt the last capture.
+  it("strips a #fragment before matching, as it does a ?query", () => {
+    const router = createRouter({ "/pets/{id}": { get: op("pet") } as PathItem });
+    const m = matched(router.match("get", "/pets/1#section"));
+    expect(m.pathParams).toEqual({ id: "1" });
+    const withQuery = matched(router.match("get", "/pets/1?x=2#section"));
+    expect(withQuery.pathParams).toEqual({ id: "1" });
+  });
+
+  it("still delivers a literal # sent as %23", () => {
+    // Decoding happens after the strip, so an encoded "#" is data.
+    const router = createRouter({ "/pets/{id}": { get: op("pet") } as PathItem });
+    const m = matched(router.match("get", "/pets/a%23b"));
+    expect(m.pathParams).toEqual({ id: "a#b" });
+  });
+});
+
 describe("route precedence is positional", () => {
   // Left-to-right, static-beats-parameter at the first differing
   // position: the rule find-my-way, path-to-regexp orderings, and

@@ -323,9 +323,13 @@ export function coercionView(
  */
 export function normalizeRequestQuery(req: HttpRequest): HttpRequest {
   const q = req.path.indexOf("?");
-  if (q === -1 || req.query !== undefined) return req;
+  const hash = req.path.indexOf("#");
+  // A "?" inside a fragment ("/w#f?x=1") opens no query, and a
+  // fragment after one ("/w?n=42#frag") is not part of the last value;
+  // the router cuts both the same way before matching.
+  if (q === -1 || (hash !== -1 && hash < q) || req.query !== undefined) return req;
   const query: Record<string, string | string[]> = {};
-  const params = new URLSearchParams(req.path.slice(q + 1));
+  const params = new URLSearchParams(req.path.slice(q + 1, hash === -1 ? undefined : hash));
   for (const key of new Set(params.keys())) {
     if (key === "") continue;
     const values = params.getAll(key);

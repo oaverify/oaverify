@@ -495,7 +495,16 @@ export function createRouter(paths: Record<string, PathItem>): Router {
     },
     match(method, path) {
       const normMethod = method.toLowerCase() as HttpMethod;
-      const stripped = path.split("?")[0] ?? path;
+      // Cut at the first "?" or "#". A request target never carries a
+      // fragment on the wire (RFC 9112), so one here is a hand-built
+      // URL-shaped string; "?" was already tolerated, and stopping
+      // there let "#section" corrupt the last capture ({id} bound
+      // "1#section"). A literal "#" in a path arrives as %23 and
+      // decodes after this cut, so nothing legitimate is lost.
+      const qIdx = path.indexOf("?");
+      const hIdx = path.indexOf("#");
+      const cut = qIdx === -1 ? hIdx : hIdx === -1 ? qIdx : Math.min(qIdx, hIdx);
+      const stripped = cut === -1 ? path : path.slice(0, cut);
       const trimmed = trimSlashes(stripped);
       // Decode in place instead of mapping: split already allocated the
       // array, and most tokens carry no escapes to decode.
