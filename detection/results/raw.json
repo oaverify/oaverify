@@ -1347,6 +1347,89 @@
       ]
     }
   },
+  "lint/catastrophic-pattern": {
+    "oaverify": {
+      "findings": [
+        {
+          "rule": "ambiguous-pattern",
+          "message": "\"^([A-Za-z0-9]+[ ,])*[A-Za-z0-9]+$\" is ambiguous. An input of the form `[A-Za-z0-9][ ,][A-Za-z0-9][A-Za-z0-9]` matches more than one way. A backtracking engine can be made to explore every way of matching, so a crafted value may cost superlinear time; whether it does depends on the engine running the pattern. Rewrite to remove the ambiguity, or compile patterns with a linear-time engine (the regexCompiler option).",
+          "location": "/paths/~1things/post/requestBody/content/application~1json/schema/properties/tags/pattern",
+          "severity": "warn"
+        }
+      ]
+    },
+    "ajv": {
+      "findings": []
+    },
+    "spectral": {
+      "findings": [
+        {
+          "rule": "oas3-api-servers",
+          "message": "OpenAPI \"servers\" must be present and non-empty array.",
+          "location": "",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-contact",
+          "message": "Info object must have \"contact\" object.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-description",
+          "message": "Info \"description\" must be present and non-empty string.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-description",
+          "message": "Operation \"description\" must be present and non-empty string.",
+          "location": "paths//things/post",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-tags",
+          "message": "Operation must have non-empty \"tags\" array.",
+          "location": "paths//things/post",
+          "severity": "warn"
+        }
+      ]
+    },
+    "redocly": {
+      "findings": [
+        {
+          "rule": "no-empty-servers",
+          "message": "Servers must be present.",
+          "location": "#/openapi",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-summary",
+          "message": "Operation object should contain `summary` field.",
+          "location": "#/paths/~1things/post/summary",
+          "severity": "error"
+        },
+        {
+          "rule": "security-defined",
+          "message": "Every operation should have security defined on it or on the root level.",
+          "location": "#/paths/~1things/post",
+          "severity": "error"
+        },
+        {
+          "rule": "info-license",
+          "message": "Info object should contain `license` field.",
+          "location": "#/info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-4xx-response",
+          "message": "Operation must have at least one `4XX` response.",
+          "location": "#/paths/~1things/post/responses",
+          "severity": "warn"
+        }
+      ]
+    }
+  },
   "style/missing-operationid": {
     "oaverify": {
       "findings": []

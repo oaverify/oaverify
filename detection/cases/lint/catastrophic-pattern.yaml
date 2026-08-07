@@ -1,0 +1,21 @@
+openapi: 3.1.0
+info:
+  title: Detection case
+  version: "1.0.0"
+paths:
+  /things:
+    post:
+      operationId: createThing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tags:
+                  type: string
+                  pattern: "^([A-Za-z0-9]+[ ,])*[A-Za-z0-9]+$"
+      responses:
+        "200":
+          description: ok
