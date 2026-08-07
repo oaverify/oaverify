@@ -263,7 +263,13 @@ function parseSegment(seg: string): Segment {
       }
       const name = seg.slice(i + 1, end);
       names.push(name);
-      regexSrc += "([^/]+?)";
+      // `[\s\S]` rather than `[^/]`: the regex runs against one token,
+      // already split on `/` and already decoded, so a `/` here can only
+      // have come from a `%2F` the client encoded. Excluding it made a
+      // compound capture refuse what a bare `{id}` accepts, and the
+      // refusal was silent, since the request then fell through to a
+      // less specific route.
+      regexSrc += "([\\s\\S]+?)";
       i = end + 1;
     } else {
       pendingLiteral += ch;
