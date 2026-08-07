@@ -13,6 +13,7 @@ export { validateEmail, validateIdnEmail } from "./email.js";
 export { validateHostname, validateIdnHostname } from "./hostname.js";
 export { validateHttpDate } from "./http-date.js";
 export { validateIpv4, validateIpv4Cidr, validateIpv6, validateIpv6Cidr } from "./ip.js";
+export { validateLanguage } from "./language.js";
 export { validateChar, validateRegex, validateUuid } from "./misc.js";
 export {
   validateDoubleInt,
@@ -49,6 +50,7 @@ import { validateEmail, validateIdnEmail } from "./email.js";
 import { validateHostname, validateIdnHostname } from "./hostname.js";
 import { validateHttpDate } from "./http-date.js";
 import { validateIpv4, validateIpv4Cidr, validateIpv6, validateIpv6Cidr } from "./ip.js";
+import { validateLanguage } from "./language.js";
 // Note: validateRegex is intentionally not imported into builtInFormats.
 // @oaverify/core/schema auto-registers a `regex` format that shares the
 // pattern-keyword compile path (and the regexCompiler hook). The standalone
@@ -138,6 +140,7 @@ export const builtInFormats: Record<string, FormatDefinition> = {
   byte: validateByte,
   base64url: validateBase64Url,
   char: validateChar,
+  language: validateLanguage,
   int8: { type: "number", validate: validateInt8 },
   int16: { type: "number", validate: validateInt16 },
   int32: { type: "number", validate: validateInt32 },

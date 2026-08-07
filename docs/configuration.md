@@ -78,8 +78,8 @@ octets; the validator treats it as an opaque-body bypass rather than a
 constraint. `password`, `commonmark` and `html` are display hints.
 
 Names in the [OpenAPI Format Registry](https://spec.openapis.org/registry/format/)
-that _are_ assertable but not yet implemented (`language`,
-`media-range`, `decimal`, `decimal128`, and the six `sf-*`
+that _are_ assertable but not yet implemented (`media-range`, `decimal`,
+`decimal128`, and the six `sf-*`
 structured-field formats) behave the same way at request time: the
 value is checked against `type` alone.
 

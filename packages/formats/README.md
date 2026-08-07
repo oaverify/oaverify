@@ -42,7 +42,9 @@ replace them.
 - **Base64**: `byte` (RFC 4648 §4, padded; whitespace stripped first, so
   MIME line-wrapping passes, and `validateByteRfc4648` is the strict
   reading to register in its place), `base64url` (§5, padding optional)
-- **Misc**: `uuid`, `char`
+- **Misc**: `uuid`, `char`, `language` (RFC 5646: the grammar, plus the
+  no-duplicate-variant and no-duplicate-singleton rules; a subtag is not
+  checked against the IANA registry, so `qq-ZZ` passes)
 - **Numeric** (OpenAPI): `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`,
   `uint32`, `uint64`, `double-int`, `unixtime`, each as
   `{ type: "number", validate }`
@@ -70,9 +72,9 @@ display hints with nothing to check.
 precision before it reaches any JavaScript validator; see
 [docs/configuration.md](../../docs/configuration.md#formats).
 
-The remaining registry names (`language`, `media-range`, `decimal`,
-`decimal128`, and the six `sf-*` structured-field formats) are
-assertable and not yet implemented. `oaverify check` tells
+The remaining registry names (`media-range`, `decimal`, `decimal128`,
+and the six `sf-*` structured-field formats) are assertable and not yet
+implemented. `oaverify check` tells
 those two groups apart in its report, so a document using one is told
 whether waiting will help. Register your own through the `formats`
 option in the meantime.
