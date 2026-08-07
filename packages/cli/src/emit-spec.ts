@@ -25,7 +25,9 @@ import { builtInFormats } from "@oaverify/internal-formats";
 import {
   coercionView,
   compileMediaTypePatterns,
+  schemaRefResolverFor,
   walkDocumentSchemas,
+  type SchemaRefResolver,
 } from "@oaverify/internal-validator/internals";
 import { isUnknownFormat } from "./emit-standalone.js";
 import {
@@ -158,6 +160,13 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   const graph = resolve(document as unknown as SchemaOrBoolean);
   const refResolver: RefResolver = createRefResolver(graph);
 
+  // One `$ref` hop for the coercion views, bound the way createValidator
+  // binds it. `resolveRef` below reaches the same resolver, so the
+  // difference here is not the resolver but the base URI and the chain:
+  // that one resolves a single hop, so the emitted module stopped
+  // following a ref chain that the runtime followed.
+  const resolveSchemaRef = schemaRefResolverFor(refResolver, graph);
+
   // Anything passed through resolveRef comes back with `{ $ref }`
   // followed; the schema registry handles internal refs transparently.
   const resolveRef = <T>(v: T | ReferenceObject | undefined): T | undefined => {
@@ -260,6 +269,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
           pathItem,
           document,
           resolveRef,
+          resolveSchemaRef,
           named,
           requestsOnly: options.requestsOnly === true,
         }),
@@ -397,13 +407,23 @@ interface BuildEmittedOpArgs {
   pathItem: PathItem;
   document: OpenAPIDocument;
   resolveRef: <T>(v: T | ReferenceObject | undefined) => T | undefined;
+  resolveSchemaRef: SchemaRefResolver;
   named: (schema: SchemaOrBoolean) => string;
   requestsOnly: boolean;
 }
 
 function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
-  const { pathPattern, method, operation, pathItem, document, resolveRef, named, requestsOnly } =
-    args;
+  const {
+    pathPattern,
+    method,
+    operation,
+    pathItem,
+    document,
+    resolveRef,
+    resolveSchemaRef,
+    named,
+    requestsOnly,
+  } = args;
 
   // Parameters: union of path-item-level + operation-level. Operation
   // wins on `(name, in)` collision.
@@ -474,8 +494,10 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
         setSpecKey(headers, headerName, {
           readOwn: isHeaderObjectPrototypePropertyName(headerName),
           required: hdr.required === true,
-          schema: coercionView({ name: headerName, in: "header", schema: hdr.schema }, resolveRef)
-            .schema,
+          schema: coercionView(
+            { name: headerName, in: "header", schema: hdr.schema },
+            resolveSchemaRef,
+          ).schema,
           validator: schema !== undefined ? named(schema) : null,
         });
       }
@@ -503,7 +525,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
         // so it carries the resolved view. Without this a compiled
         // validator keeps #714 while createValidator no longer has it.
         parameters: parameters
-          .map((raw) => coercionView(raw, resolveRef))
+          .map((raw) => coercionView(raw, resolveSchemaRef))
           .map((p) => ({
             name: p.name,
             in: p.in,

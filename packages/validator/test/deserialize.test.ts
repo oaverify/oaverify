@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { ReferenceObject, SchemaObject } from "@oaverify/internal-core";
-import { resolveOperationRef } from "../src/operation-cache.js";
-import { coercionView, deserialize, matchMediaType, matchResponseKey } from "../src/deserialize.js";
+import type { SchemaObject } from "@oaverify/internal-core";
+import { createRefResolver, resolve } from "@oaverify/internal-schema";
+import type { SchemaOrBoolean } from "@oaverify/internal-core";
+
+import {
+  coercionView,
+  deserialize,
+  matchMediaType,
+  matchResponseKey,
+  schemaRefResolverFor,
+} from "../src/deserialize.js";
 
 describe("deserialize", () => {
   it("returns undefined for absent values", () => {
@@ -307,11 +315,32 @@ describe("coercionView", () => {
         Id: { type: "integer" },
         Ref: { $ref: "#/components/schemas/Id" },
         Loop: { $ref: "#/components/schemas/Loop" },
+        // A two-step cycle: the identity guard cannot see this one, so
+        // it ends on the hop budget instead.
+        Ping: { $ref: "#/components/schemas/Pong" },
+        Pong: { $ref: "#/components/schemas/Ping" },
+        Bool: true,
+        // A ref with siblings, reached through another ref: the compiler
+        // honours the sibling at every hop, so the view has to as well.
+        Arr: { type: "array" },
+        ArrOfId: { $ref: "#/components/schemas/Arr", items: { $ref: "#/components/schemas/Id" } },
+        // A chain deeper than a small hand-picked bound would allow.
+        C0: { $ref: "#/components/schemas/C1" },
+        C1: { $ref: "#/components/schemas/C2" },
+        C2: { $ref: "#/components/schemas/C3" },
+        C3: { $ref: "#/components/schemas/C4" },
+        C4: { $ref: "#/components/schemas/C5" },
+        C5: { $ref: "#/components/schemas/C6" },
+        C6: { $ref: "#/components/schemas/C7" },
+        C7: { $ref: "#/components/schemas/C8" },
+        C8: { $ref: "#/components/schemas/Id" },
       },
     },
   };
-  const resolveRef = <T>(v: T | ReferenceObject | undefined): T | undefined =>
-    resolveOperationRef<T>(doc, v);
+  // The production binding itself, not a copy of it, so the test cannot
+  // agree with a mistake the real one makes.
+  const graph = resolve(doc as unknown as SchemaOrBoolean);
+  const resolveRef = schemaRefResolverFor(createRefResolver(graph), graph);
 
   it("returns the parameter unchanged, by identity, when nothing is a $ref", () => {
     const p = { name: "a", in: "query", schema: { type: "integer" } } as const;
@@ -369,15 +398,58 @@ describe("coercionView", () => {
     expect(view.schema).toMatchObject({ items: { type: "integer" } });
   });
 
+  it("follows a chain longer than a handful of hops", () => {
+    // The bound matches the resolver the rest of the cache uses, so a
+    // chain the compiler resolves does not silently lose its coercion.
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "#/components/schemas/C0" } },
+      resolveRef,
+    );
+    expect(deserialize("7", view)).toBe(7);
+  });
+
+  it("gives up on a two-step ref cycle rather than spinning", () => {
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "#/components/schemas/Ping" } },
+      resolveRef,
+    );
+    expect(() => deserialize("1", view)).not.toThrow();
+    expect(deserialize("1", view)).toBe("1");
+  });
+
+  it("returns the parameter unchanged when a ref lands on a boolean schema", () => {
+    const p = { name: "a", in: "query", schema: { $ref: "#/components/schemas/Bool" } } as const;
+    expect(deserialize("1", coercionView(p, resolveRef))).toBe("1");
+  });
+
+  it("keeps siblings from every hop of a chain, not only the use site", () => {
+    // `ArrOfId` is `{ $ref: Arr, items: Id }`, reached through a ref of
+    // its own. The `items` sibling has to survive the extra hop.
+    const view = coercionView(
+      { name: "a", in: "query", explode: false, schema: { $ref: "#/components/schemas/ArrOfId" } },
+      resolveRef,
+    );
+    expect(deserialize("1,2", view)).toEqual([1, 2]);
+  });
+
+  it("gives up on a self-referential ref rather than spinning", () => {
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "#/components/schemas/Loop" } },
+      resolveRef,
+    );
+    expect(() => deserialize("1", view)).not.toThrow();
+    expect(deserialize("1", view)).toBe("1");
+  });
+
   it("leaves the value a string when the resolver throws", () => {
-    // A cycle and an $id-based target both throw out of this resolver.
-    // The compiler resolves them through its own and validates them, so
-    // giving up here must not fail the build.
-    for (const ref of ["#/components/schemas/Loop", "https://example.com/Name"]) {
-      const view = coercionView({ name: "a", in: "query", schema: { $ref: ref } }, resolveRef);
-      expect(() => deserialize("1", view)).not.toThrow();
-      expect(deserialize("1", view)).toBe("1");
-    }
+    // Coercion is best-effort: the compiler resolves and validates the
+    // same schema, and only the coercion is lost.
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "https://nowhere.example/Missing" } },
+      resolveRef,
+    );
+    expect(() => deserialize("1", view)).not.toThrow();
+    expect(deserialize("1", view)).toBe("1");
   });
 
   it("leaves the value a string when the ref does not resolve", () => {

@@ -3,7 +3,6 @@ import {
   setSpecKey,
   type ParameterObject,
   type ParameterStyle,
-  type ReferenceObject,
   type SchemaObject,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
@@ -81,6 +80,49 @@ export function deserialize(
 }
 
 /**
+ * Resolves one `$ref` hop for {@link coercionView}, through whatever
+ * resolver the caller compiles schemas with. May throw when the
+ * reference cannot be resolved.
+ *
+ * @internal
+ */
+export type SchemaRefResolver = (schema: SchemaObject) => SchemaOrBoolean | undefined;
+
+/**
+ * Bind a {@link SchemaRefResolver} to a resolved schema graph.
+ *
+ * The base URI is what makes this agree with the compiler, which resolves
+ * every `$ref` as `resolve(ref, schemaBaseUri.get(schema) ?? baseUri)`.
+ * Dropping it resolves against the document root instead, which usually
+ * throws and costs only the coercion, and lands on a different real node
+ * when the root has something at the same pointer or when the ref is an
+ * anchor. A silently wrong coercion type is worse than none, so the two
+ * resolve the same way or the point of doing this at all is lost.
+ *
+ * One factory rather than a copy per call site, so the binding cannot
+ * drift between `createValidator`, the AOT emitter and the tests.
+ *
+ * @internal
+ */
+export function schemaRefResolverFor(
+  refResolver: { resolve: (ref: string, fromBaseUri?: string) => SchemaOrBoolean },
+  graph: { baseUri: string; schemaBaseUri: WeakMap<object, string> },
+): SchemaRefResolver {
+  return (schema) =>
+    refResolver.resolve(schema.$ref as string, graph.schemaBaseUri.get(schema) ?? graph.baseUri);
+}
+
+/**
+ * Ref hops {@link coercionView} will follow before giving up.
+ *
+ * Matches `REF_CHAIN_MAX_HOPS` in `operation-cache.ts`, which bounds the
+ * same thing for the resolver the rest of the cache uses. A tighter
+ * bound here would reinstate the divergence this view exists to close:
+ * the compiler would resolve a long chain and coercion would not.
+ */
+const MAX_REF_HOPS = 32;
+
+/**
  * A parameter whose schema is resolved one level down, so scalar
  * coercion can read a `type` off it.
  *
@@ -96,10 +138,23 @@ export function deserialize(
  * `properties`. Nothing deeper matters, because nothing deeper is
  * coerced.
  *
+ * Composition is not followed. `extractType` reads `type` and nothing
+ * else, so a type reachable only through `allOf`, `oneOf` or `anyOf` is
+ * invisible here and the value stays a string. `allOf` is a conjunction
+ * and could be flattened; `oneOf` and `anyOf` cannot, since branches may
+ * disagree on the type and coercion has to pick one before validation
+ * says which branch applies.
+ *
  * Built once per operation when the cache is built, rather than per
  * request: `createRefResolver` does not memoize, so resolving on the hot
  * path would re-walk a JSON pointer for every `$ref`'d parameter of
  * every request.
+ *
+ * The resolver is the one the schema compiler uses, so the two agree on
+ * what a ref points at. They did not: coercion went through the
+ * pointer-only resolver, which cannot follow an `$id`-based target, so a
+ * parameter behind one compiled against the right schema and coerced
+ * against nothing.
  *
  * Returns the parameter unchanged, identity included, when no position
  * was a `$ref`. That is the common case, and it allocates no new
@@ -109,46 +164,60 @@ export function deserialize(
  */
 export function coercionView(
   parameter: ParameterObject,
-  resolveRef: <T>(value: T | ReferenceObject | undefined) => T | undefined,
+  resolveSchemaRef: SchemaRefResolver,
 ): ParameterObject {
   const schema = parameter.schema;
   if (schema === undefined || typeof schema === "boolean") return parameter;
 
-  // `resolveRef` follows the whole chain itself, so one call is enough.
-  // It throws on a ref it will not follow, an `$id`-based target or a
-  // cycle among them. The schema compiler resolves those through its own
-  // resolver and validates them correctly, so a throw here is not a
-  // reason to fail the build. Coercion is best-effort by construction:
-  // giving up leaves the value a string, which is what every other
-  // unresolvable case already does.
-  const deref = (s: SchemaOrBoolean | undefined): SchemaOrBoolean | undefined => {
-    if (s === undefined || typeof s === "boolean") return s;
-    if (typeof s.$ref !== "string") return s;
-    try {
-      return resolveRef<SchemaOrBoolean>(s) ?? s;
-    } catch {
-      return s;
+  // One hop per call, so a chain needs the loop. Bounded: a cycle would
+  // spin here otherwise, and giving up leaves the value a string, which
+  // is the right failure for a schema that never yields a `type`. The
+  // `next === current` guard catches a self-cycle early; a longer cycle
+  // ends on the hop budget.
+  //
+  // Siblings are merged at every hop, not only at the use site. 2020-12
+  // reads a `$ref`'s siblings as a conjunction, and the compiler honours
+  // each one, so `{ $ref: C, items: X }` reached through another ref has
+  // to keep its `items` or the two disagree.
+  //
+  // The resolver throws on a ref it cannot resolve. Coercion is
+  // best-effort by construction, so that is not a reason to fail the
+  // build: the compiler resolves and validates the same schema through
+  // the same resolver, and only the coercion is lost.
+  const resolveChain = (s: SchemaOrBoolean | undefined): SchemaOrBoolean | undefined => {
+    if (s === undefined || typeof s === "boolean" || typeof s.$ref !== "string") return s;
+    // Outermost first, so the use site is applied last and wins.
+    const siblingLayers: SchemaObject[] = [];
+    let current: SchemaOrBoolean = s;
+    for (let hops = 0; hops < MAX_REF_HOPS; hops += 1) {
+      if (typeof current === "boolean" || typeof current.$ref !== "string") break;
+      const { $ref: _ref, ...siblings } = current;
+      if (Object.keys(siblings).length > 0) siblingLayers.push(siblings as SchemaObject);
+      let next: SchemaOrBoolean | undefined;
+      try {
+        next = resolveSchemaRef(current);
+      } catch {
+        break;
+      }
+      if (next === undefined || next === current) break;
+      current = next;
     }
+    if (typeof current === "boolean") return current;
+    let out: SchemaObject = current;
+    for (let i = siblingLayers.length - 1; i >= 0; i -= 1) {
+      out = { ...out, ...siblingLayers[i] };
+    }
+    return out;
   };
 
-  const target = deref(schema);
-  if (target === undefined || typeof target === "boolean") return parameter;
+  const self = resolveChain(schema);
+  if (self === undefined || typeof self === "boolean") return parameter;
 
-  // 2020-12 reads a `$ref`'s siblings as a conjunction, and the use site
-  // is the more specific half, so it wins for the keywords coercion
-  // reads. Without this a schema written as `{ $ref, items }` lost its
-  // `items` and disagreed with the compiled validator.
-  let self: SchemaObject = target;
-  if (target !== schema) {
-    const { $ref: _ignored, ...siblings } = schema;
-    self = { ...target, ...siblings };
-  }
-
-  const items = deref(self.items);
+  const items = resolveChain(self.items);
   let properties: Record<string, SchemaOrBoolean> | undefined;
   if (self.properties !== undefined) {
     for (const [name, value] of Object.entries(self.properties)) {
-      const resolvedValue = deref(value);
+      const resolvedValue = resolveChain(value);
       if (resolvedValue === value) continue;
       properties ??= { ...self.properties };
       if (resolvedValue !== undefined) setSpecKey(properties, name, resolvedValue);
