@@ -61,6 +61,13 @@ const CORPUS: Array<{ schema: SchemaOrBoolean; values: unknown[] }> = [
   },
   { schema: { type: "integer", multipleOf: 3 }, values: [0, 3, 9, 4, -6] },
   { schema: { type: "number", multipleOf: 0.1 }, values: [0.3, 0.1, 0.2, 1, 0.15] },
+  // #709: 1e308 divided by any of these overflows the quotient to
+  // Infinity. The engines have to agree on both verdicts, and they
+  // differ: 1e308 is a multiple of 0.5 and not one of 0.123456789.
+  { schema: { type: "integer", multipleOf: 0.123456789 }, values: [1e308, 1e307] },
+  { schema: { type: "integer", multipleOf: 0.5 }, values: [1e308, 1e307] },
+  // The tolerance cap: 1e15 is not a multiple of 3.
+  { schema: { type: "number", multipleOf: 3 }, values: [1e15, 3e15] },
   {
     schema: {
       type: "object",

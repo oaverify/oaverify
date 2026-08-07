@@ -1772,9 +1772,13 @@ function combineTee(o: TeeObligations): boolean {
 }
 
 // Mirror @oaverify/internal-schema's tolerant multipleOf check so verdicts agree on
-// floating-point divisors (see packages/schema/src/keywords/number.ts).
+// floating-point divisors (see packages/schema/src/keywords/number.ts, whose
+// TSDoc carries the reasoning for the cap and the overflow fallback).
 function isMultipleOf(value: number, divisor: number): boolean {
   const q = value / divisor;
-  const tol = 16 * Number.EPSILON * Math.max(1, Math.abs(q), Math.abs(divisor));
+  // An overflowing quotient makes `q - Math.round(q)` NaN, which compares
+  // false either way. `%` is exact fmod and cannot overflow.
+  if (!Number.isFinite(q)) return value % divisor === 0;
+  const tol = Math.min(16 * Number.EPSILON * Math.max(1, Math.abs(q), Math.abs(divisor)), 0.25);
   return Math.abs(q - Math.round(q)) <= tol;
 }
