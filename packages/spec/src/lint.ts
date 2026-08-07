@@ -497,13 +497,14 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
 
 /**
  * Path templates carrying a segment whose percent-encoding does not
- * decode. Only literal segments are checked: a `{name}` placeholder is
- * matched as a captured token, never decoded as spec text.
+ * decode. Only literal segments are checked: a segment holding a
+ * `{name}` placeholder is matched as a captured token, never decoded as
+ * spec text.
  *
- * The router tolerates these (it falls back to the raw segment rather
- * than throwing `URIError` out of `createValidator`), which makes the
- * route quietly unreachable for any sane client. Reporting it here is
- * what turns that into something with a location and a remedy.
+ * The router tolerates these, falling back to the raw segment rather
+ * than throwing `URIError` out of `createValidator`. That leaves the
+ * route unreachable except by a client repeating the same broken
+ * escape. Reporting it here is what gives that a location and a remedy.
  */
 function findMalformedPathTemplates(document: OpenAPIDocument): SpecHygieneIssue[] {
   const issues: SpecHygieneIssue[] = [];
@@ -521,19 +522,20 @@ function findMalformedPathTemplates(document: OpenAPIDocument): SpecHygieneIssue
 
 /**
  * The first path segment whose percent-encoding `decodeURIComponent`
- * rejects, or `undefined` when the whole template decodes.
+ * rejects, or `undefined` when every segment decodes.
  *
- * Mirrors the router's `parseSegment`: it splits on `/` and decodes only
- * segments with no `{`, so this asks the same question of the same text.
+ * Asks the same question of the same text as the router. `parseTemplate`
+ * splits on `/` and hands each segment to `parseSegment`, which decodes
+ * exactly those segments it treats as literal, so the two agree segment
+ * by segment.
+ *
  * Decoding whole segments rather than individual `%XX` runs is what keeps
  * a valid multi-byte sequence legal: `%C3%A9` is one two-byte UTF-8
  * character, and each half throws on its own.
  */
 function firstUndecodableSegment(template: string): string | undefined {
   for (const segment of template.split("/")) {
-    // A `{` makes this a template or compound segment: captured, never
-    // decoded as spec text, so a `%` inside it is not a defect.
-    if (segment.includes("{") || !segment.includes("%")) continue;
+    if (!segment.includes("%") || holdsPlaceholder(segment)) continue;
     try {
       decodeURIComponent(segment);
     } catch {
@@ -541,6 +543,20 @@ function firstUndecodableSegment(template: string): string | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Whether `parseSegment` reads this segment as a template or compound
+ * rather than a literal, which is what decides whether it decodes it.
+ *
+ * The condition is a `{` with a `}` somewhere after it: that is what
+ * makes `parseSegment`'s scan record a name. A `{` with no closing brace
+ * is the degenerate case it falls back to a literal decode for, so a
+ * segment like `x%zz{` is spec text and is checked here.
+ */
+function holdsPlaceholder(segment: string): boolean {
+  const open = segment.indexOf("{");
+  return open !== -1 && segment.indexOf("}", open) !== -1;
 }
 
 function extractPathTemplateNames(template: string): Set<string> {

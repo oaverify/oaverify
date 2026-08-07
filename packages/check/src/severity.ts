@@ -21,6 +21,7 @@
  * @packageDocumentation
  */
 
+import type { SpecHygieneIssue } from "@oaverify/internal-spec";
 import { parseFindingKey } from "./finding-key.js";
 import { CHECK_SEVERITIES, type CheckClass, type CheckSeverity } from "./finding.js";
 
@@ -44,8 +45,8 @@ export const DEFAULT_SEVERITY: Readonly<Record<CheckClass, CheckSeverity>> = {
   schema: "warning",
   examples: "warning",
   redos: "warning",
-  // Split by code: two hygiene codes are spec violations, the rest name
-  // things that are legal and merely dead.
+  // Split by code: some hygiene codes are spec violations, the rest name
+  // things that are legal and merely dead. See HYGIENE_ERRORS.
   hygiene: "warning",
 };
 
@@ -57,11 +58,11 @@ export const DEFAULT_SEVERITY: Readonly<Record<CheckClass, CheckSeverity>> = {
  * taste. The rest of the hygiene codes (unused components, tags,
  * `$defs`) name things that are legal and merely dead.
  */
-export const HYGIENE_ERRORS = new Set([
+export const HYGIENE_ERRORS: ReadonlySet<string> = new Set([
   "path-param-undeclared",
   "path-param-unused",
   "path-template-malformed",
-]);
+] satisfies SpecHygieneIssue["code"][]);
 
 /**
  * A regrading, keyed three ways.

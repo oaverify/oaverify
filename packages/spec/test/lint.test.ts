@@ -349,6 +349,18 @@ describe("lintResolvedSpec: path-template-malformed", () => {
     expect(lintResolvedSpec(spec).map((i) => i.code)).not.toContain("path-template-malformed");
   });
 
+  it("flags a degenerate `{` segment, which the router decodes as a literal", () => {
+    // parseSegment treats a `{` with no closing `}` as literal text and
+    // decodes it, so it is spec text and has to be checked. Skipping
+    // every `{`-bearing segment made this the one false negative.
+    for (const bad of ["/x%zz{", "/{%zz", "/a{b%zz"]) {
+      const spec = minimalSpec({
+        paths: { [bad]: { get: { responses: { "200": { description: "ok" } } } } },
+      });
+      expect(lintResolvedSpec(spec).map((i) => i.code)).toContain("path-template-malformed");
+    }
+  });
+
   it("does not flag a percent inside a {placeholder} name", () => {
     // Placeholders are captured, never decoded as spec text.
     const spec = minimalSpec({
