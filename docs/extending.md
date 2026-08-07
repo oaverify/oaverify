@@ -176,7 +176,9 @@ the first failure, so there's nothing to count).
 3. Add it to the `builtInFormats` record. A string format is the bare
    predicate; a format constraining numbers is
    `{ type: "number", validate }`, because a format's JSON type is a
-   property of the format and is never inferred from its name.
+   property of the format and is never inferred from its name. A strict
+   variant shipped alongside a permissive built-in stays out of this
+   record; see below.
 4. Test with RFC-sourced valid + invalid examples.
 
 ### Which specification the validator follows
@@ -188,13 +190,11 @@ written down rather than rediscovered per format (#705).
 not reject correct input. Where a stricter reading exists, ship it as a
 named export and say in the TSDoc which document each one follows.
 
-The costs are not symmetric, which is what decides it. A false reject
-fails a request that works today. A false accept fails to catch
-something `format` never promised to catch, since it is annotation-only
-by default in JSON Schema and advisory in OpenAPI. So where the
-registry, the cited RFC and real traffic disagree, the built-in follows
-whichever admits the traffic, and the strict reading stays one line
-away.
+The costs are asymmetric, which is what decides it. A false reject fails
+a request that works today. A false accept leaves the caller where they
+were before the validator existed. So where the registry, the cited RFC
+and real traffic disagree, the built-in follows whichever admits the
+traffic, and the strict reading stays one line away.
 
 Two worked cases:
 
@@ -208,11 +208,13 @@ Two worked cases:
   structured-field formats, which RFC 9651 obsoleted in September 2024
   by adding a Date type. Validating 8941 would reject a field that is
   legal HTTP today, and 9651 is a superset, so the newer document wins
-  and there is no strict variant to ship.
+  and there is no strict variant to ship. Recorded ahead of the work:
+  the `sf-*` formats are unimplemented, and #696 tracks them.
 
 Registering a stricter validator by hand needs no new option, which is
-why this is a naming convention rather than a feature. `formats: { <name>: false }`
-remains the way to keep a name as an annotation that asserts nothing.
+why this is a naming convention rather than a feature.
+`formats: { <name>: false }` remains the way to keep a name as an
+annotation that asserts nothing.
 
 Two things that are easy to miss, both about the format _not_ being
 asserted before you got there:
