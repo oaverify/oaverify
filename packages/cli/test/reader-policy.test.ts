@@ -119,9 +119,10 @@ describe("fileOptionsFor and confineRootFor", () => {
 });
 
 describe("policyHttpReader", () => {
-  it("counts a remote ref but not the entry itself", async () => {
-    // Pointing at a URL is not a remote $ref, so the notice must not
-    // report one to a user who has none.
+  it("counts only what a stricter default would refuse", async () => {
+    // The notice says "cross-origin", so the count has to mean that.
+    // The entry is not a $ref at all, and a sibling on the entry's own
+    // origin survives same-origin, so neither is news.
     const inner = stubHttp();
     let count = 0;
     const reader = policyHttpReader(
@@ -132,6 +133,21 @@ describe("policyHttpReader", () => {
     await reader.read(REMOTE_ENTRY);
     expect(count).toBe(0);
     await reader.read("https://api.example.com/schemas/pet.json");
+    expect(count).toBe(0);
+    await reader.read("https://elsewhere.example/x.json");
+    expect(count).toBe(1);
+  });
+
+  it("counts every remote read when the entry is local", async () => {
+    // A local entry opted into no origin, so every remote ref is one
+    // same-origin would refuse.
+    let count = 0;
+    const reader = policyHttpReader(
+      stubHttp(),
+      policy({ remoteRefs: "allow" }),
+      () => (count += 1),
+    );
+    await reader.read("https://api.example.com/pet.json");
     expect(count).toBe(1);
   });
 
@@ -175,13 +191,13 @@ describe("remoteRefsNotice", () => {
 
   it("names both the restore and the adopt-now flag", () => {
     const notice = remoteRefsNotice("check", 3);
-    expect(notice).toContain("resolved 3 remote $refs");
+    expect(notice).toContain("resolved 3 cross-origin $refs");
     expect(notice).toContain("--remote-refs allow");
     expect(notice).toContain("--remote-refs same-origin");
   });
 
   it("agrees with itself about the count", () => {
-    expect(remoteRefsNotice("check", 1)).toContain("1 remote $ref ");
+    expect(remoteRefsNotice("check", 1)).toContain("1 cross-origin $ref ");
   });
 });
 

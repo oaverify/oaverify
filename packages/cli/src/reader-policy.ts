@@ -51,11 +51,15 @@ export interface ReaderPolicy {
   remoteRefs: RemoteRefsMode;
   untrusted: boolean;
   /**
-   * Called once per remote read that succeeded, the entry excluded.
-   * The command counts these to decide whether to print the notice; see
-   * {@link remoteRefsNotice}.
+   * Called once per successful read that `same-origin` would have
+   * refused, the entry excluded.
+   *
+   * Cross-origin rather than remote, because that is what the notice it
+   * drives says: a remote entry whose refs are all siblings on its own
+   * origin is unaffected by a stricter default and should not be told
+   * otherwise. See {@link remoteRefsNotice}.
    */
-  onRemoteRead?: () => void;
+  onCrossOriginRead?: (uri: string) => void;
 }
 
 /** The flags a command parsed, before they are resolved to a posture. */
@@ -186,17 +190,36 @@ export function allowsUri(policy: ReaderPolicy, uri: string): boolean {
  * The directory `confine` confines to, or `undefined` when the posture
  * does not confine.
  *
- * `createFileReader` confines to its `cwd` argument, so the root and the
- * option have to be decided together: confining to the process working
- * directory would be a different (and wrong) rule for
- * `oaverify check ../elsewhere/spec.yaml`.
+ * `createFileReader` resolves relative URIs against its `cwd` and
+ * confines to it, so a caller that sets this root must also give the
+ * loader an absolute entry; see {@link confinedEntry}. Left relative,
+ * the entry would be resolved against its own directory a second time
+ * (`specs/openapi.json` under root `specs/` reads
+ * `specs/specs/openapi.json`).
  */
 export function confineRootFor(policy: ReaderPolicy): string | undefined {
   if (!policy.untrusted || isHttpUri(policy.entry) || policy.entry === "-") return undefined;
   return dirname(resolvePath(policy.entry));
 }
 
-/** File reader options for a posture. */
+/**
+ * The entry as the loader should be given it: absolute when the posture
+ * confines, so that it and every `$ref` base derived from it resolve
+ * against the same root {@link confineRootFor} returned. Unchanged
+ * otherwise, so ordinary runs keep reporting the path as typed.
+ */
+export function confinedEntry(policy: ReaderPolicy): string {
+  return confineRootFor(policy) === undefined ? policy.entry : resolvePath(policy.entry);
+}
+
+/**
+ * File reader options for a posture.
+ *
+ * `confine` is set only when {@link confineRootFor} yields a root to
+ * confine to. The two are one decision: confining without a root of the
+ * entry's own falls back to the process working directory, which bears
+ * no relation to the document.
+ */
 export function fileOptionsFor(policy: ReaderPolicy): FileReaderOptions {
   return {
     maxBytes: policy.untrusted ? UNTRUSTED_MAX_BYTES : DEFAULT_MAX_BYTES,
@@ -204,7 +227,7 @@ export function fileOptionsFor(policy: ReaderPolicy): FileReaderOptions {
     // correct, so confining by default breaks working specs to close a
     // read that needs an attacker to name a sensitive file that already
     // exists locally.
-    ...(policy.untrusted && { confine: true }),
+    ...(confineRootFor(policy) !== undefined && { confine: true }),
   };
 }
 
@@ -212,14 +235,15 @@ export function fileOptionsFor(policy: ReaderPolicy): FileReaderOptions {
  * Wrap an http reader so a refusal names the posture that refused, and
  * a success is counted.
  *
- * The count is what the `allow` posture reports afterwards. The notice
- * it drives has to reach a user who has set no flag, so nothing about
- * it depends on their having asked.
+ * The count is what the `allow` posture reports afterwards, and covers
+ * only the reads a stricter default would refuse. The notice it drives
+ * has to reach a user who has set no flag, so nothing about it depends
+ * on their having asked.
  */
 export function policyHttpReader(
   inner: DocumentReader,
   policy: ReaderPolicy,
-  onRemoteRead: (() => void) | undefined = policy.onRemoteRead,
+  onCrossOriginRead: ((uri: string) => void) | undefined = policy.onCrossOriginRead,
 ): DocumentReader {
   return {
     canRead: (uri) => inner.canRead(uri),
@@ -228,10 +252,11 @@ export function policyHttpReader(
       if (refusal !== undefined) throw new Error(refusal);
       const doc = await inner.read(uri);
       // The entry goes through this reader too, and pointing at a URL
-      // is not a remote $ref. Counting it would report a ref to a user
-      // who has none and warn them about a default that never applied
-      // to what they did.
-      if (uri !== policy.entry) onRemoteRead?.();
+      // is not a $ref. Counting it would report one to a user who has
+      // none.
+      if (uri !== policy.entry && !allowsUri({ ...policy, remoteRefs: "same-origin" }, uri)) {
+        onCrossOriginRead?.(uri);
+      }
       return doc;
     },
   };
@@ -255,7 +280,7 @@ export function remoteRefsNotice(command: string, count: number): string {
   if (count === 0) return "";
   const plural = count === 1 ? "" : "s";
   return (
-    `${command}: resolved ${count} remote $ref${plural} over the network. ` +
+    `${command}: resolved ${count} cross-origin $ref${plural} over the network. ` +
     `A future major refuses cross-origin refs by default; pass --remote-refs allow ` +
     `to keep this, or --remote-refs same-origin to adopt it now.\n`
   );

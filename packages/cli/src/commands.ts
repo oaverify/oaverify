@@ -37,6 +37,7 @@ import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
 import {
   confineRootFor,
+  confinedEntry,
   entryRefusal,
   policyFor,
   remoteRefsNotice,
@@ -159,7 +160,7 @@ export function defaultCommandIo(): CommandIo {
       composeReaders([
         createStdinReader(),
         createFileReader(confineRootFor(policy), fileOptionsFor(policy)),
-        policyHttpReader(createHttpReader(httpOptionsFor(policy)), policy, policy.onRemoteRead),
+        policyHttpReader(createHttpReader(httpOptionsFor(policy)), policy),
       ]),
     async readText(pathOrDash: string) {
       if (pathOrDash === "-") return readAllStdin();
@@ -225,8 +226,8 @@ function openReader(
   io: CommandIo,
   command: string,
   entry: string,
-  flags: ReaderFlags,
-): { reader: DocumentReader; remoteReads: () => number } | { refusal: CommandResult } {
+  flags: ReaderFlags & { quiet?: boolean },
+): { reader: DocumentReader; entry: string; notice: () => void } | { refusal: CommandResult } {
   const policy = policyFor(entry, flags);
   const refusal = entryRefusal(policy);
   if (refusal !== undefined) {
@@ -236,20 +237,27 @@ function openReader(
     // rather than anything about the document.
     return { refusal: { exitCode: 3 } };
   }
-  let remoteReads = 0;
+  let crossOrigin = 0;
   // Counted only under the default posture: the notice exists to reach
   // a user who has not chosen one, so telling anyone who has is noise on
   // every run.
-  const counting = policy.remoteRefs === "allow";
+  const counting = policy.remoteRefs === "allow" && flags.quiet !== true;
   const reader = io.reader({
     ...policy,
     ...(counting && {
-      onRemoteRead: () => {
-        remoteReads += 1;
+      onCrossOriginRead: () => {
+        crossOrigin += 1;
       },
     }),
   });
-  return { reader, remoteReads: () => remoteReads };
+  return {
+    reader,
+    entry: confinedEntry(policy),
+    notice: () => {
+      const text = remoteRefsNotice(command, crossOrigin);
+      if (text !== "") io.stderr(text);
+    },
+  };
 }
 
 function readOverlays(reader: DocumentReader, paths: string[]): Promise<SpecOverlay[]> {
@@ -300,7 +308,7 @@ export async function resolveCommand(
 ): Promise<CommandResult> {
   const opened = openReader(io, "resolve", args.spec, args.options);
   if ("refusal" in opened) return opened.refusal;
-  const { reader, remoteReads } = opened;
+  const { reader, entry, notice } = opened;
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(reader, args.overlays);
@@ -310,10 +318,10 @@ export async function resolveCommand(
   }
   const { document } = await loadSpec({
     reader,
-    entry: args.spec,
+    entry,
     overlays: overlayDocs,
   });
-  io.stderr(remoteRefsNotice("resolve", remoteReads()));
+  notice();
 
   await primarySink(io, args.options)(JSON.stringify(document, null, 2) + "\n");
   return { exitCode: 0 };
@@ -504,7 +512,7 @@ export async function checkCommand(
 
   const opened = openReader(io, "check", args.spec, args.options);
   if ("refusal" in opened) return opened.refusal;
-  const { reader, remoteReads } = opened;
+  const { reader, entry, notice } = opened;
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(reader, args.overlays);
@@ -521,11 +529,11 @@ export async function checkCommand(
     // it is the asynchronous half; `checkSpec` takes what it produces.
     resolved = await loadSpec({
       reader,
-      entry: args.spec,
+      entry,
       overlays: overlayDocs,
       provenance: true,
     });
-    io.stderr(remoteRefsNotice("check", remoteReads()));
+    notice();
   } catch (err) {
     // The document could not be read, resolved, or parsed. Not a finding:
     // there is nothing to report findings about.
@@ -692,7 +700,7 @@ export async function streamCheckCommand(
 ): Promise<CommandResult> {
   const opened = openReader(io, "stream-check", args.spec, args.options);
   if ("refusal" in opened) return opened.refusal;
-  const { reader, remoteReads } = opened;
+  const { reader, entry, notice } = opened;
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(reader, args.overlays);
@@ -702,10 +710,10 @@ export async function streamCheckCommand(
   }
   const { document } = await loadSpec({
     reader,
-    entry: args.spec,
+    entry,
     overlays: overlayDocs,
   });
-  io.stderr(remoteRefsNotice("stream-check", remoteReads()));
+  notice();
 
   const budget = analyzeSpec(
     document,
@@ -760,7 +768,7 @@ export async function validateCommand(
 
   const opened = openReader(io, "validate", args.spec, args.options);
   if ("refusal" in opened) return opened.refusal;
-  const { reader, remoteReads } = opened;
+  const { reader, entry, notice } = opened;
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(reader, args.overlays);
@@ -770,10 +778,10 @@ export async function validateCommand(
   }
   const { document } = await loadSpec({
     reader,
-    entry: args.spec,
+    entry,
     overlays: overlayDocs,
   });
-  io.stderr(remoteRefsNotice("validate", remoteReads()));
+  notice();
   // The CLI renders a nested error tree and reports every problem it
   // finds, so it compiles in tree mode with uncapped error collection
   // rather than the flat fail-fast default.
@@ -1021,7 +1029,7 @@ export async function compileSpecCommand(
 ): Promise<CommandResult> {
   const opened = openReader(io, "compile-spec", args.spec, args);
   if ("refusal" in opened) return opened.refusal;
-  const { reader, remoteReads } = opened;
+  const { reader, entry, notice } = opened;
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(reader, args.overlays);
@@ -1033,10 +1041,10 @@ export async function compileSpecCommand(
   try {
     const loaded = await loadSpec({
       reader,
-      entry: args.spec,
+      entry,
       overlays: overlayDocs,
     });
-    io.stderr(remoteRefsNotice("compile-spec", remoteReads()));
+    notice();
     document = loaded.document;
   } catch (err) {
     io.stderr(`compile-spec: ${(err as Error).message}\n`);

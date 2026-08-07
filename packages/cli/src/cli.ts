@@ -290,12 +290,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           spec,
           overlays: opts.overlay ?? [],
           mode,
-          options: {
+          options: readerFlagged(opts, {
             format: opts.format as OutputFormat,
             depth: opts.depth,
             output: opts.output,
             quiet: opts.quiet,
-          },
+          }),
         },
         io,
       );

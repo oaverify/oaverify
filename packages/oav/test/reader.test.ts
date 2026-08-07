@@ -86,14 +86,15 @@ describe("createCliReader", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
-  it("counts a remote ref for the notice, but not the entry", async () => {
+  it("counts a cross-origin ref for the notice, but not the entry or a sibling", async () => {
     stubFetch();
     let count = 0;
-    const policy = { ...policyFor(REMOTE_ENTRY), onRemoteRead: () => (count += 1) };
+    const policy = { ...policyFor(REMOTE_ENTRY), onCrossOriginRead: () => (count += 1) };
     const reader = cliReader(policy);
     await reader.read(REMOTE_ENTRY);
-    expect(count).toBe(0);
     await reader.read("https://api.example.com/pet.json");
+    expect(count).toBe(0);
+    await reader.read("https://elsewhere.example/pet.json");
     expect(count).toBe(1);
   });
 
