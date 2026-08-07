@@ -234,6 +234,36 @@ reading.
 is what the grammar asks for. If you need the looser reading, register
 your own: `formats: { duration: (v) => myIso8601Check(v) }`.
 
+## Breaking: `time` and `date-time` bound the leap second and the offset
+
+`:60` was accepted at any hour and minute, and the offset's own fields
+were never bounded, so `22:59:60Z` and `01:02:03+24:00` both passed.
+
+RFC 3339 inserts a leap second at the end of a UTC day and nowhere else,
+so whether `:60` is legal is a property of the _instant_ rather than of
+the digits. The fields are now normalised to minutes past midnight UTC
+before the rule is applied, which is what keeps the offset spellings of
+that same instant working.
+
+| Value            | Before   | Now      | Why                               |
+| ---------------- | -------- | -------- | --------------------------------- |
+| `23:59:60Z`      | accepted | accepted | the leap second itself            |
+| `15:59:60-08:00` | accepted | accepted | the same instant, spelled locally |
+| `00:29:60-23:30` | accepted | accepted | likewise                          |
+| `22:59:60Z`      | accepted | rejected | not the last minute of a UTC day  |
+| `23:59:60+00:30` | accepted | rejected | normalises off the last minute    |
+| `01:02:03+24:00` | accepted | rejected | not an offset                     |
+| `01:02:03+00:60` | accepted | rejected | not an offset                     |
+
+A rule written as "only `23:59:60`" would have broken the six valid
+leap seconds that carry an offset, which is why the normalisation is
+there. Measured against the JSON Schema Test Suite's `optional/format`
+corpus with assertion on, `time` went from 35/47 to 47/47 and
+`date-time` from 29/33 to 33/33.
+
+If a producer you cannot change emits a leap second at the wrong minute,
+`formats: { "date-time": false }` keeps the name as an annotation.
+
 ## Breaking: the `regex` format asserts ECMA-262 u-mode
 
 `format: regex` used to share the `pattern` keyword's compile path,
