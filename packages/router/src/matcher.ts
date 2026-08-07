@@ -238,6 +238,12 @@ function parseSegment(seg: string): Segment {
   // `$` anchor + lazy capture resolves multi-param ambiguity left-to-right
   // (e.g. `{x}.{y}` against `a.b.c` captures `x="a"`, `y="b.c"`), matching
   // path-to-regexp / hono / find-my-way / werkzeug behavior.
+  //
+  // Literal runs decode before they are escaped into the regex, the same
+  // way a whole literal segment does. `match` decodes the request token
+  // first, so an undecoded literal here could never meet it: `/caf%C3%A9`
+  // matched while `/caf%C3%A9-{id}` could not, for one escape in one
+  // document.
   const names: string[] = [];
   let regexSrc = "^";
   let i = 0;
@@ -253,7 +259,7 @@ function parseSegment(seg: string): Segment {
         break;
       }
       if (pendingLiteral !== "") {
-        regexSrc += escapeRegex(pendingLiteral);
+        regexSrc += escapeRegex(decodePathToken(pendingLiteral));
         pendingLiteral = "";
       }
       const name = seg.slice(i + 1, end);
@@ -266,7 +272,7 @@ function parseSegment(seg: string): Segment {
     }
   }
   if (pendingLiteral !== "") {
-    regexSrc += escapeRegex(pendingLiteral);
+    regexSrc += escapeRegex(decodePathToken(pendingLiteral));
   }
   regexSrc += "$";
   // No template parts ended up in the segment despite a `{`; degenerate.

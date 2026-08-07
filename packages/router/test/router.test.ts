@@ -161,6 +161,28 @@ describe("router", () => {
     expect(matched(rt.match("get", "/bad%zz")).operation.operationId).toBe("bad");
   });
 
+  it("decodes literal runs inside a compound segment", () => {
+    // #715: `match` decodes the request token, so an undecoded spec
+    // literal here could never meet it. The same escape worked in a
+    // whole literal segment and silently failed in a compound one.
+    const rt = createRouter({
+      "/caf%C3%A9-{id}": { get: op("cafe") },
+      "/caf%C3%A9": { get: op("plain") },
+    } as Record<string, PathItem>);
+    expect(matched(rt.match("get", "/caf%C3%A9-42")).operation.operationId).toBe("cafe");
+    expect(matched(rt.match("get", "/caf%C3%A9-42")).pathParams).toEqual({ id: "42" });
+    // The pure-literal sibling behaved correctly all along; the point is
+    // that the two now agree.
+    expect(matched(rt.match("get", "/caf%C3%A9")).operation.operationId).toBe("plain");
+  });
+
+  it("leaves an undecodable literal run raw inside a compound segment", () => {
+    // decodePathToken is total, so a bad escape falls back to raw here
+    // exactly as it does for a whole literal segment.
+    const rt = createRouter({ "/a%zz-{id}": { get: op("bad") } } as Record<string, PathItem>);
+    expect(matched(rt.match("get", "/a%zz-7")).pathParams).toEqual({ id: "7" });
+  });
+
   it("ignores trailing slashes", () => {
     expect(matched(r.match("get", "/pets/")).operation.operationId).toBe("listPets");
   });
