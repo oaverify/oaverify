@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReferenceObject, SchemaObject } from "@oaverify/internal-core";
+import { resolveOperationRef } from "../src/operation-cache.js";
 import { coercionView, deserialize, matchMediaType, matchResponseKey } from "../src/deserialize.js";
 
 describe("deserialize", () => {
@@ -297,20 +298,20 @@ describe("matchResponseKey", () => {
 });
 
 describe("coercionView", () => {
-  const schemas: Record<string, unknown> = {
-    Id: { type: "integer" },
-    Ref: { $ref: "#/components/schemas/Id" },
-    Loop: { $ref: "#/components/schemas/Loop" },
+  // The real resolver, not a stand-in: it chases a whole chain and
+  // throws on a ref it will not follow, and a double that did neither is
+  // what hid both behaviors from these tests.
+  const doc = {
+    components: {
+      schemas: {
+        Id: { type: "integer" },
+        Ref: { $ref: "#/components/schemas/Id" },
+        Loop: { $ref: "#/components/schemas/Loop" },
+      },
+    },
   };
-  // Stands in for the validator's resolveRef: follows one hop, mirroring
-  // the real one's contract of returning the value unchanged when it is
-  // not a reference.
-  const resolveRef = <T>(v: T | ReferenceObject | undefined): T | undefined => {
-    if (v === undefined || typeof v !== "object" || v === null) return v as T;
-    const ref = (v as { $ref?: unknown }).$ref;
-    if (typeof ref !== "string") return v as T;
-    return schemas[ref.replace("#/components/schemas/", "")] as T | undefined;
-  };
+  const resolveRef = <T>(v: T | ReferenceObject | undefined): T | undefined =>
+    resolveOperationRef<T>(doc, v);
 
   it("returns the parameter unchanged, by identity, when nothing is a $ref", () => {
     const p = { name: "a", in: "query", schema: { type: "integer" } } as const;
@@ -354,14 +355,29 @@ describe("coercionView", () => {
     expect(view.schema).toMatchObject({ type: "integer" });
   });
 
-  it("gives up on a self-referential ref rather than spinning", () => {
-    // Coercion only needs a `type`; leaving the value a string is the
-    // right failure for a schema that never yields one.
+  it("keeps use-site siblings of a $ref, which are a conjunction", () => {
+    // `{ $ref: Arr, items: Id }`: the compiled validator honours the
+    // sibling, so the coercion view has to as well or the two disagree.
     const view = coercionView(
-      { name: "a", in: "query", schema: { $ref: "#/components/schemas/Loop" } },
+      {
+        name: "a",
+        in: "query",
+        schema: { $ref: "#/components/schemas/Id", items: { $ref: "#/components/schemas/Id" } },
+      },
       resolveRef,
     );
-    expect(deserialize("1", view)).toBe("1");
+    expect(view.schema).toMatchObject({ items: { type: "integer" } });
+  });
+
+  it("leaves the value a string when the resolver throws", () => {
+    // A cycle and an $id-based target both throw out of this resolver.
+    // The compiler resolves them through its own and validates them, so
+    // giving up here must not fail the build.
+    for (const ref of ["#/components/schemas/Loop", "https://example.com/Name"]) {
+      const view = coercionView({ name: "a", in: "query", schema: { $ref: ref } }, resolveRef);
+      expect(() => deserialize("1", view)).not.toThrow();
+      expect(deserialize("1", view)).toBe("1");
+    }
   });
 
   it("leaves the value a string when the ref does not resolve", () => {

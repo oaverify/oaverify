@@ -286,6 +286,52 @@ describe("compile-spec: explicit null body parity", () => {
   });
 });
 
+describe("compile-spec: $ref'd parameter coercion parity", () => {
+  // #714. The emitted module bakes the schema it coerces against, so it
+  // has to bake the resolved view or a compiled validator keeps the bug
+  // that createValidator no longer has.
+  const refSpec: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "Refs", version: "1" },
+    components: {
+      schemas: {
+        Id: { type: "integer" },
+        IdList: { type: "array", items: { $ref: "#/components/schemas/Id" } },
+      },
+    },
+    paths: {
+      "/p": {
+        get: {
+          parameters: [
+            { name: "id", in: "query", schema: { $ref: "#/components/schemas/Id" } },
+            {
+              name: "ids",
+              in: "query",
+              explode: false,
+              schema: { $ref: "#/components/schemas/IdList" },
+            },
+          ],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+
+  it("coerces a $ref'd scalar and array param, matching createValidator", async () => {
+    const req = { method: "GET", path: "/p", query: { id: "1", ids: "2,3" } };
+    expect(createValidator(refSpec).validateRequest(req as never).valid).toBe(true);
+    expect(flatErrors((await buildAot(refSpec)).validateRequest(req as never))).toEqual([]);
+  });
+
+  it("still rejects a genuinely non-numeric value", async () => {
+    const req = { method: "GET", path: "/p", query: { id: "nope" } };
+    expect(createValidator(refSpec).validateRequest(req as never).valid).toBe(false);
+    expect(
+      flatErrors((await buildAot(refSpec)).validateRequest(req as never)).map((e) => e.code),
+    ).toEqual(["type"]);
+  });
+});
+
 describe("compile-spec: equivalence vs createValidator", () => {
   it("does not satisfy required parameters from inherited record members", async () => {
     const spec: OpenAPIDocument = {

@@ -23,6 +23,7 @@
 
 import { builtInFormats } from "@oaverify/internal-formats";
 import {
+  coercionView,
   compileMediaTypePatterns,
   walkDocumentSchemas,
 } from "@oaverify/internal-validator/internals";
@@ -473,7 +474,8 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
         setSpecKey(headers, headerName, {
           readOwn: isHeaderObjectPrototypePropertyName(headerName),
           required: hdr.required === true,
-          schema: hdr.schema ?? undefined,
+          schema: coercionView({ name: headerName, in: "header", schema: hdr.schema }, resolveRef)
+            .schema,
           validator: schema !== undefined ? named(schema) : null,
         });
       }
@@ -497,19 +499,24 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
       {
         pathPattern,
         method,
-        parameters: parameters.map((p) => ({
-          name: p.name,
-          in: p.in,
-          __readOwn:
-            p.in === "header"
-              ? isHeaderObjectPrototypePropertyName(p.name)
-              : isObjectPrototypePropertyName(p.name),
-          required: p.required === true,
-          style: p.style,
-          explode: p.explode,
-          schema: p.schema ?? undefined,
-          __validator: paramValidatorName(combined, p, named),
-        })),
+        // The emitted module carries the schema it will coerce against,
+        // so it carries the resolved view. Without this a compiled
+        // validator keeps #714 while createValidator no longer has it.
+        parameters: parameters
+          .map((raw) => coercionView(raw, resolveRef))
+          .map((p) => ({
+            name: p.name,
+            in: p.in,
+            __readOwn:
+              p.in === "header"
+                ? isHeaderObjectPrototypePropertyName(p.name)
+                : isObjectPrototypePropertyName(p.name),
+            required: p.required === true,
+            style: p.style,
+            explode: p.explode,
+            schema: p.schema ?? undefined,
+            __validator: paramValidatorName(combined, p, named),
+          })),
         requestBodyRequired,
         hasRequestBody: requestBody !== undefined,
         bodyValidators: toPlaceholderMap(bodyValidators),

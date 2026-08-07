@@ -702,6 +702,62 @@ describe("validateRequest", () => {
     expect(leafCodes(err)).toContain("type");
   });
 
+  it("builds a validator for a parameter ref the coercion view cannot follow", () => {
+    // An $id-based target resolves through the compiler's own resolver
+    // and validates correctly. The coercion view uses the pointer-only
+    // resolver, which throws on it, and giving up there must leave the
+    // value a string rather than failing createValidator.
+    const spec = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      $defs: { Name: { $id: "https://example.com/Name", type: "string", minLength: 2 } },
+      paths: {
+        "/p": {
+          get: {
+            parameters: [{ name: "n", in: "query", schema: { $ref: "https://example.com/Name" } }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const sv = createValidator(spec);
+    expect(sv.validateRequest({ method: "GET", path: "/p", query: { n: "abc" } })).toBeNull();
+    // The schema still applies; only the coercion gave up.
+    expect(
+      leafCodes(sv.validateRequest({ method: "GET", path: "/p", query: { n: "a" } })),
+    ).toContain("minLength");
+  });
+
+  it("coerces a response header behind a $ref", () => {
+    // #714 reached request parameters through the operation cache; the
+    // response-header path builds its parameter inline and needs the
+    // same view.
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      components: { schemas: { Count: { type: "integer" } } },
+      paths: {
+        "/p": {
+          get: {
+            responses: {
+              "200": {
+                description: "ok",
+                headers: { "x-count": { schema: { $ref: "#/components/schemas/Count" } } },
+              },
+            },
+          },
+        },
+      },
+    };
+    const sv = createValidator(spec);
+    expect(
+      sv.validateResponse(
+        { method: "GET", path: "/p" },
+        { status: 200, headers: { "x-count": "3" } },
+      ),
+    ).toBeNull();
+  });
+
   it("accepts Buffer / Uint8Array for type:string, format:binary body fields", () => {
     // openapi-backend #860 / #809: multipart binary fields arrive as
     // Buffer / Uint8Array / framework-specific objects, not JS strings.

@@ -86,8 +86,8 @@ export function deserialize(
  *
  * Coercion works by reading `type` from the schema governing a value,
  * and a `$ref` carries none, so a parameter behind one coerced nothing
- * and reported `must be integer` on input that was correct. That is not
- * an edge case: `resolveSpec` hoists external schema targets into
+ * and reported `must be integer` on input that was correct. This is the
+ * ordinary shape: `resolveSpec` hoists external schema targets into
  * `components.schemas` and leaves an internal `$ref` at each use site,
  * and internal refs in the authored document are never inlined either.
  *
@@ -102,7 +102,8 @@ export function deserialize(
  * every request.
  *
  * Returns the parameter unchanged, identity included, when no position
- * was a `$ref`. That is the common case and it allocates nothing.
+ * was a `$ref`. That is the common case, and it allocates no new
+ * parameter or schema object.
  *
  * @internal
  */
@@ -113,23 +114,35 @@ export function coercionView(
   const schema = parameter.schema;
   if (schema === undefined || typeof schema === "boolean") return parameter;
 
+  // `resolveRef` follows the whole chain itself, so one call is enough.
+  // It throws on a ref it will not follow, an `$id`-based target or a
+  // cycle among them. The schema compiler resolves those through its own
+  // resolver and validates them correctly, so a throw here is not a
+  // reason to fail the build. Coercion is best-effort by construction:
+  // giving up leaves the value a string, which is what every other
+  // unresolvable case already does.
   const deref = (s: SchemaOrBoolean | undefined): SchemaOrBoolean | undefined => {
-    let current = s;
-    // Bounded: a ref whose target is itself a ref is legal, and a cycle
-    // among them would otherwise spin here. Coercion only needs a `type`,
-    // so giving up and leaving the value a string is the right failure.
-    for (let hops = 0; hops < 8; hops += 1) {
-      if (current === undefined || typeof current === "boolean") return current;
-      if (typeof current.$ref !== "string") return current;
-      const next = resolveRef<SchemaOrBoolean>(current);
-      if (next === undefined || next === current) return current;
-      current = next;
+    if (s === undefined || typeof s === "boolean") return s;
+    if (typeof s.$ref !== "string") return s;
+    try {
+      return resolveRef<SchemaOrBoolean>(s) ?? s;
+    } catch {
+      return s;
     }
-    return current;
   };
 
-  const self = deref(schema);
-  if (self === undefined || typeof self === "boolean") return parameter;
+  const target = deref(schema);
+  if (target === undefined || typeof target === "boolean") return parameter;
+
+  // 2020-12 reads a `$ref`'s siblings as a conjunction, and the use site
+  // is the more specific half, so it wins for the keywords coercion
+  // reads. Without this a schema written as `{ $ref, items }` lost its
+  // `items` and disagreed with the compiled validator.
+  let self: SchemaObject = target;
+  if (target !== schema) {
+    const { $ref: _ignored, ...siblings } = schema;
+    self = { ...target, ...siblings };
+  }
 
   const items = deref(self.items);
   let properties: Record<string, SchemaOrBoolean> | undefined;
