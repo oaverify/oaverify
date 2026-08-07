@@ -23,6 +23,10 @@
 // (`deserialize` / `matchParsedMediaType` / `matchResponseKey` are
 // emit-side and live in ./codegen-runtime.js.)
 export {
+  // Resolves the schema positions scalar coercion reads, so a parameter
+  // behind a `$ref` coerces. The AOT emitter needs it to bake the same
+  // schema the runtime would coerce against.
+  coercionView,
   compileMediaTypePatterns,
   matchMediaType,
   type ParsedMediaTypePattern,

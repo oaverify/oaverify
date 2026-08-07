@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { SchemaObject } from "@oaverify/internal-core";
-import { deserialize, matchMediaType, matchResponseKey } from "../src/deserialize.js";
+import type { ReferenceObject, SchemaObject } from "@oaverify/internal-core";
+import { resolveOperationRef } from "../src/operation-cache.js";
+import { coercionView, deserialize, matchMediaType, matchResponseKey } from "../src/deserialize.js";
 
 describe("deserialize", () => {
   it("returns undefined for absent values", () => {
@@ -293,5 +294,97 @@ describe("matchResponseKey", () => {
 
   it("returns undefined when no applicable key exists", () => {
     expect(matchResponseKey(500, { "200": {} })).toBeUndefined();
+  });
+});
+
+describe("coercionView", () => {
+  // The real resolver, not a stand-in: it chases a whole chain and
+  // throws on a ref it will not follow, and a double that did neither is
+  // what hid both behaviors from these tests.
+  const doc = {
+    components: {
+      schemas: {
+        Id: { type: "integer" },
+        Ref: { $ref: "#/components/schemas/Id" },
+        Loop: { $ref: "#/components/schemas/Loop" },
+      },
+    },
+  };
+  const resolveRef = <T>(v: T | ReferenceObject | undefined): T | undefined =>
+    resolveOperationRef<T>(doc, v);
+
+  it("returns the parameter unchanged, by identity, when nothing is a $ref", () => {
+    const p = { name: "a", in: "query", schema: { type: "integer" } } as const;
+    expect(coercionView(p, resolveRef)).toBe(p);
+  });
+
+  it("returns the parameter unchanged when it has no schema or a boolean one", () => {
+    const bare = { name: "a", in: "query" } as const;
+    expect(coercionView(bare, resolveRef)).toBe(bare);
+    const boolean = { name: "a", in: "query", schema: true } as const;
+    expect(coercionView(boolean, resolveRef)).toBe(boolean);
+  });
+
+  it("resolves the schema, its items, and its properties", () => {
+    const view = coercionView(
+      {
+        name: "a",
+        in: "query",
+        schema: { type: "array", items: { $ref: "#/components/schemas/Id" } },
+      },
+      resolveRef,
+    );
+    expect(view.schema).toMatchObject({ type: "array", items: { type: "integer" } });
+
+    const obj = coercionView(
+      {
+        name: "b",
+        in: "query",
+        schema: { type: "object", properties: { id: { $ref: "#/components/schemas/Id" } } },
+      },
+      resolveRef,
+    );
+    expect(obj.schema).toMatchObject({ properties: { id: { type: "integer" } } });
+  });
+
+  it("follows a chain of refs", () => {
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "#/components/schemas/Ref" } },
+      resolveRef,
+    );
+    expect(view.schema).toMatchObject({ type: "integer" });
+  });
+
+  it("keeps use-site siblings of a $ref, which are a conjunction", () => {
+    // `{ $ref: Arr, items: Id }`: the compiled validator honours the
+    // sibling, so the coercion view has to as well or the two disagree.
+    const view = coercionView(
+      {
+        name: "a",
+        in: "query",
+        schema: { $ref: "#/components/schemas/Id", items: { $ref: "#/components/schemas/Id" } },
+      },
+      resolveRef,
+    );
+    expect(view.schema).toMatchObject({ items: { type: "integer" } });
+  });
+
+  it("leaves the value a string when the resolver throws", () => {
+    // A cycle and an $id-based target both throw out of this resolver.
+    // The compiler resolves them through its own and validates them, so
+    // giving up here must not fail the build.
+    for (const ref of ["#/components/schemas/Loop", "https://example.com/Name"]) {
+      const view = coercionView({ name: "a", in: "query", schema: { $ref: ref } }, resolveRef);
+      expect(() => deserialize("1", view)).not.toThrow();
+      expect(deserialize("1", view)).toBe("1");
+    }
+  });
+
+  it("leaves the value a string when the ref does not resolve", () => {
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "#/components/schemas/Missing" } },
+      resolveRef,
+    );
+    expect(deserialize("1", view)).toBe("1");
   });
 });

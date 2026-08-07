@@ -3,7 +3,9 @@ import {
   setSpecKey,
   type ParameterObject,
   type ParameterStyle,
+  type ReferenceObject,
   type SchemaObject,
+  type SchemaOrBoolean,
 } from "@oaverify/internal-core";
 
 /**
@@ -76,6 +78,92 @@ export function deserialize(
   }
 
   return coerceScalar(stripStyle(raw, style), schema);
+}
+
+/**
+ * A parameter whose schema is resolved one level down, so scalar
+ * coercion can read a `type` off it.
+ *
+ * Coercion works by reading `type` from the schema governing a value,
+ * and a `$ref` carries none, so a parameter behind one coerced nothing
+ * and reported `must be integer` on input that was correct. This is the
+ * ordinary shape: `resolveSpec` hoists external schema targets into
+ * `components.schemas` and leaves an internal `$ref` at each use site,
+ * and internal refs in the authored document are never inlined either.
+ *
+ * Three positions are followed, which is every position coercion reads:
+ * the parameter's own schema, its `items`, and each entry of its
+ * `properties`. Nothing deeper matters, because nothing deeper is
+ * coerced.
+ *
+ * Built once per operation when the cache is built, rather than per
+ * request: `createRefResolver` does not memoize, so resolving on the hot
+ * path would re-walk a JSON pointer for every `$ref`'d parameter of
+ * every request.
+ *
+ * Returns the parameter unchanged, identity included, when no position
+ * was a `$ref`. That is the common case, and it allocates no new
+ * parameter or schema object.
+ *
+ * @internal
+ */
+export function coercionView(
+  parameter: ParameterObject,
+  resolveRef: <T>(value: T | ReferenceObject | undefined) => T | undefined,
+): ParameterObject {
+  const schema = parameter.schema;
+  if (schema === undefined || typeof schema === "boolean") return parameter;
+
+  // `resolveRef` follows the whole chain itself, so one call is enough.
+  // It throws on a ref it will not follow, an `$id`-based target or a
+  // cycle among them. The schema compiler resolves those through its own
+  // resolver and validates them correctly, so a throw here is not a
+  // reason to fail the build. Coercion is best-effort by construction:
+  // giving up leaves the value a string, which is what every other
+  // unresolvable case already does.
+  const deref = (s: SchemaOrBoolean | undefined): SchemaOrBoolean | undefined => {
+    if (s === undefined || typeof s === "boolean") return s;
+    if (typeof s.$ref !== "string") return s;
+    try {
+      return resolveRef<SchemaOrBoolean>(s) ?? s;
+    } catch {
+      return s;
+    }
+  };
+
+  const target = deref(schema);
+  if (target === undefined || typeof target === "boolean") return parameter;
+
+  // 2020-12 reads a `$ref`'s siblings as a conjunction, and the use site
+  // is the more specific half, so it wins for the keywords coercion
+  // reads. Without this a schema written as `{ $ref, items }` lost its
+  // `items` and disagreed with the compiled validator.
+  let self: SchemaObject = target;
+  if (target !== schema) {
+    const { $ref: _ignored, ...siblings } = schema;
+    self = { ...target, ...siblings };
+  }
+
+  const items = deref(self.items);
+  let properties: Record<string, SchemaOrBoolean> | undefined;
+  if (self.properties !== undefined) {
+    for (const [name, value] of Object.entries(self.properties)) {
+      const resolvedValue = deref(value);
+      if (resolvedValue === value) continue;
+      properties ??= { ...self.properties };
+      if (resolvedValue !== undefined) setSpecKey(properties, name, resolvedValue);
+    }
+  }
+
+  if (self === schema && items === self.items && properties === undefined) return parameter;
+  return {
+    ...parameter,
+    schema: {
+      ...self,
+      ...(items === self.items ? {} : { items }),
+      ...(properties === undefined ? {} : { properties }),
+    },
+  };
 }
 
 function defaultStyle(location: string): ParameterStyle {

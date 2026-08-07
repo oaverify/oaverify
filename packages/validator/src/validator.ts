@@ -37,7 +37,12 @@ import {
   type TreeValidationResult,
   type ValidationResult,
 } from "@oaverify/internal-schema";
-import { deserialize, matchParsedMediaType, matchResponseKey } from "./deserialize.js";
+import {
+  coercionView,
+  deserialize,
+  matchParsedMediaType,
+  matchResponseKey,
+} from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast } from "./headers.js";
 import { reshapeResult, toFetchResult } from "./reshape.js";
@@ -1445,13 +1450,21 @@ export function createValidator(
               responseCompiled,
             );
             if (validator === undefined) continue;
-            const value = deserialize(raw, {
-              name,
-              in: "header",
-              schema: hdr.schema,
-              style: hdr.style,
-              explode: hdr.explode,
-            });
+            // Through the same view request parameters get, so a
+            // response header behind a $ref coerces like one.
+            const value = deserialize(
+              raw,
+              coercionView(
+                {
+                  name,
+                  in: "header",
+                  schema: hdr.schema,
+                  style: hdr.style,
+                  explode: hdr.explode,
+                },
+                resolveRef,
+              ),
+            );
             const r = validator.validate(value, ["header", name]);
             if (!r.valid && r.error !== undefined) {
               children.push(r.error);
