@@ -553,9 +553,16 @@ under a finite budget" for the full model.
   codegen is byte-identical to the un-instrumented path. See
   `compileGuardedRefCall` in `packages/schema/src/keywords/ref.ts` and
   docs/configuration.md "Guarding against deeply nested payloads".
-- **`$dynamicRef` behaves like `$ref` with an anchor lookup.** No
-  runtime dynamic-scope traversal. Fine for schemas that do not actually
-  rewire the extension point at runtime; assume nothing more.
+- **`$dynamicRef` resolves against a runtime stack of schema
+  resources** since #663, not a flattened anchor map. The stack pushes
+  on exactly two statically-known edges (an applicator descending into
+  a subschema declaring `$id`, and a ref landing in another resource),
+  so the compiler wraps those entry points and unwinding is structural:
+  no keyword has to know the scope exists. Binding is dynamic only for
+  a plain-name reference whose static target declares the matching
+  `$dynamicAnchor`, per the 2020-12 bookending rule; everything else
+  compiles as `$ref`. The whole mechanism is gated on a compile unit
+  using both keywords, so codegen is byte-identical when it does not.
 - **`unevaluated*` tracking is compile-time gated** on a one-pass walk
   of the root schema and registered external schemas, so it is free when
   unused and not free when used. See `CompileState.unevaluatedTracking`

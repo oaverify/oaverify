@@ -306,12 +306,11 @@ counts by category.
 
 Out-of-scope categories:
 
-- `$dynamicRef` with runtime dynamic-scope rebinding (oaverify resolves
-  statically against the anchor map).
 - The `optional/format/*` subtree (`format` is annotation-only by
   default per JSON Schema 2020-12 §6.3).
+- External / cross-document `$ref` loading.
 - A small tail of isolated optional cases (float-overflow handling,
-  external-ref loading tied to dynamic scope).
+  a meta-schema declaring no validation vocabulary).
 
 OpenAPI specs hand-authored or generated for typical APIs rarely
 touch any of these. If they matter for your use case, the
@@ -411,7 +410,10 @@ OpenAPI middleware packages (draft versions, `$data`, async
 validation, response interception, upload helpers), see
 [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md).
 
-- `$dynamicRef` behaves like `$ref` with anchor lookup; no runtime dynamic-scope traversal.
+- External / cross-document `$ref` loading is not supported inside the
+  schema compiler; resolve the document first (`resolveSpec`, or the
+  `resolve` CLI verb), which hoists external schema targets into
+  `components.schemas`.
 - `style: deepObject` query parameters support only single-level nesting (`obj[key]=value`); OpenAPI 3.0 through 3.2 do not define nested semantics.
 - `pattern` keywords and `format: "regex"` compile to the JavaScript
   built-in `RegExp`, which has no execution timeout. If your OpenAPI

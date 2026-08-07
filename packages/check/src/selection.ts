@@ -101,8 +101,8 @@ export interface FindingSelection {
    * This is also the switch that decides whether `malformed` findings
    * can exist at all, since compiling is what finds them. That is the
    * one place the malformed guarantee is conditional, and it is
-   * conditional on the same thing today: `--only hygiene` has never
-   * reported a malformed schema.
+   * conditional on the same thing today: `--findings hygiene` has
+   * never reported a malformed schema.
    */
   readonly compileSchemas: boolean;
   /**
@@ -338,7 +338,8 @@ const EMPTY_SELECTION: FindingSelection = {
 };
 
 /**
- * The selection a list of classes names, for the CLI's `--only`.
+ * The selection a list of classes names, for a caller that has
+ * classes rather than the CLI's `--findings` term grammar.
  *
  * **An empty list selects nothing**, which is the opposite of what
  * `resolveFindingSelection([])` means. The two look alike and are not:

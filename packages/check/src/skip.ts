@@ -3,11 +3,16 @@
  *
  * Every comparable tool grows per-rule suppression, because every
  * consumer eventually disagrees with one rule rather than a whole
- * class. `--only` is the wrong lever for that (it selects passes, and
- * the `schema` class carries the malformed gate); `--severity` is the
- * wrong axis entirely, because "how bad is this" and "does this exist"
- * are different questions and conflating them is what made `--fail-on`
- * useless once already.
+ * class. Selecting passes is the wrong lever for that (it decides
+ * which checks run, and the `schema` class carries the malformed
+ * gate); `--severity` is the wrong axis entirely, because "how bad is
+ * this" and "does this exist" are different questions, and conflating
+ * them is what made `--fail-on` useless once already.
+ *
+ * On the CLI both halves are spelled through one `--findings` flag: a
+ * bare term selects and may skip work, a `-` prefixed term excludes
+ * and cannot. That is the stage-not-polarity distinction #673 settled;
+ * this module is the exclusion half.
  *
  * A skipped finding is **not produced**: it is absent from the findings
  * array, so it gates on nothing and counts toward nothing. The report

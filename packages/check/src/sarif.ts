@@ -190,8 +190,8 @@ function rulesOf(findings: readonly CheckFinding[]): {
  * @param options - `version` names the tool and defaults to `"0.0.0"`;
  *   `base` is the directory local paths are made relative to, and
  *   defaults to the working directory; `classes` names the classes the
- *   run selected: the same list passed to `checkSpec` as `only`, or
- *   `CHECK_CLASSES` for a full run. Required rather than defaulted,
+ *   run selected: the classes reached by the `findings` selection
+ *   passed to `checkSpec`, or `CHECK_CLASSES` for a full run. Required rather than defaulted,
  *   because the log asserts it as `oaverify:classes` so a consumer can
  *   tell a partial run from a clean document; a default of all five
  *   would label a partial run complete.
@@ -293,7 +293,7 @@ export function renderSarif(
           },
         },
         // Named so a consumer can tell a partial run from a clean
-        // document: `check --only schema` reporting nothing means
+        // document: `check --findings schema` reporting nothing means
         // something different from a full run reporting nothing.
         properties: { "oaverify:classes": [...classes].sort() },
         // Same reason, for the other way a report can be short of what
