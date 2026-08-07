@@ -13,7 +13,12 @@
  * @packageDocumentation
  */
 
-import { setSpecKey, type ParameterObject, type SchemaOrBoolean } from "@oaverify/internal-core";
+import {
+  getOwn,
+  setSpecKey,
+  type ParameterObject,
+  type SchemaOrBoolean,
+} from "@oaverify/internal-core";
 
 /**
  * Peek at the `type` keyword of a schema, returning the first string
@@ -75,20 +80,29 @@ export function coerceQueryScalar(value: string | undefined, schema: SchemaOrBoo
  * OpenAPI 3.0–3.2 do not define nested semantics, so `obj[a][b]=v`
  * yields a property literally named `a][b`.
  *
+ * Values are coerced with the matching entry in the parameter schema's
+ * `properties`, matching what {@link assembleFormExplodedObject} does for
+ * the `form` + `explode` shape. A property the schema does not declare
+ * stays a string, so an unschema'd `deepObject` assembles as it always did.
+ *
  * @internal
  */
 export function assembleDeepObject(
   name: string,
   query: Record<string, string | string[]> | undefined,
+  schema?: SchemaOrBoolean,
 ): Record<string, unknown> | undefined {
   if (query === undefined) return undefined;
   const prefix = `${name}[`;
+  const props = extractObjectProperties(schema);
   const out: Record<string, unknown> = {};
   let any = false;
   for (const [k, v] of Object.entries(query)) {
     if (!k.startsWith(prefix) || !k.endsWith("]")) continue;
     const propName = k.slice(prefix.length, -1);
-    setSpecKey(out, propName, Array.isArray(v) ? v[0] : v);
+    const raw = Array.isArray(v) ? v[0] : v;
+    const propSchema = getOwn(props, propName);
+    setSpecKey(out, propName, propSchema === undefined ? raw : coerceQueryScalar(raw, propSchema));
     any = true;
   }
   return any ? out : undefined;
@@ -140,7 +154,7 @@ export function assembleObjectQueryParam(
   const style = p.style ?? "form";
   const explode = p.explode ?? style === "form";
   if (style === "deepObject") {
-    return { value: assembleDeepObject(p.name, query) };
+    return { value: assembleDeepObject(p.name, query, p.schema) };
   }
   if (style === "form" && explode) {
     return { value: assembleFormExplodedObject(p.schema, query) };

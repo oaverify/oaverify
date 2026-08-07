@@ -23,8 +23,12 @@ import {
  *
  * @example
  * ```ts
- * deserialize("1,2,3", { name: "ids", in: "query", schema: { type: "array" } });
- * // [1, 2, 3]
+ * deserialize("1,2,3", {
+ *   name: "ids",
+ *   in: "query",
+ *   schema: { type: "array", items: { type: "integer" } },
+ * });
+ * // [1, 2, 3]. Without `items`, they stay strings.
  * ```
  *
  * @public
@@ -40,7 +44,10 @@ export function deserialize(
   const type = extractType(schema);
 
   if (Array.isArray(raw)) {
-    if (type === "array") return raw.map((v) => coerceScalar(v, schema));
+    if (type === "array") {
+      const items = itemSchema(schema);
+      return raw.map((v) => coerceScalar(v, items));
+    }
     if (type === "object") return raw[0];
     return coerceScalar(raw[0] ?? "", schema);
   }
@@ -48,7 +55,8 @@ export function deserialize(
   if (type === "array") {
     if (raw === "") return [];
     const separator = arraySeparator(style, explode);
-    return raw.split(separator).map((v) => coerceScalar(stripStyle(v, style), schema));
+    const items = itemSchema(schema);
+    return raw.split(separator).map((v) => coerceScalar(stripStyle(v, style), items));
   }
 
   if (type === "object") {
@@ -96,6 +104,38 @@ function extractType(schema: SchemaObject | boolean | undefined): string | undef
   if (typeof schema.type === "string") return schema.type;
   if (Array.isArray(schema.type)) return schema.type[0];
   return undefined;
+}
+
+/**
+ * The schema governing every item of an array-typed parameter. Coercion
+ * of a serialized array's items is driven by `items`, not by the array
+ * schema itself: handing `coerceScalar` the array schema makes it read
+ * `type: "array"` and return every item as an unchanged string.
+ *
+ * Returns `undefined`, leaving items as strings, when no single schema
+ * governs them all:
+ *
+ * - `prefixItems` is present. There `items` covers only the elements
+ *   past the prefix, so applying it to every element would coerce a
+ *   prefix element against the wrong schema. `?a=12,3` against
+ *   `prefixItems: [{type: "string"}], items: {type: "number"}` has to
+ *   keep `"12"` a string.
+ * - `items` is an array. No OpenAPI version permits that shape, and the
+ *   compiler already reports it as a malformed schema, so this only
+ *   keeps the helper total on input the caller will hear about anyway.
+ *
+ * A `$ref`-valued `items` also coerces nothing, since `extractType` sees
+ * no `type` on it. That matches how a `$ref`-valued scalar parameter
+ * schema already behaves.
+ */
+function itemSchema(
+  schema: SchemaObject | boolean | undefined,
+): SchemaObject | boolean | undefined {
+  if (schema === undefined || typeof schema === "boolean") return undefined;
+  if (schema.prefixItems !== undefined) return undefined;
+  const items = schema.items;
+  if (Array.isArray(items)) return undefined;
+  return items;
 }
 
 function coerceScalar(value: string, schema: SchemaObject | boolean | undefined): unknown {
