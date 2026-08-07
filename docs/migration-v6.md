@@ -355,6 +355,28 @@ behaves identically either way. `createValidator` and `oaverify check`
 take the new default, and the `compile-spec` command asks for the
 source it emits.
 
+## New: reader posture flags on the CLI
+
+Every command that takes a spec accepts `--remote-refs
+allow | same-origin | deny` and `--untrusted`. Additive: the default is
+`allow`, which is what the CLI has always done.
+
+One behaviour change rides with them. Reads are now capped at 64MiB and
+http requests time out after 30s, whatever the posture, where both were
+unbounded. The largest document in this project's real-world corpus is
+12MB, so a real spec does not meet either. A `$ref` at something that is
+not a spec now fails quickly instead of streaming until it runs out of
+memory.
+
+Running under the default posture with a remote `$ref` prints a notice
+on stderr naming the count. It is there because a future major refuses
+cross-origin refs by default, and the people that will affect are the
+ones who never pass the flag. `--remote-refs same-origin` adopts the
+future default now and silences it; `--remote-refs allow` keeps the
+current behaviour explicitly.
+
+See [the CLI README](https://github.com/oaverify/oaverify/blob/main/packages/oav/README.md#reading-a-spec-you-did-not-write).
+
 ## Checklist
 
 1. Run your test suite. A failure naming `must match format int32` or

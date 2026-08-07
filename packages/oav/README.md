@@ -85,6 +85,38 @@ oaverify stream-check openapi.yaml
 YAML and JSON both work everywhere a spec is accepted, including specs
 fetched over HTTP where the server advertises YAML by `Content-Type`.
 
+## Reading a spec you did not write
+
+A `$ref` is a file read or an outbound HTTP request, and what it names
+ends up in the resolved document. Every command that reads a spec takes
+two flags that bound how far those reads go.
+
+```bash
+oaverify check vendor.yaml --remote-refs same-origin
+oaverify check /srv/uploads/tenant-42/openapi.json --untrusted
+```
+
+`--remote-refs` governs every http(s) read, **the entry document
+included**:
+
+| Value             | Effect                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `allow` (default) | any http(s) URI resolves                                                                                           |
+| `same-origin`     | only the origin a remote entry was served from; a local or piped entry opted into none, so nothing remote resolves |
+| `deny`            | no http(s) read at all, so a remote entry is refused                                                               |
+
+Pointing the tool at a remote spec is consent to that origin rather than
+to one URI, so a sibling file on the same host resolves under
+`same-origin`. A hop to another host does not.
+
+`--untrusted` treats the document as hostile: file reads confined to the
+entry's directory, tighter size and time caps, and `--remote-refs
+same-origin` implied. An explicit `--remote-refs` overrides that.
+
+The library makes the same choice by composing readers rather than by
+flag. See
+[docs/configuration.md](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md#resolving-untrusted-specs).
+
 ## Exit codes
 
 One taxonomy across every command, rather than a per-command meaning.

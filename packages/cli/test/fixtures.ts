@@ -24,14 +24,15 @@ export function memoryIo(
   entries: Array<[string, unknown]>,
   textFiles: Array<[string, string]> = [],
 ): MemoryIo {
-  const reader: DocumentReader = createMemoryReader(new Map(entries));
+  const memoryReader: DocumentReader = createMemoryReader(new Map(entries));
   const textMap = new Map(textFiles);
   const writes: Array<[string, string]> = [];
   const stdout = { value: "" };
   const stderr = { value: "" };
   return {
     io: {
-      reader,
+      // The posture is the real CLI's concern; tests read from memory.
+      reader: () => memoryReader,
       async readText(path: string) {
         const hit = textMap.get(path);
         if (hit === undefined) throw new Error(`missing text file: ${path}`);

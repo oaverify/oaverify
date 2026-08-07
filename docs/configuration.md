@@ -276,8 +276,9 @@ the base directory is allowed; one that resolves outside it is refused.
 `allowUri` is called with every URI before the request and refuses it on
 `false`. `timeoutMs` bounds a hanging endpoint. `maxBytes` rejects an
 oversized response while the body is still streaming, before parsing it.
-There is no equivalent byte limit for local file reads, so a `$ref` to a
-large local file is not capped by these reader options.
+`FileReaderOptions.maxBytes` is the same bound for a local read, checked
+against the size on disk before the file is opened. Both are unbounded
+by default.
 
 `redirects` deserves its own note, because `allowUri` without it is not
 the control it looks like. `fetch` follows redirects by default and
@@ -301,12 +302,27 @@ const reader = composeReaders([
 ]);
 ```
 
-The `oaverify` CLI composes a file reader and an HTTP reader by
-default, so `oaverify check ./local-spec.yaml` will follow an `http(s)`
-`$ref` found inside that local file. Reaching the network does not
-require having pointed the CLI at a URL. The CLI does not expose flags
-for `confine`, `allowUri`, `redirects`, `timeoutMs`, or `maxBytes`; use
-programmatic readers when those controls are required.
+### The same choice from the CLI
+
+The controls above are opt-in because the library composes no reader you
+did not ask for: `loadSpec` requires one, `loadSpecSync` defaults to a
+filesystem-only reader.
+
+The CLI has to compose readers to be useful, so it takes the same choice
+as a flag. Every command that reads a spec accepts `--remote-refs
+allow | same-origin | deny` and `--untrusted`:
+
+```bash
+oaverify check vendor.yaml --remote-refs same-origin
+oaverify check /srv/uploads/tenant-42/openapi.json --untrusted
+```
+
+`--untrusted` confines file reads to the entry's directory, tightens the
+caps, and implies `--remote-refs same-origin`. The individual options
+have no flags of their own; see `ReaderPolicy` and `policyFor` in
+`@oaverify/internal-cli` for what each posture sets and why a posture
+rather than a part. Compose readers yourself when you need something a
+posture does not express, such as pinning one internal spec host.
 
 ## Guarding against deeply nested payloads
 

@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 export {};
 
+// Type-only, so it is erased and does not defeat the lazy imports below.
+import type { ReaderPolicy } from "@oaverify/internal-cli";
+
 // `commander` is a regular dependency of `oaverify`, so a normal install
 // puts it in node_modules. If it's missing, the install is corrupted;
 // catch the dynamic import up front and print a clearer message than
@@ -23,29 +26,17 @@ try {
 }
 
 const { buildProgram, defaultCommandIo } = await import("@oaverify/internal-cli");
-const { composeReaders } = await import("@oaverify/internal-spec");
-const { createSmartHttpReader, createYamlFileReader, createYamlStdinReader } =
-  await import("@oaverify/yaml");
+const { createCliReader } = await import("./reader.js");
 
-// Default I/O composes the YAML readers from @oaverify/yaml in
-// front of the JSON-only readers baked into @oaverify/internal-cli's defaultCommandIo,
-// so `oaverify resolve spec.yaml` and `oaverify resolve https://host/openapi`
-// work out of the box. createSmartHttpReader handles both JSON and
-// YAML over HTTP by inspecting Content-Type; it replaces the core
-// createHttpReader in the chain for any http(s) URI.
+// Default I/O composes the YAML readers from @oaverify/yaml in front of
+// the JSON-only readers baked into @oaverify/internal-cli's
+// defaultCommandIo, so `oaverify resolve spec.yaml` and
+// `oaverify resolve https://host/openapi` work out of the box. The chain
+// itself is in ./reader.js so it can be tested; see createCliReader.
 const baseIo = defaultCommandIo();
 const io = {
   ...baseIo,
-  // The stdin reader goes first: createFileReader claims every
-  // non-HTTP, non-memory URI, so anything after it would take `-` and
-  // look for a file of that name. The YAML one shadows the JSON-only
-  // reader inside baseIo, so a piped spec may be either format.
-  reader: composeReaders([
-    createYamlStdinReader(),
-    createYamlFileReader(),
-    createSmartHttpReader(),
-    baseIo.reader,
-  ]),
+  reader: (policy: ReaderPolicy) => createCliReader(baseIo.reader(policy), policy),
 };
 // Read from this package's own manifest rather than a constant, so the
 // reported version cannot drift from the installed package and there is

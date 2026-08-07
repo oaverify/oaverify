@@ -9,6 +9,7 @@ import {
   validateCommand,
   type CommandOptions,
 } from "../src/commands.js";
+import { policyFor } from "../src/reader-policy.js";
 import { memoryIo } from "./fixtures.js";
 
 const textOpts: CommandOptions = { format: "text", quiet: false };
@@ -26,17 +27,23 @@ describe("defaultCommandIo", () => {
     const io = defaultCommandIo();
     // Bypass io.stdout / process.stdout for the assertion: we only
     // care that the chain claimed + fetched the URL.
-    expect(io.reader.canRead("https://example.com/spec.json")).toBe(true);
-    const loaded = await io.reader.read("https://example.com/spec.json");
+    const reader = io.reader(policyFor("https://example.com/spec.json"));
+    expect(reader.canRead("https://example.com/spec.json")).toBe(true);
+    const loaded = await reader.read("https://example.com/spec.json");
     expect(loaded).toEqual(spec);
-    expect(fetchMock).toHaveBeenCalledWith("https://example.com/spec.json");
+    // The default caps put a timeout on every request, so the reader
+    // now always passes an init rather than calling fetch bare.
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://example.com/spec.json",
+      expect.objectContaining({ signal: expect.anything() }),
+    );
   });
 
   it("still rejects .yaml URLs at the JSON reader layer with the install-hint error", async () => {
     const io = defaultCommandIo();
-    await expect(io.reader.read("https://example.com/spec.yaml")).rejects.toThrow(
-      /Install @oaverify\/yaml/,
-    );
+    await expect(
+      io.reader(policyFor("https://example.com/spec.yaml")).read("https://example.com/spec.yaml"),
+    ).rejects.toThrow(/Install @oaverify\/yaml/);
   });
 });
 

@@ -35,6 +35,19 @@ import {
 } from "./emit-standalone.js";
 import { emitSpec } from "./emit-spec.js";
 import { parseHttpFile } from "./http-parser.js";
+import {
+  confineRootFor,
+  confinedEntry,
+  entryRefusal,
+  policyFor,
+  remoteRefsNotice,
+  fileOptionsFor,
+  httpOptionsFor,
+  policyHttpReader,
+  type ReaderFlags,
+  type ReaderPolicy,
+  type RemoteRefsMode,
+} from "./reader-policy.js";
 import { hasUnbounded, renderStreamBudget } from "./stream-check.js";
 import {
   applySkip,
@@ -71,6 +84,14 @@ export interface CommandOptions {
   depth?: number;
   output?: string;
   quiet: boolean;
+  /**
+   * `--remote-refs`. Absent when the flag was not passed, which is what
+   * lets `--untrusted` imply a posture without overriding an explicit
+   * one. See {@link policyFor}.
+   */
+  remoteRefs?: RemoteRefsMode;
+  /** `--untrusted`. */
+  untrusted?: boolean;
 }
 
 /**
@@ -94,7 +115,15 @@ export interface CommandResult {
  * @public
  */
 export interface CommandIo {
-  reader: DocumentReader;
+  /**
+   * Build the reader for one invocation.
+   *
+   * A factory rather than an instance because the posture depends on
+   * the entry: `--remote-refs same-origin` admits the origin the entry
+   * was served from, which is not known until the command has parsed
+   * its argument. See {@link ReaderPolicy}.
+   */
+  reader(policy: ReaderPolicy): DocumentReader;
   readText(pathOrDash: string): Promise<string>;
   writeText(path: string, content: string): Promise<void>;
   stdout: (chunk: string) => void;
@@ -121,7 +150,18 @@ export function defaultCommandIo(): CommandIo {
     // `http:` / `https:` URIs; the YAML-over-HTTP story rides on
     // top of this chain in oaverify's CLI wrapper, which
     // composes YAML readers in front of whatever we return here.
-    reader: composeReaders([createStdinReader(), createFileReader(), createHttpReader()]),
+    //
+    // That wrapper's `createSmartHttpReader` claims every http(s) URI
+    // and sits in front of this one, so in the shipped binary the
+    // reader built here never serves a remote read. Both compositions
+    // have to apply the posture, or the flag holds in tests and not in
+    // the CLI.
+    reader: (policy) =>
+      composeReaders([
+        createStdinReader(),
+        createFileReader(confineRootFor(policy), fileOptionsFor(policy)),
+        policyHttpReader(createHttpReader(httpOptionsFor(policy)), policy),
+      ]),
     async readText(pathOrDash: string) {
       if (pathOrDash === "-") return readAllStdin();
       return readFile(pathOrDash, "utf8");
@@ -142,8 +182,8 @@ export function defaultCommandIo(): CommandIo {
  * throws with the offending path and keys instead of being cast and
  * silently mis-applied (#448).
  */
-async function readOverlay(io: CommandIo, path: string): Promise<SpecOverlay> {
-  const doc = await io.reader.read(path);
+async function readOverlay(reader: DocumentReader, path: string): Promise<SpecOverlay> {
+  const doc = await reader.read(path);
   if (isOverlayDocument(doc)) {
     try {
       return translateOverlay(doc);
@@ -174,8 +214,54 @@ async function readOverlay(io: CommandIo, path: string): Promise<SpecOverlay> {
   );
 }
 
-function readOverlays(io: CommandIo, paths: string[]): Promise<SpecOverlay[]> {
-  return Promise.all(paths.map((path) => readOverlay(io, path)));
+/**
+ * Resolve the reader posture for one invocation, or the usage error
+ * that says the posture and the entry disagree.
+ *
+ * Every spec-taking command opens with this, so the refusal is reported
+ * before anything is read and the notice is counted the same way
+ * everywhere.
+ */
+function openReader(
+  io: CommandIo,
+  command: string,
+  entry: string,
+  flags: ReaderFlags & { quiet?: boolean },
+): { reader: DocumentReader; entry: string; notice: () => void } | { refusal: CommandResult } {
+  const policy = policyFor(entry, flags);
+  const refusal = entryRefusal(policy);
+  if (refusal !== undefined) {
+    io.stderr(`${command}: ${refusal}\n`);
+    // 3, the documented usage code: the flags and the argument
+    // contradict each other, which is a mistake in the invocation
+    // rather than anything about the document.
+    return { refusal: { exitCode: 3 } };
+  }
+  let crossOrigin = 0;
+  // Counted only under the default posture: the notice exists to reach
+  // a user who has not chosen one, so telling anyone who has is noise on
+  // every run.
+  const counting = policy.remoteRefs === "allow" && flags.quiet !== true;
+  const reader = io.reader({
+    ...policy,
+    ...(counting && {
+      onCrossOriginRead: () => {
+        crossOrigin += 1;
+      },
+    }),
+  });
+  return {
+    reader,
+    entry: confinedEntry(policy),
+    notice: () => {
+      const text = remoteRefsNotice(command, crossOrigin);
+      if (text !== "") io.stderr(text);
+    },
+  };
+}
+
+function readOverlays(reader: DocumentReader, paths: string[]): Promise<SpecOverlay[]> {
+  return Promise.all(paths.map((path) => readOverlay(reader, path)));
 }
 
 /**
@@ -220,18 +306,22 @@ export async function resolveCommand(
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
+  const opened = openReader(io, "resolve", args.spec, args.options);
+  if ("refusal" in opened) return opened.refusal;
+  const { reader, entry, notice } = opened;
   let overlayDocs: SpecOverlay[];
   try {
-    overlayDocs = await readOverlays(io, args.overlays);
+    overlayDocs = await readOverlays(reader, args.overlays);
   } catch (err) {
     io.stderr(`resolve: ${(err as Error).message}\n`);
     return { exitCode: 3 };
   }
   const { document } = await loadSpec({
-    reader: io.reader,
-    entry: args.spec,
+    reader,
+    entry,
     overlays: overlayDocs,
   });
+  notice();
 
   await primarySink(io, args.options)(JSON.stringify(document, null, 2) + "\n");
   return { exitCode: 0 };
@@ -420,9 +510,12 @@ export async function checkCommand(
     return { exitCode: 3 };
   }
 
+  const opened = openReader(io, "check", args.spec, args.options);
+  if ("refusal" in opened) return opened.refusal;
+  const { reader, entry, notice } = opened;
   let overlayDocs: SpecOverlay[];
   try {
-    overlayDocs = await readOverlays(io, args.overlays);
+    overlayDocs = await readOverlays(reader, args.overlays);
   } catch (err) {
     io.stderr(`check: ${(err as Error).message}\n`);
     return { exitCode: 3 };
@@ -435,11 +528,12 @@ export async function checkCommand(
     // the node genuinely has no source. Loading is the CLI's job because
     // it is the asynchronous half; `checkSpec` takes what it produces.
     resolved = await loadSpec({
-      reader: io.reader,
-      entry: args.spec,
+      reader,
+      entry,
       overlays: overlayDocs,
       provenance: true,
     });
+    notice();
   } catch (err) {
     // The document could not be read, resolved, or parsed. Not a finding:
     // there is nothing to report findings about.
@@ -604,18 +698,22 @@ export async function streamCheckCommand(
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
+  const opened = openReader(io, "stream-check", args.spec, args.options);
+  if ("refusal" in opened) return opened.refusal;
+  const { reader, entry, notice } = opened;
   let overlayDocs: SpecOverlay[];
   try {
-    overlayDocs = await readOverlays(io, args.overlays);
+    overlayDocs = await readOverlays(reader, args.overlays);
   } catch (err) {
     io.stderr(`stream-check: ${(err as Error).message}\n`);
     return { exitCode: 3 };
   }
   const { document } = await loadSpec({
-    reader: io.reader,
-    entry: args.spec,
+    reader,
+    entry,
     overlays: overlayDocs,
   });
+  notice();
 
   const budget = analyzeSpec(
     document,
@@ -668,18 +766,22 @@ export async function validateCommand(
     return { exitCode: 3 };
   }
 
+  const opened = openReader(io, "validate", args.spec, args.options);
+  if ("refusal" in opened) return opened.refusal;
+  const { reader, entry, notice } = opened;
   let overlayDocs: SpecOverlay[];
   try {
-    overlayDocs = await readOverlays(io, args.overlays);
+    overlayDocs = await readOverlays(reader, args.overlays);
   } catch (err) {
     io.stderr(`validate: ${(err as Error).message}\n`);
     return { exitCode: 3 };
   }
   const { document } = await loadSpec({
-    reader: io.reader,
-    entry: args.spec,
+    reader,
+    entry,
     overlays: overlayDocs,
   });
+  notice();
   // The CLI renders a nested error tree and reports every problem it
   // finds, so it compiles in tree mode with uncapped error collection
   // rather than the flat fail-fast default.
@@ -918,12 +1020,19 @@ export async function compileSpecCommand(
     resolveDir?: string;
     /** Test-only: esbuild `alias` entries so emitted imports resolve to source. */
     bundleAlias?: Record<string, string>;
+    /** `--remote-refs`; see {@link CommandOptions.remoteRefs}. */
+    remoteRefs?: RemoteRefsMode;
+    /** `--untrusted`. */
+    untrusted?: boolean;
   },
   io: CommandIo = defaultCommandIo(),
 ): Promise<CommandResult> {
+  const opened = openReader(io, "compile-spec", args.spec, args);
+  if ("refusal" in opened) return opened.refusal;
+  const { reader, entry, notice } = opened;
   let overlayDocs: SpecOverlay[];
   try {
-    overlayDocs = await readOverlays(io, args.overlays);
+    overlayDocs = await readOverlays(reader, args.overlays);
   } catch (err) {
     io.stderr(`compile-spec: ${(err as Error).message}\n`);
     return { exitCode: 3 };
@@ -931,10 +1040,11 @@ export async function compileSpecCommand(
   let document: OpenAPIDocument;
   try {
     const loaded = await loadSpec({
-      reader: io.reader,
-      entry: args.spec,
+      reader,
+      entry,
       overlays: overlayDocs,
     });
+    notice();
     document = loaded.document;
   } catch (err) {
     io.stderr(`compile-spec: ${(err as Error).message}\n`);
