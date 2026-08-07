@@ -46,6 +46,32 @@ describe("deserialize", () => {
     expect(num("007")).toBe(7);
   });
 
+  it('keeps "=" inside an exploded object value', () => {
+    const p = {
+      name: "o",
+      in: "query",
+      style: "form",
+      explode: true,
+      schema: { type: "object" },
+    } as const;
+    // kv.split("=") took element [1], so a value carrying "=" (base64
+    // padding, a nested pair) was silently truncated at the second "=".
+    expect(deserialize("token=a=b&pad=YQ==", p)).toEqual({ token: "a=b", pad: "YQ==" });
+  });
+
+  it('keeps "=" inside a matrix scalar value', () => {
+    const p = { name: "v", in: "path", style: "matrix", schema: { type: "string" } } as const;
+    expect(deserialize(";v=a=b", p)).toBe("a=b");
+  });
+
+  it("surfaces the trailing key of an odd-count non-explode object", () => {
+    const p = { name: "o", in: "path", style: "simple", schema: { type: "object" } } as const;
+    // "R,100,G" is malformed serialization. Dropping G hid the defect
+    // from schema validation entirely; an empty-string value lets a
+    // required or typed property report it.
+    expect(deserialize("R,100,G", p)).toEqual({ R: "100", G: "" });
+  });
+
   it("coerces boolean scalars", () => {
     expect(deserialize("true", { name: "x", in: "query", schema: { type: "boolean" } })).toBe(true);
     expect(deserialize("false", { name: "x", in: "query", schema: { type: "boolean" } })).toBe(

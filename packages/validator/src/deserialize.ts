@@ -63,14 +63,23 @@ export function deserialize(
   if (type === "object") {
     if (style === "deepObject") return raw;
     if (explode) {
-      const pairs = raw.split("&").map((kv) => kv.split("="));
       const out: Record<string, unknown> = {};
-      for (const pair of pairs) setSpecKey(out, pair[0] ?? "", pair[1] ?? "");
+      for (const kv of raw.split("&")) {
+        // Split at the first "=" only: the value may carry more of them
+        // (base64 padding, a nested pair), and `kv.split("=")[1]` was
+        // silently truncating "token=a=b" to "a".
+        const eq = kv.indexOf("=");
+        if (eq === -1) setSpecKey(out, kv, "");
+        else setSpecKey(out, kv.slice(0, eq), kv.slice(eq + 1));
+      }
       return out;
     }
     const parts = raw.split(",");
     const out: Record<string, unknown> = {};
-    for (let i = 0; i < parts.length - 1; i += 2) {
+    for (let i = 0; i < parts.length; i += 2) {
+      // An odd part count is malformed serialization; giving the
+      // trailing key an empty value keeps the defect visible to schema
+      // validation, where dropping the key hid it entirely.
       setSpecKey(out, parts[i] ?? "", parts[i + 1] ?? "");
     }
     return out;
@@ -251,7 +260,14 @@ function arraySeparator(style: ParameterStyle, explode: boolean): string {
 }
 
 function stripStyle(value: string, style: ParameterStyle): string {
-  if (style === "matrix" && value.startsWith(";")) return value.slice(1).split("=").pop() ?? "";
+  if (style === "matrix" && value.startsWith(";")) {
+    // Drop the ";name=" prefix and nothing more: `.split("=").pop()`
+    // returned the text after the *last* "=", truncating a value that
+    // carries one (";v=a=b" read as "b").
+    const rest = value.slice(1);
+    const eq = rest.indexOf("=");
+    return eq === -1 ? rest : rest.slice(eq + 1);
+  }
   if (style === "label" && value.startsWith(".")) return value.slice(1);
   return value;
 }
