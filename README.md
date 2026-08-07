@@ -48,14 +48,47 @@ if (!result.valid) {
 ```
 
 One validation call covers the HTTP frame: method, path, parameters,
-body, content type, status, and headers. Failures are return values
-(structured errors, not throws), and framework request and response
-objects are never mutated.
+body, content type, status, and headers.
 
-Tested against the JSON Schema 2020-12 test suite, OpenAPI 3.0 / 3.1 /
-3.2 fixtures, real-world specs (Stripe, GitHub, Twilio, and more), and
-Express 4 / 5 + Fastify integration. See
-[what works today](#conformance).
+## Why this exists
+
+The established OpenAPI validators for JavaScript predate OpenAPI 3.1.
+oaverify is built to be the boring, correct option for modern specs.
+The claims that justify it, each with the artifact that checks it:
+
+- **3.1 and 3.2 are JSON Schema 2020-12, natively.** 1293/1299 on the
+  required upstream test suite, every divergence itemized and
+  cross-checked against other implementations, plus real-world specs
+  (Stripe, GitHub, Twilio, and more) and Express 4 / 5 + Fastify
+  integration tests
+  ([conformance report](https://github.com/oaverify/oaverify/blob/main/conformance/REPORT.md)).
+- **Validator construction is cheap.** One to two orders of magnitude
+  faster than Ajv compile on the benchmark shapes, at steady-state
+  validation parity — including the cells where Ajv wins
+  ([numbers and methodology](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md#performance)).
+  Cheap construction is what makes per-test, per-tenant, and
+  overlay-patched validators practical.
+- **No side effects, no dependencies.** The core carries zero runtime
+  dependencies, failures are return values, and framework request and
+  response objects are never mutated.
+- **Overlays patch specs you don't own, in memory.** Typed,
+  OpenAPI-aware verbs or standard Overlay 1.0 documents (32/32
+  upstream), applied just before construction — versus hand-editing
+  parsed JSON or a build-time CLI
+  ([docs/overlays.md](https://github.com/oaverify/oaverify/blob/main/docs/overlays.md)).
+- **Two capabilities with no counterpart we know of:** streaming
+  validation with pre-deploy peak-buffer budgets
+  ([`@oaverify/stream`](https://github.com/oaverify/oaverify/blob/main/packages/stream-validator/README.md)),
+  and compiling a spec to a standalone HTTP validator for runtimes
+  that forbid runtime code generation
+  ([`compile-spec`](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md#compile-spec-output)).
+
+**When not to use it.** If your OpenAPI document is generated from
+zod, TypeBox, or similar runtime schemas, your schema library already
+validates your traffic and oaverify adds little. Swagger 2.0 documents
+are not supported ([convert first](#versions)). If you want request
+coercion by mutation or response mocking, `express-openapi-validator`
+and `openapi-backend` do those and oaverify deliberately does not.
 
 ## Install
 
@@ -285,11 +318,6 @@ request/response validators for custom stacks. oaverify is aimed at
 HTTP-aware validation with structured errors, streaming validation of
 large bodies plus design-time buffer budgets, overlays, and standalone
 OpenAPI validator output.
-
-On the benchmark shapes, oaverify compiles schemas one to two orders of
-magnitude faster than Ajv. Steady-state validation is comparable across
-typical request and response bodies, with Ajv ahead on fast-fail
-rejection of some plain object shapes.
 
 [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md)
 has the feature map, the host-stamped per-shape numbers, the memory
