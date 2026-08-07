@@ -98,7 +98,7 @@ Valid input:
 | `composition`       | 137%               | 157%                  | 171%               |
 | `array-heavy`       | 118%               | 115%                  | 210%               |
 | `unique-primitives` | 172%               | 174%                  | 174%               |
-| `long-string`       | 6415×†             | 6394×†                | 7893×†             |
+| `long-string`       | >1000×†            | >1000×†               | >1000×†            |
 
 Invalid input (averaged across failure-position fixtures):
 
@@ -110,7 +110,7 @@ Invalid input (averaged across failure-position fixtures):
 | `composition`       | 111%               | 79%                   | 214%               |
 | `array-heavy`       | 109%               | 77%                   | 208%               |
 | `unique-primitives` | 330%               | 315%                  | 330%               |
-| `long-string`       | 42%                | 85%                   | 33673×†            |
+| `long-string`       | 42%                | 85%                   | >1000×†            |
 
 The trade-off: oaverify fast-fail trails Ajv fast-fail modestly on plain
 object rejection (`tiny`/`petstore`/`tree` at 84–94%), leads on
@@ -121,14 +121,14 @@ accept-path shapes, mixed on rejection (trailing on `composition` and
 mode, which skips error materialisation, is at or above parity
 everywhere.
 
-† `long-string` is a pathological shape, and its multipliers are four
-and five digits rather than percentages. On the accept path oaverify is
-several thousand times faster than Ajv, because Ajv's handling of very
-long length-bounded strings is expensive on this input while oaverify
-short-circuits. The reject path is noisier and swings the other way for
-fast-fail (oaverify at 42%), while predicate mode, which allocates no
-error at all, runs away with it. Read this row as a shape-specific
-signal, not a typical result.
+† `long-string` is a pathological shape. On the accept path oaverify is
+several thousand times faster than Ajv (capped here to `>1000×`),
+because Ajv's handling of very long length-bounded strings is expensive
+on this input while oaverify short-circuits. The reject path is noisier
+and swings the other way for fast-fail (oaverify at 42%), while
+predicate mode, which allocates no error at all, is faster still than
+the accept path and is capped the same way. Read this row as a
+shape-specific signal, not a typical result.
 
 ### Memory
 
