@@ -259,10 +259,7 @@ describe("router", () => {
   });
 
   it("lets a compound capture hold a decoded slash, as a bare {param} does", () => {
-    // #724: the regex runs against one token, already split on `/` and
-    // already decoded, so a `/` in it came from a `%2F` the client
-    // encoded. Excluding it made a compound refuse what `{id}` accepts,
-    // and silently: the request fell through to the less specific route.
+    // #724. See `parseSegment` for why the capture class admits a slash.
     const rt = createRouter({
       "/{id}": { get: op("bare") },
       "/{a}-{b}": { get: op("comp") },

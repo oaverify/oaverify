@@ -212,7 +212,7 @@ function methodsDeclaredOn(item: PathItem): Set<HttpMethod> {
  * ```ts
  * parseTemplate("/pets/{id}"); // [{literal "pets"}, {template "id"}]
  * parseTemplate("/commits/{sha}.{ext}");
- * // [{literal "commits"}, {compound regex /^([^/]+?)\.([^/]+?)$/ names ["sha","ext"]}]
+ * // [{literal "commits"}, {compound regex /^([\s\S]+?)\.([\s\S]+?)$/ names ["sha","ext"]}]
  * ```
  *
  * @public
@@ -234,7 +234,7 @@ function parseSegment(seg: string): Segment {
     return { kind: "template", name: pure[1]! };
   }
   // Compound: alternating literal and `{name}` parts. Build a regex
-  // with one non-greedy `[^/]+?` capture per template part; the trailing
+  // with one non-greedy `[\s\S]+?` capture per template part; the trailing
   // `$` anchor + lazy capture resolves multi-param ambiguity left-to-right
   // (e.g. `{x}.{y}` against `a.b.c` captures `x="a"`, `y="b.c"`), matching
   // path-to-regexp / hono / find-my-way / werkzeug behavior.
@@ -263,12 +263,14 @@ function parseSegment(seg: string): Segment {
       }
       const name = seg.slice(i + 1, end);
       names.push(name);
-      // `[\s\S]` rather than `[^/]`: the regex runs against one token,
-      // already split on `/` and already decoded, so a `/` here can only
-      // have come from a `%2F` the client encoded. Excluding it made a
-      // compound capture refuse what a bare `{id}` accepts, and the
-      // refusal was silent, since the request then fell through to a
-      // less specific route.
+      // `[\s\S]` rather than `[^/]`, which differ in exactly one
+      // character. The regex runs against one token, already split on `/`
+      // and already decoded, so a `/` here can only have come from a
+      // `%2F` the client encoded. Excluding it made a compound capture
+      // refuse what a bare `{id}` accepts, and the refusal was silent:
+      // the request fell through to a less specific route. `.` would
+      // narrow instead of preserve, since `[^/]` already matched
+      // newlines.
       regexSrc += "([\\s\\S]+?)";
       i = end + 1;
     } else {
