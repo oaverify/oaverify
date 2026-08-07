@@ -36,6 +36,7 @@ export { reshapeResult, toFetchResult } from "./reshape.js";
 // Fetch-adapter halves of the emitted `validateFetchRequest` /
 // `validateFetchResponse` helpers.
 export {
+  FetchBodyParseError,
   httpRequestFromFetch,
   httpResponseFromFetch,
   type FetchRequestOptions,

@@ -306,7 +306,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     // membership in `@oaverify/core/codegen-runtime` follows this import
     // (see that module's header). Do not point it at a subpath that
     // promises less.
-    `import { deserialize, matchParsedMediaType, matchResponseKey, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
+    `import { deserialize, matchParsedMediaType, matchResponseKey, FetchBodyParseError, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
     "",
     "void createBranchError; void createError; void deepEqual; void typeOf; void wrapErrors;",
     "void resolveOperationRef;",
@@ -981,9 +981,29 @@ export function validateResponse(req, res) {
   return reshapeResult(__validateResponseTree(req, res), __outputMode, __maxErrors);
 }
 
+function __bodyParseFailure(err) {
+  // Mirrors createValidator: an unparseable payload is a validation
+  // verdict, so only FetchBodyParseError converts to a result; IO and
+  // user-callback failures propagate unchanged.
+  const leaf = {
+    code: "body",
+    path: ["body"],
+    message: err.message,
+    params: { mediaType: err.mediaType },
+    children: [],
+  };
+  return toFetchResult(reshapeResult(leaf, __outputMode, __maxErrors), undefined);
+}
+
 export async function validateFetchRequest(request, options) {
-  const { httpRequest, body } = await httpRequestFromFetch(request, options);
-  return toFetchResult(validateRequest(httpRequest), body);
+  let extracted;
+  try {
+    extracted = await httpRequestFromFetch(request, options);
+  } catch (err) {
+    if (err instanceof FetchBodyParseError) return __bodyParseFailure(err);
+    throw err;
+  }
+  return toFetchResult(validateRequest(extracted.httpRequest), extracted.body);
 }
 
 export async function validateFetchResponse(request, response) {
@@ -992,8 +1012,14 @@ export async function validateFetchResponse(request, response) {
   // body stream, which the interpreted validator leaves unread.
   const url = new URL(request.url);
   const httpRequest = { method: request.method.toUpperCase(), path: url.pathname };
-  const { httpResponse, body } = await httpResponseFromFetch(response);
-  return toFetchResult(validateResponse(httpRequest, httpResponse), body);
+  let extracted;
+  try {
+    extracted = await httpResponseFromFetch(response);
+  } catch (err) {
+    if (err instanceof FetchBodyParseError) return __bodyParseFailure(err);
+    throw err;
+  }
+  return toFetchResult(validateResponse(httpRequest, extracted.httpResponse), extracted.body);
 }
 `;
 }

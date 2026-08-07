@@ -834,4 +834,22 @@ describe("compile-spec: emitted validateFetch* wrappers", () => {
     expect(r.body).toEqual([{ name: "Fido" }]);
     expect(request.bodyUsed).toBe(false);
   });
+
+  it("returns ok:false with a body error for unparseable JSON, matching createValidator", async () => {
+    const aot = (await buildAot(petstore)) as unknown as {
+      validateFetchRequest: (req: Request) => Promise<{
+        ok: boolean;
+        errors?: Array<{ code: string; message: string }>;
+      }>;
+    };
+    const request = new Request("http://x/pets", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant": "t1" },
+      body: '{"name": "Fido",',
+    });
+    const r = await aot.validateFetchRequest(request);
+    expect(r.ok).toBe(false);
+    expect(r.errors?.[0]?.code).toBe("body");
+    expect(r.errors?.[0]?.message).toContain("could not be parsed");
+  });
 });

@@ -54,6 +54,7 @@ import {
   type BodyDirection,
 } from "./body-schema-transform.js";
 import {
+  FetchBodyParseError,
   httpRequestFromFetch,
   httpResponseFromFetch,
   type FetchRequestOptions,
@@ -1557,9 +1558,30 @@ export function createValidator(
   ): ValidationResult | TreeValidationResult | boolean =>
     reshapeResult(validateResponseTree(req, res), outputMode, maxErrors);
 
+  // An unparseable payload is a validation verdict, not an exception:
+  // the body is attacker-controlled, and JSON.parse throwing out of
+  // validateFetchRequest turned garbage input into a 500 for every
+  // caller that did not wrap the await. Only FetchBodyParseError
+  // converts; an IO or user-callback failure propagates unchanged.
+  const bodyParseFailure = <T>(err: FetchBodyParseError) =>
+    toFetchResult<T>(
+      reshapeResult(
+        createLeafError("body", ["body"], err.message, { mediaType: err.mediaType }),
+        outputMode,
+        maxErrors,
+      ),
+      undefined,
+    );
+
   const validateFetchRequest = async <T>(request: Request, fetchOptions?: FetchRequestOptions) => {
-    const { httpRequest, body } = await httpRequestFromFetch(request, fetchOptions);
-    return toFetchResult<T>(validateRequest(httpRequest), body);
+    let extracted;
+    try {
+      extracted = await httpRequestFromFetch(request, fetchOptions);
+    } catch (err) {
+      if (err instanceof FetchBodyParseError) return bodyParseFailure<T>(err);
+      throw err;
+    }
+    return toFetchResult<T>(validateRequest(extracted.httpRequest), extracted.body);
   };
 
   const validateFetchResponse = async <T>(request: Request, response: Response) => {
@@ -1568,8 +1590,14 @@ export function createValidator(
     const url = new URL(request.url);
     const method = request.method.toUpperCase();
     const httpRequest: HttpRequest = { method, path: url.pathname };
-    const { httpResponse, body } = await httpResponseFromFetch(response);
-    return toFetchResult<T>(validateResponse(httpRequest, httpResponse), body);
+    let extracted;
+    try {
+      extracted = await httpResponseFromFetch(response);
+    } catch (err) {
+      if (err instanceof FetchBodyParseError) return bodyParseFailure<T>(err);
+      throw err;
+    }
+    return toFetchResult<T>(validateResponse(httpRequest, extracted.httpResponse), extracted.body);
   };
 
   const getOperation = (req: {

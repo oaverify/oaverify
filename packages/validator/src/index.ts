@@ -39,6 +39,7 @@ export {
 // the router package.
 export type { RouteInfo } from "@oaverify/internal-router";
 export {
+  FetchBodyParseError,
   httpRequestFromFetch,
   httpResponseFromFetch,
   readBodyFromFetch,
