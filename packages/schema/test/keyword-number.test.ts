@@ -26,6 +26,38 @@ describe("numeric keywords", () => {
     expect(v2.validate(0.25).valid).toBe(false);
   });
 
+  it("multipleOf answers an overflowing quotient by remainder, both ways", () => {
+    // #709. Both official cases divide 1e308 by a divisor small enough
+    // that the quotient overflows to Infinity, making q - round(q) NaN
+    // and every `> tol` comparison false. The verdicts differ, so a
+    // blanket reject is as wrong as the old blanket accept.
+    // multipleOf.json, "float division = inf": invalid.
+    const bad = compile({ type: "integer", multipleOf: 0.123456789 });
+    expect(bad.validate(1e308).valid).toBe(false);
+    expect(failure(bad.validate(1e308)).error.code).toBe("multipleOf");
+    // optional/float-overflow.json: 1e308 is a genuine multiple of 0.5.
+    expect(compile({ type: "integer", multipleOf: 0.5 }).validate(1e308).valid).toBe(true);
+    expect(compile({ type: "integer", multipleOf: 0.25 }).validate(1e308).valid).toBe(true);
+  });
+
+  it("multipleOf tolerance never reaches a whole unit of the quotient", () => {
+    // #709: the tolerance scales with |q|, so past |q| ~ 1.4e14 it grew
+    // wider than the distance to the nearest integer and admitted
+    // everything. 1e15 is not a multiple of 3 (digit sum 1).
+    expect(compile({ multipleOf: 3 }).validate(1e15).valid).toBe(false);
+    expect(compile({ multipleOf: 7 }).validate(1e16).valid).toBe(false);
+    // Genuine large multiples still pass.
+    expect(compile({ multipleOf: 3 }).validate(3e15).valid).toBe(true);
+    expect(compile({ multipleOf: 1 }).validate(1e15).valid).toBe(true);
+  });
+
+  it("multipleOf still accepts the worst legitimate IEEE-754 drift", () => {
+    // The widest drift found sweeping real divisors: 16384.3 / 0.1 lands
+    // ~2.9e-11 off an integer. The cap must sit far above it.
+    expect(compile({ multipleOf: 0.1 }).validate(16384.3).valid).toBe(true);
+    expect(compile({ multipleOf: 1e-7 }).validate(0.3).valid).toBe(true);
+  });
+
   it("multipleOf tolerance scales with value magnitude", () => {
     // 143.48 / 0.01 === 14347.999999999998; |q - round(q)| ≈ 1.82e-12,
     // above the flat 1e-12 tolerance. A relative-magnitude check must

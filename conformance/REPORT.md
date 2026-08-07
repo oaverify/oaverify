@@ -49,13 +49,20 @@ that validates a definition against the 2020-12 meta-schema, so these
 four are what stands between us and shipping the JSON Schema
 meta-schema documents.
 
-### Residual singletons (2 mismatches)
+### Residual singletons (1 mismatch)
 
-One mismatch each in `multipleOf.json` (float division reaching
-infinity) and `vocabulary.json` (a custom meta-schema that declares no
-validation vocabulary).
+One mismatch in `vocabulary.json`, a custom meta-schema that declares no
+validation vocabulary.
 
 ### Closed since the last report
+
+`multipleOf` float division reaching infinity, 2 cases, fixed in #709:
+the `multipleOf.json` singleton and the optional `float-overflow.json`
+case. The tolerance scaled with the quotient without an upper bound, so
+a quotient that overflowed to `Infinity` produced a `NaN` comparison no
+tolerance could fail. The tolerance is now capped, and an overflowing
+quotient falls back to a remainder test, which separates the two cases:
+`1e308` is a multiple of `0.5` and is not one of `0.123456789`.
 
 `$dynamicRef` runtime dynamic scope, 14 cases, fixed in #663. The
 12 `dynamicRef.json` cases plus the `unevaluatedItems` and
@@ -67,15 +74,15 @@ which was a silent pass rather than a wrong rejection.
 ## Optional-suite breakdown
 
 Running with `--optional` widens to 1461 cases. The extra 162 cases
-live under `tests/draft2020-12/optional/`. The 9 non-passing optional
-cases (5 mismatch + 4 error):
+live under `tests/draft2020-12/optional/`. The 8 non-passing optional
+cases (4 mismatch + 4 error):
 
-| File                                 | Status                                                    |
-| ------------------------------------ | --------------------------------------------------------- |
-| `defs.json`, `ref.json`              | 4 errors, external / cross-document ref loading.          |
-| `cross-draft.json`                   | 1 mismatch, same ref-loading root.                        |
-| `format-assertion.json`              | 2 mismatches, requires meta-schema loading via `$schema`. |
-| `multipleOf.json`, `vocabulary.json` | 1 mismatch each.                                          |
+| File                    | Status                                                    |
+| ----------------------- | --------------------------------------------------------- |
+| `defs.json`, `ref.json` | 4 errors, external / cross-document ref loading.          |
+| `cross-draft.json`      | 1 mismatch, same ref-loading root.                        |
+| `format-assertion.json` | 2 mismatches, requires meta-schema loading via `$schema`. |
+| `vocabulary.json`       | 1 mismatch.                                               |
 
 All other optional files pass, including `dynamicRef.json` since #663.
 

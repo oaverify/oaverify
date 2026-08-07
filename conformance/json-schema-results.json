@@ -302,18 +302,10 @@
     "file": "multipleOf.json",
     "groups": 5,
     "cases": 11,
-    "pass": 10,
-    "fail": 1,
+    "pass": 11,
+    "fail": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "float division = inf",
-        "test": "always invalid, but naive implementations may raise an overflow error",
-        "data": 1e+308,
-        "expected": false,
-        "actual": true
-      }
-    ]
+    "mismatches": []
   },
   {
     "file": "not.json",
