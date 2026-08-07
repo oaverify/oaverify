@@ -241,9 +241,8 @@ function parseSegment(seg: string): Segment {
   //
   // Literal runs decode before they are escaped into the regex, the same
   // way a whole literal segment does. `match` decodes the request token
-  // first, so an undecoded literal here could never meet it: `/caf%C3%A9`
-  // matched while `/caf%C3%A9-{id}` could not, for one escape in one
-  // document.
+  // first, so an undecoded literal here could never meet it: the same
+  // escape worked in a whole literal segment and not in a compound one.
   const names: string[] = [];
   let regexSrc = "^";
   let i = 0;

@@ -174,6 +174,17 @@ describe("router", () => {
     // The pure-literal sibling behaved correctly all along; the point is
     // that the two now agree.
     expect(matched(rt.match("get", "/caf%C3%A9")).operation.operationId).toBe("plain");
+    // And the unencoded request form, which is what a client actually sends.
+    expect(matched(rt.match("get", "/caf\u00e9-42")).operation.operationId).toBe("cafe");
+  });
+
+  it("keeps a decoded regex metacharacter literal in a compound segment", () => {
+    // Decoding now feeds characters into the regex that the raw form
+    // never held, so the escape has to cover them: "%2E" is a literal
+    // dot and must not match any character.
+    const rt = createRouter({ "/a%2Eb-{id}": { get: op("dot") } } as Record<string, PathItem>);
+    expect(matched(rt.match("get", "/a.b-7")).pathParams).toEqual({ id: "7" });
+    expect(rt.match("get", "/aXb-7")).toBeUndefined();
   });
 
   it("detects ambiguity between compound segments that decode alike", () => {

@@ -193,8 +193,9 @@ authoring mistakes the structural validation can't catch:
   `{name}` placeholders in a path template and the path-parameter
   declarations on the operation or its path-item.
 - `path-template-malformed`: a path template whose literal text carries
-  a percent escape that does not decode (`/bad%zz`, a trailing `%`).
-  The router keeps such a segment raw, so the route only matches a
+  a percent escape that does not decode (`/bad%zz`, a trailing `%`, or
+  `/a%zz-{id}`, where the run beside the placeholder is literal text
+  too). The router keeps such a run raw, so the route only matches a
   request repeating the same broken escape.
 
 ```ts

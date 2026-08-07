@@ -95,6 +95,10 @@ const HTTP_METHODS = [
 ] as const;
 
 const PATH_TEMPLATE_RE = /\{([^{}]+)\}/g;
+// Splitting form: the capture group keeps the placeholders in the output
+// so a caller can tell them from the literal runs either side.
+const PLACEHOLDER_SPLIT_RE = /(\{[^{}]+\})/g;
+const PLACEHOLDER_RE = /^\{[^{}]+\}$/;
 
 /**
  * Lint a resolved OpenAPI document for spec-hygiene issues.
@@ -526,33 +530,51 @@ function findMalformedPathTemplates(document: OpenAPIDocument): SpecHygieneIssue
  *
  * Asks the same question of the same text as the router. `parseTemplate`
  * splits on `/` and hands each segment to `parseSegment`, which decodes
- * exactly those segments it treats as literal, so the two agree segment
- * by segment.
+ * a placeholder-free segment whole and decodes each literal run of a
+ * segment that also carries a `{name}`. Both are checked here, so the
+ * two agree run for run.
  *
- * Decoding whole segments rather than individual `%XX` runs is what keeps
+ * Decoding whole runs rather than individual `%XX` escapes is what keeps
  * a valid multi-byte sequence legal: `%C3%A9` is one two-byte UTF-8
  * character, and each half throws on its own.
  */
 function firstUndecodableSegment(template: string): string | undefined {
   for (const segment of template.split("/")) {
-    if (!segment.includes("%") || holdsPlaceholder(segment)) continue;
-    try {
-      decodeURIComponent(segment);
-    } catch {
-      return segment;
+    if (!segment.includes("%")) continue;
+    for (const run of decodedRuns(segment)) {
+      if (!run.includes("%")) continue;
+      try {
+        decodeURIComponent(run);
+      } catch {
+        return segment;
+      }
     }
   }
   return undefined;
 }
 
 /**
+ * The parts of a segment that `parseSegment` decodes.
+ *
+ * A `{name}` is captured from the request rather than read as spec text,
+ * so it is not one of them. Everything else in the segment is, including
+ * the literal runs either side of a placeholder, and including a lone
+ * `{` with no closing brace, which `parseSegment` falls back to
+ * treating as literal text.
+ */
+function decodedRuns(segment: string): string[] {
+  if (!holdsPlaceholder(segment)) return [segment];
+  return segment.split(PLACEHOLDER_SPLIT_RE).filter((part) => !PLACEHOLDER_RE.test(part));
+}
+
+/**
  * Whether `parseSegment` reads this segment as a template or compound
- * rather than a literal, which is what decides whether it decodes it.
+ * rather than a literal.
  *
  * The condition is a `{` with a `}` somewhere after it: that is what
  * makes `parseSegment`'s scan record a name. A `{` with no closing brace
  * is the degenerate case it falls back to a literal decode for, so a
- * segment like `x%zz{` is spec text and is checked here.
+ * segment like `x%zz{` is spec text end to end.
  */
 function holdsPlaceholder(segment: string): boolean {
   const open = segment.indexOf("{");
