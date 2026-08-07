@@ -361,6 +361,38 @@ describe("lintResolvedSpec: path-template-malformed", () => {
     }
   });
 
+  it("flags a bad escape in a literal run beside a placeholder", () => {
+    // The router decodes the literal runs of a compound segment, so they
+    // are spec text and a bad escape in one leaves the route reachable
+    // only by a request repeating it.
+    for (const bad of ["/a%zz-{id}", "/{id}-a%zz", "/x/pre%zz-{id}.{ext}"]) {
+      const spec = minimalSpec({
+        paths: {
+          [bad]: {
+            parameters: [
+              { name: "id", in: "path", required: true, schema: { type: "string" } },
+              { name: "ext", in: "path", required: true, schema: { type: "string" } },
+            ],
+            get: { responses: { "200": { description: "ok" } } },
+          },
+        },
+      });
+      expect(lintResolvedSpec(spec).map((i) => i.code)).toContain("path-template-malformed");
+    }
+  });
+
+  it("accepts a valid multi-byte escape in a literal run beside a placeholder", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/caf%C3%A9-{id}": {
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          get: { responses: { "200": { description: "ok" } } },
+        },
+      },
+    });
+    expect(lintResolvedSpec(spec).map((i) => i.code)).not.toContain("path-template-malformed");
+  });
+
   it("does not flag a percent inside a {placeholder} name", () => {
     // Placeholders are captured, never decoded as spec text.
     const spec = minimalSpec({

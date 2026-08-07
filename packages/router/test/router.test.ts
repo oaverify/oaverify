@@ -161,6 +161,59 @@ describe("router", () => {
     expect(matched(rt.match("get", "/bad%zz")).operation.operationId).toBe("bad");
   });
 
+  it("decodes literal runs inside a compound segment", () => {
+    // #715: `match` decodes the request token, so an undecoded spec
+    // literal here could never meet it. The same escape worked in a
+    // whole literal segment and silently failed in a compound one.
+    const rt = createRouter({
+      "/caf%C3%A9-{id}": { get: op("cafe") },
+      "/caf%C3%A9": { get: op("plain") },
+    } as Record<string, PathItem>);
+    expect(matched(rt.match("get", "/caf%C3%A9-42")).operation.operationId).toBe("cafe");
+    expect(matched(rt.match("get", "/caf%C3%A9-42")).pathParams).toEqual({ id: "42" });
+    // The pure-literal sibling behaved correctly all along; the point is
+    // that the two now agree.
+    expect(matched(rt.match("get", "/caf%C3%A9")).operation.operationId).toBe("plain");
+    // And the unencoded request form, which is what a client actually sends.
+    expect(matched(rt.match("get", "/caf\u00e9-42")).operation.operationId).toBe("cafe");
+  });
+
+  it("keeps a decoded regex metacharacter literal in a compound segment", () => {
+    // Decoding now feeds characters into the regex that the raw form
+    // never held, so the escape has to cover them: "%2E" is a literal
+    // dot and must not match any character.
+    const rt = createRouter({ "/a%2Eb-{id}": { get: op("dot") } } as Record<string, PathItem>);
+    expect(matched(rt.match("get", "/a.b-7")).pathParams).toEqual({ id: "7" });
+    expect(rt.match("get", "/aXb-7")).toBeUndefined();
+  });
+
+  it("detects ambiguity between compound segments that decode alike", () => {
+    // The ambiguity index compares a literal segment by its decoded
+    // value, so a compound built from raw text would call these two
+    // distinct while both match "caf\u00e9-42", and one would silently
+    // shadow the other.
+    expect(() =>
+      createRouter({
+        "/caf%C3%A9-{id}": { get: op("encoded") },
+        "/caf\u00e9-{slug}": { get: op("literal") },
+      } as Record<string, PathItem>),
+    ).toThrow(/same path structure/);
+    // Genuinely distinct compounds stay distinct.
+    expect(() =>
+      createRouter({
+        "/a-{id}": { get: op("dash") },
+        "/a.{id}": { get: op("dot") },
+      } as Record<string, PathItem>),
+    ).not.toThrow();
+  });
+
+  it("leaves an undecodable literal run raw inside a compound segment", () => {
+    // decodePathToken is total, so a bad escape falls back to raw here
+    // exactly as it does for a whole literal segment.
+    const rt = createRouter({ "/a%zz-{id}": { get: op("bad") } } as Record<string, PathItem>);
+    expect(matched(rt.match("get", "/a%zz-7")).pathParams).toEqual({ id: "7" });
+  });
+
   it("ignores trailing slashes", () => {
     expect(matched(r.match("get", "/pets/")).operation.operationId).toBe("listPets");
   });
