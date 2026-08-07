@@ -702,6 +702,67 @@ describe("validateRequest", () => {
     expect(leafCodes(err)).toContain("type");
   });
 
+  it("coerces through the referenced schema when OAS 3.0 drops $ref siblings", () => {
+    // The compiler ignores $ref siblings under 3.0 and validates this
+    // parameter as the integer the target declares. The coercion view
+    // merged the sibling in, read type: "string", skipped coercion, and
+    // ?n=42 failed with "must be integer" on correct input.
+    const spec: OpenAPIDocument = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      components: { schemas: { Id: { type: "integer" } } },
+      paths: {
+        "/w": {
+          get: {
+            parameters: [
+              {
+                name: "n",
+                in: "query",
+                required: true,
+                schema: { $ref: "#/components/schemas/Id", type: "string" },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const v = createValidator(spec);
+    expect(v.validateRequest({ method: "GET", path: "/w", query: { n: "42" } })).toBeNull();
+    const err = v.validateRequest({ method: "GET", path: "/w", query: { n: "abc" } });
+    expect(err).not.toBeNull();
+    expect(leafCodes(err)).toContain("type");
+  });
+
+  it("keeps honouring $ref siblings for coercion under 3.1", () => {
+    // Same document under 2020-12 semantics: the sibling is a
+    // conjunction, so the schema is integer AND string, which nothing
+    // satisfies. Coercion reading the sibling type and leaving the
+    // string alone is the reading consistent with the compiler.
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      components: { schemas: { Id: { type: "integer" } } },
+      paths: {
+        "/w": {
+          get: {
+            parameters: [
+              {
+                name: "n",
+                in: "query",
+                required: true,
+                schema: { $ref: "#/components/schemas/Id", type: "string" },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const v = createValidator(spec);
+    expect(v.validateRequest({ method: "GET", path: "/w", query: { n: "42" } })).not.toBeNull();
+  });
+
   it("coerces a parameter behind an $id-based ref", () => {
     // #726: coercion used the pointer-only resolver, which refuses
     // anything that is not a `#` fragment, so this parameter compiled

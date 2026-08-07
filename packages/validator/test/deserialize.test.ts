@@ -432,6 +432,36 @@ describe("coercionView", () => {
     expect(view.schema).toMatchObject({ type: "integer" });
   });
 
+  it("drops $ref siblings when the dialect suppresses them (OAS 3.0)", () => {
+    // Under 3.0 the compiler ignores every sibling of a $ref (the
+    // silent-rewrite/ref-siblings-oas30 hygiene warning says so), so a
+    // view that merges them reads a type the compiler never enforces:
+    // { $ref: Id, type: "string" } compiled as integer but coerced as
+    // string, and ?n=42 was rejected on correct input.
+    const p = {
+      name: "a",
+      in: "query",
+      schema: { $ref: "#/components/schemas/Id", type: "string" },
+    } as const;
+    const merged = coercionView(p, resolveRef);
+    expect(merged.schema).toMatchObject({ type: "string" });
+    const suppressed = coercionView(p, resolveRef, { refSuppressesSiblings: true });
+    expect(suppressed.schema).toMatchObject({ type: "integer" });
+  });
+
+  it("drops hop siblings too when the dialect suppresses them", () => {
+    const p = {
+      name: "a",
+      in: "query",
+      schema: { $ref: "#/components/schemas/ArrOfId" },
+    } as const;
+    // ArrOfId carries an items sibling on its own $ref; 3.0 drops it,
+    // so the view resolves to the bare array with no item type.
+    const suppressed = coercionView(p, resolveRef, { refSuppressesSiblings: true });
+    expect(suppressed.schema).toMatchObject({ type: "array" });
+    expect((suppressed.schema as { items?: unknown }).items).toBeUndefined();
+  });
+
   it("keeps use-site siblings of a $ref, which are a conjunction", () => {
     // `{ $ref: Arr, items: Id }`: the compiled validator honours the
     // sibling, so the coercion view has to as well or the two disagree.

@@ -270,6 +270,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
           document,
           resolveRef,
           resolveSchemaRef,
+          refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
           named,
           requestsOnly: options.requestsOnly === true,
         }),
@@ -408,6 +409,12 @@ interface BuildEmittedOpArgs {
   document: OpenAPIDocument;
   resolveRef: <T>(v: T | ReferenceObject | undefined) => T | undefined;
   resolveSchemaRef: SchemaRefResolver;
+  /**
+   * The compiling dialect's `rules.refSuppressesSiblings`, so the
+   * emitted coercion views drop `$ref` siblings exactly when the
+   * compiled schemas do (OAS 3.0).
+   */
+  refSuppressesSiblings: boolean;
   named: (schema: SchemaOrBoolean) => string;
   requestsOnly: boolean;
 }
@@ -421,6 +428,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     document,
     resolveRef,
     resolveSchemaRef,
+    refSuppressesSiblings,
     named,
     requestsOnly,
   } = args;
@@ -497,6 +505,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
           schema: coercionView(
             { name: headerName, in: "header", schema: hdr.schema },
             resolveSchemaRef,
+            { refSuppressesSiblings },
           ).schema,
           validator: schema !== undefined ? named(schema) : null,
         });
@@ -525,7 +534,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
         // so it carries the resolved view. Without this a compiled
         // validator keeps #714 while createValidator no longer has it.
         parameters: parameters
-          .map((raw) => coercionView(raw, resolveSchemaRef))
+          .map((raw) => coercionView(raw, resolveSchemaRef, { refSuppressesSiblings }))
           .map((p) => ({
             name: p.name,
             in: p.in,

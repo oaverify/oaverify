@@ -796,6 +796,44 @@ describe("unknown formats (#660)", () => {
   });
 });
 
+describe("compile-spec: OAS 3.0 $ref sibling coercion parity", () => {
+  // The emitted module carries pre-resolved coercion views, so it has
+  // to drop $ref siblings under 3.0 the way createValidator now does;
+  // without the dialect flag the AOT output would keep the bug the
+  // runtime fixed.
+  const spec30: OpenAPIDocument = {
+    openapi: "3.0.3",
+    info: { title: "t", version: "1" },
+    components: { schemas: { Id: { type: "integer" } } },
+    paths: {
+      "/w": {
+        get: {
+          parameters: [
+            {
+              name: "n",
+              in: "query",
+              required: true,
+              schema: { $ref: "#/components/schemas/Id", type: "string" } as never,
+            },
+          ],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+
+  it("coerces through the referenced schema, matching createValidator", async () => {
+    const aot = await buildAot(spec30);
+    const runtime = createValidator(spec30);
+    const req = { method: "GET", path: "/w", query: { n: "42" } };
+    expect(runtime.validateRequest(req as never).valid).toBe(true);
+    expect(aot.validateRequest(req as never)).toMatchObject({ valid: true });
+    const bad = { method: "GET", path: "/w", query: { n: "abc" } };
+    expect(runtime.validateRequest(bad as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(bad as never)).map((e) => e.code)).toEqual(["type"]);
+  });
+});
+
 describe("compile-spec: emitted validateFetch* wrappers", () => {
   // The emitted wrappers destructured `bodyValue` from extractors that
   // return `{ ..., body }`, so every AOT `validateFetchRequest` handed

@@ -154,6 +154,14 @@ const MAX_REF_HOPS = 32;
  * disagree on the type and coercion has to pick one before validation
  * says which branch applies.
  *
+ * Sibling handling follows the dialect, because the compiler's does.
+ * Under 2020-12 a `$ref`'s siblings are a conjunction and the view
+ * merges them in, use site winning. Under OAS 3.0
+ * (`refSuppressesSiblings`) the compiler ignores every sibling, so the
+ * view ignores them too: merging read a `type` the compiler never
+ * enforces, and `{ $ref: Id, type: "string" }` compiled as integer but
+ * coerced as string, rejecting `?n=42` on correct input.
+ *
  * Built once per operation when the cache is built, rather than per
  * request: `createRefResolver` does not memoize, so resolving on the hot
  * path would re-walk a JSON pointer for every `$ref`'d parameter of
@@ -171,9 +179,19 @@ const MAX_REF_HOPS = 32;
  *
  * @internal
  */
+export interface CoercionViewOptions {
+  /**
+   * OAS 3.0 semantics: every sibling keyword of a `$ref` is ignored,
+   * matching `DialectRules.refSuppressesSiblings` in the compiler.
+   * Default `false` (2020-12 semantics, siblings merge).
+   */
+  refSuppressesSiblings?: boolean;
+}
+
 export function coercionView(
   parameter: ParameterObject,
   resolveSchemaRef: SchemaRefResolver,
+  options?: CoercionViewOptions,
 ): ParameterObject {
   const schema = parameter.schema;
   if (schema === undefined || typeof schema === "boolean") return parameter;
@@ -193,15 +211,20 @@ export function coercionView(
   // best-effort by construction, so that is not a reason to fail the
   // build: the compiler resolves and validates the same schema through
   // the same resolver, and only the coercion is lost.
+  const keepSiblings = options?.refSuppressesSiblings !== true;
   const resolveChain = (s: SchemaOrBoolean | undefined): SchemaOrBoolean | undefined => {
     if (s === undefined || typeof s === "boolean" || typeof s.$ref !== "string") return s;
-    // Outermost first, so the use site is applied last and wins.
+    // Outermost first, so the use site is applied last and wins. Under
+    // a sibling-suppressing dialect the array stays empty and only the
+    // chain's final target survives, matching the compiler.
     const siblingLayers: SchemaObject[] = [];
     let current: SchemaOrBoolean = s;
     for (let hops = 0; hops < MAX_REF_HOPS; hops += 1) {
       if (typeof current === "boolean" || typeof current.$ref !== "string") break;
       const { $ref: _ref, ...siblings } = current;
-      if (Object.keys(siblings).length > 0) siblingLayers.push(siblings as SchemaObject);
+      if (keepSiblings && Object.keys(siblings).length > 0) {
+        siblingLayers.push(siblings as SchemaObject);
+      }
       let next: SchemaOrBoolean | undefined;
       try {
         next = resolveSchemaRef(current);

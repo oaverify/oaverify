@@ -1248,6 +1248,7 @@ export function createValidator(
     const cache = buildOperationCache(pathMatch, {
       resolveRef,
       resolveSchemaRef,
+      refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
       // The cache builder has no business choosing a ref resolver, so it
       // sees a two-argument `compile` and the default resolver is bound
       // here.
@@ -1473,6 +1474,7 @@ export function createValidator(
                   explode: hdr.explode,
                 },
                 resolveSchemaRef,
+                { refSuppressesSiblings: dialect.rules.refSuppressesSiblings },
               ),
             );
             const r = validator.validate(value, ["header", name]);
