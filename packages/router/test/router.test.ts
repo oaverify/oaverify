@@ -47,6 +47,25 @@ describe("parseTemplate", () => {
     }
   });
 
+  it("splits a compound segment into names and the literals around them", () => {
+    // The equivalence test rebuilds the old regex from `literals`, so a
+    // mis-split would agree with itself and stay green. These pin the
+    // split independently.
+    const compound = (template: string): { names: string[]; literals: string[] } => {
+      const seg = parseTemplate(template).at(-1);
+      if (seg?.kind !== "compound") throw new Error(`${template} is not compound`);
+      return { names: seg.names, literals: seg.literals };
+    };
+    expect(compound("/{a}.{b}")).toEqual({ names: ["a", "b"], literals: ["", ".", ""] });
+    expect(compound("/{a}{b}")).toEqual({ names: ["a", "b"], literals: ["", "", ""] });
+    expect(compound("/pre-{a}-{b}.json")).toEqual({
+      names: ["a", "b"],
+      literals: ["pre-", "-", ".json"],
+    });
+    // The literal runs decode, which is what #715 fixed.
+    expect(compound("/caf%C3%A9-{id}")).toEqual({ names: ["id"], literals: ["caf\u00e9-", ""] });
+  });
+
   it("treats unterminated `{` in a segment as a literal rather than throwing", () => {
     // path-to-regexp tolerates malformed templates; mirror that.
     const segs = parseTemplate("/files/{name");
@@ -178,10 +197,9 @@ describe("router", () => {
     expect(matched(rt.match("get", "/caf\u00e9-42")).operation.operationId).toBe("cafe");
   });
 
-  it("keeps a decoded regex metacharacter literal in a compound segment", () => {
-    // Decoding now feeds characters into the regex that the raw form
-    // never held, so the escape has to cover them: "%2E" is a literal
-    // dot and must not match any character.
+  it("treats a decoded separator character as literal in a compound segment", () => {
+    // "%2E" decodes to a dot, and the dot is a literal separator here:
+    // it has to match a dot and nothing else.
     const rt = createRouter({ "/a%2Eb-{id}": { get: op("dot") } } as Record<string, PathItem>);
     expect(matched(rt.match("get", "/a.b-7")).pathParams).toEqual({ id: "7" });
     expect(rt.match("get", "/aXb-7")).toBeUndefined();
@@ -259,7 +277,7 @@ describe("router", () => {
   });
 
   it("lets a compound capture hold a decoded slash, as a bare {param} does", () => {
-    // #724. See `parseSegment` for why the capture class admits a slash.
+    // #724. See `matchCompound` for why a capture admits a decoded slash.
     const rt = createRouter({
       "/{id}": { get: op("bare") },
       "/{a}-{b}": { get: op("comp") },
@@ -273,8 +291,8 @@ describe("router", () => {
   });
 
   it("still refuses to match a compound across real segment boundaries", () => {
-    // The token split happens before matching, so a structural `/` can
-    // never reach the regex; widening the class cannot let a compound
+    // The token split happens before matching, so a structural `/` never
+    // reaches a capture; admitting a decoded one cannot let a compound
     // span two segments.
     const rt = createRouter({ "/{a}-{b}": { get: op("comp") } } as Record<string, PathItem>);
     expect(rt.match("get", "/x/y-z")).toBeUndefined();

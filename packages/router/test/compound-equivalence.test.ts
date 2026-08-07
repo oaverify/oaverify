@@ -87,6 +87,32 @@ it("the compound scan answers identically to the lazy regex it replaced", () => 
   expect(mismatches.slice(0, 10)).toEqual([]);
 });
 
+it("agrees on tokens long enough for the templates with long literals", () => {
+  // Depth-5 tokens cannot match a template whose fixed literals are
+  // longer than that, so `{a}.tar.gz` and its neighbours were exercised
+  // for rejection only. These are the matching halves.
+  const cases: Array<[string, string]> = [
+    ["{a}.tar.gz", "release-1.2.tar.gz"],
+    ["pre-{a}-{b}.json", "pre-alpha-beta.json"],
+    ["{a}aa{b}aa", "xaayaa"],
+    ["{a}--{b}", "x--y--z"],
+  ];
+  for (const [template, token] of cases) {
+    const seg = parseTemplate(`/${template}`)[0];
+    if (seg?.kind !== "compound") throw new Error(`${template} did not parse as compound`);
+    const m = lazyRegex(seg).exec(token);
+    expect(m).not.toBeNull();
+    const router = createRouter({ [`/${template}`]: { get: op } } as Record<string, PathItem>);
+    const hit = router.match("get", `/${token}`);
+    expect(hit?.kind).toBe("match");
+    const captures =
+      hit?.kind === "match"
+        ? seg.names.map((n) => (hit.pathParams as Record<string, string>)[n]!)
+        : [];
+    expect(captures).toEqual(seg.names.map((_, i) => m![i + 1]!));
+  }
+});
+
 it("rejects a token shorter than the fixed literals without a negative slice", () => {
   // `end` goes negative when the suffix outruns the token, so the
   // non-empty check has to run before the slice that uses it.
@@ -103,8 +129,8 @@ it("rejects a token shorter than the fixed literals without a negative slice", (
 it("matches a pathological token in linear time", () => {
   // The regex this replaced took ~38s on this input: four lazy captures
   // backtracking over an attacker-controlled token. The bound is loose
-  // by four orders of magnitude so it cannot flake under CI load; it is
-  // here to catch a return to backtracking, not to measure.
+  // by four orders of magnitude, so it catches a return to backtracking
+  // while staying well clear of anything CI load could disturb.
   const router = createRouter({ "/{a}-{b}-{c}-{d}.json": { get: op } } as Record<string, PathItem>);
   const token = "a-".repeat(1600); // 3200 characters, and never matches
   const started = process.hrtime.bigint();

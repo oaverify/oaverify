@@ -68,9 +68,11 @@ function trimSlashes(s: string): string {
  *   segment (`{petId}`).
  * - `compound`: multiple `{name}` parameters interleaved with literal
  *   text inside one segment (`{sha}.{diffType}`,
- *   `{year}-{month}.json`). Carries a pre-compiled regex with one
- *   non-greedy capture group per template part so the matcher stays a
- *   single `.exec` per segment in the hot path.
+ *   `{year}-{month}.json`). Carries the parameter names and the
+ *   literals around them, which `matchCompound` walks in one linear pass
+ *   per segment. `literals` always holds one more entry than `names`: a
+ *   prefix, a separator after each parameter but the last, and a suffix,
+ *   any of which may be empty.
  *
  * Spec basis: OpenAPI 3.0 / 3.1 / 3.2 path templating only requires
  * that template expressions be delimited by `{}`; multiple per segment
@@ -212,7 +214,7 @@ function methodsDeclaredOn(item: PathItem): Set<HttpMethod> {
  * ```ts
  * parseTemplate("/pets/{id}"); // [{literal "pets"}, {template "id"}]
  * parseTemplate("/commits/{sha}.{ext}");
- * // [{literal "commits"}, {compound regex /^([\s\S]+?)\.([\s\S]+?)$/ names ["sha","ext"]}]
+ * // [{literal "commits"}, {compound names ["sha","ext"] literals ["", ".", ""]}]
  * ```
  *
  * @public
@@ -295,6 +297,11 @@ function parseSegment(seg: string): Segment {
  *   sit at the end of the token. That is what the `$` anchor did, and it
  *   is why `{x}.{y}` against `a.b.c` captures `x="a"`, `y="b.c"`.
  *
+ * A capture holds any character the token does, a decoded `/` included.
+ * That is deliberate: `match` splits on `/` and decodes before comparing,
+ * so a `/` here came from a `%2F` the client encoded, and refusing it
+ * made a compound capture reject what a bare `{id}` accepts (#724).
+ *
  * No backtracking, so a token that fails to match costs one pass rather
  * than an exponent in the parameter count.
  */
@@ -316,7 +323,12 @@ function matchCompound(seg: Extract<Segment, { kind: "compound" }>, tok: string)
       return out;
     }
     const idx = tok.indexOf(sep, pos + 1);
-    if (idx === -1) return null;
+    // `indexOf` clamps its start to the token length, so an empty
+    // separator past the end reports a position behind `pos` and would
+    // yield an empty capture, which `+?` can never produce. The last
+    // parameter rejects it a step later either way; saying so here makes
+    // it a rule rather than a consequence.
+    if (idx < pos + 1) return null;
     out.push(tok.slice(pos, idx));
     pos = idx + sep.length;
   }
