@@ -1,5 +1,16 @@
 # Changelog
 
+## [6.0.0](https://github.com/oaverify/oaverify/compare/stream-v5.4.0...stream-v6.0.0) (2026-08-07)
+
+No source changes in this package. The version tracks the linked release group, and the entries below reach it through `StreamValidatorOptions.formats`, which merges over `builtInFormats`.
+
+### ⚠ BREAKING CHANGES
+
+* **formats:** `builtInFormats` values are `FormatDefinition`, not `(value: string) => boolean`. Reading one back as a function needs a narrow; the 21 string entries are still bare functions at runtime. Passing `formats: { name: (s) => ... }` to `createStreamValidator` is unaffected. ([#671](https://github.com/oaverify/oaverify/issues/671)) — migration guide: "`builtInFormats` values are `FormatDefinition`"
+* **formats:** a streamed body whose schema declares one of the newly-asserting formats is now checked against it. The integer widths, `byte`, `base64url` and `char` gained validators, and `uri`, `email`, `duration`, `regex`, `time` and `date-time` had their grammars corrected. ([#671](https://github.com/oaverify/oaverify/issues/671), [#676](https://github.com/oaverify/oaverify/issues/676), [#672](https://github.com/oaverify/oaverify/issues/672), [#697](https://github.com/oaverify/oaverify/issues/697))
+
+Full detail in [`@oaverify/core`'s changelog](https://github.com/oaverify/oaverify/blob/main/CHANGELOG.md) and [the v6 migration guide](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md).
+
 ## [5.4.0](https://github.com/oaverify/oaverify/compare/stream-v5.3.0...stream-v5.4.0) (2026-08-04)
 
 

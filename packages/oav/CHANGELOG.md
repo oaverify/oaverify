@@ -1,5 +1,22 @@
 # Changelog
 
+## [6.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.4.0...oaverify-v6.0.0) (2026-08-07)
+
+**`oaverify check` now gates by default, and `--only` is now `--findings`.** Both are one-line changes wherever you invoke it, and both change what CI does. See [the v6 migration guide](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md).
+
+### ⚠ BREAKING CHANGES
+
+* **cli:** `oaverify check` exits 1 on any error-severity finding with no flag. A run relying on the advisory exit 0 needs `--fail-on none`. This also makes `--severity` gate-affecting, since regrading happens before `--fail-on` reads the result. Fixes [#549](https://github.com/oaverify/oaverify/issues/549). ([#686](https://github.com/oaverify/oaverify/issues/686)) — migration guide: "`check` gates on `error` severity by default"
+* **cli:** `check --only <classes>` is replaced by `--findings <terms>`. The new flag takes the same key grammar as `--severity`, so a term is a code, a family as `name/*`, or a class, and a `-` prefix excludes. `--findings conformance` selects one class the way `--only` did; `--findings -unused-tag` reports everything except one code, which `--only` could not express. `compile-spec --only "POST /pets"` is a different flag and is unchanged. ([#673](https://github.com/oaverify/oaverify/issues/673)) — migration guide: "`--only` becomes `--findings`"
+* **cli:** `compile-spec` on a document using formats outside the built-in set exits 3 instead of emitting silently; pass `--unknown-formats ignore` for the old behavior. Fixes [#660](https://github.com/oaverify/oaverify/issues/660). ([#685](https://github.com/oaverify/oaverify/issues/685)) — migration guide: "the compile commands refuse unknown formats by default"
+* **check:** `check` exits 2 (`CheckAbortedError`) on a document it cannot grade even when the selection reaches no schema code; such runs previously exited 0 with an empty report. Fixes [#674](https://github.com/oaverify/oaverify/issues/674). ([#680](https://github.com/oaverify/oaverify/issues/680)) — migration guide: "`check` aborts on an ungradeable document at every selection"
+
+### Features
+
+* **cli:** flags for reader containment and outbound requests ([#693](https://github.com/oaverify/oaverify/issues/693)) ([b875639](https://github.com/oaverify/oaverify/commit/b875639a904b79a3b3d76f55de99f17a9dfdd1b2)). `--remote-refs allow|same-origin|deny` bounds how far `http(s)` reads may go, the entry document included; `--untrusted` confines file reads to the entry's directory, tightens the size and time caps, and implies `--remote-refs same-origin`. Both are available on `resolve`, `check`, `validate`, `compile-spec` and `stream-check`.
+
+Traffic validated through the CLI is also subject to the format assertions added in `@oaverify/core` 6.0.0; see [its changelog](https://github.com/oaverify/oaverify/blob/main/CHANGELOG.md).
+
 ## [5.4.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.3.0...oaverify-v5.4.0) (2026-08-04)
 
 `oaverify check` now runs the check from the new [`@oaverify/check`](https://www.npmjs.com/package/@oaverify/check) package rather than its own copy. Same passes, same findings, same exit codes; the package is a new runtime dependency of the CLI.
