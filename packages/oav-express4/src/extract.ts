@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import type { HttpRequest } from "@oaverify/internal-core";
+import { markLowercaseKeys, type HttpRequest } from "@oaverify/internal-core";
 
 /**
  * Convert an Express 4 `Request` to oaverify's framework-agnostic
@@ -26,7 +26,9 @@ import type { HttpRequest } from "@oaverify/internal-core";
  * @public
  */
 export function httpRequestFromExpress(req: Request): HttpRequest {
-  const headers: Record<string, string | string[]> = {};
+  // Keys are lowercased below, which earns the mark: the validator's
+  // header lookups skip their case-insensitive fallback scan on a miss.
+  const headers = markLowercaseKeys<Record<string, string | string[]>>({});
   for (const [key, value] of Object.entries(req.headers)) {
     if (value !== undefined) headers[key.toLowerCase()] = value;
   }

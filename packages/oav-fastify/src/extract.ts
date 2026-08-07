@@ -1,5 +1,5 @@
 import type { FastifyRequest } from "fastify";
-import type { HttpRequest } from "@oaverify/internal-core";
+import { markLowercaseKeys, type HttpRequest } from "@oaverify/internal-core";
 
 /**
  * Convert a Fastify `FastifyRequest` to oaverify's framework-agnostic
@@ -28,7 +28,9 @@ import type { HttpRequest } from "@oaverify/internal-core";
 export function httpRequestFromFastify(request: FastifyRequest): HttpRequest {
   // request.url is /path?query; extract pathname.
   const url = new URL(request.url, "http://localhost");
-  const headers: Record<string, string | string[]> = {};
+  // Keys are lowercased below, which earns the mark: the validator's
+  // header lookups skip their case-insensitive fallback scan on a miss.
+  const headers = markLowercaseKeys<Record<string, string | string[]>>({});
   for (const [key, value] of Object.entries(request.headers)) {
     if (value !== undefined) headers[key.toLowerCase()] = value;
   }

@@ -16,7 +16,7 @@
  */
 
 import type { HttpRequest, HttpResponse } from "@oaverify/internal-core";
-import { getOwn, setSpecKey } from "@oaverify/internal-core";
+import { getOwn, markLowercaseKeys, setSpecKey } from "@oaverify/internal-core";
 
 /**
  * Options shared by the `validateFetchRequest` family and
@@ -185,7 +185,9 @@ export async function httpResponseFromFetch(response: Response): Promise<{
 }
 
 function headersToRecord(h: Headers): Record<string, string | string[]> {
-  const out: Record<string, string | string[]> = {};
+  // Every key below is lowercased, which earns the mark: header
+  // lookups skip their case-insensitive fallback scan on a miss.
+  const out = markLowercaseKeys<Record<string, string | string[]>>({});
   for (const [key, value] of h.entries()) {
     const lower = key.toLowerCase();
     // Own-property read and write: a request header literally named
