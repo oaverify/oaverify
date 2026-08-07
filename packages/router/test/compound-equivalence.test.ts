@@ -34,6 +34,15 @@ const TEMPLATES = [
   "pre-{a}-{b}.json",
   "{a}{b}",
   "{a}{b}{c}",
+  // Separators that overlap themselves, or that prefix the suffix. A
+  // lazy quantifier and an indexOf scan are easiest to tell apart here,
+  // and an alphabet without a repeated separator cannot reach them.
+  "{a}aa{b}",
+  "{a}aa{b}aa",
+  "aa{a}aa",
+  "{a}aa{b}a",
+  "{a}a{b}aa",
+  "{a}xx{b}x",
 ];
 const ALPHA = ["a", "-", ".", "x", "y"];
 
@@ -74,8 +83,21 @@ it("the compound scan answers identically to the lazy regex it replaced", () => 
     }
   }
   // Guards against the loop silently comparing nothing.
-  expect(compared).toBeGreaterThan(40_000);
+  expect(compared).toBeGreaterThan(60_000);
   expect(mismatches.slice(0, 10)).toEqual([]);
+});
+
+it("rejects a token shorter than the fixed literals without a negative slice", () => {
+  // `end` goes negative when the suffix outruns the token, so the
+  // non-empty check has to run before the slice that uses it.
+  const router = createRouter({
+    "/x{a}x": { get: op },
+    "/{a}.tar.gz": { get: op },
+  } as Record<string, PathItem>);
+  for (const token of ["x", "xx", "a", ".tar.gz"]) {
+    expect(router.match("get", `/${token}`)).toBeUndefined();
+  }
+  expect(router.match("get", "/xax")?.kind).toBe("match");
 });
 
 it("matches a pathological token in linear time", () => {
