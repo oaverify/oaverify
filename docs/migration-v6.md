@@ -99,7 +99,7 @@ a `Math.fround`-based `float` rejects values a producer legitimately
 sent. `oaverify check` continues to report both under
 `format-not-validated`.
 
-## `byte` rejects line-wrapped base64
+## `byte` rejects line-wrapped base64 (amended in 6.0.1)
 
 The one addition most likely to reject traffic from a document you
 already have, because `byte` is an OAS 3.0 built-in and any spec
@@ -121,6 +121,15 @@ RFC 4648 admits whitespace only where the specification referring to it
 says so, and OpenAPI's registry entry cites 4648 plainly. If a producer
 you cannot change wraps its base64, `formats: { byte: false }` keeps the
 name as an annotation.
+
+> **Amended in 6.0.1.** The strict reading above shipped in 6.0.0 and was
+> relaxed one release later: `byte` now strips whitespace before checking
+> the alphabet and the padding, so the line-wrapped example is valid from
+> 6.0.1 on. A wrapped value decodes to the same bytes as its unwrapped
+> form, so rejecting it failed a request over a formatting choice and
+> caught nothing. Nothing that 6.0.0 accepted became invalid. To keep the
+> 6.0.0 behaviour, register the strict reading:
+> `formats: { byte: validateByteRfc4648 }`.
 
 Padding is required, so an unpadded value fails too. If what you
 actually have is URL-safe base64, that is `base64url`, which takes the

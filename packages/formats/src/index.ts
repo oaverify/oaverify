@@ -1,6 +1,6 @@
 import type { FormatDefinition } from "@oaverify/internal-core";
 
-export { validateBase64Url, validateByte } from "./base64.js";
+export { validateBase64Url, validateByte, validateByteRfc4648 } from "./base64.js";
 export { validateDate, validateDateTime, validateDuration, validateTime } from "./date.js";
 export { validateEmail, validateIdnEmail } from "./email.js";
 export { validateHostname, validateIdnHostname } from "./hostname.js";
