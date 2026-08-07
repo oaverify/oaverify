@@ -258,6 +258,29 @@ describe("router", () => {
     expect(matched(rt.match("get", "/a%zz-7")).pathParams).toEqual({ id: "7" });
   });
 
+  it("lets a compound capture hold a decoded slash, as a bare {param} does", () => {
+    // #724. See `parseSegment` for why the capture class admits a slash.
+    const rt = createRouter({
+      "/{id}": { get: op("bare") },
+      "/{a}-{b}": { get: op("comp") },
+    } as Record<string, PathItem>);
+    // A bare template has always captured a decoded slash.
+    expect(matched(rt.match("get", "/a%2Fb")).pathParams).toEqual({ id: "a/b" });
+    // The compound now does too, instead of losing the request to `{id}`.
+    const m = matched(rt.match("get", "/a%2Fb-z"));
+    expect(m.operation.operationId).toBe("comp");
+    expect(m.pathParams).toEqual({ a: "a/b", b: "z" });
+  });
+
+  it("still refuses to match a compound across real segment boundaries", () => {
+    // The token split happens before matching, so a structural `/` can
+    // never reach the regex; widening the class cannot let a compound
+    // span two segments.
+    const rt = createRouter({ "/{a}-{b}": { get: op("comp") } } as Record<string, PathItem>);
+    expect(rt.match("get", "/x/y-z")).toBeUndefined();
+    expect(rt.match("get", "/x-y/z")).toBeUndefined();
+  });
+
   it("ignores trailing slashes", () => {
     expect(matched(r.match("get", "/pets/")).operation.operationId).toBe("listPets");
   });
