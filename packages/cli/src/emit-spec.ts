@@ -303,7 +303,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     "const deps = createDeps();",
     // Normalized on the way in, because generated code reaches
     // `.validate` on the entry. A raw registry value is a bare function
-    // for the 18 string formats, so skipping this leaves every string
+    // for every string format, so skipping this leaves every string
     // format silently unasserted in the emitted module.
     "for (const [name, def] of Object.entries(builtInFormats)) deps.formats.set(name, normalizeFormat(def));",
     "",

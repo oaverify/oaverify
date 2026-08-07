@@ -52,20 +52,42 @@ bind: `format: "int32"` on `3000000000` is a validation error, the way
 you keep a name as an annotation instead. That is per format, so
 turning `int64` off leaves `int32` asserting.
 
-`int64` is a partial assertion and worth knowing about. It accepts the
-safe-integer range, `-(2^53 - 1)` through `2^53 - 1`, and rejects
-outside it. A JSON number past 2^53 has already lost precision before
-any JavaScript validator sees it: `JSON.parse("9223372036854775807")`
-yields `9223372036854775808`, a different number. Rejecting says so;
-accepting would vouch for a value that is not the one on the wire.
-Producers of large int64s send them as strings. If you would rather
-accept them, write `formats: { int64: false }`.
+`int64` and `uint64` are partial assertions and worth knowing about.
+Both accept the safe-integer range, `-(2^53 - 1)` through `2^53 - 1`
+(`uint64` from 0), and reject outside it. A JSON number past 2^53 has
+already lost precision before any JavaScript validator sees it:
+`JSON.parse("9223372036854775807")` yields `9223372036854775808`, a
+different number. Rejecting says so; accepting would vouch for a value
+that is not the one on the wire. Producers of large 64-bit integers
+send them as strings. If you would rather accept them, write
+`formats: { int64: false }`.
+
+The narrower widths (`int8`, `int16`, `int32`, `uint8`, `uint16`,
+`uint32`) are exact: every value in range survives a JSON round trip.
+`double-int` is exact too, and its range is the safe-integer range by
+definition rather than by concession.
+
+### What is not asserted
 
 `float` and `double` are not asserted at all, and will not be. Every
 JSON number is already an IEEE 754 double, so `double` asserts
 nothing, and a `Math.fround`-based `float` rejects values a producer
 legitimately sent (`0.1` is not representable as a 32-bit float).
-`oaverify check` reports both under `format-not-validated`.
+`binary` is unassertable in the same spirit, being any sequence of
+octets; the validator treats it as an opaque-body bypass rather than a
+constraint. `password`, `commonmark` and `html` are display hints.
+
+Names in the [OpenAPI Format Registry](https://spec.openapis.org/registry/format/)
+that _are_ assertable but not yet implemented (`http-date`,
+`date-time-local`, `time-local`, `ipv4-cidr`, `ipv6-cidr`, `language`,
+`media-range`, `decimal`, `decimal128`, `unixtime`, and the six `sf-*`
+structured-field formats) behave the same way at request time: the
+value is checked against `type` alone.
+
+`oaverify check` reports every one of them under
+`format-not-validated`, and the message distinguishes the three cases,
+so a report tells you whether the name is a permanent annotation, a gap
+that a later release may close, or a vendor name of your own.
 
 Migrating from an Ajv-shaped map, `fromAjvFormats` carries `type`
 through, so a `type: "number"` definition arrives as a numeric format:
