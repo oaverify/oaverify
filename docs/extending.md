@@ -179,13 +179,49 @@ the first failure, so there's nothing to count).
    property of the format and is never inferred from its name.
 4. Test with RFC-sourced valid + invalid examples.
 
+### Which specification the validator follows
+
+Two decisions taken days apart leaned opposite ways here, so the rule is
+written down rather than rediscovered per format (#705).
+
+**Lean permissive; allow strict.** The built-in is the reading that does
+not reject correct input. Where a stricter reading exists, ship it as a
+named export and say in the TSDoc which document each one follows.
+
+The costs are not symmetric, which is what decides it. A false reject
+fails a request that works today. A false accept fails to catch
+something `format` never promised to catch, since it is annotation-only
+by default in JSON Schema and advisory in OpenAPI. So where the
+registry, the cited RFC and real traffic disagree, the built-in follows
+whichever admits the traffic, and the strict reading stays one line
+away.
+
+Two worked cases:
+
+- **The citation is narrower than practice.** The registry cites RFC
+  4648 for `byte`, which admits whitespace only where the referring
+  specification says so. MIME wraps base64 at 76 columns and it decodes
+  to the same bytes. `validateByte` strips whitespace;
+  `validateByteRfc4648` is the literal reading, registered by hand with
+  `formats: { byte: validateByteRfc4648 }`.
+- **The citation is stale.** The registry cites RFC 8941 for the
+  structured-field formats, which RFC 9651 obsoleted in September 2024
+  by adding a Date type. Validating 8941 would reject a field that is
+  legal HTTP today, and 9651 is a superset, so the newer document wins
+  and there is no strict variant to ship.
+
+Registering a stricter validator by hand needs no new option, which is
+why this is a naming convention rather than a feature. `formats: { <name>: false }`
+remains the way to keep a name as an annotation that asserts nothing.
+
 Two things that are easy to miss, both about the format _not_ being
 asserted before you got there:
 
-- **The TSDoc has to say what the validator does not assert.** `int64`
-  sets the standard: it accepts the safe-integer range rather than the
-  int64 range, and says so and why. `byte` accepts non-canonical
-  trailing pad bits. A format whose name overclaims relative to its
+- **The TSDoc has to say what the validator does not assert, and which
+  document it follows.** `int64` sets the standard: it accepts the
+  safe-integer range rather than the int64 range, and says so and why.
+  `byte` accepts non-canonical trailing pad bits, and names the RFC it
+  reads permissively. A format whose name overclaims relative to its
   predicate is worse than no format, because the name is what a reader
   trusts.
 - **A name in the [OpenAPI Format Registry](https://spec.openapis.org/registry/format/)
