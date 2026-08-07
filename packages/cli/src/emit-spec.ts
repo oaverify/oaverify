@@ -982,14 +982,18 @@ export function validateResponse(req, res) {
 }
 
 export async function validateFetchRequest(request, options) {
-  const { httpRequest, bodyValue } = await httpRequestFromFetch(request, options);
-  return toFetchResult(validateRequest(httpRequest), bodyValue);
+  const { httpRequest, body } = await httpRequestFromFetch(request, options);
+  return toFetchResult(validateRequest(httpRequest), body);
 }
 
 export async function validateFetchResponse(request, response) {
-  const requestHttp = await httpRequestFromFetch(request);
-  const { httpResponse, bodyValue } = await httpResponseFromFetch(response);
-  return toFetchResult(validateResponse(requestHttp.httpRequest, httpResponse), bodyValue);
+  // Method and path are all response matching needs; building the
+  // request through the extractor would consume the caller's request
+  // body stream, which the interpreted validator leaves unread.
+  const url = new URL(request.url);
+  const httpRequest = { method: request.method.toUpperCase(), path: url.pathname };
+  const { httpResponse, body } = await httpResponseFromFetch(response);
+  return toFetchResult(validateResponse(httpRequest, httpResponse), body);
 }
 `;
 }

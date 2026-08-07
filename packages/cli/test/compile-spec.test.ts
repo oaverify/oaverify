@@ -795,3 +795,43 @@ describe("unknown formats (#660)", () => {
     expect(r).toMatchObject({ valid: true });
   });
 });
+
+describe("compile-spec: emitted validateFetch* wrappers", () => {
+  // The emitted wrappers destructured `bodyValue` from extractors that
+  // return `{ ..., body }`, so every AOT `validateFetchRequest` handed
+  // back `body: undefined` while validation itself worked, and the
+  // response wrapper consumed the caller's request stream that the
+  // interpreted validator deliberately leaves unread.
+  type FetchAot = AotValidator & {
+    validateFetchRequest: (req: Request) => Promise<{ ok: boolean; body?: unknown }>;
+    validateFetchResponse: (
+      req: Request,
+      res: Response,
+    ) => Promise<{ ok: boolean; body?: unknown }>;
+  };
+
+  it("returns the parsed request body, matching validateFetchRequest at runtime", async () => {
+    const aot = (await buildAot(petstore)) as FetchAot;
+    const request = new Request("http://x/pets", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant": "t1" },
+      body: JSON.stringify({ name: "Fido" }),
+    });
+    const r = await aot.validateFetchRequest(request);
+    expect(r.ok).toBe(true);
+    expect(r.body).toEqual({ name: "Fido" });
+  });
+
+  it("returns the parsed response body and leaves the request stream unread", async () => {
+    const aot = (await buildAot(petstore)) as FetchAot;
+    const request = new Request("http://x/pets", { method: "GET" });
+    const response = new Response(JSON.stringify([{ name: "Fido" }]), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+    const r = await aot.validateFetchResponse(request, response);
+    expect(r.ok).toBe(true);
+    expect(r.body).toEqual([{ name: "Fido" }]);
+    expect(request.bodyUsed).toBe(false);
+  });
+});
