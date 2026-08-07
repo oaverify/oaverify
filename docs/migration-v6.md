@@ -9,11 +9,16 @@ with `--findings`, gates on `error` severity by default, and aborts on
 an ungradeable document at every selection; the compile commands refuse
 unknown formats by default. Most callers meet only the first two.
 
-**`format` is one registry, and the OpenAPI numeric formats assert.** If
-you never pass `formats` and never read `builtInFormats`, this is a
-version bump plus one behaviour change: a request whose field is
-declared `int32` or `int64` and whose value is out of range is now a
-validation error.
+**`format` is one registry, and a batch of OpenAPI formats now assert.**
+If you never pass `formats` and never read `builtInFormats`, this is a
+version bump plus one behaviour change, in one direction: values that
+were accepted because nothing looked at them are now checked. The
+formats that gained a validator are the integer widths (`int8`,
+`int16`, `int32`, `int64`, `uint8`, `uint16`, `uint32`, `uint64`,
+`double-int`), the base64 pair (`byte`, `base64url`), and `char`. A
+request whose field is declared with one of those and whose value does
+not match is now a validation error. `byte` is the one most likely to
+be in a document you already have; see below.
 
 **Several string formats got their grammars right.** `uri` and its
 siblings stopped delegating to `new URL`, which repaired illegal input
@@ -84,11 +89,42 @@ If a producer you cannot change sends large int64s as JSON numbers,
 `formats: { int64: false }` turns the assertion off and the payload is
 still wrong; the durable fix is to send them as strings.
 
+`uint64` is bounded the same way and for the same reason, from 0. The
+narrower widths (`int8`, `int16`, `int32`, `uint8`, `uint16`, `uint32`)
+are exact: every value in range survives a JSON round trip.
+
 `float` and `double` are not asserted and will not be. Every JSON
 number is already an IEEE 754 double, so `double` asserts nothing, and
 a `Math.fround`-based `float` rejects values a producer legitimately
 sent. `oaverify check` continues to report both under
 `format-not-validated`.
+
+## `byte` rejects line-wrapped base64
+
+The one addition most likely to reject traffic from a document you
+already have, because `byte` is an OAS 3.0 built-in and any spec
+carrying base64 uses it.
+
+`byte` accepts RFC 4648 section 4: the standard alphabet, padded, so
+the length is always a multiple of four. It rejects whitespace, which
+means MIME's 76-column line-wrapped variant (RFC 2045) fails:
+
+```jsonc
+// v6: valid
+{ "file": "aGVsbG8h" }
+
+// v6: invalid, and valid before v6, because nothing checked it
+{ "file": "aGVs\nbG8h" }
+```
+
+RFC 4648 admits whitespace only where the specification referring to it
+says so, and OpenAPI's registry entry cites 4648 plainly. If a producer
+you cannot change wraps its base64, `formats: { byte: false }` keeps the
+name as an annotation.
+
+Padding is required, so an unpadded value fails too. If what you
+actually have is URL-safe base64, that is `base64url`, which takes the
+`-`/`_` alphabet and makes padding optional.
 
 ## The `formats` option takes more shapes
 
@@ -117,7 +153,7 @@ wrong.
 | -------------------------------------------- | ---------------------------------- |
 | `Record<string, (value: string) => boolean>` | `Record<string, FormatDefinition>` |
 
-At runtime the 18 string entries are still the bare predicate
+At runtime the 21 string entries are still the bare predicate
 functions, so `builtInFormats["email"]("x")` still returns a boolean.
 TypeScript will stop you, because the value type is now a union that
 includes objects and `false`. Narrow it, or go through `normalizeFormat`:

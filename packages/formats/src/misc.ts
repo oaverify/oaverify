@@ -1,5 +1,5 @@
 /**
- * Miscellaneous format validators: regex, uuid.
+ * Miscellaneous format validators: regex, uuid, char.
  *
  * @packageDocumentation
  */
@@ -36,4 +36,23 @@ export function validateRegex(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * OpenAPI `char`: a single character.
+ *
+ * One Unicode code point, so an astral character such as an emoji
+ * passes on its own despite occupying two UTF-16 units. `Array.from`
+ * iterates code points, which is the unit a reader means by
+ * "character" far more often than `.length`'s UTF-16 units.
+ *
+ * A combining sequence ("e" followed by U+0301) is two code points and
+ * fails. That is the grapheme-cluster reading, which the registry does
+ * not ask for, and drawing the line at code points keeps the rule
+ * something a caller can predict.
+ *
+ * @public
+ */
+export function validateChar(value: string): boolean {
+  return Array.from(value).length === 1;
 }

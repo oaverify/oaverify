@@ -5,8 +5,8 @@ is the keyed map passed to `createValidator({ formats })` or
 `compileSchema({ formats })`.
 
 One registry, whatever JSON type a format constrains. String formats
-are pure `(value: string) => boolean` predicates; the two OpenAPI
-numeric formats declare the type they take.
+are pure `(value: string) => boolean` predicates; the numeric formats
+declare the type they take.
 
 ```ts
 import { builtInFormats, validateUuid } from "@oaverify/core/formats";
@@ -33,21 +33,41 @@ replace them.
 - **IP**: `ipv4`, `ipv6`
 - **URI**: `uri`, `uri-reference`, `iri`, `iri-reference`, `uri-template`
 - **JSON Pointer**: `json-pointer`, `relative-json-pointer`
-- **Misc**: `uuid`
-- **Numeric** (OpenAPI): `int32`, `int64`, as `{ type: "number", validate }`
+- **Base64**: `byte` (RFC 4648 §4, padded), `base64url` (§5, padding optional)
+- **Misc**: `uuid`, `char`
+- **Numeric** (OpenAPI): `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`,
+  `uint32`, `uint64`, `double-int`, each as `{ type: "number", validate }`
 
 `regex` also works as a `format`, but it isn't a key in `builtInFormats`:
 `@oaverify/core/schema` registers it inside `createDeps` so it routes through the
 same compile path as the `pattern` keyword (and honors `regexCompiler`).
 The standalone `validateRegex` predicate is still exported for direct use.
 
+That is every format JSON Schema 2020-12 names, plus the assertable
+part of the [OpenAPI Format Registry](https://spec.openapis.org/registry/format/).
+
+## What is deliberately not asserted
+
 `float` and `double` are absent on purpose. Every JSON number is
 already an IEEE 754 double, so `double` asserts nothing, and a
 `Math.fround`-based `float` rejects values a producer legitimately
-sent. `int64` asserts the safe-integer range rather than the int64
-range, because a JSON number past 2^53 has already lost precision
-before it reaches any JavaScript validator; see
+sent. `binary` is absent for the same kind of reason (the registry
+defines it as any sequence of octets); the validator handles it as an
+opaque-body bypass instead. `password`, `commonmark` and `html` are
+display hints with nothing to check.
+
+`int64` and `uint64` assert the safe-integer range rather than the full
+64-bit range, because a JSON number past 2^53 has already lost
+precision before it reaches any JavaScript validator; see
 [docs/configuration.md](../../docs/configuration.md#formats).
+
+The remaining registry names (`http-date`, `date-time-local`,
+`time-local`, `ipv4-cidr`, `ipv6-cidr`, `language`, `media-range`,
+`decimal`, `decimal128`, `unixtime`, and the six `sf-*` structured-field
+formats) are assertable and not yet implemented. `oaverify check` tells
+those two groups apart in its report, so a document using one is told
+whether waiting will help. Register your own through the `formats`
+option in the meantime.
 
 ## Registering a custom format
 

@@ -337,8 +337,8 @@ is oaverify's policy laid on top, and policy is opt-in.
 `validateSecurity: "strict"` is likewise a policy about oaverify's own
 coverage. A `format` assertion enforces what the document does say. The
 OpenAPI dialects declare `format` an assertion, so `format: "date-time"`
-has always rejected `"not-a-date"`; `int32` and `int64` were simply
-never implemented, and now are.
+has always rejected `"not-a-date"`; the numeric widths and `byte` were
+simply never implemented, and now are.
 
 So the off switch is the format registry rather than a strictness
 option, and it is per format:

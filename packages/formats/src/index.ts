@@ -1,11 +1,22 @@
 import type { FormatDefinition } from "@oaverify/internal-core";
 
+export { validateBase64Url, validateByte } from "./base64.js";
 export { validateDate, validateDateTime, validateDuration, validateTime } from "./date.js";
 export { validateEmail, validateIdnEmail } from "./email.js";
 export { validateHostname, validateIdnHostname } from "./hostname.js";
 export { validateIpv4, validateIpv6 } from "./ip.js";
-export { validateRegex, validateUuid } from "./misc.js";
-export { validateInt32, validateInt64 } from "./numeric.js";
+export { validateChar, validateRegex, validateUuid } from "./misc.js";
+export {
+  validateDoubleInt,
+  validateInt16,
+  validateInt32,
+  validateInt64,
+  validateInt8,
+  validateUint16,
+  validateUint32,
+  validateUint64,
+  validateUint8,
+} from "./numeric.js";
 export {
   validateIri,
   validateIriReference,
@@ -16,6 +27,7 @@ export {
   validateUriTemplate,
 } from "./uri.js";
 
+import { validateBase64Url, validateByte } from "./base64.js";
 import { validateDate, validateDateTime, validateDuration, validateTime } from "./date.js";
 import { validateEmail, validateIdnEmail } from "./email.js";
 import { validateHostname, validateIdnHostname } from "./hostname.js";
@@ -24,8 +36,18 @@ import { validateIpv4, validateIpv6 } from "./ip.js";
 // @oaverify/core/schema auto-registers a `regex` format that shares the
 // pattern-keyword compile path (and the regexCompiler hook). The standalone
 // validateRegex export still lives in ./misc.ts as a u-mode utility.
-import { validateUuid } from "./misc.js";
-import { validateInt32, validateInt64 } from "./numeric.js";
+import { validateChar, validateUuid } from "./misc.js";
+import {
+  validateDoubleInt,
+  validateInt16,
+  validateInt32,
+  validateInt64,
+  validateInt8,
+  validateUint16,
+  validateUint32,
+  validateUint64,
+  validateUint8,
+} from "./numeric.js";
 import {
   validateIri,
   validateIriReference,
@@ -39,9 +61,15 @@ import {
 /**
  * Every built-in format validator, keyed by its format name.
  *
+ * Covers every format JSON Schema 2020-12 names, and every format in
+ * the OpenAPI Format Registry that is assertable and cheap to assert.
+ * `@oaverify/check`'s format pass reports the registry names left over
+ * so a document using one is told the name is an annotation rather
+ * than a constraint; docs/strictness.md carries the boundary.
+ *
  * String formats are bare functions, per {@link FormatDefinition}'s
- * shorthand. The two OpenAPI numeric formats declare `type: "number"`,
- * because a format's JSON type is a property of the format.
+ * shorthand. The numeric formats declare `type: "number"`, because a
+ * format's JSON type is a property of the format.
  *
  * `createValidator` registers all of these for an OpenAPI document.
  * Direct `compileSchema` callers pass them through the `formats`
@@ -84,8 +112,18 @@ export const builtInFormats: Record<string, FormatDefinition> = {
   "json-pointer": validateJsonPointer,
   "relative-json-pointer": validateRelativeJsonPointer,
   uuid: validateUuid,
+  byte: validateByte,
+  base64url: validateBase64Url,
+  char: validateChar,
+  int8: { type: "number", validate: validateInt8 },
+  int16: { type: "number", validate: validateInt16 },
   int32: { type: "number", validate: validateInt32 },
   int64: { type: "number", validate: validateInt64 },
+  uint8: { type: "number", validate: validateUint8 },
+  uint16: { type: "number", validate: validateUint16 },
+  uint32: { type: "number", validate: validateUint32 },
+  uint64: { type: "number", validate: validateUint64 },
+  "double-int": { type: "number", validate: validateDoubleInt },
 };
 
 /**

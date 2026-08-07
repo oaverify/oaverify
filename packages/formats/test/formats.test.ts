@@ -9,8 +9,14 @@ import {
   validateEmail,
   validateHostname,
   validateIdnEmail,
+  validateBase64Url,
+  validateByte,
+  validateChar,
+  validateDoubleInt,
+  validateInt16,
   validateInt32,
   validateInt64,
+  validateInt8,
   validateIpv4,
   validateIpv6,
   validateIri,
@@ -22,6 +28,10 @@ import {
   validateUri,
   validateUriReference,
   validateUriTemplate,
+  validateUint16,
+  validateUint32,
+  validateUint64,
+  validateUint8,
   validateUuid,
 } from "../src/index.js";
 
@@ -400,6 +410,24 @@ describe("builtInFormats map", () => {
   it("exposes the numeric formats with a declared type", () => {
     expect(builtInFormats["int32"]).toEqual({ type: "number", validate: validateInt32 });
     expect(builtInFormats["int64"]).toEqual({ type: "number", validate: validateInt64 });
+    expect(builtInFormats["uint64"]).toEqual({ type: "number", validate: validateUint64 });
+    expect(builtInFormats["double-int"]).toEqual({
+      type: "number",
+      validate: validateDoubleInt,
+    });
+  });
+
+  it("exposes every registry width, so none is left reading as a vendor name", () => {
+    const widths = ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"];
+    for (const name of widths) {
+      expect(builtInFormats[name], name).toMatchObject({ type: "number" });
+    }
+  });
+
+  it("exposes byte, base64url and char as bare string formats", () => {
+    for (const name of ["byte", "base64url", "char"]) {
+      expect(typeof builtInFormats[name], name).toBe("function");
+    }
   });
 
   it("does not include float or double", () => {
@@ -461,6 +489,126 @@ describe("normalizeFormat", () => {
     // reaching for `true` is what someone does when they mean exactly
     // that.
     expect(() => normalizeFormat(true as unknown as FormatDefinition)).toThrow(/use false/);
+  });
+});
+
+describe("the exact integer widths", () => {
+  const widths: [string, (value: number) => boolean, number, number][] = [
+    ["int8", validateInt8, -128, 127],
+    ["int16", validateInt16, -32768, 32767],
+    ["int32", validateInt32, -2147483648, 2147483647],
+    ["uint8", validateUint8, 0, 255],
+    ["uint16", validateUint16, 0, 65535],
+    ["uint32", validateUint32, 0, 4294967295],
+  ];
+
+  it.each(widths)("accepts the %s range and rejects either side of it", (_n, fn, min, max) => {
+    expect(fn(min)).toBe(true);
+    expect(fn(max)).toBe(true);
+    expect(fn(min - 1)).toBe(false);
+    expect(fn(max + 1)).toBe(false);
+  });
+
+  it.each(widths)("rejects a non-integer under %s", (_n, fn, min) => {
+    expect(fn(min + 0.5)).toBe(false);
+  });
+
+  it("rejects a negative under every unsigned width", () => {
+    expect(validateUint8(-1)).toBe(false);
+    expect(validateUint16(-1)).toBe(false);
+    expect(validateUint32(-1)).toBe(false);
+    expect(validateUint64(-1)).toBe(false);
+  });
+});
+
+describe("uint64 / double-int", () => {
+  it("bounds uint64 at the safe-integer ceiling, not 2^64", () => {
+    // Same reasoning as int64: a JSON number above 2^53 is provably
+    // not the value that was on the wire.
+    expect(validateUint64(0)).toBe(true);
+    expect(validateUint64(Number.MAX_SAFE_INTEGER)).toBe(true);
+    expect(validateUint64(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
+  });
+
+  it("rejects a negative under uint64, which is the whole difference from int64", () => {
+    expect(validateInt64(-5)).toBe(true);
+    expect(validateUint64(-5)).toBe(false);
+  });
+
+  it("accepts exactly the losslessly-representable integers under double-int", () => {
+    expect(validateDoubleInt(0)).toBe(true);
+    expect(validateDoubleInt(-Number.MAX_SAFE_INTEGER)).toBe(true);
+    expect(validateDoubleInt(Number.MAX_SAFE_INTEGER)).toBe(true);
+    expect(validateDoubleInt(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
+    expect(validateDoubleInt(1.5)).toBe(false);
+  });
+});
+
+describe("byte / base64url", () => {
+  it("accepts padded standard base64", () => {
+    expect(validateByte("")).toBe(true);
+    expect(validateByte("aGVsbG8=")).toBe(true); // "hello"
+    expect(validateByte("aGVsbG8h")).toBe(true); // "hello!", no padding needed
+    expect(validateByte("YQ==")).toBe(true); // "a"
+  });
+
+  it("rejects a byte value whose length is not a multiple of four", () => {
+    expect(validateByte("aGVsbG8")).toBe(false);
+    expect(validateByte("YQ=")).toBe(false);
+  });
+
+  it("rejects the URL-safe alphabet under byte", () => {
+    expect(validateByte("a-b_")).toBe(false);
+  });
+
+  it("rejects line-wrapped base64 under byte", () => {
+    // RFC 2045 wraps at 76 columns; RFC 4648, which the registry
+    // cites, admits whitespace only where the referring spec says so.
+    expect(validateByte("aGVs\nbG8h")).toBe(false);
+    expect(validateByte("aGVs bG8h")).toBe(false);
+  });
+
+  it("accepts base64url padded or unpadded", () => {
+    expect(validateBase64Url("aGVsbG8")).toBe(true); // unpadded, as a JWT segment
+    expect(validateBase64Url("aGVsbG8=")).toBe(true);
+    expect(validateBase64Url("a-b_")).toBe(true);
+  });
+
+  it("rejects the standard alphabet under base64url", () => {
+    // The mistake this format is most useful for catching.
+    expect(validateBase64Url("a+b/")).toBe(false);
+  });
+
+  it("accepts non-canonical trailing pad bits, deliberately", () => {
+    // RFC 4648 section 3.5 wants the unused bits of a partial final
+    // group zeroed, and "cE6=" does not satisfy that: it fails a
+    // decode/re-encode round trip. Catching it would mean decoding
+    // every value on the hot path for a case no encoder emits.
+    expect(Buffer.from("cE6=", "base64").toString("base64")).not.toBe("cE6=");
+    expect(validateByte("cE6=")).toBe(true);
+  });
+});
+
+describe("char", () => {
+  it("accepts exactly one code point", () => {
+    expect(validateChar("a")).toBe(true);
+    expect(validateChar("é")).toBe(true);
+  });
+
+  it("accepts an astral character despite its two UTF-16 units", () => {
+    expect("🎉".length).toBe(2);
+    expect(validateChar("🎉")).toBe(true);
+  });
+
+  it("rejects the empty string and anything longer than one code point", () => {
+    expect(validateChar("")).toBe(false);
+    expect(validateChar("ab")).toBe(false);
+  });
+
+  it("rejects a combining sequence, which is two code points", () => {
+    // The grapheme-cluster reading would accept this; the registry
+    // does not ask for it, and code points are predictable.
+    expect(validateChar("é")).toBe(false);
   });
 });
 
