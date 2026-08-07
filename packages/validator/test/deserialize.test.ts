@@ -309,6 +309,16 @@ describe("coercionView", () => {
         Id: { type: "integer" },
         Ref: { $ref: "#/components/schemas/Id" },
         Loop: { $ref: "#/components/schemas/Loop" },
+        // A chain deeper than a small hand-picked bound would allow.
+        C0: { $ref: "#/components/schemas/C1" },
+        C1: { $ref: "#/components/schemas/C2" },
+        C2: { $ref: "#/components/schemas/C3" },
+        C3: { $ref: "#/components/schemas/C4" },
+        C4: { $ref: "#/components/schemas/C5" },
+        C5: { $ref: "#/components/schemas/C6" },
+        C6: { $ref: "#/components/schemas/C7" },
+        C7: { $ref: "#/components/schemas/C8" },
+        C8: { $ref: "#/components/schemas/Id" },
       },
     },
   };
@@ -376,6 +386,16 @@ describe("coercionView", () => {
       resolveRef,
     );
     expect(view.schema).toMatchObject({ items: { type: "integer" } });
+  });
+
+  it("follows a chain longer than a handful of hops", () => {
+    // The bound matches the resolver the rest of the cache uses, so a
+    // chain the compiler resolves does not silently lose its coercion.
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "#/components/schemas/C0" } },
+      resolveRef,
+    );
+    expect(deserialize("7", view)).toBe(7);
   });
 
   it("gives up on a ref cycle rather than spinning", () => {

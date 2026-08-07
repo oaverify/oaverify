@@ -257,8 +257,15 @@ function itemSchema(
  */
 export type SchemaRefResolver = (schema: SchemaObject) => SchemaOrBoolean | undefined;
 
-/** Ref hops {@link coercionView} will follow before giving up. */
-const MAX_REF_HOPS = 8;
+/**
+ * Ref hops {@link coercionView} will follow before giving up.
+ *
+ * Matches `REF_CHAIN_MAX_HOPS` in `operation-cache.ts`, which bounds the
+ * same thing for the resolver the rest of the cache uses. A tighter
+ * bound here would reinstate the divergence this view exists to close:
+ * the compiler would resolve a long chain and coercion would not.
+ */
+const MAX_REF_HOPS = 32;
 
 function coerceScalar(value: string, schema: SchemaObject | boolean | undefined): unknown {
   if (schema === undefined || typeof schema === "boolean") return value;
