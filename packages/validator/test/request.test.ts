@@ -576,6 +576,58 @@ describe("validateRequest", () => {
     expect(leafCodes(noCt)).toEqual(["content-type"]);
   });
 
+  it("accepts serialized array and deepObject params through the full validator", () => {
+    // #707 end to end: each of these reported "must be integer" before
+    // item/property coercion was driven by the right subschema.
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/pets/{ids}": {
+          get: {
+            parameters: [
+              {
+                name: "ids",
+                in: "path",
+                required: true,
+                schema: { type: "array", items: { type: "integer" } },
+              },
+              {
+                name: "tags",
+                in: "query",
+                explode: false,
+                schema: { type: "array", items: { type: "integer" } },
+              },
+              {
+                name: "filter",
+                in: "query",
+                style: "deepObject",
+                schema: { type: "object", properties: { id: { type: "integer" } } },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const sv = createValidator(spec);
+    expect(
+      sv.validateRequest({
+        method: "GET",
+        path: "/pets/1,2,3",
+        query: { tags: "4,5", "filter[id]": "6" },
+      }),
+    ).toBeNull();
+
+    // A genuine non-integer still fails, at the item's own path.
+    const err = sv.validateRequest({
+      method: "GET",
+      path: "/pets/1,nope",
+      query: {},
+    });
+    expect(leafCodes(err)).toContain("type");
+  });
+
   it("accepts Buffer / Uint8Array for type:string, format:binary body fields", () => {
     // openapi-backend #860 / #809: multipart binary fields arrive as
     // Buffer / Uint8Array / framework-specific objects, not JS strings.

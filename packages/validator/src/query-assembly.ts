@@ -101,7 +101,7 @@ export function assembleDeepObject(
     if (!k.startsWith(prefix) || !k.endsWith("]")) continue;
     const propName = k.slice(prefix.length, -1);
     const raw = Array.isArray(v) ? v[0] : v;
-    const propSchema = props === undefined ? undefined : getOwn(props, propName);
+    const propSchema = getOwn(props, propName);
     setSpecKey(out, propName, propSchema === undefined ? raw : coerceQueryScalar(raw, propSchema));
     any = true;
   }

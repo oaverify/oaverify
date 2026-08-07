@@ -1156,13 +1156,16 @@ changes (`httpRequestFromExpress(req)`, etc.).
 oaverify doesn't coerce `{"age": "42"}` to `{"age": 42}` on request
 bodies by default.
 
-Query parameters are different: `oaverify` auto-coerces scalar query
-params per their declared type (`type: integer` → `Number(raw)`,
-`type: boolean` → `true`/`false`). Serialized containers follow the
-same rule one level down: an array's elements are coerced with its
-`items` schema, and a `deepObject`'s values with the matching entry in
-`properties`. A value whose schema declares no scalar type stays a
-string. Only bodies are strict.
+Serialized parameters are different. `oaverify` auto-coerces scalar
+path, query, header, and cookie params per their declared type
+(`type: integer` → `Number(raw)`, `type: boolean` → `true`/`false`),
+and does the same one level down for containers: an array's elements
+are coerced with its `items` schema, a `deepObject`'s values with the
+matching entry in `properties`.
+
+A value whose governing schema declares no scalar type stays a string.
+That covers a `$ref`-valued subschema, and an array with `prefixItems`,
+where `items` governs only part of the array. Only bodies are strict.
 
 If you need loose body coercion, coerce in your handler after
 parsing but before calling downstream logic, or in an

@@ -64,6 +64,36 @@ describe("deserialize", () => {
     expect(out).toEqual([true, false]);
   });
 
+  it("leaves items as strings when prefixItems governs the leading elements", () => {
+    // #707 review: with prefixItems, `items` covers only the elements
+    // past the prefix, so it cannot drive coercion for all of them.
+    // Coercing here would turn a passing request into a 400.
+    const out = deserialize("12,3", {
+      name: "a",
+      in: "query",
+      explode: false,
+      schema: {
+        type: "array",
+        prefixItems: [{ type: "string" }],
+        items: { type: "number" },
+      },
+    });
+    expect(out).toEqual(["12", "3"]);
+  });
+
+  it("leaves items as strings when the items schema is a $ref", () => {
+    // resolveSpec leaves internal $refs at their use sites, so this is a
+    // real spec shape. It coerces nothing, matching how a $ref-valued
+    // scalar parameter schema already behaves.
+    const out = deserialize("1,2", {
+      name: "a",
+      in: "query",
+      explode: false,
+      schema: { type: "array", items: { $ref: "#/components/schemas/Id" } },
+    });
+    expect(out).toEqual(["1", "2"]);
+  });
+
   it("leaves items as strings when items is absent or tuple-form", () => {
     // No single item type to coerce with, so the raw strings stand.
     expect(
