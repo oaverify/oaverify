@@ -531,6 +531,40 @@ describe("validateRequest", () => {
     expect(leafCodes(err)).toContain("required");
   });
 
+  it("treats an explicit JSON null body as a value, not an absent body", () => {
+    // #706. Only `undefined` means absent. `null` is a parsed JSON value
+    // and has to reach the schema in both directions.
+    const spec = (schema: SchemaOrBoolean, required: boolean): OpenAPIDocument => ({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/n": {
+          post: {
+            requestBody: { required, content: { "application/json": { schema } } },
+            responses: { "204": { description: "ok" } },
+          },
+        },
+      },
+    });
+    const req = { method: "POST", path: "/n", contentType: "application/json", body: null };
+
+    // Required body, `type: "null"`: null satisfies it. Previously a
+    // false reject with "missing required request body".
+    expect(createValidator(spec({ type: "null" }, true)).validateRequest(req)).toBeNull();
+
+    // Optional body, `type: "string"`: null violates it. Previously a
+    // false accept, since the gate skipped validation entirely.
+    const err = createValidator(spec({ type: "string" }, false)).validateRequest(req);
+    expect(leafAt(err, "body")?.code).toBe("type");
+
+    // An omitted body is still absent under the same required schema.
+    const missing = createValidator(spec({ type: "null" }, true)).validateRequest({
+      method: "POST",
+      path: "/n",
+    });
+    expect(leafCodes(missing)).toContain("body");
+  });
+
   it("accepts Buffer / Uint8Array for type:string, format:binary body fields", () => {
     // openapi-backend #860 / #809: multipart binary fields arrive as
     // Buffer / Uint8Array / framework-specific objects, not JS strings.
