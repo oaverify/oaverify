@@ -1,5 +1,7 @@
 /**
- * RFC 3339 `date` / `time` / `date-time` / `duration` format validators.
+ * RFC 3339 `date` / `time` / `date-time` / `duration` format
+ * validators, plus the OpenAPI registry's offsetless `time-local` and
+ * `date-time-local`.
  *
  * @packageDocumentation
  */
@@ -8,6 +10,8 @@ const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_RE = /^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/i;
 const DATE_TIME_RE =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/i;
+const TIME_LOCAL_RE = /^(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/;
+const DATE_TIME_LOCAL_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/i;
 
 /** Minutes past midnight of the last minute of a UTC day, `23:59`. */
 const LAST_MINUTE_UTC = 23 * 60 + 59;
@@ -40,7 +44,15 @@ const DURATION_RE = (() => {
   return new RegExp(`^P(?:${date}|${time}|${week})$`);
 })();
 
-function isValidMonthDay(year: number, month: number, day: number): boolean {
+/**
+ * True when `day` exists in that month of that year.
+ *
+ * Shared with `http-date.ts`: a calendar is a calendar whatever
+ * grammar spells it.
+ *
+ * @internal
+ */
+export function isValidMonthDay(year: number, month: number, day: number): boolean {
   if (month < 1 || month > 12) return false;
   if (day < 1) return false;
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -138,6 +150,65 @@ export function validateDateTime(value: string): boolean {
   const utcMinute = utcMinuteOfDay(hour, minute, match[7] ?? "Z");
   if (utcMinute === undefined) return false;
   return isLeapSecondPosition(second, utcMinute);
+}
+
+/**
+ * True when a local wall-clock time is in range.
+ *
+ * The seconds field admits `60` at any minute, which is looser than
+ * {@link validateTime}'s rule and is the whole difference the missing
+ * offset makes. A leap second is inserted at the end of a UTC day, so
+ * whether `:60` is legal is a property of the instant; with no offset
+ * there is no instant to check. `15:59:60` is a real leap second on a
+ * `-08:00` clock and `05:44:60` is one on `+05:45`, so pinning the
+ * rule to `23:59` would reject correct values to catch incorrect ones.
+ * Under-asserting is the same call `numeric.ts` makes for `float`.
+ */
+function isLocalTimeOfDay(hour: number, minute: number, second: number): boolean {
+  return hour <= 23 && minute <= 59 && second <= 60;
+}
+
+/**
+ * OpenAPI `time-local`: RFC 3339 `partial-time`, an offsetless
+ * wall-clock time (e.g. `"12:34:56"` or `"12:34:56.789"`).
+ *
+ * Does not assert the leap-second rule that {@link validateTime}
+ * does; see {@link isLocalTimeOfDay}.
+ *
+ * @public
+ */
+export function validateTimeLocal(value: string): boolean {
+  const match = TIME_LOCAL_RE.exec(value);
+  if (!match) return false;
+  return isLocalTimeOfDay(
+    Number.parseInt(match[1] ?? "0", 10),
+    Number.parseInt(match[2] ?? "0", 10),
+    Number.parseInt(match[3] ?? "0", 10),
+  );
+}
+
+/**
+ * OpenAPI `date-time-local`: RFC 3339 `date-time` with the offset
+ * dropped (e.g. `"2024-01-31T12:34:56"`).
+ *
+ * The date half is checked exactly as {@link validateDateTime} checks
+ * it, February included. The time half does not assert the
+ * leap-second rule; see {@link isLocalTimeOfDay}.
+ *
+ * @public
+ */
+export function validateDateTimeLocal(value: string): boolean {
+  const match = DATE_TIME_LOCAL_RE.exec(value);
+  if (!match) return false;
+  const year = Number.parseInt(match[1] ?? "0", 10);
+  const month = Number.parseInt(match[2] ?? "0", 10);
+  const day = Number.parseInt(match[3] ?? "0", 10);
+  if (!isValidMonthDay(year, month, day)) return false;
+  return isLocalTimeOfDay(
+    Number.parseInt(match[4] ?? "0", 10),
+    Number.parseInt(match[5] ?? "0", 10),
+    Number.parseInt(match[6] ?? "0", 10),
+  );
 }
 
 /**

@@ -27,10 +27,16 @@ replace them.
 
 ## Formats
 
-- **Date / time**: `date-time`, `date`, `time`, `duration` (RFC 3339)
+- **Date / time**: `date-time`, `date`, `time`, `duration` (RFC 3339),
+  `date-time-local` and `time-local` (the same grammars with the offset
+  dropped, so the leap-second rule is not asserted), `http-date`
+  (RFC 7231, all three forms of the production; the day name is not
+  checked against the date, and a two-digit year's century is not
+  resolved, so the verdict never depends on today's date)
 - **Email**: `email` (ASCII), `idn-email` (RFC 6531)
 - **Hostname**: `hostname`, `idn-hostname`
-- **IP**: `ipv4`, `ipv6`
+- **IP**: `ipv4`, `ipv6`, `ipv4-cidr`, `ipv6-cidr` (host bits need not
+  be zero)
 - **URI**: `uri`, `uri-reference`, `iri`, `iri-reference`, `uri-template`
 - **JSON Pointer**: `json-pointer`, `relative-json-pointer`
 - **Base64**: `byte` (RFC 4648 §4, padded; whitespace stripped first, so
@@ -38,7 +44,8 @@ replace them.
   reading to register in its place), `base64url` (§5, padding optional)
 - **Misc**: `uuid`, `char`
 - **Numeric** (OpenAPI): `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`,
-  `uint32`, `uint64`, `double-int`, each as `{ type: "number", validate }`
+  `uint32`, `uint64`, `double-int`, `unixtime`, each as
+  `{ type: "number", validate }`
 
 `regex` also works as a `format`, but it isn't a key in `builtInFormats`:
 `@oaverify/core/schema` registers it inside `createDeps` so it routes through the
@@ -63,10 +70,9 @@ display hints with nothing to check.
 precision before it reaches any JavaScript validator; see
 [docs/configuration.md](../../docs/configuration.md#formats).
 
-The remaining registry names (`http-date`, `date-time-local`,
-`time-local`, `ipv4-cidr`, `ipv6-cidr`, `language`, `media-range`,
-`decimal`, `decimal128`, `unixtime`, and the six `sf-*` structured-field
-formats) are assertable and not yet implemented. `oaverify check` tells
+The remaining registry names (`language`, `media-range`, `decimal`,
+`decimal128`, and the six `sf-*` structured-field formats) are
+assertable and not yet implemented. `oaverify check` tells
 those two groups apart in its report, so a document using one is told
 whether waiting will help. Register your own through the `formats`
 option in the meantime.

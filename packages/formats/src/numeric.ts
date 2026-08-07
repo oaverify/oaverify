@@ -10,8 +10,8 @@
  * format that rejects correct payloads is worse than one that asserts
  * nothing.
  *
- * The registry's other numeric names (`decimal`, `decimal128`,
- * `unixtime`) are assertable and not yet implemented; see #696.
+ * The registry's other numeric names (`decimal`, `decimal128`) are
+ * assertable and not yet implemented; see #696.
  *
  * The widths split two ways. `int8` through `int32` and `uint8`
  * through `uint32` are exact: every value in range survives a JSON
@@ -149,5 +149,34 @@ export function validateUint64(value: number): boolean {
  * @public
  */
 export function validateDoubleInt(value: number): boolean {
+  return Number.isSafeInteger(value);
+}
+
+/**
+ * OpenAPI `unixtime`: seconds since 1970-01-01T00:00:00Z, per
+ * POSIX.1-2024.
+ *
+ * Integral, and within the range a JSON number carries exactly, which
+ * is {@link validateInt64}'s bound and the same argument for it: past
+ * 2^53 the value has already lost precision, and the count of seconds
+ * it names is provably not the one that was sent. Negative values pass,
+ * naming an instant before the epoch.
+ *
+ * **This asserts less than most formats do.** POSIX puts no upper bound
+ * on the epoch count, so beyond integrality there is nothing left to
+ * check; a validator cannot tell `1700000000` from a quantity of
+ * apples. The name is worth registering anyway, because a
+ * `format: unixtime` on a fractional or precision-lost number is a real
+ * defect and the alternative is asserting nothing at all.
+ *
+ * The registry gives `unixtime` two base types, `number` and `string`.
+ * A format constrains one JSON type here (see `FormatDefinition`), and
+ * this is the number one: a string-valued `unixtime` is not asserted.
+ * The string spelling exists for producers escaping the 2^53 ceiling,
+ * which is exactly the range this cannot vouch for either way.
+ *
+ * @public
+ */
+export function validateUnixtime(value: number): boolean {
   return Number.isSafeInteger(value);
 }
