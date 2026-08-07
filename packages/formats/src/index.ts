@@ -1,10 +1,18 @@
 import type { FormatDefinition } from "@oaverify/internal-core";
 
 export { validateBase64Url, validateByte, validateByteRfc4648 } from "./base64.js";
-export { validateDate, validateDateTime, validateDuration, validateTime } from "./date.js";
+export {
+  validateDate,
+  validateDateTime,
+  validateDateTimeLocal,
+  validateDuration,
+  validateTime,
+  validateTimeLocal,
+} from "./date.js";
 export { validateEmail, validateIdnEmail } from "./email.js";
 export { validateHostname, validateIdnHostname } from "./hostname.js";
-export { validateIpv4, validateIpv6 } from "./ip.js";
+export { validateHttpDate } from "./http-date.js";
+export { validateIpv4, validateIpv4Cidr, validateIpv6, validateIpv6Cidr } from "./ip.js";
 export { validateChar, validateRegex, validateUuid } from "./misc.js";
 export {
   validateDoubleInt,
@@ -16,6 +24,7 @@ export {
   validateUint32,
   validateUint64,
   validateUint8,
+  validateUnixtime,
 } from "./numeric.js";
 export {
   validateIri,
@@ -28,10 +37,18 @@ export {
 } from "./uri.js";
 
 import { validateBase64Url, validateByte } from "./base64.js";
-import { validateDate, validateDateTime, validateDuration, validateTime } from "./date.js";
+import {
+  validateDate,
+  validateDateTime,
+  validateDateTimeLocal,
+  validateDuration,
+  validateTime,
+  validateTimeLocal,
+} from "./date.js";
 import { validateEmail, validateIdnEmail } from "./email.js";
 import { validateHostname, validateIdnHostname } from "./hostname.js";
-import { validateIpv4, validateIpv6 } from "./ip.js";
+import { validateHttpDate } from "./http-date.js";
+import { validateIpv4, validateIpv4Cidr, validateIpv6, validateIpv6Cidr } from "./ip.js";
 // Note: validateRegex is intentionally not imported into builtInFormats.
 // @oaverify/core/schema auto-registers a `regex` format that shares the
 // pattern-keyword compile path (and the regexCompiler hook). The standalone
@@ -47,6 +64,7 @@ import {
   validateUint32,
   validateUint64,
   validateUint8,
+  validateUnixtime,
 } from "./numeric.js";
 import {
   validateIri,
@@ -97,13 +115,18 @@ export const builtInFormats: Record<string, FormatDefinition> = {
   "date-time": validateDateTime,
   date: validateDate,
   time: validateTime,
+  "date-time-local": validateDateTimeLocal,
+  "time-local": validateTimeLocal,
+  "http-date": validateHttpDate,
   duration: validateDuration,
   email: validateEmail,
   "idn-email": validateIdnEmail,
   hostname: validateHostname,
   "idn-hostname": validateIdnHostname,
   ipv4: validateIpv4,
+  "ipv4-cidr": validateIpv4Cidr,
   ipv6: validateIpv6,
+  "ipv6-cidr": validateIpv6Cidr,
   uri: validateUri,
   "uri-reference": validateUriReference,
   iri: validateIri,
@@ -124,6 +147,7 @@ export const builtInFormats: Record<string, FormatDefinition> = {
   uint32: { type: "number", validate: validateUint32 },
   uint64: { type: "number", validate: validateUint64 },
   "double-int": { type: "number", validate: validateDoubleInt },
+  unixtime: { type: "number", validate: validateUnixtime },
 };
 
 /**

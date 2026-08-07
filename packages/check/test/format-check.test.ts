@@ -88,8 +88,10 @@ describe("an OAS-defined format reads differently from a vendor one", () => {
 
   it("names OpenAPI as the definer for a registry format not yet asserted", () => {
     // The whole registry, not the 3.0 shortlist: a 3.1 document using
-    // http-date or sf-token got the vendor wording until #695.
-    for (const format of ["http-date", "sf-token", "language", "media-range", "decimal"]) {
+    // decimal or sf-token got the vendor wording until #695. This list
+    // shrinks each time #696 lands a validator, and a name that leaves
+    // it should join the asserted list below.
+    for (const format of ["sf-token", "language", "media-range", "decimal"]) {
       const message = check(doc({ type: "string", format }))[0]?.message ?? "";
       expect(message).toContain(`OpenAPI defines "${format}" but oaverify does not assert it yet`);
     }
@@ -99,10 +101,19 @@ describe("an OAS-defined format reads differently from a vendor one", () => {
     // These were reported until validators landed. The walk skips
     // anything KNOWN_FORMATS holds, so the OAS-defined wording for them
     // is now unreachable rather than merely unused.
-    for (const format of ["int32", "int64", "int8", "uint32", "uint64", "double-int"]) {
+    for (const format of ["int32", "int64", "int8", "uint32", "uint64", "double-int", "unixtime"]) {
       expect(check(doc({ type: "integer", format }))).toEqual([]);
     }
-    for (const format of ["byte", "base64url", "char"]) {
+    for (const format of [
+      "byte",
+      "base64url",
+      "char",
+      "http-date",
+      "date-time-local",
+      "time-local",
+      "ipv4-cidr",
+      "ipv6-cidr",
+    ]) {
       expect(check(doc({ type: "string", format }))).toEqual([]);
     }
   });

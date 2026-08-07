@@ -5,9 +5,11 @@ import {
   fromAjvFormats,
   validateDate,
   validateDateTime,
+  validateDateTimeLocal,
   validateDuration,
   validateEmail,
   validateHostname,
+  validateHttpDate,
   validateIdnEmail,
   validateBase64Url,
   validateByte,
@@ -19,13 +21,17 @@ import {
   validateInt64,
   validateInt8,
   validateIpv4,
+  validateIpv4Cidr,
   validateIpv6,
+  validateIpv6Cidr,
   validateIri,
   validateIriReference,
   validateJsonPointer,
   validateRegex,
   validateRelativeJsonPointer,
   validateTime,
+  validateTimeLocal,
+  validateUnixtime,
   validateUri,
   validateUriReference,
   validateUriTemplate,
@@ -402,6 +408,11 @@ describe("builtInFormats map", () => {
       "json-pointer",
       "relative-json-pointer",
       "uuid",
+      "date-time-local",
+      "time-local",
+      "http-date",
+      "ipv4-cidr",
+      "ipv6-cidr",
     ];
     // The bare-function shorthand, so a string format's entry is the
     // predicate itself and reads the way it always has.
@@ -828,5 +839,169 @@ describe("leap seconds and UTC offsets", () => {
     expect(validateTime("12:34:56Z")).toBe(true);
     expect(validateTime("12:34:56+02:00")).toBe(true);
     expect(validateDateTime("2024-01-31T12:34:56-05:00")).toBe(true);
+  });
+});
+
+describe("time-local / date-time-local", () => {
+  it("accepts an offsetless wall-clock time", () => {
+    expect(validateTimeLocal("12:34:56")).toBe(true);
+    expect(validateTimeLocal("00:00:00")).toBe(true);
+    expect(validateTimeLocal("23:59:59.999")).toBe(true);
+  });
+
+  it("rejects a time-local carrying the offset the name drops", () => {
+    expect(validateTimeLocal("12:34:56Z")).toBe(false);
+    expect(validateTimeLocal("12:34:56+02:00")).toBe(false);
+  });
+
+  it("rejects an out-of-range field under time-local", () => {
+    expect(validateTimeLocal("24:00:00")).toBe(false);
+    expect(validateTimeLocal("12:60:00")).toBe(false);
+    expect(validateTimeLocal("12:34:61")).toBe(false);
+    expect(validateTimeLocal("2:34:56")).toBe(false);
+  });
+
+  it("accepts :60 at any minute, because no offset means no instant to place", () => {
+    // 15:59:60 is a real leap second on a -08:00 clock and 05:44:60
+    // is one on +05:45, so the position rule validateTime applies
+    // would reject correct values here.
+    expect(validateTimeLocal("23:59:60")).toBe(true);
+    expect(validateTimeLocal("15:59:60")).toBe(true);
+    expect(validateTimeLocal("12:34:60")).toBe(true);
+    // The offset-bearing sibling still applies the rule.
+    expect(validateTime("12:34:60Z")).toBe(false);
+  });
+
+  it("accepts an offsetless date-time", () => {
+    expect(validateDateTimeLocal("2024-01-31T12:34:56")).toBe(true);
+    expect(validateDateTimeLocal("2024-02-29T00:00:00.5")).toBe(true);
+    // RFC 3339 §5.6 NOTE allows a lowercase separator, and the
+    // offset-bearing sibling has always taken one.
+    expect(validateDateTimeLocal("2024-01-31t12:34:56")).toBe(true);
+  });
+
+  it("rejects a date-time-local carrying an offset, and a bare date", () => {
+    expect(validateDateTimeLocal("2024-01-31T12:34:56Z")).toBe(false);
+    expect(validateDateTimeLocal("2024-01-31T12:34:56-05:00")).toBe(false);
+    expect(validateDateTimeLocal("2024-01-31")).toBe(false);
+  });
+
+  it("checks the calendar under date-time-local", () => {
+    expect(validateDateTimeLocal("2023-02-29T00:00:00")).toBe(false);
+    expect(validateDateTimeLocal("2024-13-01T00:00:00")).toBe(false);
+  });
+});
+
+describe("ipv4-cidr / ipv6-cidr", () => {
+  it("accepts an address with a prefix length in range", () => {
+    expect(validateIpv4Cidr("192.0.2.0/24")).toBe(true);
+    expect(validateIpv4Cidr("0.0.0.0/0")).toBe(true);
+    expect(validateIpv4Cidr("255.255.255.255/32")).toBe(true);
+    expect(validateIpv6Cidr("2001:db8::/32")).toBe(true);
+    expect(validateIpv6Cidr("::/0")).toBe(true);
+    expect(validateIpv6Cidr("::ffff:192.0.2.1/128")).toBe(true);
+  });
+
+  it("rejects a prefix length past the address width", () => {
+    expect(validateIpv4Cidr("192.0.2.0/33")).toBe(false);
+    expect(validateIpv6Cidr("2001:db8::/129")).toBe(false);
+  });
+
+  it("rejects a bare address, and a malformed prefix", () => {
+    expect(validateIpv4Cidr("192.0.2.0")).toBe(false);
+    expect(validateIpv6Cidr("2001:db8::")).toBe(false);
+    expect(validateIpv4Cidr("192.0.2.0/")).toBe(false);
+    expect(validateIpv4Cidr("192.0.2.0/08")).toBe(false);
+    expect(validateIpv4Cidr("192.0.2.0/+8")).toBe(false);
+    expect(validateIpv4Cidr("192.0.2.0/ 8")).toBe(false);
+    expect(validateIpv4Cidr("192.0.2.0/24/24")).toBe(false);
+  });
+
+  it("rejects a malformed address under an in-range prefix", () => {
+    expect(validateIpv4Cidr("192.0.2.256/24")).toBe(false);
+    expect(validateIpv4Cidr("192.0.2/24")).toBe(false);
+    expect(validateIpv6Cidr("2001:db8:::/32")).toBe(false);
+  });
+
+  it("accepts host bits outside the prefix", () => {
+    // The notation names an address and a prefix length; masking is
+    // the reader's business, and "this interface, in a /24" is a
+    // normal thing to write.
+    expect(validateIpv4Cidr("192.0.2.1/24")).toBe(true);
+    expect(validateIpv6Cidr("2001:db8::1/32")).toBe(true);
+  });
+});
+
+describe("http-date", () => {
+  it("accepts IMF-fixdate, the form a sender must produce", () => {
+    expect(validateHttpDate("Sun, 06 Nov 1994 08:49:37 GMT")).toBe(true);
+    expect(validateHttpDate("Thu, 29 Feb 2024 00:00:00 GMT")).toBe(true);
+  });
+
+  it("accepts the two obsolete forms the HTTP-date production still admits", () => {
+    expect(validateHttpDate("Sunday, 06-Nov-94 08:49:37 GMT")).toBe(true);
+    expect(validateHttpDate("Sun Nov  6 08:49:37 1994")).toBe(true);
+    expect(validateHttpDate("Sun Nov 16 08:49:37 1994")).toBe(true);
+  });
+
+  it("rejects a form no HTTP-date grammar admits", () => {
+    expect(validateHttpDate("1994-11-06T08:49:37Z")).toBe(false);
+    expect(validateHttpDate("Sun, 06 Nov 1994 08:49:37")).toBe(false);
+    expect(validateHttpDate("Sun, 06 Nov 1994 08:49:37 UTC")).toBe(false);
+    expect(validateHttpDate("06 Nov 1994 08:49:37 GMT")).toBe(false);
+    expect(validateHttpDate("Sun, 6 Nov 1994 08:49:37 GMT")).toBe(false);
+    // asctime's date3 spells a single-digit day "SP 1DIGIT", so one
+    // space and one digit is a different string from two spaces.
+    expect(validateHttpDate("Sun Nov 6 08:49:37 1994")).toBe(false);
+    // The RFC 850 form takes a two-digit year and the long day name;
+    // neither half borrows from IMF-fixdate.
+    expect(validateHttpDate("Sunday, 06-Nov-1994 08:49:37 GMT")).toBe(false);
+    expect(validateHttpDate("Sun, 06-Nov-94 08:49:37 GMT")).toBe(false);
+    expect(validateHttpDate("")).toBe(false);
+  });
+
+  it("rejects lowercase, because every literal in the grammar is case-sensitive", () => {
+    expect(validateHttpDate("sun, 06 nov 1994 08:49:37 GMT")).toBe(false);
+    expect(validateHttpDate("Sun, 06 Nov 1994 08:49:37 gmt")).toBe(false);
+  });
+
+  it("checks the calendar and the clock", () => {
+    expect(validateHttpDate("Thu, 29 Feb 2023 00:00:00 GMT")).toBe(false);
+    expect(validateHttpDate("Sun, 31 Nov 1994 08:49:37 GMT")).toBe(false);
+    expect(validateHttpDate("Sun, 06 Nov 1994 24:00:00 GMT")).toBe(false);
+    expect(validateHttpDate("Sun, 06 Nov 1994 08:60:00 GMT")).toBe(false);
+    // 60 seconds is a leap second, which a Date field can name.
+    expect(validateHttpDate("Sun, 06 Nov 1994 23:59:60 GMT")).toBe(true);
+  });
+
+  it("does not check the day name against the date", () => {
+    // 6 Nov 1994 was a Sunday. Nothing in RFC 7231 asks a recipient
+    // to verify the day name, and a mismatch is a clerical error
+    // rather than a value the reader cannot use.
+    expect(validateHttpDate("Mon, 06 Nov 1994 08:49:37 GMT")).toBe(true);
+  });
+
+  it("treats February as 29 days under a two-digit year, so the verdict is clock-free", () => {
+    expect(validateHttpDate("Sunday, 29-Feb-24 00:00:00 GMT")).toBe(true);
+    expect(validateHttpDate("Sunday, 30-Feb-24 00:00:00 GMT")).toBe(false);
+  });
+});
+
+describe("unixtime", () => {
+  it("accepts integer seconds either side of the epoch", () => {
+    expect(validateUnixtime(0)).toBe(true);
+    expect(validateUnixtime(1700000000)).toBe(true);
+    expect(validateUnixtime(-86400)).toBe(true);
+  });
+
+  it("rejects a fractional count, and one past the safe-integer ceiling", () => {
+    expect(validateUnixtime(1700000000.5)).toBe(false);
+    expect(validateUnixtime(Number.MAX_SAFE_INTEGER)).toBe(true);
+    expect(validateUnixtime(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
+    expect(validateUnixtime(Number.NaN)).toBe(false);
+  });
+
+  it("is a numeric format, so a string unixtime is not asserted", () => {
+    expect(builtInFormats["unixtime"]).toEqual({ type: "number", validate: validateUnixtime });
   });
 });
