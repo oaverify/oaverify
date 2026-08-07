@@ -448,7 +448,11 @@ export function createRouter(paths: Record<string, PathItem>): Router {
   //   2. more compound segments win (compounds carry literal anchors,
   //      so they're stricter than a bare `{name}` at the same position)
   //   3. longer paths win
-  //   4. alphabetical tie-break for stability
+  //   4. code-point tie-break for stability. Not `localeCompare`: that
+  //      consults the host ICU locale, so two deployments of the same
+  //      spec could order tied routes differently and route the same
+  //      request to different operations. Precedence is part of the
+  //      router's contract and must not vary with LANG.
   routes.sort((a, b) => {
     const aLit = a.segments.filter((s) => s.kind === "literal").length;
     const bLit = b.segments.filter((s) => s.kind === "literal").length;
@@ -457,7 +461,9 @@ export function createRouter(paths: Record<string, PathItem>): Router {
     const bComp = b.segments.filter((s) => s.kind === "compound").length;
     if (aComp !== bComp) return bComp - aComp;
     if (a.segments.length !== b.segments.length) return b.segments.length - a.segments.length;
-    return a.pathPattern.localeCompare(b.pathPattern);
+    if (a.pathPattern < b.pathPattern) return -1;
+    if (a.pathPattern > b.pathPattern) return 1;
+    return 0;
   });
 
   // Enumerate declared operations once, in sort order. Frozen so the

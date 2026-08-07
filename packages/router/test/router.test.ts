@@ -546,3 +546,23 @@ describe("slash trimming (js/polynomial-redos regression)", () => {
     expect(performance.now() - started).toBeLessThan(2000);
   });
 });
+
+describe("route sort determinism", () => {
+  // The final specificity tie-break orders by code point, so the route
+  // list is identical on every host. `localeCompare` consults the ICU
+  // locale, and "/" (0x2F) sorting relative to letters is exactly the
+  // kind of comparison collation tables reorder; route precedence must
+  // not vary with LANG.
+  it("breaks specificity ties by code point, not locale collation", () => {
+    const router = createRouter({
+      "/{y}/b/c": { get: op("brace-first") } as PathItem,
+      "/a/{x}/c": { get: op("letter-first") } as PathItem,
+    });
+    // Both patterns carry two literal segments, no compounds, and three
+    // segments, so the name comparison decides. "a" (0x61) sorts before
+    // "{" (0x7B) by code point.
+    const m = matched(router.match("get", "/a/b/c"));
+    expect(m.pathPattern).toBe("/a/{x}/c");
+    expect((m.operation as { operationId?: string }).operationId).toBe("letter-first");
+  });
+});
