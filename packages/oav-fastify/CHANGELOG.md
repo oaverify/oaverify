@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.0](https://github.com/oaverify/oaverify/compare/fastify-v5.4.0...fastify-v6.0.0) (2026-08-07)
+
+
+### Chore
+
+* **fastify:** Synchronize oaverify versions
+
 ## [5.4.0](https://github.com/oaverify/oaverify/compare/fastify-v5.3.0...fastify-v5.4.0) (2026-08-04)
 
 No changes to this package. The version moves with the linked release group; see the [`@oaverify/core` changelog](https://github.com/oaverify/oaverify/blob/main/CHANGELOG.md) for what shipped.

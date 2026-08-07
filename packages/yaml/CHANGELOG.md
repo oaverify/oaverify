@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.0.0](https://github.com/oaverify/oaverify/compare/yaml-v5.4.0...yaml-v6.0.0) (2026-08-07)
+
+
+### Chore
+
+* **yaml:** Synchronize oaverify versions
+
 ## [5.4.0](https://github.com/oaverify/oaverify/compare/yaml-v5.3.0...yaml-v5.4.0) (2026-08-04)
 
 

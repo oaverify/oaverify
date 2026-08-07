@@ -1,5 +1,19 @@
 # Changelog
 
+## [6.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.4.0...oaverify-v6.0.0) (2026-08-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cli:** oaverify check exits 1 on any error-severity finding with no flag; runs relying on the advisory exit 0 need --fail-on none. Fixes #549.
+* **check,cli:** `CheckOptions.only` is removed. `checkSpec(spec, { only: ["hygiene"] })` becomes `checkSpec(spec, { findings: selectionForClasses(["hygiene"]) })`. The CLI is untouched; `--only` now resolves to a selection at the CLI layer.
+
+### Features
+
+* **check,cli:** one findings flag, replacing --only and --skip ([#673](https://github.com/oaverify/oaverify/issues/673)) ([5e66e45](https://github.com/oaverify/oaverify/commit/5e66e451c0934c21290375ea72ecb36622b0ea8f))
+* **cli:** check gates on error severity by default ([#686](https://github.com/oaverify/oaverify/issues/686)) ([57e573c](https://github.com/oaverify/oaverify/commit/57e573c3ca3ffebb49fd00196ef189c6c9b4171b))
+* **cli:** flags for reader containment and outbound requests ([#693](https://github.com/oaverify/oaverify/issues/693)) ([b875639](https://github.com/oaverify/oaverify/commit/b875639a904b79a3b3d76f55de99f17a9dfdd1b2))
+
 ## [5.4.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.3.0...oaverify-v5.4.0) (2026-08-04)
 
 `oaverify check` now runs the check from the new [`@oaverify/check`](https://www.npmjs.com/package/@oaverify/check) package rather than its own copy. Same passes, same findings, same exit codes; the package is a new runtime dependency of the CLI.
