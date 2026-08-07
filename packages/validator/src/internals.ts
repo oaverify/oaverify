@@ -30,6 +30,7 @@ export {
   compileMediaTypePatterns,
   matchMediaType,
   type ParsedMediaTypePattern,
+  schemaRefResolverFor,
   type SchemaRefResolver,
 } from "./deserialize.js";
 

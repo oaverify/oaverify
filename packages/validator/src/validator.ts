@@ -42,7 +42,7 @@ import {
   deserialize,
   matchParsedMediaType,
   matchResponseKey,
-  type SchemaRefResolver,
+  schemaRefResolverFor,
 } from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast } from "./headers.js";
@@ -1083,15 +1083,12 @@ export function createValidator(
   const graph = resolve(spec as unknown as SchemaOrBoolean);
   const refResolver: RefResolver = createRefResolver(graph);
 
-  // One `$ref` hop for the coercion views, through the same resolver
-  // schemas compile with. `resolveRef` above walks JSON pointers and
-  // refuses anything that is not a `#` fragment, so a parameter behind an
-  // `$id`-based ref compiled correctly and coerced against nothing.
-  const resolveSchemaRef: SchemaRefResolver = (schema) => {
-    const ref = schema.$ref;
-    if (typeof ref !== "string") return schema;
-    return refResolver.resolve(ref);
-  };
+  // One `$ref` hop for the coercion views, bound to the same resolver
+  // and the same base URIs schemas compile with. The `resolveRef` below
+  // walks JSON pointers and refuses anything that is not a `#` fragment,
+  // so a parameter behind an `$id`-based ref compiled correctly and
+  // coerced against nothing.
+  const resolveSchemaRef = schemaRefResolverFor(refResolver, graph);
 
   // Live array. Compile closure appends on each miss; consumers read
   // `validator.stats.schemaLintIssues` at any point to see what's been

@@ -25,6 +25,7 @@ import { builtInFormats } from "@oaverify/internal-formats";
 import {
   coercionView,
   compileMediaTypePatterns,
+  schemaRefResolverFor,
   walkDocumentSchemas,
   type SchemaRefResolver,
 } from "@oaverify/internal-validator/internals";
@@ -159,14 +160,12 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   const graph = resolve(document as unknown as SchemaOrBoolean);
   const refResolver: RefResolver = createRefResolver(graph);
 
-  // One `$ref` hop for the coercion views, through the resolver schemas
-  // compile with, matching what createValidator binds. The `resolveRef`
-  // below walks JSON pointers and cannot follow an `$id`-based target.
-  const resolveSchemaRef: SchemaRefResolver = (schema) => {
-    const ref = schema.$ref;
-    if (typeof ref !== "string") return schema;
-    return refResolver.resolve(ref);
-  };
+  // One `$ref` hop for the coercion views, bound the way createValidator
+  // binds it. `resolveRef` below reaches the same resolver, so the
+  // difference here is not the resolver but the base URI and the chain:
+  // that one resolves a single hop, so the emitted module stopped
+  // following a ref chain that the runtime followed.
+  const resolveSchemaRef = schemaRefResolverFor(refResolver, graph);
 
   // Anything passed through resolveRef comes back with `{ $ref }`
   // followed; the schema registry handles internal refs transparently.

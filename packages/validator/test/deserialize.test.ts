@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { SchemaObject } from "@oaverify/internal-core";
 import { createRefResolver, resolve } from "@oaverify/internal-schema";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
-import type { SchemaRefResolver } from "../src/deserialize.js";
-import { coercionView, deserialize, matchMediaType, matchResponseKey } from "../src/deserialize.js";
+
+import {
+  coercionView,
+  deserialize,
+  matchMediaType,
+  matchResponseKey,
+  schemaRefResolverFor,
+} from "../src/deserialize.js";
 
 describe("deserialize", () => {
   it("returns undefined for absent values", () => {
@@ -309,6 +315,15 @@ describe("coercionView", () => {
         Id: { type: "integer" },
         Ref: { $ref: "#/components/schemas/Id" },
         Loop: { $ref: "#/components/schemas/Loop" },
+        // A two-step cycle: the identity guard cannot see this one, so
+        // it ends on the hop budget instead.
+        Ping: { $ref: "#/components/schemas/Pong" },
+        Pong: { $ref: "#/components/schemas/Ping" },
+        Bool: true,
+        // A ref with siblings, reached through another ref: the compiler
+        // honours the sibling at every hop, so the view has to as well.
+        Arr: { type: "array" },
+        ArrOfId: { $ref: "#/components/schemas/Arr", items: { $ref: "#/components/schemas/Id" } },
         // A chain deeper than a small hand-picked bound would allow.
         C0: { $ref: "#/components/schemas/C1" },
         C1: { $ref: "#/components/schemas/C2" },
@@ -322,15 +337,10 @@ describe("coercionView", () => {
       },
     },
   };
-  // Mirrors what createValidator binds: one hop, through the resolver
-  // schemas compile with, throwing on a ref it cannot resolve.
+  // The production binding itself, not a copy of it, so the test cannot
+  // agree with a mistake the real one makes.
   const graph = resolve(doc as unknown as SchemaOrBoolean);
-  const refResolver = createRefResolver(graph);
-  const resolveRef: SchemaRefResolver = (schema) => {
-    const ref = schema.$ref;
-    if (typeof ref !== "string") return schema;
-    return refResolver.resolve(ref);
-  };
+  const resolveRef = schemaRefResolverFor(createRefResolver(graph), graph);
 
   it("returns the parameter unchanged, by identity, when nothing is a $ref", () => {
     const p = { name: "a", in: "query", schema: { type: "integer" } } as const;
@@ -398,7 +408,31 @@ describe("coercionView", () => {
     expect(deserialize("7", view)).toBe(7);
   });
 
-  it("gives up on a ref cycle rather than spinning", () => {
+  it("gives up on a two-step ref cycle rather than spinning", () => {
+    const view = coercionView(
+      { name: "a", in: "query", schema: { $ref: "#/components/schemas/Ping" } },
+      resolveRef,
+    );
+    expect(() => deserialize("1", view)).not.toThrow();
+    expect(deserialize("1", view)).toBe("1");
+  });
+
+  it("returns the parameter unchanged when a ref lands on a boolean schema", () => {
+    const p = { name: "a", in: "query", schema: { $ref: "#/components/schemas/Bool" } } as const;
+    expect(deserialize("1", coercionView(p, resolveRef))).toBe("1");
+  });
+
+  it("keeps siblings from every hop of a chain, not only the use site", () => {
+    // `ArrOfId` is `{ $ref: Arr, items: Id }`, reached through a ref of
+    // its own. The `items` sibling has to survive the extra hop.
+    const view = coercionView(
+      { name: "a", in: "query", explode: false, schema: { $ref: "#/components/schemas/ArrOfId" } },
+      resolveRef,
+    );
+    expect(deserialize("1,2", view)).toEqual([1, 2]);
+  });
+
+  it("gives up on a self-referential ref rather than spinning", () => {
     const view = coercionView(
       { name: "a", in: "query", schema: { $ref: "#/components/schemas/Loop" } },
       resolveRef,

@@ -707,6 +707,12 @@ describe("validateRequest", () => {
     // anything that is not a `#` fragment, so this parameter compiled
     // against the right schema and coerced against nothing. It now uses
     // the resolver schemas compile with, so the two agree.
+    //
+    // `$defs` sits at the document root deliberately. `resolve()` only
+    // descends JSON-Schema keywords, so an `$id` under
+    // `components.schemas` is never registered and a ref to it throws for
+    // the compiler too. Moving this to look tidier would stop it testing
+    // anything.
     const spec = {
       openapi: "3.1.0",
       info: { title: "t", version: "1" },
