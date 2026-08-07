@@ -796,9 +796,7 @@ describe("validateRequest", () => {
       paths: {
         "/w": {
           get: {
-            parameters: [
-              { name: "n", in: "query", required: true, schema: { type: "integer" } },
-            ],
+            parameters: [{ name: "n", in: "query", required: true, schema: { type: "integer" } }],
             responses: { "200": { description: "ok" } },
           },
         },

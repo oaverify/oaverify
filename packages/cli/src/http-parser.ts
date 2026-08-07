@@ -4,6 +4,15 @@ import { setSpecKey, type HttpRequest, type JsonValue } from "@oaverify/internal
  * Parse a string in the standard `.http` file format (method/path line,
  * headers, blank line, body) into an {@link HttpRequest}.
  *
+ * **The body is whitespace-trimmed**, `rawBody` included. Text files
+ * end with a newline the author never meant as payload, and without
+ * the trim a `maxLength` or an anchored `pattern` fails on the
+ * invisible character. The cost is that a text body whose leading or
+ * trailing whitespace is significant cannot be expressed in a `.http`
+ * file; exercise such a body through `HttpRequest.body` directly, or
+ * through a real client and the fetch bridge, which both deliver the
+ * bytes as sent.
+ *
  * @param text - Raw contents of the .http file.
  * @returns An {@link HttpRequest} ready for the validator.
  *
