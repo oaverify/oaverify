@@ -1,4 +1,4 @@
-Run 2026-08-06 against:
+Run 2026-08-07 against:
 
 - oaverify 5.4.0
 - ajv 8.20.0
@@ -21,6 +21,7 @@ Run 2026-08-06 against:
 | `lint/unknown-keyword` | lint | yes | yes | - | yes |
 | `lint/annotation-null-description` | lint | yes | yes | - | yes |
 | `lint/prefixitems-in-30` | lint | yes | yes | yes | yes |
+| `lint/catastrophic-pattern` | lint | yes | - | - | - |
 | `style/missing-operationid` | style | - | - | yes | yes |
 | `style/duplicate-operationid` | style | - | - | yes | yes |
 | `style/unused-component` | style | yes | - | yes | yes |
@@ -43,8 +44,8 @@ Run 2026-08-06 against:
 | class | oaverify | ajv | spectral | redocly |
 | --- | --- | --- | --- | --- |
 | malformed (6) | 6/6 | 4/6 | 5/6 | 5/6 |
-| lint (8) | 8/8 | 5/8 | 3/8 | 5/8 |
+| lint (9) | 9/9 | 5/9 | 3/9 | 5/9 |
 | structural (8) | 7/8 | 2/8 | 7/8 | 5/8 |
 | style (6) | 3/6 | 0/6 | 6/6 | 6/6 |
 | control false positives (4) | 0 | 0 | 0 | 0 |
-| total findings raised | 24 | 19 | 178 | 190 |
+| total findings raised | 25 | 19 | 183 | 195 |

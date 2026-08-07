@@ -133,6 +133,17 @@ export const CASES: readonly DetectionCase[] = [
     signals: ["prefixitems"],
     oaverify: "catches",
   },
+  {
+    // The shape occurs in published specifications. A seeded case shows
+    // the class without naming a vendor or running a reproducer against
+    // someone else's live document (#694).
+    id: "lint/catastrophic-pattern",
+    class: "lint",
+    defect:
+      "a nested quantifier on an unbounded request string, so a crafted value can cost superlinear time",
+    signals: ["ambiguous", "redos", "backtrack", "catastrophic", "superlinear"],
+    oaverify: "catches",
+  },
 
   // ---- style: outside oaverify's scope, and stated as such ----
   {

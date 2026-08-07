@@ -84,6 +84,12 @@
 - **spectral**: oas3-schema: Property "prefixItems" is not expected to be here. [paths//things/get/responses/200/content/application/json/schema/prefixItems]
 - **redocly**: struct: Property `prefixItems` is not expected here. [#/paths/~1things/get/responses/200/content/application~1json/schema/prefixItems]
 
+## `lint/catastrophic-pattern` (lint)
+- **oaverify**: ambiguous-pattern: "^([A-Za-z0-9]+[ ,])*[A-Za-z0-9]+$" is ambiguous. An input of the form `[A-Za-z0-9][ ,][A-Za-z0-9][A-Za-z0-9]` matches more than one way. A backtracking engine can be made to explore every way of matching, so a crafted value may cost superlinear time; whether it does depends on the engine running the pattern. Rewrite to remove the ambiguity, or compile patterns with a linear-time engine (the regexCompiler option). [/paths/~1things/post/requestBody/content/application~1json/schema/properties/tags/pattern]
+- ajv: no matching finding (0 raised)
+- spectral: no matching finding (5 raised)
+- redocly: no matching finding (5 raised)
+
 ## `style/missing-operationid` (style)
 - oaverify: no matching finding (0 raised)
 - ajv: no matching finding (0 raised)
