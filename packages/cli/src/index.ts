@@ -13,7 +13,8 @@ export { type StandaloneDialect } from "./emit-standalone.js";
 export { parseHttpFile } from "./http-parser.js";
 export {
   confineRootFor,
-  defaultPolicy,
+  policyFor,
+  type ReaderFlags,
   DEFAULT_REMOTE_REFS,
   entryRefusal,
   fileOptionsFor,

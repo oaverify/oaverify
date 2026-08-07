@@ -58,9 +58,36 @@ export interface ReaderPolicy {
   onRemoteRead?: () => void;
 }
 
-/** The posture a command starts from before flags are applied. */
-export function defaultPolicy(entry: string): ReaderPolicy {
-  return { entry, remoteRefs: DEFAULT_REMOTE_REFS, untrusted: false };
+/** The flags a command parsed, before they are resolved to a posture. */
+export interface ReaderFlags {
+  /** `--remote-refs`, absent when the flag was not passed. */
+  remoteRefs?: RemoteRefsMode;
+  /** `--untrusted`. */
+  untrusted?: boolean;
+}
+
+/**
+ * Resolve flags to a posture.
+ *
+ * `--untrusted` implies `same-origin`. The other thing it sets is
+ * `confine`, which is not a limit: `maxBytes` and `timeoutMs` answer
+ * "how much", `confine` answers "where may a read go". `same-origin` is
+ * that same question asked of the network, so bounding one surface and
+ * leaving the other open would be half a boundary. A spec confined to
+ * its own directory on disk could still `$ref`
+ * `http://169.254.169.254/`.
+ *
+ * An explicit `--remote-refs` wins, including `--untrusted
+ * --remote-refs allow`. A posture that cannot be overridden is one
+ * people work around.
+ */
+export function policyFor(entry: string, flags: ReaderFlags = {}): ReaderPolicy {
+  const untrusted = flags.untrusted === true;
+  return {
+    entry,
+    remoteRefs: flags.remoteRefs ?? (untrusted ? "same-origin" : DEFAULT_REMOTE_REFS),
+    untrusted,
+  };
 }
 
 /** True for a URI the http reader would claim. */
