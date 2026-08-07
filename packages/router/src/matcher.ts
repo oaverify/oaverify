@@ -68,9 +68,11 @@ function trimSlashes(s: string): string {
  *   segment (`{petId}`).
  * - `compound`: multiple `{name}` parameters interleaved with literal
  *   text inside one segment (`{sha}.{diffType}`,
- *   `{year}-{month}.json`). Carries a pre-compiled regex with one
- *   non-greedy capture group per template part so the matcher stays a
- *   single `.exec` per segment in the hot path.
+ *   `{year}-{month}.json`). Carries the parameter names and the
+ *   literals around them, which `matchCompound` walks in one linear pass
+ *   per segment. `literals` always holds one more entry than `names`: a
+ *   prefix, a separator after each parameter but the last, and a suffix,
+ *   any of which may be empty.
  *
  * Spec basis: OpenAPI 3.0 / 3.1 / 3.2 path templating only requires
  * that template expressions be delimited by `{}`; multiple per segment
@@ -83,7 +85,7 @@ function trimSlashes(s: string): string {
 export type Segment =
   | { kind: "literal"; value: string }
   | { kind: "template"; name: string }
-  | { kind: "compound"; regex: RegExp; names: string[]; raw: string };
+  | { kind: "compound"; names: string[]; literals: string[]; raw: string };
 
 /**
  * Result of a successful route match: the path template matched *and*
@@ -212,7 +214,7 @@ function methodsDeclaredOn(item: PathItem): Set<HttpMethod> {
  * ```ts
  * parseTemplate("/pets/{id}"); // [{literal "pets"}, {template "id"}]
  * parseTemplate("/commits/{sha}.{ext}");
- * // [{literal "commits"}, {compound regex /^([\s\S]+?)\.([\s\S]+?)$/ names ["sha","ext"]}]
+ * // [{literal "commits"}, {compound names ["sha","ext"] literals ["", ".", ""]}]
  * ```
  *
  * @public
@@ -233,18 +235,23 @@ function parseSegment(seg: string): Segment {
   if (pure !== null) {
     return { kind: "template", name: pure[1]! };
   }
-  // Compound: alternating literal and `{name}` parts. Build a regex
-  // with one non-greedy `[\s\S]+?` capture per template part; the trailing
-  // `$` anchor + lazy capture resolves multi-param ambiguity left-to-right
-  // (e.g. `{x}.{y}` against `a.b.c` captures `x="a"`, `y="b.c"`), matching
-  // path-to-regexp / hono / find-my-way / werkzeug behavior.
+  // Compound: alternating literal and `{name}` parts, stored as the
+  // parameter names plus the literals around them. `literals` always has
+  // one more entry than `names`: a prefix, one separator after each
+  // parameter but the last, and a suffix. Any of them may be empty.
   //
-  // Literal runs decode before they are escaped into the regex, the same
-  // way a whole literal segment does. `match` decodes the request token
-  // first, so an undecoded literal here could never meet it: the same
-  // escape worked in a whole literal segment and not in a compound one.
+  // Matched by a scan rather than a regex. One lazy capture per parameter
+  // backtracks polynomially in the token length, and the token is
+  // attacker-controlled: four parameters against a 3200-character token
+  // took 38 seconds. The scan is linear and gives the same answer; see
+  // `matchCompound` for why.
+  //
+  // Literal runs decode as they are collected, the same way a whole
+  // literal segment does. `match` decodes the request token first, so an
+  // undecoded literal here could never meet it: the same escape worked in
+  // a whole literal segment and not in a compound one.
   const names: string[] = [];
-  let regexSrc = "^";
+  const literals: string[] = [];
   let i = 0;
   let pendingLiteral = "";
   while (i < seg.length) {
@@ -257,41 +264,75 @@ function parseSegment(seg: string): Segment {
         pendingLiteral += seg.slice(i);
         break;
       }
-      if (pendingLiteral !== "") {
-        regexSrc += escapeRegex(decodePathToken(pendingLiteral));
-        pendingLiteral = "";
-      }
-      const name = seg.slice(i + 1, end);
-      names.push(name);
-      // `[\s\S]` rather than `[^/]`, which differ in exactly one
-      // character. The regex runs against one token, already split on `/`
-      // and already decoded, so a `/` here can only have come from a
-      // `%2F` the client encoded. Excluding it made a compound capture
-      // refuse what a bare `{id}` accepts, and the refusal was silent:
-      // the request fell through to a less specific route. `.` would
-      // narrow instead of preserve, since `[^/]` already matched
-      // newlines.
-      regexSrc += "([\\s\\S]+?)";
+      literals.push(decodePathToken(pendingLiteral));
+      pendingLiteral = "";
+      names.push(seg.slice(i + 1, end));
       i = end + 1;
     } else {
       pendingLiteral += ch;
       i += 1;
     }
   }
-  if (pendingLiteral !== "") {
-    regexSrc += escapeRegex(decodePathToken(pendingLiteral));
-  }
-  regexSrc += "$";
+  literals.push(decodePathToken(pendingLiteral));
   // No template parts ended up in the segment despite a `{`; degenerate.
   // Fall back to literal so behavior matches the !includes("{") branch.
   if (names.length === 0) {
     return { kind: "literal", value: decodePathToken(seg) };
   }
-  return { kind: "compound", regex: new RegExp(regexSrc), names, raw: seg };
+  return { kind: "compound", names, literals, raw: seg };
 }
 
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * Capture a compound segment's parameters from one request token, or
+ * `null` when it does not match.
+ *
+ * Equivalent to the lazy anchored regex this replaces, and linear where
+ * that was polynomial. Two rules carry the equivalence:
+ *
+ * - Every parameter but the last stops at the first occurrence of the
+ *   separator that follows it, searched from one character in. A lazy
+ *   `+?` stops at the first opportunity too, and the `+` is what makes
+ *   the capture non-empty, which is what the offset reproduces.
+ * - The last parameter takes everything up to the suffix, which has to
+ *   sit at the end of the token. That is what the `$` anchor did, and it
+ *   is why `{x}.{y}` against `a.b.c` captures `x="a"`, `y="b.c"`.
+ *
+ * A capture holds any character the token does, a decoded `/` included.
+ * That is deliberate: `match` splits on `/` and decodes before comparing,
+ * so a `/` here came from a `%2F` the client encoded, and refusing it
+ * made a compound capture reject what a bare `{id}` accepts (#724).
+ *
+ * No backtracking, so a token that fails to match costs one pass rather
+ * than an exponent in the parameter count.
+ */
+function matchCompound(seg: Extract<Segment, { kind: "compound" }>, tok: string): string[] | null {
+  const { names, literals } = seg;
+  const prefix = literals[0]!;
+  if (!tok.startsWith(prefix)) return null;
+  let pos = prefix.length;
+  const out: string[] = [];
+  const last = names.length - 1;
+  for (let i = 0; i < names.length; i += 1) {
+    const sep = literals[i + 1]!;
+    if (i === last) {
+      const end = tok.length - sep.length;
+      // The capture has to hold at least one character, as `+?` did.
+      if (end <= pos) return null;
+      if (sep !== "" && tok.slice(end) !== sep) return null;
+      out.push(tok.slice(pos, end));
+      return out;
+    }
+    const idx = tok.indexOf(sep, pos + 1);
+    // `indexOf` clamps its start to the token length, so an empty
+    // separator past the end reports a position behind `pos` and would
+    // yield an empty capture, which `+?` can never produce. The last
+    // parameter rejects it a step later either way; saying so here makes
+    // it a rule rather than a consequence.
+    if (idx < pos + 1) return null;
+    out.push(tok.slice(pos, idx));
+    pos = idx + sep.length;
+  }
+  return out;
 }
 
 /**
@@ -478,14 +519,14 @@ export function createRouter(paths: Record<string, PathItem>): Router {
             params ??= {};
             setSpecKey(params, seg.name, tok);
           } else {
-            const m = seg.regex.exec(tok);
-            if (m === null) {
+            const captures = matchCompound(seg, tok);
+            if (captures === null) {
               matched = false;
               break;
             }
             params ??= {};
             for (let j = 0; j < seg.names.length; j += 1) {
-              setSpecKey(params, seg.names[j]!, m[j + 1]!);
+              setSpecKey(params, seg.names[j]!, captures[j]!);
             }
           }
         }
