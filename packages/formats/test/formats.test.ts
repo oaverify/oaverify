@@ -27,6 +27,7 @@ import {
   validateIri,
   validateIriReference,
   validateJsonPointer,
+  validateLanguage,
   validateRegex,
   validateRelativeJsonPointer,
   validateTime,
@@ -1003,5 +1004,134 @@ describe("unixtime", () => {
 
   it("is a numeric format, so a string unixtime is not asserted", () => {
     expect(builtInFormats["unixtime"]).toEqual({ type: "number", validate: validateUnixtime });
+  });
+});
+
+describe("language", () => {
+  it("accepts the shapes a real document uses", () => {
+    expect(validateLanguage("en")).toBe(true);
+    expect(validateLanguage("en-US")).toBe(true);
+    expect(validateLanguage("zh-Hant-CN")).toBe(true);
+    expect(validateLanguage("es-419")).toBe(true);
+    expect(validateLanguage("de-CH-1901")).toBe(true);
+    expect(validateLanguage("sl-rozaj-biske")).toBe(true);
+    expect(validateLanguage("hy-Latn-IT-arevela")).toBe(true);
+  });
+
+  it("accepts a language of every length the grammar allows", () => {
+    expect(validateLanguage("de")).toBe(true);
+    expect(validateLanguage("cel")).toBe(true);
+    // 4ALPHA is reserved for future use and 5*8ALPHA is registered;
+    // both are well-formed today.
+    expect(validateLanguage("abcd")).toBe(true);
+    expect(validateLanguage("abcdefgh")).toBe(true);
+    expect(validateLanguage("a")).toBe(false);
+    expect(validateLanguage("abcdefghi")).toBe(false);
+  });
+
+  it("accepts extlang subtags, up to the three the ABNF allows", () => {
+    expect(validateLanguage("zh-cmn")).toBe(true);
+    expect(validateLanguage("zh-min-nan")).toBe(true);
+    expect(validateLanguage("zh-aaa-bbb-ccc")).toBe(true);
+    expect(validateLanguage("zh-aaa-bbb-ccc-ddd")).toBe(false);
+  });
+
+  it("accepts extensions, and requires each singleton to carry a body", () => {
+    expect(validateLanguage("de-DE-u-co-phonebk")).toBe(true);
+    expect(validateLanguage("en-a-bbb-c-ddd")).toBe(true);
+    expect(validateLanguage("en-a")).toBe(false);
+    expect(validateLanguage("en-a-b")).toBe(false);
+  });
+
+  it("accepts private use, alone and appended", () => {
+    expect(validateLanguage("x-whatever")).toBe(true);
+    expect(validateLanguage("x-a-b-c")).toBe(true);
+    expect(validateLanguage("en-US-x-twain")).toBe(true);
+    expect(validateLanguage("en-a-bbb-x-private")).toBe(true);
+    // A singleton is any letter or digit except x, in either case, so
+    // this is private use rather than a one-letter extension whose
+    // body is too short.
+    expect(validateLanguage("en-X-a")).toBe(true);
+    expect(validateLanguage("x")).toBe(false);
+    expect(validateLanguage("en-x")).toBe(false);
+  });
+
+  it("rejects a repeated variant or extension singleton", () => {
+    // RFC 5646 2.2.5 and 2.2.6. Case does not distinguish two subtags.
+    expect(validateLanguage("de-1901-1901")).toBe(false);
+    expect(validateLanguage("sl-rozaj-ROZAJ")).toBe(false);
+    expect(validateLanguage("en-a-bbb-a-ccc")).toBe(false);
+    expect(validateLanguage("en-a-bbb-A-ccc")).toBe(false);
+  });
+
+  it("rejects a subtag in the wrong position", () => {
+    expect(validateLanguage("en-US-GB")).toBe(false);
+    expect(validateLanguage("en-Latn-Cyrl")).toBe(false);
+    expect(validateLanguage("419-en")).toBe(false);
+  });
+
+  it("rejects a malformed tag outright", () => {
+    expect(validateLanguage("")).toBe(false);
+    expect(validateLanguage("-en")).toBe(false);
+    expect(validateLanguage("en-")).toBe(false);
+    expect(validateLanguage("en--US")).toBe(false);
+    expect(validateLanguage("en_US")).toBe(false);
+    expect(validateLanguage("en US")).toBe(false);
+    expect(validateLanguage("en-US!")).toBe(false);
+  });
+
+  it("ignores case, which RFC 5646 says carries no meaning", () => {
+    expect(validateLanguage("EN-latn-gb")).toBe(true);
+    expect(validateLanguage("en-latn-GB")).toBe(true);
+  });
+
+  it("accepts grandfathered tags, irregular from a table and regular by parsing", () => {
+    for (const tag of ["i-klingon", "en-GB-oed", "sgn-BE-FR", "I-Klingon"]) {
+      expect(validateLanguage(tag), tag).toBe(true);
+    }
+    for (const tag of [
+      "art-lojban",
+      "cel-gaulish",
+      "no-bok",
+      "no-nyn",
+      "zh-guoyu",
+      "zh-hakka",
+      "zh-min",
+      "zh-min-nan",
+      "zh-xiang",
+    ]) {
+      expect(validateLanguage(tag), tag).toBe(true);
+    }
+  });
+
+  it("does not check a subtag against the IANA registry", () => {
+    // Well-formedness only: qq is not a language and ZZ is not a
+    // region, and both sit in legal positions.
+    expect(validateLanguage("qq-ZZ")).toBe(true);
+  });
+});
+
+describe("language: the cases RFC 5646 names by hand", () => {
+  it("accepts a repeated singleton when the second one is inside private use", () => {
+    // Section 2.2.6 rule 3 gives this exact tag. It works because the
+    // "x" is taken as private use before the singleton loop sees it,
+    // so moving that check would break it silently.
+    expect(validateLanguage("en-a-bbb-x-a-ccc")).toBe(true);
+    expect(validateLanguage("en-x-a-a")).toBe(true);
+  });
+
+  it("accepts a tag that fills every position at once", () => {
+    // Appendix A: language, script, region, variant, extension and
+    // private use, in one tag.
+    expect(validateLanguage("en-Latn-GB-boont-r-extended-sequence-x-private")).toBe(true);
+  });
+
+  it("rejects the malformed examples the RFC lists", () => {
+    // 2.2.6 rule 6: an extension needs a body of two or more.
+    expect(validateLanguage("tlh-a-b-foo")).toBe(false);
+    // Two regions.
+    expect(validateLanguage("de-419-DE")).toBe(false);
+    // 2.2.6 rule 1: a tag cannot begin with an extension.
+    expect(validateLanguage("a-DE")).toBe(false);
   });
 });
