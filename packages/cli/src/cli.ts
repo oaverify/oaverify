@@ -13,6 +13,7 @@ import {
   type ValidateMode,
 } from "./commands.js";
 import type { StandaloneDialect } from "./emit-standalone.js";
+import { parseRemoteRefs, type ReaderFlags, type RemoteRefsMode } from "./reader-policy.js";
 
 const STANDALONE_DIALECTS = ["2020-12", "openapi-3.1", "openapi-3.0"] as const;
 function isStandaloneDialect(v: string): v is StandaloneDialect {
@@ -107,17 +108,41 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .option("-o, --output <file>", "write output to a file instead of stdout")
     .option("--quiet", "print nothing; exit code only", false)
-    .action(async (spec: string, opts: { overlay: string[]; output?: string; quiet: boolean }) => {
-      const res = await resolveCommand(
-        {
-          spec,
-          overlays: opts.overlay,
-          options: { output: opts.output, quiet: opts.quiet },
+    .option(
+      "--remote-refs <mode>",
+      "how http(s) reads are treated, the entry document included: " +
+        "allow (default), same-origin (only the origin a remote entry was served from), " +
+        "deny (no http(s) reads at all, so a remote entry is refused)",
+      parseRemoteRefs,
+    )
+    .option(
+      "--untrusted",
+      "treat the document as hostile: confine file reads to the entry's directory, " +
+        "tighten the size and time caps, and imply --remote-refs same-origin",
+      false,
+    )
+    .action(
+      async (
+        spec: string,
+        opts: {
+          overlay: string[];
+          remoteRefs?: RemoteRefsMode;
+          untrusted: boolean;
+          output?: string;
+          quiet: boolean;
         },
-        io,
-      );
-      exit(res.exitCode);
-    });
+      ) => {
+        const res = await resolveCommand(
+          {
+            spec,
+            overlays: opts.overlay,
+            options: readerFlagged(opts, { output: opts.output, quiet: opts.quiet }),
+          },
+          io,
+        );
+        exit(res.exitCode);
+      },
+    );
 
   program
     .command("check <spec>")
@@ -168,11 +193,26 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .option("-o, --output <file>", "write output to a file instead of stdout")
     .option("--quiet", "print nothing; exit code only", false)
+    .option(
+      "--remote-refs <mode>",
+      "how http(s) reads are treated, the entry document included: " +
+        "allow (default), same-origin (only the origin a remote entry was served from), " +
+        "deny (no http(s) reads at all, so a remote entry is refused)",
+      parseRemoteRefs,
+    )
+    .option(
+      "--untrusted",
+      "treat the document as hostile: confine file reads to the entry's directory, " +
+        "tighten the size and time caps, and imply --remote-refs same-origin",
+      false,
+    )
     .action(
       async (
         spec: string,
         opts: {
           overlay: string[];
+          remoteRefs?: RemoteRefsMode;
+          untrusted: boolean;
           findings?: string;
           failOn?: CheckSeverity | "none";
           severity?: string[];
@@ -194,7 +234,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             // output takes the fixed default so a saved report does not
             // depend on the terminal that produced it.
             width: process.stdout.isTTY ? process.stdout.columns : undefined,
-            options: { output: opts.output, quiet: opts.quiet },
+            options: readerFlagged(opts, { output: opts.output, quiet: opts.quiet }),
           },
           io,
         );
@@ -228,6 +268,19 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("--depth <n>", "truncate error tree depth", (v: string) => Number.parseInt(v, 10))
     .option("-o, --output <file>", "write output to a file instead of stdout")
     .option("--quiet", "print nothing; exit code only", false)
+    .option(
+      "--remote-refs <mode>",
+      "how http(s) reads are treated, the entry document included: " +
+        "allow (default), same-origin (only the origin a remote entry was served from), " +
+        "deny (no http(s) reads at all, so a remote entry is refused)",
+      parseRemoteRefs,
+    )
+    .option(
+      "--untrusted",
+      "treat the document as hostile: confine file reads to the entry's directory, " +
+        "tighten the size and time caps, and imply --remote-refs same-origin",
+      false,
+    )
     .action(async (spec: string, opts) => {
       // deriveMode is the only pre-validation step that throws (usage
       // errors). Keep the try narrow so it doesn't also catch the
@@ -289,11 +342,26 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("--verbose", "list each unbounded buffering position with its path", false)
     .option("-o, --output <file>", "write output to a file instead of stdout")
     .option("--quiet", "print nothing; exit code only", false)
+    .option(
+      "--remote-refs <mode>",
+      "how http(s) reads are treated, the entry document included: " +
+        "allow (default), same-origin (only the origin a remote entry was served from), " +
+        "deny (no http(s) reads at all, so a remote entry is refused)",
+      parseRemoteRefs,
+    )
+    .option(
+      "--untrusted",
+      "treat the document as hostile: confine file reads to the entry's directory, " +
+        "tighten the size and time caps, and imply --remote-refs same-origin",
+      false,
+    )
     .action(
       async (
         spec: string,
         opts: {
           overlay: string[];
+          remoteRefs?: RemoteRefsMode;
+          untrusted: boolean;
           format: "text" | "json";
           maxBufferedBytes?: number;
           failOnUnbounded: boolean;
@@ -312,7 +380,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             }),
             failOnUnbounded: opts.failOnUnbounded,
             verbose: opts.verbose,
-            options: { format: "text", output: opts.output, quiet: opts.quiet },
+            options: readerFlagged(opts, {
+              format: "text",
+              output: opts.output,
+              quiet: opts.quiet,
+            }),
           },
           io,
         );
@@ -404,11 +476,26 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       "error" as const,
     )
     .option("-o, --output <file>", "write output to a file instead of stdout")
+    .option(
+      "--remote-refs <mode>",
+      "how http(s) reads are treated, the entry document included: " +
+        "allow (default), same-origin (only the origin a remote entry was served from), " +
+        "deny (no http(s) reads at all, so a remote entry is refused)",
+      parseRemoteRefs,
+    )
+    .option(
+      "--untrusted",
+      "treat the document as hostile: confine file reads to the entry's directory, " +
+        "tighten the size and time caps, and imply --remote-refs same-origin",
+      false,
+    )
     .action(
       async (
         spec: string,
         opts: {
           overlay: string[];
+          remoteRefs?: RemoteRefsMode;
+          untrusted: boolean;
           dialect?: StandaloneDialect;
           requestsOnly?: boolean;
           only: Array<{ method: string; path: string }>;
@@ -429,6 +516,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             outputMode: opts.outputMode,
             maxErrors: opts.maxErrors,
             unknownFormats: opts.unknownFormats,
+            ...readerFlagsOf(opts),
           },
           io,
         );
@@ -437,6 +525,27 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     );
 
   return program;
+}
+
+/**
+ * The reader flags commander parsed, in the shape {@link ReaderFlags}
+ * wants. `--untrusted` defaults to `false` and `--remote-refs` is left
+ * absent when unset, which is what lets `--untrusted` imply a posture
+ * without overriding an explicit one.
+ */
+function readerFlagsOf(opts: { remoteRefs?: RemoteRefsMode; untrusted?: boolean }): ReaderFlags {
+  return {
+    ...(opts.remoteRefs !== undefined && { remoteRefs: opts.remoteRefs }),
+    untrusted: opts.untrusted === true,
+  };
+}
+
+/** Fold the reader flags into a command's shared options object. */
+function readerFlagged<T extends object>(
+  opts: { remoteRefs?: RemoteRefsMode; untrusted?: boolean },
+  options: T,
+): T & ReaderFlags {
+  return { ...options, ...readerFlagsOf(opts) };
 }
 
 function collectOnly(

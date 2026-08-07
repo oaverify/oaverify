@@ -25,43 +25,18 @@ try {
   throw err;
 }
 
-const {
-  buildProgram,
-  confineRootFor,
-  defaultCommandIo,
-  fileOptionsFor,
-  httpOptionsFor,
-  policyHttpReader,
-} = await import("@oaverify/internal-cli");
-const { composeReaders } = await import("@oaverify/internal-spec");
-const { createSmartHttpReader, createYamlFileReader, createYamlStdinReader } =
-  await import("@oaverify/yaml");
+const { buildProgram, defaultCommandIo } = await import("@oaverify/internal-cli");
+const { createCliReader } = await import("./reader.js");
 
-// Default I/O composes the YAML readers from @oaverify/yaml in
-// front of the JSON-only readers baked into @oaverify/internal-cli's defaultCommandIo,
-// so `oaverify resolve spec.yaml` and `oaverify resolve https://host/openapi`
-// work out of the box. createSmartHttpReader handles both JSON and
-// YAML over HTTP by inspecting Content-Type; it replaces the core
-// createHttpReader in the chain for any http(s) URI.
+// Default I/O composes the YAML readers from @oaverify/yaml in front of
+// the JSON-only readers baked into @oaverify/internal-cli's
+// defaultCommandIo, so `oaverify resolve spec.yaml` and
+// `oaverify resolve https://host/openapi` work out of the box. The chain
+// itself is in ./reader.js so it can be tested; see createCliReader.
 const baseIo = defaultCommandIo();
 const io = {
   ...baseIo,
-  // The stdin reader goes first: createFileReader claims every
-  // non-HTTP, non-memory URI, so anything after it would take `-` and
-  // look for a file of that name. The YAML one shadows the JSON-only
-  // reader inside baseIo, so a piped spec may be either format.
-  // createSmartHttpReader claims every http(s) URI and sits in front of
-  // the core one inside baseIo, so this is the reader that serves every
-  // remote read in the shipped binary. The posture has to be applied
-  // here as well as there, or --remote-refs holds in the unit tests and
-  // does nothing in the CLI.
-  reader: (policy: ReaderPolicy) =>
-    composeReaders([
-      createYamlStdinReader(),
-      createYamlFileReader(confineRootFor(policy), fileOptionsFor(policy)),
-      policyHttpReader(createSmartHttpReader(httpOptionsFor(policy)), policy),
-      baseIo.reader(policy),
-    ]),
+  reader: (policy: ReaderPolicy) => createCliReader(baseIo.reader(policy), policy),
 };
 // Read from this package's own manifest rather than a constant, so the
 // reported version cannot drift from the installed package and there is

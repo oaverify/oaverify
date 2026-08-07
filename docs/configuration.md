@@ -276,8 +276,9 @@ the base directory is allowed; one that resolves outside it is refused.
 `allowUri` is called with every URI before the request and refuses it on
 `false`. `timeoutMs` bounds a hanging endpoint. `maxBytes` rejects an
 oversized response while the body is still streaming, before parsing it.
-There is no equivalent byte limit for local file reads, so a `$ref` to a
-large local file is not capped by these reader options.
+`FileReaderOptions.maxBytes` is the same bound for a local read, checked
+against the size on disk before the file is opened. Both are unbounded
+by default.
 
 `redirects` deserves its own note, because `allowUri` without it is not
 the control it looks like. `fetch` follows redirects by default and
@@ -301,12 +302,37 @@ const reader = composeReaders([
 ]);
 ```
 
-The `oaverify` CLI composes a file reader and an HTTP reader by
-default, so `oaverify check ./local-spec.yaml` will follow an `http(s)`
-`$ref` found inside that local file. Reaching the network does not
-require having pointed the CLI at a URL. The CLI does not expose flags
-for `confine`, `allowUri`, `redirects`, `timeoutMs`, or `maxBytes`; use
-programmatic readers when those controls are required.
+### The same choice from the CLI
+
+Everything above is opt-in because the library never composes a reader
+you did not ask for: `loadSpec` requires one and `loadSpecSync` defaults
+to a filesystem-only reader.
+
+The CLI has to compose readers to be useful, so it makes the choice a
+flag instead. `--remote-refs allow | same-origin | deny` and
+`--untrusted` are on every command that takes a spec:
+
+```bash
+oaverify check vendor.yaml --remote-refs same-origin
+oaverify check /srv/uploads/tenant-42/openapi.json --untrusted
+```
+
+`--untrusted` sets `confine` against the entry's directory, tightens the
+caps, and implies `--remote-refs same-origin`. `confine` and
+`same-origin` are the same control on two surfaces: one bounds where a
+file read may go, the other where a network read may go, so setting one
+without the other leaves half a boundary.
+
+The individual options stay off the command line. A control may be
+exposed on its own only when it can only subtract capability, and
+`allowUri` fails that test for the redirect reason above: an allowlist
+without `redirects: "error"` looks like containment and is not. A mode
+passes, because each of its values is a whole posture rather than a
+part. `--remote-refs same-origin` and `deny` both carry
+`redirects: "error"`.
+
+Reach for programmatic readers when you need a specific allowlist rather
+than a posture, for instance pinning one internal spec host.
 
 ## Guarding against deeply nested payloads
 
