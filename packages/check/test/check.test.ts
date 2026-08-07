@@ -57,6 +57,49 @@ describe("checkSpec", () => {
     expect(f?.target?.pointer).toBe("/paths/~1bad%zz");
   });
 
+  it("carries findings produced before an abort on the error", async () => {
+    // #716. These two templates collide once the malformed escape is
+    // taken literally, so createRouter throws and the check aborts. The
+    // hygiene finding naming the bad escape is what explains why, and
+    // used to be discarded with it.
+    const spec: Array<[string, unknown]> = [
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          paths: {
+            "/bad%zz": { get: { responses: { "200": { description: "ok" } } } },
+            "/bad%25zz": { get: { responses: { "200": { description: "ok" } } } },
+          },
+        },
+      ],
+    ];
+    const resolved = await resolve(spec);
+    expect(() => checkSpec(resolved)).toThrow(CheckAbortedError);
+    try {
+      checkSpec(resolved);
+      expect.unreachable("expected CheckAbortedError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(CheckAbortedError);
+      const codes = (err as CheckAbortedError).findings.map((f) => f.code);
+      expect(codes).toContain("path-template-malformed");
+    }
+  });
+
+  it("reports no findings on an abort when nothing had run", async () => {
+    // The common case: a document that is not OpenAPI at all aborts with
+    // nothing to say beyond the abort itself.
+    const resolved = await resolve([["entry.json", { not: "openapi" }]]);
+    try {
+      checkSpec(resolved);
+      expect.unreachable("expected CheckAbortedError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(CheckAbortedError);
+      expect((err as CheckAbortedError).findings).toEqual([]);
+    }
+  });
+
   it("runs only the classes asked for", async () => {
     const findings = checkSpec(await resolve(kitchenSink()), {
       findings: selectionForClasses(["hygiene", "redos"]),

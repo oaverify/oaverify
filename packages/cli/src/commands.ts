@@ -69,6 +69,46 @@ import {
 } from "@oaverify/check";
 
 /**
+ * Render one finding as the lines the text report prints for it,
+ * trailing blank line included.
+ *
+ * Three parts, each on its own line, because they answer three different
+ * questions and a reader is usually asking one of them: how bad and what
+ * kind (the header), where to look (`at`), and what is wrong (the
+ * message). Run together on one line, as this was, the header was the
+ * only part with a fixed position and the other two ran past the
+ * terminal width into a wrap the reader had to re-parse per finding.
+ *
+ * Severity leads, because it is what decides whether you act now. Class
+ * follows, because it says which pass to look at. Both are padded to a
+ * column so that the codes line up down the report and a scan for one
+ * severity is a scan down a fixed offset.
+ *
+ * Message before location, at the shallower indent, because "what is
+ * wrong" is what a reader wants from a report they are skimming and
+ * "where" is what they want only once one finding has their attention.
+ * The location then hangs deeper, like a stack frame under an exception.
+ * The two indents are what separates them. At a common indent the blocks
+ * ran together, which mattered here because several messages open by
+ * restating the schema path that the location ends on, so the eye had no
+ * cue for where one stopped.
+ *
+ * Extracted so the aborted-check path prints findings the same way a
+ * graded report does rather than growing a second, drifting format.
+ */
+function formatFinding(f: CheckFinding, width: number): string[] {
+  const also = f.occurrences === undefined ? "" : `  (+${f.occurrences - 1} more operation(s))`;
+  const out = [`${f.severity.padEnd(7)}  ${f.class.padEnd(11)}  ${f.code}${also}\n`];
+  for (const line of wrapText(f.message, width, "  ", "  ")) out.push(`${line}\n`);
+  for (const line of wrapText(f.location, width, "    at ", "       ")) out.push(`${line}\n`);
+  // Blank line between findings: the report is scanned for the one that
+  // matters, and blocks separate where indentation alone does not once a
+  // message itself wraps to several lines.
+  out.push("\n");
+  return out;
+}
+
+/**
  * Input shared by all CLI commands.
  *
  * @public
@@ -552,6 +592,20 @@ export async function checkCommand(
     // this command's exit codes.
     if (!(err instanceof CheckAbortedError)) throw err;
     io.stderr(`check: ${err.message}\n`);
+    // Findings the passes that ran before the abort had already produced.
+    // The exit code stays 2: the document still could not be graded, and
+    // this report is partial by construction. They go to stderr with the
+    // abort rather than to the report sink, so a `--format json` consumer
+    // never sees a partial body where a complete one belongs.
+    if (err.findings.length > 0) {
+      io.stderr(
+        `check: ${err.findings.length} finding(s) produced before the check was aborted:\n`,
+      );
+      const width = args.width ?? DEFAULT_REPORT_WIDTH;
+      for (const f of err.findings) {
+        for (const line of formatFinding(f, width)) io.stderr(line);
+      }
+    }
     return { exitCode: 2 };
   }
 
@@ -614,36 +668,7 @@ export async function checkCommand(
   } else {
     const width = args.width ?? DEFAULT_REPORT_WIDTH;
     for (const f of findings) {
-      // Three parts, each on its own line, because they answer three
-      // different questions and a reader is usually asking one of them:
-      // how bad and what kind (the header), where to look (`at`), and
-      // what is wrong (the message). Run together on one line, as this
-      // was, the header was the only part with a fixed position and the
-      // other two ran past the terminal width into a wrap the reader had
-      // to re-parse per finding.
-      //
-      // Severity leads, because it is what decides whether you act now.
-      // Class follows, because it says which pass to look at. Both are
-      // padded to a column so that the codes line up down the report and
-      // a scan for one severity is a scan down a fixed offset.
-      const also = f.occurrences === undefined ? "" : `  (+${f.occurrences - 1} more operation(s))`;
-      await sink(`${f.severity.padEnd(7)}  ${f.class.padEnd(11)}  ${f.code}${also}\n`);
-      // Message before location, at the shallower indent, because "what
-      // is wrong" is what a reader wants from a report they are skimming
-      // and "where" is what they want only once one finding has their
-      // attention. The location then hangs deeper, like a stack frame
-      // under an exception.
-      //
-      // The two indents are what separates them. At a common indent the
-      // blocks ran together, which mattered here because several
-      // messages open by restating the schema path that the location
-      // ends on, so the eye had no cue for where one stopped.
-      for (const line of wrapText(f.message, width, "  ", "  ")) await sink(`${line}\n`);
-      for (const line of wrapText(f.location, width, "    at ", "       ")) await sink(`${line}\n`);
-      // Blank line between findings: the report is scanned for the one
-      // that matters, and blocks separate where indentation alone does
-      // not once a message itself wraps to several lines.
-      await sink("\n");
+      for (const line of formatFinding(f, width)) await sink(line);
     }
     // A bare total does not say whether to act. The breakdown does, and
     // it is the whole reason severity exists as a field.

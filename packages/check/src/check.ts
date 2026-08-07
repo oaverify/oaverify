@@ -113,7 +113,25 @@ export interface CheckOptions {
  *
  * @public
  */
-export class CheckAbortedError extends Error {}
+export class CheckAbortedError extends Error {
+  /**
+   * Findings the passes that ran before the abort had already produced.
+   *
+   * The abort says the document could not be graded, which is true and
+   * is why the exit code does not change. It is not a reason to throw
+   * away located, actionable findings on the way out: a spec whose path
+   * templates collide aborts in the router, and the hygiene finding
+   * naming the offending template is exactly what explains why.
+   *
+   * Empty when nothing had run, which is the common case.
+   */
+  readonly findings: readonly CheckFinding[];
+
+  constructor(message: string, options?: ErrorOptions & { findings?: readonly CheckFinding[] }) {
+    super(message, options);
+    this.findings = options?.findings ?? [];
+  }
+}
 
 /**
  * Run every selected pass over a resolved spec and grade what they
@@ -162,33 +180,44 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   // on the schema class, a selection like `--findings hygiene` returned
   // an empty report with exit 0 on a document nothing could grade
   // (#674).
-  let validator: ReturnType<typeof createValidator>;
-  try {
-    validator = createValidator(document, { schemaLint: "strict" });
-  } catch (err) {
-    throw new CheckAbortedError((err as Error).message, { cause: err });
-  }
-
   // Recomputed here rather than read from `resolved.specHygieneIssues`,
   // so that the selection is the single switch deciding whether this
   // class runs. Reading the field would mean a caller who loaded without
   // `lint: true` and asked for the hygiene class got an empty answer
   // and no error.
-  const specHygieneIssues = classes.has("hygiene")
-    ? lintResolvedSpec(document, { inlinedComponents: resolved.inlinedComponents ?? [] })
-    : [];
-
+  //
+  // Ahead of the gate because it needs only the document, so a document
+  // that fails the gate still carries located findings out on the error.
+  // Its own failure is swallowed: the gate below is what reports an
+  // ungradeable document, and a throw from here would pre-empt it with a
+  // worse message and a different exit code.
+  let specHygieneIssues: ReturnType<typeof lintResolvedSpec> = [];
   if (classes.has("hygiene")) {
-    for (const issue of specHygieneIssues) {
-      findings.push({
-        class: "hygiene",
-        severity: defaultSeverityFor("hygiene", issue.code),
-        code: issue.code,
-        location: issue.pointer,
-        message: issue.message,
-        target: { pointer: issue.pointer, anchor: "node" },
+    try {
+      specHygieneIssues = lintResolvedSpec(document, {
+        inlinedComponents: resolved.inlinedComponents ?? [],
       });
+    } catch {
+      specHygieneIssues = [];
     }
+  }
+
+  for (const issue of specHygieneIssues) {
+    findings.push({
+      class: "hygiene",
+      severity: defaultSeverityFor("hygiene", issue.code),
+      code: issue.code,
+      location: issue.pointer,
+      message: issue.message,
+      target: { pointer: issue.pointer, anchor: "node" },
+    });
+  }
+
+  let validator: ReturnType<typeof createValidator>;
+  try {
+    validator = createValidator(document, { schemaLint: "strict" });
+  } catch (err) {
+    throw new CheckAbortedError((err as Error).message, { cause: err, findings });
   }
 
   // One defect reached from several operations is one thing to fix, and
