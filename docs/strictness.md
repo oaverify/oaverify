@@ -103,11 +103,11 @@ POST /things request body (application/json): "items" at "properties.a"
 must be an object or boolean; got an array.
 ```
 
-| Mode               | Reports                                                                                                                                                         |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `"off"`            | Nothing                                                                                                                                                         |
-| `"warn"` (default) | Keywords oaverify implements only partially (currently `$dynamicRef`), wrong-typed annotation values, and the `silent-rewrite/*` and `unsatisfiable/*` warnings |
-| `"strict"`         | The above, plus unrecognised keywords (`minimumx: 5`)                                                                                                           |
+| Mode               | Reports                                                                                                                                                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `"off"`            | Nothing                                                                                                                                                                                                                 |
+| `"warn"` (default) | Keywords oaverify implements only partially (no built-in is flagged today; a custom keyword sets `KeywordDefinition.partial`), wrong-typed annotation values, and the `silent-rewrite/*` and `unsatisfiable/*` warnings |
+| `"strict"`         | The above, plus unrecognised keywords (`minimumx: 5`)                                                                                                                                                                   |
 
 `schemaLintIssues` is a live array: it grows as schemas compile, and
 response-body schemas compile lazily on first use, so read it after the

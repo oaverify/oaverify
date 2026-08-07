@@ -66,7 +66,7 @@ source.
 
 ## What it finds
 
-Five classes, selected with `only`:
+Five classes, selected through `findings`:
 
 | Class         | What it asks                                                                                       |
 | ------------- | -------------------------------------------------------------------------------------------------- |
@@ -81,8 +81,14 @@ a schema that will not compile at all. It cannot be selected, because it
 is found by compiling, which is what the `schema` class does.
 
 ```ts
-checkSpec(resolved, { only: ["hygiene", "conformance"] });
+import { checkSpec, selectionForClasses } from "@oaverify/check";
+
+checkSpec(resolved, { findings: selectionForClasses(["hygiene", "conformance"]) });
 ```
+
+`findings` takes a `FindingSelection`, which reaches an exact code or a
+family as well as a class, so `selectionForClasses` is the shorthand for
+the class-only case. The CLI's `--findings` resolves to the same type.
 
 ## Grading, and disagreeing with it
 

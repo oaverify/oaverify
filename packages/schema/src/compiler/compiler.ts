@@ -568,9 +568,12 @@ export interface CompileStats {
 export interface SchemaLintIssue {
   /**
    * - `"partial-feature"`: the schema uses a keyword flagged as
-   *   partially-implemented (e.g. `$dynamicRef` without runtime
-   *   dynamic-scope rebinding). Compile still succeeds; the emitted
+   *   partially-implemented. Compile still succeeds; the emitted
    *   validator's semantics for this keyword may not match the spec.
+   *   No built-in keyword is flagged today, so this reaches only a
+   *   custom keyword that sets `KeywordDefinition.partial`.
+   *   `$dynamicRef` was the last built-in to carry it, and dropped it
+   *   when runtime dynamic-scope resolution landed.
    * - `"unknown-keyword"`: the schema declares a key that's not in the
    *   active dialect, not an `x-*` extension, and not a standard
    *   `$`-prefixed metadata key. Likely a typo.
@@ -985,8 +988,10 @@ export interface CompileOptions {
    *
    * - `"off"`: silence on everything.
    * - `"warn"` (default): warn on keywords flagged as
-   *   partially-implemented (currently `$dynamicRef`; its runtime
-   *   dynamic-scope rebinding is not emitted).
+   *   partially-implemented (no built-in sets this today; a custom
+   *   keyword does so through `KeywordDefinition.partial`), on
+   *   wrong-typed annotation values, and on the `silent-rewrite/*` and
+   *   `unsatisfiable/*` findings.
    * - `"strict"`: warn on partial features AND unknown keys (keys not
    *   in the active dialect, not `x-*` extensions, not standard
    *   `$`-prefixed metadata). Catches typos like `minimumx: 5`.

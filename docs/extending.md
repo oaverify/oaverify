@@ -173,8 +173,35 @@ the first failure, so there's nothing to count).
 
 1. Add the validator to `packages/formats/src/<area>.ts`.
 2. Export it from `packages/formats/src/index.ts`.
-3. Add it to the `builtInFormats` record.
+3. Add it to the `builtInFormats` record. A string format is the bare
+   predicate; a format constraining numbers is
+   `{ type: "number", validate }`, because a format's JSON type is a
+   property of the format and is never inferred from its name.
 4. Test with RFC-sourced valid + invalid examples.
+
+Two things that are easy to miss, both about the format _not_ being
+asserted before you got there:
+
+- **The TSDoc has to say what the validator does not assert.** `int64`
+  sets the standard: it accepts the safe-integer range rather than the
+  int64 range, and says so and why. `byte` accepts non-canonical
+  trailing pad bits. A format whose name overclaims relative to its
+  predicate is worse than no format, because the name is what a reader
+  trusts.
+- **A name in the [OpenAPI Format Registry](https://spec.openapis.org/registry/format/)
+  is described in three places that must agree.** Adding it to
+  `builtInFormats` removes it from what `@oaverify/check`'s format pass
+  reports, since `KNOWN_FORMATS` derives from the map. But the prose
+  lists of not-yet-implemented names in `packages/formats/README.md` and
+  `docs/configuration.md` are hand-maintained, and nothing fails when
+  they drift. Update both. If the name is genuinely unassertable
+  instead, add it to `NOT_ASSERTABLE` in
+  `packages/check/src/format-check.ts` so the report says so rather than
+  implying a later release will cover it.
+
+Newly asserting a format that a real document already uses changes
+verdicts on live traffic, so it belongs in the migration guide for the
+next major, not only in the changelog.
 
 ## Add a new output format
 
