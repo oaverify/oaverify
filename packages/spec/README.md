@@ -192,6 +192,10 @@ authoring mistakes the structural validation can't catch:
 - `path-param-undeclared` / `path-param-unused`: mismatch between the
   `{name}` placeholders in a path template and the path-parameter
   declarations on the operation or its path-item.
+- `path-template-malformed`: a path template whose literal text carries
+  a percent escape that does not decode (`/bad%zz`, a trailing `%`).
+  The router keeps such a segment raw, so the route only matches a
+  request repeating the same broken escape.
 
 ```ts
 const { document, specHygieneIssues } = await loadSpec({ reader, entry, lint: true });

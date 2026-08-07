@@ -21,6 +21,7 @@
  * @packageDocumentation
  */
 
+import type { SpecHygieneIssue } from "@oaverify/internal-spec";
 import { parseFindingKey } from "./finding-key.js";
 import { CHECK_SEVERITIES, type CheckClass, type CheckSeverity } from "./finding.js";
 
@@ -44,19 +45,24 @@ export const DEFAULT_SEVERITY: Readonly<Record<CheckClass, CheckSeverity>> = {
   schema: "warning",
   examples: "warning",
   redos: "warning",
-  // Split by code: two hygiene codes are spec violations, the rest name
-  // things that are legal and merely dead.
+  // Split by code: some hygiene codes are spec violations, the rest name
+  // things that are legal and merely dead. See HYGIENE_ERRORS.
   hygiene: "warning",
 };
 
 /**
  * Hygiene codes that are specification violations rather than
  * housekeeping. OpenAPI requires every path-template placeholder to have
- * a matching parameter declaration, so these are not a matter of taste;
- * the rest of the hygiene codes (unused components, tags, `$defs`) name
- * things that are legal and merely dead.
+ * a matching parameter declaration, and a path template is a URI path,
+ * so a percent escape in one has to decode; these are not a matter of
+ * taste. The rest of the hygiene codes (unused components, tags,
+ * `$defs`) name things that are legal and merely dead.
  */
-export const HYGIENE_ERRORS = new Set(["path-param-undeclared", "path-param-unused"]);
+export const HYGIENE_ERRORS: ReadonlySet<string> = new Set([
+  "path-param-undeclared",
+  "path-param-unused",
+  "path-template-malformed",
+] satisfies SpecHygieneIssue["code"][]);
 
 /**
  * A regrading, keyed three ways.

@@ -22,6 +22,7 @@ describe("what oaverify grades by default", () => {
     // Spec violations, not taste.
     expect(defaultSeverityFor("hygiene", "path-param-undeclared")).toBe("error");
     expect(defaultSeverityFor("hygiene", "path-param-unused")).toBe("error");
+    expect(defaultSeverityFor("hygiene", "path-template-malformed")).toBe("error");
     // Legal and merely dead.
     expect(defaultSeverityFor("hygiene", "unused-component")).toBe("warning");
   });

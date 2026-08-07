@@ -297,3 +297,80 @@ describe("lintResolvedSpec: path-param-undeclared / path-param-unused", () => {
     expect(lintResolvedSpec(spec)).toEqual([]);
   });
 });
+
+describe("lintResolvedSpec: path-template-malformed", () => {
+  it("flags an undecodable percent escape in a path template", () => {
+    // #708: this used to throw URIError out of the router instead of
+    // producing a located finding.
+    const spec = minimalSpec({
+      paths: { "/bad%zz": { get: { responses: { "200": { description: "ok" } } } } },
+    });
+    expect(lintResolvedSpec(spec)).toContainEqual(
+      expect.objectContaining({
+        code: "path-template-malformed",
+        pointer: "/paths/~1bad%zz",
+      }),
+    );
+  });
+
+  it("flags a trailing percent and a truncated multi-byte sequence", () => {
+    for (const bad of ["/a%", "/%E0%A4%A", "/x/%zz/y"]) {
+      const spec = minimalSpec({
+        paths: { [bad]: { get: { responses: { "200": { description: "ok" } } } } },
+      });
+      expect(lintResolvedSpec(spec).map((i) => i.code)).toContain("path-template-malformed");
+    }
+  });
+
+  it("checks each segment independently", () => {
+    // `%C3` and `%A9` in separate segments are two truncated sequences,
+    // not one valid character.
+    const spec = minimalSpec({
+      paths: { "/%C3/%A9": { get: { responses: { "200": { description: "ok" } } } } },
+    });
+    expect(lintResolvedSpec(spec).map((i) => i.code)).toContain("path-template-malformed");
+  });
+
+  it("accepts well-formed escapes, including multi-byte UTF-8 sequences", () => {
+    // A multi-byte sequence only decodes as a whole: `%C3` and `%A9`
+    // each throw on their own, so a per-escape check would flag `caf%C3%A9`.
+    const spec = minimalSpec({
+      paths: {
+        "/a%2Fb": { get: { responses: { "200": { description: "ok" } } } },
+        "/caf%C3%A9": { get: { responses: { "200": { description: "ok" } } } },
+        "/%E0%A4%A1": { get: { responses: { "200": { description: "ok" } } } },
+        "/plain": { get: { responses: { "200": { description: "ok" } } } },
+        "/pets/{id}": {
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          get: { responses: { "200": { description: "ok" } } },
+        },
+      },
+    });
+    expect(lintResolvedSpec(spec).map((i) => i.code)).not.toContain("path-template-malformed");
+  });
+
+  it("flags a degenerate `{` segment, which the router decodes as a literal", () => {
+    // parseSegment treats a `{` with no closing `}` as literal text and
+    // decodes it, so it is spec text and has to be checked. Skipping
+    // every `{`-bearing segment made this the one false negative.
+    for (const bad of ["/x%zz{", "/{%zz", "/a{b%zz"]) {
+      const spec = minimalSpec({
+        paths: { [bad]: { get: { responses: { "200": { description: "ok" } } } } },
+      });
+      expect(lintResolvedSpec(spec).map((i) => i.code)).toContain("path-template-malformed");
+    }
+  });
+
+  it("does not flag a percent inside a {placeholder} name", () => {
+    // Placeholders are captured, never decoded as spec text.
+    const spec = minimalSpec({
+      paths: {
+        "/pets/{a%zz}": {
+          parameters: [{ name: "a%zz", in: "path", required: true, schema: { type: "string" } }],
+          get: { responses: { "200": { description: "ok" } } },
+        },
+      },
+    });
+    expect(lintResolvedSpec(spec).map((i) => i.code)).not.toContain("path-template-malformed");
+  });
+});

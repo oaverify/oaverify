@@ -43,6 +43,7 @@ export const HYGIENE_CODES = [
   "unreachable-defs",
   "path-param-undeclared",
   "path-param-unused",
+  "path-template-malformed",
 ] as const satisfies readonly SpecHygieneIssue["code"][];
 const _hygieneComplete: Missing<
   SpecHygieneIssue["code"],
