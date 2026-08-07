@@ -91,7 +91,7 @@ describe("an OAS-defined format reads differently from a vendor one", () => {
     // decimal or sf-token got the vendor wording until #695. This list
     // shrinks each time #696 lands a validator, and a name that leaves
     // it should join the asserted list below.
-    for (const format of ["sf-token", "media-range", "decimal"]) {
+    for (const format of ["sf-token", "decimal"]) {
       const message = check(doc({ type: "string", format }))[0]?.message ?? "";
       expect(message).toContain(`OpenAPI defines "${format}" but oaverify does not assert it yet`);
     }
@@ -114,6 +114,7 @@ describe("an OAS-defined format reads differently from a vendor one", () => {
       "ipv4-cidr",
       "ipv6-cidr",
       "language",
+      "media-range",
     ]) {
       expect(check(doc({ type: "string", format }))).toEqual([]);
     }

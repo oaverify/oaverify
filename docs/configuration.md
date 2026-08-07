@@ -78,10 +78,9 @@ octets; the validator treats it as an opaque-body bypass rather than a
 constraint. `password`, `commonmark` and `html` are display hints.
 
 Names in the [OpenAPI Format Registry](https://spec.openapis.org/registry/format/)
-that _are_ assertable but not yet implemented (`media-range`, `decimal`,
-`decimal128`, and the six `sf-*`
-structured-field formats) behave the same way at request time: the
-value is checked against `type` alone.
+that _are_ assertable but not yet implemented (`decimal`, `decimal128`,
+and the six `sf-*` structured-field formats) behave the same way at
+request time: the value is checked against `type` alone.
 
 `oaverify check` reports every one of them under
 `format-not-validated`, and the message distinguishes the three cases,

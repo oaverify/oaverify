@@ -14,6 +14,7 @@ export { validateHostname, validateIdnHostname } from "./hostname.js";
 export { validateHttpDate } from "./http-date.js";
 export { validateIpv4, validateIpv4Cidr, validateIpv6, validateIpv6Cidr } from "./ip.js";
 export { validateLanguage } from "./language.js";
+export { validateMediaRange } from "./media-range.js";
 export { validateChar, validateRegex, validateUuid } from "./misc.js";
 export {
   validateDoubleInt,
@@ -55,6 +56,7 @@ import { validateLanguage } from "./language.js";
 // @oaverify/core/schema auto-registers a `regex` format that shares the
 // pattern-keyword compile path (and the regexCompiler hook). The standalone
 // validateRegex export still lives in ./misc.ts as a u-mode utility.
+import { validateMediaRange } from "./media-range.js";
 import { validateChar, validateUuid } from "./misc.js";
 import {
   validateDoubleInt,
@@ -141,6 +143,7 @@ export const builtInFormats: Record<string, FormatDefinition> = {
   base64url: validateBase64Url,
   char: validateChar,
   language: validateLanguage,
+  "media-range": validateMediaRange,
   int8: { type: "number", validate: validateInt8 },
   int16: { type: "number", validate: validateInt16 },
   int32: { type: "number", validate: validateInt32 },
