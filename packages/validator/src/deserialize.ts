@@ -55,8 +55,37 @@ export function deserialize(
 
   if (type === "array") {
     if (raw === "") return [];
-    const separator = arraySeparator(style, explode);
     const items = itemSchema(schema);
+    // Label and matrix arrays strip their style prefix from the whole
+    // token before splitting; splitting first and stripping per item
+    // read every exploded form wrong (".a.b.c" as one element,
+    // ";c=a;c=b" as ["b"]). RFC 6570 gives each form its shape:
+    // {.list} is ".a,b,c", {.list*} is ".a.b.c", {;list} is ";c=a,b,c",
+    // {;list*} is ";c=a;c=b;c=c".
+    if (style === "label") {
+      const body = raw.startsWith(".") ? raw.slice(1) : raw;
+      if (body === "") return [];
+      return body.split(explode ? "." : ",").map((v) => coerceScalar(v, items));
+    }
+    if (style === "matrix") {
+      if (explode) {
+        const values: string[] = [];
+        for (const group of raw.split(";")) {
+          if (group === "") continue;
+          const eq = group.indexOf("=");
+          const groupName = eq === -1 ? group : group.slice(0, eq);
+          // A group naming some other parameter is not one of ours;
+          // RFC 6570 never emits one here, so it contributes nothing.
+          if (groupName !== parameter.name) continue;
+          values.push(eq === -1 ? "" : group.slice(eq + 1));
+        }
+        return values.map((v) => coerceScalar(v, items));
+      }
+      const body = stripStyle(raw, style);
+      if (body === "") return [];
+      return body.split(",").map((v) => coerceScalar(v, items));
+    }
+    const separator = arraySeparator(style, explode);
     return raw.split(separator).map((v) => coerceScalar(stripStyle(v, style), items));
   }
 

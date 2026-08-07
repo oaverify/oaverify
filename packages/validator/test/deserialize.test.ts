@@ -111,6 +111,59 @@ describe("deserialize", () => {
     expect(out).toEqual([1, 2, 3]);
   });
 
+  it("splits an exploded label path array on dots (RFC 6570 {.list*})", () => {
+    // ".blue.black.brown" came back as one garbled element, so item
+    // constraints validated a shape the client never sent.
+    const p = {
+      name: "c",
+      in: "path",
+      style: "label",
+      explode: true,
+      schema: { type: "array", items: { type: "string" } },
+    } as const;
+    expect(deserialize(".blue.black.brown", p)).toEqual(["blue", "black", "brown"]);
+    expect(deserialize(".blue", p)).toEqual(["blue"]);
+  });
+
+  it("still splits a non-explode label path array on commas (RFC 6570 {.list})", () => {
+    const p = {
+      name: "c",
+      in: "path",
+      style: "label",
+      explode: false,
+      schema: { type: "array", items: { type: "string" } },
+    } as const;
+    expect(deserialize(".blue,black,brown", p)).toEqual(["blue", "black", "brown"]);
+  });
+
+  it("reads an exploded matrix path array from its repeated groups (RFC 6570 {;list*})", () => {
+    // ";c=blue;c=black" came back as ["black"]: the comma split found
+    // nothing and stripStyle took the text after the last "=".
+    const p = {
+      name: "c",
+      in: "path",
+      style: "matrix",
+      explode: true,
+      schema: { type: "array", items: { type: "string" } },
+    } as const;
+    expect(deserialize(";c=blue;c=black;c=brown", p)).toEqual(["blue", "black", "brown"]);
+    expect(deserialize(";c=blue", p)).toEqual(["blue"]);
+    // A group naming some other parameter is not one of ours; RFC 6570
+    // would never emit it here, so it contributes nothing.
+    expect(deserialize(";c=blue;other=x;c=black", p)).toEqual(["blue", "black"]);
+  });
+
+  it("still splits a non-explode matrix path array on commas (RFC 6570 {;list})", () => {
+    const p = {
+      name: "c",
+      in: "path",
+      style: "matrix",
+      explode: false,
+      schema: { type: "array", items: { type: "number" } },
+    } as const;
+    expect(deserialize(";c=1,2,3", p)).toEqual([1, 2, 3]);
+  });
+
   it("coerces boolean array items", () => {
     const out = deserialize("true,false", {
       name: "flags",
