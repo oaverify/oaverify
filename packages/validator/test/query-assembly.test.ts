@@ -58,6 +58,31 @@ describe("assembleDeepObject", () => {
   it("ignores keys whose bracket syntax is malformed", () => {
     expect(assembleDeepObject("f", { "f[missing": "x", "fmissing]": "y" })).toBeUndefined();
   });
+
+  it("coerces values with the matching property schema", () => {
+    // #707: parity with assembleFormExplodedObject, which already did this.
+    const schema = {
+      type: "object",
+      properties: { id: { type: "integer" }, active: { type: "boolean" }, tag: { type: "string" } },
+    } as const;
+    expect(
+      assembleDeepObject(
+        "filter",
+        { "filter[id]": "1", "filter[active]": "true", "filter[tag]": "x" },
+        schema,
+      ),
+    ).toEqual({ id: 1, active: true, tag: "x" });
+  });
+
+  it("leaves undeclared properties as strings", () => {
+    const schema = { type: "object", properties: { id: { type: "integer" } } } as const;
+    expect(assembleDeepObject("f", { "f[id]": "1", "f[other]": "2" }, schema)).toEqual({
+      id: 1,
+      other: "2",
+    });
+    // No schema at all: unchanged from the pre-#707 behavior.
+    expect(assembleDeepObject("f", { "f[id]": "1" })).toEqual({ id: "1" });
+  });
 });
 
 describe("assembleFormExplodedObject", () => {
@@ -107,8 +132,10 @@ describe("assembleObjectQueryParam", () => {
       style: "deepObject",
       schema: { type: "object", properties: { id: { type: "integer" } } },
     };
+    // #707: `id` is coerced by its property schema; `name` is undeclared
+    // and stays a string.
     expect(assembleObjectQueryParam(p, { "filter[id]": "1", "filter[name]": "dot" })).toEqual({
-      value: { id: "1", name: "dot" },
+      value: { id: 1, name: "dot" },
     });
   });
 

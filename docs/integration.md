@@ -1158,7 +1158,11 @@ bodies by default.
 
 Query parameters are different: `oaverify` auto-coerces scalar query
 params per their declared type (`type: integer` → `Number(raw)`,
-`type: boolean` → `true`/`false`). Only bodies are strict.
+`type: boolean` → `true`/`false`). Serialized containers follow the
+same rule one level down: an array's elements are coerced with its
+`items` schema, and a `deepObject`'s values with the matching entry in
+`properties`. A value whose schema declares no scalar type stays a
+string. Only bodies are strict.
 
 If you need loose body coercion, coerce in your handler after
 parsing but before calling downstream logic, or in an

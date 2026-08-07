@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { SchemaObject } from "@oaverify/internal-core";
 import { deserialize, matchMediaType, matchResponseKey } from "../src/deserialize.js";
 
 describe("deserialize", () => {
@@ -28,9 +29,57 @@ describe("deserialize", () => {
       explode: false,
       schema: { type: "array", items: { type: "integer" } },
     });
-    // Array items keep their string form; coercion uses the
-    // container's schema, not the items' schema.
-    expect(out).toEqual(["1", "2", "3"]);
+    // #707: item coercion is driven by `items`, so each element lands
+    // as the integer its schema declares.
+    expect(out).toEqual([1, 2, 3]);
+  });
+
+  it("coerces items of a repeated (exploded) array param", () => {
+    // #707: `ids=1&ids=2&ids=3` arrives as a string[] from the adapter.
+    const out = deserialize(["1", "2", "3"], {
+      name: "ids",
+      in: "query",
+      schema: { type: "array", items: { type: "integer" } },
+    });
+    expect(out).toEqual([1, 2, 3]);
+  });
+
+  it("coerces items of a simple-style path array", () => {
+    // #707: /pets/1,2,3
+    const out = deserialize("1,2,3", {
+      name: "ids",
+      in: "path",
+      schema: { type: "array", items: { type: "number" } },
+    });
+    expect(out).toEqual([1, 2, 3]);
+  });
+
+  it("coerces boolean array items", () => {
+    const out = deserialize("true,false", {
+      name: "flags",
+      in: "query",
+      explode: false,
+      schema: { type: "array", items: { type: "boolean" } },
+    });
+    expect(out).toEqual([true, false]);
+  });
+
+  it("leaves items as strings when items is absent or tuple-form", () => {
+    // No single item type to coerce with, so the raw strings stand.
+    expect(
+      deserialize("1,2", { name: "a", in: "query", explode: false, schema: { type: "array" } }),
+    ).toEqual(["1", "2"]);
+    expect(
+      deserialize("1,2", {
+        name: "a",
+        in: "query",
+        explode: false,
+        schema: {
+          type: "array",
+          items: [{ type: "integer" }, { type: "integer" }],
+        } as unknown as SchemaObject,
+      }),
+    ).toEqual(["1", "2"]);
   });
 
   it("splits pipe-delimited arrays", () => {
