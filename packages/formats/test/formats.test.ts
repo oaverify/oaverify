@@ -11,6 +11,7 @@ import {
   validateIdnEmail,
   validateBase64Url,
   validateByte,
+  validateByteRfc4648,
   validateChar,
   validateDoubleInt,
   validateInt16,
@@ -561,11 +562,48 @@ describe("byte / base64url", () => {
     expect(validateByte("a-b_")).toBe(false);
   });
 
-  it("rejects line-wrapped base64 under byte", () => {
-    // RFC 2045 wraps at 76 columns; RFC 4648, which the registry
-    // cites, admits whitespace only where the referring spec says so.
-    expect(validateByte("aGVs\nbG8h")).toBe(false);
-    expect(validateByte("aGVs bG8h")).toBe(false);
+  it("accepts line-wrapped base64 under byte", () => {
+    // #705: RFC 2045 wraps at 76 columns. Whitespace carries no data and
+    // the value decodes to the same bytes, so rejecting it fails a
+    // request over a formatting choice and catches nothing.
+    expect(validateByte("aGVs\nbG8h")).toBe(true);
+    expect(validateByte("aGVs bG8h")).toBe(true);
+    expect(validateByte("aGVs\r\nbG8h")).toBe(true);
+    expect(validateByte("aGVs\tbG8h")).toBe(true);
+    // Stripping whitespace does not excuse the rest: the alphabet and
+    // the padding are still checked on what remains.
+    expect(validateByte("aGVs\nbG8")).toBe(false);
+    expect(validateByte("aGVs\nbG8!")).toBe(false);
+  });
+
+  it("rejects whitespace that base64 decoding does not skip", () => {
+    // The stripped set is WHATWG ASCII whitespace, which is what `atob`
+    // skips. A value carrying anything outside it does not decode, so
+    // accepting it would turn a clean rejection into a failure further
+    // downstream. Pins the set against a widening to `\s`.
+    for (const ws of ["\v", "\u00a0", "\u2028", "\ufeff"]) {
+      expect(validateByte(`aGVs${ws}bG8h`)).toBe(false);
+      expect(() => atob(`aGVs${ws}bG8h`)).toThrow();
+    }
+  });
+
+  it("accepts a whitespace-only value, as it accepts the empty string", () => {
+    // Recorded rather than emergent: `byte` does not check for content,
+    // and "" passed before this change too. `minLength` is the tool for
+    // requiring content.
+    expect(validateByte("")).toBe(true);
+    expect(validateByte("  \n")).toBe(true);
+  });
+
+  it("validateByteRfc4648 is the strict reading, for registering by hand", () => {
+    // #705: the literal reading of the registry's plain RFC 4648
+    // citation, shipped as a named export rather than as the built-in.
+    expect(validateByteRfc4648("aGVsbG8h")).toBe(true);
+    expect(validateByteRfc4648("aGVs\nbG8h")).toBe(false);
+    expect(validateByteRfc4648("aGVs bG8h")).toBe(false);
+    // Everything the built-in rejects, it rejects too.
+    expect(validateByteRfc4648("aGVsbG8")).toBe(false);
+    expect(validateByteRfc4648("a-b_")).toBe(false);
   });
 
   it("accepts base64url padded or unpadded", () => {

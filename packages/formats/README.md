@@ -33,7 +33,9 @@ replace them.
 - **IP**: `ipv4`, `ipv6`
 - **URI**: `uri`, `uri-reference`, `iri`, `iri-reference`, `uri-template`
 - **JSON Pointer**: `json-pointer`, `relative-json-pointer`
-- **Base64**: `byte` (RFC 4648 §4, padded), `base64url` (§5, padding optional)
+- **Base64**: `byte` (RFC 4648 §4, padded; whitespace stripped first, so
+  MIME line-wrapping passes, and `validateByteRfc4648` is the strict
+  reading to register in its place), `base64url` (§5, padding optional)
 - **Misc**: `uuid`, `char`
 - **Numeric** (OpenAPI): `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`,
   `uint32`, `uint64`, `double-int`, each as `{ type: "number", validate }`
