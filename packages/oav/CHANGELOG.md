@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.1.0](https://github.com/oaverify/oaverify/compare/oaverify-v6.0.0...oaverify-v6.1.0) (2026-08-08)
+
+
+### Bug Fixes
+
+* **check:** keep findings produced before an aborted check ([#719](https://github.com/oaverify/oaverify/issues/719)) ([51be0c7](https://github.com/oaverify/oaverify/commit/51be0c7fef2d529fd058e0699d3b81f18519580a)), closes [#716](https://github.com/oaverify/oaverify/issues/716)
+
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.4.0...oaverify-v6.0.0) (2026-08-07)
 
 **`oaverify check` now gates by default, and `--only` is now `--findings`.** Both are one-line changes wherever you invoke it, and both change what CI does. See [the v6 migration guide](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md).

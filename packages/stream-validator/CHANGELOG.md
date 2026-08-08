@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.1.0](https://github.com/oaverify/oaverify/compare/stream-v6.0.0...stream-v6.1.0) (2026-08-08)
+
+
+### Bug Fixes
+
+* **schema:** bound the multipleOf tolerance and handle an overflowing quotient ([#713](https://github.com/oaverify/oaverify/issues/713)) ([d36e05e](https://github.com/oaverify/oaverify/commit/d36e05ee6b03074991989bef4f9e4a72b0d41c8c)), closes [#709](https://github.com/oaverify/oaverify/issues/709)
+
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/stream-v5.4.0...stream-v6.0.0) (2026-08-07)
 
 No source changes in this package. The version tracks the linked release group, and the entries below reach it through `StreamValidatorOptions.formats`, which merges over `builtInFormats`.

@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.1.0](https://github.com/oaverify/oaverify/compare/yaml-v6.0.0...yaml-v6.1.0) (2026-08-08)
+
+
+### Chore
+
+* **yaml:** Synchronize oaverify versions
+
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/yaml-v5.4.0...yaml-v6.0.0) (2026-08-07)
 
 No source changes in this package. The version tracks the linked release group so the whole set moves together.
