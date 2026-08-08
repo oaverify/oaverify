@@ -94,25 +94,26 @@ the upstream test suites live in
 
 ## Options
 
-| Option                  | Effect                                                                                                                                                 |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `dialect`               | Force a specific `Dialect`. Wins over the detected version; `detectedVersion` still reports what the document declares.                                |
-| `formats`               | Extra string format validators merged with `@oaverify/core/formats`.                                                                                   |
-| `keywords`              | User-registered schema keywords (see below).                                                                                                           |
-| `output`                | Result shape: `"flat"` (default), `"tree"`, or `"predicate"`. Mirrors `compileSchema`.                                                                 |
-| `maxErrors`             | Per-call total cap on leaf errors. Default `1` (fast-fail); `Number.POSITIVE_INFINITY` collects every error.                                           |
-| `maxDepth`              | Cap recursive `$ref` validation depth. Past the cap, validation emits a `depth` error instead of exhausting the call stack.                            |
-| `schemaLint`            | Schema lint mode: `"off"`, `"warn"` (default), or `"strict"`. Findings land in `stats.schemaLintIssues`; malformed schemas still throw.                |
-| `regexCompiler`         | Compiler for `pattern` and `format: "regex"`. Override for untrusted specs that need a safe-regex policy.                                              |
-| `validateSecurity`      | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                       |
-| `strictQueryParameters` | Reject undeclared query parameters. Default `false`.                                                                                                   |
-| `returnValues`          | Return the deserialized parameter values on the result under `value`, grouped by HTTP location. Default `false`.                                       |
-| `requireResponseBody`   | Treat a declared response body with `res.body === undefined` as an error, except for HEAD and bodyless statuses. Default `false`.                      |
-| `ignoreUndocumented`    | Treat requests whose path the router can't match as valid (`{ valid: true }`). Default `false`.                                                        |
-| `ignorePaths`           | `(path: string) => boolean` predicate that short-circuits validation when it returns `true` before routing.                                            |
-| `onUnknownVersion`      | `"fallback31"` \| `"warn"` \| `"throw"` for unknown OpenAPI 3.x minor versions. Missing or wrong-major `openapi` still throws unless `dialect` is set. |
-| `warn`                  | Optional callback for live warning output. Warnings are also stored in `validator.warnings`.                                                           |
-| `lint`                  | Run spec-hygiene checks at construction and store findings in `validator.specHygieneIssues`. Default `false`.                                          |
+| Option                      | Effect                                                                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dialect`                   | Force a specific `Dialect`. Wins over the detected version; `detectedVersion` still reports what the document declares.                                |
+| `formats`                   | Extra string format validators merged with `@oaverify/core/formats`.                                                                                   |
+| `keywords`                  | User-registered schema keywords (see below).                                                                                                           |
+| `output`                    | Result shape: `"flat"` (default), `"tree"`, or `"predicate"`. Mirrors `compileSchema`.                                                                 |
+| `maxErrors`                 | Per-call total cap on leaf errors. Default `1` (fast-fail); `Number.POSITIVE_INFINITY` collects every error.                                           |
+| `maxDepth`                  | Cap recursive `$ref` validation depth. Past the cap, validation emits a `depth` error instead of exhausting the call stack.                            |
+| `schemaLint`                | Schema lint mode: `"off"`, `"warn"` (default), or `"strict"`. Findings land in `stats.schemaLintIssues`; malformed schemas still throw.                |
+| `regexCompiler`             | Compiler for `pattern` and `format: "regex"`. Override for untrusted specs that need a safe-regex policy.                                              |
+| `validateSecurity`          | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                       |
+| `strictQueryParameters`     | Reject undeclared query parameters. Default `false`.                                                                                                   |
+| `allowBracketedQueryArrays` | Accept `?tags[]=a&tags[]=b` for an array-typed query parameter declared as `tags`. Default `false`.                                                    |
+| `returnValues`              | Return the deserialized parameter values on the result under `value`, grouped by HTTP location. Default `false`.                                       |
+| `requireResponseBody`       | Treat a declared response body with `res.body === undefined` as an error, except for HEAD and bodyless statuses. Default `false`.                      |
+| `ignoreUndocumented`        | Treat requests whose path the router can't match as valid (`{ valid: true }`). Default `false`.                                                        |
+| `ignorePaths`               | `(path: string) => boolean` predicate that short-circuits validation when it returns `true` before routing.                                            |
+| `onUnknownVersion`          | `"fallback31"` \| `"warn"` \| `"throw"` for unknown OpenAPI 3.x minor versions. Missing or wrong-major `openapi` still throws unless `dialect` is set. |
+| `warn`                      | Optional callback for live warning output. Warnings are also stored in `validator.warnings`.                                                           |
+| `lint`                      | Run spec-hygiene checks at construction and store findings in `validator.specHygieneIssues`. Default `false`.                                          |
 
 ## Combining multiple specs
 

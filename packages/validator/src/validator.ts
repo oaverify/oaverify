@@ -676,6 +676,8 @@ export interface ValidatorStats {
  * - **Path filtering**: {@link ValidatorOptions.ignoreUndocumented},
  *   {@link ValidatorOptions.ignorePaths}.
  * - **Query strictness**: {@link ValidatorOptions.strictQueryParameters}.
+ * - **Bracketed query arrays**:
+ *   {@link ValidatorOptions.allowBracketedQueryArrays}.
  * - **Deserialized values in the result**:
  *   {@link ValidatorOptions.returnValues}.
  * - **Response strictness**: {@link ValidatorOptions.requireResponseBody}.
@@ -690,7 +692,8 @@ export interface ValidatorStats {
  *   2. Shared extension points: `formats`, `keywords`.
  *   3. Error-collection policy: `output`, `maxErrors`.
  *   4. Surface-specific extras last: here, `strictQueryParameters`,
- *      `returnValues`, `onUnknownVersion`, `warn`.
+ *      `allowBracketedQueryArrays`, `returnValues`, `onUnknownVersion`,
+ *      `warn`.
  *
  * Options common to both surfaces share names and positions so a
  * reader of one declaration can predict the other. When adding a new
@@ -889,6 +892,51 @@ export interface ValidatorOptions {
   validateSecurity?: "off" | "shape" | "strict";
   /** When `true`, reject unknown query parameters (default: `false`). */
   strictQueryParameters?: boolean;
+  /**
+   * When `true`, an array-typed query parameter also accepts its name
+   * with a `[]` suffix, so `?tags[]=a&tags[]=b` satisfies a parameter
+   * declared as `tags`. Default: `false`.
+   *
+   * The suffix is a convention of several HTTP clients and server
+   * frameworks (PHP, Rails, `qs`) rather than anything OpenAPI
+   * defines, so a document written against those clients declares
+   * `tags` while the wire carries `tags[]`, and the parameter reads as
+   * missing. Opt in when your callers use one of them.
+   *
+   * Rules, all of them checks you can predict without reading the
+   * implementation:
+   *
+   * - **The literal declared name always wins.** The bracketed
+   *   spelling is consulted only when no key matches the declared name
+   *   exactly. A request sending both `tags` and `tags[]` is read from
+   *   `tags`, and `tags[]` is ignored rather than merged.
+   * - **Array schemas only.** Eligibility reads the parameter's schema
+   *   type through the same view parameter deserialization uses, which
+   *   takes the first entry of a `type` array. A parameter that view
+   *   does not see as an array gains no bracketed spelling and reports
+   *   missing exactly as it does with this option off.
+   * - **A document that declares `tags[]` literally keeps it.** When
+   *   both `tags` and `tags[]` are declared, `tags[]` stays bound to
+   *   the parameter of that name and `tags` gains no alias.
+   * - **The empty-bracket spelling only.** Indexed keys such as
+   *   `tags[0]=a&tags[1]=b`, which some of the same encoders emit, are
+   *   not aliases for `tags` and are not read.
+   * - **Query only.** Header, cookie, and path parameters are
+   *   untouched; the suffix is an artifact of query-string encoders.
+   * - **`deepObject` is unaffected.** A `deepObject` parameter is
+   *   object-typed, so it gains no bracketed spelling, and its keys are
+   *   reassembled by the object-assembly step that runs before any
+   *   scalar or array lookup. This option never sees them.
+   *
+   * Composes with {@link ValidatorOptions.strictQueryParameters}: an
+   * accepted bracketed spelling counts as a known query key, so the two
+   * options do not contradict each other. The spelling is known whether
+   * or not a given request used it.
+   *
+   * Applies wherever the query came from, including a query string
+   * embedded in the request `path`.
+   */
+  allowBracketedQueryArrays?: boolean;
   /**
    * When `true`, `validateRequest` additionally returns the deserialized
    * parameter values it computed while validating, under a `value` field
@@ -1381,6 +1429,7 @@ export function createValidator(
       resolveRef,
       resolveSchemaRef,
       refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
+      allowBracketedQueryArrays: options.allowBracketedQueryArrays === true,
       // The cache builder has no business choosing a ref resolver, so it
       // sees a two-argument `compile` and the default resolver is bound
       // here.
