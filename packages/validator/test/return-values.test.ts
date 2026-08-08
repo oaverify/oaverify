@@ -7,7 +7,8 @@
  */
 import type { HttpRequest, OpenAPIDocument } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
-import { createValidator } from "../src/index.js";
+import { combineValidators, createValidator } from "../src/index.js";
+import type { RequestValues } from "../src/index.js";
 
 /** Four parameters, one per HTTP location. */
 const spec = {
@@ -566,5 +567,61 @@ describe("returnValues key safety", () => {
     expect(result.valid).toBe(true);
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
     expect(Object.getPrototypeOf(result.value.query)).toBeNull();
+  });
+});
+
+describe("returnValues through combineValidators", () => {
+  const other = {
+    openapi: "3.1.0",
+    info: { title: "o", version: "1" },
+    paths: { "/other": { get: { responses: { "200": { description: "ok" } } } } },
+  } as unknown as OpenAPIDocument;
+
+  const composite = () =>
+    combineValidators([createValidator(spec, { returnValues: true }), createValidator(other)]);
+
+  it("forwards the owning member's values from validateRequest", () => {
+    const result = composite().validateRequest(goodRequest()) as unknown as {
+      valid: boolean;
+      value: RequestValues;
+    };
+    expect(result.valid).toBe(true);
+    expect(result.value.query.limit).toBe(10);
+  });
+
+  it("forwards them from validateFetchRequest on success", async () => {
+    const request = new Request("https://example.test/w/42?limit=10&tags=a&tags=b", {
+      method: "GET",
+      headers: { "x-req-id": "abc" },
+    });
+    const result = (await composite().validateFetchRequest(request)) as unknown as {
+      ok: boolean;
+      value: RequestValues;
+    };
+    expect(result.ok).toBe(true);
+    expect(result.value.query.limit).toBe(10);
+  });
+
+  it("forwards them from validateFetchRequest on failure", async () => {
+    const request = new Request("https://example.test/w/42?limit=nope&tags=a", {
+      method: "GET",
+      headers: { "x-req-id": "abc" },
+    });
+    const result = (await composite().validateFetchRequest(request)) as unknown as {
+      ok: boolean;
+      value: RequestValues;
+    };
+    expect(result.ok).toBe(false);
+    expect(result.value.query.tags).toEqual(["a"]);
+  });
+
+  it("adds no value channel when no member has the option on", async () => {
+    const plain = combineValidators([createValidator(spec), createValidator(other)]);
+    const request = new Request("https://example.test/w/42?limit=10&tags=a", {
+      method: "GET",
+      headers: { "x-req-id": "abc" },
+    });
+    expect("value" in plain.validateRequest(goodRequest())).toBe(false);
+    expect("value" in (await plain.validateFetchRequest(request))).toBe(false);
   });
 });

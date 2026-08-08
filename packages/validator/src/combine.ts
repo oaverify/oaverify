@@ -282,7 +282,18 @@ export function combineValidators(
 
   const validateFetchRequest = async <T>(request: Request, fetchOptions?: FetchRequestOptions) => {
     const { httpRequest, body } = await httpRequestFromFetch(request, fetchOptions);
-    return toFetchResult<T>(validateRequest(httpRequest), body);
+    const result = validateRequest(httpRequest);
+    const fetchResult = toFetchResult<T>(result, body);
+    // Forward the owning member's `returnValues` channel. A composite
+    // has no `returnValues` option of its own; it hands back whatever
+    // the member that owned the route produced. `toFetchResult`'s
+    // failure branch rest-spreads the result and picks `value` up on its
+    // own, while its success branch builds a fresh literal and drops it,
+    // so forwarding explicitly is what keeps the two branches agreeing.
+    if (typeof result === "object" && "value" in result) {
+      (fetchResult as { value?: unknown }).value = (result as { value?: unknown }).value;
+    }
+    return fetchResult;
   };
 
   const validateFetchResponse = async <T>(request: Request, response: Response) => {
