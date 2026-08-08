@@ -115,6 +115,16 @@ const PATH_WIRE = [
   ["label", ".a.b"],
   ["matrix", ";p=a"],
   ["matrixCsv", ";p=a,b"],
+  ["matrixExploded", ";p=1;p=2"],
+  // Groups naming a parameter other than this one. The grid shipped
+  // without these and missed #758 as a result: `stripStyle` drops any
+  // `;<name>=` prefix without checking the name, so `;q=1` supplied `p`'s
+  // value, while the explode-array branch does check. Probing only the
+  // matching name could not see a rule applied in one branch and not its
+  // sibling.
+  ["matrixWrongName", ";q=1"],
+  ["matrixMixedNames", ";q=1;p=2"],
+  ["matrixNoMatch", ";q=1;r=2"],
   ["encodedComma", "a%2Cb"],
 ];
 

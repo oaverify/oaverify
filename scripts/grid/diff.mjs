@@ -59,17 +59,26 @@ const read = (p) => JSON.parse(readFileSync(p, "utf8"));
 const json = (v) => JSON.stringify(v);
 const isCrash = (r) => r.verdict === "throw" || r.verdict === "build-error";
 
-function classify(a, b) {
+/**
+ * `values` is false when either side predates `returnValues` (#745), which
+ * makes the value channel absent rather than empty. Comparing it then
+ * reports every case as a silent change: 4235 of 4692 on a 6.0.0 base,
+ * none of them real. Verdict comparison is unaffected, so the run stays
+ * useful with the bucket switched off.
+ */
+function classify(a, b, values) {
   if (isCrash(a) || isCrash(b)) {
     return a.verdict === b.verdict && a.error === b.error ? null : "crash";
   }
   if (a.verdict === "valid" && b.verdict === "invalid") return "regression";
   if (a.verdict === "invalid" && b.verdict === "valid") return "fix";
   if (a.verdict === "valid" && b.verdict === "valid") {
+    if (!values) return null;
     return json(a.value) === json(b.value) ? null : "silent";
   }
   // Both invalid: the verdict agrees, so only the reported reason can differ.
   if (json(a.codes) !== json(b.codes)) return "shape";
+  if (!values) return null;
   return json(a.value) === json(b.value) ? null : "silent";
 }
 
@@ -80,6 +89,7 @@ function main() {
 
   const found = Object.fromEntries(BUCKETS.map((k) => [k, []]));
   const keys = new Set([...Object.keys(a.results), ...Object.keys(b.results)]);
+  const values = a.meta.valueChannel === true && b.meta.valueChannel === true;
 
   for (const key of [...keys].sort()) {
     const ra = a.results[key];
@@ -88,7 +98,7 @@ function main() {
       found.drift.push({ key, base: ra ?? null, head: rb ?? null });
       continue;
     }
-    const bucket = classify(ra, rb);
+    const bucket = classify(ra, rb, values);
     if (bucket !== null) found[bucket].push({ key, base: ra, head: rb });
   }
 
@@ -99,6 +109,14 @@ function main() {
   console.log("");
   console.log(BUCKETS.map((k) => `${k} ${found[k].length}`).join("   "));
   console.log("");
+
+  if (!values) {
+    const older = a.meta.valueChannel === true ? "head" : "base";
+    console.log(`NOTE: the ${older} revision predates returnValues (#745), so the value`);
+    console.log("channel is absent on that side and the silent bucket is switched off.");
+    console.log("Verdict comparison is unaffected.");
+    console.log("");
+  }
 
   if (total === 0) {
     console.log("no differences.");
