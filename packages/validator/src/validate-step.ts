@@ -9,6 +9,7 @@ import type { CompiledTreeSchema } from "@oaverify/internal-schema";
 import { deserialize, matchParsedMediaType } from "./deserialize.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast, getOwn } from "./headers.js";
 import type { OperationCache } from "./operation-cache.js";
+import type { MutableRequestValues } from "./request-values.js";
 import { assembleObjectQueryParam } from "./query-assembly.js";
 
 /**
@@ -38,11 +39,46 @@ function isJsonMediaType(mediaType: string): boolean {
 }
 
 /**
+ * Record an accepted parameter value into the `returnValues`
+ * accumulator, under the location group matching the parameter's `in`.
+ *
+ * Called only after a schema accepted the value. The `in` values and the
+ * accumulator's field names differ for two of the four locations
+ * (`header` / `headers`, `cookie` / `cookies`), so the mapping is
+ * explicit rather than indexed by `p.in`.
+ *
+ * @internal
+ */
+function recordValue(sink: MutableRequestValues, p: ParameterObject, value: unknown): void {
+  switch (p.in) {
+    case "path":
+      sink.path[p.name] = value;
+      return;
+    case "query":
+      sink.query[p.name] = value;
+      return;
+    case "header":
+      sink.headers[p.name] = value;
+      return;
+    case "cookie":
+      sink.cookies[p.name] = value;
+      return;
+  }
+}
+
+/**
  * Validate a single parameter against the operation cache: fetch the
  * raw value from the appropriate HTTP frame (path / query / header /
  * cookie), deserialise per `style` + `explode`, and run the pre-
  * compiled schema validator. Pure: no closure over createValidator
  * state; the cache carries everything it needs.
+ *
+ * `sink` is the {@link ValidatorOptions.returnValues} accumulator, and
+ * is `undefined` whenever that option is off. When present, a value is
+ * recorded only after its schema accepted it, which is what makes a key
+ * in the accumulator mean "spec-valid" on both verdicts. Every early
+ * return below leaves the accumulator untouched, so the option-off path
+ * is the same code with one `undefined` check per accepted parameter.
  *
  * @internal
  */
@@ -51,6 +87,7 @@ export function validateParameter(
   req: HttpRequest,
   match: RouteMatch,
   cache: OperationCache,
+  sink: MutableRequestValues | undefined,
 ): ValidationError | null {
   let raw: string | string[] | undefined;
   let validator: CompiledTreeSchema | undefined;
@@ -90,7 +127,11 @@ export function validateParameter(
           return null;
         }
         const r = validator.validate(assembled.value, pathPrefix);
-        if (r.valid || r.error === undefined) return null;
+        if (r.valid) {
+          if (sink !== undefined) recordValue(sink, p, assembled.value);
+          return null;
+        }
+        if (r.error === undefined) return null;
         return r.error;
       }
       raw = cache.requestParameterReadsRequireOwnProperties
@@ -129,6 +170,10 @@ export function validateParameter(
   // parameter schema handles rejection where needed. OpenAPI 3.1 §4.8.12.1
   // explicitly permits `?flag=` on query parameters declaring
   // `allowEmptyValue: true`; exempt those from validation.
+  // No value is recorded for `returnValues` here or on the next line:
+  // both paths skip the schema, and the accumulator only holds values a
+  // schema accepted. An `allowEmptyValue` parameter that arrived empty
+  // is therefore absent from `value` even though the client sent it.
   if (raw === "" && p.in === "query" && p.allowEmptyValue === true) return null;
   if (validator === undefined) return null;
 
@@ -154,13 +199,21 @@ export function validateParameter(
       }
     }
     const r = validator.validate(parsed, pathPrefix);
-    if (r.valid || r.error === undefined) return null;
+    if (r.valid) {
+      if (sink !== undefined) recordValue(sink, p, parsed);
+      return null;
+    }
+    if (r.error === undefined) return null;
     return r.error;
   }
 
   const value = deserialize(raw, p);
   const r = validator.validate(value, pathPrefix);
-  if (r.valid || r.error === undefined) return null;
+  if (r.valid) {
+    if (sink !== undefined) recordValue(sink, p, value);
+    return null;
+  }
+  if (r.error === undefined) return null;
   return r.error;
 }
 

@@ -49,6 +49,13 @@ import { escapePointer } from "./document-walk.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast } from "./headers.js";
 import { reshapeResult, toFetchResult } from "./reshape.js";
 import {
+  emptyRequestValues,
+  type MutableRequestValues,
+  type ValuesValidationResult,
+  type RequestValues,
+  type TreeValuesValidationResult,
+} from "./request-values.js";
+import {
   bodySchemaCompiledPointer,
   createDirectionResolver,
   transformBodySchemaForDirection,
@@ -553,6 +560,56 @@ export interface TreeValidator extends Omit<Validator, OutputDependentMethods> {
 }
 
 /**
+ * The HTTP validator built with `returnValues: true` and the default
+ * `output: "flat"`. Identical to {@link Validator} except the two
+ * request-side methods carry the deserialized parameter values:
+ * `validateRequest` returns {@link ValuesValidationResult} and
+ * `validateFetchRequest` adds `value` to both branches of its result.
+ *
+ * The response-side methods keep {@link Validator}'s types;
+ * `returnValues` is a request-side option.
+ *
+ * @public
+ */
+export interface ValuesValidator extends Omit<Validator, OutputDependentMethods> {
+  validateRequest(req: HttpRequest): ValuesValidationResult;
+  validateResponse(req: HttpRequest, res: HttpResponse): ValidationResult;
+  validateFetchRequest<T = unknown>(
+    request: Request,
+    options?: FetchRequestOptions,
+  ): Promise<
+    | { ok: true; body: T; value: RequestValues }
+    | { ok: false; errors: ValidationError[]; truncated: boolean; value: RequestValues }
+  >;
+  validateFetchResponse<T = unknown>(
+    request: Request,
+    response: Response,
+  ): Promise<{ ok: true; body: T } | { ok: false; errors: ValidationError[]; truncated: boolean }>;
+}
+
+/**
+ * The `output: "tree"` counterpart of {@link ValuesValidator}: the value
+ * channel alongside a nested {@link ValidationError} tree.
+ *
+ * @public
+ */
+export interface TreeValuesValidator extends Omit<Validator, OutputDependentMethods> {
+  validateRequest(req: HttpRequest): TreeValuesValidationResult;
+  validateResponse(req: HttpRequest, res: HttpResponse): TreeValidationResult;
+  validateFetchRequest<T = unknown>(
+    request: Request,
+    options?: FetchRequestOptions,
+  ): Promise<
+    | { ok: true; body: T; value: RequestValues }
+    | { ok: false; error: ValidationError; truncated: boolean; value: RequestValues }
+  >;
+  validateFetchResponse<T = unknown>(
+    request: Request,
+    response: Response,
+  ): Promise<{ ok: true; body: T } | { ok: false; error: ValidationError; truncated: boolean }>;
+}
+
+/**
  * The HTTP validator built with `output: "predicate"`. `validateRequest`
  * / `validateResponse` return a bare `boolean` (no errors are ever
  * constructed). The Fetch wrappers narrow the body on success and carry
@@ -619,6 +676,8 @@ export interface ValidatorStats {
  * - **Path filtering**: {@link ValidatorOptions.ignoreUndocumented},
  *   {@link ValidatorOptions.ignorePaths}.
  * - **Query strictness**: {@link ValidatorOptions.strictQueryParameters}.
+ * - **Deserialized values in the result**:
+ *   {@link ValidatorOptions.returnValues}.
  * - **Response strictness**: {@link ValidatorOptions.requireResponseBody}.
  * - **Version mismatch**: {@link ValidatorOptions.onUnknownVersion}.
  * - **Warn sink**: {@link ValidatorOptions.warn}.
@@ -631,7 +690,7 @@ export interface ValidatorStats {
  *   2. Shared extension points: `formats`, `keywords`.
  *   3. Error-collection policy: `output`, `maxErrors`.
  *   4. Surface-specific extras last: here, `strictQueryParameters`,
- *      `onUnknownVersion`, `warn`.
+ *      `returnValues`, `onUnknownVersion`, `warn`.
  *
  * Options common to both surfaces share names and positions so a
  * reader of one declaration can predict the other. When adding a new
@@ -831,6 +890,59 @@ export interface ValidatorOptions {
   /** When `true`, reject unknown query parameters (default: `false`). */
   strictQueryParameters?: boolean;
   /**
+   * When `true`, `validateRequest` additionally returns the deserialized
+   * parameter values it computed while validating, under a `value` field
+   * grouped by HTTP location. Default: `false`.
+   *
+   * The validator already parses `?limit=10` into the number `10` in
+   * order to check it against `type: integer`, then discards it. This
+   * option hands that back instead, so a caller does not redo the
+   * `style` / `explode` / `$ref` work from a spec the validator holds:
+   *
+   * ```ts
+   * const v = createValidator(spec, { returnValues: true });
+   * const r = v.validateRequest(req);
+   * if (r.valid) r.value.query.limit; // 10, a number
+   * ```
+   *
+   * **What `value` contains.** A parameter appears when this call
+   * reached it, deserialized it, and its schema accepted the result.
+   * That rule holds on both verdicts, so `value` is present on failures
+   * too and carries every parameter that passed alongside the errors
+   * for those that did not. See {@link RequestValues}.
+   *
+   * Two request-level checks run before any parameter is inspected and
+   * short-circuit the whole request: the
+   * {@link ValidatorOptions.validateSecurity} gate and the request-body
+   * content-type gate. A request that fails either returns `value`
+   * present with every location empty, because no parameter was reached.
+   *
+   * **What `value` does not contain**, each a deliberate round-1 answer
+   * rather than an omission:
+   *
+   * - **No `body`.** The caller already holds the parsed body it passed
+   *   in. Returning it raises identity-versus-copy, which is
+   *   load-bearing elsewhere in this package and worth deciding on its
+   *   own rather than in passing.
+   * - **No schema `default`s.** A parameter the client did not send is
+   *   absent, even when its schema declares a `default`. Filling one in
+   *   silently would make `value` report something the client never
+   *   sent.
+   * - **Nothing from `validateResponse`.** The response side is
+   *   unaffected by this option.
+   *
+   * Values are `unknown`; the validator has no per-operation types.
+   *
+   * Incompatible with `output: "predicate"`, which returns a bare
+   * boolean and has nowhere to carry a value.
+   * {@link createValidator} throws when both are set.
+   *
+   * The request-side Fetch wrapper carries the channel too:
+   * {@link Validator.validateFetchRequest} returns `value` alongside
+   * `ok` and `body`.
+   */
+  returnValues?: boolean;
+  /**
    * When `true`, `validateResponse` emits a `body` finding when the
    * matched response declares content but the response carries no body
    * (`res.body === undefined`). Catches the common bug where a handler
@@ -968,6 +1080,14 @@ function assertFormatTypesMatch(supplied: Record<string, FormatDefinition> | und
  */
 export function createValidator(
   spec: OpenAPIDocument,
+  options: ValidatorOptions & { returnValues: true; output?: "flat" },
+): ValuesValidator;
+export function createValidator(
+  spec: OpenAPIDocument,
+  options: ValidatorOptions & { returnValues: true; output: "tree" },
+): TreeValuesValidator;
+export function createValidator(
+  spec: OpenAPIDocument,
   options: ValidatorOptions & { output: "tree" },
 ): TreeValidator;
 export function createValidator(
@@ -981,11 +1101,21 @@ export function createValidator(
 export function createValidator(
   spec: OpenAPIDocument,
   options?: ValidatorOptions,
-): Validator | TreeValidator | PredicateValidator;
+): Validator | TreeValidator | PredicateValidator | ValuesValidator | TreeValuesValidator;
 export function createValidator(
   spec: OpenAPIDocument,
   options: ValidatorOptions = {},
-): Validator | TreeValidator | PredicateValidator {
+): Validator | TreeValidator | PredicateValidator | ValuesValidator | TreeValuesValidator {
+  if (options.returnValues === true && options.output === "predicate") {
+    // Error early rather than accept an option that cannot be honoured:
+    // predicate mode returns a bare boolean, so there is nowhere to put
+    // `value`. Silently dropping it would leave a caller who set the
+    // option reading `undefined` with nothing to explain why.
+    throw new Error(
+      'createValidator: `returnValues` cannot be combined with `output: "predicate"`, ' +
+        'which returns a bare boolean. Use `output: "flat"` (the default) or `"tree"`.',
+    );
+  }
   if (
     options.maxErrors !== undefined &&
     Number.isFinite(options.maxErrors) &&
@@ -1015,6 +1145,7 @@ export function createValidator(
   // per location); `reshapeResult` then enforces the per-call total.
   const outputMode = options.output ?? "flat";
   const maxErrors = options.maxErrors ?? 1;
+  const returnValues = options.returnValues === true;
   const paths = spec.paths ?? {};
   const router: Router = createRouter(paths);
   assertFormatTypesMatch(options.formats);
@@ -1336,7 +1467,15 @@ export function createValidator(
     return { kind: "match", match };
   };
 
-  const validateRequestTree = (rawReq: HttpRequest): ValidationError | null => {
+  // `sink` is the `returnValues` accumulator, created by the caller and
+  // `undefined` when the option is off. It is threaded rather than
+  // returned so that none of the five early returns below has to carry a
+  // second channel, and so `reshapeResult` keeps its signature (it is
+  // exported through `codegen-runtime` for the AOT `compile-spec` path).
+  const validateRequestTree = (
+    rawReq: HttpRequest,
+    sink?: MutableRequestValues,
+  ): ValidationError | null => {
     // A query string embedded in `path` folds into `query` here, once,
     // so routing, security (apiKey-in-query), and parameter validation
     // all see the same request. See normalizeRequestQuery.
@@ -1380,7 +1519,7 @@ export function createValidator(
     }
 
     for (const p of cache.parameters) {
-      const err = validateParameter(p, req, match, cache);
+      const err = validateParameter(p, req, match, cache, sink);
       if (err !== null) children.push(err);
     }
 
@@ -1557,8 +1696,29 @@ export function createValidator(
 
   // Public, output-shaped entry points: build the internal tree, then
   // reshape to the requested output and per-call error budget.
-  const validateRequest = (req: HttpRequest): ValidationResult | TreeValidationResult | boolean =>
-    reshapeResult(validateRequestTree(req), outputMode, maxErrors);
+  //
+  // With `returnValues` on, the accumulator is allocated here, filled
+  // during the walk, and attached to the object `reshapeResult` just
+  // returned. Attaching here rather than inside `reshapeResult` keeps
+  // that function's signature (and so the AOT `compile-spec` path)
+  // untouched, and the object being written to is one this call
+  // allocated, never anything the caller supplied.
+  const validateRequest = (
+    req: HttpRequest,
+  ):
+    | ValidationResult
+    | TreeValidationResult
+    | boolean
+    | ValuesValidationResult
+    | TreeValuesValidationResult => {
+    if (!returnValues) return reshapeResult(validateRequestTree(req), outputMode, maxErrors);
+    const sink = emptyRequestValues();
+    const result = reshapeResult(validateRequestTree(req, sink), outputMode, maxErrors) as
+      | ValidationResult
+      | TreeValidationResult;
+    (result as { value?: RequestValues }).value = sink;
+    return result as ValuesValidationResult | TreeValuesValidationResult;
+  };
   const validateResponse = (
     req: HttpRequest,
     res: HttpResponse,
@@ -1585,10 +1745,30 @@ export function createValidator(
     try {
       extracted = await httpRequestFromFetch(request, fetchOptions);
     } catch (err) {
-      if (err instanceof FetchBodyParseError) return bodyParseFailure<T>(err);
+      if (err instanceof FetchBodyParseError) {
+        const failure = bodyParseFailure<T>(err);
+        // An unparseable body fails before any request validation runs,
+        // so no parameter was reached. The channel is still present, and
+        // empty, because `ValuesValidator.validateFetchRequest` declares
+        // it on both branches. Attached here rather than inside
+        // `bodyParseFailure`, which `validateFetchResponse` also uses and
+        // where `returnValues` has no effect.
+        if (returnValues) {
+          (failure as { value?: RequestValues }).value = emptyRequestValues();
+        }
+        return failure;
+      }
       throw err;
     }
-    return toFetchResult<T>(validateRequest(extracted.httpRequest), extracted.body);
+    const result = validateRequest(extracted.httpRequest);
+    const fetchResult = toFetchResult<T>(result, extracted.body);
+    if (!returnValues) return fetchResult;
+    // `toFetchResult`'s failure branch rest-spreads the reshaped result,
+    // so it already carries `value`; its success branch builds a fresh
+    // literal and does not. Setting it here covers both rather than
+    // leaving the channel present on failures and absent on successes.
+    (fetchResult as { value?: RequestValues }).value = (result as { value?: RequestValues }).value;
+    return fetchResult;
   };
 
   const validateFetchResponse = async <T>(request: Request, response: Response) => {
