@@ -19,10 +19,17 @@ export {
   type PredicateValidator,
   type RouteMatchResult,
   type TreeValidator,
+  type TreeValuesValidator,
   type Validator,
   type ValidatorOptions,
   type ValidatorStats,
+  type ValuesValidator,
 } from "./validator.js";
+export type {
+  RequestValidationResult,
+  RequestValues,
+  TreeRequestValidationResult,
+} from "./request-values.js";
 export { combineValidators, type CombineOptions } from "./combine.js";
 // `document-walk.ts` is deliberately NOT exported here. It is a tool for
 // building checks over a document, not part of the request/response
