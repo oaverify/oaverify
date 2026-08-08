@@ -106,6 +106,7 @@ the upstream test suites live in
 | `regexCompiler`         | Compiler for `pattern` and `format: "regex"`. Override for untrusted specs that need a safe-regex policy.                                              |
 | `validateSecurity`      | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                       |
 | `strictQueryParameters` | Reject undeclared query parameters. Default `false`.                                                                                                   |
+| `returnValues`          | Return the deserialized parameter values on the result under `value`, grouped by HTTP location. Default `false`.                                       |
 | `requireResponseBody`   | Treat a declared response body with `res.body === undefined` as an error, except for HEAD and bodyless statuses. Default `false`.                      |
 | `ignoreUndocumented`    | Treat requests whose path the router can't match as valid (`{ valid: true }`). Default `false`.                                                        |
 | `ignorePaths`           | `(path: string) => boolean` predicate that short-circuits validation when it returns `true` before routing.                                            |

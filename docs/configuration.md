@@ -15,6 +15,7 @@ this page is a recipe-oriented overview.
 | `maxDepth`              | Cap on recursive `$ref` validation depth; past the cap the payload fails with a `depth` error instead of exhausting the call stack. Unset by default; see below.                                                   |
 | `schemaLint`            | Schema lint mode: `"off"`, `"warn"` (default), or `"strict"`. Findings surface via `validator.stats.schemaLintIssues`; never throws. A malformed schema is rejected regardless, see [Strictness](./strictness.md). |
 | `strictQueryParameters` | Reject undeclared query parameters. Default `false`.                                                                                                                                                               |
+| `returnValues`          | Return the deserialized parameter values on the result under `value`, grouped by HTTP location. Default `false`; see below.                                                                                        |
 | `validateSecurity`      | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                                                                                   |
 | `ignoreUndocumented`    | Treat requests whose path the router can't match as valid (`{ valid: true }`) instead of a `route` error. Default `false`.                                                                                         |
 | `ignorePaths`           | Predicate `(path) => boolean`; returning `true` short-circuits validation to a valid result (`{ valid: true }`) before routing.                                                                                    |
@@ -134,6 +135,63 @@ problems may exist.
 throws on `0`, negative values, or non-integers. For a yes/no answer
 with no errors collected at all, build the validator with
 `output: "predicate"`.
+
+## Reading the deserialized request values
+
+The validator parses `?limit=10` into the number `10` in order to check
+it against `type: integer`, then throws the number away. Set
+`returnValues` to get it back instead of parsing the query string a
+second time in your handler:
+
+```ts
+const validator = createValidator(spec, { returnValues: true });
+const result = validator.validateRequest(req);
+if (result.valid) {
+  result.value.query.limit; // 10, a number
+  result.value.path.id; // 42
+  result.value.headers["X-Request-Id"];
+  result.value.cookies.session;
+}
+```
+
+Values are grouped by HTTP location, matching the coordinates the
+validator already uses in error paths: an error at
+`["query", "tags"]` and a value at `value.query.tags` name the same
+parameter.
+
+A parameter appears in `value` when this call reached it, deserialized
+it, and its schema accepted the result. That rule holds whatever the
+verdict, so `value` is present on failures too and carries everything
+that passed:
+
+```ts
+// ?limit=nope&tags=a
+const result = validator.validateRequest(req);
+result.valid; // false
+result.value.query.tags; // ["a"] - this one passed
+"limit" in result.value.query; // false - this one did not
+```
+
+Report-only deployments read both halves: the errors say what was
+wrong, and `value` says how the validator understood the rest.
+
+Two request-level checks run before any parameter is inspected: the
+`validateSecurity` gate and the request-body content-type gate. A
+request that fails either gets `value` present with every location
+empty, because no parameter was reached.
+
+Three things `value` does not carry, each a decision rather than a gap.
+The request body stays out, because the caller already holds the object
+it passed in. Schema `default`s are not applied, so a parameter the
+client did not send is absent even when its schema declares one.
+`validateResponse` is unaffected.
+
+`returnValues` cannot be combined with `output: "predicate"`, which
+returns a bare boolean; `createValidator` throws on the combination.
+`validateFetchRequest` carries `value` alongside `ok` and `body`.
+
+See `ValidatorOptions.returnValues` and `RequestValues` for the
+contract.
 
 ## Malformed schemas fail at construction
 
