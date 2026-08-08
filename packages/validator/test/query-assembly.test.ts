@@ -25,6 +25,25 @@ describe("coerceQueryScalar", () => {
     expect(coerceQueryScalar("not a number", { type: "integer" })).toBe("not a number");
   });
 
+  it("coerces only strings spelling a decimal number, as the scalar path does", () => {
+    const num = (v: string) => coerceQueryScalar(v, { type: "number" });
+    // The same grammar deserialize.ts applies to a scalar parameter. It
+    // read `?filter[n]=0x1A` as 26 against a type: integer property while
+    // `?n=0x1A` was rejected: one request, one declared type, two answers.
+    expect(num("")).toBe("");
+    expect(num("  ")).toBe("  ");
+    expect(num("0x1A")).toBe("0x1A");
+    expect(num("Infinity")).toBe("Infinity");
+    expect(num("-Infinity")).toBe("-Infinity");
+    expect(num(" 7 ")).toBe(" 7 ");
+    expect(num("-3.5")).toBe(-3.5);
+    expect(num("+5")).toBe(5);
+    expect(num("1e3")).toBe(1000);
+    expect(num(".5")).toBe(0.5);
+    expect(num("5.")).toBe(5);
+    expect(num("007")).toBe(7);
+  });
+
   it("parses booleans", () => {
     expect(coerceQueryScalar("true", { type: "boolean" })).toBe(true);
     expect(coerceQueryScalar("false", { type: "boolean" })).toBe(false);
