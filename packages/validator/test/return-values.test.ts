@@ -413,6 +413,65 @@ describe("returnValues and the Fetch wrapper", () => {
     expect("limit" in result.value.query).toBe(false);
   });
 
+  it("carries an empty value channel when the body cannot be parsed", async () => {
+    const withBody = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/b": {
+          post: {
+            parameters: [
+              { name: "limit", in: "query", required: true, schema: { type: "integer" } },
+            ],
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { type: "object" } } },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const validator = createValidator(withBody, { returnValues: true });
+    const request = new Request("https://example.test/b?limit=10", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{",
+    });
+    const result = await validator.validateFetchRequest(request);
+    expect(result.ok).toBe(false);
+    // The parse failure happens before any request validation runs, so
+    // `limit` is not reported even though it would have deserialized.
+    expect(result.value).toEqual({ path: {}, query: {}, headers: {}, cookies: {} });
+  });
+
+  it("adds no value channel to a parse failure when the option is off", async () => {
+    const withBody = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/b": {
+          post: {
+            requestBody: {
+              required: true,
+              content: { "application/json": { schema: { type: "object" } } },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const result = await createValidator(withBody).validateFetchRequest(
+      new Request("https://example.test/b", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{",
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect("value" in result).toBe(false);
+  });
+
   it("adds no value channel when the option is off", async () => {
     const validator = createValidator(spec);
     const request = new Request("https://example.test/w/42?limit=10&tags=a", {
@@ -422,6 +481,66 @@ describe("returnValues and the Fetch wrapper", () => {
     const result = await validator.validateFetchRequest(request);
     expect(result.ok).toBe(true);
     expect("value" in result).toBe(false);
+  });
+});
+
+describe("returnValues and parameters that skip the schema", () => {
+  it("omits an allowEmptyValue parameter that arrived empty", () => {
+    const empties = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/e": {
+          get: {
+            parameters: [
+              { name: "flag", in: "query", allowEmptyValue: true, schema: { type: "string" } },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const validator = createValidator(empties, { returnValues: true });
+    const empty = validator.validateRequest({
+      method: "GET",
+      path: "/e",
+      query: { flag: "" },
+    } as unknown as HttpRequest);
+    expect(empty.valid).toBe(true);
+    // `?flag=` is exempted from validation rather than accepted by a
+    // schema, so it is absent: presence means a schema accepted it.
+    expect(empty.value.query).toEqual({});
+
+    // The same parameter with an actual value does come back.
+    const filled = validator.validateRequest({
+      method: "GET",
+      path: "/e",
+      query: { flag: "on" },
+    } as unknown as HttpRequest);
+    expect(filled.value.query.flag).toBe("on");
+  });
+
+  it("omits a parameter declared with neither schema nor content", () => {
+    const schemaless = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/n": {
+          get: {
+            parameters: [{ name: "opaque", in: "query" }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const result = createValidator(schemaless, { returnValues: true }).validateRequest({
+      method: "GET",
+      path: "/n",
+      query: { opaque: "whatever" },
+    } as unknown as HttpRequest);
+    expect(result.valid).toBe(true);
+    // Nothing validated it, so nothing is reported.
+    expect(result.value.query).toEqual({});
   });
 });
 

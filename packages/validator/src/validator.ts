@@ -1745,7 +1745,19 @@ export function createValidator(
     try {
       extracted = await httpRequestFromFetch(request, fetchOptions);
     } catch (err) {
-      if (err instanceof FetchBodyParseError) return bodyParseFailure<T>(err);
+      if (err instanceof FetchBodyParseError) {
+        const failure = bodyParseFailure<T>(err);
+        // An unparseable body fails before any request validation runs,
+        // so no parameter was reached. The channel is still present, and
+        // empty, because `ValuesValidator.validateFetchRequest` declares
+        // it on both branches. Attached here rather than inside
+        // `bodyParseFailure`, which `validateFetchResponse` also uses and
+        // where `returnValues` has no effect.
+        if (returnValues) {
+          (failure as { value?: RequestValues }).value = emptyRequestValues();
+        }
+        return failure;
+      }
       throw err;
     }
     const result = validateRequest(extracted.httpRequest);
