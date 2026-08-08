@@ -1,4 +1,4 @@
-import { type OpenAPIDocument } from "@oaverify/internal-core";
+import { type OpenAPIDocument, type ValidationError } from "@oaverify/internal-core";
 import {
   httpRequestFromExpress,
   renderProblemDetails,
@@ -179,6 +179,53 @@ describe("oav-express4 integration: custom onError", () => {
     expect(r.status).toBe(422);
     const body = (await r.json()) as { kind: string };
     expect(body.kind).toBe("custom-envelope");
+  });
+});
+
+describe("oav-express4 integration: report-only onError", () => {
+  let server: Server;
+  let baseUrl: string;
+  const seen: ValidationError[][] = [];
+
+  beforeAll(async () => {
+    // The observation mode docs/integration.md documents: log every
+    // violation, reject nothing. On Express the handler owns what
+    // happens next, and the middleware does not call `next()` for it,
+    // so a report-only handler has to call `next()` itself. Bare, with
+    // no argument: `next(err)` forwards to the error middleware and
+    // rejects the request, which is the opposite of report-only.
+    const validator = createValidator(petSpec(), { maxErrors: Number.POSITIVE_INFINITY });
+    const app = express();
+    app.use(express.json());
+    app.use(
+      validateRequests(validator, {
+        onError: (errors, ctx) => {
+          seen.push(errors);
+          ctx.next();
+        },
+      }),
+    );
+    app.post("/pets", (_req, res) => {
+      res.json({ ok: true });
+    });
+    ({ server, baseUrl } = await listenOnZero(app));
+  });
+
+  afterAll(async () => {
+    await closeServer(server);
+  });
+
+  it("report-only onError logs and the invalid request still reaches the handler", async () => {
+    const r = await fetch(`${baseUrl}/pets`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true });
+    // An observation period wants the whole list, which is why the
+    // validator above raises the default maxErrors of 1.
+    expect(seen[0]!.length).toBeGreaterThan(1);
   });
 });
 

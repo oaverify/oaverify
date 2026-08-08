@@ -1,4 +1,4 @@
-import { type OpenAPIDocument } from "@oaverify/internal-core";
+import { type OpenAPIDocument, type ValidationError } from "@oaverify/internal-core";
 import {
   httpRequestFromFastify,
   renderProblemDetails,
@@ -160,6 +160,49 @@ describe("oav-fastify integration: custom onError", () => {
     });
     expect(r.statusCode).toBe(422);
     expect(r.json()).toEqual({ kind: "custom-envelope" });
+  });
+});
+
+describe("oav-fastify integration: report-only onError", () => {
+  let app: FastifyInstance;
+  const seen: ValidationError[][] = [];
+
+  beforeAll(async () => {
+    // The observation mode docs/integration.md documents: log every
+    // violation, reject nothing. The Fastify shape is the mirror of
+    // Express's: the hook resolves on its own once `onError` returns,
+    // so a report-only handler passes traffic through by NOT sending a
+    // reply. Touching `reply` is what stops the request.
+    const validator = createValidator(petSpec(), { maxErrors: Number.POSITIVE_INFINITY });
+    app = Fastify();
+    app.addHook(
+      "preValidation",
+      validateRequests(validator, {
+        onError: (errors) => {
+          seen.push(errors);
+        },
+      }),
+    );
+    app.post("/pets", async () => ({ ok: true }));
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it("report-only onError logs and the invalid request still reaches the handler", async () => {
+    const r = await app.inject({
+      method: "POST",
+      url: "/pets",
+      headers: { "content-type": "application/json" },
+      payload: JSON.stringify({}),
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({ ok: true });
+    // An observation period wants the whole list, which is why the
+    // validator above raises the default maxErrors of 1.
+    expect(seen[0]!.length).toBeGreaterThan(1);
   });
 });
 
