@@ -85,6 +85,11 @@ async function main() {
   const results = {};
   let built = 0;
   let failedBuilds = 0;
+  // Whether this revision supports `returnValues` at all. It landed in
+  // #745, so a base older than that returns `null` from every valid call
+  // and the value channel is absent rather than empty. The diff has to
+  // know, or every case reads as a silent value change.
+  let valueChannel = false;
 
   for (const decl of declarations()) {
     let validator;
@@ -104,7 +109,9 @@ async function main() {
       continue;
     }
     for (const { wireId, request } of requests(decl.location)) {
-      results[`${decl.id}::${wireId}`] = record(validator, request);
+      const r = record(validator, request);
+      if (r.value !== null && r.value !== undefined) valueChannel = true;
+      results[`${decl.id}::${wireId}`] = r;
     }
   }
 
@@ -115,6 +122,7 @@ async function main() {
       cases: gridSize(),
       declarations: built + failedBuilds,
       failedBuilds,
+      valueChannel,
       node: process.version,
     },
     results,
