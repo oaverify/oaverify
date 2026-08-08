@@ -24,6 +24,7 @@
     "overrides": {
       "@oaverify/core": "link:../..",
       "esbuild": ">=0.28.1",
+      "js-yaml": "^4.3.1",
       "@oaverify/yaml": "link:../../packages/yaml"
     }
   }
