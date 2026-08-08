@@ -1,3 +1,4 @@
+import { effectiveType } from "./schema-type.js";
 import {
   getOwn,
   setSpecKey,
@@ -43,7 +44,7 @@ export function deserialize(
   const style = parameter.style ?? defaultStyle(parameter.in);
   const explode = parameter.explode ?? style === "form";
   const schema = parameter.schema;
-  const type = extractType(schema);
+  const type = effectiveType(schema);
 
   if (Array.isArray(raw)) {
     if (type === "array") {
@@ -177,7 +178,7 @@ const MAX_REF_HOPS = 32;
  * `properties`. Nothing deeper matters, because nothing deeper is
  * coerced.
  *
- * Composition is not followed. `extractType` reads `type` and nothing
+ * Composition is not followed. `effectiveType` reads `type` and nothing
  * else, so a type reachable only through `allOf`, `oneOf` or `anyOf` is
  * invisible here and the value stays a string. `allOf` is a conjunction
  * and could be flattened; `oneOf` and `anyOf` cannot, since branches may
@@ -366,13 +367,6 @@ function stripStyle(value: string, style: ParameterStyle): string {
   return value;
 }
 
-function extractType(schema: SchemaObject | boolean | undefined): string | undefined {
-  if (schema === undefined || typeof schema === "boolean") return undefined;
-  if (typeof schema.type === "string") return schema.type;
-  if (Array.isArray(schema.type)) return schema.type[0];
-  return undefined;
-}
-
 /**
  * The schema governing every item of an array-typed parameter. Coercion
  * of a serialized array's items is driven by `items`, not by the array
@@ -391,8 +385,8 @@ function extractType(schema: SchemaObject | boolean | undefined): string | undef
  *   compiler already reports it as a malformed schema, so this only
  *   keeps the helper total on input the caller will hear about anyway.
  *
- * A `$ref`-valued `items` also coerces nothing, since `extractType` sees
- * no `type` on it. That matches how a `$ref`-valued scalar parameter
+ * A `$ref`-valued `items` also coerces nothing, since `effectiveType`
+ * sees no `type` on it. That matches how a `$ref`-valued scalar parameter
  * schema already behaves.
  */
 function itemSchema(
@@ -420,7 +414,7 @@ const DECIMAL_NUMBER_RE = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 function coerceScalar(value: string, schema: SchemaObject | boolean | undefined): unknown {
   if (schema === undefined || typeof schema === "boolean") return value;
-  const type = extractType(schema);
+  const type = effectiveType(schema);
   if (type === "number" || type === "integer") {
     if (!DECIMAL_NUMBER_RE.test(value)) return value;
     const n = Number(value);

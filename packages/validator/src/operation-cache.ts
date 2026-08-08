@@ -25,7 +25,7 @@ import {
   type SchemaRefResolver,
 } from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
-import { extractSchemaType } from "./query-assembly.js";
+import { effectiveType } from "./schema-type.js";
 import type { CompiledSecurity } from "./security.js";
 
 /**
@@ -474,7 +474,7 @@ export function buildOperationCache(
   if (deps.allowBracketedQueryArrays === true) {
     for (const p of parameters) {
       if (p.in !== "query") continue;
-      if (extractSchemaType(p.schema) !== "array") continue;
+      if (effectiveType(p.schema) !== "array") continue;
       const alias = `${p.name}[]`;
       if (knownQueryParameters.has(alias)) continue;
       bracketQueryAliases.set(p.name, alias);
