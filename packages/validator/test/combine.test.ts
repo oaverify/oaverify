@@ -407,3 +407,91 @@ describe("combineValidators output modes", () => {
     expect(v.validateRequest({ method: "GET", path: "/nope" })).toBe(false);
   });
 });
+
+/**
+ * A malformed request body is a verdict, not an exception: the body is
+ * attacker-controlled, and `JSON.parse` throwing out of
+ * `validateFetchRequest` turns garbage input into a 500. The single
+ * validator has converted it since #736; the composite has to agree, or
+ * moving from one validator to a composite of that same validator
+ * changes the contract.
+ */
+function bodySpec(): OpenAPIDocument {
+  return {
+    openapi: "3.1.0",
+    info: { title: "B", version: "1" },
+    paths: {
+      "/b": {
+        post: {
+          requestBody: {
+            required: true,
+            content: { "application/json": { schema: { type: "object" } } },
+          },
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  } as unknown as OpenAPIDocument;
+}
+
+const malformed = (): Request =>
+  new Request("https://example.test/b", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{not json",
+  });
+
+describe("combineValidators and an unparseable fetch body", () => {
+  it("returns a body verdict instead of throwing, as the single validator does", async () => {
+    const single = createValidator(bodySpec());
+    const composite = combineValidators([createValidator(bodySpec())]);
+    const fromSingle = await single.validateFetchRequest(malformed());
+    const fromComposite = await composite.validateFetchRequest(malformed());
+    if (fromSingle.ok || fromComposite.ok) throw new Error("expected both to fail");
+    expect(fromComposite.errors).toEqual(fromSingle.errors);
+    expect(fromComposite.errors[0]?.code).toBe("body");
+  });
+
+  it("reports the complete error list, because no budget was applied", async () => {
+    // The parse fails before routing, so no member owns the request and
+    // its `maxErrors` is unreachable. The composite reshapes its own
+    // errors with an infinite budget, as it does for `route` and
+    // `method`, and `truncated: false` is the honest answer: one leaf
+    // exists and none was dropped. A single validator on the default
+    // `maxErrors: 1` reports `truncated: true` for the same input, which
+    // is that budget showing through rather than a fuller error list.
+    const single = createValidator(bodySpec());
+    const composite = combineValidators([createValidator(bodySpec())]);
+    const fromComposite = await composite.validateFetchRequest(malformed());
+    const fromSingle = await single.validateFetchRequest(malformed());
+    if (fromSingle.ok || fromComposite.ok) throw new Error("expected both to fail");
+    expect(fromComposite.truncated).toBe(false);
+    expect(fromSingle.truncated).toBe(true);
+  });
+
+  it("keeps the verdict in tree output", async () => {
+    const composite = combineValidators([createValidator(bodySpec(), { output: "tree" })]);
+    const result = (await composite.validateFetchRequest(malformed())) as {
+      ok: boolean;
+      error?: { code: string };
+    };
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("body");
+  });
+
+  it("still propagates a non-body failure unchanged", async () => {
+    const composite = combineValidators([createValidator(bodySpec())]);
+    const exploding = new Request("https://example.test/b", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    await expect(
+      composite.validateFetchRequest(exploding, {
+        readBody: () => {
+          throw new Error("io failure");
+        },
+      } as never),
+    ).rejects.toThrow("io failure");
+  });
+});

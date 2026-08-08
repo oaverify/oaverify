@@ -10,7 +10,7 @@
  * standalone module reuses these same functions so its AOT output's result
  * shape stays identical to `createValidator`.
  */
-import { collectLeaves, type ValidationError } from "@oaverify/internal-core";
+import { collectLeaves, createLeafError, type ValidationError } from "@oaverify/internal-core";
 import type { TreeValidationResult, ValidationResult } from "@oaverify/internal-schema";
 
 /**
@@ -91,4 +91,35 @@ export function toFetchResult<T>(
   if (result.valid) return { ok: true, body: body as T };
   const { valid: _valid, ...failure } = result;
   return { ok: false, ...failure };
+}
+
+/**
+ * The fetch-shaped verdict for a request body that could not be parsed.
+ *
+ * An unparseable payload is a validation verdict, not an exception: the
+ * body is attacker-controlled, and a `JSON.parse` throwing out of a
+ * `validateFetchRequest` turns garbage input into a 500 for every caller
+ * that did not wrap the await. Every fetch entry point converts a
+ * `FetchBodyParseError` through here, and lets anything else propagate.
+ *
+ * Takes the error structurally rather than importing
+ * `FetchBodyParseError`, so this module keeps its one runtime dependency
+ * and stays cheap for `oaverify compile-spec`'s bundle. Callers own the
+ * `instanceof` check; this owns the shape of the answer.
+ *
+ * @internal
+ */
+export function fetchBodyParseFailure<T>(
+  err: { readonly message: string; readonly mediaType: string },
+  output: "flat" | "tree" | "predicate",
+  maxErrors: number,
+): ReturnType<typeof toFetchResult<T>> {
+  return toFetchResult<T>(
+    reshapeResult(
+      createLeafError("body", ["body"], err.message, { mediaType: err.mediaType }),
+      output,
+      maxErrors,
+    ),
+    undefined,
+  );
 }
