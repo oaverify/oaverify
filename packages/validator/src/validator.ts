@@ -1785,30 +1785,24 @@ export function createValidator(
     try {
       extracted = await httpRequestFromFetch(request, fetchOptions);
     } catch (err) {
+      // An unparseable body fails before any request validation runs, so
+      // no parameter was reached and the channel goes back empty rather
+      // than absent. `validateFetchResponse` shares `bodyParseFailure`
+      // and passes no channel, which is why this is the argument here
+      // rather than a `returnValues` check inside the helper.
       if (err instanceof FetchBodyParseError) {
-        const failure = bodyParseFailure<T>(err);
-        // An unparseable body fails before any request validation runs,
-        // so no parameter was reached. The channel is still present, and
-        // empty, because `ValuesValidator.validateFetchRequest` declares
-        // it on both branches. Attached here rather than inside
-        // `bodyParseFailure`, which `validateFetchResponse` also uses and
-        // where `returnValues` has no effect.
-        if (returnValues) {
-          (failure as { value?: RequestValues }).value = emptyRequestValues();
-        }
-        return failure;
+        return fetchBodyParseFailure<T>(
+          err,
+          outputMode,
+          maxErrors,
+          returnValues ? emptyRequestValues() : undefined,
+        );
       }
       throw err;
     }
-    const result = validateRequest(extracted.httpRequest);
-    const fetchResult = toFetchResult<T>(result, extracted.body);
-    if (!returnValues) return fetchResult;
-    // `toFetchResult`'s failure branch rest-spreads the reshaped result,
-    // so it already carries `value`; its success branch builds a fresh
-    // literal and does not. Setting it here covers both rather than
-    // leaving the channel present on failures and absent on successes.
-    (fetchResult as { value?: RequestValues }).value = (result as { value?: RequestValues }).value;
-    return fetchResult;
+    // `toFetchResult` carries the `returnValues` channel through both
+    // of its branches, so there is nothing to attach here.
+    return toFetchResult<T>(validateRequest(extracted.httpRequest), extracted.body);
   };
 
   const validateFetchResponse = async <T>(request: Request, response: Response) => {
