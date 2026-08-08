@@ -24,6 +24,7 @@ recipes cover concerns that show up across frameworks:
 
 - [Status-code mapping](#status-code-mapping)
 - [Preserving an existing client error envelope](#preserving-an-existing-client-error-envelope)
+- [Report-only: observe before you enforce](#report-only-observe-before-you-enforce)
 - [Body parser caveats](#body-parser-caveats)
 - [File uploads with multer](#file-uploads-with-multer)
 - [Deriving middleware config from the spec](#deriving-middleware-config-from-the-spec)
@@ -675,6 +676,73 @@ full diff). Each `issue.params` carries machine-readable detail
 `{ format: "email", actual: "not-an-email" }` for `format`) if you
 want to surface structured details too. `BuiltInErrorParams` in
 `@oaverify/core` documents the shape per code.
+
+### Report-only: observe before you enforce
+
+Turning a validator on against live traffic usually wants an
+observation period first: log every violation, reject nothing, then
+enforce once the noise is understood and the spec has caught up with
+what clients actually send.
+
+No option turns this on. `onError` already decides what happens to a
+failing request, so a handler that logs and passes the request through
+is report-only. What "pass through" means differs by framework, and it
+is the one thing to get right.
+
+**Express 4 and Express 5.** The middleware does not call `next()` after
+`onError` returns; the handler owns the response. So a report-only
+handler calls `next()` itself, bare:
+
+```ts
+import { validateRequests } from "@oaverify/express5";
+
+app.use(
+  validateRequests(validator, {
+    onError: (errors, { req, next }) => {
+      logger.warn({ path: req.path, errors }, "spec violation");
+      next(); // no argument: next(err) would reject the request
+    },
+  }),
+);
+```
+
+**Fastify.** The mirror image. The `preValidation` hook resolves on its
+own once `onError` returns, so passing traffic through means _not_
+touching `reply`:
+
+```ts
+import { validateRequests } from "@oaverify/fastify";
+
+app.addHook(
+  "preValidation",
+  validateRequests(validator, {
+    onError: (errors, { request }) => {
+      request.log.warn({ errors }, "spec violation");
+      // No reply.send(): returning is what lets the request continue.
+    },
+  }),
+);
+```
+
+Two things worth setting for the observation period itself:
+
+- **Raise `maxErrors`.** The default is `1` (fast-fail), so each log line
+  reports one problem and you learn about the next one only after fixing
+  the first. `Number.POSITIVE_INFINITY` gives the whole list per request,
+  which is what makes the logs worth reading. Enforcement can go back to
+  the default.
+- **Log something you can aggregate.** `errors[].code` plus
+  `errors[].path` groups cleanly; the rendered message does not.
+
+Response validation has the same shape. `validateResponses` takes an
+`onError` too, and returning from it without sending lets the original
+payload go out unchanged, so the logging handler above is report-only
+there as well. The default is different from the request side: it throws
+`ResponseValidationError` rather than rendering a problem-details body.
+
+`ValidateRequestsOptions` in each adapter carries the contract. The
+`report-only onError` cases in `framework-tests/` wire all three adapters
+up and assert this end to end.
 
 ### Body parser caveats
 
