@@ -19,22 +19,7 @@ import {
   type ParameterObject,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
-
-/**
- * Peek at the `type` keyword of a schema, returning the first string
- * type name (2020-12 allows an array). Returns `undefined` for boolean
- * schemas, absent types, or unexpected shapes.
- *
- * @internal
- */
-export function extractSchemaType(schema: SchemaOrBoolean | undefined): string | undefined {
-  if (schema === undefined || typeof schema === "boolean") return undefined;
-  const t = (schema as { type?: unknown }).type;
-  if (typeof t === "string") return t;
-  if (Array.isArray(t))
-    return (t as unknown[]).find((x) => typeof x === "string") as string | undefined;
-  return undefined;
-}
+import { effectiveType } from "./schema-type.js";
 
 /**
  * Peek at the `properties` map of an object schema. Returns
@@ -61,7 +46,7 @@ export function extractObjectProperties(
 export function coerceQueryScalar(value: string | undefined, schema: SchemaOrBoolean): unknown {
   if (value === undefined) return undefined;
   if (typeof schema === "boolean") return value;
-  const type = extractSchemaType(schema);
+  const type = effectiveType(schema);
   if (type === "integer" || type === "number") {
     const n = Number(value);
     return Number.isNaN(n) ? value : n;
@@ -149,7 +134,7 @@ export function assembleObjectQueryParam(
   query: Record<string, string | string[]> | undefined,
 ): { value: unknown } | undefined {
   if (p.in !== "query") return undefined;
-  const schemaType = extractSchemaType(p.schema);
+  const schemaType = effectiveType(p.schema);
   if (schemaType !== "object") return undefined;
   const style = p.style ?? "form";
   const explode = p.explode ?? style === "form";
