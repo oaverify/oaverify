@@ -47,7 +47,7 @@ import {
 } from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast } from "./headers.js";
-import { reshapeResult, toFetchResult } from "./reshape.js";
+import { fetchBodyParseFailure, reshapeResult, toFetchResult } from "./reshape.js";
 import {
   emptyRequestValues,
   type MutableRequestValues,
@@ -1774,20 +1774,11 @@ export function createValidator(
   ): ValidationResult | TreeValidationResult | boolean =>
     reshapeResult(validateResponseTree(req, res), outputMode, maxErrors);
 
-  // An unparseable payload is a validation verdict, not an exception:
-  // the body is attacker-controlled, and JSON.parse throwing out of
-  // validateFetchRequest turned garbage input into a 500 for every
-  // caller that did not wrap the await. Only FetchBodyParseError
-  // converts; an IO or user-callback failure propagates unchanged.
+  // Only FetchBodyParseError converts; an IO or user-callback failure
+  // propagates unchanged. See fetchBodyParseFailure for why an
+  // unparseable payload is a verdict rather than an exception.
   const bodyParseFailure = <T>(err: FetchBodyParseError) =>
-    toFetchResult<T>(
-      reshapeResult(
-        createLeafError("body", ["body"], err.message, { mediaType: err.mediaType }),
-        outputMode,
-        maxErrors,
-      ),
-      undefined,
-    );
+    fetchBodyParseFailure<T>(err, outputMode, maxErrors);
 
   const validateFetchRequest = async <T>(request: Request, fetchOptions?: FetchRequestOptions) => {
     let extracted;

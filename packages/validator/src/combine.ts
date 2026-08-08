@@ -10,11 +10,12 @@ import { routeSignature, type RouteInfo } from "@oaverify/internal-router";
 import type { SpecHygieneIssue } from "@oaverify/internal-spec";
 import type { TreeValidationResult, ValidationResult } from "@oaverify/internal-schema";
 import {
+  FetchBodyParseError,
   httpRequestFromFetch,
   httpResponseFromFetch,
   type FetchRequestOptions,
 } from "./from-fetch.js";
-import { reshapeResult, toFetchResult } from "./reshape.js";
+import { fetchBodyParseFailure, reshapeResult, toFetchResult } from "./reshape.js";
 import type {
   PredicateValidator,
   RouteMatchResult,
@@ -281,7 +282,22 @@ export function combineValidators(
   };
 
   const validateFetchRequest = async <T>(request: Request, fetchOptions?: FetchRequestOptions) => {
-    const { httpRequest, body } = await httpRequestFromFetch(request, fetchOptions);
+    let extracted;
+    try {
+      extracted = await httpRequestFromFetch(request, fetchOptions);
+    } catch (err) {
+      // Same verdict a member validator would have returned on its own,
+      // so a caller moving from one validator to a composite of that
+      // validator sees no change. The parse fails before routing, so no
+      // member owns the request yet and the `returnValues` channel a
+      // member might have is unreachable; the composite's own surface
+      // never promised one.
+      if (err instanceof FetchBodyParseError) {
+        return fetchBodyParseFailure<T>(err, outputMode, Number.POSITIVE_INFINITY);
+      }
+      throw err;
+    }
+    const { httpRequest, body } = extracted;
     const result = validateRequest(httpRequest);
     const fetchResult = toFetchResult<T>(result, body);
     // Forward the owning member's `returnValues` channel. A composite
