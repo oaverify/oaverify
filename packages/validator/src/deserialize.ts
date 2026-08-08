@@ -412,7 +412,21 @@ function itemSchema(
  */
 const DECIMAL_NUMBER_RE = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
-function coerceScalar(value: string, schema: SchemaObject | boolean | undefined): unknown {
+/**
+ * Coerce one raw query or path lexeme into the JS type a numeric or
+ * boolean schema expects. Strings, unrecognised types, and schemas with
+ * no type to act on pass through unchanged, so the value fails the type
+ * check downstream rather than arriving as something the client never
+ * sent.
+ *
+ * Shared with {@link coerceQueryScalar}, which applies it to the
+ * properties of an assembled object parameter. One grammar across both:
+ * a lexeme means the same thing whether it arrives as `?n=` or as
+ * `?filter[n]=` (#751).
+ *
+ * @internal
+ */
+export function coerceScalar(value: string, schema: SchemaObject | boolean | undefined): unknown {
   if (schema === undefined || typeof schema === "boolean") return value;
   const type = effectiveType(schema);
   if (type === "number" || type === "integer") {

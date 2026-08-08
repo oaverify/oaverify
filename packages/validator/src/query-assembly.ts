@@ -19,6 +19,7 @@ import {
   type ParameterObject,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
+import { coerceScalar } from "./deserialize.js";
 import { effectiveType } from "./schema-type.js";
 
 /**
@@ -41,22 +42,17 @@ export function extractObjectProperties(
  * Coerce a raw query-string scalar into the JS type a numeric or
  * boolean schema expects. Strings and unknown types pass through.
  *
+ * A property of an assembled object parameter is the same lexeme a
+ * scalar parameter carries, so it reads by the same rules: this is
+ * {@link coerceScalar} plus the absent case. Before #751 it called bare
+ * `Number()`, and `?filter[n]=0x1A` validated as 26 against a
+ * `type: integer` property that `?n=0x1A` rejected.
+ *
  * @internal
  */
 export function coerceQueryScalar(value: string | undefined, schema: SchemaOrBoolean): unknown {
   if (value === undefined) return undefined;
-  if (typeof schema === "boolean") return value;
-  const type = effectiveType(schema);
-  if (type === "integer" || type === "number") {
-    const n = Number(value);
-    return Number.isNaN(n) ? value : n;
-  }
-  if (type === "boolean") {
-    if (value === "true") return true;
-    if (value === "false") return false;
-    return value;
-  }
-  return value;
+  return coerceScalar(value, schema);
 }
 
 /**

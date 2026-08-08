@@ -428,6 +428,48 @@ describe("validateRequest", () => {
     ).toBeNull();
   });
 
+  it("reads a deepObject property by the same number grammar as a scalar param", () => {
+    // #751: `coerceQueryScalar` called bare `Number()` while the scalar
+    // path had already been narrowed to a decimal grammar (#736), so one
+    // request with one declared type got two answers. `?filter[n]=0x1A`
+    // validated against `{ type: "integer" }` and the handler received 26.
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/items": {
+          get: {
+            parameters: [
+              { name: "n", in: "query", schema: { type: "integer" } },
+              {
+                name: "filter",
+                in: "query",
+                style: "deepObject",
+                schema: { type: "object", properties: { n: { type: "integer" } } },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const sv = createValidator(spec);
+    const scalar = (v: string) =>
+      leafCodes(sv.validateRequest({ method: "GET", path: "/items", query: { n: v } }));
+    const property = (v: string) =>
+      leafCodes(sv.validateRequest({ method: "GET", path: "/items", query: { "filter[n]": v } }));
+
+    for (const lexeme of ["0x1A", "", "  7  ", "Infinity"]) {
+      expect(scalar(lexeme)).toContain("type");
+      expect(property(lexeme)).toContain("type");
+    }
+    // And the spellings a client plausibly means still coerce on both.
+    for (const lexeme of ["42", "1e3", "+5", "007"]) {
+      expect(scalar(lexeme)).toEqual([]);
+      expect(property(lexeme)).toEqual([]);
+    }
+  });
+
   it("reports distinct paths when two properties share a $ref", () => {
     // openapi-backend #730: a component schema referenced by multiple
     // properties must surface the failing property's path on each error,
