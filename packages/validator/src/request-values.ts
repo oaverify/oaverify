@@ -100,11 +100,11 @@ export function emptyRequestValues(): MutableRequestValues {
  *
  * @public
  */
-export type RequestValidationResult = ValidationResult & { value: RequestValues };
+export type ValuesValidationResult = ValidationResult & { value: RequestValues };
 
 /**
- * The `output: "tree"` counterpart of {@link RequestValidationResult}.
+ * The `output: "tree"` counterpart of {@link ValuesValidationResult}.
  *
  * @public
  */
-export type TreeRequestValidationResult = TreeValidationResult & { value: RequestValues };
+export type TreeValuesValidationResult = TreeValidationResult & { value: RequestValues };

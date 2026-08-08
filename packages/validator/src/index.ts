@@ -26,9 +26,9 @@ export {
   type ValuesValidator,
 } from "./validator.js";
 export type {
-  RequestValidationResult,
   RequestValues,
-  TreeRequestValidationResult,
+  TreeValuesValidationResult,
+  ValuesValidationResult,
 } from "./request-values.js";
 export { combineValidators, type CombineOptions } from "./combine.js";
 // `document-walk.ts` is deliberately NOT exported here. It is a tool for

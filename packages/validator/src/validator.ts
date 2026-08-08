@@ -51,9 +51,9 @@ import { reshapeResult, toFetchResult } from "./reshape.js";
 import {
   emptyRequestValues,
   type MutableRequestValues,
-  type RequestValidationResult,
+  type ValuesValidationResult,
   type RequestValues,
-  type TreeRequestValidationResult,
+  type TreeValuesValidationResult,
 } from "./request-values.js";
 import {
   bodySchemaCompiledPointer,
@@ -563,7 +563,7 @@ export interface TreeValidator extends Omit<Validator, OutputDependentMethods> {
  * The HTTP validator built with `returnValues: true` and the default
  * `output: "flat"`. Identical to {@link Validator} except the two
  * request-side methods carry the deserialized parameter values:
- * `validateRequest` returns {@link RequestValidationResult} and
+ * `validateRequest` returns {@link ValuesValidationResult} and
  * `validateFetchRequest` adds `value` to both branches of its result.
  *
  * The response-side methods keep {@link Validator}'s types;
@@ -572,7 +572,7 @@ export interface TreeValidator extends Omit<Validator, OutputDependentMethods> {
  * @public
  */
 export interface ValuesValidator extends Omit<Validator, OutputDependentMethods> {
-  validateRequest(req: HttpRequest): RequestValidationResult;
+  validateRequest(req: HttpRequest): ValuesValidationResult;
   validateResponse(req: HttpRequest, res: HttpResponse): ValidationResult;
   validateFetchRequest<T = unknown>(
     request: Request,
@@ -594,7 +594,7 @@ export interface ValuesValidator extends Omit<Validator, OutputDependentMethods>
  * @public
  */
 export interface TreeValuesValidator extends Omit<Validator, OutputDependentMethods> {
-  validateRequest(req: HttpRequest): TreeRequestValidationResult;
+  validateRequest(req: HttpRequest): TreeValuesValidationResult;
   validateResponse(req: HttpRequest, res: HttpResponse): TreeValidationResult;
   validateFetchRequest<T = unknown>(
     request: Request,
@@ -1709,15 +1709,15 @@ export function createValidator(
     | ValidationResult
     | TreeValidationResult
     | boolean
-    | RequestValidationResult
-    | TreeRequestValidationResult => {
+    | ValuesValidationResult
+    | TreeValuesValidationResult => {
     if (!returnValues) return reshapeResult(validateRequestTree(req), outputMode, maxErrors);
     const sink = emptyRequestValues();
     const result = reshapeResult(validateRequestTree(req, sink), outputMode, maxErrors) as
       | ValidationResult
       | TreeValidationResult;
     (result as { value?: RequestValues }).value = sink;
-    return result as RequestValidationResult | TreeRequestValidationResult;
+    return result as ValuesValidationResult | TreeValuesValidationResult;
   };
   const validateResponse = (
     req: HttpRequest,
