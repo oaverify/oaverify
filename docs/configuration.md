@@ -5,22 +5,23 @@ canonical reference is the
 [`ValidatorOptions`](../packages/validator/src/validator.ts) TSDoc;
 this page is a recipe-oriented overview.
 
-| Option                  | Effect                                                                                                                                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `dialect`               | Force a specific schema dialect. Wins over the version the document declares; detection still runs, so `validator.detectedVersion` is unchanged.                                                                   |
-| `formats`               | Extra format validators merged on top of the built-ins, and the per-format off switch. See below.                                                                                                                  |
-| `keywords`              | Register user-defined schema keywords (see below).                                                                                                                                                                 |
-| `output`                | Result shape: `"flat"` (default; `{ valid, errors, truncated }`), `"tree"` (nested `{ valid, error, truncated }`), or `"predicate"` (bare boolean). Mirrors `compileSchema`.                                       |
-| `maxErrors`             | Per-call total cap on leaf errors. Default `1` (fast-fail); pass `Number.POSITIVE_INFINITY` to collect every error.                                                                                                |
-| `maxDepth`              | Cap on recursive `$ref` validation depth; past the cap the payload fails with a `depth` error instead of exhausting the call stack. Unset by default; see below.                                                   |
-| `schemaLint`            | Schema lint mode: `"off"`, `"warn"` (default), or `"strict"`. Findings surface via `validator.stats.schemaLintIssues`; never throws. A malformed schema is rejected regardless, see [Strictness](./strictness.md). |
-| `strictQueryParameters` | Reject undeclared query parameters. Default `false`.                                                                                                                                                               |
-| `returnValues`          | Return the deserialized parameter values on the result under `value`, grouped by HTTP location. Default `false`; see below.                                                                                        |
-| `validateSecurity`      | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                                                                                   |
-| `ignoreUndocumented`    | Treat requests whose path the router can't match as valid (`{ valid: true }`) instead of a `route` error. Default `false`.                                                                                         |
-| `ignorePaths`           | Predicate `(path) => boolean`; returning `true` short-circuits validation to a valid result (`{ valid: true }`) before routing.                                                                                    |
-| `onUnknownVersion`      | Policy for specs with missing/unsupported `openapi`: `"fallback31"` (default), `"warn"`, or `"throw"`.                                                                                                             |
-| `regexCompiler`         | Compiler for `pattern` keywords and `format: "regex"`. Defaults to `new RegExp(p, "u")` with a non-u fallback. Plug in `re2` or a safe-regex check for hardening; see below.                                       |
+| Option                      | Effect                                                                                                                                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dialect`                   | Force a specific schema dialect. Wins over the version the document declares; detection still runs, so `validator.detectedVersion` is unchanged.                                                                   |
+| `formats`                   | Extra format validators merged on top of the built-ins, and the per-format off switch. See below.                                                                                                                  |
+| `keywords`                  | Register user-defined schema keywords (see below).                                                                                                                                                                 |
+| `output`                    | Result shape: `"flat"` (default; `{ valid, errors, truncated }`), `"tree"` (nested `{ valid, error, truncated }`), or `"predicate"` (bare boolean). Mirrors `compileSchema`.                                       |
+| `maxErrors`                 | Per-call total cap on leaf errors. Default `1` (fast-fail); pass `Number.POSITIVE_INFINITY` to collect every error.                                                                                                |
+| `maxDepth`                  | Cap on recursive `$ref` validation depth; past the cap the payload fails with a `depth` error instead of exhausting the call stack. Unset by default; see below.                                                   |
+| `schemaLint`                | Schema lint mode: `"off"`, `"warn"` (default), or `"strict"`. Findings surface via `validator.stats.schemaLintIssues`; never throws. A malformed schema is rejected regardless, see [Strictness](./strictness.md). |
+| `strictQueryParameters`     | Reject undeclared query parameters. Default `false`.                                                                                                                                                               |
+| `allowBracketedQueryArrays` | Accept `?tags[]=a&tags[]=b` for an array-typed query parameter declared as `tags`. Default `false`; see below.                                                                                                     |
+| `returnValues`              | Return the deserialized parameter values on the result under `value`, grouped by HTTP location. Default `false`; see below.                                                                                        |
+| `validateSecurity`          | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                                                                                   |
+| `ignoreUndocumented`        | Treat requests whose path the router can't match as valid (`{ valid: true }`) instead of a `route` error. Default `false`.                                                                                         |
+| `ignorePaths`               | Predicate `(path) => boolean`; returning `true` short-circuits validation to a valid result (`{ valid: true }`) before routing.                                                                                    |
+| `onUnknownVersion`          | Policy for specs with missing/unsupported `openapi`: `"fallback31"` (default), `"warn"`, or `"throw"`.                                                                                                             |
+| `regexCompiler`             | Compiler for `pattern` keywords and `format: "regex"`. Defaults to `new RegExp(p, "u")` with a non-u fallback. Plug in `re2` or a safe-regex check for hardening; see below.                                       |
 
 ## Formats
 
@@ -192,6 +193,51 @@ returns a bare boolean; `createValidator` throws on the combination.
 
 See `ValidatorOptions.returnValues` and `RequestValues` for the
 contract.
+
+## Accepting bracket-suffixed query keys
+
+Several HTTP clients and server frameworks (PHP, Rails, the `qs`
+library) encode repeated query values with a `[]` suffix, so a document
+that declares `tags` sees `?tags[]=a&tags[]=b` on the wire and reports
+the parameter missing. `allowBracketedQueryArrays` accepts that spelling:
+
+```ts
+const validator = createValidator(spec, { allowBracketedQueryArrays: true });
+// ?tags[]=a&tags[]=b now satisfies a parameter declared as `tags`
+```
+
+The declared name always wins. The bracketed spelling is consulted only
+when no key matches the declared name exactly, so a request carrying
+both `tags` and `tags[]` is read from `tags` and the bracketed key is
+ignored rather than merged. A document that declares `tags[]` literally
+keeps it: in that case `tags` gains no bracketed spelling at all, and
+one key cannot satisfy two parameters.
+
+Only array-typed parameters gain the spelling, judged through the same
+schema view parameter deserialization uses (which takes the first entry
+of a `type` array). A `type: string` parameter named `tags` still
+reports missing for `?tags[]=a`, because the suffix means "repeated
+value" and a scalar has no repetition to express.
+
+With `strictQueryParameters` also on, an accepted bracketed spelling
+counts as a known key, so the two options do not contradict each other.
+The spelling is known whether or not a given request used it; keys that
+match no parameter under either spelling are still flagged.
+
+Only the empty-bracket spelling is accepted. Indexed keys such as
+`?tags[0]=a&tags[1]=b`, which some of the same encoders emit, are not
+aliases for `tags`.
+
+`deepObject` is unaffected. A `deepObject` parameter is object-typed,
+so it gains no bracketed spelling, and its keys are reassembled by the
+object-assembly step that runs before any scalar or array lookup.
+Header, cookie, and path parameters are untouched, since the suffix is
+an artifact of query-string encoders.
+
+The option applies wherever the query came from, including a query
+string embedded in the request `path`.
+
+See `ValidatorOptions.allowBracketedQueryArrays` for the contract.
 
 ## Malformed schemas fail at construction
 

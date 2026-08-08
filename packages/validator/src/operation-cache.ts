@@ -25,6 +25,7 @@ import {
   type SchemaRefResolver,
 } from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
+import { extractSchemaType } from "./query-assembly.js";
 import type { CompiledSecurity } from "./security.js";
 
 /**
@@ -53,6 +54,22 @@ export interface OperationCache {
    * doesn't rebuild this Set per request.
    */
   knownQueryParameters: Set<string>;
+  /**
+   * Bracket-suffixed spellings accepted for array-typed query
+   * parameters, keyed by declared parameter name
+   * (`"tags" -> "tags[]"`). Empty unless
+   * {@link ValidatorOptions.allowBracketedQueryArrays} is on.
+   *
+   * Built here rather than derived per request so the "array schema
+   * only" rule lives in one place and the request path pays nothing but
+   * a Map lookup, and only on a lookup that already missed.
+   *
+   * A candidate alias that collides with a parameter declared under
+   * that literal name is skipped, which is how "the literal declared
+   * name always wins" holds even when a document declares both `tags`
+   * and `tags[]`.
+   */
+  bracketQueryAliases: Map<string, string>;
   requestBody: RequestBodyObject | undefined;
   bodyValidators: Map<string, CompiledTreeSchema>;
   bodyMediaTypes: ParsedMediaTypePattern[];
@@ -170,6 +187,12 @@ export interface OperationCacheDeps {
    * (OAS 3.0). Default `false`.
    */
   refSuppressesSiblings?: boolean;
+  /**
+   * {@link ValidatorOptions.allowBracketedQueryArrays}. When `true`, the
+   * cache builds {@link OperationCache.bracketQueryAliases}; when
+   * `false` that map is left empty and nothing downstream changes.
+   */
+  allowBracketedQueryArrays?: boolean;
   compile: (schema: SchemaOrBoolean, origin?: SchemaOrigin) => CompiledTreeSchema;
   compileForDirection: (
     schema: SchemaOrBoolean,
@@ -429,6 +452,7 @@ export function buildOperationCache(
     }),
   );
   const knownQueryParameters = new Set<string>();
+  const bracketQueryAliases = new Map<string, string>();
   let requestParameterReadsRequireOwnProperties = false;
   for (const p of parameters) {
     if (p.in === "query") knownQueryParameters.add(p.name);
@@ -439,6 +463,23 @@ export function buildOperationCache(
     ) {
       requestParameterReadsRequireOwnProperties = true;
     }
+  }
+
+  // Second pass, so the collision check can see every declared name.
+  // `knownQueryParameters` grows here too: the check answers "could this
+  // key legitimately appear", not "did the request use it", so an
+  // accepted spelling is known whether or not it was sent. Without that,
+  // `strictQueryParameters` would reject the very key this option
+  // accepts and the two options would contradict each other.
+  if (deps.allowBracketedQueryArrays === true) {
+    for (const p of parameters) {
+      if (p.in !== "query") continue;
+      if (extractSchemaType(p.schema) !== "array") continue;
+      const alias = `${p.name}[]`;
+      if (knownQueryParameters.has(alias)) continue;
+      bracketQueryAliases.set(p.name, alias);
+    }
+    for (const alias of bracketQueryAliases.values()) knownQueryParameters.add(alias);
   }
 
   // Compile one unit. Without a collector this is a plain call and a
@@ -585,6 +626,7 @@ export function buildOperationCache(
   return {
     parameters,
     knownQueryParameters,
+    bracketQueryAliases,
     requestParameterReadsRequireOwnProperties,
     pathParamValidators,
     queryParamValidators,

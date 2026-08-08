@@ -137,6 +137,25 @@ export function validateParameter(
       raw = cache.requestParameterReadsRequireOwnProperties
         ? getOwn(req.query, p.name)
         : req.query?.[p.name];
+      // Bracket-suffixed fallback, on a miss only, so the literal
+      // declared name always wins. The alias is precomputed and exists
+      // only for array-typed parameters under
+      // `allowBracketedQueryArrays`; see OperationCache.bracketQueryAliases.
+      //
+      // This sits at the lookup rather than in `normalizeRequestQuery`
+      // so it covers both query sources with one implementation: a
+      // query string embedded in `path` has already been folded into
+      // `req.query` by the time any parameter is read, so the record an
+      // adapter supplies and the record the path produced take the same
+      // route through here.
+      if (raw === undefined && cache.bracketQueryAliases.size > 0) {
+        const alias = cache.bracketQueryAliases.get(p.name);
+        if (alias !== undefined) {
+          raw = cache.requestParameterReadsRequireOwnProperties
+            ? getOwn(req.query, alias)
+            : req.query?.[alias];
+        }
+      }
       break;
     }
     case "header":
