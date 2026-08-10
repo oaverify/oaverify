@@ -8,7 +8,7 @@ overrides:
   '@oaverify/core': link:../..
   esbuild: '>=0.28.1'
   js-yaml: ^4.3.1
-  '@oaverify/yaml': link:../../packages/yaml
+  '@oaverify/syntax': link:../../packages/syntax
 
 importers:
 
@@ -17,9 +17,9 @@ importers:
       '@oaverify/core':
         specifier: link:../..
         version: link:../..
-      '@oaverify/yaml':
-        specifier: link:../../packages/yaml
-        version: link:../../packages/yaml
+      '@oaverify/syntax':
+        specifier: link:../../packages/syntax
+        version: link:../../packages/syntax
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6

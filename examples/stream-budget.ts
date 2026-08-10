@@ -29,7 +29,7 @@
  */
 
 import { fileURLToPath } from "node:url";
-import { createYamlFileReader } from "../packages/yaml/src/index.ts";
+import { createYamlFileReader } from "../packages/syntax/src/index.ts";
 import { resolveSpec } from "../packages/spec/src/index.ts";
 import { analyzeSpec, type ByteSize } from "../packages/stream-validator/src/index.ts";
 

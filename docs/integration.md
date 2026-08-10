@@ -194,7 +194,7 @@ one, so the validator is ready inline:
 
 ```ts
 import { createValidator } from "@oaverify/core";
-import { loadSpecSync } from "@oaverify/yaml";
+import { loadSpecSync } from "@oaverify/syntax";
 import { validateRequests } from "@oaverify/express4";
 
 const { document } = loadSpecSync({ entry: "openapi.yaml" });

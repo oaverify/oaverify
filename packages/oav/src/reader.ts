@@ -14,7 +14,11 @@ import {
   policyHttpReader,
   type ReaderPolicy,
 } from "@oaverify/internal-cli";
-import { createSmartHttpReader, createYamlFileReader, createYamlStdinReader } from "@oaverify/yaml";
+import {
+  createSmartHttpReader,
+  createYamlFileReader,
+  createYamlStdinReader,
+} from "@oaverify/syntax";
 
 /**
  * Compose the YAML-aware readers in front of the JSON-only chain the

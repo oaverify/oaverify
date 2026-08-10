@@ -10,7 +10,7 @@
       "components": [
         "core",
         "oaverify",
-        "yaml",
+        "syntax",
         "check",
         "express4",
         "express5",
@@ -84,10 +84,10 @@
       "component": "oaverify",
       "changelog-path": "CHANGELOG.md"
     },
-    "packages/yaml": {
+    "packages/syntax": {
       "release-type": "node",
-      "package-name": "@oaverify/yaml",
-      "component": "yaml",
+      "package-name": "@oaverify/syntax",
+      "component": "syntax",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/check": {

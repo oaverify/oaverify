@@ -133,7 +133,7 @@ export interface LoadSpecSyncOptions {
   entry: string;
   /**
    * Synchronous reader. Defaults to a JSON-only filesystem reader
-   * ({@link createFileReaderSync}). `@oaverify/yaml` ships a
+   * ({@link createFileReaderSync}). `@oaverify/syntax` ships a
    * `loadSpecSync` whose default also reads YAML.
    */
   reader?: SyncDocumentReader;
@@ -178,7 +178,7 @@ export interface LoadSpecSyncOptions {
  *
  * @example
  * ```ts
- * // JSON specs (@oaverify/core). For YAML, use @oaverify/yaml's loadSpecSync.
+ * // JSON specs (@oaverify/core). For YAML, use @oaverify/syntax's loadSpecSync.
  * const { document } = loadSpecSync({ entry: "openapi.json" });
  * const validator = createValidator(document);
  * ```

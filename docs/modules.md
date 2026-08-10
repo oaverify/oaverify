@@ -15,10 +15,10 @@ five public subpath entrypoints (plus the not-semver-covered
 
 `@oaverify/core` carries no runtime dependencies and parses JSON only.
 
-## YAML
+## Syntax
 
-`@oaverify/yaml` adds the YAML side, in its own package because
-it pulls in a parser:
+`@oaverify/syntax` carries the parsers, in its own package so
+`@oaverify/core` stays dependency-free. Its YAML exports:
 
 | Export                       | Purpose                                                           |
 | ---------------------------- | ----------------------------------------------------------------- |
@@ -34,7 +34,7 @@ Compose the readers ahead of the JSON-only ones from
 install hint pointing here.
 
 `loadSpecSync` exists in both packages: `@oaverify/core/spec`'s is JSON-only,
-`@oaverify/yaml`'s default reader covers both, so a `.yaml` entry
+`@oaverify/syntax`'s default reader covers both, so a `.yaml` entry
 loads with no composition.
 
 ## Spec checking
@@ -76,7 +76,7 @@ for (const finding of checkSpec(resolved)) {
 ```
 
 `loadSpec` (async) requires an explicit `reader`; `loadSpecSync`
-defaults to a JSON-only filesystem one. Compose in `@oaverify/yaml`'s
+defaults to a JSON-only filesystem one. Compose in `@oaverify/syntax`'s
 readers for a YAML entry.
 
 Loading stays with the caller, which is why the package has no reader

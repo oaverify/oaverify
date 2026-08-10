@@ -5,7 +5,7 @@ import { defineConfig } from "tsup";
 /**
  * Build config for `@oaverify/check`, the composed document check.
  *
- * Same tarball shape as `@oaverify/yaml`: the package imports
+ * Same tarball shape as `@oaverify/syntax`: the package imports
  * `@oaverify/internal-*` by workspace alias in source, and the plugin
  * below rewrites the ones with a published counterpart to
  * `@oaverify/core/*` AND marks them external, so the bundle resolves

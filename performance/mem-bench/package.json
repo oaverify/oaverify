@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "@oaverify/core": "link:../..",
-    "@oaverify/yaml": "link:../../packages/yaml",
+    "@oaverify/syntax": "link:../../packages/syntax",
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.2",
     "express": "^4.21.2",
@@ -25,7 +25,7 @@
       "@oaverify/core": "link:../..",
       "esbuild": ">=0.28.1",
       "js-yaml": "^4.3.1",
-      "@oaverify/yaml": "link:../../packages/yaml"
+      "@oaverify/syntax": "link:../../packages/syntax"
     }
   }
 }

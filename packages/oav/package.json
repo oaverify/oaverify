@@ -59,7 +59,7 @@
     "@oaverify/check": "workspace:*",
     "@oaverify/core": "workspace:*",
     "@oaverify/stream": "workspace:*",
-    "@oaverify/yaml": "workspace:*",
+    "@oaverify/syntax": "workspace:*",
     "commander": "^15.0.0"
   },
   "devDependencies": {

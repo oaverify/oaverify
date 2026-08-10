@@ -408,7 +408,7 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/packed"
           pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed"
           (cd packages/oav && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
-          (cd packages/yaml && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
+          (cd packages/syntax && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/check && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/oav-express4 && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
           (cd packages/oav-express5 && pnpm pack --pack-destination "$GITHUB_WORKSPACE/packed")
@@ -448,7 +448,7 @@ jobs:
           try {
             await createFileReader().read("dummy.yaml");
           } catch (e) {
-            threw = /Install @oaverify\/yaml/.test(String(e?.message ?? ""));
+            threw = /Install @oaverify\/syntax/.test(String(e?.message ?? ""));
           }
           if (!threw) throw new Error("expected oav-core's createFileReader to reject .yaml with an install hint");
           if (typeof translateOverlay !== "function") throw new Error("translateOverlay missing");
@@ -464,17 +464,17 @@ jobs:
           console.log("oav-core smoke ok");
           EOF
           node smoke.mjs
-      - name: smoke @oaverify/yaml
+      - name: smoke @oaverify/syntax
         run: |
           set -euo pipefail
           CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
-          YAML_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-yaml-*.tgz | head -n1)"
-          rm -rf /tmp/smoke-yaml && mkdir -p /tmp/smoke-yaml && cd /tmp/smoke-yaml
+          YAML_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-syntax-*.tgz | head -n1)"
+          rm -rf /tmp/smoke-syntax && mkdir -p /tmp/smoke-syntax && cd /tmp/smoke-syntax
           npm init -y > /dev/null
           npm install "$CORE_TGZ" "$YAML_TGZ"
           cat > smoke.mjs <<'EOF'
           import { composeReaders, createFileReader } from "@oaverify/core/spec";
-          import { createSmartHttpReader, createYamlFileReader, loadSpecSync, parseYamlString } from "@oaverify/yaml";
+          import { createSmartHttpReader, createYamlFileReader, loadSpecSync, parseYamlString } from "@oaverify/syntax";
           const parsed = parseYamlString("openapi: 3.1.0\ninfo: { title: t, version: '1' }\npaths: {}");
           if (parsed.openapi !== "3.1.0") throw new Error("parseYamlString regression");
           // The YAML readers must compose with oav-core's JSON-only ones.
@@ -483,7 +483,7 @@ jobs:
             throw new Error("composed reader should claim both .yaml and .json");
           }
           if (typeof loadSpecSync !== "function") throw new Error("loadSpecSync missing");
-          console.log("oaverify-yaml smoke ok");
+          console.log("oaverify-syntax smoke ok");
           EOF
           node smoke.mjs
       - name: smoke @oaverify/check
@@ -508,7 +508,7 @@ jobs:
           # smoke-tested against @oaverify/core above. Install every
           # tarball it depends on so nothing resolves to the registry.
           CORE_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-core-*.tgz | head -n1)"
-          YAML_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-yaml-*.tgz | head -n1)"
+          YAML_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-syntax-*.tgz | head -n1)"
           SV_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-stream-*.tgz | head -n1)"
           CHECK_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-check-*.tgz | head -n1)"
           CLI_TGZ="$(ls "$GITHUB_WORKSPACE/packed"/oaverify-[0-9]*.tgz | head -n1)"
@@ -544,7 +544,7 @@ jobs:
                 responses:
                   "200": { description: ok }
           YAML
-          # A YAML spec exercises the oaverify-yaml dependency through the
+          # A YAML spec exercises the oaverify-syntax dependency through the
           # CLI's default reader chain.
           echo '{"a":1}' > ok.json
           echo '{}' > bad.json

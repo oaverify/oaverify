@@ -412,7 +412,7 @@ can still send the reader to an internal address. Set
 It stays `"follow"` by default so that an existing caller behind a
 redirecting endpoint keeps working.
 
-If you use `@oaverify/yaml`, its readers need the same options.
+If you use `@oaverify/syntax`, its readers need the same options.
 `createYamlFileReader` and `createSmartHttpReader` compose _ahead_ of
 the JSON-only readers and claim the URI first, so hardening only the
 core readers is bypassed by a `.yaml` extension:

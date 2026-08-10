@@ -1,7 +1,7 @@
 {
   ".": "6.0.0",
   "packages/oav": "6.0.0",
-  "packages/yaml": "6.0.0",
+  "packages/syntax": "6.0.0",
   "packages/check": "6.0.0",
   "packages/oav-express4": "6.0.0",
   "packages/oav-express5": "6.0.0",

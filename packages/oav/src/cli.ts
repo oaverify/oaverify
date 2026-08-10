@@ -28,7 +28,7 @@ try {
 const { buildProgram, defaultCommandIo } = await import("@oaverify/internal-cli");
 const { createCliReader } = await import("./reader.js");
 
-// Default I/O composes the YAML readers from @oaverify/yaml in front of
+// Default I/O composes the YAML readers from @oaverify/syntax in front of
 // the JSON-only readers baked into @oaverify/internal-cli's
 // defaultCommandIo, so `oaverify resolve spec.yaml` and
 // `oaverify resolve https://host/openapi` work out of the box. The chain

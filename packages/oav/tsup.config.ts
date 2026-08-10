@@ -6,11 +6,11 @@ import { defineConfig } from "tsup";
  * Build config for `oaverify`, the CLI tarball.
  *
  * This package ships one thing: the `oaverify` binary. The library API
- * lives in `@oaverify/core`, the YAML readers in `@oaverify/yaml`; neither is
+ * lives in `@oaverify/core`, the YAML readers in `@oaverify/syntax`; neither is
  * re-exported here.
  *
  * Dependency shape:
- * - `@oaverify/core` and `@oaverify/yaml` are external runtime deps the
+ * - `@oaverify/core` and `@oaverify/syntax` are external runtime deps the
  *   consumer's install already provides.
  * - `commander` is an external runtime dep, imported dynamically at
  *   CLI start with a clear error when the install is corrupt.
@@ -93,7 +93,7 @@ export default defineConfig({
     "@oaverify/core",
     "@oaverify/check",
     "@oaverify/stream",
-    "@oaverify/yaml",
+    "@oaverify/syntax",
     "commander",
     "esbuild",
   ],
