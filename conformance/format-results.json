@@ -508,8 +508,8 @@
   },
   {
     "format": "uri-template",
-    "cases": 18,
-    "pass": 18,
+    "cases": 38,
+    "pass": 38,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,

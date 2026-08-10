@@ -26,9 +26,10 @@
  *   pnpm tsx run-json-parse-suite.ts --check-baseline # CI: no regression
  */
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { assertPinned, corpusPath } from "./corpora.ts";
+import { writeBaseline } from "./baseline.ts";
 import type { JsonEventHandler } from "../packages/stream-validator/src/tokenizer/index.ts";
 import { JsonParseError, JsonTokenizer } from "../packages/stream-validator/src/tokenizer/index.ts";
 
@@ -265,6 +266,5 @@ if (checkBaseline) {
   }
   console.log("OK: meets or exceeds baseline.");
 } else {
-  writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
-  console.log(`\nResults written to ${summaryPath}`);
+  writeBaseline(summaryPath, summary, filterPattern, "Results");
 }

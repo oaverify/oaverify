@@ -29,11 +29,12 @@
  *   pnpm format-suite --filter=uri     # only files matching "uri"
  */
 
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { compileSchema, openapi31Dialect } from "../packages/schema/src/index.ts";
 import { builtInFormats } from "../packages/formats/src/index.ts";
 import { assertPinned, corpusPath } from "./corpora.ts";
+import { writeBaseline } from "./baseline.ts";
 import { enterFloating, exitFloating } from "./floating.ts";
 
 const SUITE = "JSON-Schema-Test-Suite";
@@ -197,8 +198,7 @@ console.log(
 const summaryPath = resolve(new URL(".", import.meta.url).pathname, "format-results.json");
 
 if (!checkBaseline) {
-  writeFileSync(summaryPath, `${JSON.stringify(results, null, 2)}\n`);
-  console.log(`\nPer-format mismatches written to ${summaryPath}`);
+  writeBaseline(summaryPath, results, filterPattern, "Per-format mismatches");
   process.exit(0);
 }
 

@@ -22,9 +22,10 @@
  *     # catch regressions without failing on any single mismatch.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { resolve, join, basename } from "node:path";
 import { assertPinned, corpusPath } from "./corpora.ts";
+import { writeBaseline } from "./baseline.ts";
 import { enterFloating, exitFloating } from "./floating.ts";
 import { compileSchema, jsonSchemaDialect } from "../packages/schema/src/index.ts";
 import { builtInFormats } from "../packages/formats/src/index.ts";
@@ -262,6 +263,5 @@ if (checkBaseline) {
   }
   console.log("OK: pass count meets or exceeds baseline.");
 } else {
-  writeFileSync(summaryPath, `${JSON.stringify(results, null, 2)}\n`);
-  console.log(`\nPer-file mismatches written to ${summaryPath}`);
+  writeBaseline(summaryPath, results, filterPattern, "Per-file mismatches");
 }

@@ -27,9 +27,10 @@
  *     # in overlay-results.json.
  */
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve, join, basename } from "node:path";
 import { assertPinned, corpusPath } from "./corpora.ts";
+import { writeBaseline } from "./baseline.ts";
 import { parse as parseYaml } from "yaml";
 import { compileSchema, jsonSchemaDialect } from "../packages/schema/src/index.ts";
 import { builtInFormats } from "../packages/formats/src/index.ts";
@@ -195,6 +196,5 @@ if (checkBaseline) {
   }
   console.log("OK: counts meet or exceed baseline.");
 } else {
-  writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
-  console.log(`\nPer-case results written to ${summaryPath}`);
+  writeBaseline(summaryPath, summary, filterPattern, "Per-case results");
 }
