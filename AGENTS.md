@@ -155,6 +155,7 @@ pnpm check:release                # assert release.yml's package lists against r
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)
 pnpm clean                        # drop dist/, coverage/, *.tsbuildinfo
+pnpm grid-check [rev]             # differential: the parameter grid, this tree vs a base revision
 pnpm oaverify <args>              # run the built CLI (e.g. pnpm oaverify stream-check spec.yaml)
 ```
 
@@ -208,6 +209,39 @@ Use `pnpm pack` (not `npm pack`) for any workspace package. `npm pack`
 ships unrewritten `workspace:*` deps; the prepack guard rejects it
 with a hint, but the failure is a context switch best avoided by
 reaching for `pnpm pack` directly.
+
+## Differential checking
+
+```bash
+pnpm grid-check           # ~5,100 parameter requests, this tree vs main
+pnpm grid-check <rev>     # vs any revision
+```
+
+Run it on any branch that touches parameter deserialization, routing, or
+coercion. It builds the base revision in a temporary worktree, runs the
+same generated grid against both, and triages every difference into
+regressions, intended fixes, silent value changes, error-shape changes,
+crashes, and grid drift. Full rationale in
+[scripts/grid/README.md](./scripts/grid/README.md).
+
+It is a review aid and CI does not run it. A deliberate behaviour change
+lands in the regression bucket, which is correct; the point is that you
+read the list rather than that it stays empty.
+
+Two things it exists to catch that nothing else here does. The **silent**
+bucket (both revisions accept the request, the handler receives a
+different value) has no other gate, and it is what #751 shipped. And a
+consistency relation cannot see a defect that is symmetric under its own
+transformation, which is why #742 survived 21,420 metamorphic cases and
+three review passes; the differential is what found it.
+
+It is not a conformance corpus, and a clean run means "nothing changed"
+rather than "this is correct": two revisions wrong the same way is a
+clean run. It also carries known holes that a large case count disguises,
+the largest being that `style` and `explode` are always declared here and
+are left unset on ~92% of real published parameters, which is a different
+code path. `scripts/grid/README.md` lists the rest. Read them before
+treating a green `grid-check` as coverage.
 
 ## Coverage
 
