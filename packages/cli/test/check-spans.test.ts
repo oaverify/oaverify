@@ -113,14 +113,12 @@ describe("check --format sarif carries a region", () => {
   const resultsOf = (out: string) => (JSON.parse(out) as SarifLog).runs[0]?.results ?? [];
 
   it.each([
-    // The region covers the *value* at the pointer, which is what
-    // `want: "value"` means and what the resolver defaults to. For
-    // YAML that puts it on the line after the key; for JSON, where the
-    // fixture writes the member on one line, on the same line. A
-    // per-code preference for the key belongs with the rule that
-    // raised the finding, and is not wired here.
-    { file: "spec.yaml", text: YAML_SPEC, expected: "type: object", keyLineOffset: 1 },
-    { file: "spec.json", text: JSON_SPEC, expected: '{ "type": "object" }', keyLineOffset: 0 },
+    // `unused-component` is about the name, so the region covers the
+    // key rather than the schema under it. Both syntaxes land on the
+    // line the name is written on. See `spanTargetFor` for which codes
+    // ask for a key and what happens where a node has none.
+    { file: "spec.yaml", text: YAML_SPEC, expected: "Unused", keyLineOffset: 0 },
+    { file: "spec.json", text: JSON_SPEC, expected: '"Unused"', keyLineOffset: 0 },
   ])(
     "addresses the node the author wrote in $file",
     async ({ file, text, expected, keyLineOffset }) => {

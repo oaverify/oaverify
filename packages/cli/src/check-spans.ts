@@ -34,7 +34,7 @@ import {
   type SpanRequest,
 } from "@oaverify/internal-spec";
 import { createJsonSpanBackend, createYamlSpanBackend } from "@oaverify/syntax";
-import type { CheckFinding } from "@oaverify/check";
+import { spanRequestsFor, type CheckFinding } from "@oaverify/check";
 
 /**
  * One map key for a document and a pointer within it.
@@ -45,24 +45,11 @@ import type { CheckFinding } from "@oaverify/check";
  * a source file makes it a binary diff.
  */
 function keyOf(at: SpanRequest): string {
-  return `${at.uri}\u0000${at.pointer}`;
-}
-
-/** Every address and hop the SARIF emitter will ask about. */
-function requestsIn(findings: readonly CheckFinding[]): SpanRequest[] {
-  const seen = new Set<string>();
-  const requests: SpanRequest[] = [];
-  for (const finding of findings) {
-    const source = finding.target?.source;
-    if (source === undefined) continue;
-    for (const at of [source, ...source.via]) {
-      const key = keyOf(at);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      requests.push({ uri: at.uri, pointer: at.pointer });
-    }
-  }
-  return requests;
+  // `want` is part of the identity, and normalized: the resolver treats
+  // an omitted one as "value", so a precomputed request without one and
+  // a lookup with an explicit one are the same query and must not be
+  // two different map entries.
+  return `${at.uri}\u0000${at.pointer}\u0000${at.want ?? "value"}`;
 }
 
 /** The file a URI names, or `undefined` where it names no file. */
@@ -97,9 +84,10 @@ function syntaxFor(uri: string): SourceSyntax | undefined {
  * everything when no finding carries a source address, which is also
  * what a run without `provenance: true` produces.
  *
- * `want` is left at its default, so a region covers the value at the
- * pointer. A per-code choice of the key instead is a separate question:
- * it belongs with the rule that raised the finding, not here.
+ * Which part of a node a region covers is `@oaverify/check`'s to say,
+ * not this file's: `spanRequestsFor` decides per code, and the same
+ * table is what `renderSarif` reads the answers back through. This
+ * builds the batch that policy asks for and applies none of its own.
  *
  * @param findings - The findings that will be rendered.
  * @param readText - How to read a file; the command's own IO, so a test
@@ -113,7 +101,7 @@ export async function spanLookupFor(
   readText: (path: string) => Promise<string>,
   base: string,
 ): Promise<(of: SpanRequest) => SourceSpan | undefined> {
-  const requests = requestsIn(findings);
+  const requests = spanRequestsFor(findings);
   if (requests.length === 0) return () => undefined;
 
   const texts = new Map<string, SourceText>();

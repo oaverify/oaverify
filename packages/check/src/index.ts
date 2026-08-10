@@ -28,6 +28,7 @@ export { parseFindingKey, type FindingKey, type FindingKeyResult } from "./findi
 export { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
 export { checkDocumentRedos } from "./redos-check.js";
 export { renderSarif } from "./sarif.js";
+export { spanFor, spanRequestsFor, spanTargetFor } from "./span-target.js";
 export { applySkip, parseSkipKeys, SkipKeyError, type SkipReportEntry } from "./skip.js";
 export {
   FindingTermError,
