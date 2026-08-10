@@ -6,11 +6,11 @@
 import express from "express";
 // `oaverify` is the CLI package and exports nothing importable; these
 // live in the library packages. `loadSpec` is async and sits in the
-// `/spec` subpath, while the YAML reader is in `@oaverify/yaml` because
+// `/spec` subpath, while the YAML reader is in `@oaverify/syntax` because
 // `@oaverify/core` is JSON-only and dependency-free.
 import { allowHeaderFor, createValidator, httpStatusFor, toProblemDetails } from "@oaverify/core";
 import { loadSpec } from "@oaverify/core/spec";
-import { createYamlFileReader } from "@oaverify/yaml";
+import { createYamlFileReader } from "@oaverify/syntax";
 import { fileURLToPath } from "node:url";
 
 const specPath = fileURLToPath(new URL("./openapi.yaml", import.meta.url));

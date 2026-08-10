@@ -92,7 +92,7 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          if [[ ! "$TAG" =~ ^(core|oaverify|yaml|check|express4|express5|fastify|stream)-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ ! "$TAG" =~ ^(core|oaverify|syntax|check|express4|express5|fastify|stream)-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Invalid tag '$TAG'. Expected <component>-v<MAJOR>.<MINOR>.<PATCH>, e.g. core-v5.4.0"
             exit 1
           fi
@@ -136,7 +136,7 @@ jobs:
       - name: Pack
         run: |
           mkdir -p pkgs
-          for pkg in . packages/check packages/oav packages/yaml packages/oav-express4 packages/oav-express5 packages/oav-fastify packages/stream-validator; do
+          for pkg in . packages/check packages/oav packages/syntax packages/oav-express4 packages/oav-express5 packages/oav-fastify packages/stream-validator; do
             (cd "$pkg" && pnpm pack --pack-destination "$GITHUB_WORKSPACE/pkgs")
           done
       # Publish via npm CLI, which performs the OIDC token exchange
@@ -170,7 +170,7 @@ jobs:
           ORDER=(
             "oaverify-core-*.tgz"
             "oaverify-check-*.tgz"
-            "oaverify-yaml-*.tgz"
+            "oaverify-syntax-*.tgz"
             "oaverify-stream-*.tgz"
             "oaverify-express4-*.tgz"
             "oaverify-express5-*.tgz"

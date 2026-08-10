@@ -47,7 +47,7 @@ import { promisify } from "node:util";
 import { parse as parseYaml } from "yaml";
 
 import { composeReaders, createFileReader, loadSpec, sourceOf } from "../../dist/spec.js";
-import { createYamlFileReader } from "../../packages/yaml/dist/index.js";
+import { createYamlFileReader } from "../../packages/syntax/dist/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");

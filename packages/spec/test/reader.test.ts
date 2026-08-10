@@ -30,7 +30,7 @@ describe("memory reader", () => {
 
   it("throws the install-hint error for .yaml string sources", async () => {
     const r = createMemoryReader(new Map([["x.yaml", "a: 1"]]));
-    await expect(r.read("x.yaml")).rejects.toThrow(/Install @oaverify\/yaml/);
+    await expect(r.read("x.yaml")).rejects.toThrow(/Install @oaverify\/syntax/);
   });
 });
 
@@ -60,7 +60,7 @@ describe("http reader", () => {
     vi.stubGlobal("fetch", fetchMock);
     const r = createHttpReader();
     await expect(r.read("https://example.com/spec.yaml")).rejects.toThrow(
-      /Install @oaverify\/yaml/,
+      /Install @oaverify\/syntax/,
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -130,7 +130,7 @@ describe("file reader", () => {
 
   it("throws the install-hint error for .yaml paths (before touching disk)", async () => {
     const r = createFileReader(dir);
-    await expect(r.read("something.yaml")).rejects.toThrow(/Install @oaverify\/yaml/);
+    await expect(r.read("something.yaml")).rejects.toThrow(/Install @oaverify\/syntax/);
   });
 });
 
@@ -199,7 +199,7 @@ describe("stdin reader", () => {
 
   it("gives the install hint for YAML rather than a JSON parse error", async () => {
     const r = createStdinReader(streamOf("openapi: 3.1.0\n"));
-    await expect(r.read("-")).rejects.toThrow(/@oaverify\/yaml/);
+    await expect(r.read("-")).rejects.toThrow(/@oaverify\/syntax/);
   });
 
   it("says so when the stream is empty", async () => {

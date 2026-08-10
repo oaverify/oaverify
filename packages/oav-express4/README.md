@@ -2,7 +2,7 @@
 
 Express 4 adapter for [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): a request-validator middleware factory plus standalone helpers (`httpRequestFromExpress`, `renderProblemDetails`) for callers composing their own middleware.
 
-Thin: this package re-exports nothing from `@oaverify/core`. You install both. The adapter declares it as a regular dependency, so a single `npm install @oaverify/express4` pulls it along. Add [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) if your specs are YAML.
+Thin: this package re-exports nothing from `@oaverify/core`. You install both. The adapter declares it as a regular dependency, so a single `npm install @oaverify/express4` pulls it along. Add [`@oaverify/syntax`](https://www.npmjs.com/package/@oaverify/syntax) if your specs are YAML.
 
 Sibling packages: [`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md), [`@oaverify/fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md). Identical option shapes and defaults; `validateRequests` and `renderProblemDetails` share names across the family, while the `httpRequestFrom*` extractor and `*Context` type carry framework-native names.
 
@@ -15,12 +15,12 @@ Sibling packages: [`@oaverify/express5`](https://github.com/oaverify/oaverify/bl
 npm install @oaverify/core @oaverify/express4 express
 
 # YAML specs + CLI
-npm install oaverify @oaverify/yaml @oaverify/express4 express
+npm install oaverify @oaverify/syntax @oaverify/express4 express
 ```
 
 `express` is a peer dep; your app's existing install satisfies it.
 
-> **YAML specs.** `@oaverify/core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
+> **YAML specs.** `@oaverify/core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/syntax`](https://www.npmjs.com/package/@oaverify/syntax) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
 
 ## Quick start
 

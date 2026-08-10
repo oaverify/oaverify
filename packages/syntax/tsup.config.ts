@@ -3,7 +3,8 @@ import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
 
 /**
- * Build config for `@oaverify/yaml`, the YAML reader package.
+ * Build config for `@oaverify/syntax`, the package that carries the
+ * parsers.
  *
  * Thin tarball: nothing from `@oaverify/core` is bundled. The package
  * imports `@oaverify/internal-spec` / `@oaverify/internal-spec/internals` (workspace aliases) in

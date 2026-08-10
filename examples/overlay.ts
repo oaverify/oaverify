@@ -10,7 +10,7 @@
 
 import { fileURLToPath } from "node:url";
 import { formatText } from "../packages/core/src/index.ts";
-import { createYamlFileReader } from "../packages/yaml/src/index.ts";
+import { createYamlFileReader } from "../packages/syntax/src/index.ts";
 import { applyOverlays, loadSpec, type SpecOverlay } from "../packages/spec/src/index.ts";
 import { createValidator } from "../packages/validator/src/index.ts";
 

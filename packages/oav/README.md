@@ -313,7 +313,7 @@ const result = validator.validateRequest({
 });
 ```
 
-Add [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml)
+Add [`@oaverify/syntax`](https://www.npmjs.com/package/@oaverify/syntax)
 if your specs are YAML; `@oaverify/core` parses JSON only, which is what keeps
 it free of runtime dependencies.
 

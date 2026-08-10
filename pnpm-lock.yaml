@@ -140,9 +140,9 @@ importers:
       '@oaverify/stream':
         specifier: workspace:*
         version: link:../stream-validator
-      '@oaverify/yaml':
+      '@oaverify/syntax':
         specifier: workspace:*
-        version: link:../yaml
+        version: link:../syntax
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -294,25 +294,7 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(esbuild@0.28.1)(yaml@2.9.0)
 
-  packages/validator:
-    dependencies:
-      '@oaverify/internal-core':
-        specifier: workspace:*
-        version: link:../core
-      '@oaverify/internal-formats':
-        specifier: workspace:*
-        version: link:../formats
-      '@oaverify/internal-router':
-        specifier: workspace:*
-        version: link:../router
-      '@oaverify/internal-schema':
-        specifier: workspace:*
-        version: link:../schema
-      '@oaverify/internal-spec':
-        specifier: workspace:*
-        version: link:../spec
-
-  packages/yaml:
+  packages/syntax:
     dependencies:
       '@oaverify/core':
         specifier: workspace:*
@@ -336,6 +318,24 @@ importers:
       vitest:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(esbuild@0.28.1)(yaml@2.9.0)
+
+  packages/validator:
+    dependencies:
+      '@oaverify/internal-core':
+        specifier: workspace:*
+        version: link:../core
+      '@oaverify/internal-formats':
+        specifier: workspace:*
+        version: link:../formats
+      '@oaverify/internal-router':
+        specifier: workspace:*
+        version: link:../router
+      '@oaverify/internal-schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@oaverify/internal-spec':
+        specifier: workspace:*
+        version: link:../spec
 
 packages:
 

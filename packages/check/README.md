@@ -40,7 +40,7 @@ explicit reader; `loadSpecSync` defaults to a JSON-only filesystem one:
 
 ```ts
 import { loadSpec, composeReaders, createFileReader } from "@oaverify/core/spec";
-import { createYamlFileReader } from "@oaverify/yaml";
+import { createYamlFileReader } from "@oaverify/syntax";
 
 const resolved = await loadSpec({
   reader: composeReaders([createYamlFileReader(), createFileReader()]),

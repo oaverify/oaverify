@@ -13,12 +13,12 @@ Sibling packages: [`@oaverify/express4`](https://github.com/oaverify/oaverify/bl
 npm install @oaverify/core @oaverify/fastify fastify
 
 # YAML specs + CLI
-npm install oaverify @oaverify/yaml @oaverify/fastify fastify
+npm install oaverify @oaverify/syntax @oaverify/fastify fastify
 ```
 
 `fastify` is a peer dep; your app's existing install satisfies it.
 
-> **YAML specs.** `@oaverify/core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/yaml`](https://www.npmjs.com/package/@oaverify/yaml) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
+> **YAML specs.** `@oaverify/core` is JSON-only by design (zero runtime deps). If your spec is YAML, install [`@oaverify/syntax`](https://www.npmjs.com/package/@oaverify/syntax) alongside it and compose its readers, or parse the spec yourself and pass the parsed object to `createValidator`.
 
 ## Quick start
 

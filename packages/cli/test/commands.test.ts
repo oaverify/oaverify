@@ -43,7 +43,7 @@ describe("defaultCommandIo", () => {
     const io = defaultCommandIo();
     await expect(
       io.reader(policyFor("https://example.com/spec.yaml")).read("https://example.com/spec.yaml"),
-    ).rejects.toThrow(/Install @oaverify\/yaml/);
+    ).rejects.toThrow(/Install @oaverify\/syntax/);
   });
 });
 

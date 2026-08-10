@@ -97,7 +97,7 @@ Pick the packages that match what you need.
 | You need                                        | Install                                 |
 | ----------------------------------------------- | --------------------------------------- |
 | The library: validate requests and responses    | `@oaverify/core`                        |
-| Loading specs written in YAML                   | `@oaverify/core` + `@oaverify/yaml`     |
+| Loading specs written in YAML                   | `@oaverify/core` + `@oaverify/syntax`   |
 | The command-line tool                           | `oaverify` (or run it with `npx`)       |
 | Express 4 request middleware                    | `@oaverify/core` + `@oaverify/express4` |
 | Express 5 request middleware                    | `@oaverify/core` + `@oaverify/express5` |
@@ -157,7 +157,7 @@ figures move with the version.
 import express from "express";
 import { createValidator } from "@oaverify/core";
 import { composeReaders, createFileReader, loadSpec } from "@oaverify/core/spec";
-import { createYamlFileReader } from "@oaverify/yaml";
+import { createYamlFileReader } from "@oaverify/syntax";
 import { validateRequests } from "@oaverify/express5";
 
 const { document } = await loadSpec({
@@ -183,7 +183,7 @@ same shape with `@oaverify/express4`; Fastify uses `@oaverify/fastify` as a
 ```ts
 import { createValidator, formatText } from "@oaverify/core";
 import { composeReaders, createFileReader, loadSpec } from "@oaverify/core/spec";
-import { createYamlFileReader } from "@oaverify/yaml";
+import { createYamlFileReader } from "@oaverify/syntax";
 
 const { document } = await loadSpec({
   reader: composeReaders([createYamlFileReader(), createFileReader()]),

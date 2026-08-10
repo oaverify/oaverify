@@ -1,5 +1,5 @@
 /**
- * YAML readers for `@oaverify/core`. Each implements
+ * Syntax support for `@oaverify/core`. Each implements
  * {@link @oaverify/core/spec!DocumentReader} and is designed to
  * be composed via
  * {@link @oaverify/core/spec!composeReaders}: order YAML readers
@@ -13,7 +13,7 @@
  * @example
  * ```ts
  * import { composeReaders, createFileReader, loadSpec } from "@oaverify/core/spec";
- * import { createYamlFileReader } from "@oaverify/yaml";
+ * import { createYamlFileReader } from "@oaverify/syntax";
  *
  * const reader = composeReaders([createYamlFileReader(), createFileReader()]);
  * const { document } = await loadSpec({ reader, entry: "openapi.yaml" });
@@ -66,7 +66,7 @@ function hasYamlExtension(uri: string): boolean {
  * @example
  * ```ts
  * import { composeReaders, createFileReader } from "@oaverify/core/spec";
- * import { createYamlFileReader } from "@oaverify/yaml";
+ * import { createYamlFileReader } from "@oaverify/syntax";
  *
  * const reader = composeReaders([createYamlFileReader(), createFileReader()]);
  * ```
@@ -193,7 +193,7 @@ function isJsonMime(mime: string): boolean {
  * @example
  * ```ts
  * import { composeReaders, createFileReader } from "@oaverify/core/spec";
- * import { createSmartHttpReader } from "@oaverify/yaml";
+ * import { createSmartHttpReader } from "@oaverify/syntax";
  *
  * const reader = composeReaders([createSmartHttpReader(), createFileReader()]);
  * ```
@@ -240,7 +240,7 @@ export function createSmartHttpReader(options: HttpReaderOptions = {}): Document
  * @example
  * ```ts
  * import { createValidator, type OpenAPIDocument } from "@oaverify/core";
- * import { parseYamlString } from "@oaverify/yaml";
+ * import { parseYamlString } from "@oaverify/syntax";
  *
  * const spec = parseYamlString(yamlSource) as OpenAPIDocument;
  * const validator = createValidator(spec);
@@ -304,7 +304,7 @@ function createYamlFileReaderSync(
  * @example
  * ```ts
  * import { createValidator } from "@oaverify/core";
- * import { loadSpecSync } from "@oaverify/yaml";
+ * import { loadSpecSync } from "@oaverify/syntax";
  *
  * const { document } = loadSpecSync({ entry: "openapi.yaml" });
  * const validator = createValidator(document);

@@ -184,7 +184,7 @@ no build at all, so this is always a local-state problem and CI never
 sees it.
 
 `pnpm oaverify` runs `packages/oav/dist/cli.js`, so it needs a prior `pnpm build`
-(which builds `@oaverify/core`, `@oaverify/stream`, `@oaverify/yaml`,
+(which builds `@oaverify/core`, `@oaverify/stream`, `@oaverify/syntax`,
 `@oaverify/check`, and the CLI; the CLI loads `@oaverify/check` at runtime,
 so a build that skips it leaves every subcommand crashing on import).
 That set is not "everything publishable": `pnpm build` means "make the
@@ -373,9 +373,9 @@ in the meantime.
   thrown errors via `next(err)`; the express5 / fastify variants are
   async-native. See "Naming and consistency" for why the shapes, and the
   duplication, are kept.
-- **`@oaverify/yaml`**: the YAML side, separate because it pulls in a
-  parser (`@oaverify/core` is JSON-only and dependency-free). Readers
-  compose ahead of the JSON-only ones; `loadSpecSync` exists in both
+- **`@oaverify/syntax`**: the parsers, and the only published package
+  that carries one (`@oaverify/core` is JSON-only and dependency-free).
+  Its YAML readers compose ahead of the JSON-only ones; `loadSpecSync` exists in both
   packages with different reader defaults. See docs/modules.md.
 
 ## Package roles, and where a third-party dependency may go
@@ -388,7 +388,7 @@ design conversation.
 | Role    | Packages                                                                       | Third-party runtime deps                    |
 | ------- | ------------------------------------------------------------------------------ | ------------------------------------------- |
 | kernel  | `@oaverify/core`, `@oaverify/stream`, every `@oaverify/internal-*` bar the CLI | none, ever                                  |
-| source  | `@oaverify/yaml`                                                               | the parsers, whatever the syntax            |
+| source  | `@oaverify/syntax`                                                             | the parsers, whatever the syntax            |
 | check   | `@oaverify/check`                                                              | analysis-only, required to produce findings |
 | cli     | `oaverify`, `@oaverify/internal-cli`                                           | composition and presentation                |
 | adapter | `@oaverify/express4`, `@oaverify/express5`, `@oaverify/fastify`                | none; frameworks are peers                  |
@@ -464,7 +464,7 @@ declares an internal it does not import fails the build as a phantom
 dependency, exactly as an internal one would; only the acyclicity check
 skips them.
 
-`@oaverify/stream`, `@oaverify/yaml` and `@oaverify/check` share the
+`@oaverify/stream`, `@oaverify/syntax` and `@oaverify/check` share the
 shape: internal packages appear as build-only devDeps and get bundled at
 publish, while the runtime `dependencies` name the published surface
 (`@oaverify/core`, plus `yaml` and `redos-detector` respectively). The
@@ -472,7 +472,7 @@ three adapters take the same shape, each depending on `@oaverify/core`
 with the framework as a peer (`express ^4`, `express ^5`,
 `fastify ^5`). The published `oaverify` CLI depends on
 `@oaverify/core`, `@oaverify/check`, `@oaverify/stream`, and
-`@oaverify/yaml`, with `esbuild` as a peer for `compile-spec`.
+`@oaverify/syntax`, with `esbuild` as a peer for `compile-spec`.
 
 `@oaverify/check` is the one companion that bundles an internal package
 rather than rewriting it to a `@oaverify/core` subpath:

@@ -1,15 +1,15 @@
-# @oaverify/yaml
+# @oaverify/syntax
 
-YAML readers for [`@oaverify/core`](https://github.com/oaverify/oaverify).
+Syntax support for [`@oaverify/core`](https://github.com/oaverify/oaverify).
 
 `@oaverify/core` parses JSON only, so it can advertise zero runtime
-dependencies. This package adds the YAML side: filesystem readers for
+dependencies. The parsers live here instead. For YAML: filesystem readers for
 `.yaml` / `.yml`, an HTTP reader that dispatches on `Content-Type`, a
 standalone string parser, and a synchronous loader whose default reader
 handles both YAML and JSON.
 
 ```bash
-npm install @oaverify/core @oaverify/yaml
+npm install @oaverify/core @oaverify/syntax
 ```
 
 If you use the CLI, you already have this: `oaverify` depends on
@@ -22,7 +22,7 @@ JSON from disk, so nothing needs composing:
 
 ```ts
 import { createValidator } from "@oaverify/core";
-import { loadSpecSync } from "@oaverify/yaml";
+import { loadSpecSync } from "@oaverify/syntax";
 
 const { document } = loadSpecSync({ entry: "openapi.yaml" });
 const validator = createValidator(document);
@@ -34,7 +34,7 @@ fallback:
 
 ```ts
 import { composeReaders, createFileReader, loadSpec } from "@oaverify/core/spec";
-import { createYamlFileReader } from "@oaverify/yaml";
+import { createYamlFileReader } from "@oaverify/syntax";
 
 const reader = composeReaders([createYamlFileReader(), createFileReader()]);
 const { document } = await loadSpec({ reader, entry: "openapi.yaml" });
@@ -49,7 +49,7 @@ publishing YAML at an extensionless path:
 
 ```ts
 import { composeReaders, createFileReader } from "@oaverify/core/spec";
-import { createSmartHttpReader } from "@oaverify/yaml";
+import { createSmartHttpReader } from "@oaverify/syntax";
 
 const reader = composeReaders([createSmartHttpReader(), createFileReader()]);
 const { document } = await loadSpec({ reader, entry: "https://api.example.com/openapi" });
@@ -76,7 +76,7 @@ column, a spec fetched by your own client):
 
 ```ts
 import { createValidator, type OpenAPIDocument } from "@oaverify/core";
-import { parseYamlString } from "@oaverify/yaml";
+import { parseYamlString } from "@oaverify/syntax";
 
 const document = parseYamlString(source) as OpenAPIDocument;
 const validator = createValidator(document);

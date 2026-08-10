@@ -85,7 +85,7 @@ export function resolveReadPathSync(
 }
 
 const YAML_HINT =
-  "@oaverify/core does not parse YAML directly. Install @oaverify/yaml " +
+  "@oaverify/core does not parse YAML directly. Install @oaverify/syntax " +
   "and compose createYamlFileReader() / createSmartHttpReader() ahead of the " +
   "JSON-only readers from @oaverify/core/spec.";
 
@@ -128,7 +128,7 @@ export interface FileReaderOptions {
 /**
  * Refuse a file larger than `maxBytes`, by size on disk.
  *
- * Shared with `@oaverify/yaml`'s file readers, which take the same
+ * Shared with `@oaverify/syntax`'s file readers, which take the same
  * {@link FileReaderOptions}: an option one reader honours and another
  * ignores is worse than no option.
  *
@@ -158,7 +158,7 @@ export function assertWithinMaxBytesSync(
 /**
  * Read files from the local filesystem. JSON only; `.yaml` / `.yml`
  * paths throw with a clear install hint. Pair with
- * `@oaverify/yaml`'s `createYamlFileReader` via
+ * `@oaverify/syntax`'s `createYamlFileReader` via
  * {@link composeReaders} for YAML support.
  *
  * The base directory is a resolution root, not a sandbox, unless
@@ -250,7 +250,7 @@ export interface HttpReaderOptions {
 
 /**
  * Read documents over HTTP/HTTPS. JSON only; pair with
- * `@oaverify/yaml`'s `createSmartHttpReader` for YAML (it claims all
+ * `@oaverify/syntax`'s `createSmartHttpReader` for YAML (it claims all
  * `http(s)` URIs and dispatches by `Content-Type`, so it shadows this
  * reader in a compose chain; that's fine; JSON endpoints still parse
  * as JSON there).
@@ -290,7 +290,7 @@ export function createHttpReader(options: HttpReaderOptions = {}): DocumentReade
 /**
  * Build the `fetch` init for the transport-level controls, or
  * `undefined` when none are set. Shared by this package's HTTP reader
- * and `@oaverify/yaml`'s.
+ * and `@oaverify/syntax`'s.
  *
  * @internal
  */
@@ -347,7 +347,7 @@ export async function responseText(
  * In-memory reader, keyed by string URI. Primarily used in tests.
  * String sources are parsed as JSON; pre-parsed object sources pass
  * through. YAML strings need pre-parsing via
- * `@oaverify/yaml`'s `parseYamlString` before they're added to
+ * `@oaverify/syntax`'s `parseYamlString` before they're added to
  * the map.
  *
  * @param sources - Map of URI → JSON string (or already-parsed value).
@@ -391,7 +391,7 @@ export const STDIN_URI = "-";
 
 /**
  * Read one document from standard input. JSON only; pair with
- * `@oaverify/yaml`'s `createYamlStdinReader` via {@link composeReaders}
+ * `@oaverify/syntax`'s `createYamlStdinReader` via {@link composeReaders}
  * for YAML support.
  *
  * Compose it **ahead of** {@link createFileReader}, whose `canRead`
@@ -488,7 +488,7 @@ export async function readStream(stream: AsyncIterable<Uint8Array>): Promise<str
 /**
  * Try each reader in order until one accepts the URI. Useful for mixing
  * file / HTTP / memory sources in a single resolver, and for layering
- * the YAML readers from `@oaverify/yaml` ahead of the
+ * the YAML readers from `@oaverify/syntax` ahead of the
  * JSON-only ones here.
  *
  * @param readers - Ordered list of readers.
@@ -496,7 +496,7 @@ export async function readStream(stream: AsyncIterable<Uint8Array>): Promise<str
  *
  * @example
  * ```ts
- * import { createYamlFileReader } from "@oaverify/yaml";
+ * import { createYamlFileReader } from "@oaverify/syntax";
  * const reader = composeReaders([createYamlFileReader(), createFileReader()]);
  * ```
  *

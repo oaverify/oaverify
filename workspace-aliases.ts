@@ -60,7 +60,7 @@ export function workspaceAliases(rootDir: string): Record<string, string> {
   // resolve them without a prior build of their dist.
   const publishedEntries: Array<[string, string]> = [
     ["@oaverify/stream", resolve(rootDir, "packages", "stream-validator", "src", "index.ts")],
-    ["@oaverify/yaml", resolve(rootDir, "packages", "yaml", "src", "index.ts")],
+    ["@oaverify/syntax", resolve(rootDir, "packages", "syntax", "src", "index.ts")],
     ["@oaverify/check", resolve(rootDir, "packages", "check", "src", "index.ts")],
     // The published subpaths of `@oaverify/core`. Emitted standalone
     // validators import these by their real names, so tests that write a

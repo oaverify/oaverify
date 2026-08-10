@@ -65,7 +65,7 @@ would 404 the probe and the driver would have nothing to read.
 | ------------------------------------------------------------------------ | --------------------- |
 | `createValidator`, `httpStatusFor`, `allowHeaderFor`, `toProblemDetails` | `@oaverify/core`      |
 | `loadSpec` (async)                                                       | `@oaverify/core/spec` |
-| `createYamlFileReader`                                                   | `@oaverify/yaml`      |
+| `createYamlFileReader`                                                   | `@oaverify/syntax`    |
 
 The `oaverify` package is the CLI and exports nothing importable, and
 `@oaverify/core` is JSON-only and dependency-free, which is why the YAML

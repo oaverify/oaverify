@@ -14,7 +14,7 @@
  */
 
 import { fileURLToPath } from "node:url";
-import { createYamlFileReader } from "../packages/yaml/src/index.ts";
+import { createYamlFileReader } from "../packages/syntax/src/index.ts";
 import { loadSpec } from "../packages/spec/src/index.ts";
 import { checkDocumentExamples } from "../packages/validator/src/index.ts";
 

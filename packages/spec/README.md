@@ -10,7 +10,7 @@ below use that package.
 > **`@oaverify/core` ships JSON readers only.** Calling
 > `createFileReader()` or `createHttpReader()` on a `.yaml` / `.yml`
 > path throws an install-hint error. For YAML support, install
-> `@oaverify/yaml` or register your own YAML reader.
+> `@oaverify/syntax` or register your own YAML reader.
 
 ## Loading a spec
 
@@ -58,7 +58,7 @@ needs no reader composition. To read from a custom synchronous source,
 pass a `{ read, canRead }` object as `reader`.
 
 `@oaverify/core`'s `loadSpecSync` is JSON-only. For YAML, use the
-`loadSpecSync` from `@oaverify/yaml`, whose default reader covers
+`loadSpecSync` from `@oaverify/syntax`, whose default reader covers
 `.yaml` / `.yml` and `.json`.
 
 `loadSpecSync` blocks on filesystem reads (`readFileSync`); use it at
@@ -89,16 +89,16 @@ interface DocumentReader {
 }
 ```
 
-Built-ins (JSON only; YAML support lives in `@oaverify/yaml`):
+Built-ins (JSON only; YAML support lives in `@oaverify/syntax`):
 
 - `createFileReader(cwd?)`: filesystem JSON. `.yaml` / `.yml` paths
   throw an install-hint error; compose with `createYamlFileReader` from
-  `@oaverify/yaml` to cover YAML.
+  `@oaverify/syntax` to cover YAML.
 - `createHttpReader()`: HTTP / HTTPS JSON. Same YAML policy.
 - `createMemoryReader(entries)`: in-memory JSON or pre-parsed objects.
 - `composeReaders([...])`: layers readers, dispatching by `canRead`.
 
-`@oaverify/yaml` additionally exports `createYamlFileReader`,
+`@oaverify/syntax` additionally exports `createYamlFileReader`,
 `createSmartHttpReader`, and `parseYamlString` for YAML-backed specs.
 `createSmartHttpReader` supersedes the JSON-only `createHttpReader`
 when composed: it claims every `http(s)` URI and dispatches by
@@ -107,7 +107,7 @@ YAML endpoints work through the same reader:
 
 ```ts
 import { composeReaders, createFileReader } from "@oaverify/core/spec";
-import { createSmartHttpReader, createYamlFileReader } from "@oaverify/yaml";
+import { createSmartHttpReader, createYamlFileReader } from "@oaverify/syntax";
 
 const reader = composeReaders([
   createYamlFileReader(),
