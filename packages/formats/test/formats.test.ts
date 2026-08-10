@@ -261,6 +261,32 @@ describe("uri / uri-reference / uri-template", () => {
     expect(validateUriTemplate("/search{?q,page}")).toBe(true);
     expect(validateUriTemplate("/pets/{id/")).toBe(false);
   });
+
+  it("reads a varname as varchar *( [.] varchar )", () => {
+    // A dot has to be followed by a varchar, so consecutive dots are not a
+    // varname. The old pattern was `[A-Za-z0-9_][A-Za-z0-9_.]*`, which let
+    // any run of dots through, including a trailing one.
+    expect(validateUriTemplate("{a.b}")).toBe(true);
+    expect(validateUriTemplate("{a..b}")).toBe(false);
+    expect(validateUriTemplate("{a.}")).toBe(false);
+    expect(validateUriTemplate("{.a}")).toBe(true); // "." here is the operator
+    // A pct-encoded triplet is a varchar, in any position.
+    expect(validateUriTemplate("{%41}")).toBe(true);
+    expect(validateUriTemplate("{a%41b}")).toBe(true);
+    expect(validateUriTemplate("{%4}")).toBe(false);
+    expect(validateUriTemplate("{%zz}")).toBe(false);
+  });
+
+  it("takes the literal range as far as %x7E, and no further", () => {
+    // The literal set stops at "~", so DEL is excluded along with C0. The
+    // apostrophe is a literal: it falls in the gap the ABNF's %x26 / %x28-3B
+    // span leaves, which errata correct and the suite tests as valid.
+    expect(validateUriTemplate("a'b")).toBe(true);
+    expect(validateUriTemplate("a~b")).toBe(true);
+    expect(validateUriTemplate("ab")).toBe(false);
+    expect(validateUriTemplate("a b")).toBe(false);
+    expect(validateUriTemplate("ab")).toBe(false);
+  });
 });
 
 describe("uri / iri (RFC 3986 and RFC 3987 grammar)", () => {

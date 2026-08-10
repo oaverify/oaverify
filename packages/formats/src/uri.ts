@@ -152,14 +152,24 @@ export function validateIriReference(value: string): boolean {
 }
 
 // Built via RegExp() so oxlint's no-control-regex lint doesn't apply to the
-// intentional C0 control-range check that RFC 6570 requires.
+// intentional control-range checks that RFC 6570 requires.
+//
+// `varchar = ALPHA / DIGIT / "_" / pct-encoded`, and
+// `varname = varchar *( ["."] varchar )`. Both halves of the varname rule
+// matter and both were wrong: a pct-encoded triplet is a varchar, so `{%41}`
+// is a legal template, and a dot has to be *followed* by a varchar, so
+// `{a..b}` is not.
+const VARCHAR = "(?:[A-Za-z0-9_]|%[0-9A-Fa-f]{2})";
+const VARNAME = `${VARCHAR}(?:\\.?${VARCHAR})*`;
+const VARSPEC = `${VARNAME}(?:\\*|:[1-9]\\d{0,3})?`;
+
+// The literal range runs to %x7E, so DEL (%x7F) is excluded alongside C0.
+// The apostrophe is a literal: it is absent from the ABNF's %x26 / %x28-3B
+// span, which errata correct, and the suite tests it as valid.
+const LITERAL = '[^\\u0000-\\u001F\\u007F"%<>\\\\^`{|}\\s]';
+
 const URI_TEMPLATE_RE = new RegExp(
-  "^(?:" +
-    "[^\\u0000-\\u001F\"'%<>\\\\^`{|}\\s]" +
-    "|%[0-9A-Fa-f]{2}" +
-    "|\\{[+#./;?&]?[A-Za-z0-9_][A-Za-z0-9_.]*(?:\\*|:[1-9]\\d{0,3})?" +
-    "(?:,[A-Za-z0-9_][A-Za-z0-9_.]*(?:\\*|:[1-9]\\d{0,3})?)*\\}" +
-    ")*$",
+  `^(?:${LITERAL}|%[0-9A-Fa-f]{2}|\\{[+#./;?&]?${VARSPEC}(?:,${VARSPEC})*\\})*$`,
 );
 
 /**
