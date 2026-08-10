@@ -15,6 +15,9 @@
 //      `dependencies`, and check 2 accepts either, so without this a real
 //      runtime edge can sit in devDependencies where the cycle check cannot
 //      see it, and both other checks still pass.
+//   4. ROLES: a third-party runtime dependency sits only where the
+//      package's role allows it. See ROLES below for the rule and why it
+//      is by name rather than by role alone.
 //
 // "Declared" unions `dependencies` and `devDependencies`, because the two
 // package kinds carry their @oaverify/internal-* deps differently: the internal private
@@ -56,6 +59,55 @@ import { join } from "node:path";
 
 const PACKAGES_DIR = "packages";
 const SCOPE = "@oaverify/internal-";
+
+// Every package's role, and the third-party runtime dependencies that role
+// permits it. The root manifest is `@oaverify/core`, so it is here too.
+//
+// The roles:
+//
+//   kernel   Validation. Operates on already-parsed JavaScript values, so
+//            it has nothing a third-party library could be for. This is
+//            the promise that lets someone embed a validator without
+//            taking on parser or tooling weight, and it is the one entry
+//            here that is not negotiable.
+//   source   Turning bytes into documents and source addresses into
+//            positions. The parsers live here, whatever the syntax.
+//   check    Static analysis of a document. Analysis-only dependencies
+//            required to produce findings.
+//   cli      Composition and presentation: flags, rendering, exit codes,
+//            process IO. A reusable engine must not live only here.
+//   adapter  The framework boundary. Frameworks are peer dependencies,
+//            so a runtime dependency here is always a mistake.
+//
+// Listed by dependency NAME rather than by role alone, which is the whole
+// point. "The CLI may take composition dependencies" would have permitted
+// a JSON parser to sit in the CLI, which is exactly the thing this check
+// exists to have caught (#610). Naming them means a new dependency is a
+// deliberate edit to this table with a role to justify it, while a version
+// bump touches nothing here.
+//
+// Private bundle members are included because their dependencies ship
+// inside whichever published tarball bundles them. `@oaverify/internal-cli`
+// carrying `commander` is a real user-facing dependency of `oaverify`.
+const ROLES = {
+  "@oaverify/core": { role: "kernel", thirdParty: [] },
+  "@oaverify/stream": { role: "kernel", thirdParty: [] },
+  "@oaverify/internal-core": { role: "kernel", thirdParty: [] },
+  "@oaverify/internal-formats": { role: "kernel", thirdParty: [] },
+  "@oaverify/internal-metaschema": { role: "kernel", thirdParty: [] },
+  "@oaverify/internal-overlay-spec": { role: "kernel", thirdParty: [] },
+  "@oaverify/internal-router": { role: "kernel", thirdParty: [] },
+  "@oaverify/internal-schema": { role: "kernel", thirdParty: [] },
+  "@oaverify/internal-spec": { role: "kernel", thirdParty: [] },
+  "@oaverify/internal-validator": { role: "kernel", thirdParty: [] },
+  "@oaverify/yaml": { role: "source", thirdParty: ["yaml"] },
+  "@oaverify/check": { role: "check", thirdParty: ["redos-detector"] },
+  oaverify: { role: "cli", thirdParty: ["commander"] },
+  "@oaverify/internal-cli": { role: "cli", thirdParty: ["commander"] },
+  "@oaverify/express4": { role: "adapter", thirdParty: [] },
+  "@oaverify/express5": { role: "adapter", thirdParty: [] },
+  "@oaverify/fastify": { role: "adapter", thirdParty: [] },
+};
 
 // Normalize a specifier to its owning package name: "@oaverify/internal-schema/internals"
 // -> "@oaverify/internal-schema". Returns null for anything outside the @oaverify/internal-* scope.
@@ -185,8 +237,65 @@ function findCycle(packages) {
   return null;
 }
 
+// Every manifest the roles check covers: the root (`@oaverify/core`) plus
+// each packages/* one. Read separately from readPackages() because the
+// graph checks are scoped to packages/* and to `@oaverify/internal-*`
+// specifiers, and widening either would change what they assert.
+function readRoleManifests() {
+  const manifests = [];
+  const paths = ["package.json"];
+  for (const entry of readdirSync(PACKAGES_DIR, { withFileTypes: true })) {
+    if (entry.isDirectory()) paths.push(join(PACKAGES_DIR, entry.name, "package.json"));
+  }
+  for (const path of paths) {
+    let manifest;
+    try {
+      manifest = JSON.parse(readFileSync(path, "utf8"));
+    } catch {
+      continue;
+    }
+    if (typeof manifest.name !== "string") continue;
+    manifests.push({
+      name: manifest.name,
+      path,
+      // Peer dependencies are out of scope, as they are for every other
+      // check here: `express` / `fastify` / `esbuild` are the consumer's
+      // to install, not something this repo ships.
+      thirdParty: Object.keys(manifest.dependencies ?? {}).filter(
+        (d) => !d.startsWith("@oaverify/"),
+      ),
+    });
+  }
+  return manifests;
+}
+
 const packages = readPackages();
 const errors = [];
+
+for (const { name, path, thirdParty } of readRoleManifests()) {
+  const entry = ROLES[name];
+  if (entry === undefined) {
+    errors.push(
+      `${name} (${path}): no role in check-deps.mjs's ROLES table. Give it one, ` +
+        `and say which third-party runtime dependencies that role permits it.`,
+    );
+    continue;
+  }
+  for (const dep of thirdParty) {
+    if (!entry.thirdParty.includes(dep)) {
+      errors.push(
+        `${name}: declares "${dep}", which its ${entry.role} role does not permit. ` +
+          `Either it belongs in a package whose role covers it, or the role genuinely ` +
+          `changed and ROLES in check-deps.mjs should say so.`,
+      );
+    }
+  }
+  for (const dep of entry.thirdParty) {
+    if (!thirdParty.includes(dep)) {
+      errors.push(`${name}: ROLES permits "${dep}" but the manifest no longer declares it`);
+    }
+  }
+}
 
 const cycle = findCycle(packages);
 if (cycle) errors.push(`cycle in @oaverify/internal-* dependency graph: ${cycle.join(" -> ")}`);
@@ -226,4 +335,7 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`check-deps: ${packages.size} packages, graph acyclic, declarations match imports.`);
+console.log(
+  `check-deps: ${packages.size} packages, graph acyclic, declarations match imports, ` +
+    `third-party dependencies match package roles.`,
+);
