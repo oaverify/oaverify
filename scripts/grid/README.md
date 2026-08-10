@@ -6,13 +6,26 @@ pnpm grid-check <rev>        # against any revision
 pnpm grid-check <rev> --keep # leave the dumps and the worktree in place
 ```
 
-Generates ~4,300 requests across the parameter surface, runs them against a
+Generates ~5,100 requests across the parameter surface, runs them against a
 build of the base revision and a build of the working tree, and triages every
 difference. This is the R3 relation from
 [#753](https://github.com/oaverify/oaverify/issues/753).
 
 It is a **review aid, not a gate**. A deliberate behaviour change lands in the
 regression bucket, which is correct and expected. Nothing in CI runs it.
+
+## What it is not
+
+A conformance corpus. There are no expected values here and no specification
+citations, so **a clean run means "nothing changed", never "this is correct".**
+Both revisions being wrong the same way is a clean run.
+
+That distinction decides where new cases belong. This grid grows by adding a
+dimension to the generator, which is cheap and yields hundreds of cases at
+once. A case that asserts what the specification requires needs a quoted
+citation and a human to write it, and it does not belong here. Cross-
+implementation conformance testing is expected to arrive as its own suite
+rather than as a mode of this one.
 
 ## Why this exists
 
@@ -67,8 +80,8 @@ There is no oracle at this layer and this harness does not pretend to be one.
 
 ## Coverage
 
-4 locations x their legal styles x `explode` x 17 schema shapes, against 23
-query / 9 path / 6 header / 5 cookie wire inputs. 306 declarations, ~4,300
+4 locations x their legal styles x `explode` x 17 schema shapes, against 25
+query / 13 path / 6 header / 5 cookie wire inputs. 306 declarations, 5,100
 cases, a few seconds per side once both are built.
 
 Known gaps, each a decision rather than an oversight:
@@ -77,6 +90,31 @@ Known gaps, each a decision rather than an oversight:
   so the schema set has to fork per version before those can be added.
 - **Request bodies and response validation.** The grid is parameters only.
 - **`content`-typed parameters** and **`allowReserved`.**
+- **Exactly one parameter is declared per document, always.** So the grid
+  cannot see a defect where one parameter captures another's input, which is a
+  real class: matrix and label both assign by position, and whether the name
+  label is honoured is a separate question the grid never asks.
+
+### The coverage is weighted away from real documents
+
+Worth knowing before trusting a clean run. Counting parameters in
+`detection/real-world/specs` (301 published documents, 56,555 parameters):
+
+| declared `style`   | share of real parameters | share of this grid          |
+| ------------------ | ------------------------ | --------------------------- |
+| none declared      | 92%                      | **0%**                      |
+| `form` / `simple`  | 7%                       | some                        |
+| `deepObject`       | 0.65%                    | some                        |
+| `matrix` / `label` | **0%**                   | a third of the declarations |
+
+`explode` is unset on 94% of real parameters and always set here. 87% of real
+documents are 3.0 and this grid is 3.1 only.
+
+The largest hole is that leaving `style` and `explode` unset is a different
+code path: the library resolves the default before deserializing anything. A
+hand-written or generated corpus reaches for the declared form by habit, so
+that path is untested no matter how many cases the grid runs. By the rule two
+sections up, it is this grid's own held-constant.
 
 ## Running the halves separately
 

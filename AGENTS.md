@@ -213,7 +213,7 @@ reaching for `pnpm pack` directly.
 ## Differential checking
 
 ```bash
-pnpm grid-check           # ~4,300 parameter requests, this tree vs main
+pnpm grid-check           # ~5,100 parameter requests, this tree vs main
 pnpm grid-check <rev>     # vs any revision
 ```
 
@@ -234,6 +234,14 @@ different value) has no other gate, and it is what #751 shipped. And a
 consistency relation cannot see a defect that is symmetric under its own
 transformation, which is why #742 survived 21,420 metamorphic cases and
 three review passes; the differential is what found it.
+
+It is not a conformance corpus, and a clean run means "nothing changed"
+rather than "this is correct": two revisions wrong the same way is a
+clean run. It also carries known holes that a large case count disguises,
+the largest being that `style` and `explode` are always declared here and
+are left unset on ~92% of real published parameters, which is a different
+code path. `scripts/grid/README.md` lists the rest. Read them before
+treating a green `grid-check` as coverage.
 
 ## Coverage
 
