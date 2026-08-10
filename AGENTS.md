@@ -415,6 +415,27 @@ A capability that needs a parser and has no home is a sign the roles are
 wrong, not a reason to hide it in the nearest package that already has a
 dependency.
 
+### Large vendored reference data
+
+Data is its own class, and the roles above do not decide it. The
+OpenAPI meta-schemas are the case: ~100KB of vendored documents with no
+runtime behaviour of their own, which `metaschemaFor` reaches all three
+of, so anything importing it pays for all three.
+
+Keep it off `@oaverify/core`, and bundle it into the package whose
+public semantics require it. `@oaverify/internal-metaschema` is bundled
+into `@oaverify/check`, which is the only package that needs the
+documents to do its job.
+
+Promote it to a published package when a **second published consumer**
+needs the same data as part of its own public semantics. Publishing
+earlier buys symmetry and costs a tarball, a release-group member and a
+pack-smoke entry, for a package nobody imports directly. An editor
+integration is the expected first trigger: completion and hover are
+driven by these documents, so a package offering them would be the
+second consumer, and its promotion belongs in that design rather than
+ahead of it.
+
 ## Dependency graph (strictly enforced; no cycles)
 
 Every `@oaverify/internal-*` package's runtime `dependencies`, as an
