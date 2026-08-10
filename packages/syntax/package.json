@@ -63,6 +63,7 @@
   },
   "dependencies": {
     "@oaverify/core": "workspace:*",
+    "jsonc-parser": "3.3.1",
     "yaml": "^2.6.0"
   },
   "devDependencies": {

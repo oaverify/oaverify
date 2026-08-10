@@ -319,3 +319,5 @@ export function loadSpecSync(options: LoadSpecSyncOptions): ResolvedSpec {
 }
 
 export type { FileReaderOptions, HttpReaderOptions } from "@oaverify/internal-spec";
+export { createYamlSpanBackend } from "./span.js";
+export { createJsonSpanBackend } from "./json-span.js";

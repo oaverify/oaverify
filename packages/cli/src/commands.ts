@@ -67,6 +67,7 @@ import {
   type FindingSelection,
   type SeverityMap,
 } from "@oaverify/check";
+import { spanLookupFor } from "./check-spans.js";
 
 /**
  * Render one finding as the lines the text report prints for it,
@@ -642,12 +643,19 @@ export async function checkCommand(
 
   const sink = primarySink(io, args.options);
   if (args.format === "sarif") {
+    const base = args.cwd ?? process.cwd();
+    // Positions for the locations this log is about to emit. Only for
+    // SARIF: it is the one format with a place to put a line, and a
+    // format that has no use for one should not pay to compute it.
+    // See `check-spans.ts` for which text sources can answer.
+    const spanOf = await spanLookupFor(findings, (path) => io.readText(path), base);
     await sink(
       renderSarif(findings, {
         version: args.version ?? "0.0.0",
-        base: args.cwd ?? process.cwd(),
+        base,
         classes: [...classes],
         skipped,
+        spanOf,
         ...(noopTerms.length === 0 ? {} : { noopTerms }),
       }),
     );

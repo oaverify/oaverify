@@ -17,12 +17,16 @@
  * exist. The pointer is kept in `properties` instead, where it is
  * available and not mistaken for a place on disk.
  *
- * **No `region`.** SARIF locates a result with `artifactLocation` plus
- * a `region` of line and column, and oaverify has files and pointers
- * but not lines (#610). So a finding is attributed to the right file
- * and appears in the security tab, and it is not annotated on the diff
- * line. Emitting a `region` of line 1 to fill the field would put every
- * finding on the first line of its file, which is worse than none.
+ * **A `region` only when a caller supplies one.** SARIF locates a
+ * result with `artifactLocation` plus a `region` of line and column.
+ * The address a finding carries fixes the file and the node, and it
+ * does not carry a position, so the position arrives through the
+ * `spanOf` option (#610). A caller that passes none emits locations
+ * that address the file, which is what every location did before the
+ * option existed: the finding lands in the security tab and does not
+ * annotate the diff line. Emitting a `region` of line 1 to fill the
+ * field would put every finding on the first line of its file, which is
+ * worse than none.
  *
  * **`via` is `relatedLocations`, not a code flow.** Where a finding's
  * anchor is `definition` or `scoped-definition`, `via` records how the
@@ -35,6 +39,7 @@
 
 import { isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { SourceSpan, SpanRequest } from "@oaverify/internal-spec";
 import { type CheckClass, type CheckFinding, type CheckSeverity } from "./finding.js";
 import type { SkipReportEntry } from "./skip.js";
 import type { TermReport } from "./selection.js";
@@ -113,21 +118,84 @@ function fingerprint(finding: CheckFinding): string {
   return `${finding.code} ${where}`;
 }
 
+interface SarifRegion {
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
+  charOffset: number;
+  charLength: number;
+}
+
 interface SarifLocation {
-  physicalLocation: { artifactLocation: { uri: string; uriBaseId?: string } };
+  physicalLocation: {
+    artifactLocation: { uri: string; uriBaseId?: string };
+    region?: SarifRegion;
+  };
   message?: { text: string };
 }
 
-function locationsOf(finding: CheckFinding, base: string): SarifLocation[] {
-  const source = finding.target?.source;
-  if (source === undefined) return [];
-  return [{ physicalLocation: { artifactLocation: artifactLocation(source.uri, base) } }];
+/**
+ * What {@link renderSarif} asks for a position with.
+ *
+ * `SpanRequest` is the span resolver's own request type, so the option
+ * and the resolver that answers it name one shape rather than two that
+ * drift. A `SourceAddress` and a `SourceHop` both satisfy it, which is
+ * how one lookup serves a result's location and its related locations.
+ */
+type SpanLookup = (of: SpanRequest) => SourceSpan | undefined;
+
+/**
+ * A SARIF `region` from a source span, or nothing.
+ *
+ * SARIF counts `startLine` and `startColumn` from 1 in UTF-16 code
+ * units, `endColumn` is exclusive, and `charOffset` / `charLength`
+ * count the same units from 0. A {@link @oaverify/core/spec!SourceSpan}
+ * is already all of those, which is why this is a rename rather than a
+ * conversion.
+ *
+ * Nothing rather than a partial region: the header's rule is that a
+ * region of line 1 is worse than no region, and the same holds for one
+ * with a start and no end.
+ */
+function regionOf(span: SourceSpan | undefined): { region?: SarifRegion } {
+  if (span === undefined) return {};
+  return {
+    region: {
+      startLine: span.start.line,
+      startColumn: span.start.column,
+      endLine: span.end.line,
+      endColumn: span.end.column,
+      charOffset: span.start.offset,
+      charLength: span.end.offset - span.start.offset,
+    },
+  };
 }
 
-function relatedLocationsOf(finding: CheckFinding, base: string): SarifLocation[] {
+function locationsOf(finding: CheckFinding, base: string, spanOf: SpanLookup): SarifLocation[] {
+  const source = finding.target?.source;
+  if (source === undefined) return [];
+  return [
+    {
+      physicalLocation: {
+        artifactLocation: artifactLocation(source.uri, base),
+        ...regionOf(spanOf(source)),
+      },
+    },
+  ];
+}
+
+function relatedLocationsOf(
+  finding: CheckFinding,
+  base: string,
+  spanOf: SpanLookup,
+): SarifLocation[] {
   const via = finding.target?.source?.via ?? [];
   return via.map((hop, i) => ({
-    physicalLocation: { artifactLocation: artifactLocation(hop.uri, base) },
+    physicalLocation: {
+      artifactLocation: artifactLocation(hop.uri, base),
+      ...regionOf(spanOf(hop)),
+    },
     message: {
       text: `reference ${i + 1} of ${via.length} the resolver followed to reach this document: ${hop.pointer}`,
     },
@@ -212,6 +280,28 @@ export function renderSarif(
      * produces no notification.
      */
     noopTerms?: readonly TermReport[];
+    /**
+     * Where a `region` comes from, if anywhere (#610).
+     *
+     * Called once per result location and once per related location,
+     * with the `SourceAddress` or `SourceHop` that location was built
+     * from. Returning `undefined` leaves that location addressing the
+     * file alone, which is what every location did before this option
+     * existed and what an unwired caller still gets.
+     *
+     * A callback rather than a field on the finding: an address is
+     * present or absent as a unit and says something checkable about
+     * the node, while a span additionally depends on what text the
+     * caller could supply and which syntaxes it wired a backend for.
+     * Those are different facts and #610 asks that they stay
+     * distinguishable.
+     *
+     * Positions come from `createSourceSpanResolver` in
+     * `@oaverify/core/spec`. Resolve every address and hop in one batch
+     * and close over the result; calling a resolver directly from here
+     * would reparse per lookup.
+     */
+    spanOf?: SpanLookup;
   },
 ): string {
   const version = options.version ?? "0.0.0";
@@ -243,14 +333,15 @@ export function renderSarif(
 
   const notifications = [...skipNotifications, ...noopNotifications];
 
+  const spanOf: SpanLookup = options.spanOf ?? (() => undefined);
   const results = findings.map((finding) => {
-    const related = relatedLocationsOf(finding, base);
+    const related = relatedLocationsOf(finding, base, spanOf);
     return {
       ruleId: finding.code,
       ruleIndex: indexOf.get(finding.code),
       level: levelOf(finding.severity),
       message: { text: finding.message },
-      locations: locationsOf(finding, base),
+      locations: locationsOf(finding, base, spanOf),
       ...(related.length > 0 ? { relatedLocations: related } : {}),
       partialFingerprints: { oaverifyFindingV1: fingerprint(finding) },
       properties: {
