@@ -40,6 +40,7 @@
 import { isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { SourceSpan, SpanRequest } from "@oaverify/internal-spec";
+import { spanFor } from "./span-target.js";
 import { type CheckClass, type CheckFinding, type CheckSeverity } from "./finding.js";
 import type { SkipReportEntry } from "./skip.js";
 import type { TermReport } from "./selection.js";
@@ -179,7 +180,7 @@ function locationsOf(finding: CheckFinding, base: string, spanOf: SpanLookup): S
     {
       physicalLocation: {
         artifactLocation: artifactLocation(source.uri, base),
-        ...regionOf(spanOf(source)),
+        ...regionOf(spanFor(finding, spanOf)),
       },
     },
   ];
