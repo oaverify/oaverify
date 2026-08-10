@@ -4,29 +4,32 @@
 five public subpath entrypoints (plus the not-semver-covered
 `*/internals` subpaths listed further down).
 
-| Import                        | Surface                                                                         |
-| ----------------------------- | ------------------------------------------------------------------------------- |
-| `@oaverify/core`              | `createValidator`, `combineValidators`, error helpers, formatters, types        |
-| `@oaverify/core/schema`       | `compileSchema`, dialects, vocabularies, custom keywords, keyword introspection |
-| `@oaverify/core/spec`         | `loadSpec`, `loadSpecSync`, `resolveSpec`, `applyOverlays`, `sourceOf`, readers |
-| `@oaverify/core/overlay-spec` | `translateOverlay`, `applySpecOverlay`: OpenAPI Overlay 1.0 → typed SpecOverlay |
-| `@oaverify/core/formats`      | Built-in format validators, string and numeric                                  |
-| `@oaverify/core/core`         | Error tree model, shared OpenAPI / HTTP types                                   |
+| Import                        | Surface                                                                                                     |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `@oaverify/core`              | `createValidator`, `combineValidators`, error helpers, formatters, types                                    |
+| `@oaverify/core/schema`       | `compileSchema`, dialects, vocabularies, custom keywords, keyword introspection                             |
+| `@oaverify/core/spec`         | `loadSpec`, `loadSpecSync`, `resolveSpec`, `applyOverlays`, `sourceOf`, `createSourceSpanResolver`, readers |
+| `@oaverify/core/overlay-spec` | `translateOverlay`, `applySpecOverlay`: OpenAPI Overlay 1.0 → typed SpecOverlay                             |
+| `@oaverify/core/formats`      | Built-in format validators, string and numeric                                                              |
+| `@oaverify/core/core`         | Error tree model, shared OpenAPI / HTTP types                                                               |
 
 `@oaverify/core` carries no runtime dependencies and parses JSON only.
 
 ## Syntax
 
 `@oaverify/syntax` carries the parsers, in its own package so
-`@oaverify/core` stays dependency-free. Its YAML exports:
+`@oaverify/core` stays dependency-free. The readers are YAML; the span
+backends cover both syntaxes:
 
-| Export                       | Purpose                                                           |
-| ---------------------------- | ----------------------------------------------------------------- |
-| `createYamlFileReader(cwd?)` | Reader for `.yaml` / `.yml` on disk                               |
-| `createSmartHttpReader()`    | HTTP reader handling JSON and YAML, dispatching on `Content-Type` |
-| `createYamlStdinReader()`    | Reader for one document on stdin, JSON or YAML                    |
-| `parseYamlString(source)`    | Parse a YAML string, for specs loaded out of band                 |
-| `loadSpecSync(options)`      | Synchronous loader whose default reader covers YAML and JSON      |
+| Export                       | Purpose                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `createYamlFileReader(cwd?)` | Reader for `.yaml` / `.yml` on disk                                       |
+| `createSmartHttpReader()`    | HTTP reader handling JSON and YAML, dispatching on `Content-Type`         |
+| `createYamlStdinReader()`    | Reader for one document on stdin, JSON or YAML                            |
+| `parseYamlString(source)`    | Parse a YAML string, for specs loaded out of band                         |
+| `loadSpecSync(options)`      | Synchronous loader whose default reader covers YAML and JSON              |
+| `createYamlSpanBackend()`    | Line and column for a YAML source address, for `createSourceSpanResolver` |
+| `createJsonSpanBackend()`    | The same for a JSON source address                                        |
 
 Compose the readers ahead of the JSON-only ones from
 `@oaverify/core/spec`, which act as the fallback. Calling
@@ -36,6 +39,24 @@ install hint pointing here.
 `loadSpecSync` exists in both packages: `@oaverify/core/spec`'s is JSON-only,
 `@oaverify/syntax`'s default reader covers both, so a `.yaml` entry
 loads with no composition.
+
+## Source spans
+
+`sourceOf` gives a finding's address: which document, and which node
+within it. `createSourceSpanResolver` turns that address into a line
+and column, and it is a separate call because the two absences differ:
+no address means no source node corresponds, while no span means no
+text was supplied or no backend handles that syntax.
+
+The resolver carries no parser. It takes the document text from the
+caller, through a `SourceTextProvider`, and the parsers from whichever
+`SpanBackend` implementations the caller wires;
+`@oaverify/syntax` exports `createYamlSpanBackend()` and
+`createJsonSpanBackend()`. Requests are
+resolved in a batch, grouped by URI, so a document is parsed once
+however many findings name it. See the TSDoc on
+`createSourceSpanResolver` for the contract, including what the caller
+promises when it supplies text.
 
 ## Spec checking
 

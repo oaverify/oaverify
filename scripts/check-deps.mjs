@@ -100,7 +100,7 @@ const ROLES = {
   "@oaverify/internal-schema": { role: "kernel", thirdParty: [] },
   "@oaverify/internal-spec": { role: "kernel", thirdParty: [] },
   "@oaverify/internal-validator": { role: "kernel", thirdParty: [] },
-  "@oaverify/syntax": { role: "source", thirdParty: ["yaml"] },
+  "@oaverify/syntax": { role: "source", thirdParty: ["jsonc-parser", "yaml"] },
   "@oaverify/check": { role: "check", thirdParty: ["redos-detector"] },
   oaverify: { role: "cli", thirdParty: ["commander"] },
   "@oaverify/internal-cli": { role: "cli", thirdParty: ["commander"] },

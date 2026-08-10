@@ -23,6 +23,9 @@
     "@oaverify/stream": "workspace:*",
     "commander": "15.0.0"
   },
+  "devDependencies": {
+    "@oaverify/syntax": "workspace:*"
+  },
   "engines": {
     "node": ">=20"
   }

@@ -42,6 +42,6 @@ export default defineConfig({
   sourcemap: false,
   target: "es2022",
   tsconfig: resolve(__dirname, "../../tsconfig.build.json"),
-  external: ["yaml", "@oaverify/core"],
+  external: ["yaml", "jsonc-parser", "@oaverify/core"],
   esbuildPlugins: [rewriteOavCore()],
 });

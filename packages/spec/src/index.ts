@@ -31,6 +31,23 @@ export {
 export { loadSpec, loadSpecSync, type LoadSpecOptions, type LoadSpecSyncOptions } from "./load.js";
 export { lintResolvedSpec, type LintOptions, type SpecHygieneIssue } from "./lint.js";
 export {
+  createSourceSpanResolver,
+  pointerSegments,
+  type SourceDocument,
+  type SourcePosition,
+  type SourceSpan,
+  type SourceSpanResolver,
+  type SourceSpanResolverOptions,
+  type SourceSpanStats,
+  type SourceSyntax,
+  type SourceText,
+  type SourceTextProvider,
+  type SpanBackend,
+  type SpanQuery,
+  type SpanRequest,
+  type SpanTarget,
+} from "./span.js";
+export {
   sourceOf,
   withOverlayChanges,
   withSynthetic,
