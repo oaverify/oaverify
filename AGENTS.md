@@ -378,6 +378,43 @@ in the meantime.
   compose ahead of the JSON-only ones; `loadSpecSync` exists in both
   packages with different reader defaults. See docs/modules.md.
 
+## Package roles, and where a third-party dependency may go
+
+Five roles. The role decides which third-party runtime dependencies a
+package may carry, and `scripts/check-deps.mjs` asserts it from the
+manifests, so getting it wrong fails `pnpm lint` rather than reaching a
+design conversation.
+
+| Role    | Packages                                                                       | Third-party runtime deps                    |
+| ------- | ------------------------------------------------------------------------------ | ------------------------------------------- |
+| kernel  | `@oaverify/core`, `@oaverify/stream`, every `@oaverify/internal-*` bar the CLI | none, ever                                  |
+| source  | `@oaverify/yaml`                                                               | the parsers, whatever the syntax            |
+| check   | `@oaverify/check`                                                              | analysis-only, required to produce findings |
+| cli     | `oaverify`, `@oaverify/internal-cli`                                           | composition and presentation                |
+| adapter | `@oaverify/express4`, `@oaverify/express5`, `@oaverify/fastify`                | none; frameworks are peers                  |
+
+The kernel's promise is the load-bearing one: it operates on
+already-parsed JavaScript values, so there is nothing in it a
+third-party library could be for, and someone embedding a validator
+never takes on parser or tooling weight to get one. Everything else is
+downstream of keeping that true.
+
+Two rules that are easy to get wrong from the table alone:
+
+- **The list in `ROLES` is by dependency name, not by role alone.** "The
+  CLI may take composition dependencies" would permit a JSON parser to
+  sit in the CLI, which is the thing the check exists to reject. A new
+  dependency is a deliberate edit there with a role to justify it; a
+  version bump touches nothing.
+- **A private bundle member's dependency is a published dependency.** It
+  ships inside whichever tarball bundles it, which is why the internal
+  packages are in the table at all and why `@oaverify/internal-cli`
+  carrying `commander` is a real dependency of `oaverify`.
+
+A capability that needs a parser and has no home is a sign the roles are
+wrong, not a reason to hide it in the nearest package that already has a
+dependency.
+
 ## Dependency graph (strictly enforced; no cycles)
 
 Every `@oaverify/internal-*` package's runtime `dependencies`, as an
