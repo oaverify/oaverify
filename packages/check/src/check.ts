@@ -20,7 +20,8 @@ import { checkDocumentExamples, createValidator } from "@oaverify/internal-valid
 import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
 import { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
 import { ambiguityWitness, checkDocumentRedos } from "./redos-check.js";
-import { type CheckFinding, type FindingTarget } from "./finding.js";
+import { type CheckFinding, type FindingTarget, type ReasonSource } from "./finding.js";
+import { reasonPointersFor } from "./span-target.js";
 import {
   FORMAT_WALK_CODE,
   FULL_SELECTION,
@@ -471,6 +472,20 @@ function gradeFindings(
     if (finding.target === undefined) continue;
     const source = sourceOf(regions, finding.target.pointer);
     if (source !== undefined) finding.target = { ...finding.target, source };
+    // A reason's position is resolved the same way, rather than derived
+    // by appending its path to the address above. The two differ
+    // exactly when an overlay rewrote the node: the container keeps its
+    // address while what is inside it no longer matches the file, so
+    // deriving produced a region over bytes the overlay had removed
+    // (#776). Asking `sourceOf` per position makes a rewritten node
+    // answer with nothing, which is the right answer and the same one
+    // it gives for the finding's own pointer.
+    const reasonSources: ReasonSource[] = [];
+    for (const { index, pointer } of reasonPointersFor(finding)) {
+      const at = sourceOf(regions, pointer);
+      if (at !== undefined) reasonSources.push({ index, source: at });
+    }
+    if (reasonSources.length > 0) finding.reasonSources = reasonSources;
   }
 }
 

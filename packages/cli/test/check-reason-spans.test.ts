@@ -234,6 +234,52 @@ const MULTI_SHARED = `{
 }
 `;
 
+/**
+ * An example an overlay rewrites, for #776.
+ *
+ * The file holds a valid `111111` at `items[0]` and a bad `"free"` at
+ * `items[1]`. The overlay replaces the whole example with a single bad
+ * element, so post-overlay the rejected value is at `items[0]` and the
+ * bytes at that position in the file belong to the valid number the
+ * overlay removed.
+ */
+const OVERLAY_SPEC = `openapi: 3.1.0
+info: { title: overlaid, version: "1" }
+paths:
+  /a:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        price: { type: number }
+              example:
+                items:
+                  - price: 111111
+                  - price: "free"
+`;
+
+const OVERLAY_DOC = `overlay: 1.0.0
+info: { title: rewrite the example, version: "1" }
+actions:
+  - target: "$.paths['/a'].get.responses['200']"
+    update:
+      content:
+        application/json:
+          example:
+            items:
+              - price: "free"
+`;
+
 describe("check --format sarif locates each sub-rejection", () => {
   let dir: string;
 
@@ -244,13 +290,15 @@ describe("check --format sarif locates each sub-rejection", () => {
     writeFileSync(join(dir, "alias.yaml"), YAML_ALIAS_SPEC);
     writeFileSync(join(dir, "entry.json"), MULTI_ENTRY);
     writeFileSync(join(dir, "shared.json"), MULTI_SHARED);
+    writeFileSync(join(dir, "overlaid.yaml"), OVERLAY_SPEC);
+    writeFileSync(join(dir, "overlay.yaml"), OVERLAY_DOC);
   });
 
   afterAll(() => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const run = async (file: string) => {
+  const run = async (file: string, overlays: string[] = []) => {
     const out: string[] = [];
     const base = defaultCommandIo();
     const io: CommandIo = {
@@ -260,7 +308,13 @@ describe("check --format sarif locates each sub-rejection", () => {
       stderr: (chunk) => out.push(chunk),
     };
     await checkCommand(
-      { spec: join(dir, file), format: "sarif", cwd: dir, overlays: [], options: { quiet: false } },
+      {
+        spec: join(dir, file),
+        format: "sarif",
+        cwd: dir,
+        overlays,
+        options: { quiet: false },
+      },
       io,
     );
     const log = JSON.parse(out.join("")) as SarifLog;
@@ -395,5 +449,29 @@ describe("check --format sarif locates each sub-rejection", () => {
     // it. An absence, not a walk up to `item`: the code is `type`, and
     // nothing licences moving it.
     expect(reasons).toHaveLength(0);
+  });
+
+  it("locates no sub-rejection when an overlay rewrote the example (#776)", async () => {
+    // The defect: the reason is at `items.0.price`, which post-overlay
+    // is the bad `"free"`. Appending that path to the finding's source
+    // address pointed at the file's `items[0]`, which is the valid
+    // `111111` the overlay removed, so the item squiggled a correct
+    // number and said `must be number`.
+    //
+    // `withOverlayChanges` holes the array whose length changed, so
+    // asking `sourceOf` for the reason's position now answers with
+    // nothing and no item is emitted. The finding keeps its own region
+    // and its complete `oaverify:reasons`, so nothing is lost except
+    // the false claim.
+    const { result, reasons } = await run("overlaid.yaml", [join(dir, "overlay.yaml")]);
+
+    const causes = result?.properties["oaverify:reasons"] as { path: unknown[] }[];
+    expect(causes).toHaveLength(1);
+    expect(causes[0]?.path).toEqual(["items", 0, "price"]);
+
+    expect(reasons).toHaveLength(0);
+
+    // Still located as a finding, at the example the author would open.
+    expect(result?.locations[0]?.physicalLocation.region).toBeDefined();
   });
 });

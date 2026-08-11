@@ -67,4 +67,5 @@ export {
   type CheckSeverity,
   type FindingAnchor,
   type FindingTarget,
+  type ReasonSource,
 } from "./finding.js";

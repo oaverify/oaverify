@@ -3,7 +3,12 @@ import type { RejectionReason } from "@oaverify/internal-core";
 import type { SourceSpan } from "@oaverify/internal-spec";
 import type { CheckFinding } from "../src/finding.js";
 import { renderSarif } from "../src/sarif.js";
-import { locatedReasonsFor, reasonTargetFor, spanRequestsFor } from "../src/span-target.js";
+import {
+  locatedReasonsFor,
+  reasonPointersFor,
+  reasonTargetFor,
+  spanRequestsFor,
+} from "../src/span-target.js";
 
 /**
  * One located item per sub-rejection of an invalid example (#773).
@@ -42,12 +47,23 @@ function reason(
   return { code, path, message, params };
 }
 
-/** An `example-invalid` finding, with whatever reasons a case needs. */
+/**
+ * An `example-invalid` finding, with whatever reasons a case needs.
+ *
+ * `reasonSources` is filled the way `checkSpec` fills it, because since
+ * #776 it is an input to the renderer rather than something the
+ * renderer derives. These cases carry no overlay, so every reason's
+ * resolved position corresponds to a source node and the mapping is the
+ * identity: `reasonPointersFor` gives the resolved sub-pointers and
+ * each one is the source pointer too. A case that wants a reason with
+ * *no* address passes its own `reasonSources`, which is what an
+ * overlay-rewritten node produces.
+ */
 function finding(
   reasons: readonly RejectionReason[],
   over: Partial<CheckFinding> = {},
 ): CheckFinding {
-  return {
+  const base: CheckFinding = {
     code: "example-invalid",
     class: "examples",
     severity: "error",
@@ -61,6 +77,15 @@ function finding(
       ...over.target,
     },
     ...over,
+  };
+  if (base.reasonSources !== undefined) return base;
+  const uri = base.target?.source?.uri ?? "spec.json";
+  return {
+    ...base,
+    reasonSources: reasonPointersFor(base).map(({ index, pointer }) => ({
+      index,
+      source: { uri, pointer, via: [] },
+    })),
   };
 }
 

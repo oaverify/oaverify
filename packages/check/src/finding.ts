@@ -120,6 +120,52 @@ export interface CheckFinding {
    */
   reasons?: readonly RejectionReason[];
   /**
+   * Where each located reason came from in the files that were read.
+   *
+   * Sparse and index-keyed rather than parallel to `reasons`: a reason
+   * appears only when it names a position of its own **and** a source
+   * node corresponds to that position. `index` is its index in
+   * `reasons`, which is how a consumer joins the two.
+   *
+   * Absence carries the same meaning it does on
+   * {@link FindingTarget.source}, one level down. A reason missing here
+   * is a reason whose position no source node corresponds to, which
+   * under an overlay means the node it names was rewritten after
+   * resolution and its position in the file would be stale. Deriving
+   * the address instead, by appending the reason's path to
+   * `target.source.pointer`, is what produced a confident region over
+   * bytes the overlay had removed (#776).
+   *
+   * Populated by the `examples` class, and only when the spec carried
+   * regions. Absent entirely otherwise, exactly as `target.source` is.
+   *
+   * ## On the wire, deliberately
+   *
+   * `check --format json` serializes findings verbatim, so this travels
+   * with them: about 20% of that report on `twilio.json`, 7% on
+   * `github.json`. Kept rather than trimmed, for two reasons.
+   *
+   * It is not recoverable. A consumer cannot rebuild these addresses by
+   * appending a reason's path to `target.source.pointer`, because doing
+   * exactly that is the defect #776 fixed. Withholding them would leave
+   * a JSON consumer with the choice between no positions and the wrong
+   * ones.
+   *
+   * And the obvious trim is a trap. Every entry's `uri` and `via`
+   * currently equal the finding's, so storing a bare pointer looks
+   * free. That equality holds only because the resolver does not follow
+   * a `$ref` inside example data, which is a fact about today's one
+   * producing class rather than about the field: `reasons` is
+   * class-agnostic by construction, and a class whose sub-positions can
+   * cross a document would break it silently. Assuming structure about
+   * a position is the shape of the bug this field exists to fix, so it
+   * is not repeated one level down to save bytes.
+   *
+   * SARIF is unaffected: `renderSarif` reads this to place related
+   * locations and does not emit the field.
+   */
+  reasonSources?: readonly ReasonSource[];
+  /**
    * Where this finding is, for a machine. The counterpart to
    * `location`, which stays prose.
    *
@@ -188,6 +234,22 @@ export type FindingAnchor =
    * different use sites.
    */
   | "scoped-definition";
+
+/**
+ * One reason's address in the files that were read.
+ *
+ * See {@link CheckFinding.reasonSources}, which explains why this is
+ * sparse and why absence is a fact about the node rather than an
+ * omission.
+ *
+ * @public
+ */
+export interface ReasonSource {
+  /** The reason's index in {@link CheckFinding.reasons}. */
+  index: number;
+  /** Where the node that reason addresses came from. */
+  source: SourceAddress;
+}
 
 /**
  * A finding's machine-readable address.
