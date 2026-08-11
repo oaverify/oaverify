@@ -299,7 +299,21 @@
             "oaverify:location": "/paths/~1search/post/requestBody/content/application~1json/example",
             "oaverify:pointer": "/paths/~1search/post/requestBody/content/application~1json/example",
             "oaverify:anchor": "node",
-            "oaverify:sourcePointer": "/paths/~1search/post/requestBody/content/application~1json/example"
+            "oaverify:sourcePointer": "/paths/~1search/post/requestBody/content/application~1json/example",
+            "oaverify:reasons": [
+              {
+                "code": "enum",
+                "path": [],
+                "message": "must be one of the allowed values",
+                "params": {
+                  "allowed": [
+                    "ACH",
+                    "CHECK"
+                  ],
+                  "actual": "EFT"
+                }
+              }
+            ]
           }
         },
         {

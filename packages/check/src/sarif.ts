@@ -387,6 +387,24 @@ export function renderSarif(
         ...(finding.occurrences === undefined
           ? {}
           : { "oaverify:occurrences": finding.occurrences }),
+        // Every leaf the check rejected the value on, uncapped and
+        // unabbreviated, so a consumer reads `actual` and `allowed`
+        // rather than parsing them back out of a sentence that may
+        // have elided the part it wanted (#773). The message caps at
+        // five reasons and truncates a long `allowed`; this does
+        // neither, which is the whole point of carrying it.
+        //
+        // `path` is the position within the rejected value, not a
+        // pointer into the document, so it stays a property rather
+        // than becoming a location. Locating each leaf is a separate
+        // question and needs a span per sub-path.
+        //
+        // Absent when the class produces no leaf-level causes, which
+        // is every class but `examples` today. An empty array would
+        // claim the finding had no causes.
+        ...(finding.reasons === undefined || finding.reasons.length === 0
+          ? {}
+          : { "oaverify:reasons": finding.reasons }),
       },
     };
   });

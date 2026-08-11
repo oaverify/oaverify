@@ -261,6 +261,44 @@ describe("properties", () => {
 // annotate a file is decided by how the spec was loaded, not by the
 // findings. Both halves are pinned: without provenance every result is
 // still a complete result and simply has nowhere on disk to point.
+describe("structured causes travel with the result (#773)", () => {
+  const withReasons = () =>
+    finding({
+      class: "examples",
+      code: "example-invalid",
+      message: 'must be one of the allowed values (actual: "EFT", allowed: ["ACH","CH...)',
+      reasons: [
+        {
+          code: "enum",
+          path: ["kind"],
+          message: "must be one of the allowed values",
+          params: { actual: "EFT", allowed: ["ACH", "CHECK", "WIRE"] },
+        },
+      ],
+    });
+
+  it("carries every leaf unabbreviated, where the message truncated", () => {
+    const props = render([withReasons()]).runs[0]?.results[0]?.properties;
+    expect(props?.["oaverify:reasons"]).toEqual([
+      {
+        code: "enum",
+        path: ["kind"],
+        message: "must be one of the allowed values",
+        params: { actual: "EFT", allowed: ["ACH", "CHECK", "WIRE"] },
+      },
+    ]);
+  });
+
+  it("says nothing for a class that produces no leaf-level causes", () => {
+    // An empty array would claim the finding had no causes, which is
+    // a different statement from the class not producing them.
+    const props = render([finding()]).runs[0]?.results[0]?.properties;
+    expect(props).not.toHaveProperty("oaverify:reasons");
+    const empty = render([finding({ reasons: [] })]).runs[0]?.results[0]?.properties;
+    expect(empty).not.toHaveProperty("oaverify:reasons");
+  });
+});
+
 describe("locations track the spec's provenance", () => {
   const spec: Array<[string, unknown]> = [
     [
