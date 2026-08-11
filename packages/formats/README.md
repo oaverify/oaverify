@@ -44,9 +44,9 @@ replace them.
   reading to register in its place), `base64url` (§5, padding optional)
 - **Misc**: `uuid`, `char`, `language` (RFC 5646: the grammar, plus the
   no-duplicate-variant and no-duplicate-singleton rules; a subtag is not
-  checked against the IANA registry, so `qq-ZZ` passes)
-- **Misc**: `uuid`, `char`, `media-range` (RFC 9110 §12.5.1, parameters
-  included; a `q` value reads as an ordinary parameter)
+  checked against the IANA registry, so `qq-ZZ` passes), `media-range`
+  (RFC 9110 §12.5.1, parameters included; a `q` value reads as an
+  ordinary parameter)
 - **Numeric** (OpenAPI): `int8`, `int16`, `int32`, `int64`, `uint8`, `uint16`,
   `uint32`, `uint64`, `double-int`, `unixtime`, each as
   `{ type: "number", validate }`
@@ -76,7 +76,9 @@ precision before it reaches any JavaScript validator; see
 
 The remaining registry names (`decimal`, `decimal128`, and the six
 `sf-*` structured-field formats) are assertable and not yet
-implemented. `oaverify check` tells
+implemented. `oaverify check` reports every unasserted name under
+`format-not-validated`, and its message distinguishes a permanent
+annotation from a gap a later release may close.
 
 ## Registering a custom format
 

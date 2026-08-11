@@ -41,25 +41,17 @@ family where `--only` reached only a class.
 It always should have. In one schema, under one dialect, before v6:
 
 ```ts
-const schema = {
-  type: "object",
-  properties: {
-    when: { type: "string", format: "date-time" },
-    n: { type: "integer", format: "int32" },
-  },
-};
+// { when: { type: "string", format: "date-time" },
+//   n:    { type: "integer", format: "int32" } }
 
-validator.validateRequest({ ...req, body: { when: "not-a-date", n: 1 } });
-// -> invalid: must match format date-time
-
-validator.validateRequest({ ...req, body: { when: "2026-01-01T00:00:00Z", n: 3000000000 } });
-// -> valid, before v6
+{ when: "not-a-date", n: 1 }              // invalid: must match format date-time
+{ when: "2026-01-01T00:00:00Z", n: 3e9 }  // valid, before v6
 ```
 
 `3000000000` overflows the `int` of every consumer that reads that
 field, and nothing in the tool noticed. Both OpenAPI dialects have
 carried the format-assertion vocabulary since they existed, and every
-string format has been binding the whole time. The numeric predicates
+string format has been binding the whole time; the numeric predicates
 were never written. This is lenience going away rather than a policy
 being tightened.
 
@@ -82,64 +74,51 @@ thing.
 
 ## `int64` accepts less than int64, on purpose
 
-`int64` asserts the **safe-integer** range, `-(2^53 - 1)` through
-`2^53 - 1`, and rejects outside it.
-
-A JSON number past 2^53 has already lost precision before any
-JavaScript validator sees it. `JSON.parse("9223372036854775807")`
-yields `9223372036854775808`, a different number, and nothing
-downstream can recover the original. Rejecting it says so. Accepting it
-would vouch for a value that is provably not the one that was sent.
+`int64` and `uint64` assert the **safe-integer** range, `-(2^53 - 1)`
+through `2^53 - 1` (`uint64` from 0), and reject outside it. A JSON
+number past 2^53 has already lost precision before any JavaScript
+validator sees it: `JSON.parse("9223372036854775807")` yields
+`9223372036854775808`, a different number. Accepting it would vouch for
+a value that is provably not the one that was sent.
 
 If a producer you cannot change sends large int64s as JSON numbers,
 `formats: { int64: false }` turns the assertion off and the payload is
 still wrong; the durable fix is to send them as strings.
 
-`uint64` is bounded the same way and for the same reason, from 0. The
-narrower widths (`int8`, `int16`, `int32`, `uint8`, `uint16`, `uint32`)
-are exact: every value in range survives a JSON round trip.
+The narrower widths are exact, and `float` / `double` are not asserted
+at all. [docs/configuration.md](./configuration.md#formats) has the
+reasoning for each.
 
-`float` and `double` are not asserted and will not be. Every JSON
-number is already an IEEE 754 double, so `double` asserts nothing, and
-a `Math.fround`-based `float` rejects values a producer legitimately
-sent. `oaverify check` continues to report both under
-`format-not-validated`.
+## `byte` now asserts
 
-## `byte` rejects line-wrapped base64 (amended in 6.0.1)
+The addition most likely to reject traffic from a document you already
+have, because `byte` is an OAS 3.0 built-in and any spec carrying
+base64 uses it.
 
-The one addition most likely to reject traffic from a document you
-already have, because `byte` is an OAS 3.0 built-in and any spec
-carrying base64 uses it.
-
-`byte` accepts RFC 4648 section 4: the standard alphabet, padded, so
-the length is always a multiple of four. It rejects whitespace, which
-means MIME's 76-column line-wrapped variant (RFC 2045) fails:
+`byte` accepts the RFC 4648 section 4 alphabet, padded, so the length
+is a multiple of four. Whitespace is stripped first, so MIME's
+76-column line-wrapped variant (RFC 2045) passes:
 
 ```jsonc
-// v6: valid
+// valid
 { "file": "aGVsbG8h" }
-
-// v6: invalid, and valid before v6, because nothing checked it
 { "file": "aGVs\nbG8h" }
+
+// invalid, and valid before v6, because nothing checked it
+{ "file": "not base64!" }
 ```
 
-RFC 4648 admits whitespace only where the specification referring to it
-says so, and OpenAPI's registry entry cites 4648 plainly. If a producer
-you cannot change wraps its base64, `formats: { byte: false }` keeps the
-name as an annotation.
+Padding is required, so an unpadded value fails. URL-safe base64 is
+`base64url`, which takes the `-`/`_` alphabet and makes padding
+optional. If a producer you cannot change emits something else,
+`formats: { byte: false }` keeps the name as an annotation.
 
-> **Amended in 6.0.1.** The strict reading above shipped in 6.0.0 and was
-> relaxed one release later: `byte` now strips whitespace before checking
-> the alphabet and the padding, so the line-wrapped example is valid from
-> 6.0.1 on. A wrapped value decodes to the same bytes as its unwrapped
-> form, so rejecting it failed a request over a formatting choice and
-> caught nothing. Nothing that 6.0.0 accepted became invalid. To keep the
-> 6.0.0 behaviour, register the strict reading:
+> **6.0.0 only.** That release read RFC 4648 literally and rejected
+> line-wrapped base64; 6.0.1 relaxed it, since a wrapped value decodes
+> to the same bytes and rejecting it failed a request over a formatting
+> choice. Nothing 6.0.0 accepted became invalid. Upgrading past 6.0.0
+> needs no action; to keep its stricter reading, register
 > `formats: { byte: validateByteRfc4648 }`.
-
-Padding is required, so an unpadded value fails too. If what you
-actually have is URL-safe base64, that is `base64url`, which takes the
-`-`/`_` alphabet and makes padding optional.
 
 ## The `formats` option takes more shapes
 

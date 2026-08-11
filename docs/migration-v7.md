@@ -1,5 +1,16 @@
 # Migrating to v7
 
+Six breaking changes, and most callers meet one: `@oaverify/yaml` is
+renamed to `@oaverify/syntax`, which is a specifier swap with no
+imported name changing. The rest are scoped. Two apply only to the
+Fetch adapter (bodies are capped at 1 MiB, and a rejected body now
+reports its direction), one only to the CLI (cross-origin remote
+`$ref`s are refused by default), one only to `style: matrix`
+parameters, and one removes three field aliases deprecated in v6.
+
+If you use the library with Express or Fastify and read no `check`
+findings, the upgrade is the rename and nothing else.
+
 ## Breaking: `@oaverify/yaml` is now `@oaverify/syntax`
 
 The package that carries the parsers is named for what it does rather
@@ -18,9 +29,7 @@ npm install @oaverify/syntax
 
 `createYamlFileReader`, `createYamlStdinReader`, `createSmartHttpReader`,
 `parseYamlString`, `loadSpecSync`, `FileReaderOptions` and
-`HttpReaderOptions` all keep their names and their behaviour. The
-YAML-specific ones stay YAML-specific; a reader for another syntax would
-be a new export beside them.
+`HttpReaderOptions` all keep their names and their behaviour.
 
 There is no compatibility package. `@oaverify/yaml` stops at 6.x and is
 deprecated on npm; installs of the old name keep working and stop
@@ -28,9 +37,8 @@ receiving updates.
 
 `@oaverify/core` is unaffected and still parses JSON only. The source
 address and span contracts (`SourceAddress`, `SourceSpan`, `SourceText`,
-`SourceSyntax`, `createSourceSpanResolver`) live there, and
-`@oaverify/syntax` implements them for a given syntax. That split is why
-the package is not called `@oaverify/source`.
+`SourceSyntax`, `createSourceSpanResolver`) stay there;
+`@oaverify/syntax` implements them for a given syntax.
 
 ## Breaking: the Fetch adapter caps body reads at 1 MiB
 
@@ -87,9 +95,8 @@ Express and Fastify users bound bodies at the parser
 (`express.json({ limit })`) before the validator sees them. A Fetch
 handler has no such layer: Next.js App Router, Hono, `Bun.serve` and
 `Deno.serve` hand the handler a `Request` whose body is an unread
-stream, and the adapter is what drains it. Defaulting the cap off would
-have left that read unbounded for everyone who did not read the release
-notes, which is the population the change is for.
+stream, and the adapter is what drains it. An off-by-default cap would
+protect only the people who read the release notes.
 
 ## Breaking: a rejected Fetch body reports its direction
 
@@ -132,12 +139,11 @@ reading that field expects a template.
 
 `httpStatusFor` maps `body-too-large` to 413, which reads the failure
 as a request. The identical leaf from `validateFetchResponse` means an
-upstream overran its own contract, and no status follows from that on
-its own: a gateway might answer 502, or 500, or serve stale, or pass
-the response through under report-only. Since the library cannot pick
-for you, the least it can do is not throw away which direction the
-finding came from. `httpStatusFor`'s TSDoc now says it is request-side
-and why no response-side sibling is coming.
+upstream overran its own contract, and no status follows from that: a
+gateway might answer 502, serve stale, or pass the response through
+under report-only. The library cannot pick for you, so it keeps the
+direction rather than discarding it. `httpStatusFor`'s TSDoc now says
+it is request-side and why no response-side sibling is coming.
 
 ## Breaking: the CLI refuses cross-origin remote `$ref`s by default
 
@@ -173,9 +179,9 @@ requests.
 oaverify check vendor.yaml --remote-refs allow
 ```
 
-That is the whole migration. The flag shipped in v6 and already accepted
-this value, so nothing is renamed, deprecated, or shimmed. If you set
-`--remote-refs` explicitly today, nothing changes for you.
+The flag shipped in v6 and already accepted this value, so nothing is
+renamed, deprecated, or shimmed. If you set `--remote-refs` explicitly
+today, nothing changes for you.
 
 ### How to tell whether this affects you
 
@@ -249,10 +255,8 @@ segments that use matrix framing are held to the name rule.
 
 ### Why
 
-Two accept-invalid defects, both reported in #758 and both traced to
-one rule living in two code paths. The exploded-array branch learned
-"a group must name this parameter" and `stripStyle`, which every other
-matrix shape went through, did not.
+Two accept-invalid defects, reported in #758, both from one rule that
+only ever reached one of the two code paths that needed it.
 
 Practical exposure is nil: `matrix` is 0 of 61,396 parameter
 declarations across 301 published documents, and 0 in the seven large
@@ -290,39 +294,31 @@ site and nothing else.
 
 ### Why
 
-Two names for one referent, in opposite directions, which is what made
-them worth renaming and worth removing rather than leaving forever.
-
 This library reserves `pointer` for a machine-readable document address
 and `location` for human-readable prose. `ConformanceIssue.location`
-predated that rule and held a pointer, so it moved to `pointer`. The
+predated that rule and held a pointer, so it moved to `pointer`; the
 `context` fields held prose, so they moved to `location`. Keeping the
 aliases meant `location` naming a pointer on one type and prose on two
 others, which is the ambiguity the rename existed to end.
 
 ## Checklist
 
-- [ ] Replace `@oaverify/yaml` with `@oaverify/syntax` in every manifest.
-- [ ] Replace it in every import specifier. No imported name changes.
-- [ ] If you pin the CLI, `oaverify` depends on the new name for you.
+- [ ] Replace `@oaverify/yaml` with `@oaverify/syntax` in every manifest
+      and every import specifier. No imported name changes.
 - [ ] If you use the Fetch adapter and accept bodies over 1 MiB, set
-      `maxTotalBytes` to a bound that fits your endpoints. Express and
-      Fastify users need nothing.
+      `maxTotalBytes` to a bound that fits your endpoints.
 - [ ] If you construct a complete `HttpStatusMap` literal, add
       `"body-too-large"`. Partial overrides are unaffected.
 - [ ] If you read `result.error.code` in tree output for a rejected
       Fetch body, read the child of the `request` / `response` branch.
-      Flat output needs nothing.
 - [ ] If you read `pathPattern` off a `request` branch, handle its
       absence.
 - [ ] If you pass a response-validation result to `httpStatusFor`,
       decide your own policy instead; it is request-side.
 - [ ] If a spec you check `$ref`s another host, either add
       `--remote-refs allow` to that command or leave the ref refused.
-      Runs that never saw v6's cross-origin notice need nothing.
 - [ ] If you declare a `style: matrix` parameter, confirm your clients
-      spell the group name (`/t/;p=1`, not `/t/;q=1`). Specs with no
-      matrix parameter need nothing.
-- [ ] Replace `ConformanceIssue.location` with `.pointer`.
-- [ ] Replace `SchemaLintIssue.context` and `PrecompileFailure.context`
-      with `.location`.
+      spell the group name (`/t/;p=1`, not `/t/;q=1`).
+- [ ] Replace `ConformanceIssue.location` with `.pointer`, and
+      `SchemaLintIssue.context` / `PrecompileFailure.context` with
+      `.location`.
