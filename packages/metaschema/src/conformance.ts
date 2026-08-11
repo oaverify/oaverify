@@ -43,16 +43,10 @@ export interface ConformanceIssue {
    * `pointer` is the name this library reserves for a document address;
    * `location` is reserved for prose. This field was named `location`
    * before that rule existed, which left one name meaning a pointer
-   * here and free text on `CheckFinding`.
+   * here and free text on `CheckFinding`. The `location` alias was
+   * removed in v7.
    */
   pointer: string;
-  /**
-   * @deprecated Renamed to {@link ConformanceIssue.pointer}, which is
-   * the same value. `location` is reserved for human-readable text
-   * across this library and this field never held any. Both are
-   * populated; this one is removed in the next major.
-   */
-  location: string;
   message: string;
 }
 
@@ -218,8 +212,6 @@ function collectLeaves(error: ValidationError, into: ConformanceIssue[]): void {
   into.push({
     code: error.code,
     pointer,
-    // Same value under the deprecated name, for one major.
-    location: pointer,
     message: error.message,
   });
 }
@@ -248,7 +240,6 @@ function collectLeaves(error: ValidationError, into: ConformanceIssue[]): void {
  * // { version: "3.1", issues: [
  * //   { code: "required",
  * //     pointer: "/info/version",
- * //     location: "/info/version", // deprecated alias for `pointer`
  * //     message: "..." },
  * // ] }
  * ```

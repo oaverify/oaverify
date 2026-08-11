@@ -113,7 +113,7 @@ describe("OpenAPI 3.0: the dropped siblings are reported", () => {
     );
     expect(issues).toHaveLength(1);
     expect(issues[0]?.keyword).toBe("required");
-    expect(issues[0]?.context).toBe("GET /pets 200 response body (application/json)");
+    expect(issues[0]?.location).toBe("GET /pets 200 response body (application/json)");
   });
 
   it("warns about a sibling of $ref at a request body root", () => {
@@ -123,7 +123,7 @@ describe("OpenAPI 3.0: the dropped siblings are reported", () => {
       (i) => i.code === "silent-rewrite/ref-siblings-oas30",
     );
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.context).toBe("POST /pets request body (application/json)");
+    expect(issues[0]?.location).toBe("POST /pets request body (application/json)");
   });
 
   it("keeps 3.0 semantics: the sibling is still not enforced", () => {

@@ -289,7 +289,6 @@ describe("schema lint: machine-readable position (#517)", () => {
     ).stats.schemaLintIssues;
 
     expect(issue?.location).toBe("POST /things request body (application/json)");
-    expect(issue?.context).toBe(issue?.location);
   });
 
   it("re-roots the pointer at the ref target while path keeps naming the use site", () => {
