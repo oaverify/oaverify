@@ -456,6 +456,9 @@ ones who never pass the flag. `--remote-refs same-origin` adopts the
 future default now and silences it; `--remote-refs allow` keeps the
 current behaviour explicitly.
 
+That future major is v7, which makes `same-origin` the default and drops
+the notice. See [migration-v7.md](./migration-v7.md).
+
 See [the CLI README](https://github.com/oaverify/oaverify/blob/main/packages/oav/README.md#reading-a-spec-you-did-not-write).
 
 ## Checklist

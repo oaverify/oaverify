@@ -99,15 +99,21 @@ oaverify check /srv/uploads/tenant-42/openapi.json --untrusted
 `--remote-refs` governs every http(s) read, **the entry document
 included**:
 
-| Value             | Effect                                                                                                             |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `allow` (default) | any http(s) URI resolves                                                                                           |
-| `same-origin`     | only the origin a remote entry was served from; a local or piped entry opted into none, so nothing remote resolves |
-| `deny`            | no http(s) read at all, so a remote entry is refused                                                               |
+| Value                   | Effect                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `same-origin` (default) | only the origin a remote entry was served from; a local or piped entry opted into none, so nothing remote resolves |
+| `allow`                 | any http(s) URI resolves                                                                                           |
+| `deny`                  | no http(s) read at all, so a remote entry is refused                                                               |
 
 Pointing the tool at a remote spec is consent to that origin rather than
 to one URI, so a sibling file on the same host resolves under
 `same-origin`. A hop to another host does not.
+
+The default changed in v7. Before it, any `$ref` to any host resolved,
+including from a local entry, which made a spec you did not write able
+to direct a request anywhere the machine could reach. `--remote-refs
+allow` restores that in one word; see
+[docs/migration-v7.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v7.md).
 
 `--untrusted` treats the document as hostile: file reads confined to the
 entry's directory, tighter size and time caps, and `--remote-refs

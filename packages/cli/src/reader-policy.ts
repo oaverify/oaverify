@@ -24,8 +24,27 @@ export const REMOTE_REFS_MODES = ["allow", "same-origin", "deny"] as const;
 /** @see {@link REMOTE_REFS_MODES} */
 export type RemoteRefsMode = (typeof REMOTE_REFS_MODES)[number];
 
-/** The default posture. */
-export const DEFAULT_REMOTE_REFS: RemoteRefsMode = "allow";
+/**
+ * The default posture.
+ *
+ * `same-origin` since v7 (#692). A local entry opted into no origin, so
+ * nothing remote resolves for it; a remote entry opted into the origin
+ * it was served from, so its siblings resolve and a hop to another host
+ * does not.
+ *
+ * The reason it is not `allow`: the CLI composes an http reader
+ * unconditionally, so under `allow` a local spec carrying
+ * `$ref: http://169.254.169.254/` fetches it and hoists the response
+ * into the resolved document. That is a request the user never asked
+ * for, made on behalf of a document they did not write, which is the
+ * normal case for a tool that checks other people's specs.
+ *
+ * `--remote-refs allow` restores the v6 behaviour and is the whole
+ * migration. v6 shipped the flag and printed a notice on every run that
+ * this default would have refused, so the population affected by the
+ * change had a release in which to see it.
+ */
+export const DEFAULT_REMOTE_REFS: RemoteRefsMode = "same-origin";
 
 /**
  * Size and time caps applied whatever the posture.
@@ -50,16 +69,6 @@ export interface ReaderPolicy {
   entry: string;
   remoteRefs: RemoteRefsMode;
   untrusted: boolean;
-  /**
-   * Called once per successful read that `same-origin` would have
-   * refused, the entry excluded.
-   *
-   * Cross-origin rather than remote, because that is what the notice it
-   * drives says: a remote entry whose refs are all siblings on its own
-   * origin is unaffected by a stricter default and should not be told
-   * otherwise. See {@link remoteRefsNotice}.
-   */
-  onCrossOriginRead?: (uri: string) => void;
 }
 
 /** The flags a command parsed, before they are resolved to a posture. */
@@ -232,32 +241,20 @@ export function fileOptionsFor(policy: ReaderPolicy): FileReaderOptions {
 }
 
 /**
- * Wrap an http reader so a refusal names the posture that refused, and
- * a success is counted.
+ * Wrap an http reader so a refusal names the posture that refused.
  *
- * The count is what the `allow` posture reports afterwards, and covers
- * only the reads a stricter default would refuse. The notice it drives
- * has to reach a user who has set no flag, so nothing about it depends
- * on their having asked.
+ * Refusal only, since v7. Until then this also counted the reads a
+ * stricter default would refuse, to drive a notice pre-announcing that
+ * default; the default is here, so a read this would have counted is
+ * now a read that does not happen unless it was asked for by name.
  */
-export function policyHttpReader(
-  inner: DocumentReader,
-  policy: ReaderPolicy,
-  onCrossOriginRead: ((uri: string) => void) | undefined = policy.onCrossOriginRead,
-): DocumentReader {
+export function policyHttpReader(inner: DocumentReader, policy: ReaderPolicy): DocumentReader {
   return {
     canRead: (uri) => inner.canRead(uri),
     async read(uri) {
       const refusal = refuse(policy, uri);
       if (refusal !== undefined) throw new Error(refusal);
-      const doc = await inner.read(uri);
-      // The entry goes through this reader too, and pointing at a URL
-      // is not a $ref. Counting it would report one to a user who has
-      // none.
-      if (uri !== policy.entry && !allowsUri({ ...policy, remoteRefs: "same-origin" }, uri)) {
-        onCrossOriginRead?.(uri);
-      }
-      return doc;
+      return inner.read(uri);
     },
   };
 }
@@ -270,18 +267,4 @@ function refuse(policy: ReaderPolicy, uri: string): string | undefined {
   return origin === undefined
     ? `${uri}: refused by --remote-refs same-origin (the entry is not remote, so no origin was opted into)`
     : `${uri}: refused by --remote-refs same-origin (the entry's origin is ${origin})`;
-}
-
-/**
- * The notice printed after a run that resolved remote `$ref`s under the
- * default posture. Empty when nothing remote was read.
- */
-export function remoteRefsNotice(command: string, count: number): string {
-  if (count === 0) return "";
-  const plural = count === 1 ? "" : "s";
-  return (
-    `${command}: resolved ${count} cross-origin $ref${plural} over the network. ` +
-    `A future major refuses cross-origin refs by default; pass --remote-refs allow ` +
-    `to keep this, or --remote-refs same-origin to adopt it now.\n`
-  );
 }

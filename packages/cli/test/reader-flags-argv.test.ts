@@ -62,9 +62,11 @@ describe("reader flags reach every spec-taking command", () => {
       expect(policy?.remoteRefs, `${name} dropped --remote-refs`).toBe("deny");
     });
 
-    it(`${name} defaults to allow`, async () => {
+    it(`${name} defaults to same-origin`, async () => {
+      // Every command has to arrive at the same default, not just the
+      // one whose flag parsing someone remembered to change (#692).
       const policy = await policyFrom(argv);
-      expect(policy?.remoteRefs).toBe("allow");
+      expect(policy?.remoteRefs).toBe("same-origin");
       expect(policy?.untrusted).toBe(false);
     });
   }

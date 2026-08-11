@@ -40,7 +40,6 @@ import {
   confinedEntry,
   entryRefusal,
   policyFor,
-  remoteRefsNotice,
   fileOptionsFor,
   httpOptionsFor,
   policyHttpReader,
@@ -311,15 +310,14 @@ async function readOverlay(reader: DocumentReader, path: string): Promise<SpecOv
  * that says the posture and the entry disagree.
  *
  * Every spec-taking command opens with this, so the refusal is reported
- * before anything is read and the notice is counted the same way
- * everywhere.
+ * before anything is read, the same way everywhere.
  */
 function openReader(
   io: CommandIo,
   command: string,
   entry: string,
   flags: ReaderFlags & { quiet?: boolean },
-): { reader: DocumentReader; entry: string; notice: () => void } | { refusal: CommandResult } {
+): { reader: DocumentReader; entry: string } | { refusal: CommandResult } {
   const policy = policyFor(entry, flags);
   const refusal = entryRefusal(policy);
   if (refusal !== undefined) {
@@ -329,27 +327,7 @@ function openReader(
     // rather than anything about the document.
     return { refusal: { exitCode: 3 } };
   }
-  let crossOrigin = 0;
-  // Counted only under the default posture: the notice exists to reach
-  // a user who has not chosen one, so telling anyone who has is noise on
-  // every run.
-  const counting = policy.remoteRefs === "allow" && flags.quiet !== true;
-  const reader = io.reader({
-    ...policy,
-    ...(counting && {
-      onCrossOriginRead: () => {
-        crossOrigin += 1;
-      },
-    }),
-  });
-  return {
-    reader,
-    entry: confinedEntry(policy),
-    notice: () => {
-      const text = remoteRefsNotice(command, crossOrigin);
-      if (text !== "") io.stderr(text);
-    },
-  };
+  return { reader: io.reader(policy), entry: confinedEntry(policy) };
 }
 
 function readOverlays(reader: DocumentReader, paths: string[]): Promise<SpecOverlay[]> {
@@ -400,7 +378,7 @@ export async function resolveCommand(
 ): Promise<CommandResult> {
   const opened = openReader(io, "resolve", args.spec, args.options);
   if ("refusal" in opened) return opened.refusal;
-  const { reader, entry, notice } = opened;
+  const { reader, entry } = opened;
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(reader, args.overlays);
@@ -413,7 +391,6 @@ export async function resolveCommand(
     entry,
     overlays: overlayDocs,
   });
-  notice();
 
   await primarySink(io, args.options)(JSON.stringify(document, null, 2) + "\n");
   return { exitCode: 0 };
@@ -604,7 +581,7 @@ export async function checkCommand(
 
   const opened = openReader(io, "check", args.spec, args.options);
   if ("refusal" in opened) return opened.refusal;
-  const { reader, entry, notice } = opened;
+  const { reader, entry } = opened;
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(reader, args.overlays);
@@ -625,7 +602,6 @@ export async function checkCommand(
       overlays: overlayDocs,
       provenance: true,
     });
-    notice();
   } catch (err) {
     // The document could not be read, resolved, or parsed. Not a finding:
     // there is nothing to report findings about.
@@ -804,7 +780,7 @@ export async function streamCheckCommand(
 ): Promise<CommandResult> {
   const opened = openReader(io, "stream-check", args.spec, args.options);
   if ("refusal" in opened) return opened.refusal;
-  const { reader, entry, notice } = opened;
+  const { reader, entry } = opened;
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(reader, args.overlays);
@@ -817,7 +793,6 @@ export async function streamCheckCommand(
     entry,
     overlays: overlayDocs,
   });
-  notice();
 
   const budget = analyzeSpec(
     document,
@@ -872,7 +847,7 @@ export async function validateCommand(
 
   const opened = openReader(io, "validate", args.spec, args.options);
   if ("refusal" in opened) return opened.refusal;
-  const { reader, entry, notice } = opened;
+  const { reader, entry } = opened;
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(reader, args.overlays);
@@ -885,7 +860,6 @@ export async function validateCommand(
     entry,
     overlays: overlayDocs,
   });
-  notice();
   // The CLI renders a nested error tree and reports every problem it
   // finds, so it compiles in tree mode with uncapped error collection
   // rather than the flat fail-fast default.
@@ -1143,7 +1117,7 @@ export async function compileSpecCommand(
 ): Promise<CommandResult> {
   const opened = openReader(io, "compile-spec", args.spec, args);
   if ("refusal" in opened) return opened.refusal;
-  const { reader, entry, notice } = opened;
+  const { reader, entry } = opened;
   let overlayDocs: SpecOverlay[];
   try {
     overlayDocs = await readOverlays(reader, args.overlays);
@@ -1158,7 +1132,6 @@ export async function compileSpecCommand(
       entry,
       overlays: overlayDocs,
     });
-    notice();
     document = loaded.document;
   } catch (err) {
     io.stderr(`compile-spec: ${(err as Error).message}\n`);

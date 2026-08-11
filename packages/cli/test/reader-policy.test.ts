@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DocumentReader } from "@oaverify/internal-spec";
 import {
   DEFAULT_MAX_BYTES,
+  DEFAULT_REMOTE_REFS,
   UNTRUSTED_MAX_BYTES,
   confineRootFor,
   entryRefusal,
@@ -9,8 +10,8 @@ import {
   httpOptionsFor,
   originOf,
   parseRemoteRefs,
+  policyFor,
   policyHttpReader,
-  remoteRefsNotice,
   type ReaderPolicy,
 } from "../src/reader-policy.js";
 
@@ -42,6 +43,48 @@ describe("parseRemoteRefs", () => {
     expect(parseRemoteRefs("allow")).toBe("allow");
     expect(parseRemoteRefs("same-origin")).toBe("same-origin");
     expect(parseRemoteRefs("deny")).toBe("deny");
+  });
+});
+
+describe("the default posture (#692)", () => {
+  // The whole of v7's break. `same-origin` rather than `allow`, so a
+  // document nobody vetted cannot make the tool fetch a URL nobody
+  // asked for.
+  it("is same-origin when no flag was passed", () => {
+    expect(policyFor("./spec.yaml").remoteRefs).toBe("same-origin");
+    expect(DEFAULT_REMOTE_REFS).toBe("same-origin");
+  });
+
+  it("refuses a remote ref from a local entry by default", async () => {
+    // The SSRF shape: a local spec reaching the link-local address.
+    // Under v6's default this fetched and hoisted the response.
+    const inner = stubHttp();
+    const reader = policyHttpReader(inner, policyFor("./spec.yaml"));
+    await expect(reader.read("http://169.254.169.254/")).rejects.toThrow(
+      /refused by --remote-refs same-origin/,
+    );
+    expect(inner.reads).toEqual([]);
+  });
+
+  it("still resolves a sibling of a remote entry by default", () => {
+    // Pointing at a remote spec is consent to that origin, so the
+    // default is not "nothing remote ever".
+    const options = httpOptionsFor(policyFor(REMOTE_ENTRY));
+    expect(options.allowUri?.("https://api.example.com/schemas/pet.json")).toBe(true);
+    expect(options.allowUri?.("https://elsewhere.example/x.json")).toBe(false);
+  });
+
+  it("restores the old behaviour with one word", () => {
+    // The entire migration. No rename, no shim: the flag already
+    // existed in v6 and already took this value.
+    expect(policyFor("./spec.yaml", { remoteRefs: "allow" }).remoteRefs).toBe("allow");
+  });
+
+  it("lets an explicit flag beat --untrusted, in both directions", () => {
+    expect(policyFor("./s.yaml", { untrusted: true }).remoteRefs).toBe("same-origin");
+    expect(policyFor("./s.yaml", { untrusted: true, remoteRefs: "allow" }).remoteRefs).toBe(
+      "allow",
+    );
   });
 });
 
@@ -119,40 +162,8 @@ describe("fileOptionsFor and confineRootFor", () => {
 });
 
 describe("policyHttpReader", () => {
-  it("counts only what a stricter default would refuse", async () => {
-    // The notice says "cross-origin", so the count has to mean that.
-    // The entry is not a $ref at all, and a sibling on the entry's own
-    // origin survives same-origin, so neither is news.
-    const inner = stubHttp();
-    let count = 0;
-    const reader = policyHttpReader(
-      inner,
-      policy({ entry: REMOTE_ENTRY, remoteRefs: "allow" }),
-      () => (count += 1),
-    );
-    await reader.read(REMOTE_ENTRY);
-    expect(count).toBe(0);
-    await reader.read("https://api.example.com/schemas/pet.json");
-    expect(count).toBe(0);
-    await reader.read("https://elsewhere.example/x.json");
-    expect(count).toBe(1);
-  });
-
-  it("counts every remote read when the entry is local", async () => {
-    // A local entry opted into no origin, so every remote ref is one
-    // same-origin would refuse.
-    let count = 0;
-    const reader = policyHttpReader(
-      stubHttp(),
-      policy({ remoteRefs: "allow" }),
-      () => (count += 1),
-    );
-    await reader.read("https://api.example.com/pet.json");
-    expect(count).toBe(1);
-  });
-
   it("names the posture that refused rather than the mechanism", async () => {
-    const reader = policyHttpReader(stubHttp(), policy({ remoteRefs: "deny" }), () => {});
+    const reader = policyHttpReader(stubHttp(), policy({ remoteRefs: "deny" }));
     await expect(reader.read("https://internal.corp/x.json")).rejects.toThrow(
       /refused by --remote-refs deny/,
     );
@@ -162,7 +173,6 @@ describe("policyHttpReader", () => {
     const reader = policyHttpReader(
       stubHttp(),
       policy({ entry: REMOTE_ENTRY, remoteRefs: "same-origin" }),
-      () => {},
     );
     await expect(reader.read("http://169.254.169.254/")).rejects.toThrow(
       /the entry's origin is https:\/\/api\.example\.com/,
@@ -170,7 +180,7 @@ describe("policyHttpReader", () => {
   });
 
   it("says no origin was opted into when the entry is local", async () => {
-    const reader = policyHttpReader(stubHttp(), policy({ remoteRefs: "same-origin" }), () => {});
+    const reader = policyHttpReader(stubHttp(), policy({ remoteRefs: "same-origin" }));
     await expect(reader.read("https://api.example.com/x.json")).rejects.toThrow(
       /the entry is not remote/,
     );
@@ -178,26 +188,9 @@ describe("policyHttpReader", () => {
 
   it("does not read at all when the posture refuses", async () => {
     const inner = stubHttp();
-    const reader = policyHttpReader(inner, policy({ remoteRefs: "deny" }), () => {});
+    const reader = policyHttpReader(inner, policy({ remoteRefs: "deny" }));
     await expect(reader.read("https://internal.corp/x.json")).rejects.toThrow();
     expect(inner.reads).toEqual([]);
-  });
-});
-
-describe("remoteRefsNotice", () => {
-  it("says nothing when nothing remote was read", () => {
-    expect(remoteRefsNotice("check", 0)).toBe("");
-  });
-
-  it("names both the restore and the adopt-now flag", () => {
-    const notice = remoteRefsNotice("check", 3);
-    expect(notice).toContain("resolved 3 cross-origin $refs");
-    expect(notice).toContain("--remote-refs allow");
-    expect(notice).toContain("--remote-refs same-origin");
-  });
-
-  it("agrees with itself about the count", () => {
-    expect(remoteRefsNotice("check", 1)).toContain("1 cross-origin $ref ");
   });
 });
 

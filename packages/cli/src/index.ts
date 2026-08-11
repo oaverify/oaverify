@@ -22,7 +22,6 @@ export {
   parseRemoteRefs,
   policyHttpReader,
   REMOTE_REFS_MODES,
-  remoteRefsNotice,
   type ReaderPolicy,
   type RemoteRefsMode,
 } from "./reader-policy.js";
