@@ -43,17 +43,30 @@
  * turns those into source spans so a consumer can point at each one
  * rather than read them out of a joined sentence.
  *
- * Two facts make that arithmetic rather than a second resolution pass,
- * and both are worth knowing before changing it:
+ * A reason's address is **resolved, never derived**, and that is the
+ * thing to know before changing any of this.
  *
- * - An example value is data, and the resolver does not follow a `$ref`
- *   inside one. The value in the resolved document and the value in the
- *   file are the same bytes, so a path that addresses one addresses the
- *   other and `source.pointer` plus the path is the source position.
- * - A path that fails to resolve therefore does not mean the file moved
- *   underneath us. It means the path names something the value does not
- *   contain, which is a property of the reason's code and is what
- *   {@link reasonTargetFor} exists to state.
+ * This file used to state the opposite as a fact: that an example value
+ * is data the resolver does not follow a `$ref` into, so the value in
+ * the resolved document and the value in the file are the same bytes,
+ * so `source.pointer` plus the path is the source position. The first
+ * two clauses are true and the conclusion is not. An overlay rewrites
+ * nodes *after* resolution, and `withOverlayChanges` holes what it
+ * changed while a container keeps its own address, so appending a path
+ * to that address walks straight past the hole and lands on bytes the
+ * overlay removed (#776).
+ *
+ * So {@link reasonPointersFor} builds the pointer in the resolved
+ * document, `checkSpec` maps it through `sourceOf` exactly as it maps
+ * the finding's own pointer, and what reaches this file is an address
+ * rather than a recipe for one. A reason with no address is a reason
+ * with no located item.
+ *
+ * What survives from the old reading is the other half: a path that
+ * resolves to nothing is not the file moving underneath us. It is
+ * either a node an overlay rewrote, or a path naming something the
+ * value does not contain, which is a property of the reason's code and
+ * is what {@link reasonTargetFor} exists to state.
  *
  * @packageDocumentation
  */
@@ -123,10 +136,12 @@ const SEP = "\u0000";
  * - **Each hop**, as a value. A hop addresses the `$ref` node that
  *   pulled a document in, so a recommendation about the finding's own
  *   code has nothing to say about it.
- * - **Each reason that names a position**, read back by
- *   {@link locatedReasonsFor}, at `source.pointer` plus the path
- *   {@link reasonTargetFor} sends it to. One request rather than a
- *   pair: there is no fallback, so nothing needs a second answer.
+ * - **Each reason that has an address**, read back by
+ *   {@link locatedReasonsFor}, at the address `checkSpec` resolved for
+ *   it and recorded in {@link CheckFinding.reasonSources}. One request
+ *   rather than a pair: there is no fallback, so nothing needs a second
+ *   answer. A reason whose node an overlay rewrote has no address and
+ *   so gets no request (#776).
  *
  * A request emitted here may still resolve to nothing, and for a reason
  * that is an ordinary outcome rather than a failure; see
@@ -268,14 +283,18 @@ function pointerFor(pointer: string, path: readonly PathSegment[]): string {
  * no position of their own are absent, so the result is sparse and its
  * `index` is the reason's index in {@link CheckFinding.reasons}.
  *
- * Exported so the pointer arithmetic lives in one place. It used to
- * happen inside {@link locatedReasonsFor}, against `target.source`,
- * which quietly assumed a path means the same thing in the resolved
- * document and in the file. An overlay breaks that assumption (#776),
- * and the fix is to resolve the same way every other address is
- * resolved rather than to derive one.
+ * Exported within the package so the pointer arithmetic lives in one
+ * place. It used to happen inside {@link locatedReasonsFor}, against
+ * `target.source`, which quietly assumed a path means the same thing in
+ * the resolved document and in the file. An overlay breaks that
+ * assumption (#776), and the fix is to resolve the same way every other
+ * address is resolved rather than to derive one.
  *
- * @public
+ * Deliberately not on the package's public surface. Its output is only
+ * useful to something holding the spec's regions, which is `checkSpec`
+ * and nothing outside; a consumer wanting located reasons wants
+ * {@link locatedReasonsFor}, which takes addresses already resolved.
+ * Exporting it later is additive.
  */
 export function reasonPointersFor(finding: CheckFinding): { index: number; pointer: string }[] {
   const target = finding.target;
@@ -320,7 +339,17 @@ export interface LocatedReason {
    * rule changed.
    */
   path: readonly PathSegment[];
-  /** The document, the same one the finding's own location addresses. */
+  /**
+   * The document the reason's own node came from.
+   *
+   * Equal to the finding's own `target.source.uri` in every case seen
+   * so far, and incidentally rather than structurally: it holds because
+   * the resolver does not follow a `$ref` inside example data, so no
+   * region boundary falls between an example node and a node inside it.
+   * Read this rather than the finding's, since the two are resolved
+   * independently and a class whose sub-positions can cross a document
+   * would separate them.
+   */
   uri: string;
   /** RFC 6901 pointer to the located node, within that document. */
   pointer: string;

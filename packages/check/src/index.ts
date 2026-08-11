@@ -31,7 +31,6 @@ export { CHECK_RULES, ruleFor, type CheckRule } from "./rules.js";
 export { renderSarif } from "./sarif.js";
 export {
   locatedReasonsFor,
-  reasonPointersFor,
   reasonTargetFor,
   spanFor,
   spanRequestsFor,

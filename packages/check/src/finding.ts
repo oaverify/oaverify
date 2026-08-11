@@ -138,6 +138,31 @@ export interface CheckFinding {
    *
    * Populated by the `examples` class, and only when the spec carried
    * regions. Absent entirely otherwise, exactly as `target.source` is.
+   *
+   * ## On the wire, deliberately
+   *
+   * `check --format json` serializes findings verbatim, so this travels
+   * with them: about 20% of that report on `twilio.json`, 7% on
+   * `github.json`. Kept rather than trimmed, for two reasons.
+   *
+   * It is not recoverable. A consumer cannot rebuild these addresses by
+   * appending a reason's path to `target.source.pointer`, because doing
+   * exactly that is the defect #776 fixed. Withholding them would leave
+   * a JSON consumer with the choice between no positions and the wrong
+   * ones.
+   *
+   * And the obvious trim is a trap. Every entry's `uri` and `via`
+   * currently equal the finding's, so storing a bare pointer looks
+   * free. That equality holds only because the resolver does not follow
+   * a `$ref` inside example data, which is a fact about today's one
+   * producing class rather than about the field: `reasons` is
+   * class-agnostic by construction, and a class whose sub-positions can
+   * cross a document would break it silently. Assuming structure about
+   * a position is the shape of the bug this field exists to fix, so it
+   * is not repeated one level down to save bytes.
+   *
+   * SARIF is unaffected: `renderSarif` reads this to place related
+   * locations and does not emit the field.
    */
   reasonSources?: readonly ReasonSource[];
   /**
