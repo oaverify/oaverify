@@ -120,6 +120,27 @@ export interface CheckFinding {
    */
   reasons?: readonly RejectionReason[];
   /**
+   * Where each located reason came from in the files that were read.
+   *
+   * Sparse and index-keyed rather than parallel to `reasons`: a reason
+   * appears only when it names a position of its own **and** a source
+   * node corresponds to that position. `index` is its index in
+   * `reasons`, which is how a consumer joins the two.
+   *
+   * Absence carries the same meaning it does on
+   * {@link FindingTarget.source}, one level down. A reason missing here
+   * is a reason whose position no source node corresponds to, which
+   * under an overlay means the node it names was rewritten after
+   * resolution and its position in the file would be stale. Deriving
+   * the address instead, by appending the reason's path to
+   * `target.source.pointer`, is what produced a confident region over
+   * bytes the overlay had removed (#776).
+   *
+   * Populated by the `examples` class, and only when the spec carried
+   * regions. Absent entirely otherwise, exactly as `target.source` is.
+   */
+  reasonSources?: readonly ReasonSource[];
+  /**
    * Where this finding is, for a machine. The counterpart to
    * `location`, which stays prose.
    *
@@ -188,6 +209,22 @@ export type FindingAnchor =
    * different use sites.
    */
   | "scoped-definition";
+
+/**
+ * One reason's address in the files that were read.
+ *
+ * See {@link CheckFinding.reasonSources}, which explains why this is
+ * sparse and why absence is a fact about the node rather than an
+ * omission.
+ *
+ * @public
+ */
+export interface ReasonSource {
+  /** The reason's index in {@link CheckFinding.reasons}. */
+  index: number;
+  /** Where the node that reason addresses came from. */
+  source: SourceAddress;
+}
 
 /**
  * A finding's machine-readable address.

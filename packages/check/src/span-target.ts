@@ -153,13 +153,16 @@ export function spanRequestsFor(findings: readonly CheckFinding[]): SpanRequest[
     add(source.uri, source.pointer, want);
     if (want !== "value") add(source.uri, source.pointer, "value");
     for (const hop of source.via) add(hop.uri, hop.pointer, "value");
-    // One request per reason that asks for a position, at the position
-    // its code names. One, not a pair: there is no fallback to resolve
-    // against, per the invariant on `reasonTargetFor`.
-    for (const reason of finding.reasons ?? []) {
-      const path = locatedPathOf(reason);
-      if (path === undefined) continue;
-      add(source.uri, pointerFor(source.pointer, path), "value");
+    // One request per reason that has an address, at that address. One,
+    // not a pair: there is no fallback to resolve against, per the
+    // invariant on `reasonTargetFor`.
+    //
+    // From `reasonSources` rather than from arithmetic on
+    // `source.pointer`: a reason whose node an overlay rewrote has no
+    // address, and asking for a span at a derived pointer is what put a
+    // region over stale bytes (#776).
+    for (const { source: at } of finding.reasonSources ?? []) {
+      add(at.uri, at.pointer, "value");
     }
   }
   return requests;
@@ -257,6 +260,36 @@ function pointerFor(pointer: string, path: readonly PathSegment[]): string {
 }
 
 /**
+ * Where each reason of a finding sits in the **resolved** document.
+ *
+ * The input to source attribution rather than its output: a caller maps
+ * these through `sourceOf` to get the address in the file, exactly as
+ * `checkSpec` already does for the finding's own pointer. Reasons with
+ * no position of their own are absent, so the result is sparse and its
+ * `index` is the reason's index in {@link CheckFinding.reasons}.
+ *
+ * Exported so the pointer arithmetic lives in one place. It used to
+ * happen inside {@link locatedReasonsFor}, against `target.source`,
+ * which quietly assumed a path means the same thing in the resolved
+ * document and in the file. An overlay breaks that assumption (#776),
+ * and the fix is to resolve the same way every other address is
+ * resolved rather than to derive one.
+ *
+ * @public
+ */
+export function reasonPointersFor(finding: CheckFinding): { index: number; pointer: string }[] {
+  const target = finding.target;
+  if (target === undefined) return [];
+  const out: { index: number; pointer: string }[] = [];
+  (finding.reasons ?? []).forEach((reason, index) => {
+    const path = locatedPathOf(reason);
+    if (path === undefined) return;
+    out.push({ index, pointer: pointerFor(target.pointer, path) });
+  });
+  return out;
+}
+
+/**
  * One reason of a finding, and the source position it was located at.
  *
  * Self-contained on purpose: `uri`, `pointer` and `span` together are
@@ -300,10 +333,19 @@ export interface LocatedReason {
  *
  * A reason appears when three things hold, and is absent otherwise:
  *
- * 1. the finding has a `target.source`, so there is a document to
- *    address at all;
- * 2. it names a position of its own, per {@link locatedPathOf}; and
- * 3. a span resolves at the position its code names.
+ * 1. the finding has a `target.source`, so the result it supports has
+ *    an address of its own;
+ * 2. it has an entry in {@link CheckFinding.reasonSources}, so a source
+ *    node corresponds to the position its code names, and it names a
+ *    position at all per {@link locatedPathOf}; and
+ * 3. a span resolves at that address.
+ *
+ * The second is what makes this safe under an overlay. The address is
+ * resolved by `checkSpec` through `sourceOf`, the same way the
+ * finding's own is, rather than derived here by appending the reason's
+ * path to `target.source.pointer`. Deriving assumed a path means the
+ * same thing in the resolved document and in the file, which an overlay
+ * that rewrote the node makes false (#776).
  *
  * Absence is therefore never a guess and never a repeat. A caller that
  * wired no `spanOf`, or one whose document has no span backend, gets an
@@ -325,25 +367,30 @@ export function locatedReasonsFor(
   finding: CheckFinding,
   spanOf: (of: SpanRequest) => SourceSpan | undefined,
 ): LocatedReason[] {
-  const source = finding.target?.source;
-  if (source === undefined) return [];
+  // A related location supports a result. A result carrying none of its
+  // own while pointing related ones into a file is incoherent, so the
+  // finding having an address stays a precondition even though a
+  // reason's address no longer derives from it.
+  if (finding.target?.source === undefined) return [];
+  const reasons = finding.reasons ?? [];
   const located: LocatedReason[] = [];
-  (finding.reasons ?? []).forEach((reason, index) => {
+  for (const { index, source } of finding.reasonSources ?? []) {
+    const reason = reasons[index];
+    if (reason === undefined) continue;
     const path = locatedPathOf(reason);
-    if (path === undefined) return;
-    const pointer = pointerFor(source.pointer, path);
-    const span = spanOf({ uri: source.uri, pointer, want: "value" });
-    if (span === undefined) return;
+    if (path === undefined) continue;
+    const span = spanOf({ uri: source.uri, pointer: source.pointer, want: "value" });
+    if (span === undefined) continue;
     located.push({
       reason,
       index,
       at: reasonTargetFor(reason.code),
       uri: source.uri,
-      pointer,
+      pointer: source.pointer,
       path,
       span,
     });
-  });
+  }
   return located;
 }
 
