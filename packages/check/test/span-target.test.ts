@@ -5,7 +5,8 @@ import {
   type SpanRequest,
 } from "@oaverify/internal-spec";
 import { createYamlSpanBackend } from "@oaverify/syntax";
-import { spanFor, spanRequestsFor, spanTargetFor } from "../src/span-target.js";
+import { checkDocumentExamples } from "@oaverify/internal-validator";
+import { reasonTargetFor, spanFor, spanRequestsFor, spanTargetFor } from "../src/span-target.js";
 import type { CheckFinding } from "../src/finding.js";
 
 /**
@@ -155,5 +156,55 @@ describe("every code on the key list can resolve a key", () => {
     expect(key, `${code} recommends a key but ${pointer} resolves none`).toBeDefined();
     // and the recommendation is what gets used, not the fallback
     expect(spanFor(f, lookup)).toEqual(key);
+  });
+});
+
+describe("every container code is one the validator actually emits that way", () => {
+  // The table is a claim about what a keyword means, and the keyword is
+  // in another package. Asserting the claim against a hand-written
+  // fixture would only restate it, so this runs the real example check
+  // and reads back the triple the entry criterion is written in: the
+  // path's final segment names something the instance does not hold,
+  // and `params.missing` says the same name.
+  //
+  // `dependencies` was missing from the table until this test existed.
+  // It is the 3.0 spelling of `dependentRequired`, behaves identically,
+  // and was located at a position no document contains, so its item was
+  // silently dropped rather than placed on the containing value.
+  const doc = (schema: unknown, example: unknown) =>
+    ({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/a": {
+          get: {
+            responses: {
+              "200": {
+                description: "ok",
+                content: { "application/json": { schema, example } },
+              },
+            },
+          },
+        },
+      },
+    }) as never;
+
+  const absent = { credit_card: "4111" };
+  const cases: [string, unknown][] = [
+    ["required", { type: "object", required: ["billing_address"] }],
+    [
+      "dependentRequired",
+      { type: "object", dependentRequired: { credit_card: ["billing_address"] } },
+    ],
+    ["dependencies", { type: "object", dependencies: { credit_card: ["billing_address"] } }],
+  ];
+
+  it.each(cases)("%s names an absent member, so it belongs at the container", (code, schema) => {
+    const reasons = checkDocumentExamples(doc(schema, absent)).flatMap((issue) => issue.reasons);
+    const reason = reasons.find((r) => r.code === code);
+    expect(reason, `no ${code} reason; the keyword or its code changed`).toBeDefined();
+    expect(reason?.path.at(-1)).toBe("billing_address");
+    expect(reason?.params["missing"]).toBe("billing_address");
+    expect(reasonTargetFor(code)).toBe("container");
   });
 });

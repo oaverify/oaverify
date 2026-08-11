@@ -246,6 +246,7 @@
           ],
           "relatedLocations": [
             {
+              "id": 1,
               "physicalLocation": {
                 "artifactLocation": {
                   "uri": "entry.json",
@@ -254,6 +255,10 @@
               },
               "message": {
                 "text": "reference 1 of 1 the resolver followed to reach this document: /paths/~1pets~1{petId}/get/responses/200/content/application~1json/schema"
+              },
+              "properties": {
+                "oaverify:kind": "via",
+                "oaverify:viaIndex": 0
               }
             }
           ],
@@ -360,6 +365,7 @@
           ],
           "relatedLocations": [
             {
+              "id": 1,
               "physicalLocation": {
                 "artifactLocation": {
                   "uri": "entry.json",
@@ -368,6 +374,10 @@
               },
               "message": {
                 "text": "reference 1 of 1 the resolver followed to reach this document: /paths/~1pets~1{petId}/get/responses/200/content/application~1json/schema"
+              },
+              "properties": {
+                "oaverify:kind": "via",
+                "oaverify:viaIndex": 0
               }
             }
           ],
@@ -402,6 +412,7 @@
           ],
           "relatedLocations": [
             {
+              "id": 1,
               "physicalLocation": {
                 "artifactLocation": {
                   "uri": "entry.json",
@@ -410,6 +421,10 @@
               },
               "message": {
                 "text": "reference 1 of 1 the resolver followed to reach this document: /paths/~1pets~1{petId}/get/responses/200/content/application~1json/schema"
+              },
+              "properties": {
+                "oaverify:kind": "via",
+                "oaverify:viaIndex": 0
               }
             }
           ],
@@ -444,6 +459,7 @@
           ],
           "relatedLocations": [
             {
+              "id": 1,
               "physicalLocation": {
                 "artifactLocation": {
                   "uri": "entry.json",
@@ -452,6 +468,10 @@
               },
               "message": {
                 "text": "reference 1 of 1 the resolver followed to reach this document: /paths/~1pets~1{petId}/get/responses/200/content/application~1json/schema"
+              },
+              "properties": {
+                "oaverify:kind": "via",
+                "oaverify:viaIndex": 0
               }
             }
           ],

@@ -66,19 +66,36 @@ check`, in its own package because the ReDoS pass depends on
 entry imports it. Behind a `@oaverify/core` subpath that weight would
 reach every `@oaverify/core` consumer.
 
-| Export                                                | Purpose                                                                               |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `checkSpec(resolved, options?)`                       | Every selected pass over a `ResolvedSpec`, graded into `CheckFinding[]`               |
-| `CheckFinding`, `FindingTarget`                       | What a finding is, and how it addresses the document                                  |
-| `CHECK_CLASSES`, `CHECK_SEVERITIES`                   | The classes a run selects, and the severity ranking                                   |
-| `CheckCode`, `CHECK_CODES`                            | Every code a run can emit, as a type and as a set                                     |
-| `DEFAULT_SEVERITY`, `severityFor`                     | oaverify's grading, and how a regrading is applied                                    |
-| `parseSeverityMap(entries)`                           | The `key=level` grammar the CLI spells `--severity`                                   |
-| `parseFindingKey(key)`                                | One key resolved to a code, family or class; shared by the two below                  |
-| `parseFindingTerms(value)`, `resolveFindingSelection` | The term grammar the CLI spells `--findings`, resolved to what runs and what survives |
-| `parseSkipKeys(entries)`, `applySkip`                 | A key list and the filter plus its report; what `--findings` exclusions resolve to    |
-| `renderSarif(findings, options)`                      | SARIF 2.1.0, for code scanning; `options.classes` is required                         |
-| `checkDocumentFormats`, `checkDocumentRedos`          | The two passes that have no other home                                                |
+| Export                                                  | Purpose                                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `checkSpec(resolved, options?)`                         | Every selected pass over a `ResolvedSpec`, graded into `CheckFinding[]`               |
+| `CheckFinding`, `FindingTarget`                         | What a finding is, and how it addresses the document                                  |
+| `CHECK_CLASSES`, `CHECK_SEVERITIES`                     | The classes a run selects, and the severity ranking                                   |
+| `CheckCode`, `CHECK_CODES`                              | Every code a run can emit, as a type and as a set                                     |
+| `DEFAULT_SEVERITY`, `severityFor`                       | oaverify's grading, and how a regrading is applied                                    |
+| `parseSeverityMap(entries)`                             | The `key=level` grammar the CLI spells `--severity`                                   |
+| `parseFindingKey(key)`                                  | One key resolved to a code, family or class; shared by the two below                  |
+| `parseFindingTerms(value)`, `resolveFindingSelection`   | The term grammar the CLI spells `--findings`, resolved to what runs and what survives |
+| `parseSkipKeys(entries)`, `applySkip`                   | A key list and the filter plus its report; what `--findings` exclusions resolve to    |
+| `renderSarif(findings, options)`                        | SARIF 2.1.0, for code scanning; `options.classes` is required                         |
+| `spanRequestsFor(findings)`, `spanFor(finding, spanOf)` | Every position a report needs, in one batch, and a finding's own span back out        |
+| `locatedReasonsFor(finding, spanOf)`                    | One located item per sub-rejection of a finding, over that same batch                 |
+| `reasonTargetFor(code)`                                 | Where a reason's ruling applies: its own path, or the value containing it             |
+| `checkDocumentFormats`, `checkDocumentRedos`            | The two passes that have no other home                                                |
+
+Positions come from the caller rather than from the findings. Pass
+`spanRequestsFor(findings)` to a `SourceSpanResolver`, close over the
+answers, and hand that lookup to `renderSarif` as `spanOf`; one batch
+covers every position in the report, so a document is parsed once
+however many findings name it.
+
+`locatedReasonsFor` is that path for a consumer other than SARIF. An
+example that fails its schema in several places carries one
+`RejectionReason` per place, and this resolves each to a source span, so
+an editor can point at them one at a time instead of showing a joined
+sentence. Which reasons get one, and why a `required` reason is located
+at the value containing the member rather than at the member it names,
+is on `reasonTargetFor`.
 
 `checkSpec` takes a resolved spec rather than a document, because two of
 its inputs are byproducts of resolution: the regions each finding's

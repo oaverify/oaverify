@@ -34,13 +34,24 @@
  * took to it. `codeFlows` asserts a path taken, so using it here would
  * state something untrue.
  *
+ * **`relatedLocations` carries two kinds, and says which.** A finding
+ * with `reasons` was rejected in several places inside one value, and
+ * each of those gets an item of its own (#773). They sit in the same
+ * array as the `via` hops above and answer a different question: `via`
+ * is how the resolver reached this document, and a reason is where
+ * inside this example a ruling applies. Every item declares which it is
+ * in `properties["oaverify:kind"]`, so a consumer separates them by
+ * reading a field rather than by parsing message text or by trusting the
+ * order. The order is `via` first and reasons after, and that is
+ * presentation; the properties are the contract.
+ *
  * @packageDocumentation
  */
 
 import { isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { SourceSpan, SpanRequest } from "@oaverify/internal-spec";
-import { spanFor } from "./span-target.js";
+import { locatedReasonsFor, spanFor, type LocatedReason } from "./span-target.js";
 import { type CheckClass, type CheckFinding, type CheckSeverity } from "./finding.js";
 import { ruleFor } from "./rules.js";
 import type { SkipReportEntry } from "./skip.js";
@@ -130,11 +141,24 @@ interface SarifRegion {
 }
 
 interface SarifLocation {
+  /**
+   * SARIF's within-result handle for a location, unique across a
+   * result's `locations` and `relatedLocations`, numbered from 1.
+   *
+   * A handle and not the discriminator. It exists so message text can
+   * reference a location through SARIF's embedded-link syntax, which has
+   * no other way to name one; what a related location *means* is in
+   * `properties["oaverify:kind"]`. Nothing should be read into the
+   * numbering, which follows emission order and will move when a
+   * finding gains a hop or a reason.
+   */
+  id?: number;
   physicalLocation: {
     artifactLocation: { uri: string; uriBaseId?: string };
     region?: SarifRegion;
   };
   message?: { text: string };
+  properties?: Record<string, unknown>;
 }
 
 /**
@@ -187,21 +211,94 @@ function locationsOf(finding: CheckFinding, base: string, spanOf: SpanLookup): S
   ];
 }
 
+/**
+ * How a reason's path reads in a message.
+ *
+ * The same rendering the finding's own message uses for the joined
+ * summary, so a reader matching a located item against the sentence
+ * above it sees one spelling of a path rather than two.
+ * {@link joinPath}'s bracket form is the conventional one elsewhere and
+ * would be the second.
+ */
+function pathText(path: readonly (string | number)[]): string {
+  return path.join(".");
+}
+
+/**
+ * A finding's related locations: the resolver's route, then the places
+ * inside the value that were rejected.
+ *
+ * The two kinds are built here together because their `id`s have to be
+ * unique within one result, which is a fact about the pair rather than
+ * about either.
+ */
 function relatedLocationsOf(
   finding: CheckFinding,
   base: string,
   spanOf: SpanLookup,
 ): SarifLocation[] {
   const via = finding.target?.source?.via ?? [];
-  return via.map((hop, i) => ({
+  const hops: SarifLocation[] = via.map((hop, i) => ({
+    id: i + 1,
     physicalLocation: {
       artifactLocation: artifactLocation(hop.uri, base),
       ...regionOf(spanOf(hop)),
     },
+    // Unchanged, deliberately. What a hop means is fixed by the header
+    // above and a reader may have tooling keyed to this sentence; the
+    // `kind` property below is what a new consumer should read instead.
     message: {
       text: `reference ${i + 1} of ${via.length} the resolver followed to reach this document: ${hop.pointer}`,
     },
+    properties: { "oaverify:kind": "via", "oaverify:viaIndex": i },
   }));
+  const reasons: SarifLocation[] = locatedReasonsFor(finding, spanOf).map((located, i) => ({
+    id: via.length + i + 1,
+    physicalLocation: {
+      artifactLocation: artifactLocation(located.uri, base),
+      ...regionOf(located.span),
+    },
+    message: { text: messageForReason(located) },
+    properties: {
+      "oaverify:kind": "reason",
+      // The reason's own index, not this item's. Located items are a
+      // subset in the same order, so the two diverge as soon as one
+      // reason addresses the value as a whole; this is what joins an
+      // item back to the entry in `oaverify:reasons`.
+      //
+      // The join is the only copy of the reason this item carries. Its
+      // `code`, its `path` and its `params` are one lookup away and
+      // were duplicated here at first, which cost ~152 bytes an item
+      // and about 15% of this change's growth for data already present
+      // twice: once in `oaverify:reasons`, and once in this item's own
+      // message, which renders the path and the ruling for a reader.
+      // A `required` item's missing name is `params.missing` on the
+      // joined reason, and its final path segment says the same thing.
+      "oaverify:reasonIndex": located.index,
+      // Not recoverable from the reason alone, which is why this one
+      // stays: it says whether the region addresses the position the
+      // reason names or the container that holds it, and deriving that
+      // means reimplementing `reasonTargetFor`.
+      "oaverify:at": located.at,
+    },
+  }));
+  return [...hops, ...reasons];
+}
+
+/**
+ * What a located reason says, for a reader looking at one item.
+ *
+ * Names the position and the ruling, in the spelling the finding's
+ * summary uses. A `container` item additionally says whose absence it
+ * is about, because the location it carries addresses the object and the
+ * sentence would otherwise read as though the member were there.
+ */
+function messageForReason(located: LocatedReason): string {
+  const where = pathText(located.path);
+  if (located.at === "container") {
+    return `${where}: ${located.reason.message} (this location is the containing value; the member it names is absent)`;
+  }
+  return `${where}: ${located.reason.message}`;
 }
 
 /**
@@ -305,11 +402,20 @@ export function renderSarif(
     /**
      * Where a `region` comes from, if anywhere (#610).
      *
-     * Called once per result location and once per related location,
-     * with the `SourceAddress` or `SourceHop` that location was built
-     * from. Returning `undefined` leaves that location addressing the
-     * file alone, which is what every location did before this option
-     * existed and what an unwired caller still gets.
+     * Called with a `SpanRequest`, once for a result's own location,
+     * once per `via` hop, and once per reason that names a position
+     * inside the rejected value. The first two are a `SourceAddress` and
+     * a `SourceHop`, which satisfy that type; a reason's is built here,
+     * at the address's pointer plus the reason's path.
+     *
+     * What `undefined` does differs by caller, and the difference is
+     * deliberate. A result location and a hop keep their place and
+     * address the file alone, which is what every location did before
+     * this option existed. A reason produces no related location at all:
+     * it would say only "inside the file the result already names", and
+     * an item that adds nothing is worse than a missing one. So the
+     * number of related locations depends on what this answers, and
+     * every reason is asked about whether or not it becomes one.
      *
      * A callback rather than a field on the finding: an address is
      * present or absent as a unit and says something checkable about
@@ -319,9 +425,10 @@ export function renderSarif(
      * distinguishable.
      *
      * Positions come from `createSourceSpanResolver` in
-     * `@oaverify/core/spec`. Resolve every address and hop in one batch
-     * and close over the result; calling a resolver directly from here
-     * would reparse per lookup.
+     * `@oaverify/core/spec`. Resolve {@link spanRequestsFor}'s whole
+     * batch and close over the result; it is the same policy this reads
+     * back, and calling a resolver directly from here would reparse per
+     * lookup.
      */
     spanOf?: SpanLookup;
   },
