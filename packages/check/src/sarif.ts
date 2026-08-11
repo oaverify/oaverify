@@ -34,13 +34,24 @@
  * took to it. `codeFlows` asserts a path taken, so using it here would
  * state something untrue.
  *
+ * **`relatedLocations` carries two kinds, and says which.** A finding
+ * with `reasons` was rejected in several places inside one value, and
+ * each of those gets an item of its own (#773). They sit in the same
+ * array as the `via` hops above and answer a different question: `via`
+ * is how the resolver reached this document, and a reason is where
+ * inside this example a ruling applies. Every item declares which it is
+ * in `properties["oaverify:kind"]`, so a consumer separates them by
+ * reading a field rather than by parsing message text or by trusting the
+ * order. The order is `via` first and reasons after, and that is
+ * presentation; the properties are the contract.
+ *
  * @packageDocumentation
  */
 
 import { isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { SourceSpan, SpanRequest } from "@oaverify/internal-spec";
-import { spanFor } from "./span-target.js";
+import { locatedReasonsFor, spanFor, type LocatedReason } from "./span-target.js";
 import { type CheckClass, type CheckFinding, type CheckSeverity } from "./finding.js";
 import { ruleFor } from "./rules.js";
 import type { SkipReportEntry } from "./skip.js";
@@ -130,11 +141,24 @@ interface SarifRegion {
 }
 
 interface SarifLocation {
+  /**
+   * SARIF's within-result handle for a location, unique across a
+   * result's `locations` and `relatedLocations`, numbered from 1.
+   *
+   * A handle and not the discriminator. It exists so message text can
+   * reference a location through SARIF's embedded-link syntax, which has
+   * no other way to name one; what a related location *means* is in
+   * `properties["oaverify:kind"]`. Nothing should be read into the
+   * numbering, which follows emission order and will move when a
+   * finding gains a hop or a reason.
+   */
+  id?: number;
   physicalLocation: {
     artifactLocation: { uri: string; uriBaseId?: string };
     region?: SarifRegion;
   };
   message?: { text: string };
+  properties?: Record<string, unknown>;
 }
 
 /**
@@ -187,21 +211,87 @@ function locationsOf(finding: CheckFinding, base: string, spanOf: SpanLookup): S
   ];
 }
 
+/**
+ * How a reason's path reads in a message.
+ *
+ * The same rendering the finding's own message uses for the joined
+ * summary, so a reader matching a located item against the sentence
+ * above it sees one spelling of a path rather than two.
+ * {@link joinPath}'s bracket form is the conventional one elsewhere and
+ * would be the second.
+ */
+function pathText(path: readonly (string | number)[]): string {
+  return path.join(".");
+}
+
+/**
+ * A finding's related locations: the resolver's route, then the places
+ * inside the value that were rejected.
+ *
+ * The two kinds are built here together because their `id`s have to be
+ * unique within one result, which is a fact about the pair rather than
+ * about either.
+ */
 function relatedLocationsOf(
   finding: CheckFinding,
   base: string,
   spanOf: SpanLookup,
 ): SarifLocation[] {
   const via = finding.target?.source?.via ?? [];
-  return via.map((hop, i) => ({
+  const hops: SarifLocation[] = via.map((hop, i) => ({
+    id: i + 1,
     physicalLocation: {
       artifactLocation: artifactLocation(hop.uri, base),
       ...regionOf(spanOf(hop)),
     },
+    // Unchanged, deliberately. What a hop means is fixed by the header
+    // above and a reader may have tooling keyed to this sentence; the
+    // `kind` property below is what a new consumer should read instead.
     message: {
       text: `reference ${i + 1} of ${via.length} the resolver followed to reach this document: ${hop.pointer}`,
     },
+    properties: { "oaverify:kind": "via", "oaverify:viaIndex": i },
   }));
+  const reasons: SarifLocation[] = locatedReasonsFor(finding, spanOf).map((located, i) => ({
+    id: via.length + i + 1,
+    physicalLocation: {
+      artifactLocation: artifactLocation(located.uri, base),
+      ...regionOf(located.span),
+    },
+    message: { text: messageForReason(located) },
+    properties: {
+      "oaverify:kind": "reason",
+      // The reason's own index, not this item's. Located items are a
+      // subset in the same order, so the two diverge as soon as one
+      // reason addresses the value as a whole; this is what joins an
+      // item back to the entry in `oaverify:reasons`.
+      "oaverify:reasonIndex": located.index,
+      "oaverify:reasonCode": located.reason.code,
+      // The reason's path, whole, including the final segment that
+      // `at: "container"` says this location does not address. A
+      // consumer reading a `required` item needs the missing name, and
+      // recovering it from `params.missing` should not be the only way.
+      "oaverify:reasonPath": located.reason.path,
+      "oaverify:at": located.at,
+    },
+  }));
+  return [...hops, ...reasons];
+}
+
+/**
+ * What a located reason says, for a reader looking at one item.
+ *
+ * Names the position and the ruling, in the spelling the finding's
+ * summary uses. A `container` item additionally says whose absence it
+ * is about, because the location it carries addresses the object and the
+ * sentence would otherwise read as though the member were there.
+ */
+function messageForReason(located: LocatedReason): string {
+  const { reason, at } = located;
+  if (at === "container") {
+    return `${pathText(reason.path.slice(0, -1))}: ${reason.message} (this location is the containing value; the member it names is absent)`;
+  }
+  return `${pathText(reason.path)}: ${reason.message}`;
 }
 
 /**
