@@ -29,9 +29,21 @@ function stubFetch() {
 }
 
 describe("createCliReader", () => {
-  it("fetches a remote ref under the default posture", async () => {
+  it("refuses a remote ref from a local entry under the default posture", async () => {
+    // v7 flipped this default to same-origin (#692). A local entry
+    // opted into no origin, so this never reaches the network.
     const fetchMock = stubFetch();
-    await cliReader(policyFor("./spec.yaml")).read("https://api.example.com/pet.json");
+    await expect(
+      cliReader(policyFor("./spec.yaml")).read("https://api.example.com/pet.json"),
+    ).rejects.toThrow(/refused by --remote-refs same-origin/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fetches it when the caller asks for allow", async () => {
+    const fetchMock = stubFetch();
+    await cliReader(policyFor("./spec.yaml", { remoteRefs: "allow" })).read(
+      "https://api.example.com/pet.json",
+    );
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
@@ -86,21 +98,11 @@ describe("createCliReader", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
-  it("counts a cross-origin ref for the notice, but not the entry or a sibling", async () => {
-    stubFetch();
-    let count = 0;
-    const policy = { ...policyFor(REMOTE_ENTRY), onCrossOriginRead: () => (count += 1) };
-    const reader = cliReader(policy);
-    await reader.read(REMOTE_ENTRY);
-    await reader.read("https://api.example.com/pet.json");
-    expect(count).toBe(0);
-    await reader.read("https://elsewhere.example/pet.json");
-    expect(count).toBe(1);
-  });
-
   it("puts a timeout on every request, from the caps", async () => {
     const fetchMock = stubFetch();
-    await cliReader(policyFor("./spec.yaml")).read("https://api.example.com/pet.json");
+    await cliReader(policyFor("./spec.yaml", { remoteRefs: "allow" })).read(
+      "https://api.example.com/pet.json",
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.example.com/pet.json",
       expect.objectContaining({ signal: expect.anything() }),

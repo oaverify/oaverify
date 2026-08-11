@@ -434,12 +434,17 @@ filesystem-only reader.
 
 The CLI has to compose readers to be useful, so it takes the same choice
 as a flag. Every command that reads a spec accepts `--remote-refs
-allow | same-origin | deny` and `--untrusted`:
+same-origin | allow | deny` and `--untrusted`:
 
 ```bash
-oaverify check vendor.yaml --remote-refs same-origin
+oaverify check vendor.yaml --remote-refs allow
 oaverify check /srv/uploads/tenant-42/openapi.json --untrusted
 ```
+
+`--remote-refs` defaults to `same-origin`, so a local entry resolves
+nothing over the network and a remote one resolves only its own origin's
+siblings. `allow` opts back into resolving any host, which is what the
+CLI did before v7.
 
 `--untrusted` confines file reads to the entry's directory, tightens the
 caps, and implies `--remote-refs same-origin`. The individual options
