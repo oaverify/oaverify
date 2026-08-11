@@ -62,7 +62,6 @@ describe("the defects this exists to catch", () => {
     expect(r.issues).toContainEqual({
       code: "type",
       pointer: "/paths/~1things/get/responses/202/description",
-      location: "/paths/~1things/get/responses/202/description",
       message: expect.stringContaining("string"),
     });
   });
@@ -76,7 +75,6 @@ describe("the defects this exists to catch", () => {
     expect(r.issues).toContainEqual({
       code: "type",
       pointer: "/paths/~1things/get/parameters/0/description",
-      location: "/paths/~1things/get/parameters/0/description",
       message: expect.stringContaining("string"),
     });
   });
@@ -86,7 +84,6 @@ describe("the defects this exists to catch", () => {
     expect(r.issues).toContainEqual({
       code: "required",
       pointer: "/info/version",
-      location: "/info/version",
       message: expect.stringContaining("version"),
     });
   });
@@ -108,7 +105,6 @@ describe("the defects this exists to catch", () => {
     expect(r.issues).toContainEqual({
       code: "enum",
       pointer: "/paths/~1things/get/parameters/0/in",
-      location: "/paths/~1things/get/parameters/0/in",
       message: expect.any(String),
     });
   });
@@ -129,14 +125,13 @@ describe("$dynamicRef resolution control", () => {
     expect(r.issues).toContainEqual({
       code: "type",
       pointer: "/paths/~1things/get/responses/200/content/application~1json/schema",
-      location: "/paths/~1things/get/responses/200/content/application~1json/schema",
       message: expect.stringContaining("object"),
     });
   });
 
   it("enforces it in 3.2 too", () => {
     const r = checkDocumentConformance(withSchema("3.2.0", "not-a-schema-object"));
-    expect(r.issues.map((i) => i.location)).toContain(
+    expect(r.issues.map((i) => i.pointer)).toContain(
       "/paths/~1things/get/responses/200/content/application~1json/schema",
     );
   });
@@ -252,15 +247,15 @@ describe("error shape", () => {
       description: null,
     };
     const r = checkDocumentConformance(doc);
-    expect(r.issues[0]?.location).toContain("~1things");
-    expect(r.issues[0]?.location).not.toContain("//things");
+    expect(r.issues[0]?.pointer).toContain("~1things");
+    expect(r.issues[0]?.pointer).not.toContain("//things");
   });
 
   it("reports the leaf, not every node above it", () => {
     // A missing required field under nested applicators should produce
     // one finding at the field, not one per level.
     const r = checkDocumentConformance({ openapi: "3.1.0", info: { title: "t" }, paths: {} });
-    const versionIssues = r.issues.filter((i) => i.location === "/info/version");
+    const versionIssues = r.issues.filter((i) => i.pointer === "/info/version");
     expect(versionIssues).toHaveLength(1);
   });
 
@@ -281,7 +276,6 @@ describe("error shape", () => {
         {
           code: "type",
           pointer: "/paths/~1things/get/responses/200/description",
-          location: "/paths/~1things/get/responses/200/description",
           message: expect.any(String),
         },
       ]);
@@ -292,7 +286,7 @@ describe("error shape", () => {
         const doc = badResponse();
         doc.openapi = version;
         return checkDocumentConformance(doc)
-          .issues.map((i) => `${i.code} ${i.location}`)
+          .issues.map((i) => `${i.code} ${i.pointer}`)
           .sort();
       };
 
@@ -306,7 +300,7 @@ describe("error shape", () => {
       (doc.paths["/things"].get.responses as Record<string, unknown>)["200"] = { $ref: 42 };
       const r = checkDocumentConformance(doc);
 
-      expect(r.issues.some((i) => i.location === "/paths/~1things/get/responses/200/$ref")).toBe(
+      expect(r.issues.some((i) => i.pointer === "/paths/~1things/get/responses/200/$ref")).toBe(
         true,
       );
     });
@@ -331,7 +325,6 @@ describe("error shape", () => {
     expect(r.issues).toContainEqual({
       code: "oneOf",
       pointer: "/paths/~1things/get/parameters/0",
-      location: "/paths/~1things/get/parameters/0",
       message: expect.any(String),
     });
   });

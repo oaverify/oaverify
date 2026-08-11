@@ -106,16 +106,13 @@ function normalizeSecurityMode(
  * Turn a failed compile into a {@link PrecompileFailure}, keeping the
  * address the successful path would have used.
  *
- * `context` falls back to the empty string only when the site supplied
+ * `location` falls back to the empty string only when the site supplied
  * no label, which no current site does; the field is required on the
  * type and predates this.
  */
 function failureFrom(origin: SchemaOrigin, err: unknown): PrecompileFailure {
   const label = origin.label ?? "";
   const failure: PrecompileFailure = {
-    // Both names carry the same value for one major; see the
-    // deprecation on PrecompileFailure.context.
-    context: label,
     location: label,
     message: (err as Error).message,
   };
@@ -231,19 +228,6 @@ export type RouteMatchResult =
  */
 export interface PrecompileFailure {
   /**
-   * What was being compiled, named down to the individual schema:
-   * `'POST /things query parameter "q"'`, `"POST /things request body
-   * (application/json)"`, `"GET /pets 200 response"`, or
-   * `"POST /things security"`. The compiler's own message carries the
-   * path within that schema.
-   *
-   * @deprecated Renamed to {@link PrecompileFailure.location}, which is
-   * the same value. `location` is the name this library reserves for
-   * human-readable text. Both are populated; this one is removed in the
-   * next major.
-   */
-  context: string;
-  /**
    * Human-readable text naming what was being compiled, down to the
    * individual schema: `'POST /things query parameter "q"'`,
    * `"POST /things request body (application/json)"`,
@@ -258,7 +242,7 @@ export interface PrecompileFailure {
   /**
    * RFC 6901 pointer to the schema that would not compile,
    * percent-decoded with `~0` / `~1` retained. The structural
-   * counterpart to `context`.
+   * counterpart to `location`.
    *
    * A schema that failed to compile still has an address, and it is the
    * same one its lint issues would have carried had it compiled.

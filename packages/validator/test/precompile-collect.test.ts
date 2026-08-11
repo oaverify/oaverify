@@ -61,7 +61,7 @@ describe("precompile onMalformed", () => {
     const failures = v.precompile({ onMalformed: "collect" });
 
     expect(failures).toHaveLength(1);
-    expect(failures[0]?.context).toContain("/bad");
+    expect(failures[0]?.location).toContain("/bad");
     expect(failures[0]?.message).toMatch(/"items" at <root> must be an object or boolean/);
 
     // The point of the change: the other operation was still linted.
@@ -69,7 +69,7 @@ describe("precompile onMalformed", () => {
       (i) => i.code === "silent-rewrite/required-not-in-properties",
     );
     expect(lint).toHaveLength(1);
-    expect(lint[0]?.context).toContain("/good");
+    expect(lint[0]?.location).toContain("/good");
   });
 
   it("returns nothing when every schema compiles", () => {
@@ -119,13 +119,13 @@ describe("precompile onMalformed", () => {
     const failures = v.precompile({ onMalformed: "collect" });
 
     expect(failures).toHaveLength(1);
-    expect(failures[0]?.context).toContain("/bad-request-side");
+    expect(failures[0]?.location).toContain("/bad-request-side");
 
     const lint = v.stats.schemaLintIssues.filter(
       (i) => i.code === "silent-rewrite/required-not-in-properties",
     );
     expect(lint).toHaveLength(1);
-    expect(lint[0]?.context).toContain("200 response");
+    expect(lint[0]?.location).toContain("200 response");
   });
 
   it("reports every malformed schema in one operation, not just the first", () => {
@@ -151,8 +151,8 @@ describe("precompile onMalformed", () => {
     // count a lower bound, so fixing everything reported produced a
     // fresh crop on the next run.
     expect(failures).toHaveLength(2);
-    expect(failures.map((f) => f.context).join(" ")).toContain('query parameter "q"');
-    expect(failures.map((f) => f.context).join(" ")).toContain('query parameter "r"');
+    expect(failures.map((f) => f.location).join(" ")).toContain('query parameter "q"');
+    expect(failures.map((f) => f.location).join(" ")).toContain('query parameter "r"');
   });
 
   it("does not leave a degraded operation cache behind for request validation", () => {
@@ -197,8 +197,8 @@ describe("precompile onMalformed", () => {
       onMalformed: "collect",
     });
     expect(failures).toHaveLength(2);
-    expect(failures.map((f) => f.context).join(" ")).toMatch(/\/bad/);
-    expect(failures.map((f) => f.context).join(" ")).toMatch(/\/alsoBad/);
+    expect(failures.map((f) => f.location).join(" ")).toMatch(/\/bad/);
+    expect(failures.map((f) => f.location).join(" ")).toMatch(/\/alsoBad/);
   });
 
   it("populates location alongside the deprecated context alias", () => {
@@ -222,7 +222,7 @@ describe("precompile onMalformed", () => {
       onMalformed: "collect",
     });
 
-    expect(failure?.location).toBe(failure?.context);
+    expect(failure?.location).toBe(failure?.location);
     expect(failure?.location).toContain("POST /bad");
     // The machine half, addressing the schema that would not compile.
     expect(failure?.pointer).toBe("/paths/~1bad/post/requestBody/content/application~1json/schema");

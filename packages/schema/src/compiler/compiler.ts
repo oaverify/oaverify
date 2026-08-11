@@ -359,14 +359,10 @@ function runSchemaLint(
       anchor: rules.anchor,
     },
   );
-  // Stamped once here rather than at each `issues.push`: the context is
+  // Stamped once here rather than at each `issues.push`: the location is
   // the same for every issue this compile produces, and threading it
   // through each construction site invites one of them to forget.
-  // Both names carry the same value for one major; see the
-  // deprecation on SchemaLintIssue.context.
-  return context === undefined
-    ? issues
-    : issues.map((issue) => ({ ...issue, context, location: context }));
+  return context === undefined ? issues : issues.map((issue) => ({ ...issue, location: context }));
 }
 
 /**
@@ -747,23 +743,6 @@ export interface SchemaLintIssue {
   /** Human-readable explanation. */
   message: string;
   /**
-   * What was being compiled, from {@link CompileOptions.label}, so
-   * `path` can be placed in the wider document. Absent when the caller
-   * set no label.
-   *
-   * Names where the schema was *first* compiled. A component reached
-   * from several operations compiles once and is reported once, against
-   * whichever operation got there first, since the later ones hit the
-   * compile cache. Treat it as a hint about where to look, not as the
-   * complete set of operations affected.
-   *
-   * @deprecated Renamed to {@link SchemaLintIssue.location}, which is
-   * the same value. `location` is the name this library reserves for
-   * human-readable text. Both are populated; this one is removed in the
-   * next major.
-   */
-  context?: string;
-  /**
    * Human-readable text naming what was being compiled, from
    * {@link CompileOptions.label}, so the position fields can be placed
    * in the wider document. Absent when the caller set no label.
@@ -772,9 +751,11 @@ export interface SchemaLintIssue {
    * {@link SchemaLintIssue.pointer} (the document) or
    * {@link SchemaLintIssue.schemaPath} (inside the compiled schema).
    *
-   * Carries the same caveat `context` did: it names where the schema
-   * was *first* compiled, since a component reached from several
-   * operations compiles once.
+   * Names where the schema was *first* compiled. A component reached
+   * from several operations compiles once and is reported once, against
+   * whichever operation got there first, since the later ones hit the
+   * compile cache. Treat it as a hint about where to look, not as the
+   * complete set of operations affected.
    */
   location?: string;
 }

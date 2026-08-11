@@ -259,6 +259,47 @@ declarations across 301 published documents, and 0 in the seven large
 specs the conformance corpus carries. If you do not declare
 `style: matrix`, nothing here reaches you.
 
+## Breaking: three deprecated field aliases are removed
+
+Each was renamed in v6, kept alongside its replacement carrying the
+same value, and documented as "removed in the next major". This is that
+major.
+
+| Type                | Removed    | Read instead |
+| ------------------- | ---------- | ------------ |
+| `ConformanceIssue`  | `location` | `pointer`    |
+| `SchemaLintIssue`   | `context`  | `location`   |
+| `PrecompileFailure` | `context`  | `location`   |
+
+```diff
+ // oaverify check / checkDocumentConformance
+-issue.location   // an RFC 6901 pointer, despite the name
++issue.pointer
+
+ // validator.stats.schemaLintIssues
+-issue.context
++issue.location
+
+ // validator.precompile({ onMalformed: "collect" })
+-failure.context
++failure.location
+```
+
+The values are unchanged, so every replacement is a rename at the read
+site and nothing else.
+
+### Why
+
+Two names for one referent, in opposite directions, which is what made
+them worth renaming and worth removing rather than leaving forever.
+
+This library reserves `pointer` for a machine-readable document address
+and `location` for human-readable prose. `ConformanceIssue.location`
+predated that rule and held a pointer, so it moved to `pointer`. The
+`context` fields held prose, so they moved to `location`. Keeping the
+aliases meant `location` naming a pointer on one type and prose on two
+others, which is the ambiguity the rename existed to end.
+
 ## Checklist
 
 - [ ] Replace `@oaverify/yaml` with `@oaverify/syntax` in every manifest.
@@ -282,3 +323,6 @@ specs the conformance corpus carries. If you do not declare
 - [ ] If you declare a `style: matrix` parameter, confirm your clients
       spell the group name (`/t/;p=1`, not `/t/;q=1`). Specs with no
       matrix parameter need nothing.
+- [ ] Replace `ConformanceIssue.location` with `.pointer`.
+- [ ] Replace `SchemaLintIssue.context` and `PrecompileFailure.context`
+      with `.location`.

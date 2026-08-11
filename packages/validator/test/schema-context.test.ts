@@ -42,7 +42,7 @@ describe("operation context on schema lint issues", () => {
       (i) => i.code === "silent-rewrite/required-not-in-properties",
     );
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.context).toBe("POST /things request body (application/json)");
+    expect(issues[0]?.location).toBe("POST /things request body (application/json)");
     // The path stays schema-relative; context locates it, it does not
     // replace it.
     expect(issues[0]?.path).toBe("");
@@ -70,7 +70,7 @@ describe("operation context on schema lint issues", () => {
       (i) => i.code === "silent-rewrite/required-not-in-properties",
     );
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.context).toBe("GET /pets 200 response body (application/json)");
+    expect(issues[0]?.location).toBe("GET /pets 200 response body (application/json)");
   });
 
   it("names the parameter, with its location", () => {
@@ -89,7 +89,7 @@ describe("operation context on schema lint issues", () => {
 
     const issues = validator.stats.schemaLintIssues.filter((i) => i.code === "unknown-keyword");
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.context).toBe('GET /pets query parameter "limit"');
+    expect(issues[0]?.location).toBe('GET /pets query parameter "limit"');
   });
 
   it("names a response header", () => {
@@ -112,7 +112,7 @@ describe("operation context on schema lint issues", () => {
 
     const issues = validator.stats.schemaLintIssues.filter((i) => i.code === "unknown-keyword");
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.context).toBe('GET /pets 200 response header "x-rate-limit"');
+    expect(issues[0]?.location).toBe('GET /pets 200 response header "x-rate-limit"');
   });
 
   it("reports a shared component against whichever operation compiled it first", () => {
@@ -134,7 +134,7 @@ describe("operation context on schema lint issues", () => {
       (i) => i.code === "silent-rewrite/required-not-in-properties",
     );
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.context).toContain("response body (application/json)");
+    expect(issues[0]?.location).toContain("response body (application/json)");
   });
 });
 
