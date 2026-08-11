@@ -64,6 +64,11 @@ const HTTP_LEVEL_CODES = [
   "route",
   "method",
   "body",
+  // Emitted only by the Fetch reader draining a live body, so it can
+  // never reach the conformance pass, which has a document and no
+  // traffic. Unlike `depth`, which the compiler can raise while
+  // validating an example.
+  "body-too-large",
   "request",
   "response",
   "content-type",

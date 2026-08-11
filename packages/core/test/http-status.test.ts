@@ -110,6 +110,7 @@ describe("httpStatusFor", () => {
     expect(DEFAULT_HTTP_STATUS_MAP).toEqual({
       route: 404,
       method: 405,
+      "body-too-large": 413,
       "content-type": 415,
       security: 401,
       status: 500,

@@ -46,10 +46,13 @@ export {
 // the router package.
 export type { RouteInfo } from "@oaverify/internal-router";
 export {
+  DEFAULT_MAX_TOTAL_BYTES,
   FetchBodyParseError,
+  FetchBodyTooLargeError,
   httpRequestFromFetch,
   httpResponseFromFetch,
   readBodyFromFetch,
+  type FetchBodyOptions,
   type FetchRequestOptions,
 } from "./from-fetch.js";
 export type {

@@ -18,6 +18,16 @@ export interface HttpStatusMap {
   security: number;
   /** Response (response-side only): spec declares no entry for the received status. */
   status: number;
+  /**
+   * Body refused for exceeding the reader's `maxTotalBytes` cap.
+   *
+   * 413 reads the leaf as a request: the sender was told the payload is
+   * too large. The same leaf on the response side means the responder
+   * overran its own contract, which is a 500, and this helper cannot
+   * tell the two apart from the leaves alone (#784). Override the slot
+   * when mapping a response-validation result.
+   */
+  "body-too-large": number;
   /** Anything else: schema violations, missing required fields, etc. */
   default: number;
 }
@@ -33,6 +43,7 @@ export const DEFAULT_HTTP_STATUS_MAP: HttpStatusMap = {
   "content-type": 415,
   security: 401,
   status: 500,
+  "body-too-large": 413,
   default: 400,
 };
 
@@ -50,7 +61,7 @@ export const DEFAULT_HTTP_STATUS_MAP: HttpStatusMap = {
  * overrides).
  *
  * Resolution order matches the HTTP gate semantics: 404 → 405 →
- * 415 → 401 → 500 → 400:
+ * 415 → 401 → 500 → 413 → 400:
  *
  * ```ts
  * import { httpStatusFor } from "@oaverify/core";
@@ -79,7 +90,7 @@ export function httpStatusFor(
       : { ...DEFAULT_HTTP_STATUS_MAP, ...overrides };
   // Accepts either a nested error tree or the flat leaf list the default
   // (flat) validator returns. Scan leaves in HTTP-gate priority order
-  // (404 -> 405 -> 415 -> 401 -> 500 -> 400); `route` / `method` fire as
+  // (404 -> 405 -> 415 -> 401 -> 500 -> 413 -> 400); `route` / `method` fire as
   // standalone leaves, the rest as leaves anywhere in the report.
   const leaves = Array.isArray(error) ? error : collectLeaves(error as ValidationError);
   if (leaves.some((l) => l.code === "route")) return map.route;
@@ -87,6 +98,10 @@ export function httpStatusFor(
   if (leaves.some((l) => l.code === "security")) return map.security;
   if (leaves.some((l) => l.code === "content-type")) return map["content-type"];
   if (leaves.some((l) => l.code === "status")) return map.status;
+  // Above `default` because a refused body short-circuits the read:
+  // nothing else was validated, so any other leaf beside it would be
+  // reporting on data we never saw.
+  if (leaves.some((l) => l.code === "body-too-large")) return map["body-too-large"];
   return map.default;
 }
 

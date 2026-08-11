@@ -13,6 +13,7 @@ this page is a recipe-oriented overview.
 | `output`                    | Result shape: `"flat"` (default; `{ valid, errors, truncated }`), `"tree"` (nested `{ valid, error, truncated }`), or `"predicate"` (bare boolean). Mirrors `compileSchema`.                                       |
 | `maxErrors`                 | Per-call total cap on leaf errors. Default `1` (fast-fail); pass `Number.POSITIVE_INFINITY` to collect every error.                                                                                                |
 | `maxDepth`                  | Cap on recursive `$ref` validation depth; past the cap the payload fails with a `depth` error instead of exhausting the call stack. Unset by default; see below.                                                   |
+| `maxTotalBytes`             | Cap on the bytes the Fetch adapter reads from a body. Default 1 MiB; pass `Number.POSITIVE_INFINITY` to read unbounded. Inert on the Express and Fastify adapters; see below.                                      |
 | `schemaLint`                | Schema lint mode: `"off"`, `"warn"` (default), or `"strict"`. Findings surface via `validator.stats.schemaLintIssues`; never throws. A malformed schema is rejected regardless, see [Strictness](./strictness.md). |
 | `strictQueryParameters`     | Reject undeclared query parameters. Default `false`.                                                                                                                                                               |
 | `allowBracketedQueryArrays` | Accept `?tags[]=a&tags[]=b` for an array-typed query parameter declared as `tags`. Default `false`; see below.                                                                                                     |
@@ -453,6 +454,66 @@ have no flags of their own; see `ReaderPolicy` and `policyFor` in
 rather than a part. Compose readers yourself when you need something a
 posture does not express, such as pinning one internal spec host.
 
+## Bounding how much of a body is read
+
+The Express and Fastify adapters receive a body their framework already
+read and bounded: `express.json({ limit: "256kb" })` runs before the
+middleware, and the adapter reads `req.body`, an object.
+
+The Fetch adapter has no such layer beneath it. Next.js App Router
+route handlers, Hono, `Bun.serve`, and `Deno.serve` hand you a `Request`
+whose body is an unread stream, and the adapter is what drains it. So
+the byte bound is an option here rather than a line of your own setup
+code:
+
+```ts
+const validator = createValidator(spec, { maxTotalBytes: 256 * 1024 });
+
+// Hono, Next.js route handler, Bun.serve, Deno.serve
+const result = await validator.validateFetchRequest(request);
+if (!result.ok) {
+  return Response.json(toProblemDetails(result.errors), {
+    status: httpStatusFor(result.errors), // 413 for an over-cap body
+  });
+}
+```
+
+It defaults to 1 MiB rather than to off, unlike the other resource
+limits here. Those bound work your schema asks for; this one bounds a
+buffer the reader introduces by draining a socket into a string, and
+leaving it off would protect only the readers of this paragraph. Raise
+it for an upload endpoint, or pass `Number.POSITIVE_INFINITY` to
+restore an unbounded read.
+
+Two enforcement points. A `Content-Length` over the cap is refused
+without reading anything, which saves the read rather than providing
+the bound: the sender controls that header. The running byte count over
+the stream is the bound, and it holds for chunked bodies, for a
+`Content-Length` that lied, and for multipart. Over-cap yields a
+`body-too-large` error leaf carrying which of the two fired:
+
+```ts
+{ code: "body-too-large", path: ["body"],
+  params: { limit: 262144, reason: "read", bytes: 262145 } }
+```
+
+`reason: "declared"` means `bytes` is the length the sender claimed, and
+`reason: "read"` means it is a count this reader took. They are not
+interchangeable, which is why the leaf says which one it has.
+
+A finite cap reads through a counting stream instead of the platform's
+native `text()` / `formData()`, so the peak is the cap plus at most one
+chunk. An infinite cap skips the instrumentation.
+
+Two things it does not cover. A custom `readBody` callback receives the
+original `Request` and owns its own budget; call `readBodyFromFetch(req,
+{ maxTotalBytes })` from inside it to inherit this one for the content
+types you delegate. And a byte cap bounds width, not depth, which is the
+next section.
+
+See `ValidatorOptions.maxTotalBytes` and `FetchBodyOptions` for the
+contract.
+
 ## Guarding against deeply nested payloads
 
 Recursive schemas (a `$ref` that points back at an ancestor, common
@@ -495,7 +556,7 @@ parse-boundary guard close.
 The parse-boundary guard is a depth cap before the parsed
 body reaches the validator. A byte-size limit alone is not enough: a
 payload nested thousands of levels deep is tiny, so `express.json({
-limit })` (or its equivalent) bounds width, not depth. Walk the parsed
+limit })` (or `maxTotalBytes`, above) bounds width, not depth. Walk the parsed
 value iteratively (a recursive walker would overflow on the same input
 you are trying to reject) and reject anything past a sane ceiling. Set
 it low and raise it only if a legitimate payload trips it.

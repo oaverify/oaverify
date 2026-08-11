@@ -19,13 +19,60 @@ import type { HttpRequest, HttpResponse } from "@oaverify/internal-core";
 import { getOwn, markLowercaseKeys, setSpecKey } from "@oaverify/internal-core";
 
 /**
- * Options shared by the `validateFetchRequest` family and
- * {@link httpRequestFromFetch}. Currently just the `readBody`
- * override.
+ * The default {@link FetchBodyOptions.maxTotalBytes} cap, 1 MiB.
+ *
+ * Finite by default, unlike `maxErrors` / `maxDepth` / the stream
+ * validator's schema-bound limits. Those bound work the caller's own
+ * schema asks for; this one bounds a buffer the reader introduces by
+ * draining a socket into a string, which is the category
+ * `@oaverify/stream` already defaults finite
+ * (`maxMemberPrefixBytes`, `maxMemberDropBytes`).
  *
  * @public
  */
-export interface FetchRequestOptions {
+export const DEFAULT_MAX_TOTAL_BYTES = 1024 * 1024;
+
+/**
+ * Byte-budget options for the Fetch body reader, shared by
+ * {@link readBodyFromFetch}, {@link httpRequestFromFetch} and
+ * {@link httpResponseFromFetch}.
+ *
+ * @public
+ */
+export interface FetchBodyOptions {
+  /**
+   * Refuse a body larger than this many bytes, before it is read in
+   * full. Defaults to {@link DEFAULT_MAX_TOTAL_BYTES} (1 MiB); pass
+   * `Number.POSITIVE_INFINITY` for an unbounded read.
+   *
+   * Enforced at two points. A `Content-Length` over the cap is refused
+   * without reading, which saves the read rather than providing the
+   * bound: the sender controls that header. The running byte count
+   * over the stream is the bound.
+   *
+   * Over-cap raises {@link FetchBodyTooLargeError} from the extraction
+   * helpers, and an error leaf (`body-too-large`, HTTP 413) from
+   * `validateFetchRequest` / `validateFetchResponse`.
+   *
+   * A finite cap reads the body through a counting stream instead of
+   * the platform's native `text()` / `formData()` fast path. An
+   * infinite cap skips the instrumentation entirely.
+   *
+   * Same option name and meaning as `@oaverify/stream`'s
+   * `StreamValidatorOptions.maxTotalBytes`. Must be a positive integer
+   * or `Number.POSITIVE_INFINITY`.
+   */
+  maxTotalBytes?: number;
+}
+
+/**
+ * Options shared by the `validateFetchRequest` family and
+ * {@link httpRequestFromFetch}: the `readBody` override, plus the
+ * inherited byte budget.
+ *
+ * @public
+ */
+export interface FetchRequestOptions extends FetchBodyOptions {
   /**
    * Replace the default body reader with a user-supplied function.
    * Useful for streaming large uploads to disk without buffering, for
@@ -86,6 +133,47 @@ export class FetchBodyParseError extends Error {
 }
 
 /**
+ * Thrown by the default body reader when a payload exceeds the
+ * configured {@link FetchBodyOptions.maxTotalBytes}. Like
+ * {@link FetchBodyParseError}, the body is attacker-controlled, so
+ * `validateFetchRequest` / `validateFetchResponse` catch this and
+ * return an invalid result with a `body-too-large` leaf instead of
+ * letting the exception escape.
+ *
+ * Named for the condition, following its sibling above.
+ * `@oaverify/stream` exports a `MaxTotalBytesError` for the same cap
+ * on a different engine; the names are deliberately distinct so a
+ * consumer importing both packages has two catchable classes rather
+ * than one ambiguous one.
+ *
+ * @public
+ */
+export class FetchBodyTooLargeError extends Error {
+  /** The `maxTotalBytes` cap that was exceeded. */
+  readonly limit: number;
+  /**
+   * Which enforcement point fired. `"declared"` means the refusal came
+   * from the `Content-Length` header, before any read; `"read"` means
+   * the running count over the stream passed the cap.
+   */
+  readonly reason: "declared" | "read";
+  /**
+   * The byte count, read under {@link FetchBodyTooLargeError.reason}:
+   * a length the sender claimed, or one this reader observed. The two
+   * are not interchangeable, which is why the reason travels with it.
+   */
+  readonly bytes: number;
+
+  constructor(limit: number, reason: "declared" | "read", bytes: number) {
+    super(`body exceeded maxTotalBytes=${limit} (${reason} ${bytes} bytes)`);
+    this.name = "FetchBodyTooLargeError";
+    this.limit = limit;
+    this.reason = reason;
+    this.bytes = bytes;
+  }
+}
+
+/**
  * Read and parse a Web Standards `Request` into the
  * framework-agnostic {@link HttpRequest} shape the validator expects,
  * plus the parsed body for the caller to consume.
@@ -115,10 +203,14 @@ export async function httpRequestFromFetch(
   const contentType = request.headers.get("content-type") ?? undefined;
   const query = objectFromSearchParams(url.searchParams);
   const method = request.method.toUpperCase();
+  // A custom `readBody` gets the untouched `Request` and so owns its
+  // own byte budget; `maxTotalBytes` bounds the default reader only.
+  // Wrapping the argument would silently change the object a caller
+  // asked to receive intact.
   const body =
     options?.readBody !== undefined
       ? await options.readBody(request)
-      : await readBody(request, contentType, method);
+      : await readBody(request, contentType, method, options?.maxTotalBytes);
 
   const httpRequest: HttpRequest = {
     method,
@@ -142,12 +234,21 @@ export async function httpRequestFromFetch(
  * Consumes `request.body`. GET / HEAD requests return `undefined`
  * without reading.
  *
+ * Applies {@link FetchBodyOptions.maxTotalBytes} (default 1 MiB),
+ * raising {@link FetchBodyTooLargeError} over the cap. This is the
+ * delegation target documented on
+ * {@link FetchRequestOptions.readBody}, so a custom reader that
+ * forwards here inherits the bound for the content types it forwards.
+ *
  * @public
  */
-export async function readBodyFromFetch(request: Request): Promise<unknown> {
+export async function readBodyFromFetch(
+  request: Request,
+  options?: FetchBodyOptions,
+): Promise<unknown> {
   const contentType = request.headers.get("content-type") ?? undefined;
   const method = request.method.toUpperCase();
-  return readBody(request, contentType, method);
+  return readBody(request, contentType, method, options?.maxTotalBytes);
 }
 
 /**
@@ -162,9 +263,17 @@ export async function readBodyFromFetch(request: Request): Promise<unknown> {
  * standalone response extractor exists only where responses arrive
  * as first-class values, the Fetch world.
  *
+ * Takes {@link FetchBodyOptions} rather than
+ * {@link FetchRequestOptions}: the byte budget applies to an upstream
+ * response as much as to a request, while the `readBody` override has
+ * no response-side counterpart to override.
+ *
  * @public
  */
-export async function httpResponseFromFetch(response: Response): Promise<{
+export async function httpResponseFromFetch(
+  response: Response,
+  options?: FetchBodyOptions,
+): Promise<{
   httpResponse: HttpResponse;
   body: unknown;
 }> {
@@ -173,7 +282,7 @@ export async function httpResponseFromFetch(response: Response): Promise<{
   // Response body parsing: reuse the same media-type dispatch as
   // requests. Method is irrelevant; there's no GET/HEAD skip; a
   // spec-declared response body is readable regardless.
-  const body = await readBody(response, contentType, "POST");
+  const body = await readBody(response, contentType, "POST", options?.maxTotalBytes);
 
   const httpResponse: HttpResponse = {
     status: response.status,
@@ -214,10 +323,73 @@ function objectFromSearchParams(params: URLSearchParams): Record<string, string 
   return out;
 }
 
+/**
+ * The `Content-Length` the sender declared, when it is a usable
+ * number. A missing or malformed header yields `undefined` rather than
+ * a rejection: this pre-check exists to avoid a read it can already
+ * rule out, and the streamed count is what actually bounds the body.
+ * Refusing on an unparseable header would reject a request the real
+ * bound would have accepted.
+ */
+function declaredLength(headers: Headers): number | undefined {
+  const raw = headers.get("content-length");
+  if (raw === null) return undefined;
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n >= 0 ? n : undefined;
+}
+
+/**
+ * Re-wrap a message's body stream so bytes are counted as they pass,
+ * erroring the stream once the running total exceeds `limit`.
+ *
+ * The result is always a `Response`, whatever came in: the media-type
+ * dispatch below uses only `text()` / `formData()` / `arrayBuffer()`,
+ * all of which a `Response` provides, and `formData()` needs the
+ * content-type header carried across to parse the multipart boundary.
+ *
+ * `over` records the count at the moment the cap was passed, and the
+ * caller reads that field rather than the error the dispatch throws.
+ * On Node 22 the stream error does reach the caller with its identity
+ * intact, including out of `formData()`, so an `instanceof` check
+ * would work there. It is a bet on every runtime's multipart parser
+ * re-raising rather than replacing, which is not something this
+ * package tests or controls, and the field costs one assignment.
+ *
+ * Returns `undefined` for a message with no body stream, which has
+ * nothing to count and is left alone.
+ */
+function countingBody(
+  message: Request | Response,
+  limit: number,
+): { counted: Response; state: { over?: number } } | undefined {
+  const source = message.body;
+  if (source === null) return undefined;
+  const state: { over?: number } = {};
+  let seen = 0;
+  const counter = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      seen += chunk.byteLength;
+      if (seen > limit) {
+        // Chunk-granular, so the peak is `limit` plus at most one
+        // chunk. Erroring here cancels the source, so the read stops.
+        state.over = seen;
+        controller.error(new FetchBodyTooLargeError(limit, "read", seen));
+        return;
+      }
+      controller.enqueue(chunk);
+    },
+  });
+  const headers = new Headers();
+  const contentType = message.headers.get("content-type");
+  if (contentType !== null) headers.set("content-type", contentType);
+  return { counted: new Response(source.pipeThrough(counter), { headers }), state };
+}
+
 async function readBody(
   message: Request | Response,
   contentType: string | undefined,
   method: string,
+  maxTotalBytes: number | undefined,
 ): Promise<unknown> {
   // HTTP/1.1 §4.3: bodies on GET / HEAD have no defined semantics.
   // Some clients still attach one; the OpenAPI spec never declares one,
@@ -225,6 +397,54 @@ async function readBody(
   // through validateRequest. Called with method "POST" for responses
   // so this branch is only reached on real bodyless requests.
   if (method === "GET" || method === "HEAD") return undefined;
+
+  const limit = maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES;
+  // An infinite cap skips the instrumentation entirely, leaving the
+  // platform's native `text()` / `formData()` on the original message.
+  if (!Number.isFinite(limit)) return dispatchBody(message, contentType);
+
+  const declared = declaredLength(message.headers);
+  if (declared !== undefined && declared > limit) {
+    throw new FetchBodyTooLargeError(limit, "declared", declared);
+  }
+
+  const counting = countingBody(message, limit);
+  if (counting === undefined) return dispatchBody(message, contentType);
+
+  // The cap is interpreted once, here, above the media-type dispatch.
+  // Per-branch handling would have to be re-derived by whoever adds
+  // the next branch that reads and parses in one call.
+  //
+  // Size takes precedence over malformedness: the read stopped early,
+  // so there is not enough of the payload to support a claim about its
+  // syntax. That matters most for multipart, where `formData()` reads
+  // and parses in one call and the branch below wraps everything it
+  // throws in a `FetchBodyParseError`. Without this, a well-formed
+  // upload over the cap would answer 400 "malformed", the client's 413
+  // handling would never run, and it would retry the same body.
+  let parsed: unknown;
+  try {
+    parsed = await dispatchBody(counting.counted, contentType);
+  } catch (err) {
+    if (counting.state.over !== undefined) {
+      throw new FetchBodyTooLargeError(limit, "read", counting.state.over);
+    }
+    throw err;
+  }
+  // Also checked on the success path, for a parser that swallowed the
+  // stream error and resolved with what it had: returning a truncated
+  // body as though it were whole is the one outcome worse than either
+  // error.
+  if (counting.state.over !== undefined) {
+    throw new FetchBodyTooLargeError(limit, "read", counting.state.over);
+  }
+  return parsed;
+}
+
+async function dispatchBody(
+  message: Request | Response,
+  contentType: string | undefined,
+): Promise<unknown> {
   if (contentType === undefined) {
     const text = await message.text();
     return text === "" ? undefined : text;

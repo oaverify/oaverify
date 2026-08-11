@@ -359,11 +359,17 @@ export async function POST(request: Request) {
 }
 ```
 
-Three things to know:
+Four things to know:
 
 - **Body is consumed.** `Request.body` is a one-shot stream;
   `validateFetchRequest` reads it. If you need the original bytes,
   `request.clone()` first.
+- **The read is capped at 1 MiB.** No body-parser layer runs under a
+  Fetch handler, so the adapter drains the stream itself and bounds it
+  as it goes. An over-cap body returns a `body-too-large` error (HTTP
+  413 via `httpStatusFor`) instead of being read. Raise or remove it
+  with `createValidator(spec, { maxTotalBytes })`; see
+  [configuration](./configuration.md#bounding-how-much-of-a-body-is-read).
 - **Typed body narrows via the generic, not runtime inference.** The
   validator has just confirmed the body matches the spec's schema, so
   the cast is safe for a handler using the same schema. If you change
@@ -970,6 +976,13 @@ export async function POST(request: Request) {
 The callback owns the stream. The validator does not read
 `request.body` when `readBody` is provided, so there is no
 double-consumption.
+
+It owns the byte budget with it: the callback receives the original
+`Request`, so `maxTotalBytes` does not apply to what your own reader
+consumes. The `readBodyFromFetch` fall-through above is bounded, since
+that helper applies the cap itself. Pass it explicitly
+(`readBodyFromFetch(req, { maxTotalBytes })`) when you want a different
+budget for the delegated content types than for your own.
 
 **Option 2: assemble the `HttpRequest` yourself.** For routes where
 `validateFetchRequest`'s convenience isn't worth even passing through
