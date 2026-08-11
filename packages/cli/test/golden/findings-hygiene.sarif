@@ -14,7 +14,7 @@
               "id": "unused-component",
               "name": "unused-component",
               "shortDescription": {
-                "text": "unused-component"
+                "text": "a declared component no operation reaches"
               },
               "defaultConfiguration": {
                 "level": "warning"
@@ -30,7 +30,7 @@
               "id": "path-param-undeclared",
               "name": "path-param-undeclared",
               "shortDescription": {
-                "text": "path-param-undeclared"
+                "text": "a path template placeholder with no parameter declaring it"
               },
               "defaultConfiguration": {
                 "level": "error"

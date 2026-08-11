@@ -143,12 +143,13 @@ export function checkDocumentRedos(document: OpenAPIDocument): RedosIssue[] {
     issues.push({
       code: "ambiguous-pattern",
       pointer,
+      // What varies per occurrence: the pattern, the witness input, and
+      // which half of the payload reaches this engine. The mechanism
+      // and the two remedies are the same sentence for every one of
+      // these findings, so they sit on the rule descriptor (#773).
       message:
-        `"${echoed}" is ambiguous.${shape} A backtracking engine can be made to ` +
-        `explore every way of matching, so a crafted ${crafted} may cost superlinear ` +
-        `time; whether it does depends on the engine running the pattern. Rewrite ` +
-        `to remove the ambiguity, or compile patterns with a linear-time engine ` +
-        `(the regexCompiler option).`,
+        `"${echoed}" is ambiguous.${shape} A crafted ${crafted} here may cost ` +
+        `superlinear time to match.`,
     });
   };
 

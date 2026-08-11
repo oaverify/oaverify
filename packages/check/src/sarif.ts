@@ -42,6 +42,7 @@ import { pathToFileURL } from "node:url";
 import type { SourceSpan, SpanRequest } from "@oaverify/internal-spec";
 import { spanFor } from "./span-target.js";
 import { type CheckClass, type CheckFinding, type CheckSeverity } from "./finding.js";
+import { ruleFor } from "./rules.js";
 import type { SkipReportEntry } from "./skip.js";
 import type { TermReport } from "./selection.js";
 
@@ -206,11 +207,17 @@ function relatedLocationsOf(
 /**
  * Rule metadata for every code the run produced.
  *
- * Generated from the findings rather than from a hand-kept list, so a
- * rule added to oaverify needs no edit here and cannot be forgotten.
- * The cost is that `rules` describes this run rather than the tool's
- * whole catalogue, which SARIF permits and which no consumer of a
- * single run can tell apart.
+ * Which codes appear is generated from the findings rather than from a
+ * hand-kept list, so a rule added to oaverify needs no edit here and
+ * cannot be forgotten. The cost is that `rules` describes this run
+ * rather than the tool's whole catalogue, which SARIF permits and which
+ * no consumer of a single run can tell apart.
+ *
+ * What each one says comes from {@link CHECK_RULES}. A code with no
+ * entry there falls back to its own id, which is what every descriptor
+ * did before the catalogue existed: a consumer pinned at one version
+ * can meet a code from a later one, and a bare id is honest where an
+ * invented sentence would not be.
  */
 function rulesOf(findings: readonly CheckFinding[]): {
   rules: unknown[];
@@ -221,10 +228,24 @@ function rulesOf(findings: readonly CheckFinding[]): {
   for (const finding of findings) {
     if (indexOf.has(finding.code)) continue;
     indexOf.set(finding.code, rules.length);
+    const rule = ruleFor(finding.code);
     rules.push({
       id: finding.code,
       name: finding.code,
-      shortDescription: { text: finding.code },
+      shortDescription: { text: rule?.title ?? finding.code },
+      ...(rule?.explanation === undefined
+        ? {}
+        : {
+            fullDescription: { text: rule.explanation },
+            // The same text under `help` as well, because the two are
+            // read in different places: SARIF viewers and code scanning
+            // surface `help` as the "what is this rule" panel, while
+            // `fullDescription` is what a plain log reader and most
+            // converters pick up. Duplication in the log costs bytes
+            // once per rule, not once per result, which is the trade
+            // this whole change is making.
+            help: { text: rule.explanation },
+          }),
       defaultConfiguration: { level: levelOf(finding.severity) },
       properties: { "oaverify:class": finding.class, tags: [finding.class] },
     });
@@ -366,6 +387,24 @@ export function renderSarif(
         ...(finding.occurrences === undefined
           ? {}
           : { "oaverify:occurrences": finding.occurrences }),
+        // Every leaf the check rejected the value on, uncapped and
+        // unabbreviated, so a consumer reads `actual` and `allowed`
+        // rather than parsing them back out of a sentence that may
+        // have elided the part it wanted (#773). The message caps at
+        // five reasons and truncates a long `allowed`; this does
+        // neither, which is the whole point of carrying it.
+        //
+        // `path` is the position within the rejected value, not a
+        // pointer into the document, so it stays a property rather
+        // than becoming a location. Locating each leaf is a separate
+        // question and needs a span per sub-path.
+        //
+        // Absent when the class produces no leaf-level causes, which
+        // is every class but `examples` today. An empty array would
+        // claim the finding had no causes.
+        ...(finding.reasons === undefined || finding.reasons.length === 0
+          ? {}
+          : { "oaverify:reasons": finding.reasons }),
       },
     };
   });

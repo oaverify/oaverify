@@ -14,7 +14,7 @@
               "id": "path-param-undeclared",
               "name": "path-param-undeclared",
               "shortDescription": {
-                "text": "path-param-undeclared"
+                "text": "a path template placeholder with no parameter declaring it"
               },
               "defaultConfiguration": {
                 "level": "error"
@@ -30,7 +30,13 @@
               "id": "format-not-validated",
               "name": "format-not-validated",
               "shortDescription": {
-                "text": "format-not-validated"
+                "text": "a format name with no validator behind it"
+              },
+              "fullDescription": {
+                "text": "Values carrying this format are checked against \"type\" alone. That is legal: support for any given format is optional, and a validator may fall back to \"type\" for one it does not recognise. Register a validator for the name through the formats option to enforce it, or read this finding as confirmation that the name is documentation rather than a constraint."
+              },
+              "help": {
+                "text": "Values carrying this format are checked against \"type\" alone. That is legal: support for any given format is optional, and a validator may fall back to \"type\" for one it does not recognise. Register a validator for the name through the formats option to enforce it, or read this finding as confirmation that the name is documentation rather than a constraint."
               },
               "defaultConfiguration": {
                 "level": "warning"
@@ -46,7 +52,7 @@
               "id": "type",
               "name": "type",
               "shortDescription": {
-                "text": "type"
+                "text": "a field with the wrong JSON type"
               },
               "defaultConfiguration": {
                 "level": "error"
@@ -62,7 +68,13 @@
               "id": "example-invalid",
               "name": "example-invalid",
               "shortDescription": {
-                "text": "example-invalid"
+                "text": "an example the schema it illustrates rejects"
+              },
+              "fullDescription": {
+                "text": "Every example in the document is validated against the schema it sits in. An example reached through a $ref is checked once at the component that declares it rather than at each use site, so one finding can stand for many references. The message names up to five distinct reasons and then counts the rest; the finding's reasons field carries every rejected leaf, uncapped and unabbreviated."
+              },
+              "help": {
+                "text": "Every example in the document is validated against the schema it sits in. An example reached through a $ref is checked once at the component that declares it rather than at each use site, so one finding can stand for many references. The message names up to five distinct reasons and then counts the rest; the finding's reasons field carries every rejected leaf, uncapped and unabbreviated."
               },
               "defaultConfiguration": {
                 "level": "warning"
@@ -78,7 +90,13 @@
               "id": "ambiguous-pattern",
               "name": "ambiguous-pattern",
               "shortDescription": {
-                "text": "ambiguous-pattern"
+                "text": "a pattern whose matching can blow up on crafted input"
+              },
+              "fullDescription": {
+                "text": "A backtracking engine can be made to explore every way an ambiguous pattern matches, so an input crafted against it can take superlinear time. Whether a given pattern actually costs that depends on the engine running it, which is not known here. Rewrite the pattern to remove the ambiguity, or compile patterns with a linear-time engine through the regexCompiler option."
+              },
+              "help": {
+                "text": "A backtracking engine can be made to explore every way an ambiguous pattern matches, so an input crafted against it can take superlinear time. Whether a given pattern actually costs that depends on the engine running it, which is not known here. Rewrite the pattern to remove the ambiguity, or compile patterns with a linear-time engine through the regexCompiler option."
               },
               "defaultConfiguration": {
                 "level": "warning"
@@ -94,7 +112,7 @@
               "id": "silent-rewrite/required-not-in-properties",
               "name": "silent-rewrite/required-not-in-properties",
               "shortDescription": {
-                "text": "silent-rewrite/required-not-in-properties"
+                "text": "a required property name nothing at that position can produce"
               },
               "defaultConfiguration": {
                 "level": "warning"
@@ -110,7 +128,7 @@
               "id": "unsatisfiable/pattern-length",
               "name": "unsatisfiable/pattern-length",
               "shortDescription": {
-                "text": "unsatisfiable/pattern-length"
+                "text": "a pattern and a length bound no string satisfies together"
               },
               "defaultConfiguration": {
                 "level": "warning"
@@ -189,7 +207,7 @@
           "ruleIndex": 1,
           "level": "warning",
           "message": {
-            "text": "\"not-a-real-format\" is not a format oaverify validates, so values are checked against \"type\" alone. This is legal: support for a format is optional and a tool may fall back to \"type\" for one it does not recognise. Register a validator through the formats option to enforce it, or read this as confirmation the name is an annotation."
+            "text": "\"not-a-real-format\" is not a validated format, so values are checked against \"type\" alone."
           },
           "locations": [
             {
@@ -260,7 +278,7 @@
           "ruleIndex": 3,
           "level": "warning",
           "message": {
-            "text": "oaverify rejects \"example\" against its schema: must be one of the allowed values (actual: \"EFT\", allowed: [\"ACH\",\"CHECK\"]) (example: \"EFT\")"
+            "text": "example does not match its schema: must be one of the allowed values (actual: \"EFT\", allowed: [\"ACH\",\"CHECK\"])"
           },
           "locations": [
             {
@@ -281,7 +299,21 @@
             "oaverify:location": "/paths/~1search/post/requestBody/content/application~1json/example",
             "oaverify:pointer": "/paths/~1search/post/requestBody/content/application~1json/example",
             "oaverify:anchor": "node",
-            "oaverify:sourcePointer": "/paths/~1search/post/requestBody/content/application~1json/example"
+            "oaverify:sourcePointer": "/paths/~1search/post/requestBody/content/application~1json/example",
+            "oaverify:reasons": [
+              {
+                "code": "enum",
+                "path": [],
+                "message": "must be one of the allowed values",
+                "params": {
+                  "allowed": [
+                    "ACH",
+                    "CHECK"
+                  ],
+                  "actual": "EFT"
+                }
+              }
+            ]
           }
         },
         {
@@ -289,7 +321,7 @@
           "ruleIndex": 4,
           "level": "warning",
           "message": {
-            "text": "\"^(a+)+$\" is ambiguous. An input of the form `aaaa` matches more than one way. A backtracking engine can be made to explore every way of matching, so a crafted value may cost superlinear time; whether it does depends on the engine running the pattern. Rewrite to remove the ambiguity, or compile patterns with a linear-time engine (the regexCompiler option)."
+            "text": "\"^(a+)+$\" is ambiguous. An input of the form `aaaa` matches more than one way. A crafted value here may cost superlinear time to match."
           },
           "locations": [
             {

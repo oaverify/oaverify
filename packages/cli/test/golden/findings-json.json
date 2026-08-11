@@ -53,7 +53,7 @@
       "severity": "warning",
       "code": "example-invalid",
       "location": "/paths/~1search/post/requestBody/content/application~1json/example",
-      "message": "oaverify rejects \"example\" against its schema: must be one of the allowed values (actual: \"EFT\", allowed: [\"ACH\",\"CHECK\"]) (example: \"EFT\")",
+      "message": "example does not match its schema: must be one of the allowed values (actual: \"EFT\", allowed: [\"ACH\",\"CHECK\"])",
       "reasons": [
         {
           "code": "enum",
@@ -83,7 +83,7 @@
       "severity": "warning",
       "code": "ambiguous-pattern",
       "location": "/components/schemas/shared_Pet/properties/slug/pattern",
-      "message": "\"^(a+)+$\" is ambiguous. An input of the form `aaaa` matches more than one way. A backtracking engine can be made to explore every way of matching, so a crafted value may cost superlinear time; whether it does depends on the engine running the pattern. Rewrite to remove the ambiguity, or compile patterns with a linear-time engine (the regexCompiler option).",
+      "message": "\"^(a+)+$\" is ambiguous. An input of the form `aaaa` matches more than one way. A crafted value here may cost superlinear time to match.",
       "target": {
         "pointer": "/components/schemas/shared_Pet/properties/slug/pattern",
         "anchor": "node",
@@ -100,6 +100,25 @@
       }
     }
   ],
+  "rules": {
+    "unused-component": {
+      "title": "a declared component no operation reaches"
+    },
+    "path-param-undeclared": {
+      "title": "a path template placeholder with no parameter declaring it"
+    },
+    "type": {
+      "title": "a field with the wrong JSON type"
+    },
+    "example-invalid": {
+      "title": "an example the schema it illustrates rejects",
+      "explanation": "Every example in the document is validated against the schema it sits in. An example reached through a $ref is checked once at the component that declares it rather than at each use site, so one finding can stand for many references. The message names up to five distinct reasons and then counts the rest; the finding's reasons field carries every rejected leaf, uncapped and unabbreviated."
+    },
+    "ambiguous-pattern": {
+      "title": "a pattern whose matching can blow up on crafted input",
+      "explanation": "A backtracking engine can be made to explore every way an ambiguous pattern matches, so an input crafted against it can take superlinear time. Whether a given pattern actually costs that depends on the engine running it, which is not known here. Rewrite the pattern to remove the ambiguity, or compile patterns with a linear-time engine through the regexCompiler option."
+    }
+  },
   "skipped": [
     {
       "key": "schema",

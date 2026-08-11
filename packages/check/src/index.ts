@@ -27,6 +27,7 @@ export { CheckAbortedError, checkSpec, type CheckOptions } from "./check.js";
 export { parseFindingKey, type FindingKey, type FindingKeyResult } from "./finding-key.js";
 export { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
 export { checkDocumentRedos } from "./redos-check.js";
+export { CHECK_RULES, ruleFor, type CheckRule } from "./rules.js";
 export { renderSarif } from "./sarif.js";
 export { spanFor, spanRequestsFor, spanTargetFor } from "./span-target.js";
 export { applySkip, parseSkipKeys, SkipKeyError, type SkipReportEntry } from "./skip.js";

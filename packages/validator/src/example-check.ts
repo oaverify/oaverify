@@ -308,7 +308,6 @@ type ExampleCheck = (value: unknown) => Rejection | undefined;
 interface ExampleJob {
   schema: unknown;
   pointer: string;
-  what: string;
   value: unknown;
 }
 
@@ -364,20 +363,26 @@ export function checkDocumentExamples(
   const jobs: ExampleJob[] = [];
   const issues: ExampleIssue[] = [];
 
-  const report = (pointer: string, what: string, value: unknown, rejection: Rejection): void => {
+  // The value is not echoed back into the message (#773). It was the
+  // second truncation in a line that already had one, and for the
+  // failures where knowing the value matters the reasons carry it per
+  // path: an `enum` leaf renders `(actual: ..., allowed: ...)`, so
+  // echoing the whole example repeated the same string a few words
+  // later. The finding is located at the example, so a reader who wants
+  // it whole follows the pointer.
+  const report = (pointer: string, rejection: Rejection): void => {
     issues.push({
       code: rejection.code,
       pointer,
       reasons: rejection.reasons,
-      // "oaverify rejects" rather than "does not satisfy": the finding
-      // reports this validator's verdict. Usually that means the example
-      // is wrong, and occasionally it means oaverify is (#553). Wording
-      // it as settled spec truth would overstate the first case and
-      // mislead on the second.
+      // No "oaverify" prefix: SARIF names the tool at
+      // `runs[].tool.driver.name`, LSP renders `Diagnostic.source`, and
+      // a terminal reader typed the command. Every consumer has already
+      // attributed this before reading the sentence.
       message:
         rejection.code === "example-uncheckable"
-          ? `oaverify could not check ${what} against its schema: ${rejection.summary} (example: ${echoValue(value)})`
-          : `oaverify rejects ${what} against its schema: ${rejection.summary} (example: ${echoValue(value)})`,
+          ? `example could not be checked against its schema: ${rejection.summary}`
+          : `example does not match its schema: ${rejection.summary}`,
     });
   };
 
@@ -405,7 +410,6 @@ export function checkDocumentExamples(
       jobs.push({
         schema: node,
         pointer: `${pointer}/example`,
-        what: '"example"',
         value: node["example"],
       });
     }
@@ -414,7 +418,6 @@ export function checkDocumentExamples(
         jobs.push({
           schema: node,
           pointer: `${pointer}/examples/${index}`,
-          what: `"examples"[${index}]`,
           value,
         });
       }
@@ -444,7 +447,6 @@ export function checkDocumentExamples(
       jobs.push({
         schema,
         pointer: `${pointer}/example`,
-        what: '"example"',
         value: host["example"],
       });
     }
@@ -457,7 +459,6 @@ export function checkDocumentExamples(
       jobs.push({
         schema,
         pointer: `${pointer}/examples/${escapePointer(name)}/value`,
-        what: `"examples.${name}"`,
         value: entry["value"],
       });
     }
@@ -577,7 +578,7 @@ export function checkDocumentExamples(
     const check = checkerFor(job.schema);
     if (check === null) continue;
     const rejection = check(job.value);
-    if (rejection !== undefined) report(job.pointer, job.what, job.value, rejection);
+    if (rejection !== undefined) report(job.pointer, rejection);
   }
 
   return issues;

@@ -1,9 +1,6 @@
 warning  schema       format-not-validated
-  "not-a-real-format" is not a format oaverify validates, so values are checked
-  against "type" alone. This is legal: support for a format is optional and a
-  tool may fall back to "type" for one it does not recognise. Register a
-  validator through the formats option to enforce it, or read this as
-  confirmation the name is an annotation.
+  "not-a-real-format" is not a validated format, so values are checked against
+  "type" alone.
     at /components/schemas/shared_Pet/properties/ref/format
 
 warning  schema       silent-rewrite/required-not-in-properties
@@ -13,3 +10,12 @@ warning  schema       silent-rewrite/required-not-in-properties
 
 2 finding(s): 2 warning
 skipped: 1 finding(s) (-unsatisfiable/pattern-length x1)
+
+1 rule(s) in this report explained:
+
+  format-not-validated: a format name with no validator behind it
+    Values carrying this format are checked against "type" alone. That is legal:
+    support for any given format is optional, and a validator may fall back to
+    "type" for one it does not recognise. Register a validator for the name
+    through the formats option to enforce it, or read this finding as
+    confirmation that the name is documentation rather than a constraint.

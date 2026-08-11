@@ -60,9 +60,11 @@ import {
   parseSeverityMap,
   renderSarif,
   resolveFindingSelection,
+  ruleFor,
   SeverityMapError,
   CheckAbortedError,
   type CheckFinding,
+  type CheckRule,
   type CheckSeverity,
   type FindingSelection,
   type SeverityMap,
@@ -106,6 +108,55 @@ function formatFinding(f: CheckFinding, width: number): string[] {
   // matters, and blocks separate where indentation alone does not once a
   // message itself wraps to several lines.
   out.push("\n");
+  return out;
+}
+
+/**
+ * The rule notes that close a text report: one entry per explained rule
+ * the run produced, whatever the number of findings under it.
+ *
+ * The counterpart to the message brevity of #773, and the reason that
+ * change does not simply delete advice. `format-not-validated` used to
+ * carry ~349 characters of explanation in each of sixteen findings; the
+ * explanation is still here, once, and the sixteen messages are each a
+ * line long. A run with 332 `example-invalid` findings pays for the
+ * text once instead of 332 times.
+ *
+ * Only rules with an explanation appear. Most have none, because their
+ * message already says everything: `unused-component` naming the
+ * component nothing reaches needs no footnote, and printing its title
+ * again under a heading would be words without facts.
+ *
+ * Last in the report rather than first, because it is reference matter.
+ * A reader skimming for what broke reads upward from the total; a
+ * reader who has found their finding and wants to know what the rule
+ * means reads down to here.
+ */
+function formatRuleNotes(findings: readonly CheckFinding[], width: number): string[] {
+  const seen = new Set<string>();
+  const notes: { code: string; rule: CheckRule }[] = [];
+  for (const f of findings) {
+    if (seen.has(f.code)) continue;
+    seen.add(f.code);
+    const rule = ruleFor(f.code);
+    if (rule?.explanation !== undefined) notes.push({ code: f.code, rule });
+  }
+  if (notes.length === 0) return [];
+
+  const out = [`\n${notes.length} rule(s) in this report explained:\n`];
+  for (const { code, rule } of notes) {
+    out.push("\n");
+    // Code then title on one line, matching the finding header's
+    // ordering so the eye lands on the code in the same place.
+    // Colon rather than aligned columns: a title is a phrase, and the
+    // wrap that a long code plus a long title provokes would break an
+    // alignment anyway.
+    for (const line of wrapText(`${code}: ${rule.title}`, width, "  ", "    ")) {
+      out.push(`${line}\n`);
+    }
+    for (const line of wrapText(rule.explanation ?? "", width, "    ", "    "))
+      out.push(`${line}\n`);
+  }
   return out;
 }
 
@@ -660,10 +711,27 @@ export async function checkCommand(
       }),
     );
   } else if (args.format === "json") {
+    // The rules this report's codes belong to, keyed by code, so a
+    // consumer reading the JSON has the same rule text SARIF gets in
+    // `fullDescription` and the text report prints as its notes (#773).
+    // A caller in-process can import CHECK_RULES; one piping this
+    // through jq cannot, and without this it is the only consumer the
+    // message shortening leaves worse off.
+    //
+    // Every code in the report, not only the explained ones, because
+    // `title` is useful on its own here: a JSON consumer rendering a
+    // list has nowhere else to get a human name for a code.
+    const rules = Object.fromEntries(
+      [...new Set(findings.map((f) => f.code))].flatMap((code) => {
+        const rule = ruleFor(code);
+        return rule === undefined ? [] : [[code, rule] as const];
+      }),
+    );
     await sink(
       JSON.stringify(
         {
           findings,
+          ...(Object.keys(rules).length === 0 ? {} : { rules }),
           ...(skipped.length === 0 ? {} : { skipped }),
           ...(noopTerms.length === 0 ? {} : { noopTerms }),
         },
@@ -692,6 +760,7 @@ export async function checkCommand(
     // survived, and this is what did not.
     if (skipLine !== "") await sink(skipLine);
     if (noopLine !== "") await sink(noopLine);
+    for (const line of formatRuleNotes(findings, width)) await sink(line);
   }
 
   // A malformed schema outranks the gate: the document cannot be

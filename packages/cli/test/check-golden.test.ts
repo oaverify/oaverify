@@ -251,6 +251,55 @@ describe("check output is byte-identical (#572)", () => {
   });
 });
 
+describe("rule notes close the text report (#773)", () => {
+  // The counterpart to shortening the messages: the advice that left
+  // them is still reachable, and now costs one paragraph per rule
+  // rather than one per finding.
+  it("explains each explained rule once, however many findings it has", async () => {
+    const { stdout } = await run(kitchenSink());
+    const notes = stdout.slice(stdout.indexOf("rule(s) in this report explained"));
+    expect(notes).toContain("format-not-validated: a format name with no validator behind it");
+    expect(notes).toContain("formats option");
+    // The occurrence above it no longer carries the same sentence.
+    const report = stdout.slice(0, stdout.indexOf("rule(s) in this report explained"));
+    expect(report).toContain('"not-a-real-format" is not a validated format');
+    expect(report).not.toContain("formats option");
+  });
+
+  it("carries the rules into the json report too", async () => {
+    // The one consumer the shortening would otherwise leave worse off:
+    // in-process callers can import CHECK_RULES, a jq pipeline cannot.
+    const { stdout } = await run(kitchenSink(), { format: "json" });
+    const report = JSON.parse(stdout) as {
+      findings: { code: string }[];
+      rules: Record<string, { title: string; explanation?: string }>;
+    };
+    expect(Object.keys(report.rules).sort()).toEqual(
+      [...new Set(report.findings.map((f) => f.code))].sort(),
+    );
+    expect(report.rules["unused-component"]?.title).toBe(
+      "a declared component no operation reaches",
+    );
+    expect(report.rules["unused-component"]?.explanation).toBeUndefined();
+    expect(report.rules["format-not-validated"]?.explanation).toContain("formats option");
+  });
+
+  it("says nothing when no rule in the report has an explanation", async () => {
+    // hygiene alone: every one of its messages is already complete, so
+    // a notes section would be a heading over nothing.
+    const { stdout } = await run(kitchenSink(), { findings: "hygiene" });
+    expect(stdout).toContain("finding(s):");
+    expect(stdout).not.toContain("rule(s) in this report explained");
+  });
+
+  it("is absent from a report with no findings at all", async () => {
+    const { stdout } = await run(kitchenSink(), {
+      findings: "-hygiene,-schema,-conformance,-examples,-redos",
+    });
+    expect(stdout).not.toContain("rule(s) in this report explained");
+  });
+});
+
 describe("--findings (#661)", () => {
   it("an inclusion selects, and reports a term that selected nothing new", async () => {
     // Case 1 of the acceptance table: the code is already inside the
