@@ -3,11 +3,11 @@
 A focused reference for porting an Express app off
 `express-openapi-validator` (eov) onto `oaverify`. Reads as a punch list,
 not a tutorial; for integration recipes, see
-[integration.md](./integration.md). For Express 4 specifically, the
-[`@oaverify/express4`](../packages/oav-express4/README.md)
-companion package gets you most of eov's ergonomics back as a
-one-liner; the recipes in this doc work whether you use the adapter
-or write the middleware inline.
+[integration.md](./integration.md). The adapter for your Express major
+([`@oaverify/express4`](../packages/oav-express4/README.md) or
+[`@oaverify/express5`](../packages/oav-express5/README.md)) gets you
+most of eov's ergonomics back as a one-liner; the recipes in this doc
+work whether you use the adapter or write the middleware inline.
 
 ## What you give up; what you get
 
