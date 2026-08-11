@@ -139,11 +139,60 @@ export function fetchBodyParseFailure<T>(
   maxErrors: number,
   value?: unknown,
 ): ReturnType<typeof toFetchResult<T>> {
-  const reshaped = reshapeResult(
+  return fetchBodyFailure<T>(
     createLeafError("body", ["body"], err.message, { mediaType: err.mediaType }),
     output,
     maxErrors,
+    value,
   );
+}
+
+/**
+ * The fetch-shaped verdict for a body refused as over-large.
+ *
+ * The sibling of {@link fetchBodyParseFailure}, for the same reason:
+ * an oversized body is attacker-controlled input rather than an IO
+ * fault, so it is a verdict, and a `FetchBodyTooLargeError` escaping a
+ * `validateFetchRequest` would turn a client's mistake into a 500.
+ *
+ * The leaf carries `reason` and `bytes` alongside `limit` so a
+ * consumer can tell a `Content-Length` it was handed from a count this
+ * reader took. Same structural-argument reason as the sibling: no
+ * import of `FetchBodyTooLargeError` here.
+ *
+ * @internal
+ */
+export function fetchBodyTooLargeFailure<T>(
+  err: {
+    readonly message: string;
+    readonly limit: number;
+    readonly reason: "declared" | "read";
+    readonly bytes: number;
+  },
+  output: "flat" | "tree" | "predicate",
+  maxErrors: number,
+  value?: unknown,
+): ReturnType<typeof toFetchResult<T>> {
+  return fetchBodyFailure<T>(
+    createLeafError("body-too-large", ["body"], err.message, {
+      limit: err.limit,
+      reason: err.reason,
+      bytes: err.bytes,
+    }),
+    output,
+    maxErrors,
+    value,
+  );
+}
+
+/** Shared tail of the two body-failure verdicts above. */
+function fetchBodyFailure<T>(
+  leaf: ValidationError,
+  output: "flat" | "tree" | "predicate",
+  maxErrors: number,
+  value: unknown,
+): ReturnType<typeof toFetchResult<T>> {
+  const reshaped = reshapeResult(leaf, output, maxErrors);
   if (value !== undefined) {
     (reshaped as { value?: unknown }).value = value;
   }

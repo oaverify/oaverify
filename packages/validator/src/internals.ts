@@ -55,3 +55,9 @@ export { escapePointer, walkDocumentSchemas, type DocumentWalkHooks } from "./do
 // are emit-side (./codegen-runtime.js); this half is reached directly
 // only by tests and adapters.
 export { readBodyFromFetch } from "./from-fetch.js";
+
+// The `maxTotalBytes` allow-list, so every surface that accepts the
+// option rejects the same values with the same message. The AOT
+// emitter validates at emit time rather than baking a value the
+// reader would reject on every request.
+export { isValidMaxTotalBytes, maxTotalBytesErrorMessage } from "./from-fetch.js";

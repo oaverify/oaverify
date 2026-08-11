@@ -106,10 +106,57 @@ describe("httpStatusFor", () => {
     expect(httpStatusFor(route, { default: 422 })).toBe(404);
   });
 
+  // Pins the documented order against the implemented one. Nothing did,
+  // and the two had drifted: the TSDoc read "415 -> 401" while the scan
+  // has always checked security first. Only a result carrying both
+  // leaves can tell them apart, which needs `maxErrors` above 1, so no
+  // existing case reached it.
+  it("resolves in the documented order when several codes are present", () => {
+    const leaves = {
+      route: createLeafError("route", [], "no match", { method: "GET", path: "/x" }),
+      method: createLeafError("method", [], "verb not allowed", {
+        method: "PATCH",
+        pathPattern: "/x",
+        allowed: ["GET"],
+      }),
+      security: createLeafError("security", [], "missing credential", {}),
+      "content-type": createLeafError("content-type", [], "unsupported", {}),
+      status: createLeafError("status", [], "undeclared status", {}),
+      "body-too-large": createLeafError("body-too-large", ["body"], "body too large", {
+        limit: 1,
+        reason: "read",
+        bytes: 2,
+      }),
+      type: createLeafError("type", ["body", "a"], "wrong type", { expected: ["string"] }),
+    };
+    // Each entry outranks every entry below it, so pairing one against
+    // its successor walks the whole chain.
+    const chain: Array<[keyof typeof leaves, number]> = [
+      ["route", 404],
+      ["method", 405],
+      ["security", 401],
+      ["content-type", 415],
+      ["status", 500],
+      ["body-too-large", 413],
+      ["type", 400],
+    ];
+    for (let i = 0; i < chain.length - 1; i++) {
+      const [higher, status] = chain[i]!;
+      const [lower] = chain[i + 1]!;
+      expect(
+        httpStatusFor([leaves[higher], leaves[lower]]),
+        `${higher} should outrank ${lower}`,
+      ).toBe(status);
+      // Order in the array must not matter; the scan is by code.
+      expect(httpStatusFor([leaves[lower], leaves[higher]])).toBe(status);
+    }
+  });
+
   it("exposes DEFAULT_HTTP_STATUS_MAP for introspection", () => {
     expect(DEFAULT_HTTP_STATUS_MAP).toEqual({
       route: 404,
       method: 405,
+      "body-too-large": 413,
       "content-type": 415,
       security: 401,
       status: 500,

@@ -119,6 +119,22 @@ export interface BuiltInErrorParams {
    * payload exhaust the call stack; semantically a client error (400).
    */
   depth: { limit: number };
+  /**
+   * The body exceeded the configured `maxTotalBytes` and was refused
+   * before it was read in full. `limit` is that configured cap.
+   *
+   * `reason` says which of the two enforcement points fired, and
+   * `bytes` means something different under each: `"declared"` is the
+   * `Content-Length` the sender claimed, which is a number we did not
+   * measure, and `"read"` is the running count at the moment the cap
+   * was passed, which we did. Keeping them apart is the difference
+   * between quoting a header and reporting an observation.
+   *
+   * Semantically HTTP 413 on the request side. On the response side it
+   * reports that the responder overran its own contract, which is a
+   * 500; `httpStatusFor` cannot currently tell the two apart (#784).
+   */
+  "body-too-large": { limit: number; reason: "declared" | "read"; bytes: number };
 
   // --- HTTP-level wrappers (emitted by @oaverify/internal-validator) ---
   /** No path template matched `path`: semantically HTTP 404. */
@@ -227,6 +243,7 @@ export const BUILT_IN_ERROR_CODES = [
   "dependencies",
   // --- Compiler safety limits ---
   "depth",
+  "body-too-large",
   // --- HTTP-level wrappers (emitted by @oaverify/internal-validator) ---
   "route",
   "method",
@@ -274,6 +291,7 @@ export const SELF_LOCATING_ERROR_CODES = [
   "route",
   "method",
   "body",
+  "body-too-large",
   "content-type",
   "status",
   "path-param",

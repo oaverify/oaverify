@@ -32,6 +32,65 @@ address and span contracts (`SourceAddress`, `SourceSpan`, `SourceText`,
 `@oaverify/syntax` implements them for a given syntax. That split is why
 the package is not called `@oaverify/source`.
 
+## Breaking: the Fetch adapter caps body reads at 1 MiB
+
+`validateFetchRequest`, `validateFetchResponse`, `httpRequestFromFetch`,
+`httpResponseFromFetch` and `readBodyFromFetch` now refuse a body over
+`maxTotalBytes`, which defaults to 1 MiB. Before this they read until
+the stream ended.
+
+Only the Fetch adapter changes. The Express and Fastify adapters read a
+body their framework's parser already bounded, and are unaffected.
+
+```diff
+-const validator = createValidator(spec);
++// Restore the previous unbounded read:
++const validator = createValidator(spec, { maxTotalBytes: Number.POSITIVE_INFINITY });
++
++// Or, more usefully, pick a bound that fits your endpoints:
++const validator = createValidator(spec, { maxTotalBytes: 10 * 1024 * 1024 });
+```
+
+An over-cap body is a verdict rather than a throw, so a caller that
+already handles invalid requests needs no new code path. It surfaces as
+a `body-too-large` leaf at `["body"]`, which `httpStatusFor` maps to
+413:
+
+```ts
+{ code: "body-too-large", path: ["body"],
+  params: { limit: 1048576, reason: "read", bytes: 1048577 } }
+```
+
+`reason` distinguishes the two enforcement points: `"declared"` means
+`bytes` came from the request's `Content-Length`, and `"read"` means it
+is a count taken while draining the stream. The extraction helpers throw
+`FetchBodyTooLargeError` instead, alongside the existing
+`FetchBodyParseError`.
+
+`combineValidators` reads the body before it knows which member owns
+the route, so a member's cap cannot apply and the composite carries its
+own `CombineOptions.maxTotalBytes`, same default. Set it to the most
+permissive of the members you combine.
+
+Two smaller consequences:
+
+- `HttpStatusMap` gained a `"body-too-large"` field. Overrides are
+  `Partial`, so only code constructing a complete `HttpStatusMap`
+  literal needs updating.
+- A custom `readBody` callback still receives the original `Request` and
+  is not bounded by this. Delegate to `readBodyFromFetch` with the same
+  option to inherit the cap.
+
+### Why
+
+Express and Fastify users bound bodies at the parser
+(`express.json({ limit })`) before the validator sees them. A Fetch
+handler has no such layer: Next.js App Router, Hono, `Bun.serve` and
+`Deno.serve` hand the handler a `Request` whose body is an unread
+stream, and the adapter is what drains it. Defaulting the cap off would
+have left that read unbounded for everyone who did not read the release
+notes, which is the population the change is for.
+
 ## Breaking: the CLI refuses cross-origin remote `$ref`s by default
 
 `--remote-refs` defaults to `same-origin` instead of `allow`.
@@ -102,6 +161,11 @@ default, and `--untrusted` already implied `same-origin`.
 - [ ] Replace `@oaverify/yaml` with `@oaverify/syntax` in every manifest.
 - [ ] Replace it in every import specifier. No imported name changes.
 - [ ] If you pin the CLI, `oaverify` depends on the new name for you.
+- [ ] If you use the Fetch adapter and accept bodies over 1 MiB, set
+      `maxTotalBytes` to a bound that fits your endpoints. Express and
+      Fastify users need nothing.
+- [ ] If you construct a complete `HttpStatusMap` literal, add
+      `"body-too-large"`. Partial overrides are unaffected.
 - [ ] If a spec you check `$ref`s another host, either add
       `--remote-refs allow` to that command or leave the ref refused.
       Runs that never saw v6's cross-origin notice need nothing.

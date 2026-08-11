@@ -37,8 +37,10 @@ export { reshapeResult, toFetchResult } from "./reshape.js";
 // `validateFetchResponse` helpers.
 export {
   FetchBodyParseError,
+  FetchBodyTooLargeError,
   httpRequestFromFetch,
   httpResponseFromFetch,
+  type FetchBodyOptions,
   type FetchRequestOptions,
 } from "./from-fetch.js";
 

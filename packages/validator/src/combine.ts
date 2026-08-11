@@ -11,11 +11,19 @@ import type { SpecHygieneIssue } from "@oaverify/internal-spec";
 import type { TreeValidationResult, ValidationResult } from "@oaverify/internal-schema";
 import {
   FetchBodyParseError,
+  FetchBodyTooLargeError,
   httpRequestFromFetch,
   httpResponseFromFetch,
+  isValidMaxTotalBytes,
+  maxTotalBytesErrorMessage,
   type FetchRequestOptions,
 } from "./from-fetch.js";
-import { fetchBodyParseFailure, reshapeResult, toFetchResult } from "./reshape.js";
+import {
+  fetchBodyParseFailure,
+  fetchBodyTooLargeFailure,
+  reshapeResult,
+  toFetchResult,
+} from "./reshape.js";
 import type {
   PredicateValidator,
   RouteMatchResult,
@@ -68,6 +76,18 @@ export interface CombineOptions {
    * short-circuits to a valid result without consulting any member.
    */
   ignorePaths?: (path: string) => boolean;
+  /**
+   * Byte cap on the composite's own Fetch body read, mirroring
+   * {@link ValidatorOptions.maxTotalBytes}. Defaults to
+   * {@link DEFAULT_MAX_TOTAL_BYTES} (1 MiB).
+   *
+   * The composite reads the body before it knows which member owns the
+   * route, so a member's own `maxTotalBytes` cannot apply: it is not
+   * selected yet. The budget is therefore the composite's, and a
+   * composite whose members disagree wants the most permissive of them
+   * set here.
+   */
+  maxTotalBytes?: number;
 }
 
 /**
@@ -189,6 +209,15 @@ export function combineValidators(
   // construction mistake, so fail at the seam rather than reshape per
   // request.
   const outputMode = validators[0]!.output;
+  // Validated here for the same reason `createValidator` validates its
+  // own: without it a bad value constructs fine and then throws out of
+  // the reader on every request, turning a config typo into a per-request
+  // 500 instead of a startup failure.
+  if (options.maxTotalBytes !== undefined && !isValidMaxTotalBytes(options.maxTotalBytes)) {
+    throw new Error(`combineValidators: ${maxTotalBytesErrorMessage(options.maxTotalBytes)}`);
+  }
+  // Left undefined when unset so the reader applies its own default.
+  const maxTotalBytes = options.maxTotalBytes;
   for (let i = 1; i < validators.length; i += 1) {
     if (validators[i]!.output !== outputMode) {
       throw new Error(
@@ -281,20 +310,33 @@ export function combineValidators(
     return owner !== undefined ? owner.validateResponse(req, res) : noOwnerResult(req);
   };
 
+  // Same verdict a member validator would have returned on its own, so
+  // a caller moving from one validator to a composite of that validator
+  // sees no change. The read fails before routing, so no member owns
+  // the request yet and the `returnValues` channel a member might have
+  // is unreachable; the composite's own surface never promised one.
+  const bodyFailure = <T>(err: unknown) => {
+    if (err instanceof FetchBodyParseError) {
+      return fetchBodyParseFailure<T>(err, outputMode, Number.POSITIVE_INFINITY);
+    }
+    if (err instanceof FetchBodyTooLargeError) {
+      return fetchBodyTooLargeFailure<T>(err, outputMode, Number.POSITIVE_INFINITY);
+    }
+    return undefined;
+  };
+
   const validateFetchRequest = async <T>(request: Request, fetchOptions?: FetchRequestOptions) => {
     let extracted;
     try {
-      extracted = await httpRequestFromFetch(request, fetchOptions);
+      extracted = await httpRequestFromFetch(request, {
+        ...fetchOptions,
+        // See the same line in validator.ts: an explicit `undefined`
+        // must not reset the composite's cap to the reader's default.
+        maxTotalBytes: fetchOptions?.maxTotalBytes ?? maxTotalBytes,
+      });
     } catch (err) {
-      // Same verdict a member validator would have returned on its own,
-      // so a caller moving from one validator to a composite of that
-      // validator sees no change. The parse fails before routing, so no
-      // member owns the request yet and the `returnValues` channel a
-      // member might have is unreachable; the composite's own surface
-      // never promised one.
-      if (err instanceof FetchBodyParseError) {
-        return fetchBodyParseFailure<T>(err, outputMode, Number.POSITIVE_INFINITY);
-      }
+      const verdict = bodyFailure<T>(err);
+      if (verdict !== undefined) return verdict;
       throw err;
     }
     const { httpRequest, body } = extracted;
@@ -308,8 +350,19 @@ export function combineValidators(
     const url = new URL(request.url);
     const method = request.method.toUpperCase();
     const httpRequest: HttpRequest = { method, path: url.pathname };
-    const { httpResponse, body } = await httpResponseFromFetch(response);
-    return toFetchResult<T>(validateResponse(httpRequest, httpResponse), body);
+    let extracted;
+    try {
+      extracted = await httpResponseFromFetch(response, { maxTotalBytes });
+    } catch (err) {
+      // The request side has converted a parse failure since it shipped;
+      // this side threw, so an unparseable upstream response escaped a
+      // composite where a single validator returned a verdict. Both
+      // errors convert here now.
+      const verdict = bodyFailure<T>(err);
+      if (verdict !== undefined) return verdict;
+      throw err;
+    }
+    return toFetchResult<T>(validateResponse(httpRequest, extracted.httpResponse), extracted.body);
   };
 
   const getOperation = (req: { method: string; path: string }) => {

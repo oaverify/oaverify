@@ -47,7 +47,12 @@ import {
 } from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast } from "./headers.js";
-import { fetchBodyParseFailure, reshapeResult, toFetchResult } from "./reshape.js";
+import {
+  fetchBodyParseFailure,
+  fetchBodyTooLargeFailure,
+  reshapeResult,
+  toFetchResult,
+} from "./reshape.js";
 import {
   emptyRequestValues,
   type MutableRequestValues,
@@ -63,8 +68,11 @@ import {
 } from "./body-schema-transform.js";
 import {
   FetchBodyParseError,
+  FetchBodyTooLargeError,
   httpRequestFromFetch,
   httpResponseFromFetch,
+  isValidMaxTotalBytes,
+  maxTotalBytesErrorMessage,
   type FetchRequestOptions,
 } from "./from-fetch.js";
 import {
@@ -824,6 +832,28 @@ export interface ValidatorOptions {
    */
   maxDepth?: number;
   /**
+   * Cap on the bytes read from a body by the Fetch adapter, defaulting
+   * to {@link DEFAULT_MAX_TOTAL_BYTES} (1 MiB). Pass
+   * `Number.POSITIVE_INFINITY` for an unbounded read.
+   *
+   * Applies to `validateFetchRequest` and `validateFetchResponse`, and
+   * to nothing else. The Express and Fastify adapters receive a body
+   * their framework's parser already read and bounded
+   * (`express.json({ limit })`), so this option is inert there; the
+   * Fetch adapter has no such layer beneath it and drains the stream
+   * itself, which is why the bound lives here.
+   *
+   * A per-call `maxTotalBytes` on `validateFetchRequest`'s options
+   * overrides this. A custom `readBody` receives the untouched
+   * `Request` and owns its own budget.
+   *
+   * Over-cap yields a `body-too-large` error leaf (HTTP 413 through
+   * {@link httpStatusFor}) rather than a throw. Must be a positive
+   * integer or `Number.POSITIVE_INFINITY`; `createValidator` throws
+   * otherwise.
+   */
+  maxTotalBytes?: number;
+  /**
    * Compile-time schema linting applied to every schema the validator
    * compiles (request parameters / body; response headers; response
    * bodies lazily). Issues surface via
@@ -1187,12 +1217,21 @@ export function createValidator(
         "Omit the option for uncapped recursion depth.",
     );
   }
+  // Shared allow-list rather than the `isFinite`-guarded shape the two
+  // options above use; see `isValidMaxTotalBytes` for why this one
+  // cannot afford to read `NaN` as infinity.
+  if (options.maxTotalBytes !== undefined && !isValidMaxTotalBytes(options.maxTotalBytes)) {
+    throw new Error(`createValidator: ${maxTotalBytesErrorMessage(options.maxTotalBytes)}`);
+  }
   // Resolved output shape + per-call error budget. Both mirror
   // `compileSchema`: flat output and `maxErrors: 1` by default. Each
   // per-location sub-validator is capped at `maxErrors` (bounds the work
   // per location); `reshapeResult` then enforces the per-call total.
   const outputMode = options.output ?? "flat";
   const maxErrors = options.maxErrors ?? 1;
+  // Left undefined when unset so the reader applies its own default;
+  // resolving it here would put the 1 MiB constant in two places.
+  const maxTotalBytes = options.maxTotalBytes;
   const returnValues = options.returnValues === true;
   const paths = spec.paths ?? {};
   const router: Router = createRouter(paths);
@@ -1774,30 +1813,39 @@ export function createValidator(
   ): ValidationResult | TreeValidationResult | boolean =>
     reshapeResult(validateResponseTree(req, res), outputMode, maxErrors);
 
-  // Only FetchBodyParseError converts; an IO or user-callback failure
-  // propagates unchanged. See fetchBodyParseFailure for why an
-  // unparseable payload is a verdict rather than an exception.
-  const bodyParseFailure = <T>(err: FetchBodyParseError) =>
-    fetchBodyParseFailure<T>(err, outputMode, maxErrors);
+  // Only the two body errors convert; an IO or user-callback failure
+  // propagates unchanged. See fetchBodyParseFailure for why a body the
+  // reader rejects is a verdict rather than an exception.
+  const bodyFailure = <T>(err: unknown, value?: unknown) => {
+    if (err instanceof FetchBodyParseError) {
+      return fetchBodyParseFailure<T>(err, outputMode, maxErrors, value);
+    }
+    if (err instanceof FetchBodyTooLargeError) {
+      return fetchBodyTooLargeFailure<T>(err, outputMode, maxErrors, value);
+    }
+    return undefined;
+  };
 
   const validateFetchRequest = async <T>(request: Request, fetchOptions?: FetchRequestOptions) => {
     let extracted;
     try {
-      extracted = await httpRequestFromFetch(request, fetchOptions);
+      extracted = await httpRequestFromFetch(request, {
+        ...fetchOptions,
+        // A per-call `maxTotalBytes` wins over the validator-level one,
+        // but only when the caller actually supplied a value. Spreading
+        // `fetchOptions` last would let an explicit `undefined` (what a
+        // `{ ...opts }` forward of an absent field produces) reset the
+        // validator's cap to the reader's default instead of keeping it.
+        maxTotalBytes: fetchOptions?.maxTotalBytes ?? maxTotalBytes,
+      });
     } catch (err) {
-      // An unparseable body fails before any request validation runs, so
-      // no parameter was reached and the channel goes back empty rather
-      // than absent. `validateFetchResponse` shares `bodyParseFailure`
-      // and passes no channel, which is why this is the argument here
+      // A rejected body fails before any request validation runs, so no
+      // parameter was reached and the channel goes back empty rather
+      // than absent. `validateFetchResponse` shares `bodyFailure` and
+      // passes no channel, which is why this is the argument here
       // rather than a `returnValues` check inside the helper.
-      if (err instanceof FetchBodyParseError) {
-        return fetchBodyParseFailure<T>(
-          err,
-          outputMode,
-          maxErrors,
-          returnValues ? emptyRequestValues() : undefined,
-        );
-      }
+      const verdict = bodyFailure<T>(err, returnValues ? emptyRequestValues() : undefined);
+      if (verdict !== undefined) return verdict;
       throw err;
     }
     // `toFetchResult` carries the `returnValues` channel through both
@@ -1813,9 +1861,10 @@ export function createValidator(
     const httpRequest: HttpRequest = { method, path: url.pathname };
     let extracted;
     try {
-      extracted = await httpResponseFromFetch(response);
+      extracted = await httpResponseFromFetch(response, { maxTotalBytes });
     } catch (err) {
-      if (err instanceof FetchBodyParseError) return bodyParseFailure<T>(err);
+      const verdict = bodyFailure<T>(err);
+      if (verdict !== undefined) return verdict;
       throw err;
     }
     return toFetchResult<T>(validateResponse(httpRequest, extracted.httpResponse), extracted.body);

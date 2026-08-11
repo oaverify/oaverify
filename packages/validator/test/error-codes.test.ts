@@ -395,6 +395,21 @@ describe("self-locating message contract (SELF_LOCATING_ERROR_CODES)", () => {
     };
   }
 
+  /**
+   * The tree shim covers `validateRequest` / `validateResponse` only,
+   * so the Fetch entry point needs its own unwrap to join the corpus.
+   */
+  async function fetchTree(
+    v: ReturnType<typeof createValidator>,
+    request: Request,
+  ): Promise<ValidationError | null> {
+    const r = (await v.validateFetchRequest(request)) as {
+      ok: boolean;
+      error?: ValidationError;
+    };
+    return r.ok ? null : (r.error ?? null);
+  }
+
   function namesItsLocation(leaf: ValidationError): boolean {
     switch (leaf.code) {
       // Empty-path codes: there is no prefix to drop.
@@ -403,6 +418,7 @@ describe("self-locating message contract (SELF_LOCATING_ERROR_CODES)", () => {
       case "status":
         return leaf.path.length === 0;
       case "body":
+      case "body-too-large":
         return leaf.message.includes("body");
       case "content-type":
         return leaf.message.includes("Content-Type");
@@ -414,11 +430,12 @@ describe("self-locating message contract (SELF_LOCATING_ERROR_CODES)", () => {
     }
   }
 
-  it("every emitted self-locating leaf names its location in its message", () => {
+  it("every emitted self-locating leaf names its location in its message", async () => {
     const selfLocating = new Set<string>(SELF_LOCATING_ERROR_CODES);
     const v = createValidator(contractSpec(), {
       strictQueryParameters: true,
       validateSecurity: "shape",
+      maxTotalBytes: 8,
     });
     const trees: (ValidationError | null)[] = [
       v.validateRequest({ method: "GET", path: "/nope" }), // route
@@ -451,6 +468,17 @@ describe("self-locating message contract (SELF_LOCATING_ERROR_CODES)", () => {
         { method: "GET", path: "/items/1" },
         { status: 200, contentType: "application/json", body: {}, headers: {} },
       ), // header-param (response, missing required header)
+      // body-too-large: the one code here that only the Fetch reader
+      // can raise, so it comes through the async entry point rather
+      // than the sync `validateRequest` shim above.
+      await fetchTree(
+        v,
+        new Request("https://x/items/1", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ padding: "over the eight-byte cap" }),
+        }),
+      ),
     ];
 
     const observed = new Set<string>();
