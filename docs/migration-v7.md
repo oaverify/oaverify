@@ -91,6 +91,54 @@ stream, and the adapter is what drains it. Defaulting the cap off would
 have left that read unbounded for everyone who did not read the release
 notes, which is the population the change is for.
 
+## Breaking: a rejected Fetch body reports its direction
+
+`validateFetchRequest` / `validateFetchResponse` returned a bare `body`
+or `body-too-large` leaf when the reader refused a payload. They now
+wrap it in the `request` / `response` branch every other error from
+those entry points already carried:
+
+```diff
+ // output: "tree"
+-{ code: "body-too-large", path: ["body"], params: { limit, reason, bytes } }
++{ code: "request", path: [], params: { method: "POST" }, children: [
++  { code: "body-too-large", path: ["body"], params: { limit, reason, bytes } },
++]}
+```
+
+**Flat output is unchanged.** Reshaping collects leaves and drops
+branches, so the default result shape, and everything `httpStatusFor`
+sees, is exactly what it was. Only `output: "tree"` consumers that read
+`result.error.code` for these two verdicts need updating, and the fix
+is to read the child.
+
+`combineValidators` and `oaverify compile-spec` output do the same.
+
+The `request` branch omits `pathPattern` here, so
+`BuiltInErrorParams["request"]` widens:
+
+```diff
+-request: { method: string; pathPattern: string };
++request: { method: string; pathPattern?: string };
+```
+
+The body is read during extraction, before routing, so a failure at
+that point has no matched template to name. Code reading `pathPattern`
+off a `request` branch now has to handle its absence. It is absent
+rather than filled with the concrete request path, because a consumer
+reading that field expects a template.
+
+### Why
+
+`httpStatusFor` maps `body-too-large` to 413, which reads the failure
+as a request. The identical leaf from `validateFetchResponse` means an
+upstream overran its own contract, and no status follows from that on
+its own: a gateway might answer 502, or 500, or serve stale, or pass
+the response through under report-only. Since the library cannot pick
+for you, the least it can do is not throw away which direction the
+finding came from. `httpStatusFor`'s TSDoc now says it is request-side
+and why no response-side sibling is coming.
+
 ## Breaking: the CLI refuses cross-origin remote `$ref`s by default
 
 `--remote-refs` defaults to `same-origin` instead of `allow`.
@@ -166,6 +214,13 @@ default, and `--untrusted` already implied `same-origin`.
       Fastify users need nothing.
 - [ ] If you construct a complete `HttpStatusMap` literal, add
       `"body-too-large"`. Partial overrides are unaffected.
+- [ ] If you read `result.error.code` in tree output for a rejected
+      Fetch body, read the child of the `request` / `response` branch.
+      Flat output needs nothing.
+- [ ] If you read `pathPattern` off a `request` branch, handle its
+      absence.
+- [ ] If you pass a response-validation result to `httpStatusFor`,
+      decide your own policy instead; it is request-side.
 - [ ] If a spec you check `$ref`s another host, either add
       `--remote-refs allow` to that command or leave the ref refused.
       Runs that never saw v6's cross-origin notice need nothing.

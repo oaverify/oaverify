@@ -965,6 +965,43 @@ describe("compile-spec: emitted validateFetch* wrappers", () => {
     expect(r.errors?.[0]?.params).toMatchObject({ limit: 1024 * 1024 });
   });
 
+  it("wraps the body verdict in a direction branch, like createValidator", async () => {
+    // The emitted module builds its own leaf, so the wrapper is a
+    // second implementation of the same shape and can drift from the
+    // runtime's independently.
+    const aot = (await buildAot(petstore, {
+      maxTotalBytes: 64,
+      outputMode: "tree",
+    })) as unknown as {
+      validateFetchRequest: (req: Request) => Promise<{ ok: boolean; error?: ValidationError }>;
+      validateFetchResponse: (
+        req: Request,
+        res: Response,
+      ) => Promise<{ ok: boolean; error?: ValidationError }>;
+    };
+    const req = await aot.validateFetchRequest(
+      new Request("http://x/pets", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-tenant": "t1" },
+        body: JSON.stringify({ name: "x".repeat(500) }),
+      }),
+    );
+    expect(req.error?.code).toBe("request");
+    expect(req.error?.params).toMatchObject({ method: "POST" });
+    expect(req.error?.children[0]?.code).toBe("body-too-large");
+
+    const res = await aot.validateFetchResponse(
+      new Request("http://x/pets", { method: "GET" }),
+      new Response(JSON.stringify([{ name: "x".repeat(500) }]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(res.error?.code).toBe("response");
+    expect(res.error?.params).toMatchObject({ status: 200 });
+    expect(res.error?.children[0]?.code).toBe("body-too-large");
+  });
+
   it("refuses a bad cap at emit time rather than baking it", async () => {
     // NaN through an `isFinite` test would bake POSITIVE_INFINITY and
     // read every body unbounded; 0 would bake verbatim and throw from

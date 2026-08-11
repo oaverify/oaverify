@@ -52,6 +52,7 @@ import {
   fetchBodyTooLargeFailure,
   reshapeResult,
   toFetchResult,
+  type FetchBodyDirection,
 } from "./reshape.js";
 import {
   emptyRequestValues,
@@ -1816,12 +1817,12 @@ export function createValidator(
   // Only the two body errors convert; an IO or user-callback failure
   // propagates unchanged. See fetchBodyParseFailure for why a body the
   // reader rejects is a verdict rather than an exception.
-  const bodyFailure = <T>(err: unknown, value?: unknown) => {
+  const bodyFailure = <T>(err: unknown, direction: FetchBodyDirection, value?: unknown) => {
     if (err instanceof FetchBodyParseError) {
-      return fetchBodyParseFailure<T>(err, outputMode, maxErrors, value);
+      return fetchBodyParseFailure<T>(err, outputMode, maxErrors, direction, value);
     }
     if (err instanceof FetchBodyTooLargeError) {
-      return fetchBodyTooLargeFailure<T>(err, outputMode, maxErrors, value);
+      return fetchBodyTooLargeFailure<T>(err, outputMode, maxErrors, direction, value);
     }
     return undefined;
   };
@@ -1844,7 +1845,11 @@ export function createValidator(
       // than absent. `validateFetchResponse` shares `bodyFailure` and
       // passes no channel, which is why this is the argument here
       // rather than a `returnValues` check inside the helper.
-      const verdict = bodyFailure<T>(err, returnValues ? emptyRequestValues() : undefined);
+      const verdict = bodyFailure<T>(
+        err,
+        { kind: "request", method: request.method.toUpperCase() },
+        returnValues ? emptyRequestValues() : undefined,
+      );
       if (verdict !== undefined) return verdict;
       throw err;
     }
@@ -1863,7 +1868,7 @@ export function createValidator(
     try {
       extracted = await httpResponseFromFetch(response, { maxTotalBytes });
     } catch (err) {
-      const verdict = bodyFailure<T>(err);
+      const verdict = bodyFailure<T>(err, { kind: "response", status: response.status });
       if (verdict !== undefined) return verdict;
       throw err;
     }

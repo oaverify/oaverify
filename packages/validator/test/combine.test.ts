@@ -473,10 +473,13 @@ describe("combineValidators and an unparseable fetch body", () => {
     const composite = combineValidators([createValidator(bodySpec(), { output: "tree" })]);
     const result = (await composite.validateFetchRequest(malformed())) as {
       ok: boolean;
-      error?: { code: string };
+      error?: { code: string; children: Array<{ code: string }> };
     };
     expect(result.ok).toBe(false);
-    expect(result.error?.code).toBe("body");
+    // Wrapped in the request branch, like every other error the
+    // composite produces; the bare leaf discarded its direction.
+    expect(result.error?.code).toBe("request");
+    expect(result.error?.children[0]?.code).toBe("body");
   });
 
   it("still propagates a non-body failure unchanged", async () => {

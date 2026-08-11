@@ -23,6 +23,7 @@ import {
   fetchBodyTooLargeFailure,
   reshapeResult,
   toFetchResult,
+  type FetchBodyDirection,
 } from "./reshape.js";
 import type {
   PredicateValidator,
@@ -315,12 +316,12 @@ export function combineValidators(
   // sees no change. The read fails before routing, so no member owns
   // the request yet and the `returnValues` channel a member might have
   // is unreachable; the composite's own surface never promised one.
-  const bodyFailure = <T>(err: unknown) => {
+  const bodyFailure = <T>(err: unknown, direction: FetchBodyDirection) => {
     if (err instanceof FetchBodyParseError) {
-      return fetchBodyParseFailure<T>(err, outputMode, Number.POSITIVE_INFINITY);
+      return fetchBodyParseFailure<T>(err, outputMode, Number.POSITIVE_INFINITY, direction);
     }
     if (err instanceof FetchBodyTooLargeError) {
-      return fetchBodyTooLargeFailure<T>(err, outputMode, Number.POSITIVE_INFINITY);
+      return fetchBodyTooLargeFailure<T>(err, outputMode, Number.POSITIVE_INFINITY, direction);
     }
     return undefined;
   };
@@ -335,7 +336,10 @@ export function combineValidators(
         maxTotalBytes: fetchOptions?.maxTotalBytes ?? maxTotalBytes,
       });
     } catch (err) {
-      const verdict = bodyFailure<T>(err);
+      const verdict = bodyFailure<T>(err, {
+        kind: "request",
+        method: request.method.toUpperCase(),
+      });
       if (verdict !== undefined) return verdict;
       throw err;
     }
@@ -358,7 +362,7 @@ export function combineValidators(
       // this side threw, so an unparseable upstream response escaped a
       // composite where a single validator returned a verdict. Both
       // errors convert here now.
-      const verdict = bodyFailure<T>(err);
+      const verdict = bodyFailure<T>(err, { kind: "response", status: response.status });
       if (verdict !== undefined) return verdict;
       throw err;
     }
