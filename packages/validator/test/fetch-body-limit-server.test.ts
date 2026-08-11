@@ -60,12 +60,17 @@ it("bounds a real upload over a real socket, by declared length and by count", a
       res.end(JSON.stringify({ code: errors[0]?.code, params: errors[0]?.params }));
     })();
   });
-  await new Promise<void>((r) => server.listen(0, r));
+  // Bind and dial 127.0.0.1 explicitly rather than "localhost". A
+  // runner whose resolver answers ::1 first, on a host with no IPv6
+  // route, hangs the connect instead of failing it, which is a test
+  // timeout with nothing in it that names the cause.
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const port = (server.address() as { port: number }).port;
+  const base = `http://127.0.0.1:${port}`;
 
   try {
     // Under the cap: passes.
-    const ok = await fetch(`http://localhost:${port}/items`, {
+    const ok = await fetch(`${base}/items`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ a: 1 }),
@@ -73,7 +78,7 @@ it("bounds a real upload over a real socket, by declared length and by count", a
     expect(ok.status).toBe(200);
 
     // Honest Content-Length over the cap: the pre-check fires.
-    const declared = await fetch(`http://localhost:${port}/items`, {
+    const declared = await fetch(`${base}/items`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ a: "x".repeat(4096) }),
@@ -85,7 +90,7 @@ it("bounds a real upload over a real socket, by declared length and by count", a
     });
 
     // Chunked, no Content-Length: only the streamed count can catch it.
-    const chunked = await fetch(`http://localhost:${port}/items`, {
+    const chunked = await fetch(`${base}/items`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: new ReadableStream<Uint8Array>({
@@ -105,6 +110,10 @@ it("bounds a real upload over a real socket, by declared length and by count", a
       params: { reason: "read" },
     });
   } finally {
+    // fetch keeps its sockets pooled, and `close()` waits for every
+    // connection to end, so closing without this waits on a keep-alive
+    // socket that nothing is going to close.
+    server.closeAllConnections();
     await new Promise<void>((r) => server.close(() => r()));
   }
-});
+}, 30_000);
