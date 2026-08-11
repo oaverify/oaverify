@@ -287,11 +287,11 @@ function relatedLocationsOf(
  * sentence would otherwise read as though the member were there.
  */
 function messageForReason(located: LocatedReason): string {
-  const { reason, at } = located;
-  if (at === "container") {
-    return `${pathText(reason.path.slice(0, -1))}: ${reason.message} (this location is the containing value; the member it names is absent)`;
+  const where = pathText(located.path);
+  if (located.at === "container") {
+    return `${where}: ${located.reason.message} (this location is the containing value; the member it names is absent)`;
   }
-  return `${pathText(reason.path)}: ${reason.message}`;
+  return `${where}: ${located.reason.message}`;
 }
 
 /**
@@ -395,11 +395,20 @@ export function renderSarif(
     /**
      * Where a `region` comes from, if anywhere (#610).
      *
-     * Called once per result location and once per related location,
-     * with the `SourceAddress` or `SourceHop` that location was built
-     * from. Returning `undefined` leaves that location addressing the
-     * file alone, which is what every location did before this option
-     * existed and what an unwired caller still gets.
+     * Called with a `SpanRequest`, once for a result's own location,
+     * once per `via` hop, and once per reason that names a position
+     * inside the rejected value. The first two are a `SourceAddress` and
+     * a `SourceHop`, which satisfy that type; a reason's is built here,
+     * at the address's pointer plus the reason's path.
+     *
+     * What `undefined` does differs by caller, and the difference is
+     * deliberate. A result location and a hop keep their place and
+     * address the file alone, which is what every location did before
+     * this option existed. A reason produces no related location at all:
+     * it would say only "inside the file the result already names", and
+     * an item that adds nothing is worse than a missing one. So the
+     * number of related locations depends on what this answers, and
+     * every reason is asked about whether or not it becomes one.
      *
      * A callback rather than a field on the finding: an address is
      * present or absent as a unit and says something checkable about
@@ -409,9 +418,10 @@ export function renderSarif(
      * distinguishable.
      *
      * Positions come from `createSourceSpanResolver` in
-     * `@oaverify/core/spec`. Resolve every address and hop in one batch
-     * and close over the result; calling a resolver directly from here
-     * would reparse per lookup.
+     * `@oaverify/core/spec`. Resolve {@link spanRequestsFor}'s whole
+     * batch and close over the result; it is the same policy this reads
+     * back, and calling a resolver directly from here would reparse per
+     * lookup.
      */
     spanOf?: SpanLookup;
   },

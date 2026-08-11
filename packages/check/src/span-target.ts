@@ -105,19 +105,35 @@ const SEP = "\u0000";
  *
  * Pass the result to a {@link @oaverify/core/spec!SourceSpanResolver} in
  * one batch, and hand the answers back as the `spanOf` option to
- * {@link renderSarif}. Building the batch and reading it are the same
- * policy, so they live in one place: a caller that assembled the batch
- * itself would have to reproduce the fallback rule below, and would
- * drift from it.
+ * {@link renderSarif}, to {@link spanFor}, or to
+ * {@link locatedReasonsFor}. Building the batch and reading it are the
+ * same policy, so they live in one place: a caller that assembled the
+ * batch itself would have to reproduce the rules below, and would drift
+ * from them.
  *
- * Two requests are emitted for a finding whose code recommends a key:
- * the key and the value, because the fallback needs both resolved
- * before it can choose. That costs a lookup and no extra parse, since a
- * resolver groups a batch by document and parses each once.
+ * **This is the whole batch, and each reader takes its part of it.**
+ * Resolving a smaller one leaves the reader that wanted the missing
+ * request unable to tell "no position for this" from "you did not ask",
+ * and both of them answer by omitting something. Three kinds are
+ * emitted:
  *
- * Hops are requested as values. A hop addresses the `$ref` node that
- * pulled a document in, so a recommendation about the finding's own
- * code has nothing to say about it.
+ * - **The finding's own address**, read back by {@link spanFor}. Two
+ *   requests for a code that recommends a key, the key and the value,
+ *   because the fallback needs both resolved before it can choose.
+ * - **Each hop**, as a value. A hop addresses the `$ref` node that
+ *   pulled a document in, so a recommendation about the finding's own
+ *   code has nothing to say about it.
+ * - **Each reason that names a position**, read back by
+ *   {@link locatedReasonsFor}, at `source.pointer` plus the path
+ *   {@link reasonTargetFor} sends it to. One request rather than a
+ *   pair: there is no fallback, so nothing needs a second answer.
+ *
+ * A request emitted here may still resolve to nothing, and for a reason
+ * that is an ordinary outcome rather than a failure; see
+ * {@link locatedReasonsFor}.
+ *
+ * The extra requests cost lookups and no extra parse, since a resolver
+ * groups a batch by document and parses each once.
  *
  * @public
  */
@@ -248,6 +264,18 @@ export interface LocatedReason {
   index: number;
   /** Whether `pointer` is the reason's path or its container. */
   at: ReasonTarget;
+  /**
+   * The path `pointer` addresses, within the rejected value. The
+   * reason's own path where `at` is `"self"`, and one segment shorter
+   * where it is `"container"`.
+   *
+   * Carried rather than left to the reader to derive, so nothing outside
+   * this module has to know that `"container"` means exactly one segment
+   * or that a one-segment container never reaches here. A renderer that
+   * recomputed it would silently produce an empty path the day either
+   * rule changed.
+   */
+  path: readonly PathSegment[];
   /** The document, the same one the finding's own location addresses. */
   uri: string;
   /** RFC 6901 pointer to the located node, within that document. */
@@ -301,6 +329,7 @@ export function locatedReasonsFor(
       at: reasonTargetFor(reason.code),
       uri: source.uri,
       pointer,
+      path,
       span,
     });
   });

@@ -329,7 +329,20 @@ describe("spanRequestsFor asks for exactly what will be read back", () => {
       at: "self",
       uri: "spec.json",
       pointer: `${EXAMPLE}/uri`,
+      path: ["uri"],
       span: SPAN,
     });
+  });
+
+  it("carries the path the pointer addresses, not the reason's", () => {
+    // The container case is where the two differ, and a renderer that
+    // recomputed the difference would be a second place the one-segment
+    // rule has to hold.
+    const [located] = locatedReasonsFor(
+      finding([reason("required", ["customer", "email"])]),
+      spanAt(`${EXAMPLE}/customer`) as never,
+    );
+    expect(located?.path).toEqual(["customer"]);
+    expect(located?.reason.path).toEqual(["customer", "email"]);
   });
 });
