@@ -318,14 +318,23 @@ describe("buildProgram: argv-level", () => {
     for (const line of lines) expect(line.startsWith(" ")).toBe(false);
   });
 
-  it("validate --format flat still parses as a deprecated alias of summary", async () => {
+  it("validate --format flat is refused; the alias was removed in v7", async () => {
     const mem = memoryIo([["spec.json", spec]], [["body.json", JSON.stringify({})]]);
-    const out = await runCli(
-      ["validate", "spec.json", "--path", "POST /pets", "--body", "body.json", "--format", "flat"],
-      mem,
-    );
-    expect(out.exitCode).toBe(1);
-    expect(out.stdout.length).toBeGreaterThan(0);
+    await expect(
+      runCli(
+        [
+          "validate",
+          "spec.json",
+          "--path",
+          "POST /pets",
+          "--body",
+          "body.json",
+          "--format",
+          "flat",
+        ],
+        mem,
+      ),
+    ).rejects.toThrow(/unknown format: flat/);
   });
 });
 

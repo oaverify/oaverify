@@ -1,12 +1,13 @@
 # Migrating to v7
 
-Six breaking changes, and most callers meet one: `@oaverify/yaml` is
+Seven breaking changes, and most callers meet one: `@oaverify/yaml` is
 renamed to `@oaverify/syntax`, which is a specifier swap with no
 imported name changing. The rest are scoped. Two apply only to the
 Fetch adapter (bodies are capped at 1 MiB, and a rejected body now
-reports its direction), one only to the CLI (cross-origin remote
-`$ref`s are refused by default), one only to `style: matrix`
-parameters, and one removes three field aliases deprecated in v6.
+reports its direction), two only to the CLI (cross-origin remote
+`$ref`s are refused by default, and `--format flat` is gone), one only
+to `style: matrix` parameters, and one removes three field aliases
+deprecated in v6.
 
 If you use the library with Express or Fastify and read no `check`
 findings, the upgrade is the rename and nothing else.
@@ -301,6 +302,36 @@ predated that rule and held a pointer, so it moved to `pointer`; the
 aliases meant `location` naming a pointer on one type and prose on two
 others, which is the ambiguity the rename existed to end.
 
+## Breaking: `--format flat` is removed
+
+`oaverify validate --format flat` is now a usage error (exit 3,
+`unknown format: flat`). Use `--format summary`, which it has been an
+alias of since 3.8.0:
+
+```diff
+-oaverify validate openapi.yaml --path "POST /pets" --body pet.json --format flat
++oaverify validate openapi.yaml --path "POST /pets" --body pet.json --format summary
+```
+
+Output is byte-identical, so this is a flag edit and nothing else. The
+name has not appeared in `--format`'s help text since 3.8.0, so a run
+that was written against the help is already using `summary`.
+
+`OutputFormat` narrows to `"text" | "json" | "summary"` with it, and
+`isOutputFormat("flat")` now returns `false`.
+
+### Why
+
+Same reason as the three above: one word naming two things. `"flat"`
+named a rendering style (one line per leaf) with the word
+`ValidatorOptions.output: "flat"` uses for an unrelated result shape
+(an errors list rather than a tree). `"summary"` names the renderer
+behind it, `formatSummary`.
+
+The alias was documented as "kept for one major" when it shipped in
+3.8.0, which made 4.0.0 its window. It outlasted three majors instead,
+the same way the four aliases v5 swept did.
+
 ## Checklist
 
 - [ ] Replace `@oaverify/yaml` with `@oaverify/syntax` in every manifest
@@ -322,3 +353,5 @@ others, which is the ambiguity the rename existed to end.
 - [ ] Replace `ConformanceIssue.location` with `.pointer`, and
       `SchemaLintIssue.context` / `PrecompileFailure.context` with
       `.location`.
+- [ ] Replace `--format flat` with `--format summary` wherever you
+      invoke `oaverify validate`. Output is unchanged.
