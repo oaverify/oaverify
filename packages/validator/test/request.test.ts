@@ -1594,3 +1594,94 @@ describe("Content-Type is read from the field, not the header", () => {
     expect(leaf?.message).toContain("is not declared for status 200");
   });
 });
+
+describe("matrix path parameters (#758)", () => {
+  const matrixSpec = (schema: SchemaOrBoolean, explode: boolean): OpenAPIDocument => ({
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/t/{p}": {
+        get: {
+          parameters: [{ name: "p", in: "path", style: "matrix", explode, required: true, schema }],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  });
+
+  const get = (spec: OpenAPIDocument, path: string) =>
+    createValidator(spec).validateRequest({ method: "GET", path });
+
+  it("rejects a segment naming no group for the parameter", () => {
+    // Both defects reached the handler instead: the exploded array as
+    // [], which satisfies `required` and an unbounded `type: array`,
+    // and the scalar as the foreign group's value.
+    const arr = matrixSpec({ type: "array", items: { type: "integer" } }, true);
+    for (const path of ["/t/;q=1;r=2", "/t/;"]) {
+      const err = get(arr, path);
+      expect(leafCodes(err)).toEqual(["path-param"]);
+      expect(leafAt(err, "path.p")?.message).toBe('missing required path parameter "p"');
+    }
+    // A segment with no ";" is not matrix framing at all, so it reads
+    // as the value and its schema judges it, the way `label` reads
+    // one with no ".". It reached the handler as [] before.
+    expect(leafCodes(get(arr, "/t/abc"))).toEqual(["type"]);
+    // The same verdict whatever the item type. A string-typed schema
+    // is what ruled out leaving the segment unread instead: it would
+    // have accepted ";q=1;r=2" as a one-element array.
+    expect(
+      leafCodes(get(matrixSpec({ type: "array", items: { type: "string" } }, true), "/t/;q=1;r=2")),
+    ).toEqual(["path-param"]);
+    expect(leafCodes(get(matrixSpec({ type: "string" }, false), "/t/;q=1"))).toEqual([
+      "path-param",
+    ]);
+  });
+
+  it("leaves a non-matrix parameter's undefined deserialization alone", () => {
+    // The absence check is gated on `style: matrix` because
+    // `deserialize` has a second source of undefined that is not
+    // absence: an object-typed parameter handed an empty array reads
+    // `raw[0]`. Ungated, an optional one flipped from rejected to
+    // accepted, which is the accept-invalid this change exists to
+    // remove, one location over.
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/o": {
+          get: {
+            parameters: [
+              {
+                name: "f",
+                in: "query",
+                style: "form",
+                explode: false,
+                schema: { type: "object", properties: { a: { type: "string" } } },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const err = createValidator(spec).validateRequest({
+      method: "GET",
+      path: "/o",
+      query: { f: [] },
+    });
+    expect(leafCodes(err)).toEqual(["type"]);
+  });
+
+  it("still accepts the segment when a group names the parameter", () => {
+    expect(
+      get(matrixSpec({ type: "array", items: { type: "integer" } }, true), "/t/;p=1;p=2"),
+    ).toBeNull();
+    expect(
+      get(matrixSpec({ type: "array", items: { type: "integer" } }, true), "/t/;q=9;p=2"),
+    ).toBeNull();
+    expect(
+      get(matrixSpec({ type: "array", items: { type: "integer" } }, false), "/t/;p=1,2"),
+    ).toBeNull();
+    expect(get(matrixSpec({ type: "integer" }, false), "/t/;p=42")).toBeNull();
+  });
+});

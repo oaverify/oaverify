@@ -22,7 +22,15 @@ import {
  *
  * @param raw - The raw value(s) provided for this parameter (string, array, or undefined).
  * @param parameter - The parameter definition.
- * @returns The deserialized value, ready for schema validation.
+ * @returns The deserialized value, ready for schema validation, or
+ * `undefined` when the parameter has no value. That covers `raw` being
+ * `undefined`, and one wire case: a `style: matrix` segment that opens
+ * with ";" and whose groups all name some other parameter supplies
+ * nothing for this one (see {@link matrixGroupValues}). Callers treat
+ * both the same way, which is what makes `;q=1` a missing `p` rather
+ * than a `p` of `";q=1"`. A matrix segment that does not open with ";"
+ * carries no groups to read a name from and is the value itself, so
+ * `"abc"` is `"abc"` and not an absence.
  *
  * @example
  * ```ts
@@ -70,20 +78,15 @@ export function deserialize(
       return body.split(explode ? "." : ",").map((v) => coerceScalar(v, items));
     }
     if (style === "matrix") {
-      if (explode) {
-        const values: string[] = [];
-        for (const group of raw.split(";")) {
-          if (group === "") continue;
-          const eq = group.indexOf("=");
-          const groupName = eq === -1 ? group : group.slice(0, eq);
-          // A group naming some other parameter is not one of ours;
-          // RFC 6570 never emits one here, so it contributes nothing.
-          if (groupName !== parameter.name) continue;
-          values.push(eq === -1 ? "" : group.slice(eq + 1));
-        }
-        return values.map((v) => coerceScalar(v, items));
-      }
-      const body = stripStyle(raw, style);
+      const groups = matrixGroupValues(raw, parameter.name);
+      if (groups === undefined) return undefined;
+      // {;list*} is one group per element; {;list} is one group whose
+      // value is the comma-joined list. A second group in the
+      // non-explode form is not a shape RFC 6570 emits, so the first
+      // one supplies the parameter and the rest are ignored, matching
+      // how a repeated scalar resolves below.
+      if (explode) return groups.map((v) => coerceScalar(v, items));
+      const body = groups[0] ?? "";
       if (body === "") return [];
       return body.split(",").map((v) => coerceScalar(v, items));
     }
@@ -116,6 +119,14 @@ export function deserialize(
     return out;
   }
 
+  if (style === "matrix") {
+    const groups = matrixGroupValues(raw, parameter.name);
+    if (groups === undefined) return undefined;
+    // First wins, as it does for a repeated query parameter above
+    // (`raw[0]`). `;p=1;p=2` against a scalar is not a shape RFC 6570
+    // emits; reading it as the whole tail gave the handler "1;p=2".
+    return coerceScalar(groups[0] ?? "", schema);
+  }
   return coerceScalar(stripStyle(raw, style), schema);
 }
 
@@ -355,16 +366,63 @@ function arraySeparator(style: ParameterStyle, explode: boolean): string {
 }
 
 function stripStyle(value: string, style: ParameterStyle): string {
-  if (style === "matrix" && value.startsWith(";")) {
-    // Drop the ";name=" prefix and nothing more: `.split("=").pop()`
-    // returned the text after the *last* "=", truncating a value that
-    // carries one (";v=a=b" read as "b").
-    const rest = value.slice(1);
-    const eq = rest.indexOf("=");
-    return eq === -1 ? rest : rest.slice(eq + 1);
-  }
   if (style === "label" && value.startsWith(".")) return value.slice(1);
   return value;
+}
+
+/**
+ * The values carried by the groups of a `style: matrix` segment that
+ * name this parameter; `undefined` when a framed segment names none,
+ * and the whole segment when it carries no framing at all.
+ *
+ * RFC 6570 §3.2.7 gives every matrix form the same frame: a segment is
+ * a run of `;name=value` groups, and a group's name says which
+ * parameter it supplies. `{;p}` is `;p=1`, `{;list}` is `;p=1,2`, and
+ * `{;list*}` is `;p=1;p=2`, so one reader serves all three and the
+ * shape-specific work (splitting on "," , taking a scalar) is what
+ * differs afterwards.
+ *
+ * `undefined` rather than an empty list is the load-bearing part. A
+ * segment naming only other parameters supplies no value for this one,
+ * which is the parameter being absent, and absence is the only answer
+ * that rejects for every schema type: returning `[]` satisfies
+ * `required` plus an unbounded `type: array`, and returning the segment
+ * unread satisfies `type: string`. Both were accept-invalid (#758).
+ *
+ * A group with no "=" carries the empty value, per the same section:
+ * `{;p}` against "" expands to `;p`. Reading its name as the value was
+ * how `;p` reached a handler as "p".
+ *
+ * A ";" inside a value cannot survive this, and nothing here can fix
+ * it: RFC 6570 requires the client to percent-encode one, the router
+ * decodes the path token before any of this runs, and a decoded ";" is
+ * then indistinguishable from a group delimiter. `;p=a%3Bb` reads as
+ * "a". The explode arm has always split on ";" and behaved this way;
+ * the other arms kept everything after the first "=" and now agree
+ * with it. Splitting before decoding is the only real fix and belongs
+ * in the router, not here.
+ */
+function matrixGroupValues(raw: string, name: string): string[] | undefined {
+  // A segment not opening with ";" carries no framing, so there is no
+  // group name to read and the segment is the value. `label` extends
+  // the same tolerance to a missing "."; the two are not identical
+  // past that point, because an unframed body here is one value rather
+  // than a list to split. Requiring the framing instead would reject
+  // `/t/7` as well, which is a larger change than the name check and
+  // not the one #758 asks for.
+  if (!raw.startsWith(";")) return [raw];
+  const values: string[] = [];
+  for (const group of raw.split(";")) {
+    if (group === "") continue;
+    const eq = group.indexOf("=");
+    // A group naming some other parameter is not one of ours; RFC 6570
+    // never emits one here, so it contributes nothing.
+    if ((eq === -1 ? group : group.slice(0, eq)) !== name) continue;
+    // Split at the first "=" only: the value may carry more of them,
+    // and taking the text after the last one truncated ";v=a=b" to "b".
+    values.push(eq === -1 ? "" : group.slice(eq + 1));
+  }
+  return values.length === 0 ? undefined : values;
 }
 
 /**

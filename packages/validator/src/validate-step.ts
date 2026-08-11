@@ -176,15 +176,15 @@ export function validateParameter(
       break;
   }
 
-  if (raw === undefined) {
-    if (p.required) {
-      return createLeafError(code, pathPrefix, `missing required ${p.in} parameter "${p.name}"`, {
-        name: p.name,
-        in: p.in,
-      });
-    }
-    return null;
-  }
+  const missing = (): ValidationError | null =>
+    p.required
+      ? createLeafError(code, pathPrefix, `missing required ${p.in} parameter "${p.name}"`, {
+          name: p.name,
+          in: p.in,
+        })
+      : null;
+
+  if (raw === undefined) return missing();
   // Empty-string is a legitimate value; `minLength`/`pattern` on the
   // parameter schema handles rejection where needed. OpenAPI 3.1 §4.8.12.1
   // explicitly permits `?flag=` on query parameters declaring
@@ -227,6 +227,18 @@ export function validateParameter(
   }
 
   const value = deserialize(raw, p);
+  // A present segment can still supply no value for this parameter: a
+  // `style: matrix` segment whose groups all name something else. That
+  // is the parameter being absent, and reporting it as absent is what
+  // rejects it whatever the schema says, where handing the schema `[]`
+  // or the unread segment did not (#758).
+  //
+  // Gated on the style rather than testing `value === undefined` alone,
+  // because `deserialize` has a second source of undefined that is not
+  // absence: an object-typed parameter handed an empty array reads
+  // `raw[0]`. Treating that as absent would accept an optional one that
+  // the schema rejects today.
+  if (value === undefined && p.style === "matrix") return missing();
   const r = validator.validate(value, pathPrefix);
   if (r.valid) {
     if (sink !== undefined) recordValue(sink, p, value);
