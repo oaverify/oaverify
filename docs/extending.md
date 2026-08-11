@@ -61,8 +61,7 @@ For scale: `string.ts` and `number.ts` between them use `data`,
 `formatTypeOf`, and read no flag. That is the shape of a leaf
 keyword.
 
-Three cross-cutting behaviors are worth calling out because they change
-how `compile` is written.
+Four cross-cutting behaviors change how `compile` is written.
 
 ### Validating `ctx.schema`
 
@@ -215,11 +214,11 @@ written down rather than rediscovered per format (#705).
 not reject correct input. Where a stricter reading exists, ship it as a
 named export and say in the TSDoc which document each one follows.
 
-The costs are asymmetric, which is what decides it. A false reject fails
-a request that works today. A false accept leaves the caller where they
-were before the validator existed. So where the registry, the cited RFC
-and real traffic disagree, the built-in follows whichever admits the
-traffic, and the strict reading stays one line away.
+The costs are asymmetric. A false reject fails a request that works
+today; a false accept leaves the caller where they were before the
+validator existed. So where the registry, the cited RFC and real
+traffic disagree, the built-in follows whichever admits the traffic,
+and the strict reading stays one line away.
 
 Two worked cases:
 
@@ -241,8 +240,7 @@ why this is a naming convention rather than a feature.
 `formats: { <name>: false }` remains the way to keep a name as an
 annotation that asserts nothing.
 
-Two things that are easy to miss, both about the format _not_ being
-asserted before you got there:
+Two things that are easy to miss:
 
 - **The TSDoc has to say what the validator does not assert, and which
   document it follows.** `int64` sets the standard: it accepts the

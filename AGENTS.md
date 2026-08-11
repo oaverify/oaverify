@@ -11,41 +11,29 @@ change gets wrong.
 
 ## Working agreements
 
-How to make decisions when extending this repo. The mechanics
-sections below cover _how_ to add a thing; this section is about
-_whether_ and _what shape_.
+How to decide when extending this repo. The mechanics sections below
+cover _how_ to add a thing; this section is about _whether_ and _what
+shape_.
 
-### Surface tradeoffs honestly
-
-When a design choice has real tradeoffs (fat vs thin adapter, mocks
-vs integration tests, one PR vs many, opinionated default vs escape
-hatch), say so. Recommend a lean. Defer the call rather than picking
-silently. A half-articulated choice that survives review is harder
-to revisit than one that was explicitly weighed. The point is the
-surfacing, not the agonizing: options + lean + decision space, not
-exhaustive analysis.
-
-### Talk through design before drafting
-
-For substantive new APIs (a new package, a non-trivial option
-addition, a default-behavior shift), open the conversation before
-writing code. Sketch the API shape, list open questions, recommend
-defaults. The cost of one round-trip on the design saves several on
-the implementation when an early choice would have wanted to be
-different. For small fixes and obvious changes, just do it; judgment.
+Two general habits, before the repo-specific rules. Where a design
+choice has real tradeoffs (fat vs thin adapter, mocks vs integration
+tests, opinionated default vs escape hatch), name them and recommend a
+lean rather than picking silently. And for a substantive new API (a
+package, a non-trivial option, a default-behaviour shift), sketch the
+shape before writing code; one round-trip on the design saves several
+on the implementation.
 
 ### Naming and consistency
 
 Names that pair (`request`/`response`, `validateRequest`/`validateResponse`,
 `Validator`/`ValidatorOptions`, `httpRequestFromExpress`/`httpRequestFromFetch`)
-carry meaning beyond what each name says alone: a reader should be
-able to predict one from the other. When you add a new symbol, look
+let a reader predict one from the other. When you add a symbol, look
 for the sibling that should pair with it, even if you're only writing
 one half today. Across-package symmetry is a feature: every adapter
-package exports the same factory names with the same option shapes,
-with only the framework-typed argument varying. Per-framework types
-use framework-native names (`ExpressContext`, `FastifyContext`); names
-that sit above the framework boundary stay identical everywhere.
+exports the same factory names with the same option shapes, only the
+framework-typed argument varying. Per-framework types use
+framework-native names (`ExpressContext`, `FastifyContext`); names above
+the framework boundary stay identical everywhere.
 
 That symmetry is why `packages/oav-express4` and `packages/oav-express5`
 contain near-identical files. The duplication is deliberate: sharing
@@ -59,24 +47,23 @@ to add a comment.
 
 ### Forward-compatible API shapes
 
-Design v0 surfaces so v1 additions land as new exports / new options,
-not changed semantics. The Express 4 adapter shipped with
-`validateRequests` named so that any response-validating sibling
-added later would slot in additively, sharing option names, the
-default renderer, and the context shape. Picking those identifiers
-up front cost nothing; doing it after the fact would have meant a
-breaking rename. When you can't tell whether a new option will need
-to extend later, lean toward shapes that widen additively (`select:
-"first" | "deepest" | { byCode }`, not `byCodeOnly: boolean`).
+Design v0 surfaces so v1 additions land as new exports or new options,
+not changed semantics. The Express 4 adapter shipped `validateRequests`
+named so a response-validating sibling would slot in additively,
+sharing option names, the default renderer and the context shape; that
+cost nothing up front and would have been a breaking rename later. When
+you can't tell whether an option will need to extend, lean toward
+shapes that widen additively (`select: "first" | "deepest" | { byCode }`,
+not `byCodeOnly: boolean`).
 
 ### No magic
 
-Prefer explicit docs warnings over silent runtime detection of common
-gotchas. The Express adapter doesn't auto-detect missing
-`express.json()`; the README flags it. Implicit fallbacks, surprise
-behaviors, and "we'll figure out what you meant" all create debugging
-dead ends. Better to error early with a clear message, or not at all
-and let the user's own logic fail in a familiar way.
+Prefer an explicit docs warning over silent runtime detection of a
+common gotcha: the Express adapter doesn't auto-detect a missing
+`express.json()`, the README flags it. Implicit fallbacks and
+"we'll figure out what you meant" create debugging dead ends. Error
+early with a clear message, or not at all, and let the caller's own
+logic fail in a familiar way.
 
 ### Type as canonical contract
 
@@ -94,31 +81,25 @@ what a caller may pass belongs in the TSDoc. Header-name casing lived
 only as a `// lowercased keys` comment in a recipe while the type said
 nothing, and the lookup code drifted into three strategies underneath.
 
-### Prose Style
+### Prose style
 
-LLM-like writing breaks reader flow. Readers familiar with the
-patterns notice them, snap out of whatever they were absorbing, and
-have to reset. Avoid the patterns for the reader's sake, not for
-camouflage. Applies to docs, TSDoc, commit messages, PR descriptions,
-and code comments. The big ones:
+LLM-like writing breaks reader flow: a reader who knows the patterns
+snaps out of whatever they were absorbing and has to reset. Applies to
+docs, TSDoc, commit messages, PR descriptions and code comments.
 
 - **Em-dash.** Replace `—` with a period, comma, semicolon,
-  parenthesis, or colon.
-- **Contrastive negation.** "Not X, it's Y" / "not just X, but Y" /
-  "this isn't a fix, it's a rewrite." Make the affirmative claim
-  directly.
-- **Filler and hedging.** Throat-clearers ("honestly," "frankly,"
-  "essentially") and stacked hedges ("may," "might," "could
-  potentially") read as AI; drop them. Different from substantive
-  adverbial use, e.g. the "honestly" in "Surface tradeoffs honestly"
-  above.
-- **Over-promising vocabulary.** "Robust," "elegant," "powerful,"
-  "seamless," "comprehensive," "delve," "leverage," "unlock."
+  parenthesis or colon.
+- **Contrastive negation.** "Not X, it's Y" / "not just X, but Y".
+  Make the affirmative claim directly.
+- **Filler and hedging.** Throat-clearers ("honestly", "essentially")
+  and stacked hedges ("may", "might", "could potentially"). Substantive
+  adverbial use is fine.
+- **Over-promising vocabulary.** "Robust", "elegant", "powerful",
+  "seamless", "comprehensive", "delve", "leverage", "unlock".
   Substantiate concretely or drop.
 
-Generated output (error messages, log lines, anything the code itself
-emits) is ASCII-only, simple, and concise. Data passed through from a
-spec or user input is unchanged.
+Generated output (error messages, log lines) is ASCII-only, simple and
+concise. Data passed through from a spec or user input is unchanged.
 
 ### Scope discipline
 
@@ -132,19 +113,17 @@ work: fix when next touching the area, not preemptively.
 
 ### Verify before declaring done
 
-For substantive changes (new packages, behavior shifts, packaging
-work), exercise the change end-to-end before committing. Mocks
-cover the logic; smoke tests prove the integration. Bug fixes
-start with a reproducer; confirming the bug exists rules out
-fixing the wrong thing. The pack-smoke CI job catches install
-regressions; if your change touches packaging, run the smoke
-locally too (`pnpm pack` + `npm install` in `/tmp`).
+Exercise a substantive change end-to-end before committing: mocks cover
+the logic, a smoke run proves the integration. Start a bug fix with a
+reproducer, so you are not fixing the wrong thing. The pack-smoke CI
+job catches install regressions; if your change touches packaging, run
+it locally too (`pnpm pack` + `npm install` in `/tmp`).
 
 ## Build commands
 
 ```bash
 pnpm install
-pnpm build                        # tsup: @oaverify/core + stream + yaml + check + the oaverify CLI
+pnpm build                        # tsup: @oaverify/core + stream + syntax + check + the oaverify CLI
 pnpm check                        # the PR gate: test + typecheck + lint + lint:type-aware
 pnpm test                         # vitest for everything
 pnpm vitest run packages/schema   # run a single package's tests (path filter)
@@ -456,17 +435,15 @@ cli           → core formats overlay-spec schema spec validator
 ```
 
 `scripts/check-deps.mjs` (wired into `pnpm lint`) asserts that graph
-from the manifests: it stays acyclic, and declarations match imports both
-ways (no `@oaverify/internal-*` declared but unimported, none imported
-but undeclared). "Declared" unions `dependencies` + `devDependencies`,
-since the internal packages carry their deps at runtime while the
-published `@oaverify/*` bundles carry the same ones as build-only
-devDeps. Adding a real edge means updating the relevant `package.json`;
-a phantom or undeclared edge fails the build.
+from the manifests: it stays acyclic, and declarations match imports
+both ways, so a phantom or an undeclared edge fails the build.
+"Declared" unions `dependencies` + `devDependencies`, since the internal
+packages carry their deps at runtime while the published bundles carry
+the same ones as build-only devDeps.
 
 The script reads the manifests, not this file, so the list above can
-drift out of date while `pnpm check:deps` stays green. It has. If you
-need the authoritative graph, generate it:
+drift while `pnpm check:deps` stays green. It has. Regenerate it rather
+than trusting it:
 
 ```bash
 for d in packages/*/; do jq -r 'select(.name|startswith("@oaverify/internal-"))
@@ -474,41 +451,31 @@ for d in packages/*/; do jq -r 'select(.name|startswith("@oaverify/internal-"))
   "$d/package.json" 2>/dev/null; done
 ```
 
-Published companion packages contribute no edges to the graph above,
-since they are not bundle members: their internal deps sit in
-`devDependencies` and are bundled at publish. They are **not** outside
-`check-deps` altogether, which is easy to assume and wrong. The script
-reads every `packages/*/package.json`, unions `dependencies` and
-`devDependencies`, filters to `@oaverify/internal-*`, and matches that
-against imports in both directions. So a published package that
-declares an internal it does not import fails the build as a phantom
-dependency, exactly as an internal one would; only the acyclicity check
-skips them.
+Two things about the published companions that are easy to assume and
+get wrong:
 
-`@oaverify/stream`, `@oaverify/syntax` and `@oaverify/check` share the
-shape: internal packages appear as build-only devDeps and get bundled at
-publish, while the runtime `dependencies` name the published surface
-(`@oaverify/core`, plus `yaml` and `redos-detector` respectively). The
-three adapters take the same shape, each depending on `@oaverify/core`
-with the framework as a peer (`express ^4`, `express ^5`,
-`fastify ^5`). The published `oaverify` CLI depends on
-`@oaverify/core`, `@oaverify/check`, `@oaverify/stream`, and
-`@oaverify/syntax`, with `esbuild` as a peer for `compile-spec`.
+- **They contribute no edges to that graph**, not being bundle members,
+  but they are **not** outside `check-deps`. It reads every
+  `packages/*/package.json`, so a published package declaring an
+  internal it does not import fails as a phantom dependency exactly as
+  an internal one would. Only the acyclicity check skips them.
+- **`check-deps` only sees `@oaverify/internal-*`.** The published
+  `oaverify` depends on `@oaverify/stream` for real at runtime, and
+  nothing asserts that edge. Its source alias lives in
+  `workspace-aliases.ts` (consumed by vitest + tsup), and `pack-smoke`
+  installs the locally-packed tarball so the dep resolves to the
+  workspace build rather than the registry.
 
 `@oaverify/check` is the one companion that bundles an internal package
-rather than rewriting it to a `@oaverify/core` subpath:
+rather than rewriting it to a `@oaverify/core` subpath.
 `@oaverify/internal-metaschema` is not a core entry, for the ~100KB
-reason above, so its tsup config carries a `bundledWorkspace` map the
-way `packages/oav`'s does. `packages/oav` stopped bundling it when the
-conformance pass moved, which `test/alias-parity.test.ts` records in
-`NOT_IN_OAV_BUNDLE`. So the
-CLI's edge to the stream validator is real and unasserted. Its source alias
-lives in `workspace-aliases.ts` (consumed by vitest + tsup), the
-published `oaverify` carries it as a real runtime dependency, and the
-`pack-smoke` job installs the locally-packed tarball so the dep resolves
-to the workspace build rather than the registry. `stream-validator` is
-linked into the `@oaverify/core` release group because its public
-contract tracks the core/schema semantics.
+reason above, so check's tsup config carries a `bundledWorkspace` map
+the way `packages/oav`'s does. `packages/oav` stopped bundling it when
+the conformance pass moved, which `test/alias-parity.test.ts` records in
+`NOT_IN_OAV_BUNDLE`.
+
+`@oaverify/stream` is linked into the `@oaverify/core` release group
+because its public contract tracks the core/schema semantics.
 
 ## Repo layout and dev-only sub-roots
 
@@ -537,24 +504,21 @@ to be measured rather than run; see its README. Its sources are `.mjs`,
 so its `typecheck` runs `checkJs` over the two servers instead of the
 usual `*.ts` include.
 
-Every one of them answers to `pnpm check`, which runs what CI gates for
-that directory, so the verb means the same kind of thing in each root and
-at the top level. `detection/`'s is typecheck only, because `pnpm detect`
-rewrites three committed files under `results/` and a command called
-`check` should not dirty the tree. `mem-bench`'s is typecheck only too,
-because its servers exist to be measured and a benchmark is not a gate. `performance/`'s runs the smallest
-cross-library benchmark and still takes ~30s, because tinybench warms up
-every task against ajv's ~2.7ms compile and warmup dominates any budget.
+Every one answers to `pnpm check`, which runs what CI gates for that
+directory, so the verb means the same kind of thing everywhere. Two are
+typecheck-only: `detection/`, because `pnpm detect` rewrites three
+committed files under `results/` and `check` should not dirty the tree,
+and `mem-bench`, because a benchmark is not a gate. `performance/`'s
+runs the smallest cross-library benchmark and still takes ~30s, since
+tinybench warms up every task against ajv's ~2.7ms compile.
 
-CI invokes these through their own package scripts (`pnpm openapi`,
-`pnpm suite --check-baseline`, …) rather than `pnpm tsx run-<x>.ts`, so
-the commands in the docs and the commands in the gate are the same
-commands. Keep it that way when adding a runner: add the script, reference
-the script, and fold it into that root's `check`.
-
-`check` is deliberately not what CI _invokes_, though: CI keeps one step
-per runner so a failure names itself in the UI. For `conformance/` the two
-sets are now identical, so a new runner has to be added in both places.
+CI invokes the runners through their own package scripts (`pnpm
+openapi`, `pnpm suite --check-baseline`, …) rather than
+`pnpm tsx run-<x>.ts`, so the commands in the docs and the commands in
+the gate are the same commands. It does not invoke `check` itself,
+keeping one step per runner so a failure names itself in the UI. Adding
+a runner therefore means adding the script, referencing the script, and
+folding it into both that root's `check` and CI.
 
 Scheduled jobs cover what the pin cannot. Every conformance runner gates
 PRs against the pinned corpus, cached so the required check never needs the

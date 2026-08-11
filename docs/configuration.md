@@ -15,6 +15,8 @@ this page is a recipe-oriented overview.
 | `maxDepth`                  | Cap on recursive `$ref` validation depth; past the cap the payload fails with a `depth` error instead of exhausting the call stack. Unset by default; see below.                                                   |
 | `maxTotalBytes`             | Cap on the bytes the Fetch adapter reads from a body. Default 1 MiB; pass `Number.POSITIVE_INFINITY` to read unbounded. Inert on the Express and Fastify adapters; see below.                                      |
 | `schemaLint`                | Schema lint mode: `"off"`, `"warn"` (default), or `"strict"`. Findings surface via `validator.stats.schemaLintIssues`; never throws. A malformed schema is rejected regardless, see [Strictness](./strictness.md). |
+| `unknownFormats`            | A `format` with no validator registered: `"ignore"` (default) leaves it asserting nothing, `"error"` refuses to compile. Compilation is lazy, so an untouched operation surfaces on its first request.             |
+| `requireResponseBody`       | Treat a declared response body arriving as `undefined` as an error, except for HEAD and bodyless statuses. Default `false`; OpenAPI takes no position, so the rule is opt-in.                                      |
 | `strictQueryParameters`     | Reject undeclared query parameters. Default `false`.                                                                                                                                                               |
 | `allowBracketedQueryArrays` | Accept `?tags[]=a&tags[]=b` for an array-typed query parameter declared as `tags`. Default `false`; see below.                                                                                                     |
 | `returnValues`              | Return the deserialized parameter values on the result under `value`, grouped by HTTP location. Default `false`; see below.                                                                                        |
@@ -23,6 +25,8 @@ this page is a recipe-oriented overview.
 | `ignorePaths`               | Predicate `(path) => boolean`; returning `true` short-circuits validation to a valid result (`{ valid: true }`) before routing.                                                                                    |
 | `onUnknownVersion`          | Policy for specs with missing/unsupported `openapi`: `"fallback31"` (default), `"warn"`, or `"throw"`.                                                                                                             |
 | `regexCompiler`             | Compiler for `pattern` keywords and `format: "regex"`. Defaults to `new RegExp(p, "u")` with a non-u fallback. Plug in `re2` or a safe-regex check for hardening; see below.                                       |
+| `lint`                      | Run spec-hygiene passes at construction, collecting into `validator.specHygieneIssues`. Never throws. Default `false`.                                                                                             |
+| `warn`                      | Live sink called synchronously for each warning emitted during construction. Warnings accumulate in `validator.warnings` either way.                                                                               |
 
 ## Formats
 
@@ -210,35 +214,15 @@ const validator = createValidator(spec, { allowBracketedQueryArrays: true });
 The declared name always wins. The bracketed spelling is consulted only
 when no key matches the declared name exactly, so a request carrying
 both `tags` and `tags[]` is read from `tags` and the bracketed key is
-ignored rather than merged. A document that declares `tags[]` literally
-keeps it: in that case `tags` gains no bracketed spelling at all, and
-one key cannot satisfy two parameters.
+ignored rather than merged. Only array-typed query parameters gain the
+spelling; a `type: string` parameter named `tags` still reports missing
+for `?tags[]=a`, because the suffix means "repeated value" and a scalar
+has no repetition to express.
 
-Only array-typed parameters gain the spelling, judged through the same
-schema view parameter deserialization uses (which takes the first entry
-of a `type` array). A `type: string` parameter named `tags` still
-reports missing for `?tags[]=a`, because the suffix means "repeated
-value" and a scalar has no repetition to express.
-
-With `strictQueryParameters` also on, an accepted bracketed spelling
-counts as a known key, so the two options do not contradict each other.
-The spelling is known whether or not a given request used it; keys that
-match no parameter under either spelling are still flagged.
-
-Only the empty-bracket spelling is accepted. Indexed keys such as
-`?tags[0]=a&tags[1]=b`, which some of the same encoders emit, are not
-aliases for `tags`.
-
-`deepObject` is unaffected. A `deepObject` parameter is object-typed,
-so it gains no bracketed spelling, and its keys are reassembled by the
-object-assembly step that runs before any scalar or array lookup.
-Header, cookie, and path parameters are untouched, since the suffix is
-an artifact of query-string encoders.
-
-The option applies wherever the query came from, including a query
-string embedded in the request `path`.
-
-See `ValidatorOptions.allowBracketedQueryArrays` for the contract.
+`ValidatorOptions.allowBracketedQueryArrays` carries the rest of the
+contract: how it composes with `strictQueryParameters`, why indexed
+keys (`?tags[0]=a`) are not aliases, and which parameter kinds are
+untouched.
 
 ## Malformed schemas fail at construction
 
@@ -292,12 +276,11 @@ the failure is a throw at construction rather than an entry in
 ## Hardening against untrusted regex patterns
 
 `pattern` keywords and `format: "regex"` compile to JavaScript's
-built-in `RegExp`, which has no execution timeout. A catastrophic
-pattern like `(a+)+$` is a denial-of-service vector against any
-string the validator checks. The risk is real only when the spec is
-attacker-controlled: multi-tenant SaaS accepting uploads,
-spec-editing tools, mock-as-a-service. For first-party specs the
-default is fine; vet your sources.
+built-in `RegExp`, which has no execution timeout, so a catastrophic
+pattern like `(a+)+$` is a denial-of-service vector against any string
+the validator checks. The risk is real only when the spec is
+attacker-controlled: multi-tenant SaaS accepting uploads, spec-editing
+tools, mock-as-a-service. For first-party specs the default is fine.
 
 When the spec is untrusted, pass a `regexCompiler` that wraps a safe
 engine. `re2` is the standard choice (linear-time matching, no
@@ -480,8 +463,7 @@ if (!result.ok) {
 
 It defaults to 1 MiB rather than to off, unlike the other resource
 limits here. Those bound work your schema asks for; this one bounds a
-buffer the reader introduces by draining a socket into a string, and
-leaving it off would protect only the readers of this paragraph. Raise
+buffer the reader introduces by draining a socket into a string. Raise
 it for an upload endpoint, or pass `Number.POSITIVE_INFINITY` to
 restore an unbounded read.
 
@@ -535,17 +517,11 @@ array nested a few thousand levels, only a few KB on the wire) can
 exhaust the stack and throw `RangeError: Maximum call stack size
 exceeded`.
 
-The first line of defense is the `maxDepth` option, on both
-`createValidator` (`ValidatorOptions`) and `compileSchema`
-(`CompileOptions`). It bounds recursion inside the validator: once the
-data nests deeper than the cap through a recursive `$ref`, validation
-stops descending and emits a `depth` error (mapped to HTTP 400) instead
-of growing the stack. The counter tracks only recursive (`$ref`
-back-edge) calls, so it measures how deep the recursive structure
-nests, independent of how the schema was decomposed; non-recursive
-schemas are never instrumented, and an unset `maxDepth` compiles to the
-same code as before (zero overhead). Legitimate payloads rarely recurse
-beyond ten or fifteen levels, so a cap of 32 to 64 is generous.
+`maxDepth`, on both `createValidator` (`ValidatorOptions`) and
+`compileSchema` (`CompileOptions`), is the control. Once the data nests
+deeper than the cap through a recursive `$ref`, validation stops
+descending and emits a `depth` error (HTTP 400) instead of growing the
+stack.
 
 ```ts
 const validator = createValidator(spec, { maxDepth: 64 });
@@ -553,23 +529,25 @@ const validator = createValidator(spec, { maxDepth: 64 });
 // `depth` error rather than throwing RangeError.
 ```
 
-`maxDepth` covers the validator's own recursion. For untrusted callers
-who also want to reject deep payloads before they reach any parsing or
-business logic, a depth cap at the parse boundary is a complementary
-backstop (it bounds nesting the validator never sees, e.g. fields the
-schema doesn't traverse). Without `maxDepth`, the framework adapters
-catch the `RangeError` and turn it into a 500, so the process survives;
-a cheap-to-send payload that reliably produces 500s is still a
-denial-of-service vector, which is what `maxDepth` and the
-parse-boundary guard close.
+The counter tracks only recursive (`$ref` back-edge) calls, so it
+measures how deep the recursive structure nests, independent of how the
+schema was decomposed. Non-recursive schemas are never instrumented,
+and an unset `maxDepth` compiles to the same code as before. Legitimate
+payloads rarely recurse beyond ten or fifteen levels, so a cap of 32 to
+64 is generous.
 
-The parse-boundary guard is a depth cap before the parsed
-body reaches the validator. A byte-size limit alone is not enough: a
-payload nested thousands of levels deep is tiny, so `express.json({
-limit })` (or `maxTotalBytes`, above) bounds width, not depth. Walk the parsed
-value iteratively (a recursive walker would overflow on the same input
-you are trying to reject) and reject anything past a sane ceiling. Set
-it low and raise it only if a legitimate payload trips it.
+Without it, the framework adapters catch the `RangeError` and turn it
+into a 500, so the process survives; a cheap-to-send payload that
+reliably produces 500s is still a denial-of-service vector.
+
+### Backstop: a depth cap at the parse boundary
+
+`maxDepth` covers the validator's own recursion. A cap before the
+parsed body reaches the validator also bounds nesting the validator
+never sees, such as fields the schema doesn't traverse. A byte-size
+limit does not substitute: a payload nested thousands of levels deep is
+tiny, so `express.json({ limit })` and `maxTotalBytes` bound width, not
+depth.
 
 ```ts
 // Returns true if `value` nests deeper than `limit`. Iterative on
@@ -604,9 +582,8 @@ app.use((req, res, next) => {
 Fastify is the same shape in an `onRequest` or `preValidation` hook
 that inspects `request.body`.
 
-For standalone callers (the Fetch adapter, a handler that calls
-`validateRequest` directly), wrap the call so a stack overflow becomes
-a controlled error instead of an unhandled rejection:
+A standalone caller (the Fetch adapter, or a handler calling
+`validateRequest` directly) can catch the overflow instead:
 
 ```ts
 try {
@@ -618,6 +595,3 @@ try {
   throw err;
 }
 ```
-
-`maxDepth` is the primary control; the parse-boundary guard, the
-byte-size limit, and the `try/catch` are backstops.

@@ -21,10 +21,6 @@ describe("formatError", () => {
     expect(formatError(sample, "summary").split("\n")).toHaveLength(1);
   });
 
-  it('accepts "flat" as a deprecated alias of "summary"', () => {
-    expect(formatError(sample, "flat")).toBe(formatError(sample, "summary"));
-  });
-
   it("respects depth truncation in text mode", () => {
     const out = formatError(sample, "text", 0);
     expect(out.split("\n").length).toBeLessThan(3);
@@ -56,13 +52,13 @@ describe("isOutputFormat", () => {
     expect(isOutputFormat("summary")).toBe(true);
   });
 
-  it("accepts the deprecated flat alias", () => {
-    expect(isOutputFormat("flat")).toBe(true);
-  });
-
   it("rejects unknown names", () => {
     expect(isOutputFormat("github")).toBe(false);
     expect(isOutputFormat("xml")).toBe(false);
     expect(isOutputFormat("")).toBe(false);
+  });
+
+  it("rejects the flat alias, removed in v7", () => {
+    expect(isOutputFormat("flat")).toBe(false);
   });
 });

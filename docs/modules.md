@@ -113,12 +113,10 @@ for (const finding of checkSpec(resolved)) {
 }
 ```
 
-`loadSpec` (async) requires an explicit `reader`; `loadSpecSync`
-defaults to a JSON-only filesystem one. Compose in `@oaverify/syntax`'s
-readers for a YAML entry.
-
-Loading stays with the caller, which is why the package has no reader
-and no second copy of `loadSpec`. See
+Loading stays with the caller, which is why the package ships no reader
+and no second copy of `loadSpec`. `loadSpec` (async) requires an
+explicit `reader`; `loadSpecSync` defaults to a JSON-only filesystem
+one, so compose in `@oaverify/syntax`'s readers for a YAML entry. See
 [`packages/check/README.md`](../packages/check/README.md).
 
 ## Streaming

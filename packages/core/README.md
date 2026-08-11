@@ -82,20 +82,9 @@ Detail:
 - **`formatSummary(err, { select?, path? })`**: render the tree as a
   string. Default picks one leaf and renders it as
   `<dotted-path> <message>` (e.g. `"body.users[0].email must match
-format \"email\""`). Selection options:
-  - `select: "first"` (default): first leaf in tree-traversal
-    order.
-  - `select: "deepest"`: leaf with the longest path; more
-    informative on `oneOf` / composition trees.
-  - `select: "all"`: every leaf, one per line, each with path,
-    message, and `[code]`. The "every issue in a single message"
-    shape; use this when migrating from validators that emit a
-    flat enumeration by default.
-  - `select: { byCode: ["content-type", "required", ...] }`:
-    priority list. Returns the first leaf matching the
-    highest-priority listed code; falls back to `"first"` if no
-    match. Useful when the wire format wants to surface specific
-    failure categories first.
+format \"email\""`). `select` chooses which leaves
+  (`"first"` | `"deepest"` | `"all"` | `{ byCode }`); the policy for
+  each is on `FormatSummaryOptions.select`.
 
   `path: "auto"` drops the dotted-path prefix on leaves whose message
   already names its location (the `SELF_LOCATING_ERROR_CODES` family:
@@ -135,14 +124,13 @@ migrating from).
   (first failing leaf). Pass `detail` explicitly for a structural
   summary like `` `${pd.issues.length} validation errors` `` or any
   other override.
-- `collectIssues(err)`: just the flat leaf list, if you're rolling
-  your own response shape. Each issue carries both a raw `path`
-  (`PathSegment[]`) and a `pointer`, the same path **pre-formatted
-  as an [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901) JSON
-  Pointer** string (e.g. `/body/users/3/email`). Use `pointer`
-  directly for response envelopes; `path` is the segments array if
-  you need programmatic access. Don't re-join `path` yourself;
-  `pointer` already handles RFC 6901's `~` / `/` escaping.
+- `collectIssues(err)`: the flat leaf list, for rolling your own
+  response shape. Each issue carries a raw `path` (`PathSegment[]`)
+  and a `pointer`, the same path pre-formatted as an
+  [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901) JSON Pointer
+  (`/body/users/3/email`). Use `pointer` in response envelopes rather
+  than re-joining `path`; it already handles RFC 6901's `~` / `/`
+  escaping.
 
 ### Common envelope shapes
 

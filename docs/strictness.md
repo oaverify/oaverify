@@ -93,9 +93,6 @@ carries the label of whichever got there first, so read `location` as a
 hint about where to look rather than the full list of operations
 affected.
 
-`context` is a deprecated alias for `location` and carries the same
-value.
-
 The same label prefixes malformed-schema errors:
 
 ```
@@ -585,17 +582,14 @@ validated at runtime, which is a library setting.
 - _"My spec has a typo and I want to know at build time."_ → `schemaLint: "strict"`.
 - _"I want unexpected query parameters rejected."_ → `strictQueryParameters: true`.
 - _"I want to be told my spec is not **structurally** valid OpenAPI."_ →
-  `oaverify check --findings conformance`, or `--fail-on error` in CI. It
-  validates the document against the JSON Schema OpenAPI publishes for
-  the version it declares, which covers the shape of every object but
-  does not follow cross-references. A clean run means the document is
-  well-shaped, not that every name in it resolves.
+  `oaverify check --findings conformance`, or `--fail-on error` in CI. A
+  clean run means the document is well-shaped, not that every name in it
+  resolves.
 - _"I want to be told my `$ref` points at nothing, or my `operationId`s
-  collide."_ → conformance cannot answer that: a schema validates a node
-  against a subschema and cannot ask whether a name resolves. `check`
-  covers some of it under `hygiene` (undeclared path parameters, unused
-  components). For the rest, pair with `redocly lint` or `vacuum`; see
-  [the integration guide](./integration.md).
+  collide."_ → `hygiene` covers some of it (undeclared path parameters,
+  unused components); [conformance](#document-conformance) covers none
+  of it, for the reason given there. For the rest, pair with
+  `redocly lint` or `vacuum`.
 
 ## For contributors: naming
 

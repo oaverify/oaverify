@@ -19,21 +19,8 @@ Web Standards `Request` / `Response`.
 Adapters handle request validation and default
 `application/problem+json` responses. Response validation, upload
 parsing, authentication, and application-specific error envelopes stay
-explicit so they fit the service you already have. The cross-cutting
-recipes cover concerns that show up across frameworks:
-
-- [Status-code mapping](#status-code-mapping)
-- [Preserving an existing client error envelope](#preserving-an-existing-client-error-envelope)
-- [Report-only: observe before you enforce](#report-only-observe-before-you-enforce)
-- [Body parser caveats](#body-parser-caveats)
-- [File uploads with multer](#file-uploads-with-multer)
-- [Deriving middleware config from the spec](#deriving-middleware-config-from-the-spec)
-- [Streaming bodies, large uploads, and the `readBody` override](#streaming-bodies-large-uploads-and-the-readbody-override)
-- [Response validation](#response-validation)
-- [Security / authentication](#security--authentication)
-- [Type coercion on body fields](#type-coercion-on-body-fields)
-- [Ignoring paths not in the spec](#ignoring-paths-not-in-the-spec)
-- [Validating multiple specs with one validator](#validating-multiple-specs-with-one-validator)
+explicit so they fit the service you already have; the
+[cross-cutting recipes](#cross-cutting-recipes) cover those.
 
 ## What the validator expects
 
@@ -64,8 +51,8 @@ interface HttpResponse {
 and it is deliberately **not** derived from `headers`, even though
 `Content-Type` is a header and header _parameters_ are matched there
 case-insensitively. One explicit field beats two sources that can
-disagree. Every adapter recipe below sets it, and a hand-built request
-has to: filling in `headers["content-type"]` and leaving the field unset
+disagree. Every adapter sets it, and a hand-built request has to:
+filling in `headers["content-type"]` and leaving the field unset
 produces a `content-type` error that says as much. The contract lives on
 `HttpRequest.contentType`'s TSDoc.
 
@@ -152,38 +139,10 @@ semantics, and adapter-specific patterns. Cross-cutting recipes
 (body parsers, file uploads, security, response validation) are
 below.
 
-**Manual middleware (when you need full control).** Same shape as
-the Express 5 snippet below, with one twist: Express 4 doesn't
-await returned promises, so async errors don't propagate
-automatically. Wrap in `try/catch`:
-
-```ts
-app.use((req, res, next) => {
-  try {
-    const result = validator.validateRequest({
-      method: req.method,
-      path: req.path,
-      query: req.query as Record<string, string | string[]>,
-      headers: req.headers as Record<string, string | string[]>,
-      contentType: req.get("content-type") ?? undefined,
-      body: req.body,
-      cookies: req.cookies,
-    });
-    if (result.valid) return next();
-    const allow = allowHeaderFor(result.errors);
-    if (allow !== undefined) res.setHeader("Allow", allow);
-    res
-      .status(httpStatusFor(result.errors))
-      .type("application/problem+json")
-      .json(toProblemDetails(result.errors, { instance: req.originalUrl }));
-  } catch (e) {
-    next(e);
-  }
-});
-```
-
-See [body-parser caveats](#body-parser-caveats) and other
-cross-cutting recipes below.
+**Manual middleware (when you need full control).** Use the
+[Express 5 snippet below](#express-5) with one change: Express 4
+doesn't await returned promises, so async errors don't propagate.
+Wrap the body in `try { ... } catch (e) { next(e) }`.
 
 **Building the validator at boot.** If your Express 4 setup is
 synchronous (say a middleware factory that returns the handler array
@@ -252,15 +211,11 @@ app.use(async (req, res, next) => {
 });
 ```
 
-Requires `express.json()` (or any equivalent middleware that
-populates `req.body` with a parsed object) registered before this
-middleware, and `cookie-parser` if you use the `cookies` field.
-Custom streaming parsers, `body-parser`, fastify's bridge, and
-app-specific middleware all work the same way; oaverify doesn't care
-_how_ `req.body` got populated, only that it's there.
-
-See [body-parser caveats](#body-parser-caveats) for sharp edges that
-affect this pattern.
+Requires `express.json()` (or any equivalent middleware that populates
+`req.body` with a parsed object) registered before this middleware, and
+`cookie-parser` if you use the `cookies` field. oaverify doesn't care
+_how_ `req.body` got populated, only that it's there. See
+[body-parser caveats](#body-parser-caveats) for the sharp edges.
 
 ### Fastify
 
@@ -551,14 +506,11 @@ This table is request-side: every row reads the failure as "what do I
 tell this client about the request they sent", 413 included.
 
 `httpStatusFor` is not the helper for a response-validation result, and
-there is no sibling that is. The default flat output has already
-reduced the tree to its leaves, so the `request` / `response` branch
-that records the direction is gone before the helper sees it. And
-nothing in the leaf determines the answer regardless: a gateway holding
-a response that violates its own contract might answer 502, or 500, or
-serve stale, or pass it through under report-only. Read the leaves and
-apply your own policy; `output: "tree"` keeps the enclosing `response`
-branch if you want to key on the direction.
+there is no sibling that is. Nothing in the leaf determines the answer:
+a gateway holding a response that violates its own contract might
+answer 502, serve stale, or pass it through under report-only. Read the
+leaves and apply your own policy; `output: "tree"` keeps the enclosing
+`response` branch if you want to key on the direction.
 
 Override any slot with the second argument, e.g. APIs that use 422
 for schema errors:
@@ -590,12 +542,12 @@ value for codes such as `enum`, `format`, and `pattern`, and each
 `BuiltInErrorParams` for the full set). Right for trusted clients and
 developer-facing APIs.
 
-For endpoints whose request bodies carry PII (emails, account
-numbers, free text), or specs whose internals (mapping keys, allowed
-enums) shouldn't be enumerable by an unauthenticated client, that
-echo is a fingerprinting / data-exposure surface. Two override points:
-pass `detail` to `toProblemDetails` for a structural summary, and
-post-process `issues[*].params` before sending.
+For endpoints whose bodies carry PII (emails, account numbers, free
+text), or specs whose internals (mapping keys, allowed enums) shouldn't
+be enumerable by an unauthenticated client, that echo is a
+data-exposure surface. Two override points: pass `detail` to
+`toProblemDetails` for a structural summary, and post-process
+`issues[*].params` before sending.
 
 ```ts
 import { httpStatusFor, toProblemDetails, type ValidationError } from "@oaverify/core";
@@ -623,20 +575,19 @@ app.use(
 );
 ```
 
-The trade-off: clients lose machine-readable detail in exchange for
-not leaking field values or schema internals; each issue still
-carries `code` and `pointer` (what failed, where). Narrower policies
-(clear `params` only on specific codes or paths, keep `enum.allowed`
-but drop `enum.actual`) compose from the same hook.
+Clients lose machine-readable detail in exchange for not leaking field
+values or schema internals; each issue still carries `code` and
+`pointer`. Narrower policies (clear `params` only on specific codes,
+keep `enum.allowed` but drop `enum.actual`) compose from the same hook.
 
 ### Preserving an existing client error envelope
 
-Migrating an existing service may mean a documented client contract
-you can't change without breaking callers. Keep your envelope, fill
-it from `collectIssues` (per-issue path, message, code) and
-`httpStatusFor` (status). Don't walk the tree by hand; the helpers
-already handle nested branches, route/method top-levels, and
-security/content-type leaves under `request` / `response` wrappers.
+When a documented client contract can't change without breaking
+callers, keep your envelope and fill it from `collectIssues` (per-issue
+path, message, code) and `httpStatusFor` (status). Don't walk the tree
+by hand; the helpers already handle nested branches, route/method
+top-levels, and security/content-type leaves under `request` /
+`response` wrappers.
 
 ```ts
 import { collectIssues, httpStatusFor, type ValidationError } from "@oaverify/core";
@@ -701,8 +652,7 @@ want to surface structured details too. `BuiltInErrorParams` in
 
 Turning a validator on against live traffic usually wants an
 observation period first: log every violation, reject nothing, then
-enforce once the noise is understood and the spec has caught up with
-what clients actually send.
+enforce once the spec has caught up with what clients actually send.
 
 No option turns this on. `onError` already decides what happens to a
 failing request, so a handler that logs and passes the request through
@@ -804,14 +754,13 @@ adapter:
    );
    ```
 
-(Unmatched `Content-Type` is handled correctly without extra wiring:
-even when `express.json()` leaves `req.body` empty for a non-JSON
-request, oaverify sees the declared header, finds no matching media type
-in the spec, and returns a `content-type` leaf that maps to 415. The
-sibling case (**no Content-Type AND no body**) returns `body` /
-400 instead of 415, since there's no client signal about format
-intent to be "wrong about." Tests that exercise the 415 path need to
-send an explicit unmatched Content-Type.)
+Unmatched `Content-Type` needs no extra wiring: even when
+`express.json()` leaves `req.body` empty for a non-JSON request,
+oaverify reads the declared header, finds no matching media type in the
+spec, and returns a `content-type` leaf that maps to 415. The sibling
+case (**no Content-Type and no body**) returns `body` / 400 instead,
+since there is no declared format to be wrong about. A test exercising
+the 415 path has to send an explicit unmatched `Content-Type`.
 
 ### File uploads with multer
 
@@ -939,18 +888,15 @@ const upload = multer({
 app.post("/uploads", upload.any() /* validator + handler as above */);
 ```
 
-`getOperation` returns the resolved, overlay-applied
-`OperationObject` for a (method, path) pair, using the same
-route-match + `$ref` resolution + overlay application that validation
-does. It is startup-time introspection: read whatever declaration you
-need, so the spec stays the single source of truth for middleware
-configuration and duplicated magic numbers can't drift against the
-validator's own view. `digestOperation`
-([`examples/spec-digest.ts`](../examples/spec-digest.ts)) is a recipe
-that pulls the common middleware-config facts into a flat shape:
-content types, body limits, required headers, security. Copy it into
-your project and adjust the interpretation choices
-(`maxLength`-as-bytes vs code points, which `x-*` extensions to
+`getOperation` returns the resolved, overlay-applied `OperationObject`
+for a (method, path) pair, using the same route-match, `$ref`
+resolution and overlay application that validation does. Read whatever
+declaration you need at startup and the spec stays the single source of
+truth for middleware config. `digestOperation`
+([`examples/spec-digest.ts`](../examples/spec-digest.ts)) pulls the
+common facts into a flat shape: content types, body limits, required
+headers, security. Copy it and adjust the interpretation choices
+(`maxLength` as bytes vs code points, which `x-*` extensions to
 recognize) to fit your domain.
 
 ### Streaming bodies, large uploads, and the `readBody` override
@@ -1083,19 +1029,15 @@ validateResponses(validator, { statuses: (s) => s < 300 }); // success responses
 
 See `ValidateResponsesOptions` for the full contract.
 
-#### Failure mode: throw in dev, don't fail-hard in prod
+#### Why dev-only
 
-The default throws so a contract violation surfaces loudly. Mount it
-dev-only (above) so production never rewrites a legitimate response
-into a 500.
-
-**Why this matters.** Validation runs on _every_ response that passes
-the status predicate, including the 4xx bodies your handlers emit. If a
-handler sends `{ error: "...", code: "..." }` for a 400 but the spec's
-error schema requires `title` (or sets `additionalProperties: false`),
-a fail-hard policy in production rewrites that 400 into a 500. That's
-worse than the gap it closes: the client sees a server error for a
-request that was their fault, and your error budget burns for free.
+Validation runs on _every_ response that passes the status predicate,
+including the 4xx bodies your handlers emit. If a handler sends
+`{ error: "...", code: "..." }` for a 400 but the spec's error schema
+requires `title` (or sets `additionalProperties: false`), the throwing
+default rewrites that 400 into a 500 in production. The client sees a
+server error for a request that was their fault, which is worse than
+the gap it closes.
 
 If you want response validation always on, pass a log-and-continue
 `onError`. Returning normally (rather than throwing) lets the original
@@ -1171,16 +1113,14 @@ surface as a single leaf error with `code: "security"` and
 `path: ["security"]`, mapping to HTTP 401 in the default status
 recipe.
 
-**Off by default.** Real apps run auth middleware upstream of the
-validator, so by the time `validateRequest` runs the credential has
-already been verified. Enable with `createValidator(spec, {
-validateSecurity: "shape" })` when there's no auth middleware (early
-dev / prototyping) or when the auth layer only decorates `req`
-without rejecting unauthenticated traffic. Use `"strict"` when you
-want every declared scheme to either be shape-checkable or fail
-loudly. None of the modes substitute for actual credential
-verification. See `ValidatorOptions.validateSecurity` for the
-option contract; this section is the recipe.
+**Off by default**, because real apps run auth middleware upstream and
+the credential is already verified by the time `validateRequest` runs.
+Enable `validateSecurity: "shape"` when there's no auth middleware
+(early dev, prototyping) or when the auth layer decorates `req` without
+rejecting unauthenticated traffic; `"strict"` when you want every
+declared scheme to either be shape-checkable or fail loudly. No mode
+substitutes for credential verification. See
+`ValidatorOptions.validateSecurity` for the option contract.
 
 #### Per-scheme auth dispatch
 
@@ -1242,9 +1182,8 @@ policy) on `{ ok: false }` before validation runs. The validator's
 own `validateSecurity` shape check is then redundant; leave it at
 its default `"off"`.
 
-For framework-adapter consumers (`@oaverify/express4`, future siblings),
-the same dispatcher pattern works; only the request-shape extraction
-changes (`httpRequestFromExpress(req)`, etc.).
+The same dispatcher works under every adapter; only the request-shape
+extraction changes (`httpRequestFromExpress`, `httpRequestFromFastify`).
 
 ### Type coercion on body fields
 
@@ -1336,18 +1275,14 @@ Two policies to know:
   `route` error, `true` passes. A member's own `ignoreUndocumented`
   governs only the routes that member owns, reached through delegation.
   So a path declared in no spec (an upload route bypassed entirely)
-  passes only when the composite is built with `ignoreUndocumented:
-true`.
+  passes only when the composite is built with
+  `ignoreUndocumented: true`.
 
 All members must share an `output` mode; mixing flat and tree throws at
 construction. See `CombineOptions` for the option contracts.
 
-## Migration paths
+## Migrating from express-openapi-validator
 
-Focused migration docs live in their own files so this guide can
-stay framework-shaped rather than competitor-shaped:
-
-- **[migration-from-eov.md](./migration-from-eov.md)**: migrating
-  from `express-openapi-validator`. Behavior-difference reference,
-  option map (eov → oaverify), features not carried over, features
-  added.
+[migration-from-eov.md](./migration-from-eov.md) has the
+behaviour-difference reference, the option map, and what is and isn't
+carried over.

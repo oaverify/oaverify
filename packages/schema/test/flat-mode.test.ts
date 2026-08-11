@@ -292,7 +292,7 @@ describe("flat mode: record shape and renderer interop", () => {
     const r = flat({ type: "object", required: ["a", "b"] }).validate({});
     const wrapped = createBranchError("schema", [], "schema validation failed", failure(r).errors);
     expect(collectLeaves(wrapped)).toHaveLength(2);
-    expect(() => formatError(wrapped, "flat")).not.toThrow();
+    expect(() => formatError(wrapped, "summary")).not.toThrow();
   });
 });
 

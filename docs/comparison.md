@@ -1,21 +1,10 @@
 # oaverify vs other JavaScript OpenAPI validators
 
 Ajv is the canonical JSON Schema validator for JavaScript, and
-`express-openapi-validator` is the most widely-used middleware built
-on top of it. Together they cover a large share of OpenAPI request /
+`express-openapi-validator` is the most widely-used middleware built on
+top of it. Together they cover a large share of OpenAPI request /
 response validation in JavaScript services and have done so for years.
-
-They are not the only options. `openapi-backend` combines routing,
-validation, auth, and mocking around operation handlers.
-`openapi-enforcer` and `openapi-enforcer-middleware` cover document
-loading, request/response validation, serialization, and mocks, with a
-stronger OpenAPI 2.0 / 3.0 story than 3.1+. `openapi-request-validator`
-and `openapi-response-validator` are smaller request/response pieces.
-Spec validators and parsers such as `@seriousme/openapi-schema-validator`
-and `@scalar/openapi-parser` validate the OpenAPI document at
-build/load time; they don't sit in the request path. Document linters
-(Spectral, Redocly) also work at build time, on style and structure
-rather than on traffic.
+The map below places the rest.
 
 oaverify covers both halves, split across two verbs: `oaverify check`
 asks what is wrong with a document, `oaverify validate` asks whether a
@@ -270,13 +259,13 @@ Capabilities that the Ajv stack covers and oaverify does not.
   a format that hits a database). oaverify's formats and custom keywords
   are synchronous.
 - **`express-openapi-validator` conveniences.** `req.body` /
-  `req.query` type coercion, `res.json` interception for response
-  validation, `fileUploader` (multer integration), `securityHandlers`
-  (credential-verifying dispatch; oaverify does shape-only security
-  validation but doesn't verify credentials),
-  `operationHandlers` filesystem auto-loading, and `ignorePaths` /
-  `ignoreUndocumented` are one-liner options. oaverify leaves these to the
-  adapter; see [`integration.md`](./integration.md) for recipes.
+  `req.query` type coercion by mutation, `fileUploader` (multer
+  integration), `securityHandlers` (credential-verifying dispatch;
+  oaverify's security check is shape-only and verifies no credential),
+  and `operationHandlers` filesystem auto-loading are one-liner
+  options with no oaverify equivalent. See
+  [`integration.md`](./integration.md) for the recipes that replace
+  them.
 
 ## Where oaverify does more
 
@@ -419,14 +408,13 @@ Ajv 8 has four runtime dependencies:
 | `fast-uri`             | RFC 3986 URI parsing for `$id` / `$ref` resolution              |
 | `require-from-string`  | Load compiled-validator source as a module (standalone codegen) |
 
-oaverify's compiler and validator have zero runtime dependencies. The lean
-`@oaverify/core` package ships exactly that (no runtime deps),
-and accepts JSON specs. The `oaverify` package adds YAML readers for
-`.yaml` spec files and the `oaverify` CLI. The two efficiency
-libraries Ajv pulls in (`fast-deep-equal`, `json-schema-traverse`)
-have equivalents in-tree; the two capability libraries (`fast-uri`,
-`require-from-string`) map to features oaverify doesn't implement (see
-"Where Ajv does more" above).
+oaverify's compiler and validator have zero runtime dependencies:
+`@oaverify/core` carries none and parses JSON only. A parser is a
+separate install (`@oaverify/syntax` for YAML), as is the CLI
+(`oaverify`). The two efficiency libraries Ajv pulls in
+(`fast-deep-equal`, `json-schema-traverse`) have equivalents in-tree;
+the two capability libraries (`fast-uri`, `require-from-string`) map to
+features oaverify doesn't implement (see "Where Ajv does more" above).
 
 ## Summary
 

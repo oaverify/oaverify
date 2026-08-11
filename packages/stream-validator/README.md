@@ -23,9 +23,9 @@ validator for the subtrees a compile-time classifier marks BUFFER (so
 through the `formats` option; no format library is bundled by default),
 and reuses its flat error model.
 
-Thin: this package bundles nothing from `@oaverify/core`. It declares
-`@oaverify/core` as a regular dependency, so installing the stream
-validator pulls the engine it delegates to along with it.
+It bundles nothing from `@oaverify/core`, declaring it as a regular
+dependency instead, so installing the stream validator pulls the engine
+it delegates to along with it.
 
 ```bash
 npm install @oaverify/stream
@@ -196,10 +196,8 @@ validator.on("value", (e) => captured.set(e.key, e.value));
 
 A `value` event's `path` is the **full path to the value** (the enclosing
 scope plus the member key), the same coordinate `valueEvents.at` matches,
-so the filter and the event speak one path: a top-level member `{version}`
-is `["version"]` (length 1), not `[]`. (`event.key` is that path's last
-segment.) This differs from `keyEvents`, whose `at` and `path` are both
-the enclosing scope.
+so a top-level member `{version}` is `["version"]`, not `[]`. This differs
+from `keyEvents`, whose `at` and `path` are both the enclosing scope.
 
 `valueEvents` fires for scalar object members on both the STREAM path and
 scalar BUFFER islands, so a `format`-bearing string (`date-time`, `uri`,

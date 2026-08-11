@@ -165,54 +165,7 @@ The check is shape-only: it confirms the declared credential is _present_, not t
 
 ### Per-scheme auth dispatch (the eov `securityHandlers` shape)
 
-eov's `securityHandlers` is a per-scheme dispatch table: you supply an auth function per declared scheme and eov calls it. `@oaverify/express4` doesn't ship this as a helper, but the recipe is small. Mount it as middleware _before_ `validateRequests`:
-
-```ts
-import type { Request } from "express";
-import { createValidator } from "@oaverify/core";
-
-type SchemeHandler = (req: Request, scopes: string[]) => Promise<boolean>;
-
-const handlers: Record<string, SchemeHandler> = {
-  bearerAuth: async (req, scopes) => {
-    const token = req.headers.authorization?.replace(/^Bearer /, "");
-    return verifyJwt(token, scopes);
-  },
-  apiKeyAuth: async (req) => {
-    const key = req.header("x-api-key");
-    return Boolean(key) && (await verifyApiKey(key));
-  },
-};
-
-app.use(async (req, res, next) => {
-  const op = validator.getOperation({ method: req.method, path: req.path });
-  const requirements = op?.operation.security ?? spec.security ?? [];
-  if (requirements.length === 0) return next();
-  for (const requirement of requirements) {
-    let allPass = true;
-    for (const [scheme, scopes] of Object.entries(requirement)) {
-      const handler = handlers[scheme];
-      if (!handler || !(await handler(req, scopes))) {
-        allPass = false;
-        break;
-      }
-    }
-    if (allPass) return next();
-  }
-  res.status(401).type("application/problem+json").json({
-    type: "about:blank",
-    title: "Unauthorized",
-    status: 401,
-    detail: "no security requirement satisfied",
-  });
-});
-
-app.use(validateRequests(validator)); // shape check off by default; redundant given the dispatcher above
-```
-
-OpenAPI semantics: each requirement object is AND across its scheme keys; the outer array is OR across requirements. The recipe walks them accordingly.
-
-If multiple projects end up copying this recipe, that's the signal to harvest into a `dispatchSecurity(...)` helper export. Not yet.
+eov's `securityHandlers` is a per-scheme dispatch table: you supply an auth function per declared scheme and eov calls it. `@oaverify/express4` ships no helper for it, but the recipe is small and lives in [integration.md](https://github.com/oaverify/oaverify/blob/main/docs/integration.md#per-scheme-auth-dispatch). Mount it as middleware _before_ `validateRequests`, and leave `validateSecurity` at its default `"off"`, which the dispatcher makes redundant.
 
 ### Skip validation for paths the spec doesn't declare
 
@@ -296,32 +249,9 @@ The middleware awaits the returned promise; rejections route to `next(err)`.
 
 ### Global validator + per-route multer (file uploads)
 
-When the validator is mounted globally and one or a few routes accept file uploads via multer, mount multer at the route prefix that needs it (upstream of the global validator) and use `toHttpRequest` to synthesize the spec-shaped body from `req.files`:
+When the validator is mounted globally and one or a few routes accept file uploads via multer, mount multer at the route prefix that needs it (upstream of the global validator) and use `toHttpRequest` to synthesize the spec-shaped body from `req.files`. See the [integration.md file uploads recipe](https://github.com/oaverify/oaverify/blob/main/docs/integration.md#file-uploads-with-multer) for the full pattern, including per-route inline multer and text-field reassembly.
 
-```ts
-import multer from "multer";
-import { httpRequestFromExpress, validateRequests } from "@oaverify/express4";
-
-const upload = multer({ storage: multer.memoryStorage() });
-app.use("/uploads", upload.any());
-
-app.use(
-  validateRequests(validator, {
-    toHttpRequest: (req) => {
-      const httpReq = httpRequestFromExpress(req);
-      const files = req.files as Express.Multer.File[] | undefined;
-      if (files && files.length > 0) {
-        httpReq.body = files.length === 1 ? files[0]?.buffer : files.map((f) => f.buffer);
-      }
-      return httpReq;
-    },
-  }),
-);
-```
-
-`toHttpRequest` is the general "reshape what the validator sees" seam: synthesizing body from files, normalizing empty bodies, merging headers from an upstream proxy, anything that lives above the extraction layer. The empty-body normalization recipe higher in this README and this multer recipe are two examples of the same pattern.
-
-For per-route inline multer (validator called from inside the route handler) and the full multer recipe with text-field reassembly, see the [integration.md file uploads section](https://github.com/oaverify/oaverify/blob/main/docs/integration.md#file-uploads-with-multer).
+`toHttpRequest` is the general "reshape what the validator sees" seam: synthesizing a body from `req.files`, normalizing an empty body, merging headers from an upstream proxy.
 
 ## See also
 

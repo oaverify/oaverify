@@ -146,8 +146,7 @@ meta-schemas are separate packages or entry points and not included.
 The standalone validators emitted by `compile-schema` / `compile-spec`
 are sized in
 [packages/cli/README.md](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md#bundle-size).
-If size is a constraint, measure the imports you actually use; the
-figures move with the version.
+The figures move with the version; measure the imports you use.
 
 ## Quick start
 
@@ -220,23 +219,18 @@ custom formats, custom keywords, cross-field constraints, error
 budgets, version differences, overlays, spec-derived middleware
 config, streaming validation, and pre-deploy buffer budgets.
 
-## Common use cases
+## What people use it for
 
-- Validate parsed requests and responses in any Node, edge, or Fetch API
-  handler.
-- Mount request-validation middleware in Express 4, Express 5, or
-  Fastify.
-- Report document conformance, spec hygiene, malformed schemas, and
-  schema-lint findings in CI with `oaverify check`, gated by severity.
-- Validate large JSON bodies as bytes arrive with `@oaverify/stream`.
-- Estimate per-operation streaming buffer budgets before deployment
-  with `analyzeSpec` or `oaverify stream-check`.
-- Build validators cheaply enough for per-tenant setup, tests, and
-  cold-start paths.
-- Compile an OpenAPI document to a standalone ESM validator for
-  runtimes where runtime code generation is unavailable.
-- Apply deployment-specific or tenant-specific overlays to a base spec
-  before constructing a validator.
+- Request and response validation in any Node, edge, or Fetch handler,
+  with or without one of the framework adapters.
+- Gating spec quality in CI with `oaverify check`, by severity.
+- Validating large JSON bodies as bytes arrive, and estimating the
+  per-operation buffer budget before deploying.
+- Per-tenant, per-test and cold-start validators, which construction
+  cost makes practical.
+- Compiling a document to a standalone ESM validator for runtimes that
+  forbid runtime code generation.
+- Patching a spec you do not own with overlays, in memory.
 
 ## Streaming large bodies
 
@@ -308,63 +302,37 @@ predicate iterators) is documented in
 | Work out what "strict" controls            | [docs/strictness.md](https://github.com/oaverify/oaverify/blob/main/docs/strictness.md)                                   |
 | Upgrade from v4 to v5                      | [docs/migration-v5.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v5.md)                               |
 | Upgrade from v5 to v6                      | [docs/migration-v6.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md)                               |
+| Upgrade from v6 to v7                      | [docs/migration-v7.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v7.md)                               |
 
 ## How it compares
 
-The JavaScript ecosystem already has solid OpenAPI validation tools:
-Ajv for JSON Schema, `express-openapi-validator` for Express,
-`openapi-backend` for operationId routing plus validation, and smaller
-request/response validators for custom stacks. oaverify is aimed at
-HTTP-aware validation with structured errors, streaming validation of
-large bodies plus design-time buffer budgets, overlays, and standalone
-OpenAPI validator output.
-
+Ajv covers JSON Schema, `express-openapi-validator` covers Express, and
+`openapi-backend` covers operationId routing plus validation. oaverify
+is aimed at HTTP-aware validation with structured errors, streaming
+validation of large bodies plus design-time buffer budgets, overlays,
+and standalone OpenAPI validator output.
 [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md)
-has the feature map, the host-stamped per-shape numbers, the memory
-comparison, and the methodology; raw benchmark data lives in
-[`performance/`](https://github.com/oaverify/oaverify/blob/main/performance/README.md).
-Migrating from `express-openapi-validator`:
-[docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md).
+has the feature map, the host-stamped per-shape numbers, and the
+methodology.
 
-`oaverify check` is a different comparison, against spec linters rather
-than runtime validators.
+`oaverify check` compares against spec linters instead.
 [`detection/`](https://github.com/oaverify/oaverify/blob/main/detection/README.md)
-is a labelled corpus for it: minimal documents carrying one seeded defect
-each, run through oaverify, Spectral, Redocly and Ajv, where a tool
-scores only when it reports that document's defect. It shows what each
-tool can catch, not how often the defect occurs, and the cases oaverify
-misses are in there too.
+is a labelled corpus for that: minimal documents carrying one seeded
+defect each, run through oaverify, Spectral, Redocly and Ajv, where a
+tool scores only when it reports that document's defect. It shows what
+each tool can catch, not how often the defect occurs, and the cases
+oaverify misses are in there too.
 
 ## Conformance
 
-The [`conformance/`](https://github.com/oaverify/oaverify/blob/main/conformance/README.md) sub-package drives the
-compiler and CLI against the upstream JSON Schema 2020-12 Test Suite,
-a set of OpenAPI 3.0 / 3.1 / 3.2 petstore scenarios, and a handful of
-real-world specs (Stripe, GitHub, DigitalOcean, Twilio, Asana, Box,
-Adyen) that have to load and compile without error. See
-[`conformance/REPORT.md`](https://github.com/oaverify/oaverify/blob/main/conformance/REPORT.md) for pass / fail
-counts by category.
-
-Out-of-scope categories:
-
-- The `optional/format/*` subtree (`format` is annotation-only by
-  default per JSON Schema 2020-12 §6.3).
-- External / cross-document `$ref` loading.
-- A small tail of isolated optional cases (float-overflow handling,
-  a meta-schema declaring no validation vocabulary).
-
-That first entry is about the suite's default, not about coverage. The
-OpenAPI dialects declare `format` an assertion, so under 3.0 / 3.1 /
-3.2 the built-ins bind. Every format JSON Schema 2020-12 names has a
-validator, as does every name in the
-[OpenAPI Format Registry](https://spec.openapis.org/registry/format/)
-that is assertable and cheap to assert; `packages/formats/README.md`
-lists what is left and says why. The subtree has its own runner,
-`pnpm format-suite`, with its own pinned baseline.
-
-OpenAPI specs hand-authored or generated for typical APIs rarely
-touch any of these. If they matter for your use case, the
-[report](https://github.com/oaverify/oaverify/blob/main/conformance/REPORT.md) lays out which tests fail and why.
+[`conformance/`](https://github.com/oaverify/oaverify/blob/main/conformance/README.md)
+drives the compiler and CLI against the upstream JSON Schema 2020-12
+Test Suite, OpenAPI 3.0 / 3.1 / 3.2 petstore scenarios, and real-world
+specs (Stripe, GitHub, DigitalOcean, Twilio, Asana, Box, Adyen) that
+have to load and compile without error.
+[`conformance/REPORT.md`](https://github.com/oaverify/oaverify/blob/main/conformance/REPORT.md)
+has pass / fail counts by category, the out-of-scope list, and why each
+entry is out of scope.
 
 ## CLI
 
@@ -425,33 +393,23 @@ and pass the 3.0 output to `createValidator`:
 npx swagger2openapi swagger.json -o openapi.json
 ```
 
-## Configuring the validator
-
-`createValidator(spec, options)` accepts options for dialect override,
-custom formats and keywords, error budget, schema lint, security
-shape-checking, ignored paths, and version-mismatch policy. See
-[`docs/configuration.md`](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md) for the option
-table, custom-keyword recipe, and bounded-error-collection details.
-The canonical contract is the `ValidatorOptions` TSDoc.
-
 ## Framework integration
 
-The adapter packages cover request validation and share export names
-and option shapes; only the framework type differs:
-[`@oaverify/express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md),
-[`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md), and
-[`@oaverify/fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md).
-Response validation, auth dispatch, upload parsing, and custom error
-envelopes stay explicit in your application.
+The adapter packages
+([`@oaverify/express4`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md),
+[`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md),
+[`@oaverify/fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md))
+cover request validation and share export names and option shapes; only
+the framework type differs. Response validation, auth dispatch, upload
+parsing, and custom error envelopes stay explicit in your application.
 
-You are not locked into the adapters. For Next.js, Hono, Bun, Deno, or
-a custom stack, the framework-neutral `validateRequest` /
-`validateResponse` calls (or the Fetch helpers `validateFetchRequest` /
-`validateFetchResponse`) plus the response helpers (`httpStatusFor`,
-`allowHeaderFor`, `toProblemDetails`) wire up an inline adapter in
-about fifteen lines. [docs/integration.md](https://github.com/oaverify/oaverify/blob/main/docs/integration.md)
-has that recipe, plus body parsing, response validation, uploads,
-security, ignored paths, and custom error envelopes.
+You are not locked into them. For Next.js, Hono, Bun, Deno, or a custom
+stack, `validateRequest` / `validateResponse` (or the Fetch helpers
+`validateFetchRequest` / `validateFetchResponse`) plus `httpStatusFor`,
+`allowHeaderFor` and `toProblemDetails` wire up an inline adapter in
+about fifteen lines.
+[docs/integration.md](https://github.com/oaverify/oaverify/blob/main/docs/integration.md)
+has that recipe.
 
 ## Known limitations
 
@@ -466,20 +424,15 @@ validation, response interception, upload helpers), see
   `components.schemas`.
 - `style: deepObject` query parameters support only single-level nesting (`obj[key]=value`); OpenAPI 3.0 through 3.2 do not define nested semantics.
 - `pattern` keywords and `format: "regex"` compile to the JavaScript
-  built-in `RegExp`, which has no execution timeout. If your OpenAPI
-  spec is attacker-controlled (e.g. multi-tenant upload), a
-  catastrophic pattern like `(a+)+$` is a ReDoS vector against any
-  string the validator checks. Pass a `regexCompiler` to
-  `createValidator` to plug in `re2` or a complexity-checking engine;
-  see ["Hardening against untrusted regex patterns"
+  built-in `RegExp`, which has no execution timeout, so an
+  attacker-controlled spec can carry a ReDoS pattern like `(a+)+$`.
+  Pass a `regexCompiler` to plug in `re2` or a complexity check; see
+  ["Hardening against untrusted regex patterns"
   ](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md#hardening-against-untrusted-regex-patterns).
-- Recursive schemas validate by recursing on the JavaScript call
-  stack. Unbounded, a deeply nested payload (a few thousand levels,
-  only a few KB on the wire) can exhaust the stack and throw
-  `RangeError: Maximum call stack size exceeded`. Set the `maxDepth`
-  option (`CompileOptions` / `ValidatorOptions`) to bound recursion at
-  the validator: a payload past the cap fails as a `depth` error (HTTP 400). For untrusted input set `maxDepth`, and
-  optionally cap nesting at the parse boundary as a backstop; see
+- Recursive schemas validate by recursing on the JavaScript call stack,
+  so an unbounded payload nested a few thousand levels deep (only a few
+  KB on the wire) throws `RangeError`. Set `maxDepth` to fail it as a
+  `depth` error (HTTP 400) instead; see
   ["Guarding against deeply nested payloads"
   ](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md#guarding-against-deeply-nested-payloads).
 

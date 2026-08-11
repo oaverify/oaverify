@@ -102,6 +102,8 @@ the upstream test suites live in
 | `output`                    | Result shape: `"flat"` (default), `"tree"`, or `"predicate"`. Mirrors `compileSchema`.                                                                 |
 | `maxErrors`                 | Per-call total cap on leaf errors. Default `1` (fast-fail); `Number.POSITIVE_INFINITY` collects every error.                                           |
 | `maxDepth`                  | Cap recursive `$ref` validation depth. Past the cap, validation emits a `depth` error instead of exhausting the call stack.                            |
+| `maxTotalBytes`             | Cap on bytes the Fetch adapter reads from a body. Default 1 MiB. Inert on the Express and Fastify adapters.                                            |
+| `unknownFormats`            | A `format` with no registered validator: `"ignore"` (default) asserts nothing, `"error"` refuses to compile.                                           |
 | `schemaLint`                | Schema lint mode: `"off"`, `"warn"` (default), or `"strict"`. Findings land in `stats.schemaLintIssues`; malformed schemas still throw.                |
 | `regexCompiler`             | Compiler for `pattern` and `format: "regex"`. Override for untrusted specs that need a safe-regex policy.                                              |
 | `validateSecurity`          | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                       |
