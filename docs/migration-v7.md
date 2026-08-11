@@ -204,6 +204,61 @@ The library composes no reader you did not ask for, so `loadSpec`,
 `loadSpecSync` and `createValidator` are unchanged. This is a CLI
 default, and `--untrusted` already implied `same-origin`.
 
+## Breaking: a matrix parameter needs a group naming it
+
+Every `style: matrix` shape now reads the group names in a path
+segment. RFC 6570 spells a matrix segment as a run of `;name=value`
+groups, where the name says which parameter the group supplies; only
+the exploded-array case checked that name, so the other shapes took
+whatever they found:
+
+```diff
+ // { name: "p", in: "path", style: "matrix", required: true, ... }
+ GET /t/;q=1
+-valid; the handler receives p = 1
++invalid; missing required path parameter "p"
+
+ // schema: { type: "array", items: { type: "integer" } }, explode: true
+ GET /t/;q=1;r=2
+-valid; the handler receives p = []
++invalid; missing required path parameter "p"
+```
+
+A segment whose groups all name some other parameter now reports the
+parameter **absent** rather than reaching your handler as `[]` or as
+the foreign group's value. `[]` satisfied both `required: true` and an
+unbounded `type: array`, and the unread segment satisfied
+`type: string`, so neither of the previous answers rejected reliably.
+
+Two narrower readings change with it, both of which had been handing
+values to handlers:
+
+```diff
+ GET /t/;p          // {;p} against "", per RFC 6570
+-p = "p"
++p = ""
+
+ GET /t/;p=1;p=2    // repeated group against a scalar
+-p = "1;p=2"
++p = "1"
+```
+
+**A segment carrying no `;` is unaffected.** `GET /t/7` still reads as
+`p = 7`, the same tolerance `style: label` gives a missing `.`. Only
+segments that use matrix framing are held to the name rule.
+
+### Why
+
+Two accept-invalid defects, both reported in #758 and both traced to
+one rule living in two code paths. The exploded-array branch learned
+"a group must name this parameter" and `stripStyle`, which every other
+matrix shape went through, did not.
+
+Practical exposure is nil: `matrix` is 0 of 61,396 parameter
+declarations across 301 published documents, and 0 in the seven large
+specs the conformance corpus carries. If you do not declare
+`style: matrix`, nothing here reaches you.
+
 ## Checklist
 
 - [ ] Replace `@oaverify/yaml` with `@oaverify/syntax` in every manifest.
@@ -224,3 +279,6 @@ default, and `--untrusted` already implied `same-origin`.
 - [ ] If a spec you check `$ref`s another host, either add
       `--remote-refs allow` to that command or leave the ref refused.
       Runs that never saw v6's cross-origin notice need nothing.
+- [ ] If you declare a `style: matrix` parameter, confirm your clients
+      spell the group name (`/t/;p=1`, not `/t/;q=1`). Specs with no
+      matrix parameter need nothing.

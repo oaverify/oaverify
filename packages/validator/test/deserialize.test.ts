@@ -153,6 +153,72 @@ describe("deserialize", () => {
     expect(deserialize(";c=blue;other=x;c=black", p)).toEqual(["blue", "black"]);
   });
 
+  it("reports a matrix segment naming no group for this parameter as absent", () => {
+    // #758. Every matrix shape reads the same frame: a segment is a run
+    // of ";name=value" groups, and a group's name says which parameter
+    // it supplies. A segment that names none of ours supplies nothing,
+    // which `undefined` says and the two earlier answers did not: `[]`
+    // satisfied `required` plus an unbounded `type: array`, and the
+    // unread segment satisfied `type: string`.
+    const arr = {
+      name: "p",
+      in: "path",
+      style: "matrix",
+      explode: true,
+      required: true,
+      schema: { type: "array", items: { type: "string" } },
+    } as const;
+    expect(deserialize(";q=1;r=2", arr)).toBeUndefined();
+    expect(deserialize(";", arr)).toBeUndefined();
+    // A segment with no ";" carries no groups to read a name from, and
+    // is the value itself, exactly as `label` reads one with no ".".
+    // Requiring the framing would reject /t/7 as well, which is a
+    // larger change than the name check and not the one #758 asks for.
+    expect(deserialize("abc", arr)).toEqual(["abc"]);
+    // A group that does name us still supplies its value, empty or not.
+    expect(deserialize(";q=1;p=2", arr)).toEqual(["2"]);
+    expect(deserialize(";p=", arr)).toEqual([""]);
+
+    // Same rule for the shapes that went through `stripStyle`, which
+    // dropped any ";<anything>=" prefix without reading the name, so a
+    // group naming "q" supplied "p".
+    const scalar = { name: "p", in: "path", style: "matrix", schema: { type: "string" } } as const;
+    expect(deserialize(";q=1", scalar)).toBeUndefined();
+    expect(deserialize(";p=1", scalar)).toBe("1");
+    const list = { ...scalar, schema: { type: "array", items: { type: "string" } } } as const;
+    expect(deserialize(";q=1,2", list)).toBeUndefined();
+    expect(deserialize(";p=1,2", list)).toEqual(["1", "2"]);
+  });
+
+  it('reads a matrix group with no "=" as the empty value, not as its own name', () => {
+    // RFC 6570 §3.2.7: {;p} against "" expands to ";p". Reading the
+    // text after the prefix gave the handler p = "p".
+    const p = { name: "p", in: "path", style: "matrix", schema: { type: "string" } } as const;
+    expect(deserialize(";p", p)).toBe("");
+    expect(deserialize(";q", p)).toBeUndefined();
+  });
+
+  it('cannot recover a ";" that was percent-encoded inside a matrix value', () => {
+    // The router decodes the path token before deserialize runs, so
+    // ";p=a%3Bb" arrives as ";p=a;b" and the decoded ";" is
+    // indistinguishable from a group delimiter. Pinned as known loss
+    // rather than fixed: splitting before decoding is the only real
+    // answer and it belongs in the router. The explode arm has always
+    // read it this way; the other arms now agree with it.
+    const p = { name: "p", in: "path", style: "matrix", schema: { type: "string" } } as const;
+    expect(deserialize(";p=a;b", p)).toBe("a");
+  });
+
+  it("takes the first group when a matrix scalar is repeated", () => {
+    // Not a shape RFC 6570 emits. Reading the whole tail after the
+    // first "=" handed the parameter "1;p=2"; first-wins matches how a
+    // repeated query parameter resolves.
+    const p = { name: "p", in: "path", style: "matrix", schema: { type: "string" } } as const;
+    expect(deserialize(";p=1;p=2", p)).toBe("1");
+    // A value carrying "=" is still not split past the first one.
+    expect(deserialize(";p=a=b", p)).toBe("a=b");
+  });
+
   it("still splits a non-explode matrix path array on commas (RFC 6570 {;list})", () => {
     const p = {
       name: "c",

@@ -896,19 +896,24 @@ function renderValidateRequestTree(): string {
 
 function __validateParameter(p, req, match) {
   const raw = __readParamRaw(p, req, match);
-  if (raw === undefined) {
-    if (p.required) {
-      return createLeafError(
-        p.in === "header" ? "header-param" : p.in === "path" ? "path-param" : p.in === "query" ? "query-param" : "cookie-param",
-        [p.in, p.name],
-        \`missing required \${p.in} parameter "\${p.name}"\`,
-        { name: p.name, in: p.in },
-      );
-    }
-    return null;
-  }
+  const missing = () => {
+    if (!p.required) return null;
+    return createLeafError(
+      p.in === "header" ? "header-param" : p.in === "path" ? "path-param" : p.in === "query" ? "query-param" : "cookie-param",
+      [p.in, p.name],
+      \`missing required \${p.in} parameter "\${p.name}"\`,
+      { name: p.name, in: p.in },
+    );
+  };
+  if (raw === undefined) return missing();
   if (p.__validator === null) return null;
   const value = deserialize(raw, p);
+  // Mirrors validateParameter in validate-step.ts: a present segment
+  // can still supply no value, which \`deserialize\` reports as
+  // undefined. Gated on the style there and here, because an
+  // object-typed parameter handed an empty array reads undefined too
+  // and that is not absence. See #758.
+  if (value === undefined && p.style === "matrix") return missing();
   const r = p.__validator.validate(value, [p.in, p.name]);
   if (r.valid || r.error === undefined) return null;
   return r.error;

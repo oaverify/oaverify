@@ -1024,3 +1024,51 @@ describe("compile-spec: emitted validateFetch* wrappers", () => {
     expect(r.ok).toBe(true);
   });
 });
+
+describe("compile-spec: matrix parameter parity (#758)", () => {
+  // The emitter shares `deserialize` with the runtime but writes its own
+  // `__validateParameter`, so the rule "a present segment can still
+  // supply no value" has to hold in both. #758 was one rule applied in
+  // one of two code paths; this is the same hazard one layer out.
+  const spec = {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/t/{p}": {
+        get: {
+          parameters: [
+            {
+              name: "p",
+              in: "path",
+              style: "matrix",
+              explode: true,
+              required: true,
+              schema: { type: "array", items: { type: "string" } },
+            },
+          ],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  } as unknown as OpenAPIDocument;
+
+  it("rejects a segment naming no group for the parameter, matching createValidator", async () => {
+    const aot = await buildAot(spec);
+    const runtime = createValidator(spec);
+    for (const path of ["/t/;q=1;r=2", "/t/;"]) {
+      const req = { method: "GET", path };
+      expect(runtime.validateRequest(req as never).valid).toBe(false);
+      expect(flatErrors(aot.validateRequest(req as never)).map((e) => e.code)).toEqual([
+        "path-param",
+      ]);
+    }
+  });
+
+  it("accepts a segment whose group names the parameter, matching createValidator", async () => {
+    const aot = await buildAot(spec);
+    const runtime = createValidator(spec);
+    const req = { method: "GET", path: "/t/;q=9;p=2" };
+    expect(runtime.validateRequest(req as never).valid).toBe(true);
+    expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
+  });
+});
