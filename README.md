@@ -219,6 +219,19 @@ custom formats, custom keywords, cross-field constraints, error
 budgets, version differences, overlays, spec-derived middleware
 config, streaming validation, and pre-deploy buffer budgets.
 
+## What people use it for
+
+- Request and response validation in any Node, edge, or Fetch handler,
+  with or without one of the framework adapters.
+- Gating spec quality in CI with `oaverify check`, by severity.
+- Validating large JSON bodies as bytes arrive, and estimating the
+  per-operation buffer budget before deploying.
+- Per-tenant, per-test and cold-start validators, which construction
+  cost makes practical.
+- Compiling a document to a standalone ESM validator for runtimes that
+  forbid runtime code generation.
+- Patching a spec you do not own with overlays, in memory.
+
 ## Streaming large bodies
 
 `createValidator` validates a fully-parsed value. For a body too large

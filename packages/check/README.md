@@ -126,8 +126,8 @@ repository root so paths are relative to the checkout.
 
 `classes` names the classes the run selected and has no default: the
 log asserts it as `oaverify:classes` so a consumer can tell a partial
-run from a clean document. Pass the same list you gave `checkSpec` as
-`only`, or `CHECK_CLASSES` for a full run.
+run from a clean document. Pass the classes your `findings` selection
+covers, or `CHECK_CLASSES` for a full run.
 
 ## Your own rules
 
