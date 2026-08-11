@@ -64,6 +64,8 @@ import {
   CheckAbortedError,
   type CheckFinding,
   type CheckRule,
+  type SkipReportEntry,
+  type TermReport,
   type CheckSeverity,
   type FindingSelection,
   type SeverityMap,
@@ -157,6 +159,44 @@ function formatRuleNotes(findings: readonly CheckFinding[], width: number): stri
       out.push(`${line}\n`);
   }
   return out;
+}
+
+/**
+ * What `check --format json` emits.
+ *
+ * The canonical statement of that report's shape, per AGENTS.md "Type
+ * as canonical contract". It exists because the report is a contract
+ * two other renderers have to stay level with, and nothing was saying
+ * so: #773 shortened finding messages and moved the explanations onto
+ * rules, SARIF and the text report each grew a place to put them, and
+ * this report went a commit without one. Parity was remembered rather
+ * than asserted, and remembering failed.
+ *
+ * The rule for anyone adding to a report: **a fact a consumer can read
+ * from SARIF or from the text report belongs here too.**
+ * `check-json-contract.test.ts` is what makes leaving one out a failing
+ * test rather than a silent gap, by comparing `findings` against what
+ * `checkSpec` returned rather than against a list of field names.
+ *
+ * `findings` is always present, empty included, so a consumer can index
+ * it without a guard. The other three are absent when they have nothing
+ * to say, so a clean run is `{"findings": []}` rather than a shape
+ * padded with empty containers a reader has to tell from absence.
+ */
+interface CheckJsonReport {
+  /** Every finding the run produced, after regrading and skipping. */
+  findings: readonly CheckFinding[];
+  /**
+   * The rule behind each code present, keyed by code. The same metadata
+   * SARIF puts in `shortDescription` / `fullDescription` and the text
+   * report prints as its closing notes. Absent when no code in the
+   * report has an entry.
+   */
+  rules?: Record<string, CheckRule>;
+  /** What `--findings` exclusions dropped, when they dropped anything. */
+  skipped?: readonly SkipReportEntry[];
+  /** Terms that selected nothing, when there were any. */
+  noopTerms?: readonly TermReport[];
 }
 
 /**
@@ -703,18 +743,13 @@ export async function checkCommand(
         return rule === undefined ? [] : [[code, rule] as const];
       }),
     );
-    await sink(
-      JSON.stringify(
-        {
-          findings,
-          ...(Object.keys(rules).length === 0 ? {} : { rules }),
-          ...(skipped.length === 0 ? {} : { skipped }),
-          ...(noopTerms.length === 0 ? {} : { noopTerms }),
-        },
-        null,
-        2,
-      ) + "\n",
-    );
+    const report: CheckJsonReport = {
+      findings,
+      ...(Object.keys(rules).length === 0 ? {} : { rules }),
+      ...(skipped.length === 0 ? {} : { skipped }),
+      ...(noopTerms.length === 0 ? {} : { noopTerms }),
+    };
+    await sink(JSON.stringify(report, null, 2) + "\n");
   } else if (findings.length === 0) {
     await sink(`check: no findings (${[...classes].sort().join(", ")})\n`);
     if (skipLine !== "") await sink(skipLine);
