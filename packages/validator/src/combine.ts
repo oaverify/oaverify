@@ -14,6 +14,8 @@ import {
   FetchBodyTooLargeError,
   httpRequestFromFetch,
   httpResponseFromFetch,
+  isValidMaxTotalBytes,
+  maxTotalBytesErrorMessage,
   type FetchRequestOptions,
 } from "./from-fetch.js";
 import {
@@ -207,6 +209,13 @@ export function combineValidators(
   // construction mistake, so fail at the seam rather than reshape per
   // request.
   const outputMode = validators[0]!.output;
+  // Validated here for the same reason `createValidator` validates its
+  // own: without it a bad value constructs fine and then throws out of
+  // the reader on every request, turning a config typo into a per-request
+  // 500 instead of a startup failure.
+  if (options.maxTotalBytes !== undefined && !isValidMaxTotalBytes(options.maxTotalBytes)) {
+    throw new Error(`combineValidators: ${maxTotalBytesErrorMessage(options.maxTotalBytes)}`);
+  }
   // Left undefined when unset so the reader applies its own default.
   const maxTotalBytes = options.maxTotalBytes;
   for (let i = 1; i < validators.length; i += 1) {

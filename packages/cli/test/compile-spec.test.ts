@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import type { OpenAPIDocument, ValidationError } from "@oaverify/internal-core";
 import { createValidator } from "@oaverify/internal-validator";
 import { compileSpecCommand } from "../src/commands.js";
+import { emitSpec } from "../src/emit-spec.js";
 import { memoryIo } from "./fixtures.js";
 import { workspaceAliases } from "../../../workspace-aliases.js";
 
@@ -962,6 +963,15 @@ describe("compile-spec: emitted validateFetch* wrappers", () => {
     expect(r.ok).toBe(false);
     expect(r.errors?.[0]?.code).toBe("body-too-large");
     expect(r.errors?.[0]?.params).toMatchObject({ limit: 1024 * 1024 });
+  });
+
+  it("refuses a bad cap at emit time rather than baking it", async () => {
+    // NaN through an `isFinite` test would bake POSITIVE_INFINITY and
+    // read every body unbounded; 0 would bake verbatim and throw from
+    // the reader on every request the emitted module ever serves.
+    for (const bad of [Number.NaN, 0, -1, 1.5]) {
+      expect(() => emitSpec(petstore, { maxTotalBytes: bad })).toThrow(/maxTotalBytes/);
+    }
   });
 
   it("reads unbounded when the cap is emitted as infinite", async () => {

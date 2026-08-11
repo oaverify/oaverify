@@ -478,6 +478,17 @@ describe("the composite validator", () => {
     expect((result as { errors: ValidationError[] }).errors[0]?.code).toBe("body");
   });
 
+  it("rejects a bad cap at construction rather than on every request", async () => {
+    // Without a construction guard the value reaches the reader, which
+    // throws a TypeError per request: a config typo becomes a stream of
+    // 500s instead of a startup failure.
+    for (const bad of [0, -1, Number.NaN]) {
+      expect(() => combineValidators([createValidator(spec())], { maxTotalBytes: bad })).toThrow(
+        /maxTotalBytes/,
+      );
+    }
+  });
+
   it("takes the composite's cap, since no member owns the route yet", async () => {
     // The read happens before dispatch, so a member's own cap cannot
     // apply. A permissive member does not widen a strict composite.

@@ -386,25 +386,51 @@ function countingBody(
 }
 
 /**
- * The cap to enforce, given what the caller passed.
+ * Whether `value` is an acceptable `maxTotalBytes`: a positive integer,
+ * or `POSITIVE_INFINITY` for uncapped. `undefined` is the caller's to
+ * interpret, since "take the default" and "not supplied" differ by
+ * caller.
  *
- * `undefined` takes the default; `POSITIVE_INFINITY` reads unbounded;
- * a positive integer is itself. Anything else throws.
+ * The narrowness is the point, and it is why this does not reuse the
+ * `Number.isFinite`-guarded shape `maxErrors` and `maxDepth` validate
+ * with. Theirs reads every non-finite value as the intended infinity,
+ * so `NaN` and `-Infinity` pass. For a cap whose job is refusing
+ * hostile input, passing means failing open, quietly. Every place that
+ * accepts a `maxTotalBytes` calls this, so the rule has one home:
+ * `createValidator` and `combineValidators` at construction,
+ * `emitSpec` at emit time, and {@link resolveLimit} for the public
+ * helpers, which have no construction step to check at.
  *
- * The throw is the point. Testing `!Number.isFinite(limit)` alone
- * would read `NaN` and `-Infinity` as "unbounded" and silently drop
- * the cap, which is the worst available outcome for a limit whose job
- * is refusing hostile input: it fails open, and it does so quietly.
- * `createValidator` rejects the same values at construction, so this
- * catches the helpers being called directly.
+ * @internal
+ */
+export function isValidMaxTotalBytes(value: number): boolean {
+  return value === Number.POSITIVE_INFINITY || (Number.isInteger(value) && value >= 1);
+}
+
+/**
+ * The message every `maxTotalBytes` rejection uses, prefixed by
+ * whichever surface caught it.
+ *
+ * @internal
+ */
+export function maxTotalBytesErrorMessage(value: unknown): string {
+  return (
+    `\`maxTotalBytes\` must be a positive integer (got ${String(value)}). ` +
+    "Omit the option for the 1 MiB default, or pass `Number.POSITIVE_INFINITY` to read unbounded."
+  );
+}
+
+/**
+ * The cap to enforce, given what the caller passed. `undefined` takes
+ * the default; anything else must satisfy
+ * {@link isValidMaxTotalBytes}.
  */
 function resolveLimit(maxTotalBytes: number | undefined): number {
   if (maxTotalBytes === undefined) return DEFAULT_MAX_TOTAL_BYTES;
-  if (maxTotalBytes === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
-  if (Number.isInteger(maxTotalBytes) && maxTotalBytes >= 1) return maxTotalBytes;
-  throw new TypeError(
-    `maxTotalBytes must be a positive integer or Number.POSITIVE_INFINITY (got ${String(maxTotalBytes)}).`,
-  );
+  if (!isValidMaxTotalBytes(maxTotalBytes)) {
+    throw new TypeError(`readBody: ${maxTotalBytesErrorMessage(maxTotalBytes)}`);
+  }
+  return maxTotalBytes;
 }
 
 async function readBody(

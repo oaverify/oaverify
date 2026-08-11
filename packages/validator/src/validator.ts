@@ -71,6 +71,8 @@ import {
   FetchBodyTooLargeError,
   httpRequestFromFetch,
   httpResponseFromFetch,
+  isValidMaxTotalBytes,
+  maxTotalBytesErrorMessage,
   type FetchRequestOptions,
 } from "./from-fetch.js";
 import {
@@ -1215,20 +1217,11 @@ export function createValidator(
         "Omit the option for uncapped recursion depth.",
     );
   }
-  // Allow-list rather than the `isFinite`-guarded shape `maxErrors` and
-  // `maxDepth` use above. Theirs treats every non-finite value as the
-  // intended infinity, so `NaN` and `-Infinity` pass; for a cap that
-  // exists to refuse hostile input, passing means failing open with no
-  // signal. Only `POSITIVE_INFINITY` means uncapped here.
-  if (
-    options.maxTotalBytes !== undefined &&
-    options.maxTotalBytes !== Number.POSITIVE_INFINITY &&
-    (!Number.isInteger(options.maxTotalBytes) || options.maxTotalBytes < 1)
-  ) {
-    throw new Error(
-      `createValidator: \`maxTotalBytes\` must be a positive integer (got ${String(options.maxTotalBytes)}). ` +
-        "Omit the option for the 1 MiB default, or pass `Number.POSITIVE_INFINITY` to read unbounded.",
-    );
+  // Shared allow-list rather than the `isFinite`-guarded shape the two
+  // options above use; see `isValidMaxTotalBytes` for why this one
+  // cannot afford to read `NaN` as infinity.
+  if (options.maxTotalBytes !== undefined && !isValidMaxTotalBytes(options.maxTotalBytes)) {
+    throw new Error(`createValidator: ${maxTotalBytesErrorMessage(options.maxTotalBytes)}`);
   }
   // Resolved output shape + per-call error budget. Both mirror
   // `compileSchema`: flat output and `maxErrors: 1` by default. Each

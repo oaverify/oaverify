@@ -25,6 +25,8 @@ import { builtInFormats } from "@oaverify/internal-formats";
 import {
   coercionView,
   compileMediaTypePatterns,
+  isValidMaxTotalBytes,
+  maxTotalBytesErrorMessage,
   schemaRefResolverFor,
   walkDocumentSchemas,
   type SchemaRefResolver,
@@ -138,14 +140,21 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   const maxErrorsLiteral = Number.isFinite(maxErrors)
     ? String(maxErrors)
     : "Number.POSITIVE_INFINITY";
+  // Validated at emit time, on the same allow-list the runtime uses.
+  // Baking an unchecked value would either fail open (an `isFinite`
+  // test reads `NaN` as uncapped) or defer a `0` to a TypeError thrown
+  // from the reader on every request the emitted module ever serves.
+  if (options.maxTotalBytes !== undefined && !isValidMaxTotalBytes(options.maxTotalBytes)) {
+    throw new Error(`emitSpec: ${maxTotalBytesErrorMessage(options.maxTotalBytes)}`);
+  }
   // Left to the reader's own default when unset, so the 1 MiB constant
   // has one home rather than being restated in emitted source.
   const maxTotalBytesLiteral =
     options.maxTotalBytes === undefined
       ? "undefined"
-      : Number.isFinite(options.maxTotalBytes)
-        ? String(options.maxTotalBytes)
-        : "Number.POSITIVE_INFINITY";
+      : options.maxTotalBytes === Number.POSITIVE_INFINITY
+        ? "Number.POSITIVE_INFINITY"
+        : String(options.maxTotalBytes);
   const warnings: string[] = [];
   const dialect = resolveDialect(document, options.dialect, warnings);
 

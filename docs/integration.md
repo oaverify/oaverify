@@ -537,14 +537,19 @@ when you have to consume external spec-format input.
 
 Default mapping:
 
-| `err` shape                     | Status |
-| ------------------------------- | ------ |
-| top-level `code: "route"`       | 404    |
-| top-level `code: "method"`      | 405    |
-| any leaf `code: "security"`     | 401    |
-| any leaf `code: "content-type"` | 415    |
-| any leaf `code: "status"`       | 500    |
-| otherwise                       | 400    |
+| `err` shape                       | Status |
+| --------------------------------- | ------ |
+| top-level `code: "route"`         | 404    |
+| top-level `code: "method"`        | 405    |
+| any leaf `code: "security"`       | 401    |
+| any leaf `code: "content-type"`   | 415    |
+| any leaf `code: "status"`         | 500    |
+| any leaf `code: "body-too-large"` | 413    |
+| otherwise                         | 400    |
+
+413 reads the leaf as a request. The same leaf from
+`validateFetchResponse` says an upstream overran the cap, which is a
+500; override the slot when mapping a response-validation result.
 
 Override any slot with the second argument, e.g. APIs that use 422
 for schema errors:
