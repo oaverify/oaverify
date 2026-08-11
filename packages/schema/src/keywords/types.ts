@@ -125,6 +125,53 @@ export interface DynamicRefTarget {
  * authors see only these names: no reference to the compiler, the full
  * vocabulary, or the validator instance.
  *
+ * ## What most keywords need
+ *
+ * The members below fall into three groups, and knowing which group a
+ * name is in is most of knowing whether to reach for it. A leaf keyword
+ * uses five or six names from the first group and nothing from the
+ * other two: `string.ts` and `number.ts` between them touch `data`,
+ * `schema`, `gen`, `emitError`, `leafErrorExpr`, `hoistConstant` and
+ * `formatTypeOf`, and read no flag.
+ *
+ * **Intent helpers**, the 80% case. Say what the keyword means and let
+ * the context emit source that is right for the mode it is in:
+ *
+ * - *Where you are*: `schema`, `parentSchema`, `data`, `path`,
+ *   `errors`.
+ * - *Emitting*: `gen`, which every keyword touches, because emitting
+ *   source is the job.
+ * - *Descending*: `validateSubschema` for "check this subschema and
+ *   report what it finds", which is what `properties` and `items`
+ *   want. `compileSubschema` and `compileAndCallSubschema` when the
+ *   keyword needs the sub-validator's verdict for its own control flow.
+ * - *Failing*: `emitError`, `errorStatement`, `leafErrorExpr`,
+ *   `branchErrorExpr`.
+ * - *Asking*: `formatTypeOf`, `declineImplements`.
+ * - *Paying less*: `hoistConstant`, `scopeLocal`, `emitBudgetBreak`.
+ *
+ * **Mode flags**: `predicate`, `flat`, `gated`, `depthGated`,
+ * `unevaluatedTracking`. A leaf keyword should read none of them, and
+ * none does. They exist for a keyword that inspects a sub-validator's
+ * return value, because the return type itself changes with the mode:
+ * `composition.ts`, `ref.ts`, `object-validation.ts`,
+ * `discriminator.ts` and `items.ts` are the five files that read one. A
+ * leaf keyword branching on a flag is a sign the intent helper it
+ * wanted already exists.
+ *
+ * **Raw mechanism**: `resolveRef`, `isRecursiveRef`,
+ * `resolveDynamicRef`, `dynamicScopeName`, `dynamicLookupName`,
+ * `evaluatedPropertiesVar`, `evaluatedItemsVar`, `pathSegments`,
+ * `effectivePathExpr`, `appendErrorsStatement`,
+ * `budgetBreakStatement`. Emitter-level, each with one or two readers
+ * in this repo, named in its own TSDoc.
+ *
+ * The split is a reading aid and not a boundary. Nothing stops a
+ * keyword reaching into the third group, and `$ref` and the
+ * composition keywords legitimately live there. What it says is which
+ * names carry an obligation to understand the compiler and which do
+ * not.
+ *
  * @public
  */
 export interface KeywordCompileContext {
