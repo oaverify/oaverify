@@ -37,8 +37,9 @@ function reason(
   code: string,
   path: readonly (string | number)[],
   message = "must be number",
+  params: Readonly<Record<string, unknown>> = {},
 ): RejectionReason {
-  return { code, path, message, params: {} };
+  return { code, path, message, params };
 }
 
 /** An `example-invalid` finding, with whatever reasons a case needs. */
@@ -279,6 +280,69 @@ describe("the two kinds of related location stay apart (row 9)", () => {
     const items = reasonsOf(render([mixed], everySpan().spanOf));
     expect(items).toHaveLength(1);
     expect(items[0]?.properties?.["oaverify:reasonIndex"]).toBe(1);
+  });
+});
+
+describe("a located item says as much as the summary does (#777)", () => {
+  // The message is what a viewer renders when a reader hovers the
+  // location, and it read `must be one of the allowed values` while the
+  // finding's own summary named the value and the set. Both now render
+  // the leaf through `formatLeafDetail`.
+  it("names the value and the set for an enum leaf", () => {
+    const items = reasonsOf(
+      render(
+        [
+          finding([
+            reason("enum", ["paymentMethod"], "must be one of the allowed values", {
+              actual: "EFT",
+              allowed: ["ACH", "CHECK"],
+            }),
+          ]),
+        ],
+        spanAt(`${EXAMPLE}/paymentMethod`),
+      ),
+    );
+    expect(items[0]?.message?.text).toBe(
+      'paymentMethod: must be one of the allowed values (actual: "EFT", allowed: ["ACH","CHECK"])',
+    );
+  });
+
+  it("keeps the absent-member note after the detail, not before it", () => {
+    // A container item carries both. The detail belongs to the ruling
+    // and the note belongs to the location, so the note reads last.
+    const items = reasonsOf(
+      render(
+        [
+          finding([
+            reason("required", ["order", "id"], 'must have required property "id"', {
+              missing: "id",
+            }),
+          ]),
+        ],
+        spanAt(`${EXAMPLE}/order`),
+      ),
+    );
+    expect(items[0]?.message?.text).toBe(
+      'order: must have required property "id" (this location is the containing value; ' +
+        "the member it names is absent)",
+    );
+  });
+
+  it("adds nothing for a code that already names its bound", () => {
+    const items = reasonsOf(
+      render(
+        [
+          finding([
+            reason("minLength", ["name"], "must have at least 3 characters", {
+              minLength: 3,
+              actual: 0,
+            }),
+          ]),
+        ],
+        spanAt(`${EXAMPLE}/name`),
+      ),
+    );
+    expect(items[0]?.message?.text).toBe("name: must have at least 3 characters");
   });
 });
 

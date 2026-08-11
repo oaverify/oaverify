@@ -39,6 +39,7 @@
 
 import {
   detectOpenAPIVersion,
+  formatLeafDetail,
   pointerFromFragment,
   type OpenAPIDocument,
   type PathSegment,
@@ -118,54 +119,13 @@ export interface ExampleIssue {
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** Keeps a finding readable when the example is a large object. */
-const VALUE_ECHO_LIMIT = 60;
-
-/** An enum worth naming in full is longer than one value. */
-const ALLOWED_ECHO_LIMIT = 120;
-
-function echoValue(value: unknown, limit = VALUE_ECHO_LIMIT): string {
-  let text: string;
-  try {
-    text = JSON.stringify(value) ?? String(value);
-  } catch {
-    return "the value"; // circular or otherwise unserialisable
-  }
-  return text.length <= limit ? text : `${text.slice(0, limit)}...`;
-}
-
 /**
- * What the value was, and what was permitted, for the failures where
- * the message alone cannot say.
- *
- * `must be one of the allowed values` is unactionable from a report: it
- * names neither the offending value nor the set, and recovering them
- * means opening the spec and following the `$ref` chain to the enum. A
- * consumer keying on the value cannot see it at all (#580).
- *
- * Confined to `enum`, `const` and `type`, the three whose message is a
- * bare assertion. The bounded keywords (`minLength`, `maximum`, ...)
- * already name their bound, and their `actual` is a count rather than a
- * value.
- *
- * Interpolated here rather than in the shared keyword message, which is
- * also what a rejected request body renders through: an example is spec
- * text, and echoing it back to its author is free, while echoing a
- * request value into a 400 is a decision the caller owns.
+ * Keeps an uncheckable finding readable when the guarded pattern is a
+ * long one. Distinct from the value cap in `formatLeafDetail`: this
+ * elides a regex source rather than a JSON value, so it does not go
+ * through the same helper.
  */
-function detailOf(code: string, params: Readonly<Record<string, unknown>>): string {
-  switch (code) {
-    case "enum":
-      return ` (actual: ${echoValue(params["actual"])}, allowed: ${echoValue(params["allowed"], ALLOWED_ECHO_LIMIT)})`;
-    case "const":
-      return ` (actual: ${echoValue(params["actual"])}, expected: ${echoValue(params["expected"])})`;
-    case "type":
-      // A type name, not a value: "must be string (actual: number)".
-      return typeof params["actual"] === "string" ? ` (actual: ${params["actual"]})` : "";
-    default:
-      return "";
-  }
-}
+const PATTERN_ECHO_LIMIT = 60;
 
 /**
  * How many distinct reasons one finding spells out before summarising
@@ -197,7 +157,7 @@ function joinReasons(
   const seen = new Set<string>();
   for (const error of errors) {
     const where = error.path.length === 0 ? "" : `${error.path.join(".")}: `;
-    seen.add(`${where}${error.message}${detailOf(error.code, error.params)}`);
+    seen.add(`${where}${error.message}${formatLeafDetail(error.code, error.params)}`);
   }
   if (seen.size === 0) return "does not validate";
   const reasons = [...seen];
@@ -494,7 +454,9 @@ export function checkDocumentExamples(
       const guarded = findGuardedPattern(schema, refResolver, options.patternGuard);
       if (guarded !== undefined) {
         const echoed =
-          guarded.length <= VALUE_ECHO_LIMIT ? guarded : `${guarded.slice(0, VALUE_ECHO_LIMIT)}...`;
+          guarded.length <= PATTERN_ECHO_LIMIT
+            ? guarded
+            : `${guarded.slice(0, PATTERN_ECHO_LIMIT)}...`;
         const check: ExampleCheck = () => ({
           code: "example-uncheckable",
           summary:

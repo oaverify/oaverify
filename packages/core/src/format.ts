@@ -288,3 +288,80 @@ export function countErrors(error: ValidationError | readonly ValidationError[])
   }
   return n;
 }
+
+/**
+ * How much of a value a rendered detail shows before eliding.
+ *
+ * Sized for the two places this is read: a terminal line and a
+ * diagnostic tooltip. The uncapped values travel as structured data
+ * beside the message (`ExampleIssue.reasons`, SARIF's
+ * `oaverify:reasons`), so the cap costs a reader nothing they cannot
+ * get, and the message stays one line.
+ */
+const VALUE_ECHO_LIMIT = 60;
+
+/** An enum worth naming in full is longer than one value. */
+const ALLOWED_ECHO_LIMIT = 120;
+
+/** A value as JSON, elided past `limit`. */
+function echoValue(value: unknown, limit = VALUE_ECHO_LIMIT): string {
+  let text: string;
+  try {
+    text = JSON.stringify(value) ?? String(value);
+  } catch {
+    return "the value"; // circular or otherwise unserialisable
+  }
+  return text.length <= limit ? text : `${text.slice(0, limit)}...`;
+}
+
+/**
+ * What the value was, and what was permitted, for the leaves whose
+ * message alone cannot say.
+ *
+ * `must be one of the allowed values` is unactionable on its own: it
+ * names neither the offending value nor the set, and recovering them
+ * means opening the schema and following the `$ref` chain to the enum.
+ * A consumer keying on the value cannot see it at all (#580).
+ *
+ * Confined to `enum`, `const` and `type`, the three whose message is a
+ * bare assertion. The bounded keywords (`minLength`, `maximum`, ...)
+ * already name their bound, and their `actual` is a count rather than a
+ * value, so appending it would read as a second bound.
+ *
+ * Returns `""` for every other code, and for a `type` leaf whose
+ * `actual` is not a type name, so a caller appends it unconditionally.
+ *
+ * ## Where this may be used, which is narrower than it looks
+ *
+ * Rendering a rejected value back to whoever wrote it. That is true of
+ * a document's own examples and of a spec-conformance failure, where
+ * the value is text the author typed. It is **not** true of a rejected
+ * request body: echoing a request value into a 400 tells a caller what
+ * their own input was, which is a decision the caller owns rather than
+ * one this library takes for them. That is why the shared keyword
+ * messages do not carry this and why it is applied at the call site.
+ *
+ * Lives here, beside the other renderers, because two call sites need
+ * one answer: an example finding's summary and the located item a SARIF
+ * related location carries for the same leaf. They rendered the same
+ * leaf differently while this was private to one of them (#777).
+ *
+ * @param code - The leaf's error code.
+ * @param params - The leaf's `params`.
+ * @returns A leading-space suffix ready to append to a message, or `""`.
+ *
+ * @public
+ */
+export function formatLeafDetail(code: string, params: Readonly<Record<string, unknown>>): string {
+  switch (code) {
+    case "enum":
+      return ` (actual: ${echoValue(params["actual"])}, allowed: ${echoValue(params["allowed"], ALLOWED_ECHO_LIMIT)})`;
+    case "const":
+      return ` (actual: ${echoValue(params["actual"])}, expected: ${echoValue(params["expected"])})`;
+    case "type":
+      // A type name, not a value: "must be string (actual: number)".
+      return typeof params["actual"] === "string" ? ` (actual: ${params["actual"]})` : "";
+    default:
+      return "";
+  }
+}

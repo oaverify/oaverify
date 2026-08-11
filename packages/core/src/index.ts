@@ -19,6 +19,7 @@ export {
 
 export {
   countErrors,
+  formatLeafDetail,
   formatSummary,
   formatText,
   toJsonObject,
