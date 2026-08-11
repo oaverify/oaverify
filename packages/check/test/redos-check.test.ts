@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { REDOS_CODES } from "../src/codes.js";
 import { checkDocumentRedos } from "../src/redos-check.js";
+import { CHECK_RULES } from "../src/rules.js";
 
 const withPattern = (pattern: string, extra: Record<string, unknown> = {}) =>
   ({
@@ -28,8 +29,18 @@ describe("checkDocumentRedos", () => {
     // stay flat. The wording has to match the evidence.
     const message = checkDocumentRedos(withPattern("^(a+)+$"))[0]?.message ?? "";
     expect(message).toContain("is ambiguous");
-    expect(message).toContain("depends on the engine");
+    expect(message).toContain("may cost superlinear time");
     expect(message).not.toContain("will hang");
+  });
+
+  it("keeps the engine caveat and the remedy on the rule (#773)", () => {
+    // Both were in every message until the rule descriptor gave them a
+    // home. They are the same sentence whatever the pattern, so the
+    // claim they make is asserted here rather than per occurrence.
+    const rule = CHECK_RULES["ambiguous-pattern"];
+    expect(rule.explanation).toContain("depends on the engine");
+    expect(rule.explanation).toContain("regexCompiler");
+    expect(rule.explanation).not.toContain("will hang");
   });
 
   it("reports the textbook nested quantifier", () => {
@@ -39,7 +50,6 @@ describe("checkDocumentRedos", () => {
     expect(issues[0]?.pointer).toBe(
       "/paths/~1x/post/requestBody/content/application~1json/schema/pattern",
     );
-    expect(issues[0]?.message).toContain("regexCompiler");
     // The finding carries its own evidence: the shape of an input that
     // matches more than one way, so a reader can judge it rather than
     // trust a verdict.

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkDocumentFormats, KNOWN_FORMATS } from "../src/format-check.js";
+import { CHECK_RULES } from "../src/rules.js";
 
 const doc = (schema: unknown, second?: unknown) =>
   ({
@@ -29,7 +30,7 @@ describe("a format check cannot validate", () => {
     const [issue, ...rest] = check(doc({ type: "string", format: "iban" }));
     expect(rest).toEqual([]);
     expect(issue?.code).toBe("format-not-validated");
-    expect(issue?.message).toContain('"iban" is not a format oaverify validates');
+    expect(issue?.message).toContain('"iban" is not a validated format');
     expect(issue?.pointer).toBe("/paths/~1a/get/parameters/0/schema/format");
   });
 
@@ -82,7 +83,7 @@ describe("an OAS-defined format reads differently from a vendor one", () => {
     for (const format of ["float", "double", "binary", "password", "commonmark", "html"]) {
       const message = check(doc({ type: "string", format }))[0]?.message ?? "";
       expect(message).toContain(`OpenAPI defines "${format}", and no validator can assert it`);
-      expect(message).not.toContain("does not assert it yet");
+      expect(message).not.toContain("not asserted here yet");
     }
   });
 
@@ -93,7 +94,7 @@ describe("an OAS-defined format reads differently from a vendor one", () => {
     // it should join the asserted list below.
     for (const format of ["sf-token", "decimal"]) {
       const message = check(doc({ type: "string", format }))[0]?.message ?? "";
-      expect(message).toContain(`OpenAPI defines "${format}" but oaverify does not assert it yet`);
+      expect(message).toContain(`OpenAPI defines "${format}", and it is not asserted here yet`);
     }
   });
 
@@ -122,7 +123,7 @@ describe("an OAS-defined format reads differently from a vendor one", () => {
 
   it("does not claim OpenAPI defined a vendor name", () => {
     const message = check(doc({ type: "string", format: "twiml" }))[0]?.message ?? "";
-    expect(message).toContain('"twiml" is not a format oaverify validates');
+    expect(message).toContain('"twiml" is not a validated format');
     expect(message).not.toContain("OpenAPI defines");
   });
 });
@@ -131,12 +132,22 @@ describe("the finding is advice, and says so", () => {
   // OAS 3.0.4 / 3.1.1 Data Type Format: a tool may fall back to `type`
   // alone for a format it does not recognise, and support for a
   // registered format is optional. A vendor format is legal, so the
-  // message cannot read as a defect.
-  it("states the document is legal and names the remedy", () => {
+  // finding cannot read as a defect.
+  //
+  // Split across two slots since #773. The occurrence says what was
+  // done with this name; the rule says that it is legal and how to
+  // change it, once rather than once per finding.
+  it("says what was done with this format, per occurrence", () => {
     const message = check(doc({ type: "string", format: "x-internal-id" }))[0]?.message ?? "";
-    expect(message).toContain("This is legal");
-    expect(message).toContain("formats option");
     expect(message).toContain('checked against "type" alone');
+    expect(message).not.toContain("This is legal");
+    expect(message).not.toContain("formats option");
+  });
+
+  it("states the legality and the remedy once, on the rule", () => {
+    const rule = CHECK_RULES["format-not-validated"];
+    expect(rule.explanation).toContain("legal");
+    expect(rule.explanation).toContain("formats option");
   });
 });
 

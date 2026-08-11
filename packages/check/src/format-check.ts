@@ -160,25 +160,27 @@ export function checkDocumentFormats(
 
   return [...firstSeen].map(([format, { pointer, count }]) => {
     const where = count > 1 ? ` (${count} positions use it)` : "";
+    // What varies per occurrence: which name, and why it has no
+    // validator. The rest of what a reader needs (that this is legal,
+    // and the two remedies) is the same sentence for every one of these
+    // findings, so it lives on the rule descriptor instead (#773).
+    //
+    // The tool's name is gone from all three, and the "OpenAPI defines
+    // it / we do not assert it" contrast survives without it: the
+    // contrast is between the specification and this run's coverage,
+    // and "not validated here" says the second half.
     let origin: string;
     if (NOT_ASSERTABLE.has(format)) {
-      origin =
-        `OpenAPI defines "${format}", and no validator can assert it over JSON, ` +
-        `so oaverify does not`;
+      origin = `OpenAPI defines "${format}", and no validator can assert it over JSON`;
     } else if (OAS_REGISTRY.has(format)) {
-      origin = `OpenAPI defines "${format}" but oaverify does not assert it yet`;
+      origin = `OpenAPI defines "${format}", and it is not asserted here yet`;
     } else {
-      origin = `"${format}" is not a format oaverify validates`;
+      origin = `"${format}" is not a validated format`;
     }
     return {
       code: "format-not-validated" as const,
       pointer,
-      message:
-        `${origin}, so values are checked against "type" alone${where}. This is ` +
-        `legal: support for a format is optional and a tool may fall back to ` +
-        `"type" for one it does not recognise. Register a validator through the ` +
-        `formats option to enforce it, or read this as confirmation the name is ` +
-        `an annotation.`,
+      message: `${origin}, so values are checked against "type" alone${where}.`,
     };
   });
 }

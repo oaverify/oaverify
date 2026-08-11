@@ -33,7 +33,18 @@ interface SarifLog {
   version: string;
   $schema: string;
   runs: {
-    tool: { driver: { name: string; version: string; rules: { id: string }[] } };
+    tool: {
+      driver: {
+        name: string;
+        version: string;
+        rules: {
+          id: string;
+          shortDescription: { text: string };
+          fullDescription?: { text: string };
+          help?: { text: string };
+        }[];
+      };
+    };
     properties: Record<string, unknown>;
     results: SarifResult[];
   }[];
@@ -84,6 +95,38 @@ describe("the log envelope", () => {
       "unknown-keyword",
     ]);
     expect(log.runs[0]?.results.map((r) => r.ruleIndex)).toEqual([0, 0, 1]);
+  });
+});
+
+describe("rule descriptors carry what is true of the rule (#773)", () => {
+  it("describes the rule rather than restating its id", () => {
+    const rule = render([finding()]).runs[0]?.tool.driver.rules[0];
+    expect(rule?.id).toBe("unsatisfiable/pattern-length");
+    expect(rule?.shortDescription.text).not.toBe("unsatisfiable/pattern-length");
+    expect(rule?.shortDescription.text).toContain("no string satisfies");
+  });
+
+  it("puts a rule's explanation on the rule, in both slots consumers read", () => {
+    const rule = render([finding({ code: "format-not-validated" })]).runs[0]?.tool.driver.rules[0];
+    expect(rule?.fullDescription?.text).toContain("formats option");
+    // `help` is the panel a SARIF viewer and code scanning surface;
+    // `fullDescription` is what a plain reader and most converters take.
+    expect(rule?.help?.text).toBe(rule?.fullDescription?.text);
+  });
+
+  it("omits the explanation slots for a rule with nothing to add", () => {
+    const rule = render([finding()]).runs[0]?.tool.driver.rules[0];
+    expect(rule?.fullDescription).toBeUndefined();
+    expect(rule?.help).toBeUndefined();
+  });
+
+  it("falls back to the id for a code from a later version", () => {
+    // `CheckFinding.code` is widened with `string`. A bare id is what
+    // every descriptor said before the catalogue, and is honest where
+    // an invented sentence would not be.
+    const rule = render([finding({ code: "invented-later" })]).runs[0]?.tool.driver.rules[0];
+    expect(rule?.shortDescription.text).toBe("invented-later");
+    expect(rule?.fullDescription).toBeUndefined();
   });
 });
 
