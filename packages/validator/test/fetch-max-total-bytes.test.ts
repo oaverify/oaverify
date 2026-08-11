@@ -323,16 +323,24 @@ describe("the extraction helpers", () => {
 });
 
 describe("the verdict at the validating entry points", () => {
-  it("returns a body-too-large leaf rather than throwing", async () => {
+  it("returns a body-too-large verdict rather than throwing", async () => {
     const v = createValidator(spec(), { maxTotalBytes: 64, output: "tree" });
     const result = await v.validateFetchRequest(
       chunkedRequest([JSON.stringify({ a: "x".repeat(500) })]),
     );
     expect(result.ok).toBe(false);
+    // Wrapped in the request branch every other error here carries.
+    // The branch is what names the direction; the leaf never could.
     const error = (result as { error: ValidationError }).error;
-    expect(error.code).toBe("body-too-large");
-    expect(error.path).toEqual(["body"]);
-    expect(error.params).toMatchObject({ limit: 64, reason: "read" });
+    expect(error.code).toBe("request");
+    expect(error.params).toMatchObject({ method: "POST" });
+    // No pathPattern: the body is read before routing, so there is no
+    // matched template to name.
+    expect(error.params).not.toHaveProperty("pathPattern");
+    const leaf = error.children[0]!;
+    expect(leaf.code).toBe("body-too-large");
+    expect(leaf.path).toEqual(["body"]);
+    expect(leaf.params).toMatchObject({ limit: 64, reason: "read" });
   });
 
   it("maps that leaf to 413", async () => {
@@ -350,7 +358,7 @@ describe("the verdict at the validating entry points", () => {
       declaredRequest(JSON.stringify({ a: "x".repeat(500) })),
     );
     const error = (result as { error: ValidationError }).error;
-    expect(error.params).toMatchObject({ reason: "declared" });
+    expect(error.children[0]?.params).toMatchObject({ reason: "declared" });
   });
 
   it("applies on the response side too", async () => {
@@ -362,7 +370,49 @@ describe("the verdict at the validating entry points", () => {
       }),
     );
     expect(result.ok).toBe(false);
-    expect((result as { error: ValidationError }).error.code).toBe("body-too-large");
+    // The response branch, carrying the status, so a consumer can tell
+    // an upstream's oversized reply from a client's oversized upload.
+    // The leaves are identical; only this distinguishes them.
+    const error = (result as { error: ValidationError }).error;
+    expect(error.code).toBe("response");
+    expect(error.params).toMatchObject({ status: 200 });
+    expect(error.children[0]?.code).toBe("body-too-large");
+  });
+
+  it("still reduces to the same leaves in flat output", async () => {
+    // The wrapper is a tree-mode addition. Flat output collects leaves
+    // and drops branches, so the default result shape is unchanged and
+    // httpStatusFor sees exactly what it saw before.
+    const v = createValidator(spec(), { maxTotalBytes: 64 });
+    const result = await v.validateFetchRequest(
+      chunkedRequest([JSON.stringify({ a: "x".repeat(500) })]),
+    );
+    const errors = (result as { errors: ValidationError[] }).errors;
+    expect(errors.map((e) => e.code)).toEqual(["body-too-large"]);
+    expect(httpStatusFor(errors)).toBe(413);
+  });
+
+  it("is the only thing that separates the two directions", async () => {
+    // The point of the wrapper. Identical cap, identical leaf, and
+    // httpStatusFor answers 413 for both because it is a request-side
+    // helper. A consumer that needs to tell them apart reads the root.
+    const v = createValidator(spec(), { maxTotalBytes: 64, output: "tree" });
+    const req = await v.validateFetchRequest(
+      chunkedRequest([JSON.stringify({ a: "x".repeat(500) })]),
+    );
+    const res = await v.validateFetchResponse(
+      new Request("https://example.com/items", { method: "POST" }),
+      new Response(JSON.stringify({ a: "x".repeat(500) }), {
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const reqErr = (req as { error: ValidationError }).error;
+    const resErr = (res as { error: ValidationError }).error;
+
+    expect(reqErr.children[0]?.code).toBe(resErr.children[0]?.code);
+    expect(reqErr.children[0]?.path).toEqual(resErr.children[0]?.path);
+    expect(reqErr.code).toBe("request");
+    expect(resErr.code).toBe("response");
   });
 
   it("carries the returnValues channel like the parse failure does", async () => {

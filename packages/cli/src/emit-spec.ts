@@ -1018,7 +1018,7 @@ export function validateResponse(req, res) {
   return reshapeResult(__validateResponseTree(req, res), __outputMode, __maxErrors);
 }
 
-function __bodyFailure(err) {
+function __bodyFailure(err, direction) {
   // Mirrors createValidator: a body the reader rejects is a validation
   // verdict, so the two body errors convert to a result; IO and
   // user-callback failures propagate unchanged.
@@ -1042,7 +1042,27 @@ function __bodyFailure(err) {
   } else {
     return undefined;
   }
-  return toFetchResult(reshapeResult(leaf, __outputMode, __maxErrors), undefined);
+  // Wrapped in the same request/response branch every other error here
+  // carries, so a consumer can tell a client's bad upload from an
+  // upstream's bad reply. The request branch has no pathPattern: the
+  // body is read before routing.
+  const wrapped =
+    direction.kind === "request"
+      ? {
+          code: "request",
+          path: [],
+          message: \`\${direction.method}: request validation failed\`,
+          params: { method: direction.method },
+          children: [leaf],
+        }
+      : {
+          code: "response",
+          path: [],
+          message: "response validation failed",
+          params: { status: direction.status },
+          children: [leaf],
+        };
+  return toFetchResult(reshapeResult(wrapped, __outputMode, __maxErrors), undefined);
 }
 
 export async function validateFetchRequest(request, options) {
@@ -1055,7 +1075,7 @@ export async function validateFetchRequest(request, options) {
       maxTotalBytes: options?.maxTotalBytes ?? __maxTotalBytes,
     });
   } catch (err) {
-    const verdict = __bodyFailure(err);
+    const verdict = __bodyFailure(err, { kind: "request", method: request.method.toUpperCase() });
     if (verdict !== undefined) return verdict;
     throw err;
   }
@@ -1072,7 +1092,7 @@ export async function validateFetchResponse(request, response) {
   try {
     extracted = await httpResponseFromFetch(response, { maxTotalBytes: __maxTotalBytes });
   } catch (err) {
-    const verdict = __bodyFailure(err);
+    const verdict = __bodyFailure(err, { kind: "response", status: response.status });
     if (verdict !== undefined) return verdict;
     throw err;
   }

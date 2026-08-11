@@ -10,7 +10,12 @@
  * standalone module reuses these same functions so its AOT output's result
  * shape stays identical to `createValidator`.
  */
-import { collectLeaves, createLeafError, type ValidationError } from "@oaverify/internal-core";
+import {
+  collectLeaves,
+  createBranchError,
+  createLeafError,
+  type ValidationError,
+} from "@oaverify/internal-core";
 import type { TreeValidationResult, ValidationResult } from "@oaverify/internal-schema";
 
 /**
@@ -137,12 +142,14 @@ export function fetchBodyParseFailure<T>(
   err: { readonly message: string; readonly mediaType: string },
   output: "flat" | "tree" | "predicate",
   maxErrors: number,
+  direction: FetchBodyDirection,
   value?: unknown,
 ): ReturnType<typeof toFetchResult<T>> {
   return fetchBodyFailure<T>(
     createLeafError("body", ["body"], err.message, { mediaType: err.mediaType }),
     output,
     maxErrors,
+    direction,
     value,
   );
 }
@@ -171,6 +178,7 @@ export function fetchBodyTooLargeFailure<T>(
   },
   output: "flat" | "tree" | "predicate",
   maxErrors: number,
+  direction: FetchBodyDirection,
   value?: unknown,
 ): ReturnType<typeof toFetchResult<T>> {
   return fetchBodyFailure<T>(
@@ -181,18 +189,63 @@ export function fetchBodyTooLargeFailure<T>(
     }),
     output,
     maxErrors,
+    direction,
     value,
   );
 }
 
-/** Shared tail of the two body-failure verdicts above. */
+/**
+ * Which side of the exchange a body failure came from, and what the
+ * wrapping branch needs to name it.
+ *
+ * The response side carries its status, which the `Response` object
+ * has. The request side carries the method and no `pathPattern`: the
+ * body is read during extraction, before routing, so there is no
+ * matched template yet. See `BuiltInErrorParams["request"]` for why
+ * that is absent rather than filled with the concrete path.
+ *
+ * @internal
+ */
+export type FetchBodyDirection =
+  | { readonly kind: "request"; readonly method: string }
+  | { readonly kind: "response"; readonly status: number };
+
+/**
+ * Shared tail of the two body-failure verdicts above.
+ *
+ * The leaf is wrapped in the same `request` / `response` branch every
+ * other error from these entry points carries. Without it these two
+ * were the only verdicts that discarded their direction even in tree
+ * mode, which left a consumer unable to tell a client's oversized
+ * upload from an upstream's oversized reply: the leaves are identical
+ * and `httpStatusFor` cannot recover the difference (it maps
+ * `body-too-large` to 413, a request-side answer, by design).
+ *
+ * Flat output still reduces to the same leaf list as before, since
+ * reshaping collects leaves and drops branches. The direction is
+ * recoverable in tree mode only, which is why `httpStatusFor` does not
+ * try to use it.
+ */
 function fetchBodyFailure<T>(
   leaf: ValidationError,
   output: "flat" | "tree" | "predicate",
   maxErrors: number,
+  direction: FetchBodyDirection,
   value: unknown,
 ): ReturnType<typeof toFetchResult<T>> {
-  const reshaped = reshapeResult(leaf, output, maxErrors);
+  const wrapped =
+    direction.kind === "request"
+      ? createBranchError(
+          "request",
+          [],
+          `${direction.method.toUpperCase()}: request validation failed`,
+          [leaf],
+          { method: direction.method },
+        )
+      : createBranchError("response", [], "response validation failed", [leaf], {
+          status: direction.status,
+        });
+  const reshaped = reshapeResult(wrapped, output, maxErrors);
   if (value !== undefined) {
     (reshaped as { value?: unknown }).value = value;
   }

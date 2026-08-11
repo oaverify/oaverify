@@ -547,9 +547,18 @@ Default mapping:
 | any leaf `code: "body-too-large"` | 413    |
 | otherwise                         | 400    |
 
-413 reads the leaf as a request. The same leaf from
-`validateFetchResponse` says an upstream overran the cap, which is a
-500; override the slot when mapping a response-validation result.
+This table is request-side: every row reads the failure as "what do I
+tell this client about the request they sent", 413 included.
+
+`httpStatusFor` is not the helper for a response-validation result, and
+there is no sibling that is. The default flat output has already
+reduced the tree to its leaves, so the `request` / `response` branch
+that records the direction is gone before the helper sees it. And
+nothing in the leaf determines the answer regardless: a gateway holding
+a response that violates its own contract might answer 502, or 500, or
+serve stale, or pass it through under report-only. Read the leaves and
+apply your own policy; `output: "tree"` keeps the enclosing `response`
+branch if you want to key on the direction.
 
 Override any slot with the second argument, e.g. APIs that use 422
 for schema errors:

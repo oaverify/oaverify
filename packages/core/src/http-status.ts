@@ -16,16 +16,22 @@ export interface HttpStatusMap {
   "content-type": number;
   /** Declared security scheme's credential location is missing or malformed. */
   security: number;
-  /** Response (response-side only): spec declares no entry for the received status. */
+  /**
+   * Response (response-side only): spec declares no entry for the
+   * received status.
+   *
+   * The one response-side code this map covers, and 500 is a
+   * serviceable guess rather than a derivation: a gateway that would
+   * rather answer 502 should say so. See the request-side note on
+   * {@link httpStatusFor}.
+   */
   status: number;
   /**
    * Body refused for exceeding the reader's `maxTotalBytes` cap.
    *
-   * 413 reads the leaf as a request: the sender was told the payload is
-   * too large. The same leaf on the response side means the responder
-   * overran its own contract, which is a 500, and this helper cannot
-   * tell the two apart from the leaves alone (#784). Override the slot
-   * when mapping a response-validation result.
+   * 413 reads the leaf as a request: the sender is told the payload is
+   * too large. See {@link httpStatusFor} for why the response-side
+   * reading is not something this map tries to serve.
    */
   "body-too-large": number;
   /** Anything else: schema violations, missing required fields, etc. */
@@ -48,7 +54,30 @@ export const DEFAULT_HTTP_STATUS_MAP: HttpStatusMap = {
 };
 
 /**
- * Map a {@link ValidationError} to an HTTP status code.
+ * Map a {@link ValidationError} to an HTTP status code to answer a
+ * client with.
+ *
+ * **Request-side.** It answers "what do I tell this client about the
+ * request they sent". Every status it returns reads the failure that
+ * way, including `body-too-large` as 413.
+ *
+ * It is not the helper for a `validateResponse` /
+ * `validateFetchResponse` result, and there is no sibling that is. Two
+ * reasons, and the second is why none is coming:
+ *
+ * 1. The default `output: "flat"` reduces the tree to its leaves, so
+ *    the `request` / `response` branch that records the direction is
+ *    gone before this function sees it. No inspection can recover it.
+ * 2. Nothing in the leaf determines the answer anyway. A gateway
+ *    holding a response that violates its own contract might answer
+ *    502, or 500, or serve a stale cache, or pass it through under
+ *    report-only. That is policy, not a mapping.
+ *
+ * For a response-side result, read the leaves and apply your own
+ * policy; `output: "tree"` keeps the enclosing `response` branch if
+ * you want to key on the direction. The `status` slot is the one
+ * response-side code covered here, as a convenience with a guessed
+ * default.
  *
  * Handles the tree wrapping that bites consumers who write the
  * obvious switch: `route` and `method` appear as the top-level leaf

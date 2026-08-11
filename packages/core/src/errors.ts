@@ -130,9 +130,13 @@ export interface BuiltInErrorParams {
    * was passed, which we did. Keeping them apart is the difference
    * between quoting a header and reporting an observation.
    *
-   * Semantically HTTP 413 on the request side. On the response side it
-   * reports that the responder overran its own contract, which is a
-   * 500; `httpStatusFor` cannot currently tell the two apart (#784).
+   * Semantically HTTP 413 on the request side, which is what
+   * {@link httpStatusFor} maps it to. The same leaf on the response
+   * side says the responder overran its own contract, and no status
+   * follows from that on its own: a gateway might answer 502, or 500,
+   * or serve stale, or pass the response through under report-only.
+   * Read the direction off the enclosing `request` / `response` branch
+   * in tree output and apply your own policy.
    */
   "body-too-large": { limit: number; reason: "declared" | "read"; bytes: number };
 
@@ -153,8 +157,16 @@ export interface BuiltInErrorParams {
    * directly with path prefix `["body", ...]`; no `"body"` wrapper.
    */
   body: Record<string, never>;
-  /** Request branch: children are parameter / body failures. */
-  request: { method: string; pathPattern: string };
+  /**
+   * Request branch: children are parameter / body failures.
+   *
+   * `pathPattern` is absent when the failure happened before routing,
+   * which is the Fetch adapter reading and rejecting a body during
+   * extraction: there is no matched template to name yet. Absent
+   * rather than filled with the concrete path, because a consumer
+   * reading this field expects a template and a path is not one.
+   */
+  request: { method: string; pathPattern?: string };
   /** Response branch: children are status / content-type / header / body failures. */
   response: { status: number };
   /** Content-Type negotiation failed. */
