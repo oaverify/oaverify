@@ -8,6 +8,7 @@ import {
   httpResponseFromFetch,
   readBodyFromFetch,
 } from "../src/from-fetch.js";
+import { combineValidators } from "../src/combine.js";
 import { createValidator } from "../src/validator.js";
 
 /**
@@ -393,15 +394,100 @@ describe("the option's plumbing", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("keeps the validator-level cap when the call passes an explicit undefined", async () => {
+    // What `{ ...opts }` produces when the caller's own options object
+    // has no `maxTotalBytes`. Letting that reset the cap to the
+    // reader's default would quietly tighten a validator configured
+    // for large uploads.
+    const v = createValidator(spec(), { maxTotalBytes: 8 * 1024 * 1024 });
+    const result = await v.validateFetchRequest(
+      chunkedRequest([JSON.stringify({ a: "x".repeat(2 * 1024 * 1024) })]),
+      { maxTotalBytes: undefined },
+    );
+    expect(result.ok).toBe(true);
+  });
+
   it("rejects a non-positive or non-integer cap at construction", () => {
     for (const bad of [0, -1, 1.5]) {
       expect(() => createValidator(spec(), { maxTotalBytes: bad })).toThrow(/maxTotalBytes/);
     }
   });
 
+  it("rejects NaN and -Infinity rather than reading them as uncapped", () => {
+    // The `isFinite`-guarded shape `maxErrors` and `maxDepth` use would
+    // pass both of these, and the reader's `!isFinite` test would then
+    // treat them as infinity. A cap that exists to refuse hostile input
+    // must not fail open, least of all silently.
+    for (const bad of [Number.NaN, Number.NEGATIVE_INFINITY]) {
+      expect(() => createValidator(spec(), { maxTotalBytes: bad })).toThrow(/maxTotalBytes/);
+    }
+  });
+
+  it("rejects the same values at the reader, which has no construction step", async () => {
+    await expect(
+      readBodyFromFetch(chunkedRequest(['{"a":1}']), { maxTotalBytes: Number.NaN }),
+    ).rejects.toThrow(TypeError);
+  });
+
   it("accepts an infinite cap at construction", () => {
     expect(() =>
       createValidator(spec(), { maxTotalBytes: Number.POSITIVE_INFINITY }),
     ).not.toThrow();
+  });
+});
+
+describe("the composite validator", () => {
+  it("returns a body-too-large verdict rather than throwing", async () => {
+    // The composite reads the body before routing, so it has its own
+    // reader call and its own conversion. Without one, a caller moving
+    // from a validator to a composite of that validator would see a
+    // throw where they had a verdict.
+    const composite = combineValidators([createValidator(spec(), { maxTotalBytes: 64 })], {
+      maxTotalBytes: 64,
+    });
+    const result = await composite.validateFetchRequest(
+      chunkedRequest([JSON.stringify({ a: "x".repeat(500) })]),
+    );
+    expect(result.ok).toBe(false);
+    expect((result as { errors: ValidationError[] }).errors[0]?.code).toBe("body-too-large");
+  });
+
+  it("applies its own cap on the response side", async () => {
+    const composite = combineValidators([createValidator(spec())], { maxTotalBytes: 64 });
+    const result = await composite.validateFetchResponse(
+      new Request("https://example.com/items", { method: "POST" }),
+      new Response(JSON.stringify({ a: "x".repeat(500) }), {
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect((result as { errors: ValidationError[] }).errors[0]?.code).toBe("body-too-large");
+  });
+
+  it("converts an unparseable response body instead of throwing", async () => {
+    // Pre-existing on the response side: the request wrapper converted
+    // a parse failure and this one did not, so an unparseable upstream
+    // response escaped a composite where a single validator returned a
+    // verdict.
+    const composite = combineValidators([createValidator(spec())]);
+    const result = await composite.validateFetchResponse(
+      new Request("https://example.com/items", { method: "POST" }),
+      new Response('{"a":', { headers: { "content-type": "application/json" } }),
+    );
+    expect(result.ok).toBe(false);
+    expect((result as { errors: ValidationError[] }).errors[0]?.code).toBe("body");
+  });
+
+  it("takes the composite's cap, since no member owns the route yet", async () => {
+    // The read happens before dispatch, so a member's own cap cannot
+    // apply. A permissive member does not widen a strict composite.
+    const composite = combineValidators(
+      [createValidator(spec(), { maxTotalBytes: Number.POSITIVE_INFINITY })],
+      { maxTotalBytes: 64 },
+    );
+    const result = await composite.validateFetchRequest(
+      chunkedRequest([JSON.stringify({ a: "x".repeat(500) })]),
+    );
+    expect(result.ok).toBe(false);
   });
 });

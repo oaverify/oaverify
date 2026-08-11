@@ -458,6 +458,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       parseMaxErrors,
     )
     .option(
+      "--max-total-bytes <n>",
+      'byte cap on the emitted Fetch helpers\' body read: a positive integer or "none" (default: 1048576)',
+      parseMaxTotalBytes,
+    )
+    .option(
       "--unknown-formats <mode>",
       "formats outside the built-in set: error (refuse) | ignore (emit without asserting them, with a warning)",
       parseUnknownFormats,
@@ -486,6 +491,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           only: Array<{ method: string; path: string }>;
           outputMode?: "flat" | "tree" | "predicate";
           maxErrors?: number;
+          maxTotalBytes?: number;
           unknownFormats: "ignore" | "error";
           output?: string;
         },
@@ -500,6 +506,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             only: opts.only,
             outputMode: opts.outputMode,
             maxErrors: opts.maxErrors,
+            maxTotalBytes: opts.maxTotalBytes,
             unknownFormats: opts.unknownFormats,
             ...readerFlagsOf(opts),
           },
@@ -568,6 +575,17 @@ function parseMaxErrors(value: string): number {
   if (!Number.isInteger(n) || n < 1) {
     throw new Error(
       `--max-errors must be a positive integer or "all", got ${JSON.stringify(value)}`,
+    );
+  }
+  return n;
+}
+
+function parseMaxTotalBytes(value: string): number {
+  if (value === "none" || value === "infinity") return Number.POSITIVE_INFINITY;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error(
+      `--max-total-bytes must be a positive integer or "none", got ${JSON.stringify(value)}`,
     );
   }
   return n;

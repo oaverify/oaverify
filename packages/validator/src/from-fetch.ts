@@ -385,6 +385,28 @@ function countingBody(
   return { counted: new Response(source.pipeThrough(counter), { headers }), state };
 }
 
+/**
+ * The cap to enforce, given what the caller passed.
+ *
+ * `undefined` takes the default; `POSITIVE_INFINITY` reads unbounded;
+ * a positive integer is itself. Anything else throws.
+ *
+ * The throw is the point. Testing `!Number.isFinite(limit)` alone
+ * would read `NaN` and `-Infinity` as "unbounded" and silently drop
+ * the cap, which is the worst available outcome for a limit whose job
+ * is refusing hostile input: it fails open, and it does so quietly.
+ * `createValidator` rejects the same values at construction, so this
+ * catches the helpers being called directly.
+ */
+function resolveLimit(maxTotalBytes: number | undefined): number {
+  if (maxTotalBytes === undefined) return DEFAULT_MAX_TOTAL_BYTES;
+  if (maxTotalBytes === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
+  if (Number.isInteger(maxTotalBytes) && maxTotalBytes >= 1) return maxTotalBytes;
+  throw new TypeError(
+    `maxTotalBytes must be a positive integer or Number.POSITIVE_INFINITY (got ${String(maxTotalBytes)}).`,
+  );
+}
+
 async function readBody(
   message: Request | Response,
   contentType: string | undefined,
@@ -398,10 +420,10 @@ async function readBody(
   // so this branch is only reached on real bodyless requests.
   if (method === "GET" || method === "HEAD") return undefined;
 
-  const limit = maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES;
+  const limit = resolveLimit(maxTotalBytes);
   // An infinite cap skips the instrumentation entirely, leaving the
   // platform's native `text()` / `formData()` on the original message.
-  if (!Number.isFinite(limit)) return dispatchBody(message, contentType);
+  if (limit === Number.POSITIVE_INFINITY) return dispatchBody(message, contentType);
 
   const declared = declaredLength(message.headers);
   if (declared !== undefined && declared > limit) {

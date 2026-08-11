@@ -67,6 +67,11 @@ is a count taken while draining the stream. The extraction helpers throw
 `FetchBodyTooLargeError` instead, alongside the existing
 `FetchBodyParseError`.
 
+`combineValidators` reads the body before it knows which member owns
+the route, so a member's cap cannot apply and the composite carries its
+own `CombineOptions.maxTotalBytes`, same default. Set it to the most
+permissive of the members you combine.
+
 Two smaller consequences:
 
 - `HttpStatusMap` gained a `"body-too-large"` field. Overrides are

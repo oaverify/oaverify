@@ -1215,9 +1215,14 @@ export function createValidator(
         "Omit the option for uncapped recursion depth.",
     );
   }
+  // Allow-list rather than the `isFinite`-guarded shape `maxErrors` and
+  // `maxDepth` use above. Theirs treats every non-finite value as the
+  // intended infinity, so `NaN` and `-Infinity` pass; for a cap that
+  // exists to refuse hostile input, passing means failing open with no
+  // signal. Only `POSITIVE_INFINITY` means uncapped here.
   if (
     options.maxTotalBytes !== undefined &&
-    Number.isFinite(options.maxTotalBytes) &&
+    options.maxTotalBytes !== Number.POSITIVE_INFINITY &&
     (!Number.isInteger(options.maxTotalBytes) || options.maxTotalBytes < 1)
   ) {
     throw new Error(
@@ -1832,10 +1837,13 @@ export function createValidator(
     let extracted;
     try {
       extracted = await httpRequestFromFetch(request, {
-        // A per-call `maxTotalBytes` wins over the validator-level
-        // default; spreading first is what lets it.
-        maxTotalBytes,
         ...fetchOptions,
+        // A per-call `maxTotalBytes` wins over the validator-level one,
+        // but only when the caller actually supplied a value. Spreading
+        // `fetchOptions` last would let an explicit `undefined` (what a
+        // `{ ...opts }` forward of an absent field produces) reset the
+        // validator's cap to the reader's default instead of keeping it.
+        maxTotalBytes: fetchOptions?.maxTotalBytes ?? maxTotalBytes,
       });
     } catch (err) {
       // A rejected body fails before any request validation runs, so no

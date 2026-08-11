@@ -129,6 +129,7 @@ async function buildAot(
     only?: Array<{ method: string; path: string }>;
     outputMode?: "flat" | "tree" | "predicate";
     maxErrors?: number;
+    maxTotalBytes?: number;
   } = {},
 ): Promise<AotValidator> {
   const mem = memoryIo([["spec.json", document]]);
@@ -143,6 +144,7 @@ async function buildAot(
       only: extra.only,
       outputMode: extra.outputMode,
       maxErrors: extra.maxErrors,
+      maxTotalBytes: extra.maxTotalBytes,
     },
     mem.io,
   );
@@ -901,5 +903,77 @@ describe("compile-spec: emitted validateFetch* wrappers", () => {
     expect(r.ok).toBe(false);
     expect(r.errors?.[0]?.code).toBe("body");
     expect(r.errors?.[0]?.message).toContain("could not be parsed");
+  });
+
+  // The emitted wrappers share the runtime's reader, so they inherit
+  // its byte cap whether or not the emitter knows about it. What they
+  // do not inherit is the conversion: without a branch for it, an
+  // over-cap body would throw out of the AOT wrapper while
+  // `createValidator` returned a verdict, which is the divergence the
+  // whole reshape layer exists to prevent.
+  type FetchErrorAot = {
+    validateFetchRequest: (req: Request) => Promise<{
+      ok: boolean;
+      errors?: Array<{ code: string; params?: Record<string, unknown> }>;
+    }>;
+    validateFetchResponse: (
+      req: Request,
+      res: Response,
+    ) => Promise<{ ok: boolean; errors?: Array<{ code: string }> }>;
+  };
+
+  it("returns a body-too-large verdict rather than throwing, matching createValidator", async () => {
+    const aot = (await buildAot(petstore, { maxTotalBytes: 64 })) as unknown as FetchErrorAot;
+    const request = new Request("http://x/pets", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant": "t1" },
+      body: JSON.stringify({ name: "x".repeat(500) }),
+    });
+    const r = await aot.validateFetchRequest(request);
+    expect(r.ok).toBe(false);
+    expect(r.errors?.[0]?.code).toBe("body-too-large");
+    expect(r.errors?.[0]?.params).toMatchObject({ limit: 64 });
+  });
+
+  it("applies the baked cap on the response side too", async () => {
+    const aot = (await buildAot(petstore, { maxTotalBytes: 64 })) as unknown as FetchErrorAot;
+    const r = await aot.validateFetchResponse(
+      new Request("http://x/pets", { method: "GET" }),
+      new Response(JSON.stringify([{ name: "x".repeat(500) }]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(r.ok).toBe(false);
+    expect(r.errors?.[0]?.code).toBe("body-too-large");
+  });
+
+  it("inherits the reader's 1 MiB default when the emitter was given no cap", async () => {
+    // The emitter bakes `undefined` rather than restating 1 MiB, so
+    // this asserts the default actually arrives rather than the option
+    // silently resolving to uncapped in AOT output.
+    const aot = (await buildAot(petstore)) as unknown as FetchErrorAot;
+    const request = new Request("http://x/pets", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant": "t1" },
+      body: JSON.stringify({ name: "x".repeat(2 * 1024 * 1024) }),
+    });
+    const r = await aot.validateFetchRequest(request);
+    expect(r.ok).toBe(false);
+    expect(r.errors?.[0]?.code).toBe("body-too-large");
+    expect(r.errors?.[0]?.params).toMatchObject({ limit: 1024 * 1024 });
+  });
+
+  it("reads unbounded when the cap is emitted as infinite", async () => {
+    const aot = (await buildAot(petstore, {
+      maxTotalBytes: Number.POSITIVE_INFINITY,
+    })) as unknown as FetchAot;
+    const request = new Request("http://x/pets", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant": "t1" },
+      body: JSON.stringify({ name: "x".repeat(2 * 1024 * 1024) }),
+    });
+    const r = await aot.validateFetchRequest(request);
+    expect(r.ok).toBe(true);
   });
 });

@@ -1135,6 +1135,8 @@ export async function compileSpecCommand(
     outputMode?: "flat" | "tree" | "predicate";
     /** Leaf-error cap baked into the emitted validators. Default `1`. */
     maxErrors?: number;
+    /** Fetch-helper body byte cap baked in. Default 1 MiB. */
+    maxTotalBytes?: number;
     /** Policy for formats outside the built-in set. Default `"error"`. */
     unknownFormats?: "ignore" | "error";
     /** Test-only: override the emitted module's import prefix. */
@@ -1181,6 +1183,7 @@ export async function compileSpecCommand(
       only: args.only,
       outputMode: args.outputMode,
       maxErrors: args.maxErrors,
+      maxTotalBytes: args.maxTotalBytes,
       importPrefix: args.importPrefix,
       unknownFormats: args.unknownFormats,
       onUnknownFormats: (names) => {

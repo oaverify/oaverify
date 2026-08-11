@@ -94,6 +94,12 @@ export interface EmitSpecOptions {
    */
   maxErrors?: number;
   /**
+   * Byte cap on the emitted `validateFetch*` helpers' body read,
+   * matching `createValidator`'s `maxTotalBytes`. Default 1 MiB;
+   * `Number.POSITIVE_INFINITY` reads unbounded.
+   */
+  maxTotalBytes?: number;
+  /**
    * Policy for `format` names outside the built-in set, over the
    * document's schema positions (the walk is document-level, so an
    * operation dropped by `only` still counts; conservative on
@@ -132,6 +138,14 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   const maxErrorsLiteral = Number.isFinite(maxErrors)
     ? String(maxErrors)
     : "Number.POSITIVE_INFINITY";
+  // Left to the reader's own default when unset, so the 1 MiB constant
+  // has one home rather than being restated in emitted source.
+  const maxTotalBytesLiteral =
+    options.maxTotalBytes === undefined
+      ? "undefined"
+      : Number.isFinite(options.maxTotalBytes)
+        ? String(options.maxTotalBytes)
+        : "Number.POSITIVE_INFINITY";
   const warnings: string[] = [];
   const dialect = resolveDialect(document, options.dialect, warnings);
 
@@ -307,7 +321,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     // membership in `@oaverify/core/codegen-runtime` follows this import
     // (see that module's header). Do not point it at a subpath that
     // promises less.
-    `import { deserialize, matchParsedMediaType, matchResponseKey, normalizeRequestQuery, FetchBodyParseError, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
+    `import { deserialize, matchParsedMediaType, matchResponseKey, normalizeRequestQuery, FetchBodyParseError, FetchBodyTooLargeError, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
     "",
     "void createBranchError; void createError; void deepEqual; void typeOf; void wrapErrors;",
     "void resolveOperationRef;",
@@ -368,6 +382,8 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     "// reshapeResult / toFetchResult shape it to match createValidator.",
     `const __outputMode = ${JSON.stringify(outputMode)};`,
     `const __maxErrors = ${maxErrorsLiteral};`,
+    "// Byte cap on the Fetch helpers' body read (from --max-total-bytes).",
+    `const __maxTotalBytes = ${maxTotalBytesLiteral};`,
     "",
     ...(usesOwnHelper ? [renderOwnHelper(), ""] : []),
     ...(usesHeaderHelper ? [renderHeaderHelper(), ""] : []),
@@ -993,26 +1009,45 @@ export function validateResponse(req, res) {
   return reshapeResult(__validateResponseTree(req, res), __outputMode, __maxErrors);
 }
 
-function __bodyParseFailure(err) {
-  // Mirrors createValidator: an unparseable payload is a validation
-  // verdict, so only FetchBodyParseError converts to a result; IO and
+function __bodyFailure(err) {
+  // Mirrors createValidator: a body the reader rejects is a validation
+  // verdict, so the two body errors convert to a result; IO and
   // user-callback failures propagate unchanged.
-  const leaf = {
-    code: "body",
-    path: ["body"],
-    message: err.message,
-    params: { mediaType: err.mediaType },
-    children: [],
-  };
+  let leaf;
+  if (err instanceof FetchBodyParseError) {
+    leaf = {
+      code: "body",
+      path: ["body"],
+      message: err.message,
+      params: { mediaType: err.mediaType },
+      children: [],
+    };
+  } else if (err instanceof FetchBodyTooLargeError) {
+    leaf = {
+      code: "body-too-large",
+      path: ["body"],
+      message: err.message,
+      params: { limit: err.limit, reason: err.reason, bytes: err.bytes },
+      children: [],
+    };
+  } else {
+    return undefined;
+  }
   return toFetchResult(reshapeResult(leaf, __outputMode, __maxErrors), undefined);
 }
 
 export async function validateFetchRequest(request, options) {
   let extracted;
   try {
-    extracted = await httpRequestFromFetch(request, options);
+    // A per-call maxTotalBytes wins over the baked-in one, when the
+    // caller supplied one; an explicit undefined keeps the baked cap.
+    extracted = await httpRequestFromFetch(request, {
+      ...options,
+      maxTotalBytes: options?.maxTotalBytes ?? __maxTotalBytes,
+    });
   } catch (err) {
-    if (err instanceof FetchBodyParseError) return __bodyParseFailure(err);
+    const verdict = __bodyFailure(err);
+    if (verdict !== undefined) return verdict;
     throw err;
   }
   return toFetchResult(validateRequest(extracted.httpRequest), extracted.body);
@@ -1026,9 +1061,10 @@ export async function validateFetchResponse(request, response) {
   const httpRequest = { method: request.method.toUpperCase(), path: url.pathname };
   let extracted;
   try {
-    extracted = await httpResponseFromFetch(response);
+    extracted = await httpResponseFromFetch(response, { maxTotalBytes: __maxTotalBytes });
   } catch (err) {
-    if (err instanceof FetchBodyParseError) return __bodyParseFailure(err);
+    const verdict = __bodyFailure(err);
+    if (verdict !== undefined) return verdict;
     throw err;
   }
   return toFetchResult(validateResponse(httpRequest, extracted.httpResponse), extracted.body);
