@@ -265,13 +265,20 @@ function relatedLocationsOf(
       // subset in the same order, so the two diverge as soon as one
       // reason addresses the value as a whole; this is what joins an
       // item back to the entry in `oaverify:reasons`.
+      //
+      // The join is the only copy of the reason this item carries. Its
+      // `code`, its `path` and its `params` are one lookup away and
+      // were duplicated here at first, which cost ~152 bytes an item
+      // and about 15% of this change's growth for data already present
+      // twice: once in `oaverify:reasons`, and once in this item's own
+      // message, which renders the path and the ruling for a reader.
+      // A `required` item's missing name is `params.missing` on the
+      // joined reason, and its final path segment says the same thing.
       "oaverify:reasonIndex": located.index,
-      "oaverify:reasonCode": located.reason.code,
-      // The reason's path, whole, including the final segment that
-      // `at: "container"` says this location does not address. A
-      // consumer reading a `required` item needs the missing name, and
-      // recovering it from `params.missing` should not be the only way.
-      "oaverify:reasonPath": located.reason.path,
+      // Not recoverable from the reason alone, which is why this one
+      // stays: it says whether the region addresses the position the
+      // reason names or the container that holds it, and deriving that
+      // means reimplementing `reasonTargetFor`.
       "oaverify:at": located.at,
     },
   }));

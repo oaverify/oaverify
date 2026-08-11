@@ -266,11 +266,27 @@ describe("check --format sarif locates each sub-rejection", () => {
     const log = JSON.parse(out.join("")) as SarifLog;
     const result = (log.runs[0]?.results ?? []).find((r) => r.ruleId === "example-invalid");
     const related = result?.relatedLocations ?? [];
+    const reasonList = (result?.properties["oaverify:reasons"] ?? []) as {
+      path: readonly (string | number)[];
+    }[];
     return {
       result,
       related,
       reasons: related.filter((l) => l.properties?.["oaverify:kind"] === "reason"),
       via: related.filter((l) => l.properties?.["oaverify:kind"] === "via"),
+      /**
+       * The item for a reason at this path, found the way a consumer
+       * has to find it: join `oaverify:reasonIndex` back to the entry in
+       * `oaverify:reasons` and read the path there. The item does not
+       * carry the path itself, deliberately, so this helper exercises
+       * the join rather than a copy of the data.
+       */
+      byPath: (path: readonly (string | number)[]): SarifLoc | undefined =>
+        related.find((l) => {
+          if (l.properties?.["oaverify:kind"] !== "reason") return false;
+          const at = reasonList[l.properties["oaverify:reasonIndex"] as number];
+          return JSON.stringify(at?.path) === JSON.stringify(path);
+        }),
     };
   };
 
@@ -285,28 +301,23 @@ describe("check --format sarif locates each sub-rejection", () => {
     return text.slice(region?.charOffset, (region?.charOffset ?? 0) + (region?.charLength ?? 0));
   };
 
-  const byPath = (items: SarifLoc[], path: readonly (string | number)[]) =>
-    items.find(
-      (l) => JSON.stringify(l.properties?.["oaverify:reasonPath"]) === JSON.stringify(path),
-    );
-
   it.each(["spec.json", "spec.yaml"])(
     "names the text the author wrote, in %s (row 14)",
     async (file) => {
-      const { reasons } = await run(file);
+      const { reasons, byPath } = await run(file);
 
       // Four sub-rejections, four positions. The two `type` leaves and the
       // escaped name address their own values; the missing `email`
       // addresses the object that should have held it.
       expect(reasons.length).toBe(4);
 
-      expect(sliced(file, byPath(reasons, ["id"]))).toContain("not-an-integer");
-      expect(sliced(file, byPath(reasons, ["items", 0, "price"]))).toContain("free");
-      expect(sliced(file, byPath(reasons, ["a/b"]))).toContain("7");
+      expect(sliced(file, byPath(["id"]))).toContain("not-an-integer");
+      expect(sliced(file, byPath(["items", 0, "price"]))).toContain("free");
+      expect(sliced(file, byPath(["a/b"]))).toContain("7");
 
       // The container case, against a real file: the region covers the
       // `customer` object, and `email` appears nowhere inside it.
-      const missing = byPath(reasons, ["customer", "email"]);
+      const missing = byPath(["customer", "email"]);
       expect(missing?.properties?.["oaverify:at"]).toBe("container");
       const customer = sliced(file, missing);
       expect(customer).toContain("Ada");
@@ -317,7 +328,7 @@ describe("check --format sarif locates each sub-rejection", () => {
   it.each(["spec.json", "spec.yaml"])(
     "narrows each item to less than the whole example, in %s (rows 2 and 3)",
     async (file) => {
-      const { result, reasons } = await run(file);
+      const { result, reasons, byPath } = await run(file);
       // The point of the exercise: an editor squiggles the offending
       // value rather than the whole example the primary location covers.
       const example = result?.locations[0]?.physicalLocation.region;
@@ -329,12 +340,12 @@ describe("check --format sarif locates each sub-rejection", () => {
         // is a sub-rejection of.
         expect(region?.charOffset).toBeGreaterThanOrEqual(example?.charOffset ?? 0);
       }
-      expect(byPath(reasons, ["items", 0, "price"])?.properties?.["oaverify:at"]).toBe("self");
+      expect(byPath(["items", 0, "price"])?.properties?.["oaverify:at"]).toBe("self");
     },
   );
 
   it("carries via hops and reason items in one array, told apart by kind (row 9)", async () => {
-    const { result, related, via, reasons } = await run("entry.json");
+    const { result, related, via, reasons, byPath } = await run("entry.json");
 
     // The example lives in the second file and the resolver crossed a
     // reference to reach it, so both kinds are present at once. This is
@@ -352,8 +363,8 @@ describe("check --format sarif locates each sub-rejection", () => {
     expect(new Set(related.map((l) => l.id)).size).toBe(related.length);
 
     // One of each semantics in the same result.
-    expect(byPath(reasons, ["id"])?.properties?.["oaverify:at"]).toBe("self");
-    expect(byPath(reasons, ["customer", "email"])?.properties?.["oaverify:at"]).toBe("container");
+    expect(byPath(["id"])?.properties?.["oaverify:at"]).toBe("self");
+    expect(byPath(["customer", "email"])?.properties?.["oaverify:at"]).toBe("container");
 
     // The hops address the entry file and the reasons address the file
     // the example is written in. Conflating the two is the failure this

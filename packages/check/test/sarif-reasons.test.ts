@@ -196,9 +196,14 @@ describe("a reason whose path names a member the value does not hold", () => {
     );
     expect(items).toHaveLength(1);
     expect(items[0]?.properties?.["oaverify:at"]).toBe("container");
-    // The path stays whole, missing member included, so a consumer
-    // reading the item alone still knows what is absent.
-    expect(items[0]?.properties?.["oaverify:reasonPath"]).toEqual([0, "repository", "blobs_url"]);
+    // A consumer still learns what is absent, from the two places that
+    // already carry it rather than from a third copy on the item: the
+    // message below names it, and `oaverify:reasonIndex` joins to the
+    // reason whose path ends in it. The item carries the join, and
+    // nothing the join answers.
+    expect(items[0]?.properties?.["oaverify:reasonIndex"]).toBe(0);
+    expect(items[0]?.properties).not.toHaveProperty("oaverify:reasonPath");
+    expect(items[0]?.properties).not.toHaveProperty("oaverify:reasonCode");
     expect(items[0]?.message?.text).toBe(
       '0.repository: must have required property "blobs_url" (this location is the containing value; the member it names is absent)',
     );
