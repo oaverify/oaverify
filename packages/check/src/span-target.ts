@@ -186,9 +186,16 @@ export type ReasonTarget =
  * final segment of its `path` names a value the instance **does not
  * hold**, so no node in the document corresponds to it and the ruling is
  * about the container. `required` qualifies, and its `params.missing`
- * carries the same name the segment does. `dependentRequired` would
- * qualify on the same grounds. `type` does not: the value is there and
- * is the wrong shape.
+ * carries the same name the segment does. `dependentRequired` and
+ * `dependencies` qualify on the same grounds, and `dependencies` is
+ * here because it behaves identically rather than by analogy: against
+ * `{credit_card: "4111"}` under `dependencies: {credit_card:
+ * ["billing_address"]}` it emits code `dependencies`, path
+ * `["billing_address"]` and `params.missing` `"billing_address"`, which
+ * is the same triple `required` emits. It is the 3.0 spelling of the
+ * keyword and reachable under 3.1 too, both dialects carrying it in
+ * `applicatorVocabulary`. `type` does not qualify: the value is there
+ * and is the wrong shape.
  *
  * This is a statement about what a code means, not a repair for paths
  * that failed to resolve. A code left out of this table and pointed at a
@@ -202,7 +209,11 @@ export type ReasonTarget =
  * and all 423 reasons of every other code resolve at the path.
  * `span-target.test.ts` pins both halves.
  */
-const CONTAINER_CODES: ReadonlySet<string> = new Set(["required", "dependentRequired"]);
+const CONTAINER_CODES: ReadonlySet<string> = new Set([
+  "required",
+  "dependentRequired",
+  "dependencies",
+]);
 
 /**
  * Where a reason's ruling applies, given the keyword that made it.
