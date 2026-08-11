@@ -61,7 +61,8 @@ export const DEFAULT_HTTP_STATUS_MAP: HttpStatusMap = {
  * overrides).
  *
  * Resolution order matches the HTTP gate semantics: 404 → 405 →
- * 415 → 401 → 500 → 413 → 400:
+ * 401 → 415 → 500 → 413 → 400. Authentication outranks content
+ * negotiation, so a request that fails both answers 401:
  *
  * ```ts
  * import { httpStatusFor } from "@oaverify/core";
@@ -90,7 +91,7 @@ export function httpStatusFor(
       : { ...DEFAULT_HTTP_STATUS_MAP, ...overrides };
   // Accepts either a nested error tree or the flat leaf list the default
   // (flat) validator returns. Scan leaves in HTTP-gate priority order
-  // (404 -> 405 -> 415 -> 401 -> 500 -> 413 -> 400); `route` / `method` fire as
+  // (404 -> 405 -> 401 -> 415 -> 500 -> 413 -> 400); `route` / `method` fire as
   // standalone leaves, the rest as leaves anywhere in the report.
   const leaves = Array.isArray(error) ? error : collectLeaves(error as ValidationError);
   if (leaves.some((l) => l.code === "route")) return map.route;
