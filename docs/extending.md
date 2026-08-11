@@ -27,14 +27,39 @@ the relevant type; this page is the worked procedure.
 ### The compile context
 
 `compile(ctx)` receives a
-[`KeywordCompileContext`](../packages/schema/src/keywords/types.ts).
-Its TSDoc is the field-by-field reference: `gen`, `data` / `path` /
-`errors`, `schema` / `parentSchema`, the error helpers (`emitError`,
-`leafErrorExpr`, `branchErrorExpr`), the descent helpers
-(`validateSubschema`, `compileSubschema`, `compileAndCallSubschema`),
-`resolveRef`, the unevaluated-tracking vars, `effectivePathExpr`,
-`emitBudgetBreak`, and the hoisting helpers (`hoistConstant`,
-`scopeLocal`). Read it there rather than duplicating it here.
+[`KeywordCompileContext`](../packages/schema/src/keywords/types.ts),
+whose TSDoc is the field-by-field reference. Read it there rather than
+here; what is worth knowing before you open it is that its members fall
+into three groups, and that a leaf keyword needs one of them.
+
+**Intent helpers**, which is what you are almost certainly writing.
+Where you are (`schema`, `parentSchema`, `data`, `path`, `errors`),
+emitting (`gen`), descending (`validateSubschema`, and
+`compileSubschema` / `compileAndCallSubschema` when you need the
+sub-validator's verdict), failing (`emitError`, `errorStatement`,
+`leafErrorExpr`, `branchErrorExpr`), asking (`formatTypeOf`,
+`declineImplements`) and paying less (`hoistConstant`, `scopeLocal`,
+`emitBudgetBreak`). These say what the keyword means and emit source
+that is right for whichever mode the compile is in.
+
+**Mode flags**: `predicate`, `flat`, `gated`, `depthGated`,
+`unevaluatedTracking`. Skip these. They are for keywords that inspect a
+sub-validator's return value, whose type changes with the mode;
+`composition.ts`, `ref.ts`, `object-validation.ts`, `discriminator.ts`
+and `items.ts` are the only files that read one. A leaf keyword
+branching on a flag is a sign the intent helper it wanted already
+exists.
+
+**Raw mechanism**: `resolveRef`, `isRecursiveRef`, `resolveDynamicRef`,
+the dynamic-scope names, the unevaluated-tracking vars, `pathSegments`,
+`effectivePathExpr`, `appendErrorsStatement`, `budgetBreakStatement`.
+Emitter-level, one or two readers each, and each names its readers in
+its own TSDoc.
+
+For scale: `string.ts` and `number.ts` between them use `data`,
+`schema`, `gen`, `emitError`, `leafErrorExpr`, `hoistConstant` and
+`formatTypeOf`, and read no flag. That is the shape of a leaf
+keyword.
 
 Three cross-cutting behaviors are worth calling out because they change
 how `compile` is written.
