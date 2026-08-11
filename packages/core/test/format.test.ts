@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createBranchError, createLeafError, type ValidationError } from "../src/errors.js";
-import { countErrors, formatSummary, formatText, toJsonObject } from "../src/format.js";
+import {
+  countErrors,
+  formatLeafDetail,
+  formatSummary,
+  formatText,
+  toJsonObject,
+} from "../src/format.js";
 
 /** A realistic 4-level oneOf failure used by several formatter assertions. */
 function sampleTree(): ValidationError {
@@ -266,5 +272,60 @@ describe("formatSummary path-less leaf", () => {
   it("renders a path-less leaf as just the message", () => {
     const tree = createLeafError("route", [], "no matching route");
     expect(formatSummary(tree)).toBe("no matching route");
+  });
+});
+
+describe("formatLeafDetail", () => {
+  // Shared by an example finding's summary and by the located item a
+  // SARIF related location carries for the same leaf (#777). They
+  // rendered the same leaf differently while this was private to one
+  // of them.
+  it("names the value and the set for enum", () => {
+    expect(formatLeafDetail("enum", { actual: "EFT", allowed: ["ACH", "CHECK"] })).toBe(
+      ' (actual: "EFT", allowed: ["ACH","CHECK"])',
+    );
+  });
+
+  it("names the value and the expectation for const", () => {
+    expect(formatLeafDetail("const", { actual: 2, expected: 1 })).toBe(" (actual: 2, expected: 1)");
+  });
+
+  it("names the actual type for type, which is a name and not a value", () => {
+    expect(formatLeafDetail("type", { actual: "number" })).toBe(" (actual: number)");
+  });
+
+  it("says nothing for a type leaf whose actual is not a type name", () => {
+    // Callers append unconditionally, so this has to be safe rather
+    // than render `(actual: [object Object])`.
+    expect(formatLeafDetail("type", { actual: { a: 1 } })).toBe("");
+    expect(formatLeafDetail("type", {})).toBe("");
+  });
+
+  it("says nothing for a code whose message already names its bound", () => {
+    // `minLength` reports `actual` as a count, so appending it would
+    // read as a second bound.
+    expect(formatLeafDetail("minLength", { minLength: 34, actual: 0 })).toBe("");
+    expect(formatLeafDetail("required", { missing: "id" })).toBe("");
+  });
+
+  it("elides a long value rather than running past a line", () => {
+    const long = "x".repeat(500);
+    const out = formatLeafDetail("const", { actual: long, expected: "y" });
+    expect(out).toContain("...");
+    expect(out.length).toBeLessThan(120);
+  });
+
+  it("allows an enum more room than a single value", () => {
+    // A set is worth naming in full more often than one value is.
+    const allowed = Array.from({ length: 20 }, (_, i) => `option-${i}`);
+    const out = formatLeafDetail("enum", { actual: "nope", allowed });
+    expect(out).toContain("option-0");
+    expect(out).toContain("option-5");
+  });
+
+  it("survives a value that will not serialize", () => {
+    const circular: Record<string, unknown> = {};
+    circular["self"] = circular;
+    expect(formatLeafDetail("const", { actual: circular, expected: 1 })).toContain("the value");
   });
 });

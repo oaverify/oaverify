@@ -50,6 +50,7 @@
 
 import { isAbsolute, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
+import { formatLeafDetail } from "@oaverify/internal-core";
 import type { SourceSpan, SpanRequest } from "@oaverify/internal-spec";
 import { locatedReasonsFor, spanFor, type LocatedReason } from "./span-target.js";
 import { type CheckClass, type CheckFinding, type CheckSeverity } from "./finding.js";
@@ -289,16 +290,29 @@ function relatedLocationsOf(
  * What a located reason says, for a reader looking at one item.
  *
  * Names the position and the ruling, in the spelling the finding's
- * summary uses. A `container` item additionally says whose absence it
- * is about, because the location it carries addresses the object and the
- * sentence would otherwise read as though the member were there.
+ * summary uses. That now includes the actual-and-allowed detail for the
+ * leaves whose message is a bare assertion, through the same
+ * `formatLeafDetail` the summary renders (#777). Before sharing it, an
+ * `enum` item read `paymentMethod: must be one of the allowed values`
+ * and named neither the value nor the set, which is the text #580 fixed
+ * in the summary and left standing in the slot a viewer actually shows.
+ *
+ * Capped the same way the summary is, deliberately. The uncapped values
+ * are on `oaverify:reasons` one join away, so the cap costs a consumer
+ * nothing, and a related location is read in a tooltip and a list row
+ * where an unbounded enum is the problem #773 was about.
+ *
+ * A `container` item additionally says whose absence it is about,
+ * because the location it carries addresses the object and the sentence
+ * would otherwise read as though the member were there.
  */
 function messageForReason(located: LocatedReason): string {
   const where = pathText(located.path);
+  const detail = formatLeafDetail(located.reason.code, located.reason.params);
   if (located.at === "container") {
-    return `${where}: ${located.reason.message} (this location is the containing value; the member it names is absent)`;
+    return `${where}: ${located.reason.message}${detail} (this location is the containing value; the member it names is absent)`;
   }
-  return `${where}: ${located.reason.message}`;
+  return `${where}: ${located.reason.message}${detail}`;
 }
 
 /**
