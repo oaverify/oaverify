@@ -25,8 +25,10 @@
  *     `items`, `additionalProperties`, ...). Each applied subschema is
  *     classified at its own position; a BUFFER child materializes just
  *     that subtree and does NOT force the enclosing scope to buffer.
- *   - `contains`: STREAM when the contained predicate is forward; BUFFER
- *     when it is not (each item must be materialized and tested).
+ *   - `contains`: STREAM when the contained predicate is forward, but the
+ *     spine materializes the enclosing array either way (forward streaming
+ *     of `contains` is not implemented); BUFFER when it is not (each item
+ *     must be materialized and tested).
  *   - `composition`: `allOf` / `anyOf` / `oneOf` / `not` / `if`. TEE when
  *     every branch is forward; BUFFER when a branch is not (or under
  *     parity mode for `anyOf` / `oneOf`).

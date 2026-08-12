@@ -552,18 +552,19 @@ function walk(
  * for the same configuration a validator would run under (`openApiVersion`
  * / `dialect` select the keyword set and `format` assertion;
  * `maxBufferedBytes` drives `effectivePeakBytes`; `keywords` / `parity`
- * affect classification; `enforceBounds` makes an unbounded schema throw,
- * below). An unstreamable schema throws {@link ClassifierError}, the same
- * error `createStreamValidator` raises.
+ * affect classification; `enforceBounds` escalates the classifier's
+ * unbounded warnings, below). An unstreamable schema throws
+ * {@link ClassifierError}, the same error `createStreamValidator` raises.
  *
  * Wire-byte sizes are an upper-bound estimate (see the module overview),
  * not a guaranteed ceiling. An `"unbounded"` position is the headline
  * output: a buffering position with no structural bound, which falls back
  * to `maxBufferedBytes` at runtime. Reporting these is the default; pass
  * `enforceBounds: true` to instead throw {@link ClassifierError} on the
- * first unbounded dimension, the design-time equivalent of refusing to
- * construct an unsafe validator (the same bound `createStreamValidator`
- * enforces).
+ * classifier's unbounded-string and unbounded-uniqueItems warnings, the
+ * design-time equivalent of refusing to construct an unsafe validator
+ * (the same bound `createStreamValidator` enforces). Positions the
+ * analyzer itself reports as `"unbounded"` do not throw.
  *
  * @public
  */

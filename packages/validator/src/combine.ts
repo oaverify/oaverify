@@ -153,8 +153,8 @@ function effectiveRoutes(routes: readonly RouteInfo[]): RouteInfo[] {
  * plans, so cross-spec component-name clashes can't occur), then
  * `combineValidators([a, b, c])` to get one validator the framework
  * adapters consume unchanged. `validateRequests(combineValidators([...]))`
- * replaces a stack of per-spec middlewares; a future `validateResponses`
- * takes the same composite.
+ * replaces a stack of per-spec middlewares; `validateResponses` takes
+ * the same composite.
  *
  * Dispatch keys on route ownership ({@link Validator.matchRoute}), not on
  * a member's validation verdict, so a member configured with

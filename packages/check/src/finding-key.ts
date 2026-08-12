@@ -69,7 +69,7 @@ function nearestCode(key: string): string {
  *
  * `malformed` is not special here. It is refused as "not a class",
  * which is true, and a caller that owes the reader a better sentence
- * (both of today's do) checks for it before calling.
+ * (all three of today's do) checks for it before calling.
  *
  * @param key - The key text, already trimmed.
  *

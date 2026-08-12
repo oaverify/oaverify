@@ -27,8 +27,8 @@ import type { CheckCode } from "./codes.js";
  */
 export interface CheckFinding {
   /**
-   * Which check produced this, matching the three-class model in
-   * docs/strictness.md.
+   * Which check produced this, matching the class table in
+   * docs/strictness.md ("Class and severity are different questions").
    *
    * Not the same set as {@link CHECK_CLASSES}, which is what
    * `--findings` selects. A malformed schema is found by compiling, which is what the

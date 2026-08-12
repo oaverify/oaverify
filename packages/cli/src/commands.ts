@@ -400,11 +400,10 @@ function primarySink(
 /**
  * Implement the `oaverify resolve <spec>` subcommand.
  *
- * @param args - Entry spec path, overlay files, optional lint flags, and
- *   base CLI options.
- * @returns Exit code 0 on success, 1 when `--lint --fail-on warning`
- *   surfaces any findings, 3 on usage errors (`--fail-on` without
- *   `--lint`, or an `--overlay` file of unrecognised shape).
+ * @param args - Entry spec path, overlay files, and base CLI options.
+ * @returns Exit code 0 on success, 3 on usage errors (an `--overlay`
+ *   file of unrecognised shape, or a reader posture that refuses the
+ *   entry).
  *
  * @public
  */
@@ -501,12 +500,18 @@ function wrapText(text: string, width: number, first: string, rest: string): str
  *   OpenAPI publishes for the version it declares. Structural only; it
  *   cannot follow references, so cross-reference defects are out of
  *   scope (see docs/strictness.md).
+ * - **examples**: documented examples that do not validate against the
+ *   schema they illustrate.
+ * - **redos**: `pattern` regexes with a proven ambiguity, which a
+ *   backtracking engine can be made to match in superlinear time.
  *
  * @returns 0 clean (or every finding sits below the gate), 1 findings met
  *          the `--fail-on` gate (default `error`, so a specification
  *          violation fails with no flag; `--fail-on none` restores the
- *          advisory exit 0), 2 the document could not be read at all
- *          (nothing was graded, nothing printed), 3 usage error, 4 the
+ *          advisory exit 0), 2 the document could not be read or graded
+ *          (a load failure prints nothing; an aborted check prints the
+ *          findings produced before the abort to stderr, and the report
+ *          sink stays empty), 3 usage error, 4 the
  *          document was graded and at least one schema is malformed.
  *
  * The 2-versus-4 split is what a script can act on. Exit 2 means there
@@ -523,7 +528,6 @@ export async function checkCommand(
   args: {
     spec: string;
     overlays: string[];
-    /** Classes to run. Defaults to all of {@link CHECK_CLASSES}. */
     /**
      * Exit non-zero when any finding at or above this severity appears.
      * Defaults to `"error"` (#549): a document that violates the

@@ -4,7 +4,7 @@ import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
 
 /**
  * Ceiling on the `multipleOf` tolerance, in units of `q`. A quarter unit
- * is eight orders of magnitude above the worst drift a legitimate
+ * is about ten orders of magnitude above the worst drift a legitimate
  * multiple produces (~2.9e-11, from `16384.3 / 0.1`) and well below the
  * half unit at which a tolerance would accept any value at all.
  */
@@ -32,7 +32,7 @@ function emitNumericError(
  * produces a non-terminating binary fraction. IEEE-754 rounding error
  * grows roughly with magnitude, so a flat tolerance is wrong at both
  * ends: a value like `143.48 / 0.01` drifts by about `1.82e-12`, while
- * values near `1` stay within `1e-14`. Scaling by `Number.EPSILON *
+ * values near `1` stay within `1e-14`. Scaling by `16 * Number.EPSILON *
  * max(1, |q|, |divisor|)` gives each multiple of `divisor` the same
  * proportional slack without letting true non-multiples sneak through.
  *

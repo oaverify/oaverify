@@ -29,8 +29,9 @@ export interface ValidateRequestsOptions {
    *
    * Pass your own to render a custom envelope, map to a different
    * status, or call `ctx.next(err)` to delegate to the host's error
-   * middleware. May be async; the middleware awaits it. Thrown errors
-   * and rejected promises forward via `next(err)`.
+   * middleware. May be async; the middleware handles the returned
+   * promise rather than awaiting it, so completion is not waited on.
+   * Thrown errors and rejected promises forward via `next(err)`.
    *
    * The middleware does not call `next()` after `onError` returns;
    * the callback owns the response.
@@ -98,11 +99,10 @@ export function validateRequests(
     }
     const errors: ValidationError[] =
       "errors" in result ? result.errors : collectLeaves(result.error);
-    // onError may be sync or async. Awaiting a sync (void) return is
-    // essentially free; awaiting a Promise lets handlers do async work
-    // (remote logging, dynamic rendering config) before the response
-    // settles. Promise rejection is forwarded to next(err) so the
-    // host's error middleware sees it.
+    // onError may be sync or async. The middleware does not await it
+    // (Express 4 middleware returns synchronously); the returned
+    // promise is handled only so a rejection forwards to next(err)
+    // and the host's error middleware sees it.
     Promise.resolve(onError(errors, { req, res, next })).catch(next);
   };
 }

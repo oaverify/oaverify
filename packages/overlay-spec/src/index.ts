@@ -82,8 +82,8 @@ export function isOverlayDocument(value: unknown): value is OverlayDocument {
  *
  * @throws {@link UnrecognisedTargetError} when any action's `target`
  *         JSONPath doesn't match a recognised shape.
- * @throws `Error` when an action carries both `update` and
- *         `remove: true`, or when the action's payload shape doesn't
+ * @throws `Error` when an action carries both, or neither, of `update`
+ *         and `remove: true`, or when the action's payload shape doesn't
  *         match the target (e.g. non-object where an object is
  *         expected).
  *

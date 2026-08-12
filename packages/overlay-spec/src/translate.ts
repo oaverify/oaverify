@@ -69,8 +69,7 @@ type ComponentBucket = (typeof COMPONENT_BUCKETS)[number];
  *         shape doesn't map to a typed verb.
  * @throws `Error` with the offending target in the message when the
  *         action payload is malformed for the target's shape (e.g.
- *         non-string in a string array, non-object where an object is
- *         required).
+ *         non-object where an object is required).
  */
 export function applyAction(target: string, action: NormalizedAction, overlay: SpecOverlay): void {
   const tokens = parseTarget(target);

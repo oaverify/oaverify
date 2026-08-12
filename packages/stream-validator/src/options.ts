@@ -116,7 +116,7 @@ export interface StreamValidatorOptions {
   /**
    * What to do about a `format` with no validator registered under its
    * name: `"ignore"` (default) leaves it asserting nothing, `"error"`
-   * refuses to build the island delegate.
+   * makes construction throw, before any input byte is processed.
    *
    * Only the BUFFER-island delegate asserts `format`, so this is scoped
    * to the same place {@link StreamValidatorOptions.formats} is.
@@ -144,7 +144,7 @@ export interface StreamValidatorOptions {
 
   /**
    * Force exact `@oaverify/internal-schema` message parity by classifying `oneOf` /
-   * `anyOf` (and other TEE-eligible composition) as BUFFER, so the
+   * `anyOf` as BUFFER, so the
    * in-memory engine produces the violation messages. Default `false`
    * (stream where possible). Off by default because it trades the
    * streaming property for message fidelity.
@@ -152,8 +152,8 @@ export interface StreamValidatorOptions {
   parity?: boolean;
 
   /**
-   * Emit a `key` event for matching scopes. Absent = off, and codegen is
-   * byte-identical to the no-events spine. `true` emits for every key;
+   * Emit a `key` event for matching scopes. Absent = off: the spine does
+   * no key-event work. `true` emits for every key;
    * `{ at }` filters by path. Observe-and-abort only; it cannot rewrite
    * or dedupe output.
    */
@@ -256,8 +256,8 @@ export interface StreamValidatorOptions {
 
   /**
    * Turn the classifier's unbounded-* warnings into compile errors: an
-   * unbounded `pattern` / `format` string, an unbounded BUFFER island,
-   * unbounded depth, or `uniqueItems` with no `maxItems`. The recommended
+   * unbounded `pattern` / `format` string, or `uniqueItems` with no
+   * `maxItems`. The recommended
    * setting for untrusted input. Named for the resource-bound axis it
    * governs, distinct from `@oaverify/internal-validator`'s schema-lint `strict` mode.
    * Default `false`.

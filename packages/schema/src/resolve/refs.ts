@@ -149,19 +149,19 @@ function resolveJsonPointer(root: SchemaOrBoolean, pointer: string): SchemaOrBoo
 }
 
 /**
- * Find every distinct schema object reachable via `$dynamicAnchor` from an
- * ancestor chain, used when the compiler needs to decide which dynamic
- * anchor the current `$dynamicRef` should bind to.
+ * Collect the graph-wide `$dynamicAnchor` union, plus the anchor `schema`
+ * itself declares (which wins on a name collision).
  *
  * @remarks
- * This is the "static" part of $dynamicRef resolution; the full runtime
- * dynamic scope is simulated at compile time by walking each schema's
- * enclosing context. For schemas that don't use `$dynamicAnchor`, a
- * `$dynamicRef` behaves exactly like a `$ref`.
+ * A flat lookup table, not a scope simulation: since #663 the actual
+ * dynamic scope lives in a runtime stack of schema resources, and this
+ * map only supplies the static candidates. For schemas that don't use
+ * `$dynamicAnchor`, a `$dynamicRef` behaves exactly like a `$ref`.
  *
- * @param schema - Schema to inspect.
- * @param graph - Resolved graph (for fallback anchor lookups).
- * @returns The `$dynamicAnchor` map reachable from this schema.
+ * @param schema - Schema whose own `$dynamicAnchor` (if any) is added.
+ * @param graph - Resolved graph supplying the flat `byDynamicAnchor` union.
+ * @returns A copy of `graph.byDynamicAnchor` with `schema`'s own
+ *          `$dynamicAnchor` entry layered on top.
  *
  * @public
  */

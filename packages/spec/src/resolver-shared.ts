@@ -141,7 +141,8 @@ export function encodeFragment(fragment: string): string {
 
 /**
  * The internal `$ref` an external `$ref` collapses to: a pointer into
- * `#/$defs/__ext__/<encoded-uri>` (plus the encoded fragment, if any).
+ * `#/x-oaverify-externals/<encoded-uri>` (plus the encoded fragment, if
+ * any). See {@link EXTERNALS_FIELD}.
  */
 export function makeStitchRef(targetUri: string, fragment: string): { $ref: string } {
   return {

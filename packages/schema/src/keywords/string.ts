@@ -110,7 +110,7 @@ export const formatKeyword: KeywordDefinition = {
  * A format constrains one JSON type. String formats (`date-time`,
  * `uuid`) are asserted on strings, numeric ones (`int32`, `int64`) on
  * numbers, and a value of any other type is a no-op, per JSON Schema
- * 2020-12 §6.3. So is a format name nothing is registered under, and so
+ * 2020-12 §7. So is a format name nothing is registered under, and so
  * is one registered as `false`.
  *
  * Which guard is emitted comes from the format's declared type at

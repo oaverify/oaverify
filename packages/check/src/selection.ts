@@ -59,10 +59,9 @@ export interface FindingTerm {
  * What one term did, for the report.
  *
  * A term is either live or a no-op, and a no-op says why in the words a
- * reader needs to fix the command. Live exclusion terms additionally
- * carry a count, filled in after the passes run by
- * {@link applySkip}; live inclusion terms carry no count because they
- * select rather than drop.
+ * reader needs to fix the command. Drop counts are not here: they exist
+ * only after the passes run, on the {@link SkipReportEntry} array that
+ * {@link applySkip} returns for the live exclusion keys.
  *
  * @public
  */

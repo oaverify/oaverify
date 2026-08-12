@@ -20,9 +20,10 @@ export function validateHostname(value: string): boolean {
 }
 
 /**
- * RFC 5890 internationalized `hostname`. Same rules as {@link validateHostname}
- * after punycoding each label: accepts any non-empty label of unicode
- * letters, digits, and hyphens, 1-63 code points each.
+ * RFC 5890 internationalized `hostname`, checked structurally without
+ * punycoding: each label is Unicode letters, digits, and hyphens, with
+ * no leading or trailing hyphen, at most 63 UTF-16 units long. Unlike
+ * {@link validateHostname} there is no 253-char cap on the whole name.
  *
  * @public
  */

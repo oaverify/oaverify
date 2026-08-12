@@ -84,10 +84,9 @@ export const DEFAULT_HTTP_STATUS_MAP: HttpStatusMap = {
  * (router short-circuits), but `content-type`, `security`, and
  * response-side `status` are wrapped inside a top-level
  * `createBranchError("request", ...)` or `"response"` branch. This
- * helper inspects the top-level code for the unwrapped cases and
- * falls back to a leaf scan for the wrapped ones, then resolves to
- * a status from {@link DEFAULT_HTTP_STATUS_MAP} (or the caller's
- * overrides).
+ * helper collects the leaves and scans them in priority order, so
+ * the wrapping never matters, then resolves to a status from
+ * {@link DEFAULT_HTTP_STATUS_MAP} (or the caller's overrides).
  *
  * Resolution order matches the HTTP gate semantics: 404 → 405 →
  * 401 → 415 → 500 → 413 → 400. Authentication outranks content

@@ -270,9 +270,11 @@ function stepFor(key: string, name?: string): Step | undefined {
  *
  * Three things suppress flagging outright:
  *
- * - Any contributor declaring `additionalProperties` /
- *   `patternProperties` / `unevaluatedProperties`. The instance can
- *   carry names we cannot enumerate, so absence proves nothing.
+ * - A contributor whose `additionalProperties` / `patternProperties` /
+ *   `unevaluatedProperties` permits extra names (`true` or a schema).
+ *   The instance can carry names we cannot enumerate, so absence
+ *   proves nothing. `additionalProperties: false` permits nothing and
+ *   does not suppress.
  * - An unresolvable `$ref` anywhere in the closure, for the same reason.
  * - A `not` ancestor. `required` under `not` is a *negative* constraint
  *   ("must not have X"), and X need never be declared anywhere.

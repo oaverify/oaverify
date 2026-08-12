@@ -121,8 +121,9 @@ export const coreVocabulary: Vocabulary = {
 
 /**
  * The built-in validation vocabulary: `type`, `enum`, `const`, numeric
- * bounds, string bounds, array bounds, and `required`. Applicator keywords
- * live in a separate vocabulary.
+ * bounds, string bounds, array bounds, object bounds (`maxProperties` /
+ * `minProperties`), and `required`. Applicator keywords live in a
+ * separate vocabulary.
  *
  * @public
  */
@@ -262,8 +263,9 @@ export const contentVocabulary: Vocabulary = {
 };
 
 /**
- * The three default vocabularies (validation + applicator +
- * format-annotation) in the order the compiler expects. Consumers
+ * The seven default vocabularies (core + validation + applicator +
+ * unevaluated + format-annotation + meta-data + content) in the order
+ * the compiler expects. Consumers
  * normally pick a full {@link Dialect} instead; see
  * {@link jsonSchemaDialect}, {@link openapi31Dialect}, and
  * {@link oas30Dialect}.
