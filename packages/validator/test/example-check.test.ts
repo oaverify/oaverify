@@ -1086,3 +1086,35 @@ describe("the pattern guard (#687)", () => {
     expect(issues[0]?.code).toBe("example-invalid");
   });
 });
+
+describe("every method that holds an Operation Object", () => {
+  const withExampleUnder = (method: string): OpenAPIDocument =>
+    doc({
+      paths: {
+        "/things": {
+          [method]: {
+            requestBody: {
+              content: {
+                "application/json": { schema: { type: "integer" }, example: "not an integer" },
+              },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    });
+
+  // document-walk's METHODS omitted "query" while the router, the spec
+  // linter, the stream analyzer and the CLI emitter all carried it, so a
+  // QUERY operation was invisible to this check and to the ReDoS check
+  // that shares the walk. OAS 3.2 defines QUERY, so this is live surface.
+  it.each(["get", "put", "post", "delete", "options", "head", "patch", "trace", "query"])(
+    "walks a %s operation",
+    (method) => {
+      const issues = checkDocumentExamples(withExampleUnder(method));
+      expect(issues.map((i) => i.pointer)).toEqual([
+        `/paths/~1things/${method}/requestBody/content/application~1json/example`,
+      ]);
+    },
+  );
+});
