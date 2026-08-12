@@ -107,7 +107,13 @@ function main() {
   console.log(`base  ${base}  (${Object.keys(a.results).length} cases, oas ${a.meta.oasVersion})`);
   console.log(`head  ${head}  (${Object.keys(b.results).length} cases, oas ${b.meta.oasVersion})`);
   console.log("");
-  console.log(BUCKETS.map((k) => `${k} ${found[k].length}`).join("   "));
+  // A disabled bucket prints `off`, never `0`. The two read the same in
+  // a summary line and mean opposite things: one is "nothing changed",
+  // the other is "nobody looked". The NOTE below says so in prose, and
+  // prose under a green-looking tally is what a reader skips.
+  console.log(
+    BUCKETS.map((k) => `${k} ${k === "silent" && !values ? "off" : found[k].length}`).join("   "),
+  );
   console.log("");
 
   if (!values) {
@@ -119,7 +125,11 @@ function main() {
   }
 
   if (total === 0) {
-    console.log("no differences.");
+    console.log(
+      values
+        ? "no differences."
+        : "no differences in the buckets that ran; the silent bucket did not run.",
+    );
     return 0;
   }
 

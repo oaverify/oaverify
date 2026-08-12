@@ -63,6 +63,19 @@ arriving at the handler as a _different value_ is exactly what
 from that fix's branch reproduces it, with `main`'s `{"p":{"n":26}}` sitting in
 the base column.
 
+It is also the one bucket that can be switched off, and the summary line says
+`silent off` rather than `silent 0` when it is. The value channel arrived with
+`returnValues` in
+[#745](https://github.com/oaverify/oaverify/issues/745), so a base older than
+that has nothing to compare and the bucket cannot run. Comparing against the
+last release tag is exactly that case, which is the invocation a release
+sign-off reaches for: `pnpm grid-check oaverify-v6.0.0` reports `silent off`,
+and `pnpm grid-check 2f74122` (the `#745` merge) is how to get the bucket back
+over the same window.
+
+`off` and `0` are one character apart in a tally and mean opposite things:
+"nothing changed" against "nobody looked".
+
 ## The grid holds no opinion
 
 Many cells are nonsense: `style: deepObject` on a `type: string` parameter,
