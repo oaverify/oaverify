@@ -1,5 +1,31 @@
 # Changelog
 
+## [7.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v6.0.0...oaverify-v7.0.0) (2026-08-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** `isSubschemaKey`, `SUBSCHEMA_SINGLE_POSITIONS`, `SUBSCHEMA_ARRAY_POSITIONS` and `SUBSCHEMA_MAP_POSITIONS` are no longer exported from `@oaverify/core`. Import them from `@oaverify/core/schema/internals`, which is outside the semver contract.
+* **core:** the "flat" output-format alias is removed; pass "summary" instead. This is the `--format` flag and `formatError`'s renderer name, not `ValidatorOptions.output: "flat"`, which is unaffected.
+* **cli:** `oaverify` refuses a `$ref` to another origin unless `--remote-refs allow` is passed. The flag shipped in v6 and already accepted that value, so there is no rename, no shim and no deprecation cycle; a caller who sets `--remote-refs` today is unaffected. The library is unaffected either way, composing no reader it was not given.
+* @oaverify/yaml is now @oaverify/syntax. Every exported name and behaviour is unchanged; update the specifier. See docs/migration-v7.md.
+
+### Features
+
+* **cli:** refuse cross-origin remote $refs by default ([#779](https://github.com/oaverify/oaverify/issues/779)) ([bdb8916](https://github.com/oaverify/oaverify/commit/bdb89163166ccf8c5256c3426aeed821d3ae138c)), closes [#692](https://github.com/oaverify/oaverify/issues/692)
+* rename @oaverify/yaml to @oaverify/syntax ([#768](https://github.com/oaverify/oaverify/issues/768)) ([7b29cc1](https://github.com/oaverify/oaverify/commit/7b29cc166f4e7e5ecb4e2c2f197c131ee910f752))
+
+
+### Bug Fixes
+
+* **check:** keep findings produced before an aborted check ([#719](https://github.com/oaverify/oaverify/issues/719)) ([51be0c7](https://github.com/oaverify/oaverify/commit/51be0c7fef2d529fd058e0699d3b81f18519580a)), closes [#716](https://github.com/oaverify/oaverify/issues/716)
+
+
+### Chore
+
+* **core:** move the subschema-position tables off the public entry ([#813](https://github.com/oaverify/oaverify/issues/813)) ([23cc28a](https://github.com/oaverify/oaverify/commit/23cc28abdb54f8baa54c3369f52753116610b44f))
+* **core:** remove the deprecated "flat" output-format alias ([#791](https://github.com/oaverify/oaverify/issues/791)) ([24c3ad9](https://github.com/oaverify/oaverify/commit/24c3ad9207bc3d3523c2adbcc76b0b6044d0e38b))
+
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/oaverify-v5.4.0...oaverify-v6.0.0) (2026-08-07)
 
 **`oaverify check` now gates by default, and `--only` is now `--findings`.** Both are one-line changes wherever you invoke it, and both change what CI does. See [the v6 migration guide](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md).

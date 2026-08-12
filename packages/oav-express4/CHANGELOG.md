@@ -1,5 +1,33 @@
 # Changelog
 
+## [7.0.0](https://github.com/oaverify/oaverify/compare/express4-v6.0.0...express4-v7.0.0) (2026-08-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** the "flat" output-format alias is removed; pass "summary" instead. This is the `--format` flag and `formatError`'s renderer name, not `ValidatorOptions.output: "flat"`, which is unaffected.
+* @oaverify/yaml is now @oaverify/syntax. Every exported name and behaviour is unchanged; update the specifier. See docs/migration-v7.md.
+
+### Features
+
+* rename @oaverify/yaml to @oaverify/syntax ([#768](https://github.com/oaverify/oaverify/issues/768)) ([7b29cc1](https://github.com/oaverify/oaverify/commit/7b29cc166f4e7e5ecb4e2c2f197c131ee910f752))
+
+
+### Bug Fixes
+
+* twelve defects from an adversarial review of the public surfaces ([#736](https://github.com/oaverify/oaverify/issues/736)) ([7d07c15](https://github.com/oaverify/oaverify/commit/7d07c15a6cdee7ffb4a06cd32c334bd1bfffa04b))
+
+
+### Documentation
+
+* fix snippets that do not compile, and two stale example claims ([#806](https://github.com/oaverify/oaverify/issues/806)) ([ed0cf8b](https://github.com/oaverify/oaverify/commit/ed0cf8b0a4621f3386e643b43719bced7d558a2e))
+* **tsdoc:** correct comments that misdescribe the code, and fix dead links ([#815](https://github.com/oaverify/oaverify/issues/815)) ([ecc7c24](https://github.com/oaverify/oaverify/commit/ecc7c24eabe97f60d29b0897f45937a1cfda146d))
+
+
+### Chore
+
+* **core:** remove the deprecated "flat" output-format alias ([#791](https://github.com/oaverify/oaverify/issues/791)) ([24c3ad9](https://github.com/oaverify/oaverify/commit/24c3ad9207bc3d3523c2adbcc76b0b6044d0e38b))
+
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/express4-v5.4.0...express4-v6.0.0) (2026-08-07)
 
 No source changes in this package. The version tracks the linked release group so the whole set moves together.

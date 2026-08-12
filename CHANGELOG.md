@@ -1,5 +1,94 @@
 # Changelog
 
+## [7.0.0](https://github.com/oaverify/oaverify/compare/core-v6.0.0...core-v7.0.0) (2026-08-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* format: idn-email now rejects local parts over 64 UTF-8 octets that previously passed by fitting in 64 UTF-16 units. The pinned conformance baseline is unchanged (no suite case covers the gap).
+* **core:** `isSubschemaKey`, `SUBSCHEMA_SINGLE_POSITIONS`, `SUBSCHEMA_ARRAY_POSITIONS` and `SUBSCHEMA_MAP_POSITIONS` are no longer exported from `@oaverify/core`. Import them from `@oaverify/core/schema/internals`, which is outside the semver contract.
+* **core:** the "flat" output-format alias is removed; pass "summary" instead. This is the `--format` flag and `formatError`'s renderer name, not `ValidatorOptions.output: "flat"`, which is unaffected.
+* **core:** `ConformanceIssue.location`, `SchemaLintIssue.context` and `PrecompileFailure.context` are removed. Read `ConformanceIssue.pointer`, `SchemaLintIssue.location` and `PrecompileFailure.location`; the values are unchanged.
+* **validator:** a `style: matrix` parameter whose segment carries no group naming it is now reported as missing rather than reaching the handler as [] or as the foreign group's value. Requests that were accepted and silently mis-deserialized are now rejected.
+* **core:** report a rejected fetch body's direction; scope httpStatusFor to requests ([#786](https://github.com/oaverify/oaverify/issues/786))
+* **validator:** bound the Fetch adapter's body read by maxTotalBytes ([#785](https://github.com/oaverify/oaverify/issues/785))
+* **cli:** `oaverify` refuses a `$ref` to another origin unless `--remote-refs allow` is passed. The flag shipped in v6 and already accepted that value, so there is no rename, no shim and no deprecation cycle; a caller who sets `--remote-refs` today is unaffected. The library is unaffected either way, composing no reader it was not given.
+* @oaverify/yaml is now @oaverify/syntax. Every exported name and behaviour is unchanged; update the specifier. See docs/migration-v7.md.
+
+### Features
+
+* **check:** locate each sub-rejection of an invalid example in SARIF ([#778](https://github.com/oaverify/oaverify/issues/778)) ([d81ab42](https://github.com/oaverify/oaverify/commit/d81ab42175d663f5d3761c00e54f8566d3fc9346))
+* **check:** point a finding at the key where the name is the subject ([#771](https://github.com/oaverify/oaverify/issues/771)) ([81d69ec](https://github.com/oaverify/oaverify/commit/81d69ecd4e51f2074387cfb3826627eb350fc2c6))
+* **cli:** refuse cross-origin remote $refs by default ([#779](https://github.com/oaverify/oaverify/issues/779)) ([bdb8916](https://github.com/oaverify/oaverify/commit/bdb89163166ccf8c5256c3426aeed821d3ae138c)), closes [#692](https://github.com/oaverify/oaverify/issues/692)
+* **core:** share the leaf detail renderer between both message sites ([#782](https://github.com/oaverify/oaverify/issues/782)) ([fd0827c](https://github.com/oaverify/oaverify/commit/fd0827cdf2ae7cdb36b6634d1a76816eb6e4c604)), closes [#777](https://github.com/oaverify/oaverify/issues/777)
+* **formats:** assert language, an RFC 5646 tag ([#733](https://github.com/oaverify/oaverify/issues/733)) ([6393bfe](https://github.com/oaverify/oaverify/commit/6393bfe7d1fb27f17c73b35d8e1fe4c2d7c2e5ca))
+* **formats:** assert media-range, the RFC 9110 production ([#734](https://github.com/oaverify/oaverify/issues/734)) ([c2c3721](https://github.com/oaverify/oaverify/commit/c2c3721e4d6a39f9915a4a167e917997c1efc33b))
+* **formats:** assert six more OpenAPI Format Registry names ([#732](https://github.com/oaverify/oaverify/issues/732)) ([62d6b34](https://github.com/oaverify/oaverify/commit/62d6b3471d7cdc78686e0c184f1abc8a924a4bbf))
+* line and column for a check finding ([#769](https://github.com/oaverify/oaverify/issues/769)) ([781108a](https://github.com/oaverify/oaverify/commit/781108a4afa3fa5c4d749e4040d73b4e30bb2a6f))
+* rename @oaverify/yaml to @oaverify/syntax ([#768](https://github.com/oaverify/oaverify/issues/768)) ([7b29cc1](https://github.com/oaverify/oaverify/commit/7b29cc166f4e7e5ecb4e2c2f197c131ee910f752))
+* **schema:** export stringArrayValue and checkStringArray from internals ([#802](https://github.com/oaverify/oaverify/issues/802)) ([c0a9c65](https://github.com/oaverify/oaverify/commit/c0a9c650218ff85a2707fb2d11785efb4e47618c))
+* **validator:** bound the Fetch adapter's body read by maxTotalBytes ([#785](https://github.com/oaverify/oaverify/issues/785)) ([bc45651](https://github.com/oaverify/oaverify/commit/bc45651b24093bb513b93329bb82feb85200a5fe))
+* **validator:** read bracket-suffixed query keys behind an option ([#746](https://github.com/oaverify/oaverify/issues/746)) ([e481b5c](https://github.com/oaverify/oaverify/commit/e481b5cbd6696dd5325b781cd7e8d925b46bcf49))
+* **validator:** return deserialized request values behind returnValues ([#745](https://github.com/oaverify/oaverify/issues/745)) ([2f74122](https://github.com/oaverify/oaverify/commit/2f74122b23b7f26a0c61524f462b9fdae7efffa8))
+
+
+### Bug Fixes
+
+* **check,cli:** stop reporting a dropped x- extension, and stop leaking chunk names ([#811](https://github.com/oaverify/oaverify/issues/811)) ([5ce8bdc](https://github.com/oaverify/oaverify/commit/5ce8bdce7613b2509b64c37186cbb2e51d68c8a1))
+* **check:** give float its own reason for going unasserted ([#795](https://github.com/oaverify/oaverify/issues/795)) ([e78df56](https://github.com/oaverify/oaverify/commit/e78df568cf8153efe741154fe5e9de146cc68b7e))
+* **check:** keep findings produced before an aborted check ([#719](https://github.com/oaverify/oaverify/issues/719)) ([51be0c7](https://github.com/oaverify/oaverify/commit/51be0c7fef2d529fd058e0699d3b81f18519580a)), closes [#716](https://github.com/oaverify/oaverify/issues/716)
+* **check:** state a rule's explanation on the rule, not in every finding ([#774](https://github.com/oaverify/oaverify/issues/774)) ([be5aa81](https://github.com/oaverify/oaverify/commit/be5aa81923b5173a5c01f5c3ecfd01f06478da8b)), closes [#773](https://github.com/oaverify/oaverify/issues/773)
+* **cli:** stop repeatable flags swallowing the positional ([#797](https://github.com/oaverify/oaverify/issues/797)) ([3015aa7](https://github.com/oaverify/oaverify/commit/3015aa78d04ae22fe9322c2566e16e1ef99a87fc))
+* **core:** report a rejected fetch body's direction; scope httpStatusFor to requests ([#786](https://github.com/oaverify/oaverify/issues/786)) ([291387c](https://github.com/oaverify/oaverify/commit/291387c982fa67ba47e066bc74e5ee9bd0d3b092)), closes [#784](https://github.com/oaverify/oaverify/issues/784)
+* **formats:** accept line-wrapped base64 under byte, ship the strict reading ([#720](https://github.com/oaverify/oaverify/issues/720)) ([1df778d](https://github.com/oaverify/oaverify/commit/1df778d8d74624190fc3b959d1b81d76144ec844)), closes [#705](https://github.com/oaverify/oaverify/issues/705)
+* **formats:** uri-template grammar, and bump the JSON Schema Test Suite pin ([#764](https://github.com/oaverify/oaverify/issues/764)) ([04ac736](https://github.com/oaverify/oaverify/commit/04ac736c96170989c68251b46c6f11a3c8bc35e4))
+* **router:** decode literal runs inside a compound path segment ([#718](https://github.com/oaverify/oaverify/issues/718)) ([5c4d686](https://github.com/oaverify/oaverify/commit/5c4d686f06aa81b3239a3c3b0f132a444bf34b7e)), closes [#715](https://github.com/oaverify/oaverify/issues/715)
+* **router:** let a compound capture hold a decoded slash ([#728](https://github.com/oaverify/oaverify/issues/728)) ([82a71f5](https://github.com/oaverify/oaverify/commit/82a71f588690b8afd8de9bc2dc3e4d99522882ba)), closes [#724](https://github.com/oaverify/oaverify/issues/724)
+* **router:** match compound path segments with a linear scan ([#731](https://github.com/oaverify/oaverify/issues/731)) ([8c260ca](https://github.com/oaverify/oaverify/commit/8c260caa1d578e5ba49d804a169cc397675b5438)), closes [#730](https://github.com/oaverify/oaverify/issues/730)
+* **router:** report a malformed path template instead of throwing URIError ([#712](https://github.com/oaverify/oaverify/issues/712)) ([d227968](https://github.com/oaverify/oaverify/commit/d227968c745cd7b47cce0a654fa7216c56696ed5)), closes [#708](https://github.com/oaverify/oaverify/issues/708)
+* **router:** stop blaming parameter names for a literal route collision ([#727](https://github.com/oaverify/oaverify/issues/727)) ([5cf8994](https://github.com/oaverify/oaverify/commit/5cf89946b7d590fef1dce1b3bb848978ebe1b630)), closes [#725](https://github.com/oaverify/oaverify/issues/725)
+* **schema:** bound the multipleOf tolerance and handle an overflowing quotient ([#713](https://github.com/oaverify/oaverify/issues/713)) ([d36e05e](https://github.com/oaverify/oaverify/commit/d36e05ee6b03074991989bef4f9e4a72b0d41c8c)), closes [#709](https://github.com/oaverify/oaverify/issues/709)
+* **schema:** do not judge the value of a $ref sibling OAS 3.0 discards ([#801](https://github.com/oaverify/oaverify/issues/801)) ([d6d6d90](https://github.com/oaverify/oaverify/commit/d6d6d905dca25aba656694e887b3b17205a21771))
+* settle the six code-vs-doc conflicts from the TSDoc audit ([#816](https://github.com/oaverify/oaverify/issues/816)) ([3b76c9f](https://github.com/oaverify/oaverify/commit/3b76c9f7072aeea3427f89be5d7c16d4b8d4501c))
+* stop raw V8 messages reaching the user on null document nodes ([#794](https://github.com/oaverify/oaverify/issues/794)) ([a632cd4](https://github.com/oaverify/oaverify/commit/a632cd4ecba5c5cce58c77046a2689be2b5066b1))
+* twelve defects from an adversarial review of the public surfaces ([#736](https://github.com/oaverify/oaverify/issues/736)) ([7d07c15](https://github.com/oaverify/oaverify/commit/7d07c15a6cdee7ffb4a06cd32c334bd1bfffa04b))
+* **validator:** coerce parameters whose schemas sit behind a $ref ([#723](https://github.com/oaverify/oaverify/issues/723)) ([7c16282](https://github.com/oaverify/oaverify/commit/7c16282aa536d06fbc3cfbe336b6ca462ade8319)), closes [#714](https://github.com/oaverify/oaverify/issues/714)
+* **validator:** coerce serialized parameter values with their subschemas ([#711](https://github.com/oaverify/oaverify/issues/711)) ([b24de2c](https://github.com/oaverify/oaverify/commit/b24de2cba568edf9c5d8eac0d0b9b329614640e3)), closes [#707](https://github.com/oaverify/oaverify/issues/707)
+* **validator:** read a deepObject property by the scalar number grammar ([#756](https://github.com/oaverify/oaverify/issues/756)) ([5022745](https://github.com/oaverify/oaverify/commit/5022745f6ebc1dc996fa80d85242e69d7a4016b7)), closes [#751](https://github.com/oaverify/oaverify/issues/751)
+* **validator:** read a matrix segment's group names in every shape ([#788](https://github.com/oaverify/oaverify/issues/788)) ([9c0627e](https://github.com/oaverify/oaverify/commit/9c0627e07840adc7e33cd62a8cced3db22e77750))
+* **validator:** read a type set naming one type as that type ([#754](https://github.com/oaverify/oaverify/issues/754)) ([c88f0b7](https://github.com/oaverify/oaverify/commit/c88f0b737a66cb0125c9e640d3ebdea43410f43a))
+* **validator:** resolve coercion refs through the resolver schemas compile with ([#729](https://github.com/oaverify/oaverify/issues/729)) ([e8e2b71](https://github.com/oaverify/oaverify/commit/e8e2b7187dee56efebae117d079950b829dcad85)), closes [#726](https://github.com/oaverify/oaverify/issues/726)
+* **validator:** return a body verdict from a composite's unparseable fetch body ([#747](https://github.com/oaverify/oaverify/issues/747)) ([6cc769a](https://github.com/oaverify/oaverify/commit/6cc769a2be93c0c20554aae156c6b0426fc798a8))
+* **validator:** say the example-check pattern guard is conservative ([#799](https://github.com/oaverify/oaverify/issues/799)) ([c699ad4](https://github.com/oaverify/oaverify/commit/c699ad4ed0bbbf0b03590d8ecd5c691c5e7c4a2e))
+* **validator:** treat an explicit JSON null request body as a value ([#710](https://github.com/oaverify/oaverify/issues/710)) ([01d0e78](https://github.com/oaverify/oaverify/commit/01d0e78e3362cff2f0d4cc64ad93e065ee7cf2eb)), closes [#706](https://github.com/oaverify/oaverify/issues/706)
+* **validator:** walk QUERY operations in the document schema walk ([#796](https://github.com/oaverify/oaverify/issues/796)) ([f01700e](https://github.com/oaverify/oaverify/commit/f01700eb2cbe000eb027444dac526c1399e3a03d))
+
+
+### Documentation
+
+* correct claims that do not match the code ([#805](https://github.com/oaverify/oaverify/issues/805)) ([a1e0412](https://github.com/oaverify/oaverify/commit/a1e0412b4bf16fcf20cbd8529fb37d0c201aa32c))
+* correct four documentation defects found in the v7 review ([#792](https://github.com/oaverify/oaverify/issues/792)) ([bef64db](https://github.com/oaverify/oaverify/commit/bef64dbe4607219a31e545a8880e24d2ff760bce))
+* **extending:** write down which specification a format validator follows ([#722](https://github.com/oaverify/oaverify/issues/722)) ([241b41d](https://github.com/oaverify/oaverify/commit/241b41d44644b22b5236939065261ac23d3732c7)), closes [#705](https://github.com/oaverify/oaverify/issues/705)
+* fix snippets that do not compile, and two stale example claims ([#806](https://github.com/oaverify/oaverify/issues/806)) ([ed0cf8b](https://github.com/oaverify/oaverify/commit/ed0cf8b0a4621f3386e643b43719bced7d558a2e))
+* **integration:** a report-only recipe for the adapters' onError hook ([#748](https://github.com/oaverify/oaverify/issues/748)) ([1453396](https://github.com/oaverify/oaverify/commit/1453396e97683b7545cf42848b5b2e1f94275c34))
+* pare the prose docs and rework the README arrival surface ([#814](https://github.com/oaverify/oaverify/issues/814)) ([3593ef7](https://github.com/oaverify/oaverify/commit/3593ef7bd0a078c123ed94fec0767c066b96a297))
+* **readme:** add a Why this exists section ([#721](https://github.com/oaverify/oaverify/issues/721)) ([e4d2650](https://github.com/oaverify/oaverify/commit/e4d26503941698ac9ffd0f138bd929000a30e5c6))
+* **schema:** lead the compile context with a roadmap of its three groups ([#781](https://github.com/oaverify/oaverify/issues/781)) ([49ab584](https://github.com/oaverify/oaverify/commit/49ab584e2ce128dec2184cbffc3be16bce486ec1)), closes [#349](https://github.com/oaverify/oaverify/issues/349)
+* state the Node floor, and give three unsourced numbers their host ([#812](https://github.com/oaverify/oaverify/issues/812)) ([10c14e2](https://github.com/oaverify/oaverify/commit/10c14e2a8d80658b4083608cff233940b88719d8))
+* **tsdoc:** correct comments that misdescribe the code, and fix dead links ([#815](https://github.com/oaverify/oaverify/issues/815)) ([ecc7c24](https://github.com/oaverify/oaverify/commit/ecc7c24eabe97f60d29b0897f45937a1cfda146d))
+* **tsdoc:** fix references to things that do not exist, and three gaps ([#808](https://github.com/oaverify/oaverify/issues/808)) ([06c2920](https://github.com/oaverify/oaverify/commit/06c292075a15e0ac187e04a6d7b75046d8674cf9))
+
+
+### Refactoring
+
+
+
+### Chore
+
+* **core:** move the subschema-position tables off the public entry ([#813](https://github.com/oaverify/oaverify/issues/813)) ([23cc28a](https://github.com/oaverify/oaverify/commit/23cc28abdb54f8baa54c3369f52753116610b44f))
+* **core:** remove the deprecated "flat" output-format alias ([#791](https://github.com/oaverify/oaverify/issues/791)) ([24c3ad9](https://github.com/oaverify/oaverify/commit/24c3ad9207bc3d3523c2adbcc76b0b6044d0e38b))
+* **core:** remove the three deprecated field aliases ([#790](https://github.com/oaverify/oaverify/issues/790)) ([87ec28f](https://github.com/oaverify/oaverify/commit/87ec28fa6791374f6e1719362bea94628e1ce50f))
+
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/core-v5.4.0...core-v6.0.0) (2026-08-07)
 
 **`format` became one registry, and a lot of it now asserts.** Formats that were annotations reject traffic in 6.0: the integer widths, the base64 pair, `char`, and the string formats whose grammars were wrong. If you never pass `formats` and never read `builtInFormats`, that is the whole upgrade. **On the CLI, `check` gates by default**: it exits 1 on an error-severity finding where it used to exit 0 advisory.
