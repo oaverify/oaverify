@@ -350,9 +350,19 @@ unchanged and is what its help text has always shown:
 oaverify check spec.yaml --severity 'unsatisfiable/*=error,redos=error'
 ```
 
-`--overlay` is unaffected in practice: it already carried a repeat
-collector, and the CLI README already described it as repeatable, so the
-variadic marker only ever cost the behaviour below.
+All three are affected, `--overlay` included. It already carried a
+repeat collector and the CLI README already described it as repeatable,
+but the variadic marker also _accepted_ the space-separated form, and
+that form now exits 3:
+
+```
+$ oaverify resolve spec.json --overlay base.yaml prod.yaml
+error: too many arguments for 'resolve'. Expected 1 argument but got 2
+```
+
+The failure is loud rather than silent: commander rejects the excess
+argument instead of dropping it, so a pipeline that passes values this
+way stops rather than quietly applying one overlay.
 
 ### Why
 
@@ -397,6 +407,6 @@ position; these three now match it.
       `.location`.
 - [ ] Replace `--format flat` with `--format summary` wherever you
       invoke `oaverify validate`. Output is unchanged.
-- [ ] If you pass more than one value to `--only` after a single flag,
-      repeat the flag instead. `--overlay` and `--severity` were already
-      written that way in the docs and are unaffected.
+- [ ] If you pass more than one value to a single `--only`, `--overlay`
+      or `--severity` flag, repeat the flag instead. All three exit 3 on
+      the space-separated form now.

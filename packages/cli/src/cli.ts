@@ -102,7 +102,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .description("Resolve a (possibly multi-file) OpenAPI document and print the stitched result.")
     .option(
       "--overlay <file>",
-      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      "apply an overlay file; repeat for more than one, applied in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
       collectRepeatable,
       [],
     )
@@ -148,7 +148,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .option(
       "--overlay <file>",
-      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      "apply an overlay file; repeat for more than one, applied in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
       collectRepeatable,
       [],
     )
@@ -243,7 +243,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .description("Validate a request/response/body against an OpenAPI document.")
     .option(
       "--overlay <file>",
-      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      "apply an overlay file; repeat for more than one, applied in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
       collectRepeatable,
       [],
     )
@@ -311,7 +311,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .option(
       "--overlay <file>",
-      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      "apply an overlay file; repeat for more than one, applied in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
       collectRepeatable,
       [],
     )
@@ -430,7 +430,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .option(
       "--overlay <file>",
-      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      "apply an overlay file; repeat for more than one, applied in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
       collectRepeatable,
       [],
     )
