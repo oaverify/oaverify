@@ -459,9 +459,12 @@ it into a typed `SpecOverlay` so it flows through the same
 `applyOverlays` path:
 
 ```ts
-import { applySpecOverlay } from "@oaverify/core/overlay-spec";
+import { applySpecOverlay, type OverlayDocument } from "@oaverify/core/overlay-spec";
 
-const overlayDoc = {
+// Annotated, not inferred: the actions array is heterogeneous, so an
+// inferred literal widens to a union whose members carry `?: undefined`
+// properties, and those do not satisfy `JsonValue`'s index signature.
+const overlayDoc: OverlayDocument = {
   overlay: "1.0.0",
   info: { title: "tenant overlay", version: "1.0.0" },
   actions: [

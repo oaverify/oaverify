@@ -140,7 +140,10 @@ Exported standalone so a custom `onError` can call it as the fallback path:
 ```ts
 validateRequests(validator, {
   onError: (errors, ctx) => {
-    if (errors.some((e) => e.code === "security")) return ctx.res.status(401).end();
+    if (errors.some((e) => e.code === "security")) {
+      ctx.res.status(401).end();
+      return;
+    }
     renderProblemDetails(errors, ctx);
   },
 });

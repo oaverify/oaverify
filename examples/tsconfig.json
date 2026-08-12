@@ -18,7 +18,7 @@
       "@oaverify/internal-router": ["./packages/router/src/index.ts"],
       "@oaverify/internal-validator": ["./packages/validator/src/index.ts"],
       "@oaverify/internal-validator/internals": ["./packages/validator/src/internals.ts"],
-      "@oaverify/internal-stream-validator": ["./packages/stream-validator/src/index.ts"],
+      "@oaverify/stream": ["./packages/stream-validator/src/index.ts"],
       "@oaverify/internal-cli": ["./packages/cli/src/index.ts"]
     }
   },

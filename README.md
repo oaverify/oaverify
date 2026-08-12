@@ -43,7 +43,7 @@ const result = validator.validateRequest({
 
 if (!result.valid) {
   console.log(result.errors);
-  // [{ code: "required", path: ["body", "age"], message: "...", params: {} }]
+  // [{ code: "required", path: ["body", "age"], message: "...", params: { missing: "age" } }]
 }
 ```
 
