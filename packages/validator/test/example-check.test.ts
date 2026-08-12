@@ -1036,6 +1036,26 @@ describe("the pattern guard (#687)", () => {
     expect(issues[0]?.message).toContain("([\\da-z");
   });
 
+  // The guard asks whether a pattern is ambiguous, which is necessary
+  // for catastrophic backtracking and nowhere near sufficient: on the
+  // published-spec corpus, four of the five most-refused patterns match
+  // in microseconds on V8 (`^.+/.+$` is 0.01ms at 8k characters). The
+  // message has to read as a refusal rather than as a measurement, or a
+  // reader goes looking for a slow pattern that is not slow.
+  it("says the refusal is conservative rather than measured", () => {
+    const issues = checkDocumentExamples(
+      withJsonBody({
+        schema: { type: "string", pattern: AMBIGUOUS, example: NON_MATCHING },
+      }),
+      { patternGuard: guard },
+    );
+    const message = issues[0]?.message ?? "";
+    expect(message).toContain("may be superlinear");
+    expect(message).toContain("refusal on the safe side rather than a measurement");
+    // The claim it must not make.
+    expect(message).not.toMatch(/whose worst-case matching time is superlinear/);
+  });
+
   it("finds a guarded pattern behind a $ref", () => {
     const document = doc({
       paths: {

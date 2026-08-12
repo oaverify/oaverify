@@ -74,6 +74,14 @@ export interface ExampleIssue {
    *   because the schema reaches a pattern the caller's
    *   {@link CheckDocumentExamplesOptions.patternGuard} marked unsafe
    *   to run (#687).
+   *
+   * A guard refusal is a decision about risk, not a measurement of
+   * cost. The guard `check` supplies asks whether a pattern is
+   * *ambiguous*, which is necessary for catastrophic backtracking and
+   * nowhere near sufficient: on the published-spec corpus most refused
+   * patterns match in microseconds on V8. Read it as "this was not
+   * checked", never as "this pattern is slow". Recovering those checks
+   * needs a caller-side linear-time engine; see #798.
    */
   code: "example-invalid" | "example-uncheckable";
   /**
@@ -461,8 +469,10 @@ export function checkDocumentExamples(
           code: "example-uncheckable",
           summary:
             `its schema reaches the pattern "${echoed}", whose worst-case matching ` +
-            `time is superlinear, so the example was not run against it ` +
-            `(the redos class reports the pattern itself)`,
+            `time may be superlinear, so the example was not run against it ` +
+            `(the redos class reports the pattern itself). This is a refusal ` +
+            `on the safe side rather than a measurement: many patterns that ` +
+            `reach it cost nothing on a given engine`,
           reasons: [],
         });
         compiled.set(schema, check);
