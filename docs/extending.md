@@ -217,38 +217,25 @@ the first failure, so there's nothing to count).
 
 ### Which specification the validator follows
 
-Two decisions taken days apart leaned opposite ways here, so the rule is
-written down rather than rediscovered per format (#705).
+**Lean permissive; allow strict.** The built-in is the reading that
+does not reject correct input. Where a stricter reading exists, ship
+it as a named export and say in the TSDoc which document each one
+follows. The costs are asymmetric: a false reject fails a request that
+works today, while a false accept leaves the caller where they were
+before the validator existed. So where the registry, the cited RFC and
+real traffic disagree, the built-in follows whichever admits the
+traffic, and the strict reading stays one line away (#705 has the full
+rationale).
 
-**Lean permissive; allow strict.** The built-in is the reading that does
-not reject correct input. Where a stricter reading exists, ship it as a
-named export and say in the TSDoc which document each one follows.
-
-The costs are asymmetric. A false reject fails a request that works
-today; a false accept leaves the caller where they were before the
-validator existed. So where the registry, the cited RFC and real
-traffic disagree, the built-in follows whichever admits the traffic,
-and the strict reading stays one line away.
-
-Two worked cases:
-
-- **The citation is narrower than practice.** The registry cites RFC
-  4648 for `byte`, which admits whitespace only where the referring
-  specification says so. MIME wraps base64 at 76 columns and it decodes
-  to the same bytes. `validateByte` strips whitespace;
-  `validateByteRfc4648` is the literal reading, registered by hand with
-  `formats: { byte: validateByteRfc4648 }`.
-- **The citation is stale.** The registry cites RFC 8941 for the
-  structured-field formats, which RFC 9651 obsoleted in September 2024
-  by adding a Date type. Validating 8941 would reject a field that is
-  legal HTTP today, and 9651 is a superset, so the newer document wins
-  and there is no strict variant to ship. Recorded ahead of the work:
-  the `sf-*` formats are unimplemented, and #696 tracks them.
-
-Registering a stricter validator by hand needs no new option, which is
-why this is a naming convention rather than a feature.
-`formats: { <name>: false }` remains the way to keep a name as an
-annotation that asserts nothing.
+`byte` is the worked case. The registry cites RFC 4648, which admits
+whitespace only where the referring specification says so; MIME wraps
+base64 at 76 columns and it decodes to the same bytes. So
+`validateByte` strips whitespace, and `validateByteRfc4648` is the
+literal reading, registered by hand with
+`formats: { byte: validateByteRfc4648 }`. No new option is needed for
+a strict variant, which is why this is a naming convention rather than
+a feature; `formats: { <name>: false }` remains the way to keep a name
+as an annotation that asserts nothing.
 
 Two things that are easy to miss:
 

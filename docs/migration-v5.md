@@ -53,10 +53,8 @@ name is `@oaverify/stream`.
 
 ## 1. `strict` is now `schemaLint`
 
-`strict` named an intensity without a domain, and the codebase had two
-other options using the word for the unrelated request-side axis. At a
-call site `strict: "strict"` gave no clue whether it tightened schema
-checking, request validation, or both.
+`strict` named an intensity without a domain, in a codebase with two
+other options using the word for the unrelated request-side axis.
 
 ```ts
 // v4

@@ -12,24 +12,16 @@ tell what a given knob will and will not catch.
 
 ## Malformed schema: always fatal
 
-A document that is not a schema cannot be compiled into a validator, so
-oaverify refuses rather than guessing. No option turns this off, including
-`schemaLint: "off"`.
-
-```ts
-createValidator(spec); // throws
-// GET /events 200 response body (application/json): "items" at
-// "properties.events" must be an object or boolean; got an array.
-// In JSON Schema 2020-12 the tuple form is "prefixItems"; an array-valued
-// "items" is the draft-04 / Swagger 2.0 spelling.
-```
-
-This covers a schema-valued slot holding something that is not a schema
+A document that is not a schema cannot be compiled into a validator,
+so oaverify refuses rather than guessing: `createValidator` throws,
+and no option turns this off, including `schemaLint: "off"`. This
+covers a schema-valued slot holding something that is not a schema
 (`items: [ ... ]`, `if: null`) and a keyword holding a value it cannot
 use (`type: "Boolean"`, `required: "id"`, `enum: 5`, `minimum: "5"`).
 The check walks the whole document, so a typo in a `$defs` entry nothing
 `$ref`s is caught along with the rest. Catch it with a `try` around
-`createValidator`, not a check on each request; the common shapes are in
+`createValidator`, not a check on each request; the common shapes and
+the message format are in
 [configuration.md](./configuration.md#malformed-schemas-fail-at-construction).
 
 ## Schema lint: advice about a valid schema
@@ -517,15 +509,13 @@ eventually arrives suppressed and unnoticed.
 no-op terms: -redos (outside the selected findings)
 ```
 
-`--findings schema,-redos` selects schema, so the exclusion has nothing
-to reach. That is worth saying and is not worth failing over, because
-`-a,-b` is what a script produces when it unions two exclusion lists and
-refusing it would make those lists impossible to compose. It is distinct
-from an exclusion that was live and dropped nothing, which prints `x0`.
-
-Where two terms cover each other, the narrower spelling is the one
-reported: `-redos,-ambiguous-pattern` names a class and its only member,
-so the member is what changed nothing, whichever order you wrote them.
+`--findings schema,-redos` selects schema, so the exclusion has
+nothing to reach. Reporting rather than refusing keeps unioned
+exclusion lists composable, and it is distinct from an exclusion that
+was live and dropped nothing, which prints `x0`. Where two terms cover
+each other, the narrower spelling is the one reported:
+`-redos,-ambiguous-pattern` names a class and its only member, so the
+member is what changed nothing.
 
 `--findings` names findings, never formats. `--findings
 -format-not-validated` drops the advisory finding that says a format is

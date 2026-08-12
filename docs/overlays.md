@@ -10,17 +10,13 @@ forking the file.
 
 - **Your deployment requires headers or query parameters the upstream
   spec doesn't declare.** `overrides` with `upsertParameters`.
-- **The upstream schema is close but missing a field.**
-  `extendSchemas`: adds constraints via `allOf`, preserving the
-  original shape.
-- **The upstream schema is wrong for your deployment.**
-  `replaceSchemas`: swaps it out entirely, no merge.
+- **The upstream schema is close but missing a field.** `extendSchemas`.
+- **The upstream schema is wrong for your deployment.** `replaceSchemas`.
 - **You need a route the upstream doesn't expose.** `addPaths`.
-- **Upstream declares something you want gone** (a parameter you don't
-  accept, a response status you never return, a path you don't serve).
-  One of the `remove*` verbs.
-- **An operation needs a complete rewrite** rather than piecemeal
-  patching. `overrides.operations.<method>.replace`.
+- **Upstream declares something you want gone** (a parameter, a
+  response status, a path). One of the `remove*` verbs.
+- **An operation needs a complete rewrite.**
+  `overrides.operations.<method>.replace`.
 
 ## Verb matrix
 

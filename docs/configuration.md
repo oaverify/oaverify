@@ -493,15 +493,12 @@ original `Request` and owns its own budget; call `readBodyFromFetch(req,
 types you delegate. And a byte cap bounds width, not depth, which is the
 next section.
 
-`combineValidators` takes the same option under `CombineOptions`. It
-reads the body before dispatch, so it cannot defer to the member that
-owns the route: that member is not selected yet. A composite of
-validators with different caps wants the most permissive one set on the
-composite.
-
-`oaverify compile-spec --max-total-bytes <n>` bakes the cap into the
-emitted module's Fetch helpers, `none` for unbounded. The AOT output
-shares this reader, so it inherits the default when the flag is absent.
+`combineValidators` takes the same option under `CombineOptions`; it
+reads the body before dispatch, before any member is selected, so a
+composite of validators with different caps wants the most permissive
+one set on the composite. `oaverify compile-spec --max-total-bytes <n>`
+bakes the cap into the emitted module's Fetch helpers (`none` for
+unbounded) and inherits the default when the flag is absent.
 
 See `ValidatorOptions.maxTotalBytes` and `FetchBodyOptions` for the
 contract.

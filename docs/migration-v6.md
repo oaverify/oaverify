@@ -21,10 +21,9 @@ not match is now a validation error. `byte` is the one most likely to
 be in a document you already have; see below.
 
 That list is what 6.0.0 shipped. Later releases add more format
-validators the same way, and each is a behaviour change in the same
-direction; `date-time-local`, `time-local`, `ipv4-cidr`, `ipv6-cidr`,
-`http-date` and `unixtime` are the next batch. Coming from v5, take the
-CHANGELOG for the current list and this section for the reason.
+validators the same way, each a behaviour change in the same
+direction; take the CHANGELOG for the current list and this section
+for the reason.
 
 **Several string formats got their grammars right.** `uri` and its
 siblings stopped delegating to `new URL`, which repaired illegal input

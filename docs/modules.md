@@ -62,9 +62,8 @@ promises when it supplies text.
 
 `@oaverify/check` is the composed document check behind `oaverify
 check`, in its own package because the ReDoS pass depends on
-`redos-detector` (~1MB unpacked) and npm installs a dependency whichever
-entry imports it. Behind a `@oaverify/core` subpath that weight would
-reach every `@oaverify/core` consumer.
+`redos-detector` (~1MB unpacked), weight a `@oaverify/core` subpath
+would push onto every core consumer.
 
 | Export                                                  | Purpose                                                                               |
 | ------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -86,8 +85,8 @@ reach every `@oaverify/core` consumer.
 Positions come from the caller rather than from the findings. Pass
 `spanRequestsFor(findings)` to a `SourceSpanResolver`, close over the
 answers, and hand that lookup to `renderSarif` as `spanOf`; one batch
-covers every position in the report, so a document is parsed once
-however many findings name it.
+covers every position in the report (and, per the batching above, one
+parse per document).
 
 `locatedReasonsFor` is that path for a consumer other than SARIF. An
 example that fails its schema in several places carries one
@@ -153,13 +152,12 @@ against the public barrel before reaching for them.
 ## The emitted-output runtime (semver-covered)
 
 `@oaverify/core/codegen-runtime` is the one lower-level subpath that IS
-semver-covered, and the reason is who imports it: `oaverify
-compile-spec` writes the specifier into the consumer's generated
-module, so its members are load-bearing in files this repo does not
-control. A member leaves it only across a major, together with the
-emitter. Membership is mechanical (exactly what emitted output
-imports); see the module header in
-`packages/validator/src/codegen-runtime.ts` for the contract.
+semver-covered: `oaverify compile-spec` writes the specifier into the
+consumer's generated module, so its members are load-bearing in files
+this repo does not control, and a member leaves only across a major,
+together with the emitter. Membership is mechanical (exactly what
+emitted output imports); the module header in
+`packages/validator/src/codegen-runtime.ts` has the contract.
 
 ## Companion adapter packages
 
