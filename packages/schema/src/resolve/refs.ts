@@ -1,7 +1,6 @@
 import {
   pointerFromFragment,
   resolveJsonPointer as coreResolveJsonPointer,
-  type SchemaObject,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
 import { absolutizeUri, type ResolvedGraph } from "./resolver.js";
@@ -146,36 +145,4 @@ function resolveFragment(
 
 function resolveJsonPointer(root: SchemaOrBoolean, pointer: string): SchemaOrBoolean {
   return coreResolveJsonPointer(root, pointer) as SchemaOrBoolean;
-}
-
-/**
- * Collect the graph-wide `$dynamicAnchor` union, plus the anchor `schema`
- * itself declares (which wins on a name collision).
- *
- * @remarks
- * A flat lookup table, not a scope simulation: since #663 the actual
- * dynamic scope lives in a runtime stack of schema resources, and this
- * map only supplies the static candidates. For schemas that don't use
- * `$dynamicAnchor`, a `$dynamicRef` behaves exactly like a `$ref`.
- *
- * @param schema - Schema whose own `$dynamicAnchor` (if any) is added.
- * @param graph - Resolved graph supplying the flat `byDynamicAnchor` union.
- * @returns A copy of `graph.byDynamicAnchor` with `schema`'s own
- *          `$dynamicAnchor` entry layered on top.
- *
- * @public
- */
-export function collectDynamicAnchors(
-  schema: SchemaOrBoolean,
-  graph: ResolvedGraph,
-): Map<string, SchemaOrBoolean> {
-  const acc = new Map(graph.byDynamicAnchor);
-  visit(schema, acc);
-  return acc;
-}
-
-function visit(schema: SchemaOrBoolean, acc: Map<string, SchemaOrBoolean>): void {
-  if (typeof schema === "boolean") return;
-  const obj = schema as SchemaObject;
-  if (typeof obj.$dynamicAnchor === "string") acc.set(obj.$dynamicAnchor, schema);
 }
