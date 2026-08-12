@@ -70,10 +70,10 @@ export interface BuiltInErrorParams {
   pattern: { pattern: string; actual: string };
   /**
    * `format` assertion failure (requires format-assertion vocabulary).
-   * For number-typed formats (`int32`, `int64`, ...) the emitted
-   * `actual` is a number, not the string this entry declares.
+   * `actual` is a string for string-typed formats and a number for
+   * number-typed ones (`int32`, `int64`, ...).
    */
-  format: { format: string; actual: string };
+  format: { format: string; actual: string | number };
   /** `minItems` violation. */
   minItems: { minItems: number; actual: number };
   /** `maxItems` violation. */
