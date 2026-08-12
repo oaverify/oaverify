@@ -61,18 +61,12 @@ part of the [OpenAPI Format Registry](https://spec.openapis.org/registry/format/
 
 ## What is deliberately not asserted
 
-`float` and `double` are absent on purpose. Every JSON number is
-already an IEEE 754 double, so `double` asserts nothing, and a
-`Math.fround`-based `float` rejects values a producer legitimately
-sent. `binary` is absent for the same kind of reason (the registry
-defines it as any sequence of octets); the validator handles it as an
-opaque-body bypass instead. `password`, `commonmark` and `html` are
-display hints with nothing to check.
-
-`int64` and `uint64` assert the safe-integer range rather than the full
-64-bit range, because a JSON number past 2^53 has already lost
-precision before it reaches any JavaScript validator; see
-[docs/configuration.md](../../docs/configuration.md#formats).
+`float`, `double` and `binary` are absent on purpose (`binary` is
+handled as an opaque-body bypass instead), `password`, `commonmark`
+and `html` are display hints with nothing to check, and `int64` /
+`uint64` assert the safe-integer range rather than the full 64-bit
+range. The reasoning per name is in
+[docs/configuration.md](../../docs/configuration.md#what-is-not-asserted).
 
 The remaining registry names (`decimal`, `decimal128`, and the six
 `sf-*` structured-field formats) are assertable and not yet
@@ -83,36 +77,14 @@ annotation from a gap a later release may close.
 ## Registering a custom format
 
 The validator and compiler both accept a `formats` option that merges
-on top of the built-ins:
-
-```ts
-import { createValidator } from "@oaverify/core";
-
-const v = createValidator(spec, {
-  formats: {
-    // A bare function is a string format.
-    "e164-phone": (s) => /^\+[1-9]\d{6,14}$/.test(s),
-    // Constraining numbers says the type out loud.
-    "basis-points": { type: "number", validate: (n) => n >= 0 && n <= 10000 },
-    // `false` registers the name and asserts nothing.
-    int64: false,
-  },
-});
-```
-
-A bare function is **always** a string format, including under a name
-whose built-in constrains numbers.
-
-In the spec, reference the format as you would any built-in:
-
-```yaml
-Phone:
-  type: string
-  format: e164-phone
-```
-
-See [`examples/custom-formats.ts`](../../examples/custom-formats.ts)
-for a runnable end-to-end.
+on top of the built-ins: a bare function is a string format (**always**,
+including under a name whose built-in constrains numbers), a
+number-constraining format says the type out loud
+(`{ type: "number", validate }`), and `false` registers a name that
+asserts nothing. Recipe in
+[docs/configuration.md](../../docs/configuration.md#formats), runnable
+end-to-end in
+[`examples/custom-formats.ts`](../../examples/custom-formats.ts).
 
 ## Assertive vs annotation-only
 

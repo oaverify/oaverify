@@ -9,11 +9,10 @@ document conformance whose rules are OpenAPI's rather than independently
 hand-written here, so they do not drift from the spec the way a
 hand-maintained rule set does.
 
-One qualification, because that is easy to read as stronger than it is:
-3.1 and 3.2 are vendored byte-identical to the published documents, but
-**3.0 is derived from one** rather than being one. It is published as
-draft-04, so it goes through a translation (see below). Three mechanical
-edits, and the script refuses anything it does not understand, but the
+One qualification, because that is easy to read as stronger than it
+is: 3.1 and 3.2 are vendored byte-identical to the published
+documents, but **3.0 is derived from one** rather than being one (see
+[Regenerating the 3.0 schema](#regenerating-the-30-schema)), so that
 artifact is our output and a bug in it would be ours.
 
 This package holds the schemas and the version dispatch only. It does
@@ -165,11 +164,8 @@ The 3.0 schema has two published revisions, `2021-09-28` and
 `ParameterLocation` refactor. The 3.0 line is closed, so that pin is
 expected to age well.
 
-The 3.1 schema's anchor topology (four `$dynamicRef`, one
-`$dynamicAnchor`, zero external `$ref`) is identical across every
-published revision. 3.2 has five `$dynamicRef` sites rather than four,
-and the same single anchor and zero external refs; the count that matters
-is the anchor, since one anchor is what makes static resolution
-unambiguous. That stability is structural: the anchor exists to be
-a swappable placeholder, so it cannot gain structure without the
-dialect-swap contract itself changing.
+The 3.1 and 3.2 schemas keep one `$dynamicAnchor` and zero external
+`$ref`s across every published revision, and that stability is
+structural: the anchor exists to be a swappable placeholder, so it
+cannot gain structure without the dialect-swap contract itself
+changing.

@@ -150,15 +150,11 @@ res.status(httpStatusFor(err)).json({
     errorCode: i.code,
   })),
 });
-
-// Every-leaf "joined message" shape (some pre-existing wire formats
-// use this, e.g. eov under `validateRequests: { allErrors: true }`):
-formatSummary(err, { select: "all" }); // newline-joined
-// Or for a comma-joined variant:
-collectIssues(err)
-  .map((i) => i.message)
-  .join(", ");
 ```
+
+For the every-leaf "joined message" shape some pre-existing wire
+formats use, see `formatSummary({ select: "all" })` in
+[docs/migration-from-eov.md](../../docs/migration-from-eov.md#all-issues-output-eovs-allerrors).
 
 See the [Framework integration](../../README.md#framework-integration)
 section of the root README for Express / Fastify / Next.js snippets.
