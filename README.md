@@ -54,7 +54,6 @@ body, content type, status, and headers.
 
 The established OpenAPI validators for JavaScript predate OpenAPI 3.1.
 oaverify is built to be the boring, correct option for modern specs.
-The claims that justify it, each with the artifact that checks it:
 
 - **3.1 and 3.2 are JSON Schema 2020-12, natively.** 1294/1299 on the
   required upstream test suite, every divergence itemized and
@@ -269,8 +268,7 @@ tighten a schema) in memory, before the validator is constructed,
 without forking the file:
 
 ```ts
-import { applyOverlays } from "@oaverify/core/spec";
-import type { SpecOverlay } from "@oaverify/core/spec";
+import { applyOverlays, type SpecOverlay } from "@oaverify/core/spec";
 
 // Require an API key on POST /pets; tighten the upstream Pet schema.
 const deployment: SpecOverlay = {
@@ -283,8 +281,8 @@ const deployment: SpecOverlay = {
 const validator = createValidator(applyOverlays(document, [deployment]));
 ```
 
-The full verb surface (servers, paths, component-bucket fan-out,
-predicate iterators) is documented in
+The full verb surface (servers, paths, operations, component-bucket
+fan-out, predicate iterators) is documented in
 [`docs/overlays.md`](https://github.com/oaverify/oaverify/blob/main/docs/overlays.md).
 
 ## Where to go next
@@ -378,12 +376,6 @@ Other 3.2 document-level additions (`additionalOperations`,
 operation declared under `additionalOperations` is not routed, so a
 request for it gets a 405 rather than being validated.
 
-### Node
-
-Node 22 or newer, on every published package. Nothing older is tested,
-and the packages declare `engines.node: ">=22"`, so an older runtime
-fails at install rather than at runtime.
-
 Override via `createValidator(spec, { dialect })` to force or customize
 one of the built-in dialects (`jsonSchemaDialect`, `openapi31Dialect`,
 `oas30Dialect`). The option wins over the version the document declares,
@@ -401,6 +393,12 @@ and pass the 3.0 output to `createValidator`:
 ```bash
 npx swagger2openapi swagger.json -o openapi.json
 ```
+
+### Node
+
+Node 22 or newer, on every published package. Nothing older is tested,
+and the packages declare `engines.node: ">=22"`, so an older runtime
+fails at install rather than at runtime.
 
 ## Framework integration
 
