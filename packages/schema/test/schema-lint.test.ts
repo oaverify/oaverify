@@ -181,6 +181,55 @@ describe("strict mode: silent-rewrite/ref-siblings-oas30", () => {
     expect(sib[0]?.keyword).toBe("required");
   });
 
+  // An `x-*` extension beside a `$ref` loses nothing: no dialect gives
+  // it validation semantics, so the compiler ignoring it changes no
+  // verdict, and it survives resolution for whatever reads it. 64 of
+  // 2846 of these findings on the published-spec corpus were
+  // `x-linode-cli-display` and friends.
+  it("tolerates an `x-*` extension sibling of $ref under OAS 3.0", () => {
+    const schema = withTarget({
+      properties: {
+        wrapper: { $ref: "#/$defs/Pet", "x-internal": true, "x-linode-cli-display": 3 },
+      },
+    });
+    const sib = oas30Lint(schema).filter((i) => i.code === "silent-rewrite/ref-siblings-oas30");
+    expect(sib).toEqual([]);
+  });
+
+  // A keyword registered under an `x-`-prefixed name does carry
+  // semantics, and OAS 3.0 drops it beside a `$ref` like any other
+  // sibling. Pruning on the prefix alone would suppress the finding
+  // exactly where the author most needs it.
+  it("still flags a registered custom keyword whose name starts with x-", () => {
+    const schema = withTarget({
+      properties: {
+        wrapper: { $ref: "#/$defs/Pet", "x-must-be-short": 3 },
+      },
+    });
+    const issues = compileSchema(schema, {
+      dialect: oas30Dialect,
+      keywords: {
+        "x-must-be-short": (value, data) =>
+          typeof data !== "string" || data.length <= (value as number),
+      },
+    }).stats.schemaLintIssues;
+    const sib = issues.filter((i) => i.code === "silent-rewrite/ref-siblings-oas30");
+    expect(sib.map((i) => i.keyword)).toEqual(["x-must-be-short"]);
+  });
+
+  // The prune is on the `x-` prefix, not on "keywords we do not know":
+  // an unrecognised non-extension sibling is still dropped, and still
+  // worth saying so.
+  it("still flags a non-extension sibling it does not recognise", () => {
+    const schema = withTarget({
+      properties: {
+        wrapper: { $ref: "#/$defs/Pet", nullable: true },
+      },
+    });
+    const sib = oas30Lint(schema).filter((i) => i.code === "silent-rewrite/ref-siblings-oas30");
+    expect(sib.map((i) => i.keyword)).toEqual(["nullable"]);
+  });
+
   it("tolerates `description` and `summary` siblings of $ref under OAS 3.0", () => {
     const schema = withTarget({
       properties: {

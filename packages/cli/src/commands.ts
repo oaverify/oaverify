@@ -1106,7 +1106,46 @@ async function bundleEmitted(
   });
   const out = result.outputFiles[0];
   if (out === undefined) throw new Error("esbuild produced no output");
-  return out.text;
+  return stripBundlerPathComments(out.text);
+}
+
+/**
+ * Drop esbuild's per-module path comments from the emitted bundle.
+ *
+ * esbuild labels each bundled module with a `// <path>` line. For a
+ * module bundled out of this CLI's own build those read
+ * `// dist/chunk-2YDUB5Q2.js`: build-internal names that mean nothing to
+ * the reader of a standalone validator, and whose hashes change on every
+ * rebuild, so a user who commits the generated file gets a diff for
+ * work they did not do.
+ *
+ * The label is the module path **relative to esbuild's working
+ * directory**, so it is not a fixed string. Running from this repo it is
+ * `dist/chunk-….js`, because `@oaverify/core` resolves by package
+ * self-reference. Running from a user's project, which is the case the
+ * paragraph above is about, it is
+ * `node_modules/@oaverify/core/dist/chunk-….js`, or under pnpm the
+ * longer `node_modules/.pnpm/@oaverify+core@…/node_modules/…` form.
+ * Anchoring on `dist/chunk-` alone matched only the first, so the fix
+ * fired exactly where it was least needed.
+ *
+ * Matching `dist/chunk-<HASH>.js` under any prefix covers all three. A
+ * comment a user wrote that happens to read `// dist/chunk-ABC123.js` is
+ * also removed; there is nothing in the output that distinguishes it,
+ * and the cost of being wrong there is a lost comment rather than a
+ * broken module.
+ */
+const BUNDLER_CHUNK_COMMENT = /^\/\/ (?:\S*\/)?dist\/chunk-[A-Z0-9]+\.js\n/gm;
+
+/**
+ * Strip esbuild's per-module path comments from a bundle.
+ *
+ * @internal Exported for the unit test: the compile-spec suite bundles
+ * from `packages/*\/src` with no prior build, so its module labels never
+ * take the `dist/chunk-` shape this removes.
+ */
+export function stripBundlerPathComments(text: string): string {
+  return text.replace(BUNDLER_CHUNK_COMMENT, "");
 }
 
 /**
