@@ -92,6 +92,20 @@ export interface CheckFinding {
    * not to alter what a reader sees.
    */
   location: string;
+  /**
+   * What is wrong with this occurrence, in one sentence.
+   *
+   * Occurrence-specific, and only that: what varies between two findings
+   * of the same code. Since #774 the parts that do not vary (why the
+   * code exists, whether it is legal, what to do about it) live on
+   * {@link CheckRule.explanation}, once per code rather than once per
+   * finding, so this got shorter and a consumer wanting the full story
+   * reads both.
+   *
+   * Prose. Do not pattern-match it; `code` is the stable key, and
+   * {@link CheckFinding.reasons} carries the structured cause where a
+   * class produces one.
+   */
   message: string;
   /**
    * How many operations reported this same defect, when more than one.

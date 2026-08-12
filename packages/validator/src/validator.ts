@@ -664,7 +664,13 @@ export interface ValidatorStats {
  *   {@link ValidatorOptions.keywords}.
  * - **Output shape + error budget**: {@link ValidatorOptions.output},
  *   {@link ValidatorOptions.maxErrors}.
- * - **Schema lint**: {@link ValidatorOptions.schemaLint}.
+ * - **Schema lint**: {@link ValidatorOptions.schemaLint},
+ *   {@link ValidatorOptions.lint}. The first lints compiled schemas,
+ *   the second the OpenAPI document itself.
+ * - **Resource limits**: {@link ValidatorOptions.maxDepth},
+ *   {@link ValidatorOptions.maxTotalBytes}.
+ * - **Format and regex policy**: {@link ValidatorOptions.unknownFormats},
+ *   {@link ValidatorOptions.regexCompiler}.
  * - **Security gating**: {@link ValidatorOptions.validateSecurity}.
  * - **Path filtering**: {@link ValidatorOptions.ignoreUndocumented},
  *   {@link ValidatorOptions.ignorePaths}.
@@ -864,7 +870,7 @@ export interface ValidatorOptions {
    * nothing has touched surfaces on that operation's first request.
    * Call {@link Validator.precompile} at boot for the failure at boot.
    *
-   * See {@link @oaverify/internal-schema!CompileOptions.unknownFormats}.
+   * See `@oaverify/core/schema`'s `CompileOptions.unknownFormats`.
    */
   unknownFormats?: "ignore" | "error";
   /**
