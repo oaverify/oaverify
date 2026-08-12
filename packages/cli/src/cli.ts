@@ -101,9 +101,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .command("resolve <spec>")
     .description("Resolve a (possibly multi-file) OpenAPI document and print the stitched result.")
     .option(
-      "--overlay <file...>",
-      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
-      collectOverlays,
+      "--overlay <file>",
+      "apply an overlay file; repeat for more than one, applied in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      collectRepeatable,
       [],
     )
     .option("-o, --output <file>", "write output to a file instead of stdout")
@@ -147,9 +147,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       "Report what is wrong with a spec: conformance, hygiene, schema, example and ReDoS findings.",
     )
     .option(
-      "--overlay <file...>",
-      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
-      collectOverlays,
+      "--overlay <file>",
+      "apply an overlay file; repeat for more than one, applied in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      collectRepeatable,
       [],
     )
     .option(
@@ -173,9 +173,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       },
     )
     .option(
-      "--severity <map...>",
+      "--severity <map>",
       "regrade findings: comma-separated <key>=<level>, key being a code, " +
         "a family as 'name/*', or a class (e.g. 'unsatisfiable/*=error,redos=error')",
+      collectRepeatable,
+      [],
     )
     .option(
       "--format <shape>",
@@ -240,9 +242,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .command("validate <spec>")
     .description("Validate a request/response/body against an OpenAPI document.")
     .option(
-      "--overlay <file...>",
-      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
-      collectOverlays,
+      "--overlay <file>",
+      "apply an overlay file; repeat for more than one, applied in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      collectRepeatable,
       [],
     )
     .option("--request <file>", "path to a .http file (use '-' for stdin)")
@@ -308,9 +310,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       "Report the streaming-buffer budget per operation (which request/response bodies stream vs buffer, and where).",
     )
     .option(
-      "--overlay <file...>",
-      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
-      collectOverlays,
+      "--overlay <file>",
+      "apply an overlay file; repeat for more than one, applied in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      collectRepeatable,
       [],
     )
     .option(
@@ -427,9 +429,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       "AOT-compile an OpenAPI document to a standalone HTTP validator module (zero imports).",
     )
     .option(
-      "--overlay <file...>",
-      "apply one or more overlay files in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
-      collectOverlays,
+      "--overlay <file>",
+      "apply an overlay file; repeat for more than one, applied in order (OpenAPI Overlay 1.0 or typed SpecOverlay)",
+      collectRepeatable,
       [],
     )
     .option(
@@ -442,8 +444,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .option("--requests-only", "skip response-validator emit (smaller output)", false)
     .option(
-      "--only <method-path...>",
-      'restrict emit to specified operations, e.g. --only "POST /pets" "GET /pets/{id}"',
+      "--only <method-path>",
+      "restrict emit to specified operations; repeat for more than one, " +
+        'e.g. --only "POST /pets" --only "GET /pets/{id}"',
       collectOnly,
       [],
     )
@@ -551,7 +554,18 @@ function collectOnly(
   return [...previous, { method: parts[0]!.toUpperCase(), path: parts[1]! }];
 }
 
-function collectOverlays(value: string, previous: string[]): string[] {
+/**
+ * Accumulate a repeated option into an array, in the order written.
+ *
+ * Paired with a single-value declaration (`<file>`, not `<file...>`).
+ * Commander's variadic form keeps consuming argv until the next `-`, so
+ * a variadic option swallows the positional that follows it:
+ * `check --severity 'redos=error' spec.yaml` failed with "missing
+ * required argument 'spec'". `--overlay` carried both this collector and
+ * a variadic marker, so it paid that cost for a repeatability it already
+ * had.
+ */
+function collectRepeatable(value: string, previous: string[]): string[] {
   return [...previous, value];
 }
 
