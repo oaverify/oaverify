@@ -44,7 +44,9 @@ pnpm typecheck
 
 `pnpm check` takes ~30s for a single schema at the minimum budget. That is
 not the budget's fault: tinybench warms up every task and ajv's compile is
-~2.7ms per operation, so warmup dominates whatever budget you set.
+milliseconds per operation, so warmup dominates whatever budget you set.
+The figure is host-dependent: ~2.7ms on an M3 Ultra, 6-8ms on the
+c7i.large that [docs/comparison.md](../docs/comparison.md) is stamped to.
 
 ## What it gates
 
@@ -96,6 +98,13 @@ compile (per library, aggregated across every schema):
   property of the library, not a benchmark artifact.
 
 ### Memory mode (`mem.ts`)
+
+The block below shows the shape of the output, not a result. Its numbers
+came from one run on one machine and disagree with the host-stamped table
+in [docs/comparison.md](../docs/comparison.md) on which library holds
+less at baseline, which is what a 10-15 MB RSS spread does to a ~6 MB
+difference. Read the committed comparison for findings, and this for
+what the columns mean.
 
 ```
 === Steady-state memory: 100 × 500 = 50000 reqs ===

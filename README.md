@@ -300,6 +300,7 @@ predicate iterators) is documented in
 | Migrate from express-openapi-validator     | [docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md)                   |
 | Use custom formats, keywords, or limits    | [docs/configuration.md](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md)                             |
 | Work out what "strict" controls            | [docs/strictness.md](https://github.com/oaverify/oaverify/blob/main/docs/strictness.md)                                   |
+| Upgrade from v2 to v3                      | [docs/migration-v3.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v3.md)                               |
 | Upgrade from v4 to v5                      | [docs/migration-v5.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v5.md)                               |
 | Upgrade from v5 to v6                      | [docs/migration-v6.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md)                               |
 | Upgrade from v6 to v7                      | [docs/migration-v7.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v7.md)                               |
@@ -373,7 +374,15 @@ and picks the matching dialect. No per-request branching.
 
 3.2 coverage is the Schema Object (unchanged from 3.1) plus `QUERY`.
 Other 3.2 document-level additions (`additionalOperations`,
-`in: querystring`, streaming media types) aren't recognized yet.
+`in: querystring`, streaming media types) aren't recognized yet. An
+operation declared under `additionalOperations` is not routed, so a
+request for it gets a 405 rather than being validated.
+
+### Node
+
+Node 22 or newer, on every published package. Nothing older is tested,
+and the packages declare `engines.node: ">=22"`, so an older runtime
+fails at install rather than at runtime.
 
 Override via `createValidator(spec, { dialect })` to force or customize
 one of the built-in dialects (`jsonSchemaDialect`, `openapi31Dialect`,
