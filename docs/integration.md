@@ -70,13 +70,13 @@ install); the recipes below assume they are in scope. All but
 `formatSummary` accept either a single `ValidationError` tree or a
 flat `ValidationError[]`, so `result.errors` passes straight through.
 
-| Helper                              | Gives you                                                                                                                                            |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `httpStatusFor(errors, overrides?)` | The HTTP status for the failure; table and overrides under [Status-code mapping](#status-code-mapping)                                                |
-| `allowHeaderFor(errors)`            | The `Allow` header value for a 405 (RFC 9110 §15.5.6 requires it), else `undefined`                                                                   |
-| `toProblemDetails(errors, opts?)`   | An [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) `application/problem+json` body, failing leaves in `issues`; pass `detail` to override it |
+| Helper                              | Gives you                                                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `httpStatusFor(errors, overrides?)` | The HTTP status for the failure; table and overrides under [Status-code mapping](#status-code-mapping)                                                 |
+| `allowHeaderFor(errors)`            | The `Allow` header value for a 405 (RFC 9110 §15.5.6 requires it), else `undefined`                                                                    |
+| `toProblemDetails(errors, opts?)`   | An [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) `application/problem+json` body, failing leaves in `issues`; pass `detail` to override it   |
 | `formatSummary(err, opts?)`         | One tree as a string, for log lines and monitoring titles; `FormatSummaryOptions.select` picks which leaves (`{ select: "all" }` enumerates every one) |
-| `collectIssues(errors)`             | The flat leaf list for custom envelopes, each with a raw `path: PathSegment[]` and an RFC 6901 `pointer`                                              |
+| `collectIssues(errors)`             | The flat leaf list for custom envelopes, each with a raw `path: PathSegment[]` and an RFC 6901 `pointer`                                               |
 
 ## Per-framework integration
 
