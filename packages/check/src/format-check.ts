@@ -106,20 +106,44 @@ const OAS_REGISTRY = new Set([
 ]);
 
 /**
- * Registry names no validator can honestly assert, so their absence is
- * permanent rather than pending.
+ * Registry names no validator can honestly assert, mapped to why, so
+ * their absence reads as permanent rather than pending.
  *
- * `float` and `double` because every JSON number is already an IEEE 754
- * double (see `numeric.ts`); `binary` because the registry defines it as
- * any sequence of octets, and the validator already handles it as an
- * opaque-body bypass rather than a constraint; `password` because it is
- * a display hint; `commonmark` and `html` because every string is
- * arguably well-formed under both.
+ * A `Map` rather than an object literal, and one structure rather than a
+ * membership set beside a reason table. The key is a `format` read
+ * straight off the document, so an object literal would resolve
+ * `constructor` or `toString` through `Object.prototype` and emit
+ * `[native code]` into the report and into SARIF. Keeping the reason
+ * next to the name is also what stops the two drifting: a name here
+ * cannot lose its reason, and a reason cannot outlive its name.
  *
- * Separated from the merely-unimplemented so the report can tell an
- * author whether waiting will help.
+ * `float` and `double` are the pair worth reading. They are not the same
+ * case, and saying so wrongly is what sent the v7 review looking for a
+ * bug. Every JSON number really is an IEEE 754 double, so `double`
+ * asserts nothing. float32 is a strictly narrower set and
+ * `Math.fround(n) === n` decides membership exactly, so a validator
+ * *can* assert `float`. It should not: a producer holding the float32
+ * nearest 3.14 serializes it as `3.14`, the shortest string that
+ * round-trips, and `Math.fround(3.14) !== 3.14`. Asserting would reject
+ * most real float values, `0.1` and `0.2` among them. See the module
+ * note in `@oaverify/internal-formats`'s `numeric.ts`.
  */
-const NOT_ASSERTABLE = new Set(["float", "double", "binary", "password", "commonmark", "html"]);
+const NOT_ASSERTABLE = new Map<string, string>([
+  [
+    "float",
+    "asserting it would reject values a producer legitimately sent " +
+      '(a float32 holding 3.14 serializes as "3.14", which is not itself float32-representable)',
+  ],
+  ["double", "no validator can assert it over JSON"],
+  // The registry defines it as any sequence of octets, and the validator
+  // already handles it as an opaque-body bypass rather than a constraint.
+  ["binary", "no validator can assert it over JSON"],
+  // A display hint.
+  ["password", "no validator can assert it over JSON"],
+  // Every string is arguably well-formed under both.
+  ["commonmark", "no validator can assert it over JSON"],
+  ["html", "no validator can assert it over JSON"],
+]);
 
 /** A `format` name with no validator behind it. */
 export interface FormatIssue {
@@ -170,8 +194,9 @@ export function checkDocumentFormats(
     // contrast is between the specification and this run's coverage,
     // and "not validated here" says the second half.
     let origin: string;
-    if (NOT_ASSERTABLE.has(format)) {
-      origin = `OpenAPI defines "${format}", and no validator can assert it over JSON`;
+    const reason = NOT_ASSERTABLE.get(format);
+    if (reason !== undefined) {
+      origin = `OpenAPI defines "${format}", and ${reason}`;
     } else if (OAS_REGISTRY.has(format)) {
       origin = `OpenAPI defines "${format}", and it is not asserted here yet`;
     } else {

@@ -78,13 +78,25 @@ describe("an OAS-defined format reads differently from a vendor one", () => {
   // not invent the name: the spec gave it to them and nothing enforces
   // the range. Same code, different claim.
   it("separates the unassertable from the merely unimplemented", () => {
-    // float and friends will never be asserted, so the message says so
+    // double and friends will never be asserted, so the message says so
     // rather than implying a later release will cover them.
-    for (const format of ["float", "double", "binary", "password", "commonmark", "html"]) {
+    for (const format of ["double", "binary", "password", "commonmark", "html"]) {
       const message = check(doc({ type: "string", format }))[0]?.message ?? "";
       expect(message).toContain(`OpenAPI defines "${format}", and no validator can assert it`);
       expect(message).not.toContain("not asserted here yet");
     }
+  });
+
+  // `float` is in the same bucket and gets there by a different route,
+  // which the message has to say: the test exists, and running it would
+  // reject correct payloads. Claiming no validator *can* assert it is
+  // false, and an author who checks would find `Math.fround` and file a
+  // bug against a decision that is right.
+  it("gives float its own reason rather than double's", () => {
+    const message = check(doc({ type: "number", format: "float" }))[0]?.message ?? "";
+    expect(message).toContain("would reject values a producer legitimately sent");
+    expect(message).not.toContain("no validator can assert it");
+    expect(message).not.toContain("not asserted here yet");
   });
 
   it("names OpenAPI as the definer for a registry format not yet asserted", () => {
@@ -118,6 +130,20 @@ describe("an OAS-defined format reads differently from a vendor one", () => {
       "media-range",
     ]) {
       expect(check(doc({ type: "string", format }))).toEqual([]);
+    }
+  });
+
+  // `format` is read straight off the document, so a name that happens
+  // to be an Object.prototype key must not resolve through the prototype
+  // chain. An object literal keyed by format emitted
+  // `and function Object() { [native code] }` into the message, and into
+  // SARIF, while also claiming OpenAPI defined the name.
+  it("does not read a prototype key as a format reason", () => {
+    for (const format of ["constructor", "toString", "valueOf", "hasOwnProperty", "__proto__"]) {
+      const message = check(doc({ type: "string", format }))[0]?.message ?? "";
+      expect(message).toContain(`"${format}" is not a validated format`);
+      expect(message).not.toContain("native code");
+      expect(message).not.toContain("OpenAPI defines");
     }
   });
 
