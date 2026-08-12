@@ -2,12 +2,18 @@
  * One traversal of an OpenAPI document's schema-bearing positions,
  * shared by everything that needs to visit them.
  *
- * Two consumers so far: the `examples` check (which needs schema nodes
- * *and* the objects that carry examples beside a schema) and the CLI's
- * ReDoS check (which needs only schema nodes). A third independent copy
- * of "where does OpenAPI put schemas" is how one walker gains a
- * container the others silently miss, so the structure lives here once
- * and callers supply hooks.
+ * Four consumers: the `examples` check (which needs schema nodes *and*
+ * the objects that carry examples beside a schema), `@oaverify/check`'s
+ * ReDoS check and its `format-not-validated` pass, and the CLI's
+ * unknown-format collection (which need only schema nodes). Another
+ * independent copy of "where does OpenAPI put schemas" is how one walker
+ * gains a container the others silently miss, so the structure lives
+ * here once and callers supply hooks.
+ *
+ * That is also the blast radius of an omission here, and it is wider
+ * than it looks: `query` was missing from METHODS below, and all four
+ * went quiet on an OAS 3.2 QUERY operation rather than one of them
+ * reporting differently.
  *
  * Positions inside a schema come from `core`'s subschema constants, so
  * this cannot drift from what the compiler treats as a subschema either.
@@ -24,11 +30,40 @@ import {
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
+  type HttpMethod,
   type OpenAPIDocument,
 } from "@oaverify/internal-core";
 
-/** HTTP methods that hold an Operation Object under a Path Item. */
-const METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"] as const;
+/**
+ * The fixed method fields that hold an Operation Object under a Path
+ * Item.
+ *
+ * Written as a `Record<HttpMethod, true>` and read back with
+ * `Object.keys`, so the compiler requires every member of the union.
+ * An array, however it is typed, cannot: `satisfies` rejects a name that
+ * is not a method, and nothing rejects a method the list forgets. The
+ * omission is the failure that happened. `query` went missing here while
+ * the router, the spec linter, the stream analyzer and the CLI emitter
+ * all carried it, and nothing failed anywhere: all four consumers of
+ * this walk simply reported nothing for a QUERY operation.
+ *
+ * Not the whole story under OAS 3.2, which also puts Operation Objects
+ * in `additionalOperations`, keyed by arbitrary method token. That is
+ * unhandled here and everywhere else in the repo; see the issue.
+ */
+const METHOD_FIELDS: Record<HttpMethod, true> = {
+  get: true,
+  put: true,
+  post: true,
+  delete: true,
+  options: true,
+  head: true,
+  patch: true,
+  trace: true,
+  query: true,
+};
+
+const METHODS = Object.keys(METHOD_FIELDS) as readonly HttpMethod[];
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
