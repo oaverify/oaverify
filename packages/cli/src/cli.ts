@@ -110,7 +110,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("--quiet", "print nothing; exit code only", false)
     .option(
       "--remote-refs <mode>",
-      "how far http(s) reads may go, the entry included: allow (default), same-origin, deny",
+      "how far http(s) reads may go, the entry included: same-origin (default), allow, deny",
       parseRemoteRefs,
     )
     .option(
@@ -192,7 +192,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("--quiet", "print nothing; exit code only", false)
     .option(
       "--remote-refs <mode>",
-      "how far http(s) reads may go, the entry included: allow (default), same-origin, deny",
+      "how far http(s) reads may go, the entry included: same-origin (default), allow, deny",
       parseRemoteRefs,
     )
     .option(
@@ -264,7 +264,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("--quiet", "print nothing; exit code only", false)
     .option(
       "--remote-refs <mode>",
-      "how far http(s) reads may go, the entry included: allow (default), same-origin, deny",
+      "how far http(s) reads may go, the entry included: same-origin (default), allow, deny",
       parseRemoteRefs,
     )
     .option(
@@ -335,7 +335,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("--quiet", "print nothing; exit code only", false)
     .option(
       "--remote-refs <mode>",
-      "how far http(s) reads may go, the entry included: allow (default), same-origin, deny",
+      "how far http(s) reads may go, the entry included: same-origin (default), allow, deny",
       parseRemoteRefs,
     )
     .option(
@@ -471,7 +471,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("-o, --output <file>", "write output to a file instead of stdout")
     .option(
       "--remote-refs <mode>",
-      "how far http(s) reads may go, the entry included: allow (default), same-origin, deny",
+      "how far http(s) reads may go, the entry included: same-origin (default), allow, deny",
       parseRemoteRefs,
     )
     .option(
