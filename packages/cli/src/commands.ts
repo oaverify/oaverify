@@ -483,7 +483,7 @@ function wrapText(text: string, width: number, first: string, rest: string): str
  * Two verbs, one question each: `check` is about the document, `validate`
  * is about traffic.
  *
- * Findings carry a `class` (which pass found it, and what `--only`
+ * Findings carry a `class` (which pass found it, and what `--findings`
  * selects) and a `severity` (what it means for you, and what `--fail-on`
  * gates on). The two cut across each other: `hygiene` holds both a
  * specification violation and pure housekeeping. See
@@ -547,16 +547,15 @@ export async function checkCommand(
      * key in `--severity`'s key space, optionally prefixed `-` to
      * exclude.
      *
-     * One flag over the two questions `--only` and `--skip` ask
+     * One flag over the two questions inclusion and exclusion ask
      * separately, with the two stages split by sign rather than by flag
      * name: a term without `-` decides what runs, a term with `-` drops
      * findings the passes produced. See `parseFindingTerms` for the
      * grammar and `resolveFindingSelection` for the rule.
      *
-     * Refused alongside `--only` or `--skip`. They are competing
-     * spellings of one selection, and a run given both would have to
-     * pick an order to apply them in, which is the ambiguity one flag
-     * exists to remove.
+     * One flag rather than two because a run given both would have to
+     * pick an order to apply them in, which is the ambiguity this
+     * spelling exists to remove.
      */
     findings?: string;
     /** `"text"` (default), `"json"`, or `"sarif"`. */
@@ -682,9 +681,8 @@ export async function checkCommand(
   // A skipped finding is not produced: it leaves the array here, so it
   // gates on nothing below and counts toward nothing in the summary.
   // The report is what keeps that from being silent.
-  // `--findings`' exclusions and `--skip`'s keys are the same operation
-  // and go through the same function; only the flag that named them
-  // differs, so only the report wording does.
+  // `--findings`' exclusions go through the same function the library's
+  // `applySkip` exposes; only the wording of the report differs.
   const skipResult = applySkip(findings, selection.excludeKeys);
   findings = skipResult.findings;
   const skipped = skipResult.skipped;

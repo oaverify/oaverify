@@ -2,7 +2,8 @@
  * The key half of the `--severity` grammar, on its own.
  *
  * "Which findings does this name" is asked by more than one option:
- * `--severity` grades what a key selects, `--skip` suppresses it. The
+ * `--severity` grades what a key selects, an exclusion term suppresses
+ * it. The
  * key space is the same in both, and so is the refusal a typo earns, so
  * it lives here rather than inside either caller.
  *
@@ -31,8 +32,8 @@ export type FindingKey =
  *
  * A result rather than a thrown error so each caller keeps its own
  * error type and its own sentence around the reason: `--severity`
- * refuses a key it cannot grade, `--skip` refuses one it cannot
- * suppress, and the two say so in their own words.
+ * refuses a key it cannot grade, an exclusion term refuses one it
+ * cannot suppress, and the two say so in their own words.
  *
  * @public
  */

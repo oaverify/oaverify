@@ -57,8 +57,8 @@ export interface CheckOptions {
    *
    * Build one with `resolveFindingSelection(parseFindingTerms(value))`
    * from the CLI's `--findings` grammar, or with
-   * {@link selectionForClasses} from a list of classes, which is what
-   * `--only` maps to. The resolved form rather than the strings, for
+   * {@link selectionForClasses} from a list of classes. The resolved
+   * form rather than the strings, for
    * the reason on {@link CheckOptions.severity}.
    *
    * Two things it decides beyond which findings survive.
@@ -256,8 +256,8 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     // This is also the switch that decides whether a `malformed`
     // finding can exist, since compiling is what finds one. A
     // selection that does not ask for a compiler-owned code does not
-    // compile and so cannot report one, which is what `--only hygiene`
-    // has always done.
+    // compile and so cannot report one, which is what
+    // `--findings hygiene` has always done.
     if (selection.compileSchemas) {
       // Compilation is lazy, so without this the schema class inspects
       // nothing: no schema has been checked and schemaLintIssues is
@@ -356,7 +356,7 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     //
     // Separate class also gives the cost its own switch: this is the
     // one check that compiles schemas of its own accord, so
-    // `--only hygiene,schema` opts out of it.
+    // `--findings hygiene,schema` opts out of it.
     //
     // The guard hands the pass the same ambiguity analysis the redos
     // class runs, so an example whose schema reaches a catastrophic
@@ -392,8 +392,9 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     // Its own class because it is the only check that reaches for a
     // third-party analyser: `redos-detector` is a dependency of
     // `@oaverify/check`, kept off `@oaverify/core` so that stays
-    // dependency-free. Runs by default like every other class; `--only`
-    // is how a caller who has already hardened with `regexCompiler`, or
+    // dependency-free. Runs by default like every other class;
+    // `--findings` is how a caller who has already hardened with
+    // `regexCompiler`, or
     // who finds the analysis slow on a very large document, opts out.
     for (const issue of checkDocumentRedos(document)) {
       findings.push({

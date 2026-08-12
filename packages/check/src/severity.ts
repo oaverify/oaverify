@@ -149,7 +149,8 @@ export class SeverityMapError extends Error {}
  *
  * All three key spaces are checked against what `check` can emit
  * ({@link CHECK_CODES}, {@link CHECK_FAMILIES}, {@link CHECK_CLASSES}),
- * by {@link parseFindingKey}, which `--skip` shares. A key matching
+ * by {@link parseFindingKey}, which the exclusion parser shares. A key
+ * matching
  * nothing is refused, not stored.
  *
  * The key spaces are taken from this package rather than passed in.

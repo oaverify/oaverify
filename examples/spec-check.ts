@@ -44,10 +44,10 @@ console.log(`would exit ${exitCode}`);
 // composition and the exit-code taxonomy:
 //
 //   oaverify check examples/specs/catalog.yaml
-//   oaverify check examples/specs/catalog.yaml --only examples --format json
+//   oaverify check examples/specs/catalog.yaml --findings examples --format json
 //   oaverify check examples/specs/catalog.yaml --fail-on warning
 //
-// `--only examples` runs the same pass this file calls directly, and on
+// `--findings examples` runs the same pass this file calls directly, and on
 // this spec both report the same three pointers.
 //
 // Note the threshold: an invalid example is a `warning`, so `--fail-on

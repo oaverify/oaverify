@@ -30,8 +30,8 @@ export interface CheckFinding {
    * Which check produced this, matching the three-class model in
    * docs/strictness.md.
    *
-   * Not the same set as {@link CHECK_CLASSES}, which is what `--only`
-   * selects. A malformed schema is found by compiling, which is what the
+   * Not the same set as {@link CHECK_CLASSES}, which is what
+   * `--findings` selects. A malformed schema is found by compiling, which is what the
    * `schema` class does, so it cannot be requested on its own; it is
    * reported under its own class because it is a different kind of
    * problem with a different remedy, and a consumer re-splitting the
@@ -309,7 +309,7 @@ export interface FindingTarget {
 }
 
 /**
- * The classes a run can *select*, which the CLI spells `--only`. See
+ * The classes a run can *select*, which the CLI spells `--findings`. See
  * {@link CheckFinding.class} for the classes a finding can be
  * *reported* under, which additionally includes `"malformed"`.
  *
