@@ -120,9 +120,19 @@ keyword in its error:
 | `checkStringArray`          | (non-throwing half, for the hook) |
 | `quoteString`               | (escapes a string literal)        |
 
+All six live on the `/internals` subpath, not on `@oaverify/core/schema`
+itself:
+
 ```ts
+import { stringArrayValue } from "@oaverify/core/schema/internals";
+
 const names = stringArrayValue(ctx.schema, "myKeyword");
 ```
+
+`/internals` is deliberately outside the semver contract, which is the
+trade a keyword author is making: these are the compiler's own helpers,
+and adding a keyword means reaching into codegen either way. A minor
+release may change them.
 
 Prefer throwing at compile time over emitting a validator that cannot
 be satisfied. An author who wrote something impossible wants to hear it
