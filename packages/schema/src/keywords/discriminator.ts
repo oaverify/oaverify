@@ -4,14 +4,16 @@ import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { APPLICATOR_VOCAB } from "./vocabulary-uris.js";
 
 /**
- * The OpenAPI 3.1 `discriminator` object. When present alongside `oneOf`,
- * the validator reads the named property, looks it up in `mapping`, and
- * validates the data against ONLY the selected branch, producing a
- * single-branch failure tree rather than N branches.
+ * The OpenAPI `discriminator` object, active in all three dialects. When
+ * present alongside `oneOf` (or `anyOf`), the validator reads the named
+ * property, routes on it (via `mapping`, or via the implicit name each
+ * branch `$ref`'s last segment supplies), and validates the data against
+ * ONLY the selected branch, producing a single-branch failure tree
+ * rather than N branches.
  *
  * @remarks
- * When `discriminator` is present the normal `oneOf` pathway is suppressed
- * via the `implements` field.
+ * When `discriminator` is present the normal `oneOf` / `anyOf` pathway
+ * is suppressed via the `implements` field.
  *
  * @public
  */

@@ -17,8 +17,8 @@ export interface NameGenerator {
  * emit validator source without exposing the whole {@link CodeGen}
  * implementation.
  *
- * If you find yourself wanting a method that isn't here (e.g. `forIn`,
- * `forRange`), open an issue; the interface is intentionally small so
+ * If you find yourself wanting a method that isn't here (e.g. `while`,
+ * `try`), open an issue; the interface is intentionally small so
  * it's stable.
  *
  * @public

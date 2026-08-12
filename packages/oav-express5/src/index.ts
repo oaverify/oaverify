@@ -4,7 +4,8 @@
  *
  * - {@link validateRequests}: request-validation middleware; the 80% case.
  * - {@link validateResponses}: opt-in response-validation middleware
- *   (wraps `res.json` / `res.send`); off in production by convention.
+ *   (wraps `res.send`, which `res.json` flows through); off in
+ *   production by convention.
  * - {@link httpRequestFromExpress}: standalone extractor; for
  *   callers composing their own middleware.
  * - {@link renderProblemDetails}: the default error renderer;

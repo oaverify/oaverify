@@ -401,7 +401,8 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
    * - Single-keyword from the safe whitelist → one keyword's code
    *   emitted directly. Tree shape preserved (keyword emits at most
    *   one error).
-   * - Multi-keyword without $ref and under the size/depth ceilings →
+   * - Multi-keyword, refusing $ref / $dynamicRef and any applicator
+   *   keyword, and under the size/depth ceilings →
    *   emit every keyword's code, then (if >1 error actually fired)
    *   wrap the new errors in a "schema" branch to match the tree
    *   shape of the would-be function's `wrapErrors` return value.

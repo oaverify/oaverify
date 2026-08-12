@@ -15,7 +15,7 @@ import { assembleObjectQueryParam } from "./query-assembly.js";
 /**
  * Media type of the (single) entry inside a parameter's `content` map,
  * or `undefined` when `content` isn't in use. Companion to
- * {@link firstContentSchema}.
+ * `firstContentSchema`.
  *
  * @internal
  */

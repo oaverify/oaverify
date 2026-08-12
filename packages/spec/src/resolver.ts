@@ -75,18 +75,18 @@ export interface ResolveSpecOptions {
 
 /**
  * Output of {@link resolveSpec}: the resolved OpenAPI document plus a record
- * of every external file that was loaded to build it.
+ * of every file that was read to build it, the entry included.
  *
  * @public
  */
 export interface ResolvedSpec {
   document: OpenAPIDocument;
-  /** URIs of every external file that was loaded during resolution. */
+  /** URIs of every file that was read during resolution, the entry included. */
   sources: string[];
   /**
    * Spec-hygiene findings from {@link lintResolvedSpec}. Empty unless
    * {@link ResolveSpecOptions.lint} was set. Same name and shape as
-   * {@link Validator.specHygieneIssues} on the validator side.
+   * `Validator.specHygieneIssues` on the validator side.
    */
   specHygieneIssues: readonly SpecHygieneIssue[];
   /**
@@ -123,7 +123,7 @@ export interface ResolvedSpec {
 }
 
 /**
- * Load an OpenAPI 3.1 document and resolve all external `$ref`s, producing a
+ * Load an OpenAPI document and resolve all external `$ref`s, producing a
  * single self-contained document.
  *
  * External refs in **schema** positions are hoisted: the target lands in
@@ -135,8 +135,8 @@ export interface ResolvedSpec {
  * {@link entryIdentity} for exactly which spellings that recognises).
  * External refs in non-schema positions (Response, Parameter, Path Item
  * Objects) are inlined, and a cycle among those is materialized under
- * `$defs.__ext__/<encoded-uri>` so the compiler can resolve it via the
- * identity-keyed schema cache.
+ * `x-oaverify-externals/<encoded-uri>` so the compiler can resolve it via
+ * the identity-keyed schema cache.
  *
  * The synchronous mirror is `resolveSpecSync` (reachable via
  * `@oaverify/core/spec/internals`); both share the pure URI / ref-rewriting helpers
@@ -149,7 +149,7 @@ export interface ResolvedSpec {
  * @example
  * ```ts
  * const reader = composeReaders([createFileReader()]);
- * const { document } = await resolveSpec({ reader, entry: "openapi.yaml" });
+ * const { document } = await resolveSpec({ reader, entry: "openapi.json" });
  * ```
  *
  * @public

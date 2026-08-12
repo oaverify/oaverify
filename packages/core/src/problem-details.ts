@@ -25,7 +25,7 @@ export interface ValidationIssue {
   message: string;
   /**
    * Machine-readable details for this issue; shape per-code
-   * documented in {@link BuiltInErrorParams}. Most code-specific
+   * documented in `BuiltInErrorParams`. Most code-specific
    * shapes include request-derived fields (e.g. `pattern.actual`,
    * `additionalProperties.unexpected`) or schema-derived metadata
    * (e.g. `enum.allowed`, `maximum.maximum`). See the security note
@@ -77,19 +77,21 @@ export interface ProblemDetailsOptions {
    * Override the human-readable `detail`. Defaults to
    * {@link formatSummary}(error): a single line describing the first
    * failing leaf (e.g. `"body.users[0].email must match format \"email\""`).
-   * The default summary interpolates the offending value for codes
-   * such as `enum`, `format`, and `pattern`; APIs serving untrusted
-   * clients should pass an explicit structural summary
-   * (e.g. `` `${issues.length} validation error(s)` ``) so leaf data
-   * does not appear in `detail`. See the security note on
-   * {@link toProblemDetails} for the corresponding `issues[*].params`
-   * concern.
+   * The default summary carries schema-derived bounds and property
+   * names (from `required` / `additionalProperties`); the offending
+   * value itself travels in `issues[*].params`, not the message. APIs
+   * serving untrusted clients should pass an explicit structural
+   * summary (e.g. `` `${issues.length} validation error(s)` ``) so
+   * schema metadata does not appear in `detail`. See the security
+   * note on {@link toProblemDetails} for the corresponding
+   * `issues[*].params` concern.
    */
   detail?: string;
 }
 
 /**
- * Flatten a {@link ValidationError} tree to a list of leaves annotated
+ * Flatten a {@link ValidationError} tree, or the flat leaf list the
+ * default (flat-output) validator returns, to a list of leaves annotated
  * with an RFC 6901 JSON Pointer. Useful when you want a client-friendly
  * issues array but don't need the {@link ProblemDetails} envelope.
  *
@@ -119,10 +121,11 @@ export function collectIssues(
  *
  * **Data exposure.** By design, the rendered response echoes input
  * values and schema metadata. `detail` defaults to a one-line
- * summary of the first failing leaf, which interpolates the
- * offending value for codes such as `enum`, `format`, and `pattern`.
- * Each `issues[*].params` carries the leaf's machine-readable
- * detail (see {@link BuiltInErrorParams}), including request-derived
+ * summary of the first failing leaf, whose message carries
+ * schema-derived bounds and property names (from `required` /
+ * `additionalProperties`); the offending value itself travels in
+ * `issues[*].params`. Each `issues[*].params` carries the leaf's
+ * machine-readable detail (see `BuiltInErrorParams`), including request-derived
  * fields (`pattern.actual`, `additionalProperties.unexpected`,
  * `required.missing`) and schema-derived metadata (`enum.allowed`,
  * `pattern.pattern`, `maximum.maximum`). This is the right default

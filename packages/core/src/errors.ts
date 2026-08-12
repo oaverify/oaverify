@@ -68,7 +68,11 @@ export interface BuiltInErrorParams {
   maxLength: { maxLength: number; actual: number };
   /** `pattern` mismatch. */
   pattern: { pattern: string; actual: string };
-  /** `format` assertion failure (requires format-assertion vocabulary). */
+  /**
+   * `format` assertion failure (requires format-assertion vocabulary).
+   * For number-typed formats (`int32`, `int64`, ...) the emitted
+   * `actual` is a number, not the string this entry declares.
+   */
   format: { format: string; actual: string };
   /** `minItems` violation. */
   minItems: { minItems: number; actual: number };
@@ -131,7 +135,7 @@ export interface BuiltInErrorParams {
    * between quoting a header and reporting an observation.
    *
    * Semantically HTTP 413 on the request side, which is what
-   * {@link httpStatusFor} maps it to. The same leaf on the response
+   * `httpStatusFor` maps it to. The same leaf on the response
    * side says the responder overran its own contract, and no status
    * follows from that on its own: a gateway might answer 502, or 500,
    * or serve stale, or pass the response through under report-only.
@@ -276,7 +280,7 @@ export const BUILT_IN_ERROR_CODES = [
  * self-locating messages: the message alone names what failed and
  * where (`missing required query parameter "persona"`, `missing
  * required request body`), so prefixing the leaf's path restates it.
- * {@link formatSummary} consults this set under `path: "auto"`.
+ * `formatSummary` consults this set under `path: "auto"`.
  *
  * The contract renderers may rely on: a leaf with one of these codes
  * always locates the error in its message. In particular, parameter
@@ -467,6 +471,12 @@ export function createError(params: CreateErrorParams): ValidationError {
  * @param path - Path segments to the offending data.
  * @param message - Human-readable description.
  * @param params - Optional machine-readable details.
+ * @param extraSegment - Optional trailing segment appended to `path`,
+ *   so callers can extend the path without allocating an intermediate
+ *   array at the call site.
+ * @param extraSegment2 - Optional second trailing segment, appended
+ *   after `extraSegment` (for inlined subschemas whose leaves append
+ *   another segment).
  * @returns A new leaf {@link ValidationError}.
  *
  * @example
@@ -533,6 +543,11 @@ const EMPTY_PARAMS: Readonly<Record<string, unknown>> = Object.freeze({});
  * @param message - Human-readable description.
  * @param children - Child errors.
  * @param params - Optional machine-readable details.
+ * @param extraSegment - Optional trailing segment appended to `path`,
+ *   so callers can extend the path without allocating an intermediate
+ *   array at the call site.
+ * @param extraSegment2 - Optional second trailing segment, appended
+ *   after `extraSegment`.
  * @returns A new branch {@link ValidationError}.
  *
  * @example

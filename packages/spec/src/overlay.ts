@@ -163,7 +163,7 @@ export interface OperationOverride {
   /** Set or replace the operation's `deprecated` flag. */
   deprecated?: boolean;
   /**
-   * Set or remove `x-*` extension fields on the operation. A `undefined`
+   * Set or remove `x-*` extension fields on the operation. An `undefined`
    * value deletes the field; any other value sets / replaces it.
    */
   setExtensions?: Record<`x-${string}`, JsonValue | undefined>;
@@ -209,9 +209,9 @@ export interface ParameterWhere {
 
 /**
  * One entry in {@link SpecOverlay.modifyParameters}. The `apply`
- * fragment is shallow-merged into each matching parameter; passing
- * `undefined` does not delete a field (use a different overlay verb
- * for deletion).
+ * fragment is shallow-merged into each matching parameter; omit a field
+ * to leave it unchanged. An explicit `undefined` overwrites the base
+ * value (JSON serialization then drops the key).
  *
  * @public
  */

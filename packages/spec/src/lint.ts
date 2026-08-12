@@ -27,7 +27,7 @@ export interface SpecHygieneIssue {
    * - `"unused-tag"`: a `tags[]` entry whose name doesn't appear in any
    *   operation's `tags` array.
    * - `"unreachable-defs"`: a `$defs/<name>` entry inside a schema that no
-   *   `$ref` in the same schema points to.
+   *   `$ref` in the document points to.
    * - `"path-param-undeclared"`: a `{name}` placeholder in a path template
    *   with no matching `parameters: [{ in: "path", name }]` declaration on
    *   the operation or its path-item.
@@ -107,7 +107,7 @@ const PLACEHOLDER_RE = /^\{[^{}]+\}$/;
  * {@link resolveSpec | resolveSpec} so external `$ref`s are resolved:
  * schema targets hoisted into `components.schemas`, other objects
  * inlined, and a circular non-schema ref left under
- * {@link EXTERNALS_FIELD}. Hoisted schemas are ordinary components and
+ * `x-oaverify-externals`. Hoisted schemas are ordinary components and
  * are linted as such, so one referenced by nothing is reported unused
  * like any other.
  *
@@ -118,23 +118,26 @@ const PLACEHOLDER_RE = /^\{[^{}]+\}$/;
  * still worth knowing about; only the resolver's own bookkeeping keys
  * are skipped.
  *
- * The four checks:
+ * The five checks:
  *
  * - **unused-component**: components defined but not reached from any
  *   operation, security requirement, or `discriminator.mapping`.
  * - **unused-tag**: top-level `tags[]` entry with no operation referring to
  *   it.
- * - **unreachable-defs**: per-schema `$defs/<name>` that no sibling `$ref`
- *   in the same schema points to.
+ * - **unreachable-defs**: per-schema `$defs/<name>` that no `$ref`
+ *   in the document points to.
  * - **path-param-undeclared / path-param-unused**: mismatch between the
  *   `{name}` placeholders in a path template and the path-parameter
  *   declarations on the operation + its path-item.
+ * - **path-template-malformed**: a path template whose literal text
+ *   carries a percent escape that does not decode, leaving the route
+ *   matchable only by a request repeating the same broken escape.
  *
  * @param document - The resolved document to grade.
  * @param options - What the document alone cannot say. See
  *   {@link LintOptions}.
- * @returns Findings, ordered by category then by pointer for stable
- *   output. Empty array means clean spec.
+ * @returns Findings, in check order and then in the document's
+ *   declaration order within each check. Empty array means clean spec.
  *
  * @public
  */
@@ -501,9 +504,9 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
 
 /**
  * Path templates carrying a segment whose percent-encoding does not
- * decode. Only literal segments are checked: a segment holding a
- * `{name}` placeholder is matched as a captured token, never decoded as
- * spec text.
+ * decode. Only literal text is checked, the runs around a placeholder
+ * included: a `{name}` placeholder itself is matched as a captured
+ * token, never decoded as spec text.
  *
  * The router tolerates these, falling back to the raw segment rather
  * than throwing `URIError` out of `createValidator`. That leaves the

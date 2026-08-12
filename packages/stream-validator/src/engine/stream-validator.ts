@@ -3,7 +3,7 @@
  * bytes through unchanged while validating them against a resolved schema
  * on a side channel.
  *
- * Channels (design "Channels and events"):
+ * Channels:
  *
  *   - the **output byte stream**: input bytes, verbatim (invariant 1);
  *   - **`violation`** events: a well-formed value that failed the schema,
@@ -12,16 +12,18 @@
  *   - **`verdict`** events + the {@link StreamValidator.result} promise:
  *     the final valid/invalid result, delivered as both.
  *
- * Terminal policy (design "Two lifecycles and terminal policy"): the
+ * Terminal policy: the
  * default is `terminate` with `maxErrors: 1` (the budget-th violation
  * destroys the stream with {@link ValidationFailedError}, so a
  * `pipeline` rejects); `detach` instead seals the verdict and raw-copies
  * the tail. A parse error is always terminal.
  *
- * STREAM-classified values validate on the forward spine; non-stream
- * subtrees (composition, object/array equality, `dependentSchemas`,
- * `contains`, `uniqueItems`, `format` under an asserting dialect) are
- * materialized and delegated to `@oaverify/internal-schema`'s in-memory engine. Only a
+ * STREAM-classified values validate on the forward spine. Forward
+ * composition is TEE'd; other non-stream subtrees (composition with a
+ * non-forward branch or under `parity`, object/array equality,
+ * `dependentSchemas`, `contains`, `uniqueItems`, `format` under an
+ * asserting dialect) are materialized and delegated to
+ * `@oaverify/internal-schema`'s in-memory engine. Only a
  * REJECT keyword (`unevaluated*`), an unknown keyword, or an unresolvable
  * `$ref` fails fast at construction (invariant 2). `maxBufferedBytes` /
  * `maxDepth` / `maxTotalBytes` bound memory; `regexCompiler` hardens

@@ -43,8 +43,8 @@ export type FormatKind = "string" | "number" | "none";
 /**
  * The output shape a compiled (sub)validator produces:
  *
- * - `"tree"`: returns a nested `ValidationError | null` (the default).
- * - `"flat"`: returns a de-nested `ValidationError[] | null`.
+ * - `"tree"`: returns a nested `ValidationError | null`.
+ * - `"flat"`: returns a de-nested `ValidationError[] | null` (the default).
  * - `"predicate"`: returns a `boolean` and builds no errors.
  *
  * Usually a subschema compiles in its enclosing function's mode. The
@@ -250,7 +250,9 @@ export interface KeywordCompileContext {
   /**
    * Generated-source name of the dynamic scope: the base URIs of the
    * schema resources currently being evaluated, outermost first. The
-   * compiler maintains it; `$dynamicRef` is the only reader.
+   * compiler maintains it, and the compiler-emitted `dynLookup` helper
+   * (see {@link KeywordCompileContext.dynamicLookupName}) is what walks
+   * it; no keyword reads this name directly.
    */
   readonly dynamicScopeName: string;
   /**
@@ -400,9 +402,11 @@ export interface KeywordCompileContext {
    * pair so the shared-mutable `path` array carries the extra segment
    * only for the duration of this subschema's traversal.
    *
-   * When the subschema is simple enough (a boolean, or a single
-   * validation keyword from a safe whitelist) the keyword's code is
-   * inlined directly, avoiding the per-call function dispatch. For
+   * When the subschema is simple enough, its keywords' code is inlined
+   * directly, avoiding the per-call function dispatch: a boolean, an
+   * empty or annotation-only schema, a single validation keyword from
+   * a safe whitelist, or a multi-keyword applicator-free schema within
+   * the size/depth ceilings (10 keywords, inline depth 6). For
    * anything more complex, it falls back to compiling the subschema
    * into a named function and emitting the usual call + lift. Either
    * way the path is reused, not re-allocated.
@@ -716,8 +720,10 @@ export interface Vocabulary {
 export interface DialectRules {
   /**
    * OpenAPI 3.0 semantics: when a schema has `$ref`, every sibling
-   * keyword is ignored. Default `false` (JSON Schema 2020-12 and
-   * OpenAPI 3.1+ semantics, where siblings are honored).
+   * keyword is ignored. Required; each built-in dialect sets it
+   * explicitly: `true` in {@link oas30Dialect}, `false` in
+   * {@link jsonSchemaDialect} and {@link openapi31Dialect} (JSON Schema
+   * 2020-12 and OpenAPI 3.1+ semantics, where siblings are honored).
    */
   refSuppressesSiblings: boolean;
 }

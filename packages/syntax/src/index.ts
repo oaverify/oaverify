@@ -234,7 +234,7 @@ export function createSmartHttpReader(options: HttpReaderOptions = {}): Document
  * YAML sources once at setup time.
  *
  * Returns `unknown` because YAML is dynamic; cast to
- * {@link OpenAPIDocument} (or your own narrower type) when feeding
+ * {@link @oaverify/core!OpenAPIDocument} (or your own narrower type) when feeding
  * the result to `createValidator`.
  *
  * @example
@@ -290,9 +290,10 @@ function createYamlFileReaderSync(
  * "openapi.yaml" })` works without composing readers.
  *
  * For load-once-at-boot programs and CLIs that build a validator in a
- * synchronous bootstrap and can't await {@link loadSpec}. Blocking by
- * construction (`readFileSync`); for boot-time / CLI use, not
- * per-request. For non-blocking contexts the async {@link loadSpec}
+ * synchronous bootstrap and can't await {@link @oaverify/core/spec!loadSpec}.
+ * Blocking by construction (`readFileSync`); for boot-time / CLI use, not
+ * per-request. For non-blocking contexts the async
+ * {@link @oaverify/core/spec!loadSpec}
  * stays the right tool. An unreadable or malformed spec throws; a
  * caller wanting "unreadable spec disables validation rather than
  * crashing boot" wraps the call in its own `try`/`catch`.

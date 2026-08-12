@@ -57,7 +57,7 @@ export type ErrorRenderer = (err: ValidationError) => string;
  * stays tree-only because a custom {@link ErrorRenderer} is typed
  * `(err: ValidationError) => string`, and widening that would break
  * existing renderers. For the default flat output, call those helpers
- * directly, or wrap the list with {@link createBranchError} before passing
+ * directly, or wrap the list with `createBranchError` before passing
  * it here.
  *
  * @param error - The error tree.

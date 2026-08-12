@@ -63,7 +63,7 @@ export interface ResolveSpecSyncOptions {
  * Synchronous mirror of {@link resolveSpec}. Identical resolution
  * semantics (schema-position hoisting into `components.schemas`,
  * non-schema inlining, circular non-schema stitching under
- * `$defs.__ext__`, discriminator-mapping rewriting, internal-ref
+ * `x-oaverify-externals`, discriminator-mapping rewriting, internal-ref
  * rewriting, sibling preservation, the source list, and lint), driven by
  * a {@link SyncDocumentReader} so it returns a {@link ResolvedSpec}
  * directly instead of a `Promise`.

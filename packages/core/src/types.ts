@@ -144,7 +144,7 @@ export interface DiscriminatorObject {
  * and 3.2: fields only present on newer versions (`webhooks`,
  * `jsonSchemaDialect`) are optional; the `openapi` string discriminates
  * at validator-construction time via
- * {@link detectOpenAPIVersion | detectOpenAPIVersion}.
+ * `detectOpenAPIVersion`.
  *
  * @public
  */
@@ -260,8 +260,9 @@ export interface ExternalDocumentationObject {
 
 /**
  * OpenAPI `exampleObject`. Either `value` or `externalValue` carries
- * the example data; `summary` / `description` are metadata. Not
- * validated by oaverify today.
+ * the example data; `summary` / `description` are metadata. The
+ * examples check validates `value` entries against the accompanying
+ * schema; `externalValue` payloads are not fetched.
  *
  * @public
  */

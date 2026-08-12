@@ -43,7 +43,7 @@ export interface ValidatorDeps {
    * Compile a user-supplied regex. By default tries the `u` (Unicode)
    * flag first (JSON Schema 2020-12 recommends it) and falls back to
    * no-flag when the pattern trips strict `u`-mode rules (stray `\-`,
-   * `\:`, `\/` etc., common in real-world OpenAPI specs). When a custom
+   * `\:` etc., common in real-world OpenAPI specs). When a custom
    * {@link RegexCompiler} is passed to {@link createDeps}, this routes
    * through it instead, and the fallback logic doesn't apply (the
    * compiler is the authority on what's accepted). Results are memoized
@@ -80,8 +80,10 @@ export interface ValidatorDeps {
   belowMinCodePoints: (s: string, limit: number) => boolean;
   /**
    * Find the first duplicate in an array. Returns `{ a, b }` where
-   * `arr[a]` and `arr[b]` are structurally equal (JSON deep equality)
-   * and `a < b`, or `null` when every item is unique. Backs `uniqueItems`.
+   * `arr[a]` and `arr[b]` are structurally equal (JSON deep equality,
+   * except that `NaN` matches itself on the primitive path: the `Map`
+   * uses SameValueZero, so `[NaN, NaN]` counts as a duplicate) and
+   * `a < b`, or `null` when every item is unique. Backs `uniqueItems`.
    *
    * Primitives use a `Map<value, firstIndex>` (O(N) total); objects and
    * arrays fall back to pairwise `deepEqual` against the running list
@@ -112,9 +114,10 @@ export interface ValidatorDeps {
    */
   errorsRemaining: number;
   /**
-   * Set to `true` by the runtime when at least one error was dropped
-   * because the `maxErrors` budget had been exhausted. Cleared at the
-   * top of each top-level `validate()` call.
+   * Set to `true` by the runtime when the `maxErrors` budget was
+   * exhausted (nothing need have been dropped: the default cap of 1
+   * with exactly one error sets it). Cleared at the top of each
+   * top-level `validate()` call.
    */
   truncated: boolean;
   /**
@@ -156,8 +159,9 @@ export interface CompiledRegex {
 
 /**
  * Custom compiler for schema `pattern` keywords and the `format:
- * "regex"` assertion. Defaults to `new RegExp(pattern, "u")` (with a
- * non-`u` fallback for patterns that trip strict `u`-mode rules).
+ * "regex"` assertion. Defaults to `new RegExp(pattern, "u")` (the
+ * `pattern` path adds a non-`u` fallback for patterns that trip strict
+ * `u`-mode rules; `format: "regex"` stays `u`-only with no fallback).
  *
  * Override to plug in `re2`, wrap with a complexity check, or reject
  * patterns that fail a safe-regex analysis. JavaScript's built-in
@@ -238,7 +242,10 @@ export function typeOf(value: unknown): string {
  * the `uniqueItems` keyword: primitives hit a `Map` fast path (O(N)),
  * while objects/arrays fall back to pairwise `deepEqual` against the
  * running list of seen non-primitives (O(k²) in the object-count
- * tail, unavoidable without hashing).
+ * tail, unavoidable without hashing). One seam between the paths:
+ * the `Map` compares by SameValueZero, so a bare `NaN` duplicates
+ * itself, while `deepEqual` (like `===`) treats `NaN` as unequal, so
+ * objects containing `NaN` never match.
  *
  * @param arr - The array to scan.
  * @returns `{ a, b }` with `a < b` for the first duplicate pair, or
@@ -463,7 +470,7 @@ export function appendErrors(
  * Build a {@link ValidatorDeps} bundle with fresh mutable caches.
  *
  * Accepts either a positional `maxErrors` (legacy) or an options
- * bag with `maxErrors` and `regexCompiler`. The positional form is
+ * bag with `maxErrors`, `maxDepth` and `regexCompiler`. The positional form is
  * kept for back-compat with AOT-emitted modules built before the
  * options bag existed.
  *

@@ -78,7 +78,7 @@ export function formatText(
  * (flat-output) validator returns; a list round-trips to a list.
  *
  * @param error - Root of the error tree, or a flat list of errors.
- * @returns The same tree (or list), safe to hand to `JSON.stringify`.
+ * @returns A structurally identical copy of the tree (or list), safe to hand to `JSON.stringify`.
  *
  * @example
  * ```ts
@@ -170,7 +170,7 @@ export interface FormatSummaryOptions {
  * - **Single-leaf modes** (`"first"`, `"deepest"`, `{ byCode }`) pick one
  *   leaf and render it as `<dotted-path> <message>` (or just `<message>`
  *   when the path is empty). One line.
- * - **All-leaves mode** (`"all"`) enumerates every leaf, one per leaf,
+ * - **All-leaves mode** (`"all"`) enumerates every leaf, one entry per leaf,
  *   joined by {@link FormatSummaryOptions.separator} (default `"\n"`),
  *   each rendered as `<dotted-path> <message> [<code>]`. The trailing
  *   ` [<code>]` is suppressed when {@link FormatSummaryOptions.includeCode}

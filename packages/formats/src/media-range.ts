@@ -117,7 +117,7 @@ function scanParameter(value: string, index: number): number {
  *   the grammar being deliberately tolerant of a sender that emits a
  *   stray separator, and reading it any other way would reject what
  *   RFC 9110 blesses.
- * - **Whitespace is allowed only before the `;`.** `"text/html ;
+ * - **Whitespace is allowed only around the `;`.** `"text/html ;
  *   charset=utf-8"` is fine and `"text/html; charset = utf-8"` is not,
  *   because `parameter` puts no OWS around its `=`. A trailing space
  *   after the last parameter is not part of the production either.

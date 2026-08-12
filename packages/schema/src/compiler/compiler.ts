@@ -119,12 +119,6 @@ function structuralEqual(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Does an annotation's value have the declared JSON type?
- *
- * Not a bare `typeof`: that reports `"object"` for `null` and for an
- * array, and an annotation declared as an object means a JSON object.
- */
-/**
  * "an object" / "an array", "a string" / "a boolean". Generated output
  * is read by people, and the template produced "a object" before the
  * array arm made the seam obvious.
@@ -133,6 +127,12 @@ function article(word: string): string {
   return /^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`;
 }
 
+/**
+ * Does an annotation's value have the declared JSON type?
+ *
+ * Not a bare `typeof`: that reports `"object"` for `null` and for an
+ * array, and an annotation declared as an object means a JSON object.
+ */
 function isAnnotationValueType(
   value: unknown,
   expected: "string" | "boolean" | "object" | "array",
@@ -470,7 +470,10 @@ export type ValidationResult =
        * budget drains, without checking the remaining keywords. With
        * the default `maxErrors: 1`, every failing result therefore
        * reports `truncated: true`. `false` means the cap was never hit
-       * and the list is complete.
+       * and the list is complete. One carve-out: a schema using
+       * `unevaluatedProperties` / `unevaluatedItems` disables the
+       * budget, so its failing results carry every error with
+       * `truncated: false`.
        */
       truncated: boolean;
     };
@@ -511,9 +514,12 @@ export type TreeValidationResult =
  */
 export interface CompileStats {
   /**
-   * Number of named `validate_N` helper functions emitted. A schema
-   * that gets fully inlined compiles to one function (`validate_0`);
-   * subschemas that stay as functions each add one.
+   * Number of function names the compiler allocated (`state.nextFn`),
+   * not a count of emitted `validate_N` bodies. It includes the
+   * `enter_N` dynamic-scope wrappers and names reserved for subschemas
+   * that pure-`$ref` elision later collapsed, so it can exceed the
+   * number of `validate_N` functions in the generated source. A schema
+   * that gets fully inlined allocates one (`validate_0`).
    */
   functionCount: number;
   /**
@@ -605,7 +611,7 @@ export interface SchemaLintIssue {
    *   enumerated: `additionalProperties` / `patternProperties` /
    *   `unevaluatedProperties`, an unresolvable `$ref`, or a `not`
    *   ancestor (where `required` is a negative constraint).
-   * - `"silent-rewrite/redundant-composition-branches"`: an `oneOf` /
+   * - `"silent-rewrite/redundant-composition-branches"`: a `oneOf` /
    *   `anyOf` array where two or more branches are structurally
    *   identical after compile-time rewrites (notably the validator's
    *   `format: binary` opaque-body bypass). The compiled validator's
@@ -932,6 +938,10 @@ export interface CompileOptions {
    *   entirely; `maxErrors: 1` behaves like ajv's `allErrors: false`
    *   fast-fail. Tree mode keeps walking (to preserve the tree shape)
    *   but stops collecting.
+   * - Schemas using `unevaluatedProperties` / `unevaluatedItems` are a
+   *   carve-out: evaluated-key tracking needs every keyword to run, so
+   *   the cap is not enforced and failing results carry every error
+   *   with `truncated: false`.
    *
    * `maxErrors: 1` is the default (classic fast-fail). To collect every
    * error, pass `Number.POSITIVE_INFINITY`.
@@ -964,8 +974,8 @@ export interface CompileOptions {
    * generous for real traffic.
    *
    * When unset, codegen is identical to the un-instrumented path (zero
-   * overhead). Must be a positive integer (>= 1); `compileSchema` throws
-   * otherwise.
+   * overhead). Must be a positive integer (>= 1), or `Infinity` for
+   * explicitly uncapped; `compileSchema` throws otherwise.
    */
   maxDepth?: number;
   /**
@@ -1382,7 +1392,7 @@ function resolveOutputMode(options: CompileOptions): "flat" | "tree" | "predicat
  * ```ts
  * const v = compileSchema({ type: "number" }, { dialect: jsonSchemaDialect });
  * v.validate(1.5); // { valid: true }
- * v.validate("x"); // { valid: false, errors: [{ code: "type", ... }], truncated: false }
+ * v.validate("x"); // { valid: false, errors: [{ code: "type", ... }], truncated: true }
  *
  * // Opt into the nested error tree:
  * const t = compileSchema({ type: "number" }, { dialect: jsonSchemaDialect, output: "tree" });

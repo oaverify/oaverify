@@ -1,5 +1,5 @@
 /**
- * `@oaverify/internal-stream-validator`: a streaming JSON Schema 2020-12 validator. It
+ * `@oaverify/stream`: a streaming JSON Schema 2020-12 validator. It
  * validates a JSON document against a resolved schema as the bytes stream,
  * echoing them through unchanged while reporting violations on a side
  * channel. Memory is bounded for forward-decidable schemas with structural

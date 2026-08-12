@@ -13,7 +13,11 @@ export interface ResolvedGraph {
   root: SchemaOrBoolean;
   /** Base URI of the root schema (may be empty for anonymous schemas). */
   baseUri: string;
-  /** Every `$id` discovered, mapped to the schema it labels (keyed by absolute URI). */
+  /**
+   * Every `$id` discovered, mapped to the schema it labels. Keyed by the
+   * absolute URI, and additionally by the raw (possibly relative) `$id`
+   * spelling so refs that repeat it resolve too.
+   */
   byId: Map<string, SchemaOrBoolean>;
   /**
    * Flat union of every `$anchor` discovered: last-writer-wins when two
@@ -48,7 +52,11 @@ export interface ResolvedGraph {
 export interface ResolveOptions {
   /** Base URI to associate with the root schema. Defaults to `""`. */
   baseUri?: string;
-  /** External schema registry. Additional `$id` / anchor entries are added to it. */
+  /**
+   * External schema registry. Read-only here: its schemas are walked and
+   * their `$id` / anchor entries copied into the returned graph; the
+   * registry itself is never mutated.
+   */
   registry?: SchemaRegistry;
 }
 

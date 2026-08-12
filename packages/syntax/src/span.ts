@@ -132,7 +132,7 @@ function positionAt(counter: LineCounter, offset: number): SourcePosition {
  * one parse, and drops it. A caller controls how often that happens by
  * how it batches.
  *
- * Two behaviours worth knowing before reading a `undefined` as "the
+ * Two behaviours worth knowing before reading an `undefined` as "the
  * node is not there":
  *
  * - **Parse errors do not throw.** `yaml` collects them and returns

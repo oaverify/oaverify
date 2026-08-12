@@ -173,7 +173,8 @@ function isLocalTimeOfDay(hour: number, minute: number, second: number): boolean
  * wall-clock time (e.g. `"12:34:56"` or `"12:34:56.789"`).
  *
  * Does not assert the leap-second rule that {@link validateTime}
- * does; see {@link isLocalTimeOfDay}.
+ * does: `:60` seconds pass at any minute, because with no offset
+ * there is no instant to check a leap second against.
  *
  * @public
  */
@@ -193,7 +194,8 @@ export function validateTimeLocal(value: string): boolean {
  *
  * The date half is checked exactly as {@link validateDateTime} checks
  * it, February included. The time half does not assert the
- * leap-second rule; see {@link isLocalTimeOfDay}.
+ * leap-second rule: `:60` seconds pass at any minute, because with no
+ * offset there is no instant to check a leap second against.
  *
  * @public
  */
@@ -215,8 +217,10 @@ export function validateDateTimeLocal(value: string): boolean {
  * RFC 3339 `duration` (e.g. `"P1Y2M10DT2H30M"`).
  *
  * Stricter than ISO 8601, which JSON Schema's `duration` is defined
- * against: unit ordering is enforced, weeks stand alone, and no
- * component may carry a fraction. See {@link DURATION_RE}.
+ * against: unit ordering is enforced and a missing middle unit is a
+ * syntax error rather than an implied zero (`P1Y2D` is invalid), weeks
+ * stand alone, and no component may carry a fraction (`PT0.5S` is ISO
+ * 8601 but not RFC 3339).
  *
  * @public
  */

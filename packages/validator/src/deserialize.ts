@@ -26,7 +26,7 @@ import {
  * `undefined` when the parameter has no value. That covers `raw` being
  * `undefined`, and one wire case: a `style: matrix` segment that opens
  * with ";" and whose groups all name some other parameter supplies
- * nothing for this one (see {@link matrixGroupValues}). Callers treat
+ * nothing for this one (see `matrixGroupValues`). Callers treat
  * both the same way, which is what makes `;q=1` a missing `p` rather
  * than a `p` of `";q=1"`. A matrix segment that does not open with ";"
  * carries no groups to read a name from and is the value itself, so
@@ -174,6 +174,20 @@ export function schemaRefResolverFor(
 const MAX_REF_HOPS = 32;
 
 /**
+ * Options for {@link coercionView}.
+ *
+ * @internal
+ */
+export interface CoercionViewOptions {
+  /**
+   * OAS 3.0 semantics: every sibling keyword of a `$ref` is ignored,
+   * matching `DialectRules.refSuppressesSiblings` in the compiler.
+   * Default `false` (2020-12 semantics, siblings merge).
+   */
+  refSuppressesSiblings?: boolean;
+}
+
+/**
  * A parameter whose schema is resolved one level down, so scalar
  * coercion can read a `type` off it.
  *
@@ -221,15 +235,6 @@ const MAX_REF_HOPS = 32;
  *
  * @internal
  */
-export interface CoercionViewOptions {
-  /**
-   * OAS 3.0 semantics: every sibling keyword of a `$ref` is ignored,
-   * matching `DialectRules.refSuppressesSiblings` in the compiler.
-   * Default `false` (2020-12 semantics, siblings merge).
-   */
-  refSuppressesSiblings?: boolean;
-}
-
 export function coercionView(
   parameter: ParameterObject,
   resolveSchemaRef: SchemaRefResolver,

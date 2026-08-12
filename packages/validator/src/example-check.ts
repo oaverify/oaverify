@@ -228,11 +228,6 @@ function distinctReasons(
 }
 
 /**
- * What one rejected example yields: the rendered summary that goes in
- * the message, and the structured leaves behind it. Kept together so
- * the two can never be assembled from different validation runs.
- */
-/**
  * Depth cap for the two compiles below.
  *
  * Recursion runs on the native call stack, so a self-`$ref` schema and a
@@ -248,6 +243,11 @@ function distinctReasons(
  */
 const EXAMPLE_MAX_DEPTH = 500;
 
+/**
+ * What one rejected example yields: the rendered summary that goes in
+ * the message, and the structured leaves behind it. Kept together so
+ * the two can never be assembled from different validation runs.
+ */
 interface Rejection {
   code: ExampleIssue["code"];
   summary: string;

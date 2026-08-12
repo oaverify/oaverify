@@ -358,10 +358,9 @@ export interface Validator {
    * matches the spec, or when you're testing your own handler's
    * output against its OpenAPI contract.
    *
-   * Both messages are consumed by this call. The `request` is used
+   * The response is consumed by this call. The `request` is used
    * only to match the route, method, and path; its body isn't
-   * read (and `request.clone()` will give you back a fresh one if
-   * you need it after the fact).
+   * read.
    *
    * @param request  - The Web Standards request that triggered `response`.
    * @param response - The Web Standards response to validate.
@@ -380,11 +379,12 @@ export interface Validator {
   ): Promise<{ ok: true; body: T } | { ok: false; errors: ValidationError[]; truncated: boolean }>;
   /**
    * Look up the effective operation declaration for a method + path.
-   * Returns the resolved (`$ref`s followed) and overlay-applied
-   * {@link OperationObject}, the matched path pattern, and the
-   * enclosing {@link PathItem}. Returns `null` when no operation
-   * matches (either the path doesn't match any template or the
-   * method isn't declared on it).
+   * Returns the overlay-applied {@link OperationObject}, the matched
+   * path pattern, and the enclosing {@link PathItem}. `$ref`s into
+   * `components` are not followed, so the returned operation may still
+   * contain them. Returns `null` when no operation matches (either the
+   * path doesn't match any template or the method isn't declared on
+   * it).
    *
    * Startup-time introspection, not a validation step: the spec is
    * frozen at `createValidator` time, so this is safe to call once
@@ -501,8 +501,8 @@ export interface Validator {
    * want live output pass {@link ValidatorOptions.warn}; the CLI
    * wrapper does this.
    *
-   * Frozen after `createValidator` returns; no post-construction
-   * writes happen.
+   * Not written to after construction: the array is complete once
+   * `createValidator` returns.
    */
   readonly warnings: readonly string[];
   /**
@@ -634,17 +634,19 @@ export interface ValidatorStats {
   /**
    * Number of response-body schemas that have been lazily compiled since
    * the validator was constructed. Starts at `0`; bumps by one each time
-   * a `(status, mediaType)` pairing is seen by `validateResponse` for
-   * the first time. A spec's response bodies are NOT compiled at
-   * `createValidator` time, so on a fresh validator this is always `0`.
+   * a `(status, mediaType)` pairing is compiled for the first time, by
+   * `validateResponse` or by `precompile()`. A spec's response bodies
+   * are NOT compiled at `createValidator` time, so this stays `0` until
+   * one of those runs.
    */
   responseBodiesCompiled: number;
   /**
    * Live array of schema lint issues surfaced by
-   * {@link ValidatorOptions.schemaLint}. Grows as schemas compile (request
-   * / path / header / query schemas at construction; response-body
-   * schemas lazily on first use). An empty array when `schemaLint: "off"`
-   * or when the linter found nothing to flag.
+   * {@link ValidatorOptions.schemaLint}. Grows as operations compile:
+   * request / path / header / query schemas on an operation's first
+   * use, response-body schemas on the first `validateResponse` for the
+   * pairing, and all of them on `precompile()`. An empty array when
+   * `schemaLint: "off"` or when the linter found nothing to flag.
    *
    * Schema paths are the full path inside each compiled schema, not
    * HTTP-frame-prefixed; the linter runs over raw JSON Schema, not

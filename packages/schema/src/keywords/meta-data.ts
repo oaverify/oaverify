@@ -61,7 +61,7 @@ export const descriptionKeyword = annotationKeyword("description", META_DATA_VOC
  * `default`: a suggested default value for the schema. Preserved as
  * metadata only; oaverify never injects defaults into request bodies or
  * response bodies (see the `useDefaults` discussion in
- * [`docs/comparison.md`](../../../docs/comparison.md) if you need that behavior).
+ * [`docs/comparison.md`](../../../../docs/comparison.md) if you need that behavior).
  *
  * @public
  */

@@ -50,7 +50,7 @@ export interface LoadSpecOptions {
  * @example
  * ```ts
  * const reader = composeReaders([createFileReader()]);
- * const { document } = await loadSpec({ reader, entry: "openapi.yaml", overlays });
+ * const { document } = await loadSpec({ reader, entry: "openapi.json", overlays });
  * const validator = createValidator(document);
  * ```
  *

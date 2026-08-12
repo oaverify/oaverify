@@ -1,8 +1,7 @@
 /**
  * Edit-hook types. Hooks fire at a forward-decidable scope's close, after
  * its verdict is known and before its delimiter; they observe the scope
- * or append sibling bytes (append-only, never validated). See the design
- * doc's "Edit hooks".
+ * or append sibling bytes (append-only, never validated).
  *
  * Scope coverage is STREAM-only: hooks fire for forward-decidable
  * (STREAM) scopes, not for scopes the classifier routes to a BUFFER
@@ -99,7 +98,7 @@ export type ScopeEditor = (ctx: ScopeContext) => Bytes | null;
 
 /**
  * Default cap on the held key-to-value span (key bytes + colon +
- * whitespace) for a `editMember` hook, applied when `maxMemberPrefixBytes`
+ * whitespace) for an `editMember` hook, applied when `maxMemberPrefixBytes`
  * is unset. JSON allows unbounded whitespace between the colon and the
  * value, so this span needs its own bound: a legitimate key plus even
  * deep pretty-print indentation is well under this, while a whitespace-

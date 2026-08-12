@@ -2,7 +2,7 @@
  * Tiny tokenizer for the JSONPath subset oaverify recognises in OpenAPI
  * Overlay 1.0 `target` strings. It is not a full JSONPath engine: we
  * accept the small closed-form set of shapes the OpenAPI Overlay spec
- * uses in practice ({@link ./translate.ts} matches against the token
+ * uses in practice (`translate.ts` matches against the token
  * stream), and surface a locating error on anything else.
  *
  * Tokens recognised:

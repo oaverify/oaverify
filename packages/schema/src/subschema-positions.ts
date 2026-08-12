@@ -199,8 +199,10 @@ export function positionFields(at: SubschemaPosition): SubschemaPosition {
 /**
  * Walk every subschema reachable from `root`, in pre-order, descending
  * through every schema-valued key the JSON Schema 2020-12 vocabulary
- * (plus the keys OpenAPI adds on top) declares. Boolean schemas and
- * `$ref` nodes are visited but not descended.
+ * (plus the keys OpenAPI adds on top) declares. Boolean schemas are
+ * visited but not descended. A `$ref` node is visited and its sibling
+ * schema-valued keys are descended; only the ref target itself is not
+ * followed without `resolveRef`.
  *
  * Pass `resolveRef` to follow `$ref` and walk its target too, reported
  * under the document path the pointer names. Without it the walk covers

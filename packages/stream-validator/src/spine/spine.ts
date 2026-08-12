@@ -260,8 +260,9 @@ export interface SpineOptions {
   /**
    * Resolve a member-edit decision for a STREAM object member, called at
    * the member's value start (so the value type is known). Returns the
-   * effective edit, or `null`/`{kind:"keep"}` for a pass-through. Set only
-   * when member-edit hooks are registered; the engine owns hook matching
+   * effective edit, or `null`/`{kind:"keep"}` for a pass-through. Wired
+   * unconditionally by the engine and inert until `enableMemberEdits()`
+   * registers a hook; the engine owns hook matching
    * and conflict resolution, the spine owns offsets, the prefix cap, and
    * same-scope output-key collision.
    */
