@@ -19,6 +19,7 @@
 // before interpolating them into generated source).
 export {
   booleanLiteral,
+  checkStringArray,
   CodeGen,
   NAMES,
   Scope,
@@ -28,6 +29,7 @@ export {
   positiveNumberLiteral,
   quoteString,
   rawExpr,
+  stringArrayValue,
   type CodeEmitter,
   type NameGenerator,
   type PathSegmentLike,
