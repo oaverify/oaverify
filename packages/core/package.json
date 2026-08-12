@@ -14,6 +14,10 @@
     "./prototype-properties": {
       "types": "./src/prototype-properties.ts",
       "import": "./src/prototype-properties.ts"
+    },
+    "./subschema-positions": {
+      "types": "./src/subschema-positions.ts",
+      "import": "./src/subschema-positions.ts"
     }
   },
   "engines": {

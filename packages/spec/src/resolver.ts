@@ -35,7 +35,7 @@ import {
   wrapReadError,
 } from "./resolver-shared.js";
 import type { SourceHop, SpecRegion } from "./provenance.js";
-import { isSubschemaKey } from "@oaverify/internal-core";
+import { isSubschemaKey } from "@oaverify/internal-core/subschema-positions";
 
 // Re-export the canonical implementation so @oaverify/internal-spec consumers who
 // imported `resolveJsonPointer` keep working. `pointerFromFragment` rides

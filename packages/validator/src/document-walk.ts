@@ -27,12 +27,14 @@
 
 import {
   escapePointerSegment,
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
   type HttpMethod,
   type OpenAPIDocument,
 } from "@oaverify/internal-core";
+import {
+  SUBSCHEMA_ARRAY_POSITIONS,
+  SUBSCHEMA_MAP_POSITIONS,
+  SUBSCHEMA_SINGLE_POSITIONS,
+} from "@oaverify/internal-core/subschema-positions";
 
 /**
  * The fixed method fields that hold an Operation Object under a Path

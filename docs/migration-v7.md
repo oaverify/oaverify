@@ -402,6 +402,35 @@ test happened to write the spec before the flag, which is the order that
 still works. `--findings` was already non-variadic and worked in either
 position; these three now match it.
 
+## Breaking: four internal symbols leave `@oaverify/core`'s main entry
+
+`isSubschemaKey`, `SUBSCHEMA_SINGLE_POSITIONS`, `SUBSCHEMA_ARRAY_POSITIONS`
+and `SUBSCHEMA_MAP_POSITIONS` are no longer exported from
+`@oaverify/core`. They move to `@oaverify/core/schema/internals`, where
+all four now sit together:
+
+```diff
+-import { SUBSCHEMA_ARRAY_POSITIONS } from "@oaverify/core";
++import { SUBSCHEMA_ARRAY_POSITIONS } from "@oaverify/core/schema/internals";
+```
+
+### Why
+
+All four carried `@internal`, which says "unsupported, may change in a
+patch", while being exported from the entry that defines the supported
+surface. Both could not be true, and the export is the half that was
+accidental: `@oaverify/core/schema` has told readers these live behind
+`/internals` for as long as the subpath has existed, and three of the
+four were already there.
+
+They are the tables naming where a schema keeps subschemas. They exist
+to be reshaped when the compiler is, which is exactly what `@internal`
+is for and exactly what a supported export would prevent.
+
+`/internals` is outside the semver contract, so this is a move rather
+than a promise. If you depend on them, the new path is the same code
+with the same names.
+
 ## Checklist
 
 - [ ] Replace `@oaverify/yaml` with `@oaverify/syntax` in every manifest
@@ -428,3 +457,6 @@ position; these three now match it.
 - [ ] If you pass more than one value to a single `--only`, `--overlay`
       or `--severity` flag, repeat the flag instead. All three exit 3 on
       the space-separated form now.
+- [ ] If you import `isSubschemaKey` or any `SUBSCHEMA_*_POSITIONS`
+      constant from `@oaverify/core`, move to
+      `@oaverify/core/schema/internals`.

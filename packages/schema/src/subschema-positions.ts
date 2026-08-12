@@ -1,12 +1,14 @@
 import {
   escapePointerSegment,
   pointerFromRefFragment,
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
   type PathSegment,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
+import {
+  SUBSCHEMA_ARRAY_POSITIONS,
+  SUBSCHEMA_MAP_POSITIONS,
+  SUBSCHEMA_SINGLE_POSITIONS,
+} from "@oaverify/internal-core/subschema-positions";
 
 // The position constants live in `core` so the compiler, the validator
 // and the spec resolver share one definition; re-exported here because
@@ -16,7 +18,7 @@ export {
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
-} from "@oaverify/internal-core";
+} from "@oaverify/internal-core/subschema-positions";
 
 /**
  * Visitor callback shape for {@link walkSubschemas}. Receives each

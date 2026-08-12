@@ -69,6 +69,7 @@ export { createKeywordContext, type KeywordContextInputs } from "./keywords/cont
 // Prefer the public `walkSubschemas` helper when a read-walk suffices;
 // reach for these only when you need to transform / rewrite.
 export {
+  isSubschemaKey,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,

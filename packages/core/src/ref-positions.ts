@@ -9,8 +9,8 @@
  * file to the reader chain and fail on the first byte of it, naming a
  * parse error rather than the spec defect that caused it.
  *
- * Lives in `core` beside {@link isSubschemaKey} for the same reason that
- * does: the walk that needs it (the spec resolver) already imports its
+ * Lives in `core` beside `isSubschemaKey` for the same reason that does
+ * (that one on the `subschema-positions` subpath rather than this entry): the walk that needs it (the spec resolver) already imports its
  * other position table from here, and the alternative home, the
  * meta-schema package, would put ~100KB on every resolve.
  *

@@ -12,6 +12,7 @@
       "@oaverify/internal-core/prototype-properties": [
         "./packages/core/src/prototype-properties.ts"
       ],
+      "@oaverify/internal-core/subschema-positions": ["./packages/core/src/subschema-positions.ts"],
       "@oaverify/internal-schema": ["./packages/schema/src/index.ts"],
       "@oaverify/internal-schema/internals": ["./packages/schema/src/internals.ts"],
       "@oaverify/internal-formats": ["./packages/formats/src/index.ts"],
