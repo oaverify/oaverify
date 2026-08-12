@@ -17,12 +17,12 @@ edits, and the script refuses anything it does not understand, but the
 artifact is our output and a bug in it would be ours.
 
 This package holds the schemas and the version dispatch only. It does
-not compile or validate anything. The CLI's `check` consumes it for the
+not compile or validate anything. `@oaverify/check` consumes it for the
 `conformance` class, compiling the pinned schema for the version the
-document declares.
+document declares; the CLI reaches it only through that package.
 
-Its one workspace dependency is `@oaverify/internal-core`, for
-`detectOpenAPIVersion`.
+Its workspace dependencies are `@oaverify/internal-core`, for
+`detectOpenAPIVersion`, and `@oaverify/internal-schema`.
 
 ## Contents
 

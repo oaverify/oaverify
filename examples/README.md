@@ -54,11 +54,13 @@ See [`docs/overlays.md`](../docs/overlays.md) for a walk-through of the overlay
 shape and when to use each section (`extendSchemas`, `replaceSchemas`,
 `overrides`, `addPaths`).
 
-`spec-check.ts` covers the one check class available as a library call.
-The other four (`hygiene`, `schema`, `conformance`, `redos`) are composed
-only by `oaverify check`, because the conformance meta-schemas and the
-ReDoS detector are dependencies `@oaverify/core` does not carry. The file
-shows both halves: the library call, and the CLI invocations for the rest.
+`spec-check.ts` covers the one check class `@oaverify/core` carries on
+its own. The other four (`hygiene`, `schema`, `conformance`, `redos`)
+need the conformance meta-schemas and the ReDoS detector, which core does
+not carry, so they live in `@oaverify/check`. That package composes all
+five as a library call (`checkSpec`), and `oaverify check` is the CLI in
+front of it. The file shows both halves: the core-only library call, and
+the CLI invocations for the rest.
 See [`docs/strictness.md`](../docs/strictness.md).
 
 ### Why there is no Express or Fastify example here

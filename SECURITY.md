@@ -28,14 +28,16 @@ major version line. Older minor versions do not receive backports.
 
 ## Scope of published packages
 
-The published packages (`oaverify`, `@oaverify/core`,
-`@oaverify/express4`, `@oaverify/express5`,
-`@oaverify/fastify`) declare framework runtimes (`express`,
+Eight packages publish: `oaverify`, `@oaverify/core`,
+`@oaverify/syntax`, `@oaverify/stream`, `@oaverify/check`,
+`@oaverify/express4`, `@oaverify/express5` and `@oaverify/fastify`.
+
+The three adapters declare their framework runtimes (`express`,
 `fastify`) as peer dependencies. Nothing from those frameworks ships
 inside any of the tarballs, and `@oaverify/core` has no runtime
 dependencies at all.
 
-Three sub-roots in this repo own their own lockfiles for test and
+Five sub-roots in this repo own their own lockfiles for test and
 benchmark dependencies, isolated from the main workspace:
 
 - `framework-tests/`: real-server integration tests for the
@@ -44,6 +46,10 @@ benchmark dependencies, isolated from the main workspace:
   validators.
 - `conformance/`: upstream JSON Schema and OpenAPI Overlay test-suite
   harnesses.
+- `detection/`: a labelled corpus recording which OpenAPI defects each
+  tool catches, plus the competing linters it compares against.
+- `performance/mem-bench/`: two Express servers that exist to be
+  measured, nested inside `performance/` with a lockfile of its own.
 
 Dependabot scans each of those lockfiles. CVEs reported against a
 package that only appears under one of those directories affect that
