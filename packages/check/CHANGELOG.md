@@ -26,7 +26,6 @@
 
 * **check:** give float its own reason for going unasserted ([#795](https://github.com/oaverify/oaverify/issues/795)) ([e78df56](https://github.com/oaverify/oaverify/commit/e78df568cf8153efe741154fe5e9de146cc68b7e))
 * **check:** keep findings produced before an aborted check ([#719](https://github.com/oaverify/oaverify/issues/719)) ([51be0c7](https://github.com/oaverify/oaverify/commit/51be0c7fef2d529fd058e0699d3b81f18519580a)), closes [#716](https://github.com/oaverify/oaverify/issues/716)
-* **check:** resolve a reason's source position instead of deriving it ([#783](https://github.com/oaverify/oaverify/issues/783)) ([466ea81](https://github.com/oaverify/oaverify/commit/466ea81f7516efe80f80542b0a481394ea9c055c))
 * **check:** state a rule's explanation on the rule, not in every finding ([#774](https://github.com/oaverify/oaverify/issues/774)) ([be5aa81](https://github.com/oaverify/oaverify/commit/be5aa81923b5173a5c01f5c3ecfd01f06478da8b)), closes [#773](https://github.com/oaverify/oaverify/issues/773)
 * **router:** report a malformed path template instead of throwing URIError ([#712](https://github.com/oaverify/oaverify/issues/712)) ([d227968](https://github.com/oaverify/oaverify/commit/d227968c745cd7b47cce0a654fa7216c56696ed5)), closes [#708](https://github.com/oaverify/oaverify/issues/708)
 * stop raw V8 messages reaching the user on null document nodes ([#794](https://github.com/oaverify/oaverify/issues/794)) ([a632cd4](https://github.com/oaverify/oaverify/commit/a632cd4ecba5c5cce58c77046a2689be2b5066b1))

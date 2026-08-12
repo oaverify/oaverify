@@ -5,7 +5,6 @@
 
 ### ⚠ BREAKING CHANGES
 
-* format: idn-email now rejects local parts over 64 UTF-8 octets that previously passed by fitting in 64 UTF-16 units. The pinned conformance baseline is unchanged (no suite case covers the gap).
 * @oaverify/yaml is now @oaverify/syntax. Every exported name and behaviour is unchanged; update the specifier. See docs/migration-v7.md.
 
 ### Features
