@@ -332,6 +332,48 @@ The alias was documented as "kept for one major" when it shipped in
 3.8.0, which made 4.0.0 its window. It outlasted three majors instead,
 the same way the four aliases v5 swept did.
 
+## Breaking: repeatable CLI flags take one value each
+
+`--overlay`, `--severity` and `--only` were declared variadic, so each
+consumed every following argument until the next `-`. Repeat the flag
+instead of listing values after it:
+
+```diff
+-oaverify compile-spec petstore.yaml --only "POST /pets" "GET /pets/{id}"
++oaverify compile-spec petstore.yaml --only "POST /pets" --only "GET /pets/{id}"
+```
+
+`--severity` also takes a comma-separated list in one value, which is
+unchanged and is what its help text has always shown:
+
+```
+oaverify check spec.yaml --severity 'unsatisfiable/*=error,redos=error'
+```
+
+`--overlay` is unaffected in practice: it already carried a repeat
+collector, and the CLI README already described it as repeatable, so the
+variadic marker only ever cost the behaviour below.
+
+### Why
+
+A variadic option swallows the positional that follows it, so the
+natural flag-first invocation was a usage error:
+
+```
+$ oaverify check --severity 'example-invalid=error' spec.yaml
+error: missing required argument 'spec'
+```
+
+```
+$ oaverify compile-spec --only "GET /pets" petstore.yaml
+error: --only expects "METHOD PATH" (space-delimited), got "petstore.yaml"
+```
+
+Both exited 3. Nothing in-tree caught it because every doc and every
+test happened to write the spec before the flag, which is the order that
+still works. `--findings` was already non-variadic and worked in either
+position; these three now match it.
+
 ## Checklist
 
 - [ ] Replace `@oaverify/yaml` with `@oaverify/syntax` in every manifest
@@ -355,3 +397,6 @@ the same way the four aliases v5 swept did.
       `.location`.
 - [ ] Replace `--format flat` with `--format summary` wherever you
       invoke `oaverify validate`. Output is unchanged.
+- [ ] If you pass more than one value to `--only` after a single flag,
+      repeat the flag instead. `--overlay` and `--severity` were already
+      written that way in the docs and are unaffected.
