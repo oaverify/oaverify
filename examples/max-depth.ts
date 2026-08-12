@@ -14,8 +14,10 @@
  * until it is asked for.
  *
  * See docs/configuration.md "Guarding against deeply nested payloads".
- * Note `maxDepth` in examples/stream-limits.ts is a different bound (the
- * stream engine's), not this compiler recursion guard.
+ * The stream engine has a `maxDepth` of its own, bounding nesting as it
+ * parses rather than guarding recursion in a compiled validator; that
+ * one is documented in stream-validator's README, and no example here
+ * exercises it.
  *
  * Run from the repo root:
  *   pnpm dlx tsx examples/max-depth.ts
