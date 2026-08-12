@@ -28,6 +28,13 @@ describe("maxDepth: option validation", () => {
     expect(() => compile(recursive, { maxDepth: 2.5 })).toThrow(/positive integer/);
   });
 
+  it("throws on NaN and -Infinity, which are not caps at all", () => {
+    expect(() => compile(recursive, { maxDepth: Number.NaN })).toThrow(/positive integer/);
+    expect(() => compile(recursive, { maxDepth: Number.NEGATIVE_INFINITY })).toThrow(
+      /positive integer/,
+    );
+  });
+
   it("accepts a positive integer and the degenerate Infinity", () => {
     expect(() => compile(recursive, { maxDepth: 1 })).not.toThrow();
     expect(() => compile(recursive, { maxDepth: Number.POSITIVE_INFINITY })).not.toThrow();

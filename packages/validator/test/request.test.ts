@@ -1502,6 +1502,24 @@ describe("createValidator option validation", () => {
     expect(() => createValidator(petSpec(), { maxErrors: 100 })).not.toThrow();
   });
 
+  it("rejects NaN and -Infinity for maxErrors and maxDepth", () => {
+    // Non-finite non-caps: a finite-gated guard waves them through and
+    // the budget/depth comparisons silently never fire (or, for a
+    // -Infinity depth cap, fire on everything).
+    expect(() => createValidator(petSpec(), { maxErrors: Number.NaN })).toThrow(
+      /must be a positive integer/,
+    );
+    expect(() => createValidator(petSpec(), { maxErrors: Number.NEGATIVE_INFINITY })).toThrow(
+      /must be a positive integer/,
+    );
+    expect(() => createValidator(petSpec(), { maxDepth: Number.NaN })).toThrow(
+      /must be a positive integer/,
+    );
+    expect(() => createValidator(petSpec(), { maxDepth: Number.NEGATIVE_INFINITY })).toThrow(
+      /must be a positive integer/,
+    );
+  });
+
   it("specHygieneIssues is empty by default (lint not requested)", () => {
     const v = createValidator(petSpec());
     expect(v.specHygieneIssues).toEqual([]);

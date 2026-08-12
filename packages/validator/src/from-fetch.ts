@@ -391,11 +391,11 @@ function countingBody(
  * interpret, since "take the default" and "not supplied" differ by
  * caller.
  *
- * The narrowness is the point, and it is why this does not reuse the
- * `Number.isFinite`-guarded shape `maxErrors` and `maxDepth` validate
- * with. Theirs reads every non-finite value as the intended infinity,
- * so `NaN` and `-Infinity` pass. For a cap whose job is refusing
- * hostile input, passing means failing open, quietly. Every place that
+ * The narrowness is the point: `maxErrors` and `maxDepth` once
+ * validated with a `Number.isFinite`-guarded shape that read every
+ * non-finite value as the intended infinity, so `NaN` and `-Infinity`
+ * passed. For a cap whose job is refusing hostile input, passing
+ * means failing open, quietly. Every place that
  * accepts a `maxTotalBytes` calls this, so the rule has one home:
  * `createValidator` and `combineValidators` at construction,
  * `emitSpec` at emit time, and {@link resolveLimit} for the public
