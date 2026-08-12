@@ -115,6 +115,16 @@ describe("createSmartHttpReader", () => {
     }
   });
 
+  it("treats a dotted +json subtype as JSON, even against a .yaml extension", async () => {
+    // application/vnd.api+json is the canonical structured-syntax
+    // suffix example; a dotted subtype must not fall through to the
+    // extension. Duplicate keys make the dispatch observable: JSON
+    // parses last-wins, the YAML parser rejects the document.
+    stubFetch('{"a":1,"a":2}', "application/vnd.api+json");
+    const r = createSmartHttpReader();
+    expect(await r.read("https://example.com/spec.yaml")).toEqual({ a: 2 });
+  });
+
   it("prefers Content-Type over a conflicting URL extension", async () => {
     // URL ends in .yaml but server advertises JSON → parse as JSON.
     // A misconfigured URL (e.g. a content-management system serving a

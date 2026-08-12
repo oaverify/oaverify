@@ -167,7 +167,8 @@ function isYamlMime(mime: string): boolean {
 
 function isJsonMime(mime: string): boolean {
   // application/json, text/json, application/vnd.openapi+json, etc.
-  return /^(?:application|text)\/(?:\w[\w-]*\+)?json$/i.test(mime);
+  // The subtype prefix may carry dots (vnd.api+json), per RFC 6838.
+  return /^(?:application|text)\/(?:\w[\w.-]*\+)?json$/i.test(mime);
 }
 
 /**
