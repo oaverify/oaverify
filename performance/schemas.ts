@@ -246,6 +246,89 @@ const longString: PerfSchema = {
   ],
 };
 
+// 8. Pattern-heavy — the only shape that measures regex cost.
+//
+// Every other shape here bounds strings with minLength/maxLength, so
+// `pattern` was absent from the whole suite and a change in regex
+// handling could not move any number in it. Patterns are taken from the
+// published-spec corpus rather than invented, so the cost profile is the
+// one real documents pay.
+const patternHeavy: PerfSchema = {
+  name: "pattern-heavy",
+  description: "object whose string fields are constrained by `pattern` rather than by length",
+  schema: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    required: ["id", "host", "slug"],
+    properties: {
+      id: {
+        type: "string",
+        pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      },
+      host: {
+        type: "string",
+        pattern: "^((xn--)?[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*\\.)+[a-zA-Z]{2,}\\.?$",
+      },
+      contact: { type: "string", pattern: "^(.+)@(.+)$" },
+      slug: { type: "string", pattern: "^[a-z][a-z0-9-]*$" },
+    },
+  },
+  validInputs: [
+    {
+      id: "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+      host: "api.example.com",
+      contact: "someone@example.com",
+      slug: "widgets",
+    },
+  ],
+  // Separates a cheap early failure (malformed id, later patterns never
+  // reached) from the case where every pattern has to run.
+  invalidInputs: [
+    {
+      id: "not-a-uuid",
+      host: "api.example.com",
+      contact: "someone@example.com",
+      slug: "widgets",
+    },
+    {
+      id: "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+      host: "api.example.com",
+      contact: "someone@example.com",
+      slug: "Not A Slug",
+    },
+  ],
+};
+
+// 9. Pattern-backtracking — the pathological regex case, kept apart.
+//
+// `[a-z]+$` is single-anchored, and a backtracking engine handles it in
+// quadratic time: a non-matching tail forces a retry from every start
+// index. Measured on the corpus at 2.58ms for a 2k-char non-match against
+// 101ms at 16k, while the anchored patterns in `pattern-heavy` stay flat.
+//
+// Its own shape rather than a fixture inside `pattern-heavy`, because
+// `render.ts` averages the mean latency of every invalid fixture in a
+// shape: at ~1.7ms against ~100ns it would swamp that average and the
+// published row would report V8 backtracking under the name of pattern
+// cost. Both libraries hand this regex to the same engine, so the ratio
+// here is parity by construction; the absolute number is the signal.
+const patternBacktracking: PerfSchema = {
+  name: "pattern-backtracking",
+  description: "single-anchored `pattern` that backtracks quadratically on a non-match",
+  schema: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    required: ["slug"],
+    properties: {
+      slug: { type: "string", pattern: "[a-z]+$" },
+    },
+  },
+  validInputs: [{ slug: makeAscii(2_000) }],
+  // Bounded at 2k chars: enough to show the quadratic term, small enough
+  // that one run stays in the low milliseconds.
+  invalidInputs: [{ slug: `${makeAscii(2_000)}!` }],
+};
+
 function makeAscii(n: number): string {
   return "a".repeat(n);
 }
@@ -278,4 +361,6 @@ export const perfSchemas: PerfSchema[] = [
   arrayHeavy,
   uniquePrimitives,
   longString,
+  patternHeavy,
+  patternBacktracking,
 ];
