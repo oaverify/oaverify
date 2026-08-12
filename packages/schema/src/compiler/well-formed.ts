@@ -9,6 +9,50 @@ import {
 } from "../subschema-positions.js";
 
 /**
+ * Sibling keys explicitly permitted alongside `$ref` under OAS 3.0
+ * (Schema Object §4.7.24.2): metadata-only, no validation effect.
+ * Anything else is silently dropped under `refSuppressesSiblings: true`.
+ *
+ * Lives here rather than in the compiler because both places need it and
+ * `compiler.ts` already imports from this module: the lint pass reports
+ * a discarded sibling, and this pass must not judge the value of one.
+ *
+ * @internal
+ */
+export const OAS30_REF_SIBLINGS_ALLOWED: ReadonlySet<string> = new Set([
+  "$ref",
+  "description",
+  "summary",
+]);
+
+/**
+ * Options for {@link assertWellFormedSchema}.
+ *
+ * @internal
+ */
+export interface AssertWellFormedOptions {
+  /**
+   * Prefix for the thrown message, e.g. an external schema's name. Omit
+   * for the schema being compiled.
+   */
+  label?: string;
+  /** Resolver, so the walk follows `$ref` into targets it can reach. */
+  refResolver?: RefResolver;
+  /**
+   * Whether the active dialect discards `$ref` siblings (OAS 3.0).
+   *
+   * When set, a keyword sitting beside `$ref` is skipped rather than
+   * checked. The compiler will not emit it (`refOnly` in
+   * `compileSchemaInto`) and the lint pass already reports it as
+   * silently dropped, so judging its *value* here would make an ignored
+   * keyword fatal: `{$ref, type: "application/json"}` failed to compile
+   * with exit 4, while `{$ref, type: "string"}` warned and exited 0.
+   * Same slot, same discard, two verdicts.
+   */
+  refSuppressesSiblings?: boolean;
+}
+
+/**
  * Human-readable name for a value that turned up where a schema was
  * expected. Deliberately not `typeof`: "object" would be the answer for
  * both `null` and an array, which are the two shapes that actually
@@ -91,17 +135,16 @@ function hintFor(key: string, value: unknown): string {
  *
  * @param root - Schema to check, walked in full before compiling.
  * @param byKeyword - Active dialect's keyword map, for the value hooks.
- * @param label - Prefix for the thrown message, e.g. an external
- *   schema's name. Omit for the schema being compiled.
+ * @param options - See {@link AssertWellFormedOptions}.
  *
  * @internal
  */
 export function assertWellFormedSchema(
   root: SchemaOrBoolean,
   byKeyword: ReadonlyMap<string, KeywordDefinition>,
-  label?: string,
-  refResolver?: RefResolver,
+  options: AssertWellFormedOptions = {},
 ): void {
+  const { label, refResolver, refSuppressesSiblings = false } = options;
   const prefix = label === undefined ? "" : `${label}: `;
   // Object graphs are normally acyclic here (circular references
   // survive as `$ref` strings, which are never descended), but a
@@ -154,7 +197,33 @@ export function assertWellFormedSchema(
     // Keyword values, before descending. `Object.keys` matches what
     // keyword dispatch itself iterates, so a key present with an
     // undefined value is checked rather than skipped.
+    //
+    // Under OAS 3.0 a sibling of `$ref` is skipped, because the compiler
+    // will not emit it. Checking a value nothing reads turned a
+    // discarded keyword into a fatal, and only for some values of it.
+    //
+    // `"$ref" in obj`, not `typeof obj.$ref === "string"`, because that
+    // is how `compileSchemaInto` decides the same thing. A present but
+    // non-string `$ref` would otherwise have codegen dropping the
+    // siblings while this pass still judged them, which is the split
+    // being removed.
+    //
+    // The skip covers the keyword-value checks only. The structural
+    // walks below stay, discarded sibling or not, because this pass is
+    // what stops the *resolver* meeting a malformed node: with
+    // `{$ref, properties: null}` gated out of them, `resolve` reaches
+    // `Object.keys(null)` and dies with a raw TypeError, trading a
+    // located message for exactly the kind #794 removed.
+    //
+    // So two cases stay fatal that the compiler would have discarded:
+    // a discarded sibling whose own shape is wrong (`items: [...]`, the
+    // draft-04 tuple form converted Swagger emits), and a bad keyword
+    // inside one. Closing those means hardening the resolver's walk
+    // first; filed separately rather than widened into this change.
+    const refOnly = refSuppressesSiblings && "$ref" in obj;
+    const discarded = (key: string): boolean => refOnly && !OAS30_REF_SIBLINGS_ALLOWED.has(key);
     for (const key of Object.keys(obj)) {
+      if (discarded(key)) continue;
       const reason = byKeyword.get(key)?.validateKeywordValue?.(obj[key], {
         keyword: key,
         path: path === "" ? key : `${path}.${key}`,
