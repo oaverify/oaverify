@@ -335,3 +335,80 @@ describe("examples pass under a catastrophic pattern (#687)", () => {
     expect(findings.some((f) => f.code === "ambiguous-pattern")).toBe(false);
   });
 });
+
+describe("null path items and operations", () => {
+  // `/b:` with nothing under it is `null` in YAML, and `null` passed the
+  // router's `!== undefined` presence check. Building the route table
+  // threw a raw TypeError, which `checkSpec` surfaced as CheckAbortedError
+  // with a V8 message and no location, so the conformance pass that would
+  // have located it never ran (#794).
+  it("locates a null path item instead of aborting", async () => {
+    const resolved = await resolve([
+      [
+        "entry.json",
+        { openapi: "3.1.0", info: { title: "t", version: "1" }, paths: { "/b": null } },
+      ],
+    ]);
+    const findings = checkSpec(resolved);
+    const conformance = findings.filter((f) => f.class === "conformance");
+    expect(conformance.map((f) => f.location)).toEqual(["/paths/~1b"]);
+    expect(findings.some((f) => f.class === "malformed")).toBe(false);
+  });
+
+  // `{get: null}` counted as a declaration, so a null operation reached
+  // the compile path and its TypeError became the *message* of a
+  // malformed-schema finding, putting raw V8 text on the JSON and SARIF
+  // contracts.
+  it("does not put a raw TypeError in a finding message", async () => {
+    const resolved = await resolve([
+      [
+        "entry.json",
+        { openapi: "3.1.0", info: { title: "t", version: "1" }, paths: { "/b": { get: null } } },
+      ],
+    ]);
+    const findings = checkSpec(resolved);
+    expect(findings.some((f) => f.class === "malformed")).toBe(false);
+    expect(findings.some((f) => /Cannot read properties of/.test(f.message))).toBe(false);
+    expect(findings.filter((f) => f.class === "conformance").map((f) => f.location)).toEqual([
+      "/paths/~1b/get",
+    ]);
+  });
+});
+
+describe("null entries inside an operation", () => {
+  // Same defect as a null Operation, one level down: a `- ` list entry
+  // with nothing under it is `null`, `resolveRef` returns it unchanged,
+  // and the `=== undefined` guard let it through to `.in` (#794).
+  it("does not put a raw TypeError in a finding for a null parameter", async () => {
+    const resolved = await resolve([
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          paths: { "/b": { get: { parameters: [null], responses: {} } } },
+        },
+      ],
+    ]);
+    const findings = checkSpec(resolved);
+    expect(findings.some((f) => /Cannot read properties of/.test(f.message))).toBe(false);
+    expect(findings.some((f) => f.class === "malformed")).toBe(false);
+  });
+
+  // `'200':` with nothing under it, reaching `.content`.
+  it("does not put a raw TypeError in a finding for a null response", async () => {
+    const resolved = await resolve([
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          paths: { "/b": { get: { responses: { "200": null } } } },
+        },
+      ],
+    ]);
+    const findings = checkSpec(resolved);
+    expect(findings.some((f) => /Cannot read properties of/.test(f.message))).toBe(false);
+    expect(findings.some((f) => f.class === "malformed")).toBe(false);
+  });
+});

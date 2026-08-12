@@ -199,10 +199,33 @@ interface Route {
 function methodsDeclaredOn(item: PathItem): Set<HttpMethod> {
   const declared = new Set<HttpMethod>();
   for (const m of ALL_METHODS) {
-    if (item[m] !== undefined) declared.add(m);
+    if (operationOn(item, m) !== undefined) declared.add(m);
   }
   if (declared.has("get")) declared.add("head");
   return declared;
+}
+
+/**
+ * The operation a Path Item declares for one method, or `undefined` when
+ * it declares none.
+ *
+ * The presence test is "is there an object here", not `!== undefined`.
+ * A malformed document can put `null` in either slot, and `null` passes
+ * an `!== undefined` check: a null Path Item threw a raw TypeError while
+ * the route table was being built, and `{get: null}` was worse, counting
+ * as a declaration and handing a null operation to everything downstream
+ * (#794).
+ *
+ * Skipping the slot rather than reporting it is deliberate. The router
+ * answers "which operation handles this request"; a null there is a
+ * document defect, and saying so is the conformance pass's job, which
+ * locates it at the offending pointer. Crashing before that pass can run
+ * is what produced an unlocated V8 message instead.
+ */
+function operationOn(item: PathItem, method: HttpMethod): OperationObject | undefined {
+  if (item === null || typeof item !== "object") return undefined;
+  const op = item[method];
+  return op === null || typeof op !== "object" ? undefined : op;
 }
 
 /**
@@ -482,7 +505,7 @@ export function createRouter(paths: Record<string, PathItem>): Router {
   // accessor can hand the same array out repeatedly without copying.
   const routeList: readonly RouteInfo[] = Object.freeze(
     routes.flatMap((route) =>
-      ALL_METHODS.filter((m) => route.pathItem[m] !== undefined).map((m) => ({
+      ALL_METHODS.filter((m) => operationOn(route.pathItem, m) !== undefined).map((m) => ({
         method: m.toUpperCase(),
         pathPattern: route.pathPattern,
       })),
@@ -558,12 +581,12 @@ export function createRouter(paths: Record<string, PathItem>): Router {
           }
         }
         if (!matched) continue;
-        let operation = route.pathItem[normMethod];
+        let operation = operationOn(route.pathItem, normMethod);
         // RFC 9110 §9.3.2: any resource that answers GET must also answer
         // HEAD. OpenAPI authors rarely declare HEAD explicitly, so fall
         // back to the GET operation when no explicit HEAD is present.
         if (operation === undefined && normMethod === "head") {
-          operation = route.pathItem.get;
+          operation = operationOn(route.pathItem, "get");
         }
         if (operation !== undefined) {
           return {
@@ -581,10 +604,10 @@ export function createRouter(paths: Record<string, PathItem>): Router {
         if (firstMatchedPattern === undefined) firstMatchedPattern = route.pathPattern;
         allowed ??= new Set<string>();
         for (const m of ALL_METHODS) {
-          if (route.pathItem[m] !== undefined) allowed.add(m.toUpperCase());
+          if (operationOn(route.pathItem, m) !== undefined) allowed.add(m.toUpperCase());
         }
         // GET implicitly answers HEAD (RFC 9110 §9.3.2).
-        if (route.pathItem.get !== undefined) allowed.add("HEAD");
+        if (operationOn(route.pathItem, "get") !== undefined) allowed.add("HEAD");
       }
 
       if (firstMatchedPattern !== undefined) {

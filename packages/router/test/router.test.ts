@@ -622,3 +622,54 @@ describe("route sort determinism", () => {
     expect(router.routes().map((r) => r.pathPattern)).toEqual(["/p/{a}", "/pz/{b}"]);
   });
 });
+
+describe("malformed path items", () => {
+  // A YAML author writing `/b:` with nothing under it produces `null`,
+  // not `{}`. `null` passes an `!== undefined` presence check, so it
+  // reached the route table as a declaration and threw a raw TypeError
+  // while the table was being built, before any pass could locate it
+  // (#794).
+  it("does not throw on a null path item", () => {
+    const router = createRouter({ "/b": null as unknown as PathItem });
+    expect(router.match("get", "/b")).toEqual({
+      kind: "method-not-allowed",
+      pathPattern: "/b",
+      allowed: [],
+    });
+  });
+
+  it("does not count a null operation as declared", () => {
+    const router = createRouter({ "/b": { get: null } as unknown as PathItem });
+    expect(router.match("get", "/b")).toEqual({
+      kind: "method-not-allowed",
+      pathPattern: "/b",
+      allowed: [],
+    });
+  });
+
+  // The HEAD fallback reads the GET slot directly, so it needs the same
+  // guard: a null GET must not be handed back as the HEAD operation.
+  it("does not fall back to a null GET for HEAD", () => {
+    const router = createRouter({ "/b": { get: null } as unknown as PathItem });
+    expect(router.match("head", "/b")).toEqual({
+      kind: "method-not-allowed",
+      pathPattern: "/b",
+      allowed: [],
+    });
+  });
+
+  it("keeps the valid siblings of a null operation", () => {
+    const router = createRouter({ "/b": { get: null, post: op("live") } as unknown as PathItem });
+    expect(matched(router.match("post", "/b")).operation.operationId).toBe("live");
+    expect(router.match("get", "/b")).toEqual({
+      kind: "method-not-allowed",
+      pathPattern: "/b",
+      allowed: ["POST"],
+    });
+  });
+
+  it("omits a null operation from the route list", () => {
+    const router = createRouter({ "/b": { get: null, post: op("live") } as unknown as PathItem });
+    expect(router.routes()).toEqual([{ method: "POST", pathPattern: "/b" }]);
+  });
+});
