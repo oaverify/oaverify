@@ -434,7 +434,11 @@ export function buildOperationCache(
   >();
   for (const { raw, pointer } of rawParams) {
     const resolved = deps.resolveRef<ParameterObject>(raw);
-    if (resolved === undefined) continue;
+    // Not `=== undefined`: a `- ` list entry with nothing under it is
+    // `null`, which resolves to `null` and would throw on `.in` below.
+    // Skipped for the same reason the router skips a null Operation; the
+    // conformance pass locates it. See operationOn in the router.
+    if (resolved === null || typeof resolved !== "object") continue;
     byKey.set(`${resolved.in}\0${resolved.name}`, {
       object: resolved,
       ...deps.originOf?.(raw, { pointer, anchor: "node" }),
@@ -571,7 +575,10 @@ export function buildOperationCache(
   const rawResponses = pathMatch.operation.responses ?? {};
   for (const [status, rawResponse] of Object.entries(rawResponses)) {
     const response = deps.resolveRef<ResponseObject>(rawResponse);
-    if (response === undefined) continue;
+    // Not `=== undefined`: `'200':` with nothing under it is `null`, and
+    // would throw on `.content` below. Same rule as the null Parameter
+    // above and the router's null Operation.
+    if (response === null || typeof response !== "object") continue;
     const responseOrigin =
       deps.originOf?.(rawResponse, {
         pointer:

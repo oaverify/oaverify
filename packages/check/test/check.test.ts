@@ -374,3 +374,41 @@ describe("null path items and operations", () => {
     ]);
   });
 });
+
+describe("null entries inside an operation", () => {
+  // Same defect as a null Operation, one level down: a `- ` list entry
+  // with nothing under it is `null`, `resolveRef` returns it unchanged,
+  // and the `=== undefined` guard let it through to `.in` (#794).
+  it("does not put a raw TypeError in a finding for a null parameter", async () => {
+    const resolved = await resolve([
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          paths: { "/b": { get: { parameters: [null], responses: {} } } },
+        },
+      ],
+    ]);
+    const findings = checkSpec(resolved);
+    expect(findings.some((f) => /Cannot read properties of/.test(f.message))).toBe(false);
+    expect(findings.some((f) => f.class === "malformed")).toBe(false);
+  });
+
+  // `'200':` with nothing under it, reaching `.content`.
+  it("does not put a raw TypeError in a finding for a null response", async () => {
+    const resolved = await resolve([
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          paths: { "/b": { get: { responses: { "200": null } } } },
+        },
+      ],
+    ]);
+    const findings = checkSpec(resolved);
+    expect(findings.some((f) => /Cannot read properties of/.test(f.message))).toBe(false);
+    expect(findings.some((f) => f.class === "malformed")).toBe(false);
+  });
+});
