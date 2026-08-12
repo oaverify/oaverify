@@ -26,7 +26,8 @@ import { parseFindingKey, type FindingKey } from "./finding-key.js";
 import type { CheckFinding } from "./finding.js";
 
 /**
- * What one `--skip` key suppressed.
+ * What one exclusion key suppressed. The CLI spells these as the
+ * `-`-prefixed terms of `--findings`.
  *
  * Reported for **every** key given, including ones that matched
  * nothing. A skip entry with a count of zero is the interesting case: a
@@ -46,7 +47,7 @@ export interface SkipReportEntry {
 export class SkipKeyError extends Error {}
 
 /**
- * Parse the `--skip` grammar into keys.
+ * Parse the exclusion-key grammar into keys.
  *
  * One comma-separated list of keys, and a key is an exact code
  * (`unsatisfiable/pattern-length`), a family (`unsatisfiable/*`), or a

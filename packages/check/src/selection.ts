@@ -2,10 +2,11 @@
  * One selection grammar over the finding vocabulary, with the two stages
  * assigned to the two polarities.
  *
- * `--only` and `--skip` are not one axis with opposite polarity, which is
- * what #661 assumed. `--only` decides which passes run and is allowed to
- * turn detection off; `--skip` decides which produced findings are
- * reported and is not. On a 7.6MB document that difference is 0.16s and
+ * Inclusion and exclusion are not one axis with opposite polarity, which
+ * is what #661 assumed. An inclusion term decides which passes run and is
+ * allowed to turn detection off; an exclusion term decides which produced
+ * findings are reported and is not. The CLI spells both as `--findings`
+ * terms, the exclusions `-`-prefixed. On a 7.6MB document that difference is 0.16s and
  * 136MB against 13.4s and 2.7GB, and on an uncompilable document it is
  * exit 0 against exit 4. Collapsing them into a single post-filter would
  * lose the first; collapsing them into a single pre-filter would let an
@@ -130,7 +131,8 @@ export interface FindingSelection {
  * The value is single, not variadic, and that is a constraint rather
  * than a preference: commander passes a `-`-prefixed value through on a
  * single-value option and rejects the second one on a variadic option
- * (`--skip -redos -schema` fails with "unknown option '-schema'").
+ * (`--findings -redos -schema` would fail with "unknown option
+ * '-schema'" were this variadic).
  *
  * **An empty value is refused.** A CI variable that expanded to nothing
  * must not silently mean "everything"; that is the same failure the
