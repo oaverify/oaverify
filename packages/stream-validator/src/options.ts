@@ -38,12 +38,21 @@ export type PathFilter = JsonPath | ((path: JsonPath, kind: "object" | "array") 
  *   - **Schema semantics** (`formats`, `keywords`, `regexCompiler`,
  *     `parity`): shared with `@oaverify/internal-schema`'s `CompileOptions` where they
  *     overlap; threaded into the BUFFER-island delegate.
- *   - **Observability** (`keyEvents`): an opt-in, compile-time-gated key
- *     channel.
+ *   - **Dialect selection** (`dialect`, `openApiVersion`): which keyword
+ *     set the delegate compiles under.
+ *   - **Format policy** (`unknownFormats`): what an unregistered
+ *     `format` name does.
+ *   - **Observability** (`keyEvents`, `valueEvents`, `warn`): opt-in,
+ *     compile-time-gated channels.
  *   - **Resource limits** (`maxBufferedBytes`, `maxDepth`,
  *     `maxTotalBytes`, `maxUniqueItems`, `enforceBounds`): all default off
  *     (unset = zero overhead). They bound the dimensions a
  *     forward-decidable schema leaves open.
+ *   - **Member-edit caps** (`maxMemberPrefixBytes`, `maxMemberDropBytes`):
+ *     the exception to the line above. Both default *finite*, because
+ *     they bound a buffer the edit itself introduces rather than one the
+ *     schema left open, so there is no "unset costs nothing" version of
+ *     them. Each names its default on the field.
  *
  * @public
  */

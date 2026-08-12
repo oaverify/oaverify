@@ -827,8 +827,8 @@ export type CompiledPredicate = Omit<CompiledSchema, "validate"> & {
  * Options accepted by {@link compileSchema}.
  *
  * @remarks
- * Ordering convention (shared with
- * {@link oaverify!ValidatorOptions}):
+ * Ordering convention (shared with `@oaverify/core`'s
+ * `ValidatorOptions`):
  *
  *   1. Compile essentials: `dialect`.
  *   2. Shared extension points: `formats`, `keywords`.
@@ -1227,8 +1227,8 @@ export interface CompileState {
   /**
    * `true` when predicate mode was requested. Compiled subfunctions
    * return `boolean` (no error tree); leaf-emitting keywords emit
-   * `return false;` instead of pushing into an accumulator. See
-   * {@link CompileOptions.predicate}.
+   * `return false;` instead of pushing into an accumulator. Requested
+   * as {@link CompileOptions.output} `"predicate"`.
    */
   readonly predicate: boolean;
   /**
@@ -1236,7 +1236,8 @@ export interface CompileState {
    * return a flat `ValidationError[]` of leaves (or `null`) instead of a
    * single (possibly branch-wrapped) node; lift sites append rather than
    * push, and the inline-wrap and composition-wrap steps are replaced by
-   * flat appends plus marker leaves. See {@link CompileOptions.flat}.
+   * flat appends plus marker leaves. Requested as
+   * {@link CompileOptions.output} `"flat"`, the default.
    */
   readonly flat: boolean;
   /**
@@ -1371,8 +1372,11 @@ function resolveOutputMode(options: CompileOptions): "flat" | "tree" | "predicat
  * Compile a JSON Schema 2020-12 document into an executable validator.
  *
  * @param schema - The schema (object or boolean) to compile.
- * @param options - Vocabularies, formats, external schemas.
- * @returns A validator function plus the generated source.
+ * @param options - See {@link CompileOptions}; `dialect` is the only
+ *   one most callers set.
+ * @returns A {@link CompiledSchema}: the validator, its stats, and the
+ *   generated source, which is empty unless
+ *   {@link CompileOptions.retainSource} asked for it.
  *
  * @example
  * ```ts

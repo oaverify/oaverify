@@ -488,6 +488,11 @@ export interface HeaderObject {
  * @public
  */
 export interface HttpRequest {
+  /**
+   * HTTP method. Any casing: the router lowercases before matching, so
+   * `"get"`, `"GET"` and `"Get"` all reach the same operation, and an
+   * adapter can pass its framework's value through unchanged.
+   */
   method: string;
   /**
    * The request path (`"/pets/42"`). A query string left in it
@@ -537,6 +542,15 @@ export interface HttpRequest {
    * adapter does. The same rule governs {@link HttpResponse.body}.
    */
   body?: unknown;
+  /**
+   * The unparsed body text, when an adapter happens to have it.
+   *
+   * Validation never reads this: `body` is what every schema is checked
+   * against. It is carried so a caller that needs the bytes as they
+   * arrived (signature verification, logging the exact payload, a
+   * second parse under different rules) does not have to buffer them a
+   * second time. Absent is normal, and means nothing about the request.
+   */
   rawBody?: string | undefined;
 }
 
