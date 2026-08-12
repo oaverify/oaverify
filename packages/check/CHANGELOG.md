@@ -1,5 +1,49 @@
 # Changelog
 
+## [7.0.0](https://github.com/oaverify/oaverify/compare/check-v6.0.0...check-v7.0.0) (2026-08-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** the "flat" output-format alias is removed; pass "summary" instead. This is the `--format` flag and `formatError`'s renderer name, not `ValidatorOptions.output: "flat"`, which is unaffected.
+* **validator:** bound the Fetch adapter's body read by maxTotalBytes ([#785](https://github.com/oaverify/oaverify/issues/785))
+* @oaverify/yaml is now @oaverify/syntax. Every exported name and behaviour is unchanged; update the specifier. See docs/migration-v7.md.
+
+### Features
+
+* **check:** locate each sub-rejection of an invalid example in SARIF ([#778](https://github.com/oaverify/oaverify/issues/778)) ([d81ab42](https://github.com/oaverify/oaverify/commit/d81ab42175d663f5d3761c00e54f8566d3fc9346))
+* **check:** point a finding at the key where the name is the subject ([#771](https://github.com/oaverify/oaverify/issues/771)) ([81d69ec](https://github.com/oaverify/oaverify/commit/81d69ecd4e51f2074387cfb3826627eb350fc2c6))
+* **core:** share the leaf detail renderer between both message sites ([#782](https://github.com/oaverify/oaverify/issues/782)) ([fd0827c](https://github.com/oaverify/oaverify/commit/fd0827cdf2ae7cdb36b6634d1a76816eb6e4c604)), closes [#777](https://github.com/oaverify/oaverify/issues/777)
+* **formats:** assert language, an RFC 5646 tag ([#733](https://github.com/oaverify/oaverify/issues/733)) ([6393bfe](https://github.com/oaverify/oaverify/commit/6393bfe7d1fb27f17c73b35d8e1fe4c2d7c2e5ca))
+* **formats:** assert media-range, the RFC 9110 production ([#734](https://github.com/oaverify/oaverify/issues/734)) ([c2c3721](https://github.com/oaverify/oaverify/commit/c2c3721e4d6a39f9915a4a167e917997c1efc33b))
+* **formats:** assert six more OpenAPI Format Registry names ([#732](https://github.com/oaverify/oaverify/issues/732)) ([62d6b34](https://github.com/oaverify/oaverify/commit/62d6b3471d7cdc78686e0c184f1abc8a924a4bbf))
+* line and column for a check finding ([#769](https://github.com/oaverify/oaverify/issues/769)) ([781108a](https://github.com/oaverify/oaverify/commit/781108a4afa3fa5c4d749e4040d73b4e30bb2a6f))
+* rename @oaverify/yaml to @oaverify/syntax ([#768](https://github.com/oaverify/oaverify/issues/768)) ([7b29cc1](https://github.com/oaverify/oaverify/commit/7b29cc166f4e7e5ecb4e2c2f197c131ee910f752))
+* **validator:** bound the Fetch adapter's body read by maxTotalBytes ([#785](https://github.com/oaverify/oaverify/issues/785)) ([bc45651](https://github.com/oaverify/oaverify/commit/bc45651b24093bb513b93329bb82feb85200a5fe))
+
+
+### Bug Fixes
+
+* **check:** give float its own reason for going unasserted ([#795](https://github.com/oaverify/oaverify/issues/795)) ([e78df56](https://github.com/oaverify/oaverify/commit/e78df568cf8153efe741154fe5e9de146cc68b7e))
+* **check:** keep findings produced before an aborted check ([#719](https://github.com/oaverify/oaverify/issues/719)) ([51be0c7](https://github.com/oaverify/oaverify/commit/51be0c7fef2d529fd058e0699d3b81f18519580a)), closes [#716](https://github.com/oaverify/oaverify/issues/716)
+* **check:** resolve a reason's source position instead of deriving it ([#783](https://github.com/oaverify/oaverify/issues/783)) ([466ea81](https://github.com/oaverify/oaverify/commit/466ea81f7516efe80f80542b0a481394ea9c055c))
+* **check:** state a rule's explanation on the rule, not in every finding ([#774](https://github.com/oaverify/oaverify/issues/774)) ([be5aa81](https://github.com/oaverify/oaverify/commit/be5aa81923b5173a5c01f5c3ecfd01f06478da8b)), closes [#773](https://github.com/oaverify/oaverify/issues/773)
+* **router:** report a malformed path template instead of throwing URIError ([#712](https://github.com/oaverify/oaverify/issues/712)) ([d227968](https://github.com/oaverify/oaverify/commit/d227968c745cd7b47cce0a654fa7216c56696ed5)), closes [#708](https://github.com/oaverify/oaverify/issues/708)
+* stop raw V8 messages reaching the user on null document nodes ([#794](https://github.com/oaverify/oaverify/issues/794)) ([a632cd4](https://github.com/oaverify/oaverify/commit/a632cd4ecba5c5cce58c77046a2689be2b5066b1))
+
+
+### Documentation
+
+* correct four documentation defects found in the v7 review ([#792](https://github.com/oaverify/oaverify/issues/792)) ([bef64db](https://github.com/oaverify/oaverify/commit/bef64dbe4607219a31e545a8880e24d2ff760bce))
+* pare the prose docs and rework the README arrival surface ([#814](https://github.com/oaverify/oaverify/issues/814)) ([3593ef7](https://github.com/oaverify/oaverify/commit/3593ef7bd0a078c123ed94fec0767c066b96a297))
+* **tsdoc:** correct comments that misdescribe the code, and fix dead links ([#815](https://github.com/oaverify/oaverify/issues/815)) ([ecc7c24](https://github.com/oaverify/oaverify/commit/ecc7c24eabe97f60d29b0897f45937a1cfda146d))
+* **tsdoc:** fix references to things that do not exist, and three gaps ([#808](https://github.com/oaverify/oaverify/issues/808)) ([06c2920](https://github.com/oaverify/oaverify/commit/06c292075a15e0ac187e04a6d7b75046d8674cf9))
+
+
+### Chore
+
+* **core:** remove the deprecated "flat" output-format alias ([#791](https://github.com/oaverify/oaverify/issues/791)) ([24c3ad9](https://github.com/oaverify/oaverify/commit/24c3ad9207bc3d3523c2adbcc76b0b6044d0e38b))
+
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/check-v5.4.0...check-v6.0.0) (2026-08-07)
 
 **Selecting findings changed shape, and an ungradeable document now aborts everywhere.** `CheckOptions.only` is replaced by `findings`, which reaches an exact code or a family as well as a class. See [the v6 migration guide](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md).

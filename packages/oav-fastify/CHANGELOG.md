@@ -1,5 +1,26 @@
 # Changelog
 
+## [7.0.0](https://github.com/oaverify/oaverify/compare/fastify-v6.0.0...fastify-v7.0.0) (2026-08-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* @oaverify/yaml is now @oaverify/syntax. Every exported name and behaviour is unchanged; update the specifier. See docs/migration-v7.md.
+
+### Features
+
+* rename @oaverify/yaml to @oaverify/syntax ([#768](https://github.com/oaverify/oaverify/issues/768)) ([7b29cc1](https://github.com/oaverify/oaverify/commit/7b29cc166f4e7e5ecb4e2c2f197c131ee910f752))
+
+
+### Bug Fixes
+
+* twelve defects from an adversarial review of the public surfaces ([#736](https://github.com/oaverify/oaverify/issues/736)) ([7d07c15](https://github.com/oaverify/oaverify/commit/7d07c15a6cdee7ffb4a06cd32c334bd1bfffa04b))
+
+
+### Documentation
+
+* fix snippets that do not compile, and two stale example claims ([#806](https://github.com/oaverify/oaverify/issues/806)) ([ed0cf8b](https://github.com/oaverify/oaverify/commit/ed0cf8b0a4621f3386e643b43719bced7d558a2e))
+
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/fastify-v5.4.0...fastify-v6.0.0) (2026-08-07)
 
 No source changes in this package. The version tracks the linked release group so the whole set moves together.

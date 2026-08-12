@@ -1,5 +1,28 @@
 # Changelog
 
+## [7.0.0](https://github.com/oaverify/oaverify/compare/syntax-v6.0.0...syntax-v7.0.0) (2026-08-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* format: idn-email now rejects local parts over 64 UTF-8 octets that previously passed by fitting in 64 UTF-16 units. The pinned conformance baseline is unchanged (no suite case covers the gap).
+* @oaverify/yaml is now @oaverify/syntax. Every exported name and behaviour is unchanged; update the specifier. See docs/migration-v7.md.
+
+### Features
+
+* line and column for a check finding ([#769](https://github.com/oaverify/oaverify/issues/769)) ([781108a](https://github.com/oaverify/oaverify/commit/781108a4afa3fa5c4d749e4040d73b4e30bb2a6f))
+* rename @oaverify/yaml to @oaverify/syntax ([#768](https://github.com/oaverify/oaverify/issues/768)) ([7b29cc1](https://github.com/oaverify/oaverify/commit/7b29cc166f4e7e5ecb4e2c2f197c131ee910f752))
+
+
+### Bug Fixes
+
+* settle the six code-vs-doc conflicts from the TSDoc audit ([#816](https://github.com/oaverify/oaverify/issues/816)) ([3b76c9f](https://github.com/oaverify/oaverify/commit/3b76c9f7072aeea3427f89be5d7c16d4b8d4501c))
+
+
+### Documentation
+
+* **tsdoc:** correct comments that misdescribe the code, and fix dead links ([#815](https://github.com/oaverify/oaverify/issues/815)) ([ecc7c24](https://github.com/oaverify/oaverify/commit/ecc7c24eabe97f60d29b0897f45937a1cfda146d))
+
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/yaml-v5.4.0...yaml-v6.0.0) (2026-08-07)
 
 No source changes in this package. The version tracks the linked release group so the whole set moves together.

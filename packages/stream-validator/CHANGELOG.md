@@ -1,5 +1,28 @@
 # Changelog
 
+## [7.0.0](https://github.com/oaverify/oaverify/compare/stream-v6.0.0...stream-v7.0.0) (2026-08-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** the "flat" output-format alias is removed; pass "summary" instead. This is the `--format` flag and `formatError`'s renderer name, not `ValidatorOptions.output: "flat"`, which is unaffected.
+
+### Bug Fixes
+
+* **schema:** bound the multipleOf tolerance and handle an overflowing quotient ([#713](https://github.com/oaverify/oaverify/issues/713)) ([d36e05e](https://github.com/oaverify/oaverify/commit/d36e05ee6b03074991989bef4f9e4a72b0d41c8c)), closes [#709](https://github.com/oaverify/oaverify/issues/709)
+
+
+### Documentation
+
+* correct claims that do not match the code ([#805](https://github.com/oaverify/oaverify/issues/805)) ([a1e0412](https://github.com/oaverify/oaverify/commit/a1e0412b4bf16fcf20cbd8529fb37d0c201aa32c))
+* **tsdoc:** correct comments that misdescribe the code, and fix dead links ([#815](https://github.com/oaverify/oaverify/issues/815)) ([ecc7c24](https://github.com/oaverify/oaverify/commit/ecc7c24eabe97f60d29b0897f45937a1cfda146d))
+* **tsdoc:** fix references to things that do not exist, and three gaps ([#808](https://github.com/oaverify/oaverify/issues/808)) ([06c2920](https://github.com/oaverify/oaverify/commit/06c292075a15e0ac187e04a6d7b75046d8674cf9))
+
+
+### Chore
+
+* **core:** remove the deprecated "flat" output-format alias ([#791](https://github.com/oaverify/oaverify/issues/791)) ([24c3ad9](https://github.com/oaverify/oaverify/commit/24c3ad9207bc3d3523c2adbcc76b0b6044d0e38b))
+
 ## [6.0.0](https://github.com/oaverify/oaverify/compare/stream-v5.4.0...stream-v6.0.0) (2026-08-07)
 
 No source changes in this package. The version tracks the linked release group, and the entries below reach it through `StreamValidatorOptions.formats`, which merges over `builtInFormats`.
