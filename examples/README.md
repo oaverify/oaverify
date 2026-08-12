@@ -47,6 +47,7 @@ npm install @oaverify/stream
 | `overlay-petstore-schema.ts`   | `petstore.yaml`       | Extend the `Pet` component with a deployment-required field                         |
 | `overlay-petstore-endpoint.ts` | `petstore.yaml`       | Require an `X-Tenant` header on `POST /pets` via an endpoint overlay                |
 | `spec-digest.ts`               | `uploads.yaml`        | Derive middleware config (multer limits, required headers) from the spec at startup |
+| `security-dispatch.ts`         | `uploads.yaml`        | Per-scheme auth dispatch from the spec's `security:` declaration                     |
 | `spec-check.ts`                | `catalog.yaml`        | Check the spec itself: every example validated against the schema it illustrates    |
 | `fetch-handler.ts`             | `petstore.yaml`       | Web Standards `Request`/`Response` handler: Next.js, Hono, Bun, Deno                |
 
