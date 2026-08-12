@@ -142,44 +142,19 @@ routes no member owns. All members must share an `output` mode. See
 
 ## Custom keywords
 
-```ts
-const validator = createValidator(spec, {
-  keywords: {
-    activeTenant: (data) =>
-      typeof data !== "string" || tenantCache.isActive(data)
-        ? true
-        : { message: `tenant "${data}" is not active` },
-  },
-});
-```
-
-Flag schemas that should be checked:
-
-```yaml
-TenantId:
-  type: string
-  pattern: "^t_[a-z0-9]+$"
-  activeTenant: true
-```
-
-Custom-keyword errors appear in the tree alongside regular schema
-errors, prefixed with the HTTP location (`body.tenantId`, etc.). See
-[`examples/custom-keywords.ts`](../../examples/custom-keywords.ts) for
-an end-to-end.
+The `keywords` option registers value-level predicates; errors appear
+in the tree alongside regular schema errors, prefixed with the HTTP
+location (`body.tenantId`, etc.). Recipe in
+[docs/configuration.md](../../docs/configuration.md#custom-keywords),
+end-to-end in
+[`examples/custom-keywords.ts`](../../examples/custom-keywords.ts).
 
 ## Fast-fail / bounded error collection
 
-```ts
-createValidator(spec); // default: stop after the first error
-createValidator(spec, { maxErrors: 10 }); // cap while still getting useful feedback
-createValidator(spec, { maxErrors: Number.POSITIVE_INFINITY }); // every error
-```
-
-`maxErrors` is a per-call total across all locations (body, query,
-headers). Hot loops (array items, object properties, `allOf` / `anyOf`
-branches) short-circuit once the budget is exhausted, so a 10 MB invalid
-payload doesn't cost proportional CPU or memory. A failing result
-carries `truncated: true` when the cap was reached.
+`maxErrors` (default `1`) is a per-call total across all locations
+(body, query, headers); a failing result carries `truncated: true`
+when the cap was reached. See
+[docs/configuration.md](../../docs/configuration.md#error-budget).
 
 ## Handling unknown `openapi` versions
 

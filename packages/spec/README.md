@@ -64,19 +64,8 @@ pass a `{ read, canRead }` object as `reader`.
 `loadSpecSync` blocks on filesystem reads (`readFileSync`); use it at
 boot or in a CLI, not on a per-request path. For non-blocking contexts,
 `loadSpec` stays the right tool. An unreadable or malformed spec throws,
-the same as `loadSpec`. To keep one bad spec from aborting startup,
-catch it and decide locally:
-
-```ts
-function loadOrSkip(entry: string): Validator | null {
-  try {
-    return createValidator(loadSpecSync({ entry }).document);
-  } catch (err) {
-    log.warn(`spec ${entry} unreadable; skipping`, err);
-    return null;
-  }
-}
-```
+the same as `loadSpec`; to keep one bad spec from aborting startup,
+catch it and decide locally.
 
 ## Readers
 

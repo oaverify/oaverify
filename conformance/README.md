@@ -89,9 +89,7 @@ the only signal anyone sees.
 
 The PR gate never reaches the network: CI caches the corpora keyed on
 `corpora.json`, so a required check does not depend on GitHub's git
-endpoints being up. A pinned fetch is as reproducible as a lockfile
-install; what it adds is an availability dependency, and the cache is what
-removes it.
+endpoints being up.
 
 Two things run nightly instead, because the pin cannot answer them:
 
@@ -101,9 +99,8 @@ Two things run nightly instead, because the pin cannot answer them:
   [`floating.ts`](./floating.ts), which separates "we regressed" from
   "upstream added cases we fail" by whether the unit's case count grew.
   Without that split the nightly is noise and gets muted. The other two
-  corpora have no floating runner, deliberately: JSONTestSuite is
-  effectively frozen upstream and Overlay-Specification's churn rarely
-  touches its fixtures, so their radar is the staleness check and their
+  corpora have no floating runner, deliberately: both are frozen enough
+  upstream that the staleness check is their radar, and their
   measurement happens at the pin bump.
 - `pnpm corpora:stale --fail-if-stale`, as above.
 

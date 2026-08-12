@@ -54,7 +54,6 @@ body, content type, status, and headers.
 
 The established OpenAPI validators for JavaScript predate OpenAPI 3.1.
 oaverify is built to be the boring, correct option for modern specs.
-The claims that justify it, each with the artifact that checks it:
 
 - **3.1 and 3.2 are JSON Schema 2020-12, natively.** 1294/1299 on the
   required upstream test suite, every divergence itemized and
@@ -89,6 +88,13 @@ validates your traffic and oaverify adds little. Swagger 2.0 documents
 are not supported ([convert first](#versions)). If you want request
 coercion by mutation or response mocking, `express-openapi-validator`
 and `openapi-backend` do those and oaverify deliberately does not.
+
+**Coming from `express-openapi-validator`?** The middleware mounts in
+the same place and renders `application/problem+json`; you give up
+body coercion and `req` mutation, and gain structured errors with
+stable codes.
+[docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md)
+maps every option and behavior difference.
 
 ## Install
 
@@ -155,14 +161,11 @@ The figures move with the version; measure the imports you use.
 ```ts
 import express from "express";
 import { createValidator } from "@oaverify/core";
-import { composeReaders, createFileReader, loadSpec } from "@oaverify/core/spec";
-import { createYamlFileReader } from "@oaverify/syntax";
+import { loadSpecSync } from "@oaverify/syntax";
 import { validateRequests } from "@oaverify/express5";
 
-const { document } = await loadSpec({
-  reader: composeReaders([createYamlFileReader(), createFileReader()]),
-  entry: "openapi.yaml",
-});
+// YAML or JSON, cross-file $refs included.
+const { document } = loadSpecSync({ entry: "openapi.yaml" });
 const validator = createValidator(document);
 
 const app = express();
@@ -264,27 +267,33 @@ for the engine, the buffer model, and the edit hooks.
 
 ## Overlay quickstart
 
-Overlays patch a spec you don't own (add a server, require a header,
-tighten a schema) in memory, before the validator is constructed,
-without forking the file:
+Overlays patch a spec you don't own, or one published upstream of your
+repo (a vendor API, a template repo's canonical spec), in memory
+before the validator is constructed, without forking the file. They
+apply in order, so an organization-wide overlay and a per-deployment
+one layer:
 
 ```ts
-import { applyOverlays } from "@oaverify/core/spec";
-import type { SpecOverlay } from "@oaverify/core/spec";
+import { applyOverlays, type SpecOverlay } from "@oaverify/core/spec";
 
 // Require an API key on POST /pets; tighten the upstream Pet schema.
-const deployment: SpecOverlay = {
+const org: SpecOverlay = {
   overrides: {
     "/pets": { operations: { post: { addSecurity: [{ apiKey: [] }] } } },
   },
   extendSchemas: { Pet: { required: ["id"] } },
 };
 
-const validator = createValidator(applyOverlays(document, [deployment]));
+// This deployment does not serve the bulk-import route.
+const deployment: SpecOverlay = { removePaths: ["/pets/import"] };
+
+const validator = createValidator(applyOverlays(document, [org, deployment]));
 ```
 
-The full verb surface (servers, paths, component-bucket fan-out,
-predicate iterators) is documented in
+A `remove*` verb whose target is missing throws rather than silently
+no-oping, so the overlay notices when upstream moves the thing it
+patches. The full verb surface (servers, paths, operations,
+component-bucket fan-out, predicate iterators) is documented in
 [`docs/overlays.md`](https://github.com/oaverify/oaverify/blob/main/docs/overlays.md).
 
 ## Where to go next
@@ -299,11 +308,6 @@ predicate iterators) is documented in
 | Compare against Ajv and other tools        | [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md)                                   |
 | Migrate from express-openapi-validator     | [docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md)                   |
 | Use custom formats, keywords, or limits    | [docs/configuration.md](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md)                             |
-| Work out what "strict" controls            | [docs/strictness.md](https://github.com/oaverify/oaverify/blob/main/docs/strictness.md)                                   |
-| Upgrade from v2 to v3                      | [docs/migration-v3.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v3.md)                               |
-| Upgrade from v4 to v5                      | [docs/migration-v5.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v5.md)                               |
-| Upgrade from v5 to v6                      | [docs/migration-v6.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v6.md)                               |
-| Upgrade from v6 to v7                      | [docs/migration-v7.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-v7.md)                               |
 
 ## How it compares
 
@@ -354,6 +358,19 @@ supported. See
 for per-command flags, the `.http` file format, and both compile
 commands' output contracts.
 
+### Checking specs in CI
+
+```bash
+oaverify check openapi.yaml --fail-on warning --format sarif -o findings.sarif
+```
+
+Findings carry source file/line locations into the SARIF, so
+`github/codeql-action/upload-sarif` turns them into code-scanning
+annotations, and `--fail-on` sets the exit code that gates the job.
+Severity regrading and finding selection (`--severity`, `--findings`)
+are covered in
+[docs/strictness.md](https://github.com/oaverify/oaverify/blob/main/docs/strictness.md).
+
 Every command shares one exit-code taxonomy, tabulated in
 [the published CLI README](https://github.com/oaverify/oaverify/blob/main/packages/oav/README.md#exit-codes).
 The rule worth reading before you script around it: stdout carries the
@@ -378,12 +395,6 @@ Other 3.2 document-level additions (`additionalOperations`,
 operation declared under `additionalOperations` is not routed, so a
 request for it gets a 405 rather than being validated.
 
-### Node
-
-Node 22 or newer, on every published package. Nothing older is tested,
-and the packages declare `engines.node: ">=22"`, so an older runtime
-fails at install rather than at runtime.
-
 Override via `createValidator(spec, { dialect })` to force or customize
 one of the built-in dialects (`jsonSchemaDialect`, `openapi31Dialect`,
 `oas30Dialect`). The option wins over the version the document declares,
@@ -402,6 +413,12 @@ and pass the 3.0 output to `createValidator`:
 npx swagger2openapi swagger.json -o openapi.json
 ```
 
+### Node
+
+Node 22 or newer, on every published package. Nothing older is tested,
+and the packages declare `engines.node: ">=22"`, so an older runtime
+fails at install rather than at runtime.
+
 ## Framework integration
 
 The adapter packages
@@ -409,8 +426,10 @@ The adapter packages
 [`@oaverify/express5`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md),
 [`@oaverify/fastify`](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md))
 cover request validation and share export names and option shapes; only
-the framework type differs. Response validation, auth dispatch, upload
-parsing, and custom error envelopes stay explicit in your application.
+the framework type differs. Each also ships a `validateResponses`
+sibling, conventionally mounted in development only. Auth dispatch,
+upload parsing, and custom error envelopes stay explicit in your
+application.
 
 You are not locked into them. For Next.js, Hono, Bun, Deno, or a custom
 stack, `validateRequest` / `validateResponse` (or the Fetch helpers

@@ -249,11 +249,9 @@ same surface as `createValidator(document)`: `validateRequest`,
 parameter / body / response schemas are pre-compiled and inlined.
 esbuild bundles everything; the resulting module has zero imports.
 
-The emitted `validate*` return the same result shapes as the library:
-`{ valid: true }` or `{ valid: false, errors, truncated }`, stopping at
-the first error by default (flat + `maxErrors: 1`), the same zero-config
-behaviour as `createValidator`. `--output-mode` and `--max-errors`
-(below) tune the shape, exactly mirroring the `output` / `maxErrors`
+The emitted `validate*` return the same result shapes as the library,
+with the same zero-config default (flat + `maxErrors: 1`);
+`--output-mode` and `--max-errors` mirror the `output` / `maxErrors`
 options.
 
 Consumers who were running `createValidator(await loadSpec(...))` at
@@ -271,20 +269,11 @@ application boot get the same behavior with no YAML parse, no
 - **Single-file drops** (Deno subhosting, Val.town, `deno compile`,
   `bun build --compile`): one `.mjs`, no node_modules.
 
-### Flags
+### Flag notes
 
-- **`--overlay <file>`** (repeatable): applies overlays at build
-  time. Same semantics as `oaverify resolve`.
-- **`--dialect <name>`**: forces a specific schema dialect. Default
-  is auto-detected from the spec's `openapi` field.
-- **`--output-mode flat|tree|predicate`**: result shape of the emitted
-  validators, mirroring `createValidator`'s `output`. Default `flat`
-  (a de-nested `errors` list); `tree` for the nested `error` tree;
-  `predicate` for a bare boolean.
-- **`--max-errors <n>`**: leaf-error cap baked into the validators,
-  mirroring `maxErrors`. A positive integer or `all` (unbounded).
-  Default `1` (fast-fail). A failing result sets `truncated: true`
-  when the cap was reached.
+The [Flags table](#flags) above covers the whole set; two deserve
+more than a row:
+
 - **`--requests-only`**: skips response-validator emit.
   `validateResponse` / `validateFetchResponse` are still exported but
   report every response as valid (a passing result in the configured

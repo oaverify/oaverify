@@ -26,9 +26,8 @@ where the comparison is against linters instead.
 | Spectral / Redocly                             | Linting an OpenAPI document for style and structure, with large default rulesets |
 | oaverify                                       | HTTP-aware validation, spec checking, streamability budgets, overlays, AOT emit  |
 
-This document is about behavior and capabilities. For raw numbers
-and methodology see [`performance/README.md`](../performance/README.md);
-the host-stamped per-shape numbers are below.
+This document is about behavior and capabilities; the host-stamped
+per-shape numbers are below.
 
 ## Performance
 
@@ -39,9 +38,9 @@ the host-stamped per-shape numbers are below.
   median of 3 runs; commit `2cd9140`, 2026-08-07
 
 The `pattern-heavy` and `pattern-backtracking` shapes were added after
-this run and are absent from the tables below. Benchmark numbers are only
-comparable when measured on one host, so they wait for the next run on
-the reference machine rather than being spliced in from another.
+this run and are absent from the tables below: benchmark numbers are
+only comparable when measured on one host, so they wait for the next
+run on the reference machine.
 
 The harness measures five configurations: Ajv fast-fail
 (`allErrors: false`), Ajv full-collect (`allErrors: true`), oaverify fast-fail
@@ -53,9 +52,9 @@ fast-fail.
 
 ### Compile
 
-oaverify's clearest, most consistent win. Ajv's compile is near-constant
-per-schema overhead; oaverify scales with shape and runs an order of
-magnitude or two faster. This matters wherever validator construction
+Ajv's compile is near-constant per-schema overhead; oaverify scales
+with shape and runs an order of magnitude or two faster. This matters
+wherever validator construction
 is in the hot path (per-request, per-tenant, per-test, edge cold-start,
 AOT module emit).
 
@@ -77,10 +76,7 @@ request bodies the absolute per-call gaps are tens of nanoseconds, so
 these percentages move real numbers only at extreme validation volume.
 
 Because each column is normalized to a different Ajv baseline, cells
-compare down a column, not across. A fast-fail cell below a
-full-collect cell does not mean full-collect outruns fast-fail; on
-single-error rejects the two modes do near-identical absolute work,
-and fast-fail pulls ahead as the error count grows.
+compare down a column, not across.
 
 Valid input:
 
@@ -115,14 +111,11 @@ accept-path shapes, mixed on rejection (trailing on `composition` and
 mode, which skips error materialisation, is at or above parity
 everywhere.
 
-† `long-string` is a pathological shape. On the accept path oaverify is
-several thousand times faster than Ajv (capped here to `>1000×`),
-because Ajv's handling of very long length-bounded strings is expensive
-on this input while oaverify short-circuits. The reject path is noisier
-and swings the other way for fast-fail (oaverify at 42%), while
-predicate mode, which allocates no error at all, is faster still than
-the accept path and is capped the same way. Read this row as a
-shape-specific signal, not a typical result.
+† `long-string` is a pathological shape: Ajv's handling of very long
+length-bounded strings is expensive on this input while oaverify
+short-circuits, hence the `>1000×` caps, and the fast-fail reject path
+swings the other way (42%). Read the row as a shape-specific signal,
+not a typical result.
 
 ### Memory
 
@@ -241,15 +234,12 @@ Capabilities that the Ajv stack covers and oaverify does not.
   class validates the whole document against the pinned OpenAPI
   meta-schema.
 
-  What Ajv buys here is uniformity. Its guarantee is structural: every
-  keyword is checked because the meta-schema describes them all, so a
-  keyword nobody has thought about is still covered. In
-  oaverify a check lives on the keyword that has one, so an
-  unexercised corner can accept what it is handed. On measured coverage
-  oaverify comes out ahead (6/6 `malformed` and 7/7 `lint` cases against
-  Ajv's 4/6 and 5/7; see [Defect detection](#defect-detection)), and Ajv's
-  property is still the one you would want if you were betting on the
-  case nobody has written a test for.
+  What Ajv buys here is uniformity: every keyword is checked because
+  the meta-schema describes them all, where an oaverify check lives on
+  the keyword that has one. Measured coverage favors oaverify (6/6
+  `malformed` and 7/7 `lint` against Ajv's 4/6 and 5/7; see
+  [Defect detection](#defect-detection)), and Ajv's structural
+  guarantee is still the one covering the case nobody has tested.
 
 - **`$data` references.** Ajv's non-standard extension where one
   keyword's value comes from the data being validated
@@ -423,10 +413,6 @@ features oaverify doesn't implement (see "Where Ajv does more" above).
 
 ## Summary
 
-The JavaScript ecosystem has several OpenAPI validation tools with
-different integration shapes. Pick the one whose shape fits how your
-service is already wired.
-
 Pick Ajv + `express-openapi-validator` when you want multi-draft
 support, a large userbase, data-mutating validation (`coerceTypes`,
 `removeAdditional`, `useDefaults`), the one-line middleware
@@ -445,9 +431,8 @@ large bodies with a design-time buffer budget you can check before
 deploy, overlays over specs you don't own, an OpenAPI 3.0 dialect built
 into the validator, explicit control over where validation runs in your
 HTTP stack, or standalone OpenAPI HTTP validator output for
-edge/serverless deployments. It also fits compile-heavy workloads: the
-benchmarks show one to two orders of magnitude faster schema compile
-than Ajv; see the Performance section above.
+edge/serverless deployments. It also fits compile-heavy workloads,
+where the schema-compile gap is one to two orders of magnitude.
 
 For the document rather than the traffic, pick oaverify when the question
 is whether a spec will validate the way its author intended: `oaverify
@@ -456,6 +441,3 @@ examples that contradict their schema, and provably ambiguous patterns,
 with a class-and-severity model built for CI rather than a style ruleset.
 Reach for a linter alongside it when you also want naming and convention
 rules.
-
-For benchmark numbers rather than feature comparisons, see
-[`performance/README.md`](../performance/README.md).

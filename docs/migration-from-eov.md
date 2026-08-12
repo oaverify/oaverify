@@ -15,34 +15,13 @@ eov registers as a single middleware that wraps a lot of behavior:
 file upload (multer), security check dispatch, response wrapping,
 typed error classes. `oaverify` is a ~20-line middleware (or one
 `validateRequests(...)` call via the adapter) plus your own multer /
-auth wiring where needed. In exchange:
+auth wiring where needed. In exchange you own the error → HTTP
+mapping: a small switch statement maps the validator's stable `code`
+field to whatever status codes your API contract requires, and
+`httpStatusFor` covers the common case in one call.
 
-- **You own the error → HTTP mapping.** A small switch statement
-  maps the validator's stable `code` field to whatever status codes
-  your API contract requires; `httpStatusFor` covers the common
-  case in one call.
-- **Response wrapping is opt-in and explicit.** eov always wraps the
-  response methods to auto-intercept. In `oaverify` the core stays a pure
-  function: `validateResponse` reads its arguments and returns a
-  result, never touching `req` / `res`. The Express adapters offer a
-  `validateResponses` middleware that _does_ wrap `res.json` / `res.send`,
-  but only where you mount it (off in production by convention); the
-  Fastify adapter does the same via an `onSend` hook with no
-  monkey-patching at all. So response checking is available as a
-  one-liner without making it always-on-and-implicit. See
-  [integration.md, Response validation](./integration.md#response-validation).
-- **Structured error trees.** Every error is
-  `{ code, path, message, params, children }`. Downstream code can
-  narrow on fields (`err.code === "required"`,
-  `err.params.missing`) instead of parsing message strings.
-- **Built-in OpenAPI 3.0 dialect.** `nullable: true`, boolean
-  `exclusiveMaximum`, and `$ref`-suppresses-siblings are in the
-  compiler's dialect dispatch; no preprocessing step. See the
-  [conformance report](../conformance/REPORT.md) for pass / fail
-  counts by category.
-- **Overlays.** Extend an externally-owned base spec (Supabase,
-  Hasura, PocketBase, a gateway-published document) with
-  `applyOverlays` at load time. See [overlays.md](./overlays.md).
+[Features not carried over](#features-not-carried-over) and
+[Features added](#features-added) itemize the rest of the trade.
 
 ## Behavior differences to watch for
 

@@ -65,60 +65,37 @@ error's `code`, dotted path, and pointer locate the failure under
 
 ## Supporting helpers
 
-All shipped from `oaverify` (or `@oaverify/core` for the
-lean install). The recipes below assume these are in scope.
+All shipped from `oaverify` (or `@oaverify/core` for the lean
+install); the recipes below assume they are in scope. All but
+`formatSummary` accept either a single `ValidationError` tree or a
+flat `ValidationError[]`, so `result.errors` passes straight through.
 
-`httpStatusFor`, `allowHeaderFor`, `toProblemDetails`, and
-`collectIssues` each accept either a single `ValidationError` tree or
-a flat `ValidationError[]`, so `result.errors` passes straight through.
-
-- **`httpStatusFor(errors, overrides?)`**: maps the failure to an
-  HTTP status (`route` → 404, `method` → 405, and so on; the full
-  table and the reason not to write this switch by hand are under
-  [Status-code mapping](#status-code-mapping)). Pass
-  `{ default: 422 }` (or any other slot) to override.
-
-- **`allowHeaderFor(errors)`**: returns the `Allow` header value for a
-  405 (RFC 9110 §15.5.6 requires it) or `undefined` otherwise.
-
-- **`toProblemDetails(errors, opts?)`**: renders the failure as an
-  [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html)
-  `application/problem+json` body with the failing leaves carried in
-  an `issues` field (a non-standard field alongside the required
-  ones). The `detail` field defaults to a one-line description of the
-  first failing leaf; pass `detail` explicitly for an override.
-
-- **`formatSummary(err, opts?)`**: render a single `ValidationError`
-  tree as a string. Default is a single line summarising the first
-  failing leaf as `<dotted-path> <message>`; use it for log lines,
-  error-monitoring titles (Sentry/New Relic group by message), or
-  as the top-level `message` field in custom response envelopes.
-  Pass `{ select: "all" }` for a multi-line enumeration of every
-  leaf (the EOV-style "every issue in a single message" shape).
-  See `FormatSummaryOptions.select` for the full policy
-  (`"first"` / `"deepest"` / `"all"` / `{ byCode }`).
-
-- **`collectIssues(errors)`**: flat leaf list. Each issue carries both
-  a raw `path: PathSegment[]` and a pre-formatted RFC 6901 `pointer`
-  string. Use this when you're keeping a custom envelope shape
-  rather than RFC 9457 problem-details.
-
-```ts
-import {
-  allowHeaderFor,
-  collectIssues,
-  formatSummary,
-  httpStatusFor,
-  toProblemDetails,
-} from "@oaverify/core";
-```
+| Helper                              | Gives you                                                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `httpStatusFor(errors, overrides?)` | The HTTP status for the failure; table and overrides under [Status-code mapping](#status-code-mapping)                                                 |
+| `allowHeaderFor(errors)`            | The `Allow` header value for a 405 (RFC 9110 §15.5.6 requires it), else `undefined`                                                                    |
+| `toProblemDetails(errors, opts?)`   | An [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) `application/problem+json` body, failing leaves in `issues`; pass `detail` to override it   |
+| `formatSummary(err, opts?)`         | One tree as a string, for log lines and monitoring titles; `FormatSummaryOptions.select` picks which leaves (`{ select: "all" }` enumerates every one) |
+| `collectIssues(errors)`             | The flat leaf list for custom envelopes, each with a raw `path: PathSegment[]` and an RFC 6901 `pointer`                                               |
 
 ## Per-framework integration
 
-### Express 4
+The three adapter packages share export names, options and defaults:
+`validateRequests(validator, options?)`, with status from
+`httpStatusFor`, `Allow` from `allowHeaderFor` on 405, and an RFC 9457
+`application/problem+json` body from `toProblemDetails`. Each also
+exports its extractor (`httpRequestFromExpress` /
+`httpRequestFromFastify`) and `renderProblemDetails` standalone, for
+callers composing their own middleware. The adapter READMEs
+([express4](../packages/oav-express4/README.md),
+[express5](../packages/oav-express5/README.md),
+[fastify](../packages/oav-fastify/README.md)) carry the options
+(`toHttpRequest`, `onError`), async `onError` semantics, and
+adapter-specific patterns; the sections below cover what differs per
+framework. Cross-cutting recipes (body parsers, file uploads,
+security, response validation) are below.
 
-The [`@oaverify/express4`](https://www.npmjs.com/package/@oaverify/express4)
-companion package ships the middleware as a one-liner:
+### Express 4
 
 ```ts
 import { validateRequests } from "@oaverify/express4";
@@ -126,18 +103,6 @@ import { validateRequests } from "@oaverify/express4";
 app.use(express.json()); // any middleware that populates req.body satisfies oaverify
 app.use(validateRequests(validator));
 ```
-
-Defaults: status from `httpStatusFor`, `Allow` header from
-`allowHeaderFor` on 405, body from `toProblemDetails` (RFC 9457
-`application/problem+json`). The package also exports
-`httpRequestFromExpress(req)` (the extractor) and
-`renderProblemDetails(errors, ctx)` (the default renderer) standalone,
-for callers composing their own middleware. See the
-[adapter README](https://github.com/oaverify/oaverify/blob/main/packages/oav-express4/README.md)
-for the options (`toHttpRequest`, `onError`), async `onError`
-semantics, and adapter-specific patterns. Cross-cutting recipes
-(body parsers, file uploads, security, response validation) are
-below.
 
 **Manual middleware (when you need full control).** Use the
 [Express 5 snippet below](#express-5) with one change: Express 4
@@ -169,9 +134,8 @@ docs.
 
 ### Express 5
 
-The [`@oaverify/express5`](https://www.npmjs.com/package/@oaverify/express5)
-companion package ships the middleware as a one-liner: same shape
-as `@oaverify/express4` but promise-native (no `try/catch` wrapper):
+Same shape as `@oaverify/express4` but promise-native, so the manual
+form needs no `try/catch` wrapper:
 
 ```ts
 import { validateRequests } from "@oaverify/express5";
@@ -179,12 +143,6 @@ import { validateRequests } from "@oaverify/express5";
 app.use(express.json());
 app.use(validateRequests(validator));
 ```
-
-Same exports as `@oaverify/express4` (`httpRequestFromExpress`,
-`renderProblemDetails` standalone), same options (`toHttpRequest`,
-`onError`), same defaults. See the
-[adapter README](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md)
-for options, async `onError` semantics, and common patterns.
 
 **Manual middleware (when you need full control).** Express 5 is
 promise-native: async middleware that throws routes to the error
@@ -219,23 +177,16 @@ _how_ `req.body` got populated, only that it's there. See
 
 ### Fastify
 
-The [`@oaverify/fastify`](https://www.npmjs.com/package/@oaverify/fastify)
-companion package ships the hook as a one-liner: same shape as the
-Express adapters but Fastify-native (a `preValidation` hook, not
-middleware):
+Same shape as the Express adapters but Fastify-native: a
+`preValidation` hook, not middleware. The
+[adapter README](../packages/oav-fastify/README.md) also covers the
+relationship to Fastify's own per-route schema validation.
 
 ```ts
 import { validateRequests } from "@oaverify/fastify";
 
 app.addHook("preValidation", validateRequests(validator));
 ```
-
-Same cross-adapter exports (`httpRequestFromFastify`,
-`renderProblemDetails` standalone), same options (`toHttpRequest`,
-`onError`), same defaults. See the
-[adapter README](https://github.com/oaverify/oaverify/blob/main/packages/oav-fastify/README.md)
-for options, async `onError` semantics, common patterns, and the
-relationship to Fastify's own per-route schema validation.
 
 **Manual hook (when you need full control).** Register as a
 `preValidation` hook so it runs after Fastify's own body parsing
@@ -467,14 +418,7 @@ import { applySpecOverlay, type OverlayDocument } from "@oaverify/core/overlay-s
 const overlayDoc: OverlayDocument = {
   overlay: "1.0.0",
   info: { title: "tenant overlay", version: "1.0.0" },
-  actions: [
-    { target: "$.info", update: { description: "tenant-A view" } },
-    {
-      target: "$.paths['/pets'].get.parameters[?(@.name=='X-Tenant' && @.in=='header')]",
-      update: { required: true, schema: { type: "string" } },
-    },
-    { target: "$.tags[?(@.name=='internal')]", remove: true },
-  ],
+  actions: [{ target: "$.info", update: { description: "tenant-A view" } }],
 };
 
 const patched = applySpecOverlay(base, overlayDoc);
@@ -654,12 +598,11 @@ want to surface structured details too. `BuiltInErrorParams` in
 ### Report-only: observe before you enforce
 
 Turning a validator on against live traffic usually wants an
-observation period first: log every violation, reject nothing, then
-enforce once the spec has caught up with what clients actually send.
-
-No option turns this on. `onError` already decides what happens to a
-failing request, so a handler that logs and passes the request through
-is report-only. What "pass through" means differs by framework, and it
+observation period: log every violation, reject nothing, enforce once
+the spec has caught up with what clients actually send. No option
+turns this on; `onError` already decides what happens to a failing
+request, so a handler that logs and passes the request through is
+report-only. What "pass through" means differs by framework, and it
 is the one thing to get right.
 
 **Express 4 and Express 5.** The middleware does not call `next()` after
@@ -699,11 +642,10 @@ app.addHook(
 
 Two things worth setting for the observation period itself:
 
-- **Raise `maxErrors`.** The default is `1` (fast-fail), so each log line
-  reports one problem and you learn about the next one only after fixing
-  the first. `Number.POSITIVE_INFINITY` gives the whole list per request,
-  which is what makes the logs worth reading. Enforcement can go back to
-  the default.
+- **Raise `maxErrors`.** The fast-fail default of `1` logs one problem
+  per request; `Number.POSITIVE_INFINITY` gives the whole list, which
+  is what makes the logs worth reading. Enforcement can go back to the
+  default.
 - **Log something you can aggregate.** `errors[].code` plus
   `errors[].path` groups cleanly; the rendered message does not.
 
@@ -743,19 +685,9 @@ adapter:
    Stock `express.json()` populates `req.body` to `{}` for an empty
    JSON body, so the default Express stack doesn't hit this, but
    alternative parsers (`body-parser`'s streaming mode, fastify's
-   bridge, custom multipart middleware) often do.
-
-   For consumers using `@oaverify/express4`, override the extractor:
-
-   ```ts
-   import { httpRequestFromExpress, validateRequests } from "@oaverify/express4";
-
-   app.use(
-     validateRequests(validator, {
-       toHttpRequest: (req) => ({ ...httpRequestFromExpress(req), body: req.body ?? {} }),
-     }),
-   );
-   ```
+   bridge, custom multipart middleware) often do. Under an adapter,
+   normalize in a `toHttpRequest` override; each adapter README's
+   quick start shows the exact snippet.
 
 Unmatched `Content-Type` needs no extra wiring: even when
 `express.json()` leaves `req.body` empty for a non-JSON request,
@@ -865,42 +797,18 @@ the original spec was already ambiguous before oaverify surfaced it.
 Multer's `limits.fileSize` and the spec's `maxLength` on a
 `format: binary` field are two copies of the same number. To keep
 them from drifting, derive the middleware limit from the spec at
-startup:
+startup. `getOperation` returns the resolved, overlay-applied
+`OperationObject` for a (method, path) pair, using the same
+route-match, `$ref` resolution and overlay application that
+validation does; read whatever declaration you need at startup and
+the spec stays the single source of truth for middleware config.
 
-```ts
-import multer from "multer";
-import { createValidator } from "@oaverify/core";
-import { digestOperation } from "./spec-digest"; // copied from examples/spec-digest.ts
-
-const validator = createValidator(spec);
-
-const info = validator.getOperation({ method: "POST", path: "/uploads" });
-if (info === null) throw new Error("no matching operation for /uploads");
-
-const digest = digestOperation(info.operation);
-const maxBytes = digest.bodyLimits["multipart/form-data"]?.maxBytes;
-if (maxBytes === undefined) {
-  throw new Error("spec must declare `maxLength` on the upload's binary field");
-}
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: maxBytes },
-});
-
-app.post("/uploads", upload.any() /* validator + handler as above */);
-```
-
-`getOperation` returns the resolved, overlay-applied `OperationObject`
-for a (method, path) pair, using the same route-match, `$ref`
-resolution and overlay application that validation does. Read whatever
-declaration you need at startup and the spec stays the single source of
-truth for middleware config. `digestOperation`
-([`examples/spec-digest.ts`](../examples/spec-digest.ts)) pulls the
-common facts into a flat shape: content types, body limits, required
-headers, security. Copy it and adjust the interpretation choices
-(`maxLength` as bytes vs code points, which `x-*` extensions to
-recognize) to fit your domain.
+`digestOperation` in
+[`examples/spec-digest.ts`](../examples/spec-digest.ts) builds on it,
+pulling the common facts into a flat shape: content types, body
+limits, required headers, security. Copy it and adjust the
+interpretation choices (`maxLength` as bytes vs code points, which
+`x-*` extensions to recognize) to fit your domain.
 
 ### Streaming bodies, large uploads, and the `readBody` override
 
@@ -1129,64 +1037,21 @@ substitutes for credential verification. See
 
 When you want the declarative shape (per-scheme handlers keyed off
 the spec's `security:` declaration), write a small dispatcher that
-walks the matched operation via `validator.getOperation` and fans
-out per scheme:
-
-```ts
-type SchemeHandler = (
-  req: HttpRequest,
-  scopes: string[],
-) => Promise<{ ok: true; user: unknown } | { ok: false; reason: string }>;
-
-const handlers: Record<string, SchemeHandler> = {
-  bearerAuth: async (req, scopes) => {
-    const token = req.headers?.authorization?.toString().replace(/^Bearer /, "");
-    return verifyJwt(token, scopes); // your existing auth
-  },
-  apiKeyAuth: async (req) => verifyApiKey(req.headers?.["x-api-key"]),
-  // oauth2, basic, whatever else your spec declares
-};
-
-async function dispatchSecurity(
-  req: HttpRequest,
-): Promise<{ ok: true; user?: unknown } | { ok: false; reason: string }> {
-  const op = validator.getOperation({ method: req.method, path: req.path });
-  // Fall back to document-level security when the operation omits it.
-  const requirements = op?.operation.security ?? spec.security ?? [];
-  if (requirements.length === 0) return { ok: true };
-  // OpenAPI: each requirement object is AND across its scheme keys; the
-  // outer array is OR across requirements. First requirement that fully
-  // passes wins.
-  for (const requirement of requirements) {
-    let allPass = true;
-    let lastUser: unknown;
-    for (const [scheme, scopes] of Object.entries(requirement)) {
-      const handler = handlers[scheme];
-      if (!handler) {
-        allPass = false;
-        break;
-      }
-      const r = await handler(req, scopes);
-      if (!r.ok) {
-        allPass = false;
-        break;
-      }
-      lastUser = r.user;
-    }
-    if (allPass) return { ok: true, user: lastUser };
-  }
-  return { ok: false, reason: "no security requirement satisfied" };
-}
-```
+walks the matched operation via `validator.getOperation` and fans out
+per scheme.
+[`examples/security-dispatch.ts`](../examples/security-dispatch.ts)
+is a runnable one to copy and adapt. The OpenAPI semantics it
+implements: each requirement object is AND across its scheme keys,
+the outer array is OR across requirements, and the first requirement
+that fully passes wins.
 
 Mount the dispatcher as middleware _before_ `validateRequests` (or
-your inline validator middleware). Reject (`401` / `403` per your
-policy) on `{ ok: false }` before validation runs. The validator's
-own `validateSecurity` shape check is then redundant; leave it at
-its default `"off"`.
-
-The same dispatcher works under every adapter; only the request-shape
-extraction changes (`httpRequestFromExpress`, `httpRequestFromFastify`).
+your inline validator middleware) and reject (`401` / `403` per your
+policy) on failure before validation runs. The validator's own
+`validateSecurity` shape check is then redundant; leave it at its
+default `"off"`. The same dispatcher works under every adapter; only
+the request-shape extraction changes (`httpRequestFromExpress`,
+`httpRequestFromFastify`).
 
 ### Type coercion on body fields
 

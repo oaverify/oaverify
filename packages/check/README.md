@@ -164,15 +164,9 @@ such constraint.
 
 ## Why a package rather than a `@oaverify/core` subpath
 
-Two reasons, and the second is the binding one.
-
-The existing `@oaverify/core` subpaths (`/schema`, `/spec`, `/formats`,
-`/core`, `/overlay-spec`) are all parts of core, so a `/check` subpath
-would read as one and is not.
-
-More concretely, the ReDoS pass uses `redos-detector`, which is about
-1MB unpacked. npm installs a dependency whichever entry imports it, so a
-`@oaverify/core/check` subpath would land that on every
+The ReDoS pass uses `redos-detector`, which is about 1MB unpacked, and
+npm installs a dependency whichever entry imports it. A
+`@oaverify/core/check` subpath would land that weight on every
 `@oaverify/core` consumer and break core's zero-runtime-dependency
 claim. The weight goes here instead.
 

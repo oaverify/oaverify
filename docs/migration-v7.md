@@ -346,10 +346,6 @@ named a rendering style (one line per leaf) with the word
 (an errors list rather than a tree). `"summary"` names the renderer
 behind it, `formatSummary`.
 
-The alias was documented as "kept for one major" when it shipped in
-3.8.0, which made 4.0.0 its window. It outlasted three majors instead,
-the same way the four aliases v5 swept did.
-
 ## Breaking: repeatable CLI flags take one value each
 
 `--overlay`, `--severity` and `--only` were declared variadic, so each
@@ -419,17 +415,9 @@ all four now sit together:
 All four carried `@internal`, which says "unsupported, may change in a
 patch", while being exported from the entry that defines the supported
 surface. Both could not be true, and the export is the half that was
-accidental: `@oaverify/core/schema` has told readers these live behind
-`/internals` for as long as the subpath has existed, and three of the
-four were already there.
-
-They are the tables naming where a schema keeps subschemas. They exist
-to be reshaped when the compiler is, which is exactly what `@internal`
-is for and exactly what a supported export would prevent.
-
+accidental: three of the four already lived behind `/internals`.
 `/internals` is outside the semver contract, so this is a move rather
-than a promise. If you depend on them, the new path is the same code
-with the same names.
+than a promise; the new path is the same code with the same names.
 
 ## Checklist
 
