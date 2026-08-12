@@ -97,7 +97,7 @@ the upstream test suites live in
 | Option                      | Effect                                                                                                                                                 |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `dialect`                   | Force a specific `Dialect`. Wins over the detected version; `detectedVersion` still reports what the document declares.                                |
-| `formats`                   | Extra string format validators merged with `@oaverify/core/formats`.                                                                                   |
+| `formats`                   | Extra format validators merged with `@oaverify/core/formats`. One registry whatever JSON type a format constrains, so numeric formats go here too.     |
 | `keywords`                  | User-registered schema keywords (see below).                                                                                                           |
 | `output`                    | Result shape: `"flat"` (default), `"tree"`, or `"predicate"`. Mirrors `compileSchema`.                                                                 |
 | `maxErrors`                 | Per-call total cap on leaf errors. Default `1` (fast-fail); `Number.POSITIVE_INFINITY` collects every error.                                           |

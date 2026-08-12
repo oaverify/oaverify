@@ -138,8 +138,9 @@ flags.
 
 ## Internal subpaths (not covered by semver)
 
-Each public package also exposes lower-level primitives behind a
-`/internals` path. They exist for advanced plugins, tooling, and
+`@oaverify/core` exposes lower-level primitives behind three
+`/internals` paths (`./schema/internals`, `./spec/internals`,
+`./validator/internals`); no other published package has one. They exist for advanced plugins, tooling, and
 tests, and sit deliberately outside the semver contract: compare
 against the public barrel before reaching for them.
 

@@ -20,11 +20,13 @@
 ## Test plan
 
 - [ ] `pnpm lint` clean
+- [ ] `pnpm lint:type-aware` clean (a separate gate; `pnpm lint` does not
+      include it, and CI runs both)
 - [ ] `pnpm typecheck` clean
 - [ ] `pnpm test` passes
 - [ ] New behaviour covered by a test (or explicit "no" with reason)
 - [ ] If touching spec loading, routing, or schema compilation:
-      `cd conformance && pnpm tsx run-openapi-cases.ts` clean
+      `pnpm build`, then `cd conformance && pnpm openapi` clean
 
 ## Notes for reviewer
 

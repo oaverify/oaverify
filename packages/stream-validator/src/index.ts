@@ -52,6 +52,11 @@ export {
   type StreamClass,
 } from "./analyzer/index.js";
 export { type OperationLocator, streamValidatorForOperation } from "./operation.js";
+// `ClassifierError` sits with the other three because a caller catches
+// them the same way. The README already documented `analyzeStreamability`
+// as throwing it, and it was the one error class of the four the package
+// entry did not re-export, so that instruction could not be followed.
+export { ClassifierError } from "./classifier/index.js";
 export { BufferLimitError, MemberEditError, UniqueItemsLimitError } from "./spine/index.js";
 export type { StreamVerdict, SchemaViolation } from "./spine/index.js";
 export { toValidationError } from "./violation.js";

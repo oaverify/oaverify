@@ -320,6 +320,24 @@ that was written against the help is already using `summary`.
 `OutputFormat` narrows to `"text" | "json" | "summary"` with it, and
 `isOutputFormat("flat")` now returns `false`.
 
+### The library half
+
+`formatError` does **not** refuse the name. Its renderer switch has a
+`default` arm, so a `"flat"` that reaches it at runtime still renders
+rather than throwing:
+
+```ts
+formatError(err, "flat" as OutputFormat); // renders; does not throw
+isOutputFormat("flat"); // false
+```
+
+TypeScript rejects the literal, so a call written out in source fails to
+compile and the migration is a one-word edit. What it cannot catch is a
+format that arrives as a `string` — read from config, an env var or a
+request — where the compiler never sees the value. Those callers get no
+signal at all. Gate them on `isOutputFormat` before the call, which is
+what it is for.
+
 ### Why
 
 Same reason as the three above: one word naming two things. `"flat"`

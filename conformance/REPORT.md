@@ -19,7 +19,7 @@ Run against three upstream / hand-curated test corpora:
 
 | Source                                | Cases | Pass | Mismatch | Error | % pass |
 | ------------------------------------- | ----- | ---- | -------- | ----- | ------ |
-| JSON Schema Test Suite (required)     | 1299  | 1293 | 2        | 4     | 99.5%  |
+| JSON Schema Test Suite (required)     | 1299  | 1294 | 1        | 4     | 99.6%  |
 | JSON Schema Test Suite (+ optional)   | 1461  | 1452 | 5        | 4     | 99.4%  |
 | OpenAPI Overlay 1.0 (envelope)        | 32    | 32   | 0        | 0     | 100%   |
 | OpenAPI `petstore` via `oaverify` CLI | 32    | 32   | 0        | 0     | 100%   |
@@ -36,7 +36,7 @@ checkable.
 
 ## Where we diverge from the JSON Schema suite
 
-The 6 non-passing required-suite cases (2 mismatch + 4 error) fall into
+The 5 non-passing required-suite cases (1 mismatch + 4 error) fall into
 two groups. Every one of them is also a divergence from the ecosystem
 majority, measured through Bowtie against eight other JS/TS
 implementations plus boon, go-jsonschema and python-jsonschema.

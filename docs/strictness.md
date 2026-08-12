@@ -438,7 +438,7 @@ are written in. Levels are the three above. The flag takes a
 comma-separated list and may be repeated.
 
 A key that names no real class, code or family is refused. The list is
-`CHECK_CODES` / `CHECK_FAMILIES` in `packages/cli/src/codes.ts`.
+`CHECK_CODES` / `CHECK_FAMILIES` in `packages/check/src/codes.ts`.
 
 It changes the `severity` field in the report and what `--fail-on`
 gates on, and nothing else: `validate` has no notion of severity, and

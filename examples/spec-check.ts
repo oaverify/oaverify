@@ -2,12 +2,15 @@
  * Check a spec instead of checking traffic: validate every example in a
  * document against the schema it illustrates, at startup or in CI.
  *
- * `checkDocumentExamples` is the one check class available as a library
- * call. The other four (`hygiene`, `schema`, `conformance`, `redos`) are
- * composed only by the `oaverify check` command, deliberately: the
- * conformance meta-schemas and the ReDoS detector are both heavyweight
- * dependencies that `@oaverify/core` does not carry. So the recipe is a
- * library call for examples, and the CLI for a full pre-deploy gate.
+ * `checkDocumentExamples` is the one check class `@oaverify/core`
+ * carries on its own. The other four (`hygiene`, `schema`,
+ * `conformance`, `redos`) need the conformance meta-schemas and the
+ * ReDoS detector, which core does not carry, so they live in
+ * `@oaverify/check`. `checkSpec` there composes all five as a library
+ * call; `oaverify check` is the CLI in front of it.
+ *
+ * So this file is the recipe for checking examples without taking on
+ * those dependencies, not the only way to reach a check from code.
  *
  * Run from the repo root:
  *   pnpm dlx tsx examples/spec-check.ts

@@ -278,10 +278,11 @@ in the meantime.
 - **`@oaverify/internal-metaschema`**: the published OpenAPI meta-schemas,
   pinned per version, plus `metaschemaVersionOf()` dispatch. Consumed by
   `@oaverify/check`'s conformance pass through the `/conformance`
-  subpath, and bundled into that tarball. The 3.0 document
-  is generated from the checked-in upstream draft-04 document by
-  `scripts/convert-oas30.mjs` and is never hand-edited. Keep the package
-  off `@oaverify/core`'s entries: `metaschemaFor` reaches all three
+  subpath, and bundled into that tarball. The 3.0 document is generated
+  from the checked-in upstream draft-04 document by
+  `packages/metaschema/scripts/convert-oas30.mjs` and is never
+  hand-edited. Keep the package off `@oaverify/core`'s entries:
+  `metaschemaFor` reaches all three
   documents, so anything importing it pays ~100KB. 3.1/3.2 stub the
   Schema Object and 3.0 describes it in full, which is why conformance
   and the schema classes overlap only on 3.0; docs/strictness.md carries
@@ -329,7 +330,7 @@ in the meantime.
   report and the exit codes. Loading is the CLI's too, because it is the
   asynchronous half and `checkSpec` is deliberately synchronous.
 - **`@oaverify/check`**: the composed document check, published. Owns
-  the six passes, the finding contract, the code registry, the grading
+  the five passes, the finding contract, the code registry, the grading
   table and the SARIF emitter. `checkSpec` takes a `ResolvedSpec`, not
   an `OpenAPIDocument`: provenance regions and `inlinedComponents` are
   byproducts of resolution that a document cannot reconstruct, and
@@ -485,12 +486,12 @@ them. Each has its own `package.json` + `pnpm-workspace.yaml` (empty
 `packages:` list, so pnpm treats them as isolated), a README, and a
 `typecheck` script over the same `tsconfig.json` template:
 
-| Directory          | What it is                                                  | Bootstrap                                        | In CI               |
-| ------------------ | ----------------------------------------------------------- | ------------------------------------------------ | ------------------- |
-| `conformance/`     | Upstream JSON Schema Test Suite + OpenAPI case harness      | `cd conformance && pnpm install && pnpm corpora` | all of it, on PRs   |
-| `performance/`     | Compile / validate benchmarks against other validators      | `cd performance && pnpm install`                 | no                  |
-| `framework-tests/` | Real-server integration tests for the three adapters (#295) | `cd framework-tests && pnpm install`             | typecheck + tests   |
-| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches    | `cd detection && pnpm install && pnpm detect`    | no (see its README) |
+| Directory          | What it is                                                  | Bootstrap                                        | In CI                                                                  |
+| ------------------ | ----------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
+| `conformance/`     | Upstream JSON Schema Test Suite + OpenAPI case harness      | `cd conformance && pnpm install && pnpm corpora` | pinned runners, on PRs; `real-world/` never (its specs are gitignored) |
+| `performance/`     | Compile / validate benchmarks against other validators      | `cd performance && pnpm install`                 | no                                                                     |
+| `framework-tests/` | Real-server integration tests for the three adapters (#295) | `cd framework-tests && pnpm install`             | typecheck + tests                                                      |
+| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches    | `cd detection && pnpm install && pnpm detect`    | no (see its README)                                                    |
 
 `pnpm corpora` is the bootstrap step that is easy to miss: the upstream
 corpora are gitignored and pinned in `corpora.json`, and every runner
