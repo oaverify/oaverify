@@ -38,6 +38,11 @@ the host-stamped per-shape numbers are below.
 - **Method:** synthetic shape suite, 1000 ms/task, 500 ms cooldown,
   median of 3 runs; commit `2cd9140`, 2026-08-07
 
+The `pattern-heavy` and `pattern-backtracking` shapes were added after
+this run and are absent from the tables below. Benchmark numbers are only
+comparable when measured on one host, so they wait for the next run on
+the reference machine rather than being spliced in from another.
+
 The harness measures five configurations: Ajv fast-fail
 (`allErrors: false`), Ajv full-collect (`allErrors: true`), oaverify fast-fail
 (flat, `maxErrors: 1`, the zero-config default), oaverify full-collect
