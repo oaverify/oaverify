@@ -163,8 +163,8 @@ export { discriminatorKeyword } from "./keywords/discriminator.js";
 export { unevaluatedItemsKeyword, unevaluatedPropertiesKeyword } from "./keywords/unevaluated.js";
 
 // Ref resolution: needed by `@oaverify/internal-validator` and any consumer wiring
-// up a custom spec loader. The lower-level `SchemaRegistry` /
-// `collectDynamicAnchors` primitives are in `./internals`.
+// up a custom spec loader. The lower-level `SchemaRegistry` primitive
+// is in `./internals`.
 export {
   createRefResolver,
   resolve,

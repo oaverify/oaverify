@@ -52,8 +52,8 @@ export {
 
 // Resolve internals. `resolve` / `createRefResolver` are in the main
 // barrel (they're how the validator wires the compiler up); the
-// registry + dynamic-anchor collector are strictly internal.
-export { SchemaRegistry, collectDynamicAnchors } from "./resolve/index.js";
+// registry is strictly internal.
+export { SchemaRegistry } from "./resolve/index.js";
 
 // The `unknownFormats: "error"` check, so an engine that compiles
 // lazily can run it at construction instead of mid-stream.

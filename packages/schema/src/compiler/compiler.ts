@@ -1473,7 +1473,7 @@ export function compileSchema(
   const maxErrors = options.maxErrors ?? (predicate ? Number.POSITIVE_INFINITY : 1);
   if (
     options.maxErrors !== undefined &&
-    Number.isFinite(options.maxErrors) &&
+    options.maxErrors !== Number.POSITIVE_INFINITY &&
     (!Number.isInteger(options.maxErrors) || options.maxErrors < 1)
   ) {
     // Reject values that would silently neutralise validation. A cap
@@ -1489,7 +1489,7 @@ export function compileSchema(
   const maxDepth = options.maxDepth ?? Number.POSITIVE_INFINITY;
   if (
     options.maxDepth !== undefined &&
-    Number.isFinite(maxDepth) &&
+    maxDepth !== Number.POSITIVE_INFINITY &&
     (!Number.isInteger(maxDepth) || maxDepth < 1)
   ) {
     // Same contract as `maxErrors`: a cap of 0 or a non-integer would

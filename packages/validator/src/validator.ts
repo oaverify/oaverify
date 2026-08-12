@@ -501,8 +501,8 @@ export interface Validator {
    * want live output pass {@link ValidatorOptions.warn}; the CLI
    * wrapper does this.
    *
-   * Not written to after construction: the array is complete once
-   * `createValidator` returns.
+   * Frozen after `createValidator` returns: the array is complete and
+   * `Object.isFrozen` on it holds.
    */
   readonly warnings: readonly string[];
   /**
@@ -1194,12 +1194,13 @@ export function createValidator(
   }
   if (
     options.maxErrors !== undefined &&
-    Number.isFinite(options.maxErrors) &&
+    options.maxErrors !== Number.POSITIVE_INFINITY &&
     (!Number.isInteger(options.maxErrors) || options.maxErrors < 1)
   ) {
-    // `Infinity` is degenerate (equivalent to omitting) but harmless;
-    // existing callers may pass it explicitly. Reject the values that
-    // would silently break validation: 0, negatives, non-integers.
+    // `Infinity` is the uncapped escape hatch and is accepted
+    // explicitly. Everything else that is not a positive integer
+    // (0, negatives, non-integers, NaN, -Infinity) would silently
+    // break validation, so it throws here.
     throw new Error(
       `createValidator: \`maxErrors\` must be a positive integer (got ${String(options.maxErrors)}). ` +
         "Omit the option for fast-fail (1), or pass `Number.POSITIVE_INFINITY` to collect every error.",
@@ -1207,7 +1208,7 @@ export function createValidator(
   }
   if (
     options.maxDepth !== undefined &&
-    Number.isFinite(options.maxDepth) &&
+    options.maxDepth !== Number.POSITIVE_INFINITY &&
     (!Number.isInteger(options.maxDepth) || options.maxDepth < 1)
   ) {
     throw new Error(
@@ -1215,9 +1216,9 @@ export function createValidator(
         "Omit the option for uncapped recursion depth.",
     );
   }
-  // Shared allow-list rather than the `isFinite`-guarded shape the two
-  // options above use; see `isValidMaxTotalBytes` for why this one
-  // cannot afford to read `NaN` as infinity.
+  // Shared allow-list, the same positive-integer-or-Infinity rule the
+  // two options above enforce inline; `isValidMaxTotalBytes` keeps the
+  // byte cap's copy of it in one place across its four call sites.
   if (options.maxTotalBytes !== undefined && !isValidMaxTotalBytes(options.maxTotalBytes)) {
     throw new Error(`createValidator: ${maxTotalBytesErrorMessage(options.maxTotalBytes)}`);
   }
@@ -1898,9 +1899,9 @@ export function createValidator(
     return { kind: "match", pathPattern: match.pathPattern };
   };
 
-  const specHygieneIssues: readonly SpecHygieneIssue[] = options.lint
-    ? Object.freeze(lintResolvedSpec(spec))
-    : [];
+  const specHygieneIssues: readonly SpecHygieneIssue[] = Object.freeze(
+    options.lint ? lintResolvedSpec(spec) : [],
+  );
 
   // The runtime methods return the `output`-dependent union; the
   // overloads above resolve the precise interface for callers. The cast
@@ -2019,7 +2020,9 @@ export function createValidator(
     routes: router.routes(),
     detectedVersion,
     output: outputMode,
-    warnings,
+    // Construction is over, so the accumulator seals here; the doc on
+    // `Validator.warnings` promises the freeze.
+    warnings: Object.freeze(warnings),
     specHygieneIssues,
     stats,
   } as unknown as Validator | TreeValidator | PredicateValidator;

@@ -65,6 +65,14 @@ const IDN_DOT_STRING_RE = /^[^\s@.]+(?:\.[^\s@.]+)*$/u;
 const MAX_LOCAL_LENGTH = 64;
 
 /**
+ * Octet counter for the idn path, where code points above U+007F make
+ * `String.prototype.length` (UTF-16 units) undercount the UTF-8 wire
+ * size the RFC's limit is stated in. The ASCII path skips the encode:
+ * there, units and octets agree.
+ */
+const utf8Octets = (s: string): number => new TextEncoder().encode(s).length;
+
+/**
  * RFC 5321 `address-literal`: a bracketed IPv4 address, or an IPv6
  * address behind the mandatory `IPv6:` tag.
  *
@@ -115,7 +123,7 @@ export function validateIdnEmail(value: string): boolean {
   const parts = splitMailbox(value);
   if (parts === undefined) return false;
   const { local, domain } = parts;
-  if (local.length > MAX_LOCAL_LENGTH) return false;
+  if (local.length > MAX_LOCAL_LENGTH || utf8Octets(local) > MAX_LOCAL_LENGTH) return false;
   const localOk = local.startsWith('"')
     ? IDN_QUOTED_STRING_RE.test(local)
     : IDN_DOT_STRING_RE.test(local);

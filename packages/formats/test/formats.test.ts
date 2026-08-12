@@ -222,6 +222,15 @@ describe("email (RFC 5321 Mailbox grammar)", () => {
     expect(validateEmail(`${"a".repeat(64)}@example.com`)).toBe(true);
     expect(validateEmail(`${"a".repeat(65)}@example.com`)).toBe(false);
   });
+
+  it("caps an idn local part at 64 octets, not 64 UTF-16 units", () => {
+    // RFC 5321's limit is octets, which RFC 6531 does not relax. Each
+    // CJK character below is 3 UTF-8 octets, so 22 of them (66 octets)
+    // must be rejected even though they are only 22 UTF-16 units;
+    // 21 (63 octets) fit.
+    expect(validateIdnEmail(`${"用".repeat(21)}@example.com`)).toBe(true);
+    expect(validateIdnEmail(`${"用".repeat(22)}@example.com`)).toBe(false);
+  });
 });
 
 describe("ipv4 / ipv6", () => {

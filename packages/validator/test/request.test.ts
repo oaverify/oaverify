@@ -1502,9 +1502,35 @@ describe("createValidator option validation", () => {
     expect(() => createValidator(petSpec(), { maxErrors: 100 })).not.toThrow();
   });
 
+  it("rejects NaN and -Infinity for maxErrors and maxDepth", () => {
+    // Non-finite non-caps: a finite-gated guard waves them through and
+    // the budget/depth comparisons silently never fire (or, for a
+    // -Infinity depth cap, fire on everything).
+    expect(() => createValidator(petSpec(), { maxErrors: Number.NaN })).toThrow(
+      /must be a positive integer/,
+    );
+    expect(() => createValidator(petSpec(), { maxErrors: Number.NEGATIVE_INFINITY })).toThrow(
+      /must be a positive integer/,
+    );
+    expect(() => createValidator(petSpec(), { maxDepth: Number.NaN })).toThrow(
+      /must be a positive integer/,
+    );
+    expect(() => createValidator(petSpec(), { maxDepth: Number.NEGATIVE_INFINITY })).toThrow(
+      /must be a positive integer/,
+    );
+  });
+
   it("specHygieneIssues is empty by default (lint not requested)", () => {
     const v = createValidator(petSpec());
     expect(v.specHygieneIssues).toEqual([]);
+  });
+
+  it("freezes warnings and specHygieneIssues, as their docs promise", () => {
+    const v = createValidator(petSpec());
+    expect(Object.isFrozen(v.warnings)).toBe(true);
+    expect(Object.isFrozen(v.specHygieneIssues)).toBe(true);
+    const linted = createValidator(petSpec(), { lint: true });
+    expect(Object.isFrozen(linted.specHygieneIssues)).toBe(true);
   });
 
   it("populates specHygieneIssues when lint: true and the spec has hygiene issues", () => {

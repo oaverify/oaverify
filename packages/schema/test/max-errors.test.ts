@@ -116,6 +116,15 @@ describe("maxErrors option", () => {
     expect(() => compile({ type: "number" }, -1)).toThrow(/must be a positive integer/);
     expect(() => compile({ type: "number" }, 1.5)).toThrow(/must be a positive integer/);
   });
+
+  it("rejects NaN and -Infinity, which are not caps at all", () => {
+    // Both are non-finite, so a finite-gated guard waves them through
+    // and the budget comparisons silently never fire.
+    expect(() => compile({ type: "number" }, Number.NaN)).toThrow(/must be a positive integer/);
+    expect(() => compile({ type: "number" }, Number.NEGATIVE_INFINITY)).toThrow(
+      /must be a positive integer/,
+    );
+  });
 });
 
 describe("flat-mode fast-fail (budget exhaustion returns immediately)", () => {

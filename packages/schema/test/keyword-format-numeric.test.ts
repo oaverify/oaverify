@@ -2,7 +2,12 @@ import { builtInFormats, validateInt32, validateInt64 } from "@oaverify/internal
 import { describe, expect, it } from "vitest";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect, oas30Dialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
-import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import type { BuiltInErrorParams, SchemaOrBoolean } from "@oaverify/internal-core";
+
+// Type-level pin: a number-typed format's assertion failure carries a
+// numeric `actual`, so the declared params contract must admit it.
+const numericActual: BuiltInErrorParams["format"] = { format: "int32", actual: 3000000000 };
+void numericActual;
 
 const oas = (
   schema: Record<string, unknown>,
