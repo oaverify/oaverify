@@ -13,6 +13,9 @@
       "@oaverify/internal-core/prototype-properties": [
         "../packages/core/src/prototype-properties.ts"
       ],
+      "@oaverify/internal-core/subschema-positions": [
+        "../packages/core/src/subschema-positions.ts"
+      ],
       "@oaverify/internal-validator": ["../packages/validator/src/index.ts"],
       "@oaverify/internal-validator/internals": ["../packages/validator/src/internals.ts"],
       "@oaverify/internal-oav-express4": ["../packages/oav-express4/src/index.ts"],

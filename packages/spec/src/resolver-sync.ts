@@ -36,7 +36,7 @@ import {
   wrapReadError,
 } from "./resolver-shared.js";
 import type { SourceHop } from "./provenance.js";
-import { isSubschemaKey } from "@oaverify/internal-core";
+import { isSubschemaKey } from "@oaverify/internal-core/subschema-positions";
 
 /**
  * Options accepted by {@link resolveSpecSync}. Mirror of

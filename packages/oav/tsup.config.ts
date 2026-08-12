@@ -56,6 +56,13 @@ const bundledWorkspace: Record<string, string> = {
     "src",
     "prototype-properties.ts",
   ),
+  "@oaverify/internal-core/subschema-positions": resolve(
+    repoRoot,
+    "packages",
+    "core",
+    "src",
+    "subschema-positions.ts",
+  ),
   "@oaverify/internal-cli": resolve(repoRoot, "packages", "cli", "src", "index.ts"),
   "@oaverify/internal-router": resolve(repoRoot, "packages", "router", "src", "index.ts"),
 };

@@ -95,12 +95,15 @@ export type {
   ServerObject,
   TagObject,
 } from "./types.js";
-export {
-  isSubschemaKey,
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
-} from "./subschema-positions.js";
+// The subschema-position tables are deliberately absent from this
+// entry. They are `@internal`, and everything here reaches
+// `@oaverify/core`'s public surface, so exporting them put four
+// compiler-shaped tables in the published `.d.ts` under a tag saying
+// they are unsupported. Internal consumers import
+// `@oaverify/internal-core/subschema-positions`; plugin authors get them
+// from `@oaverify/core/schema/internals`, which is outside semver and
+// where the docs already point. Same arrangement as
+// `./prototype-properties`.
 export { followsRef, refablePositionsFor, refPositionFor } from "./ref-positions.js";
 export type { RefNodeKind, RefPosition } from "./ref-positions.js";
 export { getOwn, hasLowercaseKeys, markLowercaseKeys, setSpecKey } from "./own-key.js";
