@@ -39,7 +39,7 @@ import { collectEnumTypeIssue } from "./enum-type.js";
 import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
 import { assertFormatsRegistered } from "./unknown-formats.js";
-import { assertWellFormedSchema } from "./well-formed.js";
+import { assertWellFormedSchema, OAS30_REF_SIBLINGS_ALLOWED } from "./well-formed.js";
 
 // Token scan fed into CompileStats.emittedTreeRuntime. Word-boundaried
 // so stray mentions inside string literals (e.g. an error message that
@@ -65,14 +65,6 @@ const DYN_LOOKUP = "dynLookup";
  * with `"strict"` or opt out with `"off"`.
  */
 const DEFAULT_SCHEMA_LINT_MODE = "warn" as const;
-
-/**
- * Sibling keys explicitly permitted alongside `$ref` under OAS 3.0
- * (Schema Object §4.7.24.2): metadata-only, no validation effect.
- * Anything else gets silently dropped under
- * `refSuppressesSiblings: true`.
- */
-const OAS30_REF_SIBLINGS_ALLOWED = new Set(["$ref", "description", "summary"]);
 
 /**
  * Annotation-only keys that don't affect validation. Stripped before
@@ -1421,16 +1413,19 @@ export function compileSchema(
   // because keyword value contracts are dialect-specific. Covers
   // `external` too, since those compile on `$ref` and a guarantee
   // holding for only part of the graph would be worse than none.
-  assertWellFormedSchema(schema, byKeyword, options.label);
+  assertWellFormedSchema(schema, byKeyword, {
+    ...(options.label !== undefined && { label: options.label }),
+    refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
+  });
   if (options.external) {
     for (const [name, sub] of options.external) {
-      assertWellFormedSchema(
-        sub,
-        byKeyword,
-        options.label === undefined
-          ? `external schema "${name}"`
-          : `${options.label}: external schema "${name}"`,
-      );
+      assertWellFormedSchema(sub, byKeyword, {
+        label:
+          options.label === undefined
+            ? `external schema "${name}"`
+            : `${options.label}: external schema "${name}"`,
+        refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
+      });
     }
   }
 
@@ -1526,7 +1521,11 @@ export function compileSchema(
   // than in the schema object, so without this they compile unchecked
   // (#512). Re-walking the root costs one linear pass over a graph that
   // is about to be compiled.
-  assertWellFormedSchema(schema, byKeyword, options.label, refResolver);
+  assertWellFormedSchema(schema, byKeyword, {
+    ...(options.label !== undefined && { label: options.label }),
+    refResolver,
+    refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
+  });
 
   if (options.unknownFormats === "error") {
     assertFormatsRegistered(schema, byKeyword, deps.formats, options.label, (ref) =>
