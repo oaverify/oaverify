@@ -846,8 +846,13 @@ export interface ValidatorOptions {
    *
    * - `"off"`: silence on everything.
    * - `"warn"` (default): warn on keywords flagged as
-   *   partially-implemented (currently `$dynamicRef`).
-   * - `"strict"`: warn on partial features AND unknown keys.
+   *   partially-implemented (no built-in sets this today; a custom
+   *   keyword does so through `KeywordDefinition.partial`), on
+   *   wrong-typed annotation values, and on the `silent-rewrite/*` and
+   *   `unsatisfiable/*` findings.
+   * - `"strict"`: warn on partial features AND unknown keys (keys not
+   *   in the active dialect, not `x-*` extensions, not standard
+   *   `$`-prefixed metadata). Catches typos like `minimumx: 5`.
    */
   schemaLint?: "off" | "warn" | "strict";
   /**

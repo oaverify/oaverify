@@ -59,9 +59,10 @@ const DYN_LOOKUP = "dynLookup";
 
 /**
  * Default mode for {@link CompileOptions.schemaLint}. Warns on partially-
- * implemented keywords (currently `$dynamicRef`); silent on unknown
- * keys. Callers opt into stricter behavior with `"strict"` or opt
- * out with `"off"`.
+ * implemented keywords (no built-in sets this today), on wrong-typed
+ * annotation values, and on the `silent-rewrite/*` and `unsatisfiable/*`
+ * findings; silent on unknown keys. Callers opt into stricter behavior
+ * with `"strict"` or opt out with `"off"`.
  */
 const DEFAULT_SCHEMA_LINT_MODE = "warn" as const;
 
@@ -1034,8 +1035,7 @@ export interface CompileOptions {
    * that locates the schema in the wider document (`POST /things
    * request body (application/json)`) and it prefixes thrown
    * well-formedness errors and lands on
-   * {@link SchemaLintIssue.location} (and on its deprecated alias
-   * `context`).
+   * {@link SchemaLintIssue.location}.
    *
    * Prose. {@link CompileOptions.pointer} is its structural sibling and
    * is what a machine consumer reads.
