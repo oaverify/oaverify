@@ -1525,6 +1525,14 @@ describe("createValidator option validation", () => {
     expect(v.specHygieneIssues).toEqual([]);
   });
 
+  it("freezes warnings and specHygieneIssues, as their docs promise", () => {
+    const v = createValidator(petSpec());
+    expect(Object.isFrozen(v.warnings)).toBe(true);
+    expect(Object.isFrozen(v.specHygieneIssues)).toBe(true);
+    const linted = createValidator(petSpec(), { lint: true });
+    expect(Object.isFrozen(linted.specHygieneIssues)).toBe(true);
+  });
+
   it("populates specHygieneIssues when lint: true and the spec has hygiene issues", () => {
     const spec = petSpec();
     spec.components = {

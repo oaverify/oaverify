@@ -501,8 +501,8 @@ export interface Validator {
    * want live output pass {@link ValidatorOptions.warn}; the CLI
    * wrapper does this.
    *
-   * Not written to after construction: the array is complete once
-   * `createValidator` returns.
+   * Frozen after `createValidator` returns: the array is complete and
+   * `Object.isFrozen` on it holds.
    */
   readonly warnings: readonly string[];
   /**
@@ -1899,9 +1899,9 @@ export function createValidator(
     return { kind: "match", pathPattern: match.pathPattern };
   };
 
-  const specHygieneIssues: readonly SpecHygieneIssue[] = options.lint
-    ? Object.freeze(lintResolvedSpec(spec))
-    : [];
+  const specHygieneIssues: readonly SpecHygieneIssue[] = Object.freeze(
+    options.lint ? lintResolvedSpec(spec) : [],
+  );
 
   // The runtime methods return the `output`-dependent union; the
   // overloads above resolve the precise interface for callers. The cast
@@ -2020,7 +2020,9 @@ export function createValidator(
     routes: router.routes(),
     detectedVersion,
     output: outputMode,
-    warnings,
+    // Construction is over, so the accumulator seals here; the doc on
+    // `Validator.warnings` promises the freeze.
+    warnings: Object.freeze(warnings),
     specHygieneIssues,
     stats,
   } as unknown as Validator | TreeValidator | PredicateValidator;
