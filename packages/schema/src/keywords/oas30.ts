@@ -31,13 +31,6 @@ import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { OAS30_VOCAB } from "./vocabulary-uris.js";
 
 /**
- * The `type` keyword in OAS 3.0: MUST be a single string. If the
- * sibling `nullable: true` is also set, the predicate additionally
- * admits `null`.
- *
- * @public
- */
-/**
  * OAS 3.0 `type` must be a single string naming one of six types. Two
  * ways to get it wrong, with different consequences: an unknown name
  * (`Boolean`) compiles to a validator nothing satisfies, while `null` is
@@ -63,6 +56,13 @@ export function checkOas30TypeName(value: unknown): string | undefined {
   );
 }
 
+/**
+ * The `type` keyword in OAS 3.0: MUST be a single string. If the
+ * sibling `nullable: true` is also set, the predicate additionally
+ * admits `null`.
+ *
+ * @public
+ */
 export const oas30TypeKeyword: KeywordDefinition = {
   keyword: "type",
   vocabulary: OAS30_VOCAB,

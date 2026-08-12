@@ -36,6 +36,9 @@ export function pointerFromFragment(text: string): string {
   }
 }
 
+/** RFC 6901 §4 `array-index`: `0`, or digits with no leading zero. */
+const ARRAY_INDEX_RE = /^(?:0|[1-9]\d*)$/;
+
 /**
  * Evaluate an RFC 6901 JSON Pointer against a root document (§4).
  *
@@ -64,9 +67,6 @@ export function pointerFromFragment(text: string): string {
  *
  * @public
  */
-/** RFC 6901 §4 `array-index`: `0`, or digits with no leading zero. */
-const ARRAY_INDEX_RE = /^(?:0|[1-9]\d*)$/;
-
 export function resolveJsonPointer(root: unknown, pointer: string): JsonValue {
   if (pointer === "") return root as JsonValue;
   if (!pointer.startsWith("/")) {

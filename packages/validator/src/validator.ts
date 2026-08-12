@@ -174,28 +174,6 @@ function dialectFor(version: OpenAPIVersion): Dialect {
 }
 
 /**
- * The HTTP validator (flat output, the default). `validateRequest` /
- * `validateResponse` return `@oaverify/core/schema`'s `ValidationResult`:
- * `{ valid: true }` or `{ valid: false, errors, truncated }` with a flat
- * list of leaf errors. Compile with `output: "tree"` for a
- * {@link TreeValidator} (nested {@link ValidationError} tree) or
- * `output: "predicate"` for a {@link PredicateValidator} (bare boolean).
- *
- * - **Per-call HTTP validation**: {@link Validator.validateRequest},
- *   {@link Validator.validateResponse}.
- * - **Web Standards convenience**: {@link Validator.validateFetchRequest},
- *   {@link Validator.validateFetchResponse}. Wrap the per-call methods
- *   with body-parsing for `Request` / `Response` consumers (Next.js,
- *   Hono, Bun, Deno).
- * - **Spec introspection**: {@link Validator.getOperation},
- *   {@link Validator.detectedVersion}.
- * - **Construction-time output**: {@link Validator.warnings},
- *   {@link Validator.specHygieneIssues}.
- * - **Live observability**: {@link Validator.stats}.
- *
- * @public
- */
-/**
  * The routing verdict for a method + path, with nothing compiled or
  * validated. Pairs with {@link Validator.getOperation}: `getOperation`
  * hands back the resolved operation on a clean match, while `matchRoute`
@@ -257,6 +235,28 @@ export interface PrecompileFailure {
   anchor?: "node" | "definition";
 }
 
+/**
+ * The HTTP validator (flat output, the default). `validateRequest` /
+ * `validateResponse` return `@oaverify/core/schema`'s `ValidationResult`:
+ * `{ valid: true }` or `{ valid: false, errors, truncated }` with a flat
+ * list of leaf errors. Compile with `output: "tree"` for a
+ * {@link TreeValidator} (nested {@link ValidationError} tree) or
+ * `output: "predicate"` for a {@link PredicateValidator} (bare boolean).
+ *
+ * - **Per-call HTTP validation**: {@link Validator.validateRequest},
+ *   {@link Validator.validateResponse}.
+ * - **Web Standards convenience**: {@link Validator.validateFetchRequest},
+ *   {@link Validator.validateFetchResponse}. Wrap the per-call methods
+ *   with body-parsing for `Request` / `Response` consumers (Next.js,
+ *   Hono, Bun, Deno).
+ * - **Spec introspection**: {@link Validator.getOperation},
+ *   {@link Validator.detectedVersion}.
+ * - **Construction-time output**: {@link Validator.warnings},
+ *   {@link Validator.specHygieneIssues}.
+ * - **Live observability**: {@link Validator.stats}.
+ *
+ * @public
+ */
 export interface Validator {
   /**
    * Validate one HTTP request against the spec. Returns `{ valid: true }`

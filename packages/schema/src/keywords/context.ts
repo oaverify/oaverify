@@ -129,20 +129,6 @@ export interface KeywordContextInputs {
 }
 
 /**
- * Construct a {@link KeywordCompileContext} from compiler-supplied inputs.
- *
- * @param inputs - Compiler state + keyword's own schema slice.
- * @returns A narrow, read-only context that keyword compile functions see.
- *
- * @example
- * ```ts
- * const ctx = createKeywordContext({ gen, schema: "number", parentSchema: ... });
- * typeKeyword.compile(ctx);
- * ```
- *
- * @public
- */
-/**
  * Keywords that produce at most one error per application and have no
  * nested subschemas. When a subschema contains exactly one of these
  * keywords and nothing else that can emit errors, we can emit its
@@ -222,6 +208,20 @@ const MAX_INLINE_DEPTH = 6;
  */
 const MAX_INLINE_KEYWORDS = 10;
 
+/**
+ * Construct a {@link KeywordCompileContext} from compiler-supplied inputs.
+ *
+ * @param inputs - Compiler state + keyword's own schema slice.
+ * @returns A narrow, read-only context that keyword compile functions see.
+ *
+ * @example
+ * ```ts
+ * const ctx = createKeywordContext({ gen, schema: "number", parentSchema: ... });
+ * typeKeyword.compile(ctx);
+ * ```
+ *
+ * @public
+ */
 export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompileContext {
   const evaluatedPropertiesVar = inputs.evaluatedPropertiesVar ?? null;
   const evaluatedItemsVar = inputs.evaluatedItemsVar ?? null;

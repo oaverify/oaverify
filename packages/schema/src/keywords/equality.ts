@@ -8,12 +8,6 @@ function isJsonPrimitive(v: JsonValue): v is string | number | boolean | null {
 }
 
 /**
- * The JSON Schema 2020-12 `enum` keyword. Data must be deep-equal to one of
- * the listed values.
- *
- * @public
- */
-/**
  * `enum` holds an array of arbitrary JSON values. An unchecked cast let
  * a non-array through to `values.filter`, which died with
  * `values.filter is not a function` -- an internal TypeError naming no
@@ -32,6 +26,12 @@ function parseEnumValues(value: unknown): JsonValue[] {
   return value as JsonValue[];
 }
 
+/**
+ * The JSON Schema 2020-12 `enum` keyword. Data must be deep-equal to one of
+ * the listed values.
+ *
+ * @public
+ */
 export const enumKeyword: KeywordDefinition = {
   keyword: "enum",
   vocabulary: CORE_VALIDATION_VOCAB,
