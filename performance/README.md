@@ -144,37 +144,12 @@ Raw per-batch data lands in `results/mem-<timestamp>.json`.
 
 ### Results file
 
-Each `run.ts` invocation writes `./results/<iso-timestamp>.json`:
-
-```ts
-type RunOutput = {
-  meta: {
-    timestamp: string; // ISO 8601
-    commitSha: string;
-    nodeVersion: string;
-    platform: string; // os.platform()
-    arch: string; // os.arch()
-    cpu: string; // os.cpus()[0].model
-    cpuCount: number;
-    ajvVersion: string; // resolved ajv version compared against
-    timePerTaskMs: number;
-    cooldownMs: number;
-    mode: "synthetic" | "spec";
-    specPath: string | null;
-  };
-  results: Result[];
-};
-
-type Result = {
-  schema: string; // schema name or spec path
-  metric: "compile" | "validate";
-  lib: "ajv" | "ajv-fast" | "oav" | "oav-all" | "oav-predicate";
-  validity?: "valid" | "invalid"; // validate only
-  hz: number; // ops/sec
-  mean: number; // µs per op
-  variant?: string; // e.g. "oav-predicate validate (valid)"
-};
-```
+Each `run.ts` invocation writes `./results/<iso-timestamp>.json`: a
+`meta` block stamping the host and configuration (timestamp, commit,
+Node and ajv versions, platform / CPU, per-task timing, mode), which
+is what makes a committed number traceable, and a `results` array of
+`{ schema, metric, lib, validity?, hz, mean, variant? }` rows. The
+full shapes are `RunOutput` / `Result` in [`run.ts`](./run.ts).
 
 ## Which entry point when
 
@@ -251,14 +226,11 @@ and media-type negotiation have a direct benchmark.
 
 ### `mem.ts`: steady-state memory under HTTP load
 
-Spawns two Express 4 servers from [`mem-bench/`](./mem-bench): one wraps
-oaverify, the other express-openapi-validator. Both validate a ~40-schema
-OpenAPI spec with discriminated payment-method unions, nested address and
-amount objects, and array-of-items transfers. The driver fires a round-robin
-mix of 13 request cases (valid and invalid POST/GET/404/405 across five
-endpoints), forces GC between samples via each server's `/__memory?gc=1`
-endpoint, and reports baseline, post-warmup, steady-state and post-idle RSS
-plus heapUsed.
+Spawns the two Express 4 servers in [`mem-bench/`](./mem-bench), one
+wrapping oaverify and one express-openapi-validator, and drives an
+identical round-robin request mix at both, forcing GC between samples.
+[Memory mode](#memory-mode-memts) above says how to read the output;
+mem-bench's README covers the servers and the spec they validate.
 
 ```bash
 BATCHES=20 PER_BATCH=500 WARMUP=250 pnpm bench:mem   # quick smoke

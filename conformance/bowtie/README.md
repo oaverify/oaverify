@@ -105,13 +105,12 @@ bowtie suite "$STAGE/tests/draft2020-12" \
 ```
 
 Swap `optional/*.json` for `optional/format/*.json` to run the 720-case
-format subtree. **That run tells you nothing about format correctness**,
-and the reason is arithmetic rather than opinion: 368 of the 720 cases
-expect a rejection, `format` is annotation-only under 2020-12, so a
-conforming implementation accepts everything and fails exactly those 368.
-oaverify and hyperjump both score 352 pass / 368 fail, identical to each
-other and to that prediction. ajv errors on all 720, because Bowtie's ajv
-harness has no `ajv-formats` and strict mode throws on an unknown format.
+format subtree. **That run tells you nothing about format correctness**:
+`format` is annotation-only under 2020-12, so a conforming
+implementation accepts everything and fails exactly the 368 cases that
+expect a rejection, which is what oaverify and hyperjump both score.
+ajv errors on all 720, because Bowtie's ajv harness has no
+`ajv-formats` and strict mode throws on an unknown format.
 
 The measurement that does mean something is `pnpm format-suite` in the
 parent directory, which compiles with `openapi31Dialect` so that `format`
@@ -126,15 +125,11 @@ JavaScript set is `js-ajv`, `js-hyperjump`, `js-schemasafe`, plus this
 harness. `js-jsonschema` exists but stops at draft 7; `js-cfworker`,
 `js-djv` and `js-json-schema-library` did not resolve to runnable images.
 
-Bowtie itself installs with `uv tool install bowtie-json-schema` and needs a
-container runtime; reference implementation images are pulled on first use.
-
 ## What it gates
 
 Nothing. This is not wired into CI and is not part of `pnpm test` or
-`pnpm check`. It answers a question the gated runners cannot: when a case
-fails, whether the rest of the ecosystem agrees with us or with the suite.
-See "Reading the results" below for how to weigh what it says.
+`pnpm check`. See "Reading the results" below for how to weigh what it
+says.
 
 ## Iterating on the harness
 
@@ -162,12 +157,11 @@ Check it against [`REPORT.md`](../REPORT.md) first, which documents the
 known gaps (external and cross-document `$ref` loading, plus two
 singletons). Only what survives that is news.
 
-Worth knowing what that check was worth the first time it ran: all 20
-divergences of the day matched REPORT.md one for one, in both
-directions, with nothing new. A harness that agrees exactly with the
-record you already keep is one you can then trust on a question the
-record does not answer, which is how the `$dynamicRef` gap behind #663
-got measured.
+The first run was the calibration: all 20 divergences of the day
+matched REPORT.md one for one, with nothing new. A harness that agrees
+exactly with the record you already keep is one you can trust on a
+question the record does not answer, which is how the `$dynamicRef`
+gap behind #663 got measured.
 
 ## `bowtie perf`, and the benchmarks it cannot measure here
 
@@ -203,10 +197,9 @@ The keyword benchmarks (`-k`) are all self-contained and do measure real
 work. Read them as compile throughput rather than validation speed: the
 harness compiles per case, and oaverify is a compiling validator, so
 codegen lands inside the timing. `additionalProperties` is the clearest
-case. It builds one schema of 99,999 properties (the benchmark's "Array
-length" parameter does not vary that; every size builds
-`max_array_length - 1` properties, which is why its timings are flat),
-and oaverify comes last of four at roughly 1.9x ajv. Measured in-process
-on that shape, compile is ~364ms against ~15ms per validate. The result
-is a statement about generating code for a 100k-property schema, not
-about validating one.
+case: it builds one schema of 99,999 properties whatever its "Array
+length" parameter says (which is why its timings are flat), and
+oaverify comes last of four at roughly 1.9x ajv; measured in-process,
+compile is ~364ms against ~15ms per validate. The result is a
+statement about generating code for a 100k-property schema, not about
+validating one.

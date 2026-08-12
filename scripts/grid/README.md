@@ -87,10 +87,6 @@ Filtering down to combinations that "make sense" would encode one reading of
 the OpenAPI serialization rules into the thing meant to detect changes in that
 reading, which is how #742 got three review passes deep.
 
-So there are no expected values here and no baseline to maintain. The grid
-produces inputs, the dump records what happened, the diff compares two dumps.
-There is no oracle at this layer and this harness does not pretend to be one.
-
 ## Coverage
 
 4 locations x their legal styles x `explode` x 17 schema shapes, against 25
