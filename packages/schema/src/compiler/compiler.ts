@@ -305,6 +305,25 @@ function runSchemaLint(
       if (rules.refSuppressesSiblings && typeof obj.$ref === "string") {
         for (const key of Object.keys(obj)) {
           if (OAS30_REF_SIBLINGS_ALLOWED.has(key)) continue;
+          // An `x-*` extension loses nothing here. The finding exists to
+          // say a constraint the author wrote is not being applied, and
+          // an extension is not a constraint: nothing gives it
+          // validation semantics, so the compiler ignoring it changes
+          // no verdict. It also survives resolution, so `oaverify
+          // resolve` still hands it to whatever reads it.
+          //
+          // 64 of 2846 of these findings on the published-spec corpus
+          // were `x-linode-cli-display` and friends, telling authors
+          // something was dropped when nothing was. Same low-signal
+          // shape #503 pruned.
+          //
+          // `known` first, and not merely for symmetry with the
+          // unknown-keyword rule above. A caller may register a keyword
+          // under an `x-`-prefixed name through `keywords`, and that one
+          // does carry semantics, which OAS 3.0 then drops beside a
+          // `$ref`. Skipping on the prefix alone would suppress the
+          // finding exactly where the author most needs it.
+          if (!known.has(key) && key.startsWith("x-")) continue;
           issues.push({
             code: "silent-rewrite/ref-siblings-oas30",
             keyword: key,
