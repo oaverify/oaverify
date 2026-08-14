@@ -445,8 +445,8 @@
   },
   {
     "format": "iri",
-    "cases": 15,
-    "pass": 15,
+    "cases": 24,
+    "pass": 24,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
@@ -499,8 +499,8 @@
   },
   {
     "format": "uri-reference",
-    "cases": 17,
-    "pass": 17,
+    "cases": 28,
+    "pass": 28,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
@@ -517,8 +517,8 @@
   },
   {
     "format": "uri",
-    "cases": 44,
-    "pass": 44,
+    "cases": 46,
+    "pass": 46,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
