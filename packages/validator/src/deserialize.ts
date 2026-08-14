@@ -146,25 +146,26 @@ export function deserialize(
       body = raw.startsWith(".") ? raw.slice(1) : raw;
     }
     const separator = objectSeparator(style, explode);
+    const props = propertySchemas(schema);
+    const out: Record<string, unknown> = {};
     if (explode) {
-      const out: Record<string, unknown> = {};
       for (const kv of body.split(separator)) {
         // Split at the first "=" only: the value may carry more of them
         // (base64 padding, a nested pair), and `kv.split("=")[1]` was
         // silently truncating "token=a=b" to "a".
         const eq = kv.indexOf("=");
-        if (eq === -1) setSpecKey(out, kv, "");
-        else setSpecKey(out, kv.slice(0, eq), kv.slice(eq + 1));
+        const key = eq === -1 ? kv : kv.slice(0, eq);
+        setSpecKey(out, key, coerceProperty(eq === -1 ? "" : kv.slice(eq + 1), key, props));
       }
       return out;
     }
     const parts = body.split(separator);
-    const out: Record<string, unknown> = {};
     for (let i = 0; i < parts.length; i += 2) {
       // An odd part count is malformed serialization; giving the
       // trailing key an empty value keeps the defect visible to schema
       // validation, where dropping the key hid it entirely.
-      setSpecKey(out, parts[i] ?? "", parts[i + 1] ?? "");
+      const key = parts[i] ?? "";
+      setSpecKey(out, key, coerceProperty(parts[i + 1] ?? "", key, props));
     }
     return out;
   }
@@ -533,6 +534,49 @@ function itemSchema(
   const items = schema.items;
   if (Array.isArray(items)) return undefined;
   return items;
+}
+
+/**
+ * The `properties` map of an object-typed parameter's schema, or
+ * `undefined` when there is no well-formed one to read. The object
+ * counterpart of {@link itemSchema}, and read for the same reason: a
+ * serialized object's property values are governed by `properties`, not
+ * by the object schema itself, so coercing against the parameter schema
+ * makes `effectiveType` read `type: "object"` and return every property
+ * as an unchanged string (#824).
+ *
+ * Shared with `extractObjectProperties` in `query-assembly.ts`, which
+ * re-exports this. The two paths that assemble an object from top-level
+ * query keys already read `properties`; this is what lets the path that
+ * deserializes one from a single token read the same map, so a property
+ * type means the same thing whichever route the parameter took.
+ *
+ * @internal
+ */
+export function propertySchemas(
+  schema: SchemaObject | boolean | undefined,
+): Record<string, SchemaOrBoolean> | undefined {
+  if (schema === undefined || typeof schema === "boolean") return undefined;
+  const props = schema.properties;
+  if (props === null || typeof props !== "object" || Array.isArray(props)) return undefined;
+  return props as Record<string, SchemaOrBoolean>;
+}
+
+/**
+ * One property of a serialized object, coerced with its declared schema.
+ *
+ * A property the schema does not declare stays a string, which is what
+ * `assembleDeepObject` already does for the same situation: there is no
+ * type to read, and inventing one from the lexeme's shape would coerce
+ * `additionalProperties` the caller never described.
+ */
+function coerceProperty(
+  value: string,
+  key: string,
+  props: Record<string, SchemaOrBoolean> | undefined,
+): unknown {
+  const propSchema = getOwn(props, key);
+  return propSchema === undefined ? value : coerceScalar(value, propSchema);
 }
 
 /**
