@@ -96,9 +96,33 @@ export function deserialize(
 
   if (type === "object") {
     if (style === "deepObject") return raw;
+    // Strip the style's framing from the whole token before splitting,
+    // the way the array branch above does and for the same reason: an
+    // exploded label object separates its pairs with the dot that also
+    // opens the segment, so stripping per part would eat the separator.
+    let body = raw;
+    if (style === "matrix") {
+      if (explode) {
+        // {;keys*} is ";R=100;G=200": the group names are the object's
+        // property names, not the parameter's, so the "a group must
+        // name this parameter" rule `matrixGroupValues` applies does
+        // not hold here and it is the wrong reader.
+        body = raw.startsWith(";") ? raw.slice(1) : raw;
+      } else {
+        // {;keys} is ";p=R,100,G,200": one group, named for the
+        // parameter, carrying the flat list. Same reader as the scalar
+        // and array shapes, absence included.
+        const groups = matrixGroupValues(raw, parameter.name);
+        if (groups === undefined) return undefined;
+        body = groups[0] ?? "";
+      }
+    } else if (style === "label") {
+      body = raw.startsWith(".") ? raw.slice(1) : raw;
+    }
+    const separator = objectSeparator(style, explode);
     if (explode) {
       const out: Record<string, unknown> = {};
-      for (const kv of raw.split("&")) {
+      for (const kv of body.split(separator)) {
         // Split at the first "=" only: the value may carry more of them
         // (base64 padding, a nested pair), and `kv.split("=")[1]` was
         // silently truncating "token=a=b" to "a".
@@ -108,7 +132,7 @@ export function deserialize(
       }
       return out;
     }
-    const parts = raw.split(",");
+    const parts = body.split(separator);
     const out: Record<string, unknown> = {};
     for (let i = 0; i < parts.length; i += 2) {
       // An odd part count is malformed serialization; giving the
@@ -368,6 +392,33 @@ function arraySeparator(style: ParameterStyle, explode: boolean): string {
   // array arrives as space-separated text, not "%20"-separated.
   if (style === "spaceDelimited") return " ";
   return ",";
+}
+
+/**
+ * The character separating one piece of a serialized object from the
+ * next, per the Style Examples table's object column.
+ *
+ * Read alongside {@link arraySeparator}, which answers the same question
+ * for the array column. They differ on `label` and `matrix`: an array's
+ * exploded form repeats the style's own token (`.a.b.c`, `;p=a;p=b`)
+ * and `arraySeparator` never sees it, because those two styles are
+ * handled before it is consulted. The object arms route through here
+ * for every style, so it carries both columns.
+ *
+ * `pipeDelimited` and `spaceDelimited` have no exploded object row: the
+ * table marks it _n/a_, so nothing settles what `explode: true` means
+ * there. Keeping the style's own delimiter is the reading that leaves
+ * the two arms agreeing about which character belongs to the style;
+ * `form`'s "&" is the one thing it could not be.
+ */
+function objectSeparator(style: ParameterStyle, explode: boolean): string {
+  if (style === "label") return explode ? "." : ",";
+  if (style === "matrix") return explode ? ";" : ",";
+  if (style === "pipeDelimited") return "|";
+  if (style === "spaceDelimited") return " ";
+  if (style === "simple") return ",";
+  // `form`, in query and cookie, and any style not named above.
+  return explode ? "&" : ",";
 }
 
 function stripStyle(value: string, style: ParameterStyle): string {
