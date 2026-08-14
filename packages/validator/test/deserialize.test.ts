@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SchemaObject } from "@oaverify/internal-core";
+import type { ParameterObject, ParameterStyle, SchemaObject } from "@oaverify/internal-core";
 import { createRefResolver, resolve } from "@oaverify/internal-schema";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 
@@ -372,6 +372,84 @@ describe("deserialize", () => {
       schema: { type: "object" },
     });
     expect(out).toEqual({ role: "admin", firstName: "Alex" });
+  });
+
+  it("reads an object in every style the Style Examples table gives one for", () => {
+    // #818. The object arms consulted the style only for `deepObject`:
+    // the exploded arm split on "&" and the non-explode arm split on
+    // "," without stripping the style's framing, so both were right for
+    // `form` (and for `simple` non-explode, whose separator happens to
+    // be ",") and wrong everywhere else. Wire forms are the table's own,
+    // for { R: "100", G: "200" }.
+    //
+    // Two rows the table gives are absent because they never reach here:
+    // `form` + explode and `deepObject` are assembled from the top-level
+    // query keys by `assembleObjectQueryParam` before deserialization.
+    const rows: Array<[ParameterStyle, "path" | "query" | "header" | "cookie", boolean, string]> = [
+      ["simple", "path", false, "R,100,G,200"],
+      ["simple", "path", true, "R=100,G=200"],
+      ["simple", "header", false, "R,100,G,200"],
+      ["simple", "header", true, "R=100,G=200"],
+      ["label", "path", false, ".R,100,G,200"],
+      ["label", "path", true, ".R=100.G=200"],
+      ["matrix", "path", false, ";p=R,100,G,200"],
+      ["matrix", "path", true, ";R=100;G=200"],
+      ["form", "query", false, "R,100,G,200"],
+      ["form", "cookie", true, "R=100&G=200"],
+      ["spaceDelimited", "query", false, "R 100 G 200"],
+      ["pipeDelimited", "query", false, "R|100|G|200"],
+    ];
+    for (const [style, location, explode, wire] of rows) {
+      const p = {
+        name: "p",
+        in: location,
+        style,
+        explode,
+        schema: { type: "object", properties: { R: { type: "string" }, G: { type: "string" } } },
+      } as const satisfies ParameterObject;
+      expect(deserialize(wire, p), `${style} ${location} explode:${explode}`).toEqual({
+        R: "100",
+        G: "200",
+      });
+    }
+  });
+
+  it("reports a matrix object segment naming another parameter as absent", () => {
+    // The non-explode matrix object goes through `matrixGroupValues`,
+    // so it inherits #758's answer: a segment whose groups all name
+    // someone else supplies nothing here, and `undefined` is the only
+    // reading that then rejects for every schema type.
+    const p = {
+      name: "p",
+      in: "path",
+      style: "matrix",
+      explode: false,
+      required: true,
+      schema: { type: "object", properties: { R: { type: "string" } } },
+    } as const;
+    expect(deserialize(";q=R,100", p)).toBeUndefined();
+    expect(deserialize(";p=R,100", p)).toEqual({ R: "100" });
+    // The exploded form cannot ask that question: its group names are
+    // the object's properties, so there is no parameter name on the
+    // wire to check against.
+    const exploded = { ...p, explode: true } as const;
+    expect(deserialize(";R=100", exploded)).toEqual({ R: "100" });
+  });
+
+  it("keeps a label object's separator distinct from its opening dot", () => {
+    // The dot doing two jobs is why the framing is stripped from the
+    // whole token before the split rather than from each part: an
+    // exploded ".R=100.G=200" stripped per part reads as one pair.
+    const p = {
+      name: "p",
+      in: "path",
+      style: "label",
+      explode: true,
+      schema: { type: "object" },
+    } as const;
+    expect(deserialize(".R=100.G=200", p)).toEqual({ R: "100", G: "200" });
+    // A value carrying "=" is still split at the first one only.
+    expect(deserialize(".token=a=b.pad=YQ==", p)).toEqual({ token: "a=b", pad: "YQ==" });
   });
 
   it("wraps a single-value repeated-explode array param as a one-element array", () => {
