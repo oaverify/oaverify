@@ -69,7 +69,9 @@ function buildUriGrammar(
     `(?:(?:${h16}:){0,5}${h16})?::${h16}`,
     `(?:(?:${h16}:){0,6}${h16})?::`,
   ].join("|");
-  const ipvFuture = `v[0-9A-Fa-f]+\\.[${unreserved}${subDelims}:]+`;
+  // `[vV]`, not `v`: ABNF literals are case-insensitive (RFC 5234 2.3),
+  // so the `"v"` of RFC 3986's `IPvFuture` admits either case.
+  const ipvFuture = `[vV][0-9A-Fa-f]+\\.[${unreserved}${subDelims}:]+`;
   const ipLiteral = `\\[(?:${ipv6}|${ipvFuture})\\]`;
   // No IPv4 branch: `IPv4address` is a subset of `reg-name`, so reg-name
   // already admits every dotted-decimal host, valid octets or not.
