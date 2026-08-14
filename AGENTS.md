@@ -523,22 +523,32 @@ keeping one step per runner so a failure names itself in the UI. Adding
 a runner therefore means adding the script, referencing the script, and
 folding it into both that root's `check` and CI.
 
-Scheduled jobs cover what the pin cannot. Every conformance runner gates
-PRs against the pinned corpus, cached so the required check never needs the
-network. `nightly-upstream` then re-runs the suites against upstream HEAD
-with `--floating`, which classifies extra failures as ours or upstream's by
-whether the unit gained cases (`conformance/floating.ts`); and
-`corpus-freshness` reports pins that are behind, plus (via
-`pnpm metaschema:stale`) a vendored metaschema whose dated URL now
+Scheduled jobs cover what the pin cannot, and they live in two workflows
+of their own rather than in `ci.yml`. Every conformance runner gates PRs
+against the pinned corpus, cached so the required check never needs the
+network. `nightly.yml` then re-runs the suites against upstream HEAD with
+`--floating`, which classifies extra failures as ours or upstream's by
+whether the unit gained cases (`conformance/floating.ts`). `pins.yml`
+asks the other question, in two jobs so the run page says which pin class
+moved: `corpora` reports pins that are behind, and `metaschemas` (via
+`pnpm metaschema:stale`) reports a vendored metaschema whose dated URL now
 serves different bytes.
 
-None of the three blocks a PR, and a red scheduled workflow notifies almost
-nobody, so `nightly-report` opens or updates one issue labelled
-`nightly-upstream` and closes it when that job recovers. Only
-`nightly-upstream` gates the issue: a pin being behind is the expected
-state much of the time, so the freshness result is reported in the issue
-body rather than holding it open. That is the "something goes red" for
-the larger checks.
+Neither workflow blocks a PR, and neither may sit in `ci.yml`: a badge
+reports the last run of a whole workflow file, so a stale pin there
+turned the CI badge red for a condition that is not a defect. They also
+stay separate from each other, because their reds mean different things
+and one badge cannot carry both.
+
+How each becomes visible differs, for the same reason. A red scheduled
+workflow notifies almost nobody, so `nightly.yml`'s `report` job opens or
+updates one issue labelled `nightly-upstream` and closes it when the run
+recovers. `pins.yml` gets no issue and carries a README badge instead: a
+pin being behind is the expected state much of the time, and keying an
+issue on it would leave one permanently open and train everyone to ignore
+the thread a real regression lands in. Expect that badge to be red for
+days at a stretch; bumping a pin is a decision, and the procedure is in
+[conformance/README.md](./conformance/README.md).
 
 `conformance/bowtie/` is a fifth dev-only tree and is deliberately
 absent from that table: it is not a pnpm root. Its toolchain is Docker

@@ -1,0 +1,129 @@
+name: nightly
+
+# The larger conformance checks, run against upstream HEAD rather than
+# the pin, plus the tracking issue that makes a failure visible.
+#
+# Separate from `ci` because it gates nothing: `ci` is the PR gate and
+# its badge should mean "main builds". Separate from `pins` because a
+# regression here is ours, while a stale pin there is a bump decision;
+# folding them together would give one badge two meanings.
+
+on:
+  schedule:
+    - cron: "30 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upstream:
+    # The PR gate answers "did this diff break anything"; the pin makes
+    # that reproducible and hermetic. It cannot answer "does the code still
+    # pass against what upstream has now", because the corpus it uses is
+    # frozen by design. This job is that second question.
+    #
+    # It fetches HEAD and leaves corpora.json alone: bumping a pin stays a
+    # reviewed commit rather than something a scheduled job does behind
+    # you. `--floating` swaps the strict ratchet for the grew-vs-broke
+    # classification in conformance/floating.ts, because against a moving
+    # corpus "more failures than the baseline" has two very different
+    # causes and a nightly that conflates them gets muted.
+    name: suites against upstream HEAD
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: install conformance deps
+        working-directory: conformance
+        run: pnpm install --frozen-lockfile
+      # Only the corpus the floating steps below read. JSONTestSuite and
+      # Overlay-Specification have no floating runner: the former is
+      # effectively frozen upstream and the latter's churn rarely touches
+      # its test fixtures, so their radar is the `pins` workflow and their
+      # measurement happens at the pin bump. Fetching them here (~220 MB,
+      # nearly all JSONTestSuite) would be downloaded and discarded.
+      - name: fetch the floating corpus at upstream HEAD
+        working-directory: conformance
+        run: pnpm corpora --latest JSON-Schema-Test-Suite
+      - name: JSON Schema suite against upstream HEAD
+        working-directory: conformance
+        run: pnpm suite --check-baseline --floating
+      - name: format corpus against upstream HEAD
+        working-directory: conformance
+        run: pnpm format-suite --check-baseline --floating
+      - name: OpenAPI cases (corpus-independent, so pinned semantics hold)
+        working-directory: conformance
+        run: pnpm openapi
+
+  report:
+    # A failing scheduled workflow notifies almost nobody: GitHub mails
+    # whoever last touched the cron, and that is easy to miss for months.
+    # So the durable signal is an issue, opened once and updated after, kept
+    # unique by its label so a fortnight of failures is one thread rather
+    # than fourteen. Closed automatically when the nightly goes green again.
+    #
+    # Only `upstream` gates the issue. A pin being behind is the expected
+    # state much of the time, so keying the issue on pin freshness too
+    # would leave it permanently open and train everyone to ignore the one
+    # thread a real regression lands in. That is why the `pins` workflow
+    # carries a badge instead of a row here.
+    name: tracking issue
+    needs: [upstream]
+    # not always(): a cancelled nightly is not a failed one, and must not
+    # file a false alarm in the tracking issue.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: open, update or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: ${{ needs.upstream.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          LABEL="nightly-upstream"
+          EXISTING=$(gh issue list --label "$LABEL" --state open --limit 1 --json number --jq '.[0].number // empty')
+
+          if [ "$UPSTREAM" = "success" ]; then
+            if [ -n "$EXISTING" ]; then
+              gh issue comment "$EXISTING" --body "The nightly upstream run is green again. Closing. ($RUN_URL)"
+              gh issue close "$EXISTING"
+            fi
+            echo "nightly upstream run green; nothing to report"
+            exit 0
+          fi
+
+          BODY=$(printf '%s\n' \
+            "The nightly upstream run did not pass (result: \`$UPSTREAM\`)." \
+            "" \
+            "Logs: $RUN_URL" \
+            "" \
+            "This does not block a pull request. It means a unit regressed" \
+            "against a corpus that did not grow, which is ours rather than" \
+            "upstream's; see conformance/floating.ts for how that is told apart." \
+            "" \
+            "Whether a pin has fallen behind upstream is a separate question," \
+            "reported by the \`pins\` workflow and its README badge. A stale pin" \
+            "is a bump decision rather than a defect, so it does not open or" \
+            "hold this issue open.")
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+            echo "updated issue #$EXISTING"
+          else
+            gh issue create --label "$LABEL" \
+              --title "Nightly upstream run is failing" --body "$BODY"
+          fi

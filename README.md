@@ -1,7 +1,8 @@
 # oaverify
 
 [![npm](https://img.shields.io/npm/v/oaverify)](https://www.npmjs.com/package/oaverify)
-[![CI](https://github.com/oaverify/oaverify/actions/workflows/ci.yml/badge.svg)](https://github.com/oaverify/oaverify/actions/workflows/ci.yml)
+[![CI](https://github.com/oaverify/oaverify/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/oaverify/oaverify/actions/workflows/ci.yml)
+[![pins](https://github.com/oaverify/oaverify/actions/workflows/pins.yml/badge.svg)](https://github.com/oaverify/oaverify/actions/workflows/pins.yml)
 [![types included](https://img.shields.io/badge/types-included-blue)](https://www.typescriptlang.org/)
 [![license: MIT](https://img.shields.io/npm/l/oaverify)](https://github.com/oaverify/oaverify/blob/main/LICENSE)
 
@@ -338,6 +339,12 @@ have to load and compile without error.
 [`conformance/REPORT.md`](https://github.com/oaverify/oaverify/blob/main/conformance/REPORT.md)
 has pass / fail counts by category, the out-of-scope list, and why each
 entry is out of scope.
+
+Those suites are pinned to a revision, so results stay reproducible. The
+**pins** badge says whether upstream has moved past a pin. Red means
+upstream added cases these runs haven't covered yet. It sits red often,
+and nothing is broken when it does. **CI** is the badge that tracks
+tests.
 
 ## CLI
 
