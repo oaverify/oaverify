@@ -170,11 +170,9 @@ describe("deserialize", () => {
     } as const;
     expect(deserialize(";q=1;r=2", arr)).toBeUndefined();
     expect(deserialize(";", arr)).toBeUndefined();
-    // A segment with no ";" carries no groups to read a name from, and
-    // is the value itself, exactly as `label` reads one with no ".".
-    // Requiring the framing would reject /t/7 as well, which is a
-    // larger change than the name check and not the one #758 asks for.
-    expect(deserialize("abc", arr)).toEqual(["abc"]);
+    // A segment with no ";" carries no matrix framing at all, so it is
+    // not an expansion of this parameter either (#789).
+    expect(deserialize("abc", arr)).toBeUndefined();
     // A group that does name us still supplies its value, empty or not.
     expect(deserialize(";q=1;p=2", arr)).toEqual(["2"]);
     expect(deserialize(";p=", arr)).toEqual([""]);
@@ -188,6 +186,38 @@ describe("deserialize", () => {
     const list = { ...scalar, schema: { type: "array", items: { type: "string" } } } as const;
     expect(deserialize(";q=1,2", list)).toBeUndefined();
     expect(deserialize(";p=1,2", list)).toEqual(["1", "2"]);
+  });
+
+  it("reports a token carrying none of its style's framing as absent", () => {
+    // #789. Every label expansion opens with "." and every matrix
+    // segment with ";", so a token carrying neither is not an expansion
+    // of this parameter in its declared style. Both styles are held to
+    // it together: they agreed with each other on the tolerant reading,
+    // and tightening one alone would have ended that.
+    for (const style of ["label", "matrix"] as const) {
+      const base = { name: "p", in: "path", style, required: true } as const;
+      const framed = style === "label" ? "." : ";p=";
+      // Absence is the only answer that rejects for every schema type.
+      // Reading the token as the value satisfies `type: string`, and
+      // splitting it satisfies an unbounded `type: array`.
+      const scalar = { ...base, schema: { type: "string" } } as const;
+      expect(deserialize("abc", scalar), `${style} scalar`).toBeUndefined();
+      expect(deserialize(`${framed}abc`, scalar), `${style} scalar framed`).toBe("abc");
+
+      const list = { ...base, schema: { type: "array", items: { type: "string" } } } as const;
+      expect(deserialize("a,b", list), `${style} array`).toBeUndefined();
+      expect(deserialize(`${framed}a,b`, list), `${style} array framed`).toEqual(["a", "b"]);
+
+      const obj = { ...base, schema: { type: "object" } } as const;
+      expect(deserialize("R,100", obj), `${style} object`).toBeUndefined();
+      expect(deserialize(`${framed}R,100`, obj), `${style} object framed`).toEqual({ R: "100" });
+    }
+    // The framing alone is a legal expansion of the empty value and
+    // stays one: {.x} against "" is ".", and {;x} against "" is ";x".
+    const label = { name: "p", in: "path", style: "label", schema: { type: "string" } } as const;
+    expect(deserialize(".", label)).toBe("");
+    const matrix = { name: "p", in: "path", style: "matrix", schema: { type: "string" } } as const;
+    expect(deserialize(";p", matrix)).toBe("");
   });
 
   it('reads a matrix group with no "=" as the empty value, not as its own name', () => {

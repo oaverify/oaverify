@@ -24,13 +24,22 @@ import {
  * @param parameter - The parameter definition.
  * @returns The deserialized value, ready for schema validation, or
  * `undefined` when the parameter has no value. That covers `raw` being
- * `undefined`, and one wire case: a `style: matrix` segment that opens
- * with ";" and whose groups all name some other parameter supplies
- * nothing for this one (see `matrixGroupValues`). Callers treat
- * both the same way, which is what makes `;q=1` a missing `p` rather
- * than a `p` of `";q=1"`. A matrix segment that does not open with ";"
- * carries no groups to read a name from and is the value itself, so
- * `"abc"` is `"abc"` and not an absence.
+ * `undefined`, and two wire cases, both of which say the token is not
+ * an expansion of this parameter in its declared style:
+ *
+ * - The token carries none of the style's framing: a `style: label`
+ *   value not opening with "." or a `style: matrix` segment not opening
+ *   with ";". So `"abc"` against either is an absent `p`, not a `p` of
+ *   `"abc"`.
+ * - A framed `style: matrix` segment whose groups all name some other
+ *   parameter (see `matrixGroupValues`), which makes `;q=1` an absent
+ *   `p` rather than a `p` of `"1"`.
+ *
+ * Callers treat all three the same way. A caller reporting a missing
+ * required parameter has to test the style as well as the value,
+ * because an object-typed parameter handed an empty array reads
+ * `undefined` too and that is not absence; `validateParameter` in
+ * `validate-step.ts` is the reference.
  *
  * @example
  * ```ts
@@ -62,6 +71,23 @@ export function deserialize(
     if (type === "object") return raw[0];
     return coerceScalar(raw[0] ?? "", schema);
   }
+
+  // Every `label` expansion opens with "." and every `matrix` segment
+  // with ";", whatever the schema type and whatever `explode` says, so
+  // a token carrying neither is not an expansion of this parameter in
+  // its declared style. Reporting the parameter absent is the only
+  // answer that rejects whatever the schema says: reading the token as
+  // the value satisfies `type: string`, and splitting it satisfies an
+  // unbounded `type: array` (#789).
+  //
+  // This is the same shape of rule as the group-name check below and
+  // was split out of it (#758): that one rejects a segment framed for
+  // some other parameter, this one a token framed for no style at all.
+  // Both styles are held to it together, because they had agreed with
+  // each other on the tolerant reading and tightening one alone would
+  // have ended that.
+  if (style === "label" && !raw.startsWith(".")) return undefined;
+  if (style === "matrix" && !raw.startsWith(";")) return undefined;
 
   if (type === "array") {
     if (raw === "") return [];
@@ -428,8 +454,8 @@ function stripStyle(value: string, style: ParameterStyle): string {
 
 /**
  * The values carried by the groups of a `style: matrix` segment that
- * name this parameter; `undefined` when a framed segment names none,
- * and the whole segment when it carries no framing at all.
+ * name this parameter; `undefined` when none do. Callers hand it a
+ * segment `deserialize` has already checked opens with ";".
  *
  * RFC 6570 §3.2.7 gives every matrix form the same frame: a segment is
  * a run of `;name=value` groups, and a group's name says which
@@ -459,14 +485,10 @@ function stripStyle(value: string, style: ParameterStyle): string {
  * in the router, not here.
  */
 function matrixGroupValues(raw: string, name: string): string[] | undefined {
-  // A segment not opening with ";" carries no framing, so there is no
-  // group name to read and the segment is the value. `label` extends
-  // the same tolerance to a missing "."; the two are not identical
-  // past that point, because an unframed body here is one value rather
-  // than a list to split. Requiring the framing instead would reject
-  // `/t/7` as well, which is a larger change than the name check and
-  // not the one #758 asks for.
-  if (!raw.startsWith(";")) return [raw];
+  // Unreachable: `deserialize` rejects an unframed segment before any
+  // of the three call sites is taken. Kept so the reader is total on
+  // its own terms rather than only in the context of its callers.
+  if (!raw.startsWith(";")) return undefined;
   const values: string[] = [];
   for (const group of raw.split(";")) {
     if (group === "") continue;

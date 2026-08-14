@@ -1071,4 +1071,27 @@ describe("compile-spec: matrix parameter parity (#758)", () => {
     expect(runtime.validateRequest(req as never).valid).toBe(true);
     expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
   });
+
+  it("rejects an unframed token in either style, matching createValidator", async () => {
+    // #789 widened the gate the two tests above pin from `matrix` alone
+    // to `matrix` and `label`, so the emitter's copy of it has to widen
+    // too or the two disagree on `label` exactly as they would have on
+    // `matrix`.
+    for (const [style, path] of [
+      ["matrix", "/t/abc"],
+      ["label", "/t/abc"],
+    ] as const) {
+      const styled = JSON.parse(JSON.stringify(spec)) as typeof spec;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (styled.paths as any)["/t/{p}"].get.parameters[0].style = style;
+      const aot = await buildAot(styled);
+      const runtime = createValidator(styled);
+      const req = { method: "GET", path };
+      expect(runtime.validateRequest(req as never).valid, style).toBe(false);
+      expect(
+        flatErrors(aot.validateRequest(req as never)).map((e) => e.code),
+        style,
+      ).toEqual(["path-param"]);
+    }
+  });
 });

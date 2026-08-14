@@ -1648,10 +1648,11 @@ describe("matrix path parameters (#758)", () => {
       expect(leafCodes(err)).toEqual(["path-param"]);
       expect(leafAt(err, "path.p")?.message).toBe('missing required path parameter "p"');
     }
-    // A segment with no ";" is not matrix framing at all, so it reads
-    // as the value and its schema judges it, the way `label` reads
-    // one with no ".". It reached the handler as [] before.
-    expect(leafCodes(get(arr, "/t/abc"))).toEqual(["type"]);
+    // A segment with no ";" carries no matrix framing, so it is not an
+    // expansion of `p` and `p` is absent (#789). Reading it as the
+    // value instead reported `type`, which is a different claim: that
+    // the client sent this parameter and got it wrong.
+    expect(leafCodes(get(arr, "/t/abc"))).toEqual(["path-param"]);
     // The same verdict whatever the item type. A string-typed schema
     // is what ruled out leaving the segment unread instead: it would
     // have accepted ";q=1;r=2" as a one-element array.
@@ -1661,6 +1662,36 @@ describe("matrix path parameters (#758)", () => {
     expect(leafCodes(get(matrixSpec({ type: "string" }, false), "/t/;q=1"))).toEqual([
       "path-param",
     ]);
+  });
+
+  it("reports an unframed label value as missing too (#789)", () => {
+    // The gate widened from `matrix` alone to both styles, because the
+    // two had agreed with each other on the tolerant reading and
+    // tightening one alone would have ended that.
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t/{p}": {
+          get: {
+            parameters: [
+              {
+                name: "p",
+                in: "path",
+                style: "label",
+                required: true,
+                schema: { type: "array", items: { type: "string" } },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const err = get(spec, "/t/blue,black");
+    expect(leafCodes(err)).toEqual(["path-param"]);
+    expect(leafAt(err, "path.p")?.message).toBe('missing required path parameter "p"');
+    expect(get(spec, "/t/.blue,black")).toBeNull();
   });
 
   it("leaves a non-matrix parameter's undefined deserialization alone", () => {
