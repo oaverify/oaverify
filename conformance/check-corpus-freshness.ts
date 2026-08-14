@@ -106,10 +106,10 @@ if (stale.length === 0 && unreachable.length === 0) {
 }
 
 // A corpus that could not be checked is not fresh, it is unknown. Under
-// --fail-if-stale the exit code is the only signal anyone sees, so an
+// --fail-if-stale the exit code is what colours the `pins` badge, so an
 // unreachable upstream must not read as "all current". The failure shows
-// up as a red corpus-freshness job and as that job's row in the nightly
-// tracking issue's body; it does not itself open or hold the issue.
+// up as a red `pins` workflow and nothing else; it does not open the
+// nightly tracking issue, which tracks regressions rather than pins.
 if (unreachable.length > 0) {
   console.log(
     `\n${unreachable.length} corpus/corpora could not be checked: ${unreachable.join(", ")}.`,

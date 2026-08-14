@@ -1,0 +1,74 @@
+name: pins
+
+# "Did something we pinned move upstream?" Two pin classes, two jobs, and
+# nothing else, because this workflow carries a README badge and a badge
+# is only readable when its red means one thing. A conformance
+# regression belongs to `nightly`; a broken build belongs to `ci`.
+#
+# Both pins are deliberate, reviewed commits rather than something a
+# scheduled job bumps behind you, so neither job edits anything. They
+# report, and the badge is the report.
+#
+# Expect red for days at a stretch. Being behind upstream is a
+# maintenance signal, not a defect: the corpus pin is what makes a
+# committed baseline reproducible, and bumping one is a decision because
+# new cases have to be triaged rather than absorbed. See
+# conformance/README.md for the bump procedure.
+
+on:
+  schedule:
+    - cron: "30 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  corpora:
+    # The pin in corpora.json makes the committed baselines reproducible.
+    # On its own it would also make the corpora invisible: a frozen suite
+    # means every conformance runner goes green forever while upstream
+    # adds cases we have never been measured against. This job is the
+    # other half. It reports which pins are behind and what landed.
+    name: are the pinned corpora behind upstream?
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: install conformance deps
+        working-directory: conformance
+        run: pnpm install --frozen-lockfile
+      # `pnpm corpora:stale` alone exits 0 whether or not a pin is behind,
+      # because someone running it locally should not be handed a failure
+      # for the expected state. Here the exit code is the signal, so CI
+      # asks for the strict form.
+      - name: which pins are behind, and what landed
+        working-directory: conformance
+        run: pnpm corpora:stale --fail-if-stale
+
+  metaschemas:
+    # Same question, different noun: the vendored OpenAPI meta-schemas are
+    # pinned by dated URL, and a third party can republish different bytes
+    # under the same date.
+    #
+    # Its own job rather than a second step in `corpora` so that a stale
+    # corpus pin cannot mask a drift report, and so the run page says
+    # which of the two moved without anyone opening a log. Needs no
+    # install: check-drift.mjs imports node builtins only.
+    name: have the vendored OpenAPI metaschemas changed under their pins?
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.33.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - run: pnpm metaschema:stale

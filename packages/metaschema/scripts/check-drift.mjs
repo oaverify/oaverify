@@ -17,10 +17,10 @@
 // how the 3.1 pin was first set two revisions behind.
 //
 // So: staying current is a manual check, and this script does not
-// pretend otherwise. In CI this runs in the scheduled corpus-freshness
-// job, deliberately NOT in nightly-upstream or the PR gate: that job is
-// the "did something we pinned move upstream" radar, never blocks a PR,
-// and does not open the nightly tracking issue, so a third party
+// pretend otherwise. In CI this runs as the `metaschemas` job of the
+// scheduled `pins` workflow, deliberately NOT in `nightly` or the PR
+// gate: `pins` is the "did something we pinned move upstream" radar,
+// never blocks a PR, and opens no tracking issue, so a third party
 // republishing a schema (or spec.openapis.org being unreachable, exit 2)
 // cannot read as a code regression. Similar reasoning keeps detection/
 // out of CI entirely.

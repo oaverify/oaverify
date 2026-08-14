@@ -83,9 +83,9 @@ ratchet it. Exit code 2 throughout means "could not measure" (missing
 corpus, drifted pin, missing baseline) rather than "regressed".
 
 `pnpm corpora:stale` is the exception: it exits 0 whether or not a pin is
-behind, because being behind is expected most of the time. The nightly
-`corpus-freshness` job passes `--fail-if-stale`, where the exit code is
-the only signal anyone sees.
+behind, because being behind is expected most of the time. The scheduled
+`pins` workflow passes `--fail-if-stale`, where the exit code is what
+colours the badge.
 
 The PR gate never reaches the network: CI caches the corpora keyed on
 `corpora.json`, so a required check does not depend on GitHub's git
@@ -104,11 +104,11 @@ Two things run nightly instead, because the pin cannot answer them:
   measurement happens at the pin bump.
 - `pnpm corpora:stale --fail-if-stale`, as above.
 
-Neither blocks a pull request. A `nightly-upstream` failure opens or
+Neither blocks a pull request, and they run in separate workflows so that
+one red means one thing. A failure of the `nightly` workflow opens or
 updates one labelled issue, because a red scheduled workflow notifies
-almost nobody. A stale pin alone does not open it (that is the expected
-state much of the time); the freshness result is reported in the issue
-body instead.
+almost nobody. A stale pin gets no issue (that is the expected state much
+of the time) and shows on the `pins` badge in the root README instead.
 
 ## Reading the results
 
