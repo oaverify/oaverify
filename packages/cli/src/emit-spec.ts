@@ -908,12 +908,12 @@ function __validateParameter(p, req, match) {
   if (raw === undefined) return missing();
   if (p.__validator === null) return null;
   const value = deserialize(raw, p);
-  // Mirrors validateParameter in validate-step.ts: a present segment
-  // can still supply no value, which \`deserialize\` reports as
-  // undefined. Gated on the style there and here, because an
-  // object-typed parameter handed an empty array reads undefined too
-  // and that is not absence. See #758.
-  if (value === undefined && p.style === "matrix") return missing();
+  // Mirrors validateParameter in validate-step.ts: a present token can
+  // still supply no value, which \`deserialize\` reports as undefined.
+  // Gated on the style there and here, because an object-typed
+  // parameter handed an empty array reads undefined too and that is not
+  // absence. See #758 and #789.
+  if (value === undefined && (p.style === "matrix" || p.style === "label")) return missing();
   const r = p.__validator.validate(value, [p.in, p.name]);
   if (r.valid || r.error === undefined) return null;
   return r.error;

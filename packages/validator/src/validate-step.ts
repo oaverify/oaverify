@@ -235,18 +235,19 @@ export function validateParameter(
   }
 
   const value = deserialize(raw, p);
-  // A present segment can still supply no value for this parameter: a
-  // `style: matrix` segment whose groups all name something else. That
-  // is the parameter being absent, and reporting it as absent is what
-  // rejects it whatever the schema says, where handing the schema `[]`
-  // or the unread segment did not (#758).
+  // A present token can still supply no value for this parameter: a
+  // `style: matrix` segment whose groups all name something else
+  // (#758), or a `label` / `matrix` token carrying none of the style's
+  // framing (#789). Both are the parameter being absent, and reporting
+  // absence is what rejects them whatever the schema says, where
+  // handing the schema `[]` or the unread token did not.
   //
   // Gated on the style rather than testing `value === undefined` alone,
   // because `deserialize` has a second source of undefined that is not
   // absence: an object-typed parameter handed an empty array reads
   // `raw[0]`. Treating that as absent would accept an optional one that
   // the schema rejects today.
-  if (value === undefined && p.style === "matrix")
+  if (value === undefined && (p.style === "matrix" || p.style === "label"))
     return missingParameterError(p, code, pathPrefix);
   const r = validator.validate(value, pathPrefix);
   if (r.valid) {
