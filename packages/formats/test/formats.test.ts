@@ -322,6 +322,19 @@ describe("uri / iri (RFC 3986 and RFC 3987 grammar)", () => {
     expect(validateUri("http://[v7.aBc:1]/x")).toBe(true);
   });
 
+  // ABNF literals are case-insensitive (RFC 5234 2.3), so the `"v"` of
+  // `IPvFuture` admits either case. One builder serves all four
+  // validators, so a lowercase-only `v` was wrong in each; only the IRI
+  // suite carries an upstream case for it.
+  it("accepts an IPvFuture host with either case of version letter", () => {
+    for (const value of ["http://[v1.fe]", "http://[V1.fe]", "http://[V7.aBc:1]/x"]) {
+      expect(validateUri(value), value).toBe(true);
+      expect(validateUriReference(value), value).toBe(true);
+      expect(validateIri(value), value).toBe(true);
+      expect(validateIriReference(value), value).toBe(true);
+    }
+  });
+
   it("rejects an unterminated IP-literal host", () => {
     expect(validateUri("https://[@example.org/test.txt")).toBe(false);
     expect(validateUri("http://[2001:db8::1/x")).toBe(false);
