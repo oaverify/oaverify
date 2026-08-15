@@ -19,7 +19,7 @@ import {
   type ParameterObject,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
-import { coerceScalar } from "./deserialize.js";
+import { coerceScalar, propertySchemas } from "./deserialize.js";
 import { effectiveType } from "./schema-type.js";
 
 /**
@@ -27,16 +27,14 @@ import { effectiveType } from "./schema-type.js";
  * `undefined` if the schema isn't a JSON-object-valued schema with a
  * well-formed `properties` record.
  *
+ * One reader, in `deserialize.ts` beside the `items` equivalent, because
+ * the assembled and the deserialized object paths have to agree on what
+ * a declared property type means (#824). This name is the one the
+ * assemblers below read with.
+ *
  * @internal
  */
-export function extractObjectProperties(
-  schema: SchemaOrBoolean | undefined,
-): Record<string, SchemaOrBoolean> | undefined {
-  if (schema === undefined || typeof schema === "boolean") return undefined;
-  const props = (schema as { properties?: unknown }).properties;
-  if (props === null || typeof props !== "object" || Array.isArray(props)) return undefined;
-  return props as Record<string, SchemaOrBoolean>;
-}
+export const extractObjectProperties = propertySchemas;
 
 /**
  * Coerce a raw query-string scalar into the JS type a numeric or

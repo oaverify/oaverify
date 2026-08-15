@@ -404,6 +404,56 @@ describe("deserialize", () => {
     expect(out).toEqual({ role: "admin", firstName: "Alex" });
   });
 
+  it("coerces an object's properties with their declared schemas", () => {
+    // #824. The object branch built its result from raw strings and
+    // never read `properties`, so a non-string property type rejected
+    // input that was correct for the declaration. The two paths that
+    // assemble an object from top-level query keys have coerced since
+    // #707, which is what made the answer depend on which of the two
+    // code paths a parameter happened to reach.
+    const schema = {
+      type: "object",
+      properties: {
+        n: { type: "integer" },
+        f: { type: "number" },
+        b: { type: "boolean" },
+        s: { type: "string" },
+      },
+    } as const;
+    const flat = { name: "p", in: "query", explode: false, schema } as const;
+    expect(deserialize("n,42,f,1.5,b,true,s,7", flat)).toEqual({
+      n: 42,
+      f: 1.5,
+      b: true,
+      s: "7",
+    });
+    // The exploded arm reads the same map.
+    const exploded = { name: "p", in: "cookie", style: "form", explode: true, schema } as const;
+    expect(deserialize("n=42&b=false&s=7", exploded)).toEqual({ n: 42, b: false, s: "7" });
+    // Every style routes through the same two arms, so the framed ones
+    // coerce too.
+    const label = { name: "p", in: "path", style: "label", schema } as const;
+    expect(deserialize(".n,42", label)).toEqual({ n: 42 });
+    const matrix = { name: "p", in: "path", style: "matrix", explode: true, schema } as const;
+    expect(deserialize(";n=42", matrix)).toEqual({ n: 42 });
+
+    // A property the schema does not declare stays a string, matching
+    // what `assembleDeepObject` does: there is no type to read, and
+    // inventing one would coerce `additionalProperties` nobody described.
+    expect(deserialize("n,42,other,42", flat)).toEqual({ n: 42, other: "42" });
+
+    // The lexeme grammar is `coerceScalar`'s, the same one a scalar
+    // parameter reads (#751), so what does not spell a number stays a
+    // string and fails the type check rather than validating as
+    // something the client never sent.
+    expect(deserialize("n,0x1A,f,,b,TRUE", flat)).toEqual({ n: "0x1A", f: "", b: "TRUE" });
+
+    // No `properties` to read leaves every value a string, which is
+    // what every object case did before this.
+    const untyped = { name: "p", in: "query", explode: false, schema: { type: "object" } } as const;
+    expect(deserialize("n,42", untyped)).toEqual({ n: "42" });
+  });
+
   it("reads an object in every style the Style Examples table gives one for", () => {
     // #818. The object arms consulted the style only for `deepObject`:
     // the exploded arm split on "&" and the non-explode arm split on

@@ -1,4 +1,4 @@
-import type { ParameterObject } from "@oaverify/internal-core";
+import type { OpenAPIDocument, ParameterObject } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import {
   assembleDeepObject,
@@ -6,6 +6,13 @@ import {
   assembleObjectQueryParam,
   coerceQueryScalar,
 } from "../src/query-assembly.js";
+import { createValidator } from "../src/validator.js";
+
+/** The `returnValues` accumulator, as much of it as these cases read. */
+interface RequestValuesLike {
+  path: Record<string, unknown>;
+  query: Record<string, unknown>;
+}
 
 describe("coerceQueryScalar", () => {
   it("returns undefined for missing values", () => {
@@ -175,5 +182,72 @@ describe("assembleObjectQueryParam", () => {
       schema: { type: "object", properties: { id: { type: "integer" } } },
     };
     expect(assembleObjectQueryParam(p, {})).toEqual({ value: undefined });
+  });
+});
+
+describe("property coercion agrees across every path (#824)", () => {
+  // The defect this pins was not in any one path. It was that the two
+  // paths in this file coerced and the one in `deserialize.ts` did not,
+  // so the same declared property type meant different things depending
+  // on which code path a parameter happened to reach, and two of the
+  // four shapes rejected input that was correct for the declaration.
+  const objectSpec = (param: { in: string } & Record<string, unknown>): OpenAPIDocument =>
+    ({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        [param.in === "path" ? "/t/{p}" : "/t"]: {
+          get: {
+            parameters: [
+              {
+                name: "p",
+                required: param.in === "path",
+                schema: { type: "object", properties: { R: { type: "integer" } } },
+                ...param,
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    }) as OpenAPIDocument;
+
+  const shapes = [
+    {
+      label: "query deepObject",
+      param: { in: "query", style: "deepObject", explode: true },
+      req: { method: "GET", path: "/t", query: { "p[R]": "100" } },
+      read: (v: RequestValuesLike) => v.query.p,
+    },
+    {
+      label: "query form + explode",
+      param: { in: "query", style: "form", explode: true },
+      req: { method: "GET", path: "/t", query: { R: "100" } },
+      read: (v: RequestValuesLike) => v.query.p,
+    },
+    {
+      label: "query form, no explode",
+      param: { in: "query", style: "form", explode: false },
+      req: { method: "GET", path: "/t", query: { p: "R,100" } },
+      read: (v: RequestValuesLike) => v.query.p,
+    },
+    {
+      label: "path simple",
+      param: { in: "path", style: "simple" },
+      req: { method: "GET", path: "/t/R,100" },
+      read: (v: RequestValuesLike) => v.path.p,
+    },
+  ] as const;
+
+  it("accepts and coerces on all four", () => {
+    for (const { label, param, req, read } of shapes) {
+      const v = createValidator(objectSpec(param), { returnValues: true });
+      const r = v.validateRequest(req as never) as {
+        valid: boolean;
+        value?: RequestValuesLike;
+      };
+      expect(r.valid, label).toBe(true);
+      expect(read(r.value as RequestValuesLike), label).toEqual({ R: 100 });
+    }
   });
 });

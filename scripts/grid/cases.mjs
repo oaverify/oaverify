@@ -103,6 +103,18 @@ const QUERY_WIRE = [
   ["deepExp", { [`${NAME}[n]`]: "1e3" }],
   ["topLevelProps", { a: "x", n: "7" }],
   ["topLevelPropsHex", { a: "x", n: "0x1A" }],
+  // Property names the object declarations actually declare, in a single
+  // token. `deep` and `topLevelProps` above spell the same pair, and both
+  // reach an object through the assemblers in query-assembly.ts, which
+  // have coerced by the property schema since #707. Nothing spelled the
+  // declared names in one token, so the branch that reads an object out
+  // of one was never asked to coerce anything and #824 sat under a green
+  // differential: every object shape used keys the schema does not
+  // declare, where there is no type to read and a string is the right
+  // answer.
+  ["propsCsv", { [NAME]: "a,x,n,7" }],
+  ["propsCsvHex", { [NAME]: "a,x,n,0x1A" }],
+  ["propsExploded", { [NAME]: "a=x,n=7" }],
 ];
 
 /** Path wire inputs, substituted into the `/t/{p}` template. */
@@ -126,6 +138,12 @@ const PATH_WIRE = [
   ["matrixMixedNames", ";q=1;p=2"],
   ["matrixNoMatch", ";q=1;r=2"],
   ["encodedComma", "a%2Cb"],
+  // The declared property names, in each framing an object takes here.
+  // See the query table for what their absence hid.
+  ["propsCsv", "a,x,n,7"],
+  ["propsExploded", "a=x,n=7"],
+  ["propsLabel", ".a,x,n,7"],
+  ["propsMatrix", ";p=a,x,n,7"],
 ];
 
 /** Header and cookie wire inputs. */
@@ -135,6 +153,8 @@ const SCALAR_WIRE = [
   ["hex", "0x1A"],
   ["csv", "a,b,c"],
   ["word", "abc"],
+  ["propsCsv", "a,x,n,7"],
+  ["propsExploded", "a=x,n=7"],
 ];
 
 /**
