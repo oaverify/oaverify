@@ -1,8 +1,10 @@
 /**
- * Query-parameter assembly helpers. OpenAPI allows a single
- * object-typed query parameter to be spread across multiple top-level
- * query keys (`style: form + explode: true` default, or `style:
- * deepObject`). Before the schema compiler can validate such a
+ * Parameter assembly helpers. OpenAPI allows a single object-typed
+ * parameter to be spread across several wire keys rather than living
+ * under one: a query parameter with `style: form + explode: true` (the
+ * default) or `style: deepObject`, and from OpenAPI 3.2 a cookie
+ * parameter with `style: cookie`, whose exploded form writes one crumb
+ * per property. Before the schema compiler can validate such a
  * parameter, the pieces have to be re-assembled into a single object.
  *
  * Extracted from validator.ts so the rules are unit-testable in
@@ -139,4 +141,47 @@ export function assembleObjectQueryParam(
     return { value: assembleFormExplodedObject(p.schema, query) };
   }
   return undefined;
+}
+
+/**
+ * The cookie-location sibling of {@link assembleObjectQueryParam}, for
+ * OpenAPI 3.2's `style: cookie`. Its exploded form (the default for
+ * that style) drops the parameter name and writes one crumb per
+ * property, so `Cookie: R=100; G=200` carries the whole of `p`, and
+ * nothing is stored under `p` itself.
+ *
+ * Returns `undefined` when the parameter is not that shape, and the
+ * caller falls through to the ordinary by-name lookup. When it is that
+ * shape but no declared property arrived, the result is
+ * `{ value: undefined }`, which the caller reads as absent.
+ *
+ * A schema declaring no `properties` is the first of those, not the
+ * second: with nothing to name the crumbs, this cannot tell which of
+ * them belong to `p`, and claiming the parameter would report every
+ * such request missing. The by-name path still reads a crumb literally
+ * called `p`, which is what a caller sending one meant, and
+ * `deserialize` splits it on the style's own delimiter.
+ *
+ * `style: form` in a cookie is deliberately not assembled here, on
+ * either version. Appendix D says form "is always incorrect" in a
+ * cookie for multiple values, so no reading of an exploded form object
+ * is the specified one, and guessing at a value is worse than reporting
+ * the parameter the caller can see is missing. `style: cookie` is the
+ * declaration that asks for this and gets it.
+ *
+ * @internal
+ */
+export function assembleObjectCookieParam(
+  p: ParameterObject,
+  cookies: Record<string, string> | undefined,
+): { value: unknown } | undefined {
+  if (p.in !== "cookie") return undefined;
+  if (p.style !== "cookie") return undefined;
+  if (effectiveType(p.schema) !== "object") return undefined;
+  // `cookie` defaults explode to true, the way `form` does; an
+  // explicit `explode: false` joins the pairs under the parameter's own
+  // name instead, which is the ordinary by-name path.
+  if (p.explode === false) return undefined;
+  if (extractObjectProperties(p.schema) === undefined) return undefined;
+  return { value: assembleFormExplodedObject(p.schema, cookies) };
 }

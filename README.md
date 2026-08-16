@@ -394,9 +394,15 @@ and picks the matching dialect. No per-request branching.
 | ----- | --------------------- | ----------------------------------------------------------- |
 | 3.0.x | OAS 3.0 Schema Object | `nullable`, boolean `exclusiveMin/Max`, sibling-`$ref` drop |
 | 3.1.x | JSON Schema 2020-12   | Assertive `format`                                          |
-| 3.2.x | JSON Schema 2020-12   | Same as 3.1 + the `QUERY` HTTP method                       |
+| 3.2.x | JSON Schema 2020-12   | Same as 3.1 + `QUERY` and `style: cookie`                   |
 
-3.2 coverage is the Schema Object (unchanged from 3.1) plus `QUERY`.
+3.2 coverage is the Schema Object (unchanged from 3.1), `QUERY`, and
+`style: cookie` on a cookie parameter, whose exploded form (the default
+for that style) reads one cookie per property. Exploded _arrays_ under
+it need a repeated cookie name, which `HttpRequest.cookies` cannot carry
+today, so one of those arrives a single element long however many were
+sent; see the type's note.
+
 Other 3.2 document-level additions (`additionalOperations`,
 `in: querystring`, streaming media types) aren't recognized yet. An
 operation declared under `additionalOperations` is not routed, so a

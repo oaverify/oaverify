@@ -18,7 +18,7 @@ import {
  * - path: `simple` (default), `label`, `matrix`
  * - query: `form` (default), `deepObject` (limited), `spaceDelimited`, `pipeDelimited`
  * - header: `simple` (default)
- * - cookie: `form` (default)
+ * - cookie: `form` (default), `cookie` (OpenAPI 3.2 and later)
  *
  * @param raw - The raw value(s) provided for this parameter (string, array, or undefined).
  * @param parameter - The parameter definition.
@@ -59,7 +59,7 @@ export function deserialize(
 ): unknown {
   if (raw === undefined) return undefined;
   const style = parameter.style ?? defaultStyle(parameter.in);
-  const explode = parameter.explode ?? style === "form";
+  const explode = parameter.explode ?? defaultExplode(style);
   const schema = parameter.schema;
   const type = effectiveType(schema);
 
@@ -115,6 +115,15 @@ export function deserialize(
       const body = groups[0] ?? "";
       if (body === "") return [];
       return body.split(",").map((v) => coerceScalar(v, items));
+    }
+    if (style === "cookie" && explode) {
+      // One crumb is one element. The style escapes nothing, so a comma
+      // inside the value is part of the value, and the elements that
+      // would follow it live under a repeat of the name that
+      // `HttpRequest.cookies` cannot carry (#826). Reading the crumb as
+      // a comma-joined list would invent elements the wire never
+      // separated.
+      return [coerceScalar(raw, items)];
     }
     const separator = arraySeparator(style, explode);
     return raw.split(separator).map((v) => coerceScalar(stripStyle(v, style), items));
@@ -411,6 +420,23 @@ function defaultStyle(location: string): ParameterStyle {
   return "simple";
 }
 
+/**
+ * What `explode` means when a parameter leaves it out. `form` and, from
+ * OpenAPI 3.2, `cookie` default it to true; every other style defaults
+ * it to false.
+ *
+ * Read alongside {@link defaultStyle}: that one answers what a
+ * parameter's style is when unstated, this one what its explode is.
+ * `cookie` is never the answer to the first, since 3.2 keeps `form` as
+ * the default style in a cookie for compatibility, so a parameter
+ * reaches the true arm here only by declaring `style: cookie` itself.
+ *
+ * @internal
+ */
+function defaultExplode(style: ParameterStyle): boolean {
+  return style === "form" || style === "cookie";
+}
+
 function arraySeparator(style: ParameterStyle, explode: boolean): string {
   if (explode) return ","; // caller should have used Array.isArray fallthrough
   if (style === "pipeDelimited") return "|";
@@ -444,6 +470,14 @@ function objectSeparator(style: ParameterStyle, explode: boolean): string {
   if (style === "pipeDelimited") return "|";
   if (style === "spaceDelimited") return " ";
   if (style === "simple") return ",";
+  // RFC 6265 delimits crumbs with "; ", which is what `style: cookie`
+  // adopts and the one thing that separates it from `form`. The
+  // exploded arm is reached when a caller hands the pairs over joined,
+  // under a crumb literally named for the parameter: a request whose
+  // cookies were split into a record instead takes
+  // `assembleObjectCookieParam`, which reads them as separate crumbs
+  // and never arrives here.
+  if (style === "cookie") return explode ? "; " : ",";
   // `form`, in query and cookie, and any style not named above.
   return explode ? "&" : ",";
 }
@@ -545,7 +579,7 @@ function itemSchema(
  * makes `effectiveType` read `type: "object"` and return every property
  * as an unchanged string (#824).
  *
- * Shared with `extractObjectProperties` in `query-assembly.ts`, which
+ * Shared with `extractObjectProperties` in `param-assembly.ts`, which
  * re-exports this. The two paths that assemble an object from top-level
  * query keys already read `properties`; this is what lets the path that
  * deserializes one from a single token read the same map, so a property

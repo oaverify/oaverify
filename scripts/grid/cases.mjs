@@ -105,7 +105,7 @@ const QUERY_WIRE = [
   ["topLevelPropsHex", { a: "x", n: "0x1A" }],
   // Property names the object declarations actually declare, in a single
   // token. `deep` and `topLevelProps` above spell the same pair, and both
-  // reach an object through the assemblers in query-assembly.ts, which
+  // reach an object through the assemblers in param-assembly.ts, which
   // have coerced by the property schema since #707. Nothing spelled the
   // declared names in one token, so the branch that reads an object out
   // of one was never asked to coerce anything and #824 sat under a green

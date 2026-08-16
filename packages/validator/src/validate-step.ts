@@ -10,7 +10,7 @@ import { deserialize, matchParsedMediaType } from "./deserialize.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast, getOwn } from "./headers.js";
 import type { OperationCache } from "./operation-cache.js";
 import type { MutableRequestValues } from "./request-values.js";
-import { assembleObjectQueryParam } from "./query-assembly.js";
+import { assembleObjectCookieParam, assembleObjectQueryParam } from "./param-assembly.js";
 
 /**
  * Media type of the (single) entry inside a parameter's `content` map,
@@ -93,6 +93,39 @@ function missingParameterError(
 }
 
 /**
+ * Finish a parameter whose value was assembled from several wire keys
+ * rather than read from one: the query shapes
+ * ({@link assembleObjectQueryParam}) and the cookie one
+ * ({@link assembleObjectCookieParam}).
+ *
+ * An assembled parameter skips {@link deserialize} entirely, because
+ * the assembler already produced the typed object, so this is the whole
+ * of its tail: absent, valid, or the schema's error. `undefined` is
+ * absence, which is why an assembler returns `{ value: undefined }`
+ * rather than `undefined` when it recognised the shape and found
+ * nothing.
+ *
+ * @internal
+ */
+function validateAssembled(
+  value: unknown,
+  p: ParameterObject,
+  validator: CompiledTreeSchema | undefined,
+  code: string,
+  pathPrefix: (string | number)[],
+  sink: MutableRequestValues | undefined,
+): ValidationError | null {
+  if (validator === undefined) return null;
+  if (value === undefined) return missingParameterError(p, code, pathPrefix);
+  const r = validator.validate(value, pathPrefix);
+  if (r.valid) {
+    if (sink !== undefined) recordValue(sink, p, value);
+    return null;
+  }
+  return r.error ?? null;
+}
+
+/**
  * Validate a single parameter against the operation cache: fetch the
  * raw value from the appropriate HTTP frame (path / query / header /
  * cookie), deserialise per `style` + `explode`, and run the pre-
@@ -140,15 +173,7 @@ export function validateParameter(
       // array deserialization path.
       const assembled = assembleObjectQueryParam(p, req.query);
       if (assembled !== undefined) {
-        if (validator === undefined) return null;
-        if (assembled.value === undefined) return missingParameterError(p, code, pathPrefix);
-        const r = validator.validate(assembled.value, pathPrefix);
-        if (r.valid) {
-          if (sink !== undefined) recordValue(sink, p, assembled.value);
-          return null;
-        }
-        if (r.error === undefined) return null;
-        return r.error;
+        return validateAssembled(assembled.value, p, validator, code, pathPrefix, sink);
       }
       raw = cache.requestParameterReadsRequireOwnProperties
         ? getOwn(req.query, p.name)
@@ -182,14 +207,22 @@ export function validateParameter(
       pathPrefix = ["header", p.name];
       code = "header-param";
       break;
-    case "cookie":
+    case "cookie": {
+      pathPrefix = ["cookie", p.name];
+      code = "cookie-param";
+      validator = cache.cookieParamValidators.get(p.name);
+      // OpenAPI 3.2's `style: cookie` spreads an exploded object over
+      // one crumb per property, so there is nothing under `p.name` to
+      // look up. Same shape as the query assembly above.
+      const assembled = assembleObjectCookieParam(p, req.cookies);
+      if (assembled !== undefined) {
+        return validateAssembled(assembled.value, p, validator, code, pathPrefix, sink);
+      }
       raw = cache.requestParameterReadsRequireOwnProperties
         ? getOwn(req.cookies, p.name)
         : req.cookies?.[p.name];
-      validator = cache.cookieParamValidators.get(p.name);
-      pathPrefix = ["cookie", p.name];
-      code = "cookie-param";
       break;
+    }
   }
 
   if (raw === undefined) return missingParameterError(p, code, pathPrefix);

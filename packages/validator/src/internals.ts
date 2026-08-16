@@ -1,6 +1,6 @@
 /**
  * Internal re-exports for `@oaverify/core/validator/internals`. Exposes
- * the parameter-deserialisation and query-assembly primitives that the
+ * the parameter-deserialisation and parameter-assembly primitives that the
  * validator uses to prepare values before schema compilation, plus the
  * shared document traversal. Reachable when you need them (tests,
  * advanced plugins, tooling that reuses the same style / explode rules
@@ -34,15 +34,17 @@ export {
   type SchemaRefResolver,
 } from "./deserialize.js";
 
-// Query-object assembly helpers. Handle the two OAS query shapes that
-// spread an object across multiple top-level keys: `style: form +
-// explode: true` (the default) and `style: deepObject`.
+// Object assembly helpers. Handle the OAS shapes that spread an object
+// across several wire keys: in the query, `style: form + explode: true`
+// (the default) and `style: deepObject`; in a cookie, OpenAPI 3.2's
+// `style: cookie` when exploded.
 export {
   assembleDeepObject,
   assembleFormExplodedObject,
+  assembleObjectCookieParam,
   assembleObjectQueryParam,
   coerceQueryScalar,
-} from "./query-assembly.js";
+} from "./param-assembly.js";
 
 // The shared OpenAPI schema-position traversal. Internal rather than
 // public: it is a tool for building checks over a document, not part of

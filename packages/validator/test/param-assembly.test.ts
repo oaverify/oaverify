@@ -5,7 +5,7 @@ import {
   assembleFormExplodedObject,
   assembleObjectQueryParam,
   coerceQueryScalar,
-} from "../src/query-assembly.js";
+} from "../src/param-assembly.js";
 import { createValidator } from "../src/validator.js";
 
 /** The `returnValues` accumulator, as much of it as these cases read. */

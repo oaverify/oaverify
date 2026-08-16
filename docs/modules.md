@@ -147,7 +147,7 @@ against the public barrel before reaching for them.
 | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | `@oaverify/core/schema/internals`    | Codegen mechanics, runtime helpers, and resolve internals below the keyword-author API            |
 | `@oaverify/core/spec/internals`      | Synchronous resolver primitives (`resolveSpecSync`, `createFileReaderSync`, `composeReadersSync`) |
-| `@oaverify/core/validator/internals` | Parameter deserialization primitives, query assembly, and the shared document traversal           |
+| `@oaverify/core/validator/internals` | Parameter deserialization primitives, object assembly, and the shared document traversal          |
 
 ## The emitted-output runtime (semver-covered)
 
