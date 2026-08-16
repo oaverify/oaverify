@@ -395,6 +395,35 @@ describe("null entries inside an operation", () => {
     expect(findings.some((f) => f.class === "malformed")).toBe(false);
   });
 
+  // The validator accepts `style: cookie` on every version, because it
+  // reads a document rather than grading one, and the version a style
+  // is legal on is a document question. This is where that question is
+  // answered, and the reference the `ParameterStyle` TSDoc points at.
+  it("reports a cookie style declared on a version that has no such style", async () => {
+    const doc = (openapi: string) => ({
+      openapi,
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [{ name: "p", in: "cookie", style: "cookie", schema: { type: "string" } }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    });
+    const conformance = async (version: string): Promise<CheckFinding[]> =>
+      checkSpec(await resolve([["entry.json", doc(version)]])).filter(
+        (f) => f.class === "conformance",
+      );
+
+    // 3.2 is where the style was added; before it, the meta-schema
+    // pins a cookie parameter's style to `form`.
+    expect(await conformance("3.2.0")).toEqual([]);
+    expect((await conformance("3.1.0")).map((f) => f.code)).toEqual(["const"]);
+    expect((await conformance("3.0.3")).length).toBeGreaterThan(0);
+  });
+
   // `'200':` with nothing under it, reaching `.content`.
   it("does not put a raw TypeError in a finding for a null response", async () => {
     const resolved = await resolve([

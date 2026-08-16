@@ -5,7 +5,7 @@
  * the options, and the Fetch-API adapters for consumers plugging the
  * validator into Next.js / Hono / Bun / Deno handlers.
  *
- * Parameter deserialisation primitives, query-assembly helpers, and
+ * Parameter deserialisation primitives, parameter-assembly helpers, and
  * the operation-level `$ref` resolver live behind
  * `@oaverify/core/validator/internals`. Reach for them only when a
  * tool needs the same style/explode or `$ref` rules outside the normal

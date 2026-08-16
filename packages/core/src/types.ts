@@ -397,6 +397,14 @@ export type ParameterLocation = "path" | "query" | "header" | "cookie";
 /**
  * OpenAPI parameter serialization style.
  *
+ * `cookie` is OpenAPI 3.2 and later, where it is the style a cookie
+ * parameter SHOULD declare: `form` stays the default there for
+ * compatibility, and the two differ on what joins an exploded value
+ * (`; ` per RFC 6265, rather than `&`). Declaring it in a 3.0 or 3.1
+ * document is not legal, and this union does not encode that; the
+ * document conformance pass in `@oaverify/check` is where a
+ * version-illegal style is reported.
+ *
  * @public
  */
 export type ParameterStyle =
@@ -404,6 +412,7 @@ export type ParameterStyle =
   | "label"
   | "simple"
   | "form"
+  | "cookie"
   | "spaceDelimited"
   | "pipeDelimited"
   | "deepObject";
@@ -511,6 +520,20 @@ export interface HttpRequest {
    * fastest lookup path.
    */
   headers?: Record<string, string | string[]>;
+  /**
+   * Cookies, already split out of the `Cookie` header: this field is
+   * the only place they are read from, and a raw header is not parsed
+   * on the caller's behalf. `cookie-parser` (Express) and
+   * `@fastify/cookie` produce this shape, and the adapters pass it
+   * through.
+   *
+   * One value per name, unlike {@link HttpRequest.query} and
+   * {@link HttpRequest.headers}. A repeated cookie name therefore has
+   * no representation here, which is what an exploded array under
+   * OpenAPI 3.2's `style: cookie` would need
+   * (`Cookie: p=blue; p=black`). Those parameters cannot be validated
+   * today; every other cookie shape can.
+   */
   cookies?: Record<string, string>;
   /**
    * The request's media type, `"; charset=utf-8"` and all. Matched
