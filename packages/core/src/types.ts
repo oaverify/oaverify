@@ -530,9 +530,12 @@ export interface HttpRequest {
    * One value per name, unlike {@link HttpRequest.query} and
    * {@link HttpRequest.headers}. A repeated cookie name therefore has
    * no representation here, which is what an exploded array under
-   * OpenAPI 3.2's `style: cookie` would need
-   * (`Cookie: p=blue; p=black`). Those parameters cannot be validated
-   * today; every other cookie shape can.
+   * OpenAPI 3.2's `style: cookie` needs
+   * (`Cookie: p=blue; p=black`). Such a parameter validates against
+   * whichever single crumb the caller's cookie parser kept, so it
+   * reaches the schema one element long however many were sent, and a
+   * `minItems` above 1 rejects a conforming request. Every other
+   * cookie shape is read in full.
    */
   cookies?: Record<string, string>;
   /**

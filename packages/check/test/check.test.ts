@@ -395,6 +395,25 @@ describe("null entries inside an operation", () => {
     expect(findings.some((f) => f.class === "malformed")).toBe(false);
   });
 
+  // `'200':` with nothing under it, reaching `.content`.
+  it("does not put a raw TypeError in a finding for a null response", async () => {
+    const resolved = await resolve([
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          paths: { "/b": { get: { responses: { "200": null } } } },
+        },
+      ],
+    ]);
+    const findings = checkSpec(resolved);
+    expect(findings.some((f) => /Cannot read properties of/.test(f.message))).toBe(false);
+    expect(findings.some((f) => f.class === "malformed")).toBe(false);
+  });
+});
+
+describe("a parameter style the document's version does not define", () => {
   // The validator accepts `style: cookie` on every version, because it
   // reads a document rather than grading one, and the version a style
   // is legal on is a document question. This is where that question is
@@ -422,22 +441,5 @@ describe("null entries inside an operation", () => {
     expect(await conformance("3.2.0")).toEqual([]);
     expect((await conformance("3.1.0")).map((f) => f.code)).toEqual(["const"]);
     expect((await conformance("3.0.3")).length).toBeGreaterThan(0);
-  });
-
-  // `'200':` with nothing under it, reaching `.content`.
-  it("does not put a raw TypeError in a finding for a null response", async () => {
-    const resolved = await resolve([
-      [
-        "entry.json",
-        {
-          openapi: "3.1.0",
-          info: { title: "t", version: "1" },
-          paths: { "/b": { get: { responses: { "200": null } } } },
-        },
-      ],
-    ]);
-    const findings = checkSpec(resolved);
-    expect(findings.some((f) => /Cannot read properties of/.test(f.message))).toBe(false);
-    expect(findings.some((f) => f.class === "malformed")).toBe(false);
   });
 });

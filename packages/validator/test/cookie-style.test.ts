@@ -165,6 +165,9 @@ describe("assembleObjectCookieParam", () => {
     expect(assembleObjectCookieParam(p({ style: "form" }), { R: "1" })).toBeUndefined();
     expect(assembleObjectCookieParam(p({}), { R: "1" })).toBeUndefined();
     expect(
+      assembleObjectCookieParam(p({ style: "cookie", schema: { type: "object" } }), { R: "1" }),
+    ).toBeUndefined();
+    expect(
       assembleObjectCookieParam(p({ style: "cookie", schema: { type: "string" } }), { R: "1" }),
     ).toBeUndefined();
     expect(
@@ -175,10 +178,54 @@ describe("assembleObjectCookieParam", () => {
   });
 });
 
+describe("a schema that names no properties still reads by name", () => {
+  // The assembler needs `properties` to know which crumbs are `p`'s.
+  // With none declared it has to decline, or every such request is
+  // reported missing whatever the caller sent.
+  for (const [label, schema] of [
+    ["a bare object", { type: "object" }],
+    ["additionalProperties only", { type: "object", additionalProperties: { type: "string" } }],
+  ] as const) {
+    it(`reads a crumb named for the parameter: ${label}`, () => {
+      const r = run(cookieSpec({ style: "cookie" }, schema), { p: "R=100; G=200" });
+      expect(r.valid).toBe(true);
+      expect(r.value?.cookies.p).toEqual({ R: "100", G: "200" });
+    });
+  }
+});
+
+describe("an exploded array reads the one crumb it was handed", () => {
+  // `HttpRequest.cookies` holds one value per name, so the elements a
+  // repeat would carry never arrive (#826). Splitting the crumb on
+  // commas would invent elements the wire never separated, which is the
+  // silent-wrong-value class rather than a short array.
+  const arraySpec = cookieSpec({ style: "cookie" }, { type: "array", items: { type: "string" } });
+
+  it("takes a single crumb as a single element", () => {
+    const r = run(arraySpec, { p: "blue" });
+    expect(r.valid).toBe(true);
+    expect(r.value?.cookies.p).toEqual(["blue"]);
+  });
+
+  it("keeps a comma inside the value, since the style escapes nothing", () => {
+    const r = run(arraySpec, { p: "blue,black" });
+    expect(r.valid).toBe(true);
+    expect(r.value?.cookies.p).toEqual(["blue,black"]);
+  });
+
+  it("lets minItems reject the shortened array rather than passing a fabricated one", () => {
+    const doc = cookieSpec(
+      { style: "cookie" },
+      { type: "array", items: { type: "string" }, minItems: 2 },
+    );
+    const r = run(doc, { p: "blue,black" });
+    expect(r.valid).toBe(false);
+  });
+});
+
 describe("deserialize, style: cookie", () => {
-  it("joins an exploded object with the RFC 6265 delimiter when no properties are declared", () => {
-    // The residual path: with no `properties` to read, the assembler
-    // declines and the joined crumbs arrive here as one string.
+  it("joins an exploded object with the RFC 6265 delimiter", () => {
+    // What the crumb named for the parameter carries, read directly.
     expect(
       deserialize("R=100; G=200", {
         name: "p",

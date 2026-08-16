@@ -155,6 +155,13 @@ export function assembleObjectQueryParam(
  * shape but no declared property arrived, the result is
  * `{ value: undefined }`, which the caller reads as absent.
  *
+ * A schema declaring no `properties` is the first of those, not the
+ * second: with nothing to name the crumbs, this cannot tell which of
+ * them belong to `p`, and claiming the parameter would report every
+ * such request missing. The by-name path still reads a crumb literally
+ * called `p`, which is what a caller sending one meant, and
+ * `deserialize` splits it on the style's own delimiter.
+ *
  * `style: form` in a cookie is deliberately not assembled here, on
  * either version. Appendix D says form "is always incorrect" in a
  * cookie for multiple values, so no reading of an exploded form object
@@ -175,5 +182,6 @@ export function assembleObjectCookieParam(
   // explicit `explode: false` joins the pairs under the parameter's own
   // name instead, which is the ordinary by-name path.
   if (p.explode === false) return undefined;
+  if (extractObjectProperties(p.schema) === undefined) return undefined;
   return { value: assembleFormExplodedObject(p.schema, cookies) };
 }
