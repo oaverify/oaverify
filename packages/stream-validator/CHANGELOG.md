@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.1.0](https://github.com/oaverify/oaverify/compare/stream-v7.0.0...stream-v7.1.0) (2026-08-16)
+
+
+### Chore
+
+* **stream:** Synchronize oaverify versions
+
 ## [7.0.0](https://github.com/oaverify/oaverify/compare/stream-v6.0.0...stream-v7.0.0) (2026-08-12)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.1.0](https://github.com/oaverify/oaverify/compare/check-v7.0.0...check-v7.1.0) (2026-08-16)
+
+
+### Features
+
+* **validator:** read OpenAPI 3.2's cookie parameter style ([#828](https://github.com/oaverify/oaverify/issues/828)) ([63efe44](https://github.com/oaverify/oaverify/commit/63efe4481f0e729c40657109d1a148740b050800))
+
 ## [7.0.0](https://github.com/oaverify/oaverify/compare/check-v6.0.0...check-v7.0.0) (2026-08-12)
 
 

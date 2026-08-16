@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.1.0](https://github.com/oaverify/oaverify/compare/syntax-v7.0.0...syntax-v7.1.0) (2026-08-16)
+
+
+### Chore
+
+* **syntax:** Synchronize oaverify versions
+
 ## [7.0.0](https://github.com/oaverify/oaverify/compare/syntax-v6.0.0...syntax-v7.0.0) (2026-08-12)
 
 
