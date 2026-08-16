@@ -1,5 +1,20 @@
 # Changelog
 
+## [7.1.0](https://github.com/oaverify/oaverify/compare/core-v7.0.0...core-v7.1.0) (2026-08-16)
+
+
+### Features
+
+* **validator:** read OpenAPI 3.2's cookie parameter style ([#828](https://github.com/oaverify/oaverify/issues/828)) ([63efe44](https://github.com/oaverify/oaverify/commit/63efe4481f0e729c40657109d1a148740b050800))
+
+
+### Bug Fixes
+
+* **formats:** uppercase IPvFuture version letter, and bump the JSON Schema Test Suite pin ([#820](https://github.com/oaverify/oaverify/issues/820)) ([69977e6](https://github.com/oaverify/oaverify/commit/69977e6b29489f789bd248120958a90825b449b5))
+* **validator:** coerce an object parameter's properties with their schemas ([#825](https://github.com/oaverify/oaverify/issues/825)) ([b3ad532](https://github.com/oaverify/oaverify/commit/b3ad5326ff6cc0cfb277d5c38debfd4d627e7c70)), closes [#824](https://github.com/oaverify/oaverify/issues/824)
+* **validator:** deserialize an object parameter in its declared style ([#822](https://github.com/oaverify/oaverify/issues/822)) ([8709160](https://github.com/oaverify/oaverify/commit/870916072530e864579adbdea78c0ec68c319663)), closes [#818](https://github.com/oaverify/oaverify/issues/818) [#787](https://github.com/oaverify/oaverify/issues/787)
+* **validator:** require a label or matrix token to carry its framing ([#823](https://github.com/oaverify/oaverify/issues/823)) ([5d2abb5](https://github.com/oaverify/oaverify/commit/5d2abb5cae4d250b51b7e6de6f2b1824091e93cf)), closes [#789](https://github.com/oaverify/oaverify/issues/789)
+
 ## [7.0.0](https://github.com/oaverify/oaverify/compare/core-v6.0.0...core-v7.0.0) (2026-08-12)
 
 
