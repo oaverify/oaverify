@@ -2,7 +2,7 @@ import type { FastifyRequest, preValidationAsyncHookHandler } from "fastify";
 import { collectLeaves, type HttpRequest, type ValidationError } from "@oaverify/internal-core";
 import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromFastify } from "./extract.js";
-import { markRequestRefused } from "./request-marks.js";
+import { markRequestRefused, unmarkRequestRefused } from "./request-marks.js";
 import { renderProblemDetails } from "./render.js";
 import type { ErrorHandler, FastifyContext } from "./types.js";
 
@@ -93,14 +93,20 @@ export function validateRequests(
     if (result.valid) return;
     const errors: ValidationError[] =
       "errors" in result ? result.errors : collectLeaves(result.error);
-    // Marked before `onError` runs, so a handler that throws still
-    // leaves the mark: what matters to `validateResponses` is that the
-    // route handler never ran, not how the refusal was rendered.
+    // The refusal window. `onSend` runs inside `reply.send()`, so if
+    // `onError` sends, the response hook has already run by the time
+    // this returns; the mark has to be up before the call, not after.
     markRequestRefused(request);
     // Fastify awaits the returned promise; thrown errors / rejected
     // promises propagate to Fastify's error handler. The hook
     // returns once onError settles; Fastify treats a sent reply
     // as "we handled it, skip the route handler."
     await onError(errors, { request, reply });
+    // A report-only `onError` records and returns without sending, and
+    // the route handler runs after all. Its response is ordinary
+    // handler output, so the window closes here. A throwing `onError`
+    // never reaches this line, which is right: the error reply Fastify
+    // renders for it is still the refusal's, not a handler's.
+    if (!reply.sent) unmarkRequestRefused(request);
   };
 }

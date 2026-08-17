@@ -612,6 +612,67 @@ describe("oav-fastify integration: both hooks mounted together", () => {
   });
 });
 
+describe("oav-fastify integration: report-only request onError plus response validation", () => {
+  /**
+   * The refusal skip covers the window in which `onError` might send,
+   * and no longer. A report-only `onError` records the errors and
+   * returns without sending, so the route handler runs after all and
+   * its response is ordinary handler output.
+   *
+   * A mark that outlived the refusal would pass that response through
+   * unchecked, which is the failure this pins.
+   */
+  let app: FastifyInstance;
+  const seen: ValidationError[][] = [];
+
+  beforeAll(async () => {
+    // petSpec declares no response schema, so a wrong body would pass
+    // for the wrong reason. This one constrains the response too.
+    const spec = petSpec();
+    spec.paths!["/pets"]!.post!.responses = {
+      "200": {
+        description: "ok",
+        content: {
+          "application/json": {
+            schema: { type: "object", required: ["id"], properties: { id: { type: "string" } } },
+          },
+        },
+      },
+    };
+    const validator = createValidator(spec);
+    app = Fastify();
+    app.addHook(
+      "preValidation",
+      validateRequests(validator, {
+        onError: (errors) => {
+          seen.push(errors);
+        },
+      }),
+    );
+    app.addHook("onSend", validateResponses(validator));
+    // `id` is a number where the spec says string, so the response is
+    // invalid whether or not the request was.
+    app.post("/pets", async (_req, reply) => reply.code(200).send({ id: 123 }));
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it("still validates the response of a request it only reported on", async () => {
+    const r = await app.inject({
+      method: "POST",
+      url: "/pets",
+      headers: { "content-type": "application/json", "x-tenant": "acme" },
+      payload: JSON.stringify({ wrong: 1 }),
+    });
+    expect(r.statusCode).toBe(500);
+    // The request errors were still reported, not swallowed.
+    expect(seen.length).toBeGreaterThan(0);
+  });
+});
+
 describe("oav-fastify integration: validateResponses alone still reports an undeclared path", () => {
   // The skip is scoped to replies no handler produced, so it must not
   // swallow a finding about a route Fastify matched. With only the
