@@ -20,7 +20,7 @@
     "check": "pnpm typecheck && pnpm openapi && pnpm suite --check-baseline && pnpm format-suite --check-baseline && pnpm parse --check-baseline && pnpm overlay --check-baseline"
   },
   "devDependencies": {
-    "tsx": "^4.23.9",
+    "tsx": "^4.23.12",
     "typescript": "^5.7.3",
     "yaml": "^2.9.0"
   },
