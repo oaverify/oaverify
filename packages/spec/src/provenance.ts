@@ -256,8 +256,7 @@ export function withOverlayChanges(
 /** Collect the deepest pointers at which `after` differs from `before`. */
 function compare(before: unknown, after: unknown, at: string, changed: string[]): boolean {
   if (before === after) return true;
-  const bothArrays = Array.isArray(before) && Array.isArray(after);
-  if (bothArrays) {
+  if (Array.isArray(before) && Array.isArray(after)) {
     if (before.length !== after.length) {
       changed.push(at);
       return false;
