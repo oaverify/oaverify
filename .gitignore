@@ -15,8 +15,7 @@ performance/compiled-dump/
 performance/results/
 .DS_Store
 *.log
-oav-*.tgz
-aahoughton-oav-*.tgz
+*.tgz
 package.json.bak
 MIGRATION-NOTES.md
 .claude/
