@@ -52,6 +52,17 @@ export {
 // semver-covered by accident.
 export { escapePointer, walkDocumentSchemas, type DocumentWalkHooks } from "./document-walk.js";
 
+// The served-location rule and its message, so the AOT emitter refuses
+// the same documents in the same words rather than carrying a second
+// copy of the list (#829). `assertServedParameterLocations` is the
+// whole gate; the other two are for a caller applying the rule to one
+// parameter at a time.
+export {
+  assertServedParameterLocations,
+  isServedParameterLocation,
+  unservedParameterLocationMessage,
+} from "./parameter-locations.js";
+
 // Body extraction from a Web Standards `Request` / `Response`. The
 // `httpRequestFromFetch` / `httpResponseFromFetch` wrappers around it
 // are emit-side (./codegen-runtime.js); this half is reached directly

@@ -223,6 +223,27 @@ export function validateParameter(
         : req.cookies?.[p.name];
       break;
     }
+    default: {
+      // Unreachable: `ParameterLocation` has four members, and
+      // `createValidator` refuses a document declaring anything else
+      // before this validator exists (see `parameter-locations.ts`).
+      // The arm exists because the switch had no `default` at all, so
+      // an unserved location left `raw`, `code` and `pathPrefix`
+      // unassigned and surfaced as `TypeError: path is not iterable`
+      // from inside error construction (#836).
+      //
+      // What is left to reach it is a document mutated after its
+      // validator was built, or a cache assembled by something other
+      // than `createValidator`. Naming the broken invariant beats
+      // reporting the request valid, and beats a leaf error that would
+      // blame the client for a document defect.
+      const unserved: never = p.in;
+      throw new Error(
+        `validateParameter: parameter "${p.name}" declares in: ${JSON.stringify(unserved)}, ` +
+          "which createValidator refuses at construction. The document changed after its " +
+          "validator was built, or this cache was not built by createValidator.",
+      );
+    }
   }
 
   if (raw === undefined) return missingParameterError(p, code, pathPrefix);

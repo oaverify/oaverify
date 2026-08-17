@@ -46,6 +46,7 @@ import {
   schemaRefResolverFor,
 } from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
+import { assertServedParameterLocations } from "./parameter-locations.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast } from "./headers.js";
 import {
   fetchBodyParseFailure,
@@ -864,6 +865,27 @@ export interface ValidatorOptions {
    */
   schemaLint?: "off" | "warn" | "strict";
   /**
+   * Whether to refuse, at construction, a document declaring a
+   * parameter location this validator cannot read a value for (#836).
+   * Defaults to `"refuse"`.
+   *
+   * `"ignore"` skips **only** that construction check. It does not make
+   * such a parameter servable: a request reaching an operation that
+   * carries one throws from `validateParameter`, because answering it
+   * would mean reporting a request valid on a parameter nothing
+   * checked. So this is for a caller that compiles a document without
+   * serving requests against it, and `@oaverify/check` is the caller it
+   * exists for: grading a document is not serving it, and aborting cost
+   * a legal 3.2 document its whole report.
+   *
+   * Not a supported way to keep serving traffic on such a document. The
+   * remedy there is to fix the parameter, and the refusal message says
+   * how.
+   *
+   * @internal
+   */
+  unservedParameterLocations?: "refuse" | "ignore";
+  /**
    * What to do about a `format` with no validator registered under its
    * name: `"ignore"` (default) leaves it asserting nothing, `"error"`
    * refuses to compile.
@@ -1447,6 +1469,16 @@ export function createValidator(
 
   const resolveRef = <T>(value: T | ReferenceObject | undefined): T | undefined =>
     resolveOperationRef<T>(spec, value);
+
+  // Refuse a document declaring a parameter location this validator
+  // cannot read a value for, before anything is compiled and before any
+  // request is served. Eager and document-wide, which costs one walk of
+  // the parameter arrays here and nothing per request; see
+  // `parameter-locations.ts` for why refusing beats accepting or
+  // rejecting such a request (#836).
+  if (options.unservedParameterLocations !== "ignore") {
+    assertServedParameterLocations(spec, resolveRef);
+  }
 
   const operationCache = new WeakMap<OperationObject, OperationCache>();
 

@@ -531,6 +531,18 @@ export function buildOperationCache(
     const origin: SchemaOrigin = { label: context, pointer, anchor: paramAnchor };
     const v = guarded(origin, () => deps.compile(schema, origin));
     if (v === undefined) continue;
+    // One bucket per location, with no final else. The chained ternary
+    // this replaces ended at `cookieParamValidators`, so a parameter
+    // whose `in` is none of the four had its compiled schema filed
+    // under cookies, keyed by its name, where a real cookie parameter
+    // of the same name would collide with it (#836). Nothing read it
+    // back, which is why it was invisible.
+    //
+    // `createValidator` refuses such a document before any cache is
+    // built (`assertServedParameterLocations`), so this is the same
+    // defence `validateParameter`'s `default` arm gives: unreachable,
+    // and obvious rather than silently wrong if a caller ever reaches
+    // it by another route.
     const target =
       p.in === "path"
         ? pathParamValidators
@@ -538,7 +550,10 @@ export function buildOperationCache(
           ? queryParamValidators
           : p.in === "header"
             ? headerParamValidators
-            : cookieParamValidators;
+            : p.in === "cookie"
+              ? cookieParamValidators
+              : undefined;
+    if (target === undefined) continue;
     target.set(p.name, v);
   }
 
