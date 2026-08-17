@@ -25,9 +25,11 @@ import { builtInFormats } from "@oaverify/internal-formats";
 import {
   coercionView,
   compileMediaTypePatterns,
+  isServedParameterLocation,
   isValidMaxTotalBytes,
   maxTotalBytesErrorMessage,
   schemaRefResolverFor,
+  unservedParameterLocationMessage,
   walkDocumentSchemas,
   type SchemaRefResolver,
 } from "@oaverify/internal-validator/internals";
@@ -255,7 +257,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   // First pass: identify which paths have ≥ 1 included op.
   for (const [pathPattern, pathItemRaw] of Object.entries(document.paths ?? {})) {
     const pathItem = resolveRef<PathItem>(pathItemRaw as PathItem | ReferenceObject);
-    if (pathItem === undefined) continue;
+    if (pathItem == null) continue;
     for (const method of HTTP_METHODS) {
       const opRaw = (pathItem as Record<string, unknown>)[method];
       if (opRaw === undefined) continue;
@@ -272,14 +274,14 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   for (const [pathPattern, pathItemRaw] of Object.entries(document.paths ?? {})) {
     if (!includedPaths.has(pathPattern)) continue;
     const pathItem = resolveRef<PathItem>(pathItemRaw as PathItem | ReferenceObject);
-    if (pathItem === undefined) continue;
+    if (pathItem == null) continue;
 
     const allDeclared = new Set<string>();
     for (const method of HTTP_METHODS) {
       const opRaw = (pathItem as Record<string, unknown>)[method];
       if (opRaw === undefined) continue;
       const op = resolveRef<OperationObject>(opRaw as OperationObject | ReferenceObject);
-      if (op === undefined) continue;
+      if (op == null) continue;
       const upperMethod = method.toUpperCase();
       allDeclared.add(upperMethod);
 
@@ -461,15 +463,57 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // Parameters: union of path-item-level + operation-level. Operation
   // wins on `(name, in)` collision.
   const combined = new Map<string, ParameterObject>();
+  // `!= null` rather than `!== undefined`: a `- ` list entry with
+  // nothing under it resolves to `null`, and reading `.name` off it
+  // threw a `TypeError` out of `emitSpec` where `createValidator` skips
+  // the entry and lets the hygiene lint locate it. Same skip, same
+  // reason, three lines from the gate this file just gained.
   for (const p of (pathItem.parameters ?? []) as Array<ParameterObject | ReferenceObject>) {
     const resolved = resolveRef<ParameterObject>(p);
-    if (resolved !== undefined) combined.set(`${resolved.name}::${resolved.in}`, resolved);
+    if (resolved != null) combined.set(`${resolved.name}::${resolved.in}`, resolved);
   }
   for (const p of (operation.parameters ?? []) as Array<ParameterObject | ReferenceObject>) {
     const resolved = resolveRef<ParameterObject>(p);
-    if (resolved !== undefined) combined.set(`${resolved.name}::${resolved.in}`, resolved);
+    if (resolved != null) combined.set(`${resolved.name}::${resolved.in}`, resolved);
   }
   const parameters = [...combined.values()];
+
+  // Refuse before this operation's schemas compile, for a parameter
+  // location the emitted validator cannot read a value for. Same policy
+  // and same words as `createValidator` (#836); the rule and the
+  // message come from `@oaverify/core/validator/internals` rather than
+  // a second copy of the list.
+  //
+  // Emit time is the emitter's construction, and refusing here is the
+  // whole of it: no load-time guard is emitted into the module. A
+  // module that throws on import moves the failure from a build step
+  // holding the document and the CLI to a production boot holding
+  // neither.
+  //
+  // Scoped to the operations actually emitted, where `createValidator`
+  // refuses document-wide. `--only` drops operations from the emitted
+  // router and the emitted module answers 404 for them, so a dropped
+  // operation's parameters can never reach a verdict. The line is the
+  // false "valid", not the unimplemented feature, so an operation that
+  // claims nothing is left alone. A Path Item parameter is checked here
+  // rather than at the path, which is what makes it inherit that rule:
+  // it refuses once some emitted operation inherits it.
+  //
+  // No `emitSpec:` prefix, unlike the option errors above. The CLI
+  // prefixes what it prints with `compile-spec:`, and the subject here
+  // is the caller's document rather than the call, so naming the
+  // function again reads as `compile-spec: emitSpec: GET /t declares
+  // ...` for the only audience that sees it.
+  for (const p of parameters) {
+    // A non-object entry is not a parameter to judge. `createValidator`
+    // skips it and the hygiene lint names the line; refusing here
+    // reported it as a parameter with no `in`, which points at the
+    // wrong defect and breaks the parity this gate exists to keep.
+    if (p === null || typeof p !== "object") continue;
+    if (isServedParameterLocation(p.in)) continue;
+    throw new Error(unservedParameterLocationMessage(`${method} ${pathPattern}`, p.name, p.in));
+  }
+
   const hasOwnReadParameters = parameters.some(
     (p) => p.in !== "header" && isObjectPrototypePropertyName(p.name),
   );
