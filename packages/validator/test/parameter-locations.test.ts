@@ -295,3 +295,150 @@ describe("what the gate deliberately leaves alone", () => {
     ).toEqual({ valid: true });
   });
 });
+
+describe("what review narrowed the gate to leave alone", () => {
+  // Three corrections from the verification pass on 7443697.
+  const build = (doc: unknown): string => {
+    try {
+      createValidator(doc as never);
+      return "built";
+    } catch (e) {
+      return (e as Error).message;
+    }
+  };
+
+  it("keeps a path item whose parameters no operation can inherit", () => {
+    // No method field, so the router never matches it and the
+    // parameters are read nowhere. Same rule the `$ref`'d Path Item
+    // exemption rests on.
+    expect(
+      build({
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/t": { description: "no operations here", parameters: [{ name: "p", in: "body" }] },
+        },
+      }),
+    ).toBe("built");
+  });
+
+  it("still refuses a path item parameter an operation does inherit", () => {
+    expect(
+      build({
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/t": {
+            parameters: [{ name: "p", in: "body" }],
+            get: { responses: { "200": { description: "ok" } } },
+          },
+        },
+      }),
+    ).toContain('path item /t declares parameter "p"');
+  });
+
+  it("says the field is present when it is present and not a string", () => {
+    for (const [location, rendered] of [
+      [null, "null"],
+      [42, "42"],
+      [{ in: "query" }, '{"in":"query"}'],
+    ] as const) {
+      const message = build({
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [{ name: "p", in: location }],
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      });
+      expect(message).toContain(`with in: ${rendered}`);
+      expect(message).not.toContain('no "in" field');
+    }
+  });
+
+  it("keeps a spec-supplied location on one line", () => {
+    // The value is the document's, not ours. Interpolated between
+    // quotes of our own it broke the message across two lines and left
+    // the quotes unbalanced.
+    const message = build({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [{ name: "p", in: 'q"\nx' }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    });
+    expect(message).not.toContain("\n");
+    expect(message).toContain('with in: "q\\"\\nx"');
+  });
+
+  it('reports an absent "in" as absent', () => {
+    expect(
+      build({
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/t": {
+            get: { parameters: [{ name: "p" }], responses: { "200": { description: "ok" } } },
+          },
+        },
+      }),
+    ).toContain('with no "in" field');
+  });
+});
+
+describe("a $ref the gate cannot follow", () => {
+  // The gate resolves every parameter ref to read its `in`. Raising on
+  // one it cannot follow made a stale pointer on an unrouted operation
+  // a startup failure, which is a wider claim than this module makes.
+  it("builds, and leaves the pointer to the passes that can locate it", () => {
+    const v = createValidator({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/good": {
+          get: {
+            parameters: [{ name: "p", in: "query", schema: { type: "string" } }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+        "/bad": {
+          get: {
+            parameters: [{ $ref: "#/components/parameters/Nope" }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as never);
+    const r = v.validateRequest({ method: "GET", path: "/good?p=x" } as never) as {
+      valid: boolean;
+    };
+    expect(r.valid).toBe(true);
+  });
+
+  it("still refuses an unserved location reached through a ref that resolves", () => {
+    expect(() =>
+      createValidator({
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [{ $ref: "#/components/parameters/Bad" }],
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+        components: { parameters: { Bad: { name: "p", in: "body", schema: {} } } },
+      } as never),
+    ).toThrow('with in: "body"');
+  });
+});

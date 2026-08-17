@@ -225,7 +225,23 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   // document nothing could grade (#674).
   let validator: ReturnType<typeof createValidator>;
   try {
-    validator = createValidator(document, { schemaLint: "strict" });
+    // `unservedParameterLocations: "ignore"`: `createValidator` refuses
+    // a document declaring a parameter location it cannot serve (#836),
+    // and that refusal is about serving requests, not about whether the
+    // document can be graded. Aborting cost a legal 3.2 document its
+    // whole report, and cost a Swagger 2.0 leftover the conformance
+    // findings that name the offending `in`.
+    //
+    // The option rather than a filtered copy of the document, which is
+    // what this did first: rewriting `paths` to drop the offenders lost
+    // the elided parameter's own schema findings, mishandled
+    // `paths: null` and a `__proto__` path key, and could not shield a
+    // dangling `$ref` from the gate anyway. Nothing is rewritten now,
+    // so every pass sees the document the author wrote.
+    validator = createValidator(document, {
+      schemaLint: "strict",
+      unservedParameterLocations: "ignore",
+    });
   } catch (err) {
     gradeFindings(findings, selection, severityMap, regions);
     throw new CheckAbortedError((err as Error).message, { cause: err, findings });

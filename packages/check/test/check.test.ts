@@ -159,13 +159,12 @@ describe("checkSpec", () => {
     expect(() => checkSpec(resolved)).not.toThrow(CheckAbortedError);
   });
 
-  it("aborts with the reason, and its findings, on a parameter location the validator cannot serve", async () => {
-    // OpenAPI 3.2 makes `in: querystring` legal, so the conformance pass
-    // has nothing to report, and `createValidator` refuses to build a
-    // validator that could not read a value for it (#836). That is an
-    // abort rather than a finding, and the abort is the whole answer
-    // only if it names the reason and keeps what the earlier passes
-    // found.
+  it("grades a document whose parameter location the validator cannot serve", async () => {
+    // OpenAPI 3.2 makes `in: querystring` legal, and `createValidator`
+    // refuses to build a validator that could not read a value for it
+    // (#836). Grading is not serving, so the refusal is exempted here
+    // rather than aborting the run: the earlier draft aborted, and a
+    // document whose only defect was elsewhere lost its whole report.
     const spec: Array<[string, unknown]> = [
       [
         "entry.json",
@@ -175,7 +174,15 @@ describe("checkSpec", () => {
           paths: {
             "/t": {
               get: {
-                parameters: [{ name: "q", in: "querystring", schema: { type: "string" } }],
+                parameters: [
+                  {
+                    name: "q",
+                    in: "querystring",
+                    content: {
+                      "application/x-www-form-urlencoded": { schema: { type: "object" } },
+                    },
+                  },
+                ],
                 responses: { "200": { description: "ok" } },
               },
             },
@@ -184,15 +191,10 @@ describe("checkSpec", () => {
         },
       ],
     ];
-    const resolved = await resolve(spec);
-    try {
-      checkSpec(resolved);
-      expect.unreachable("expected CheckAbortedError");
-    } catch (err) {
-      expect(err).toBeInstanceOf(CheckAbortedError);
-      expect((err as CheckAbortedError).message).toContain('with in: "querystring"');
-      expect((err as CheckAbortedError).findings.map((f) => f.code)).toContain("unused-component");
-    }
+    const findings = checkSpec(await resolve(spec));
+    expect(findings.map((f) => f.code)).toContain("unused-component");
+    // Legal in 3.2, so nothing to say about the parameter itself.
+    expect(findings.filter((f) => f.class === "conformance")).toEqual([]);
   });
 
   it("reports no findings on an abort when nothing had run", async () => {
@@ -477,5 +479,83 @@ describe("a parameter style the document's version does not define", () => {
     expect(await conformance("3.2.0")).toEqual([]);
     expect((await conformance("3.1.0")).map((f) => f.code)).toEqual(["const"]);
     expect((await conformance("3.0.3")).length).toBeGreaterThan(0);
+  });
+});
+
+describe("a parameter location the validator cannot serve (#836)", () => {
+  // The gate refuses to build a validator for these documents. Grading
+  // one is a different question from serving requests against it, and
+  // aborting cost the author the rest of the report.
+  const doc = (openapi: string, location: string) => ({
+    openapi,
+    info: { title: "t", version: "1" },
+    paths: {
+      "/t": {
+        post: {
+          parameters: [
+            {
+              name: "p",
+              in: location,
+              required: true,
+              ...(location === "querystring"
+                ? {
+                    content: {
+                      "application/x-www-form-urlencoded": { schema: { type: "object" } },
+                    },
+                  }
+                : { schema: { type: "object" } }),
+            },
+          ],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  });
+
+  it("grades a legal 3.2 document declaring in: querystring", async () => {
+    const findings = checkSpec(await resolve([["entry.json", doc("3.2.0", "querystring")]]));
+    // Legal there, so the conformance pass has nothing to say, and the
+    // run is a clean bill of health rather than exit 2 with no report.
+    expect(findings.filter((f) => f.class === "conformance")).toEqual([]);
+  });
+
+  it("keeps the conformance findings that name an illegal in", async () => {
+    const findings = checkSpec(await resolve([["entry.json", doc("3.0.3", "body")]]));
+    const conformance = findings.filter((f) => f.class === "conformance");
+    expect(conformance.length).toBeGreaterThan(0);
+    expect(conformance.some((f) => (f.location ?? "").includes("/parameters/0"))).toBe(true);
+  });
+
+  it("still grades the schema class around the unserved parameter", async () => {
+    // Nothing is removed from the document, so the parameter beside
+    // the unserved one is compiled and graded as it always was.
+    const spec = await resolve([
+      [
+        "entry.json",
+        {
+          openapi: "3.2.0",
+          info: { title: "t", version: "1" },
+          paths: {
+            "/t": {
+              get: {
+                parameters: [
+                  { name: "a", in: "querystring", content: { "text/plain": { schema: {} } } },
+                  { name: "b", in: "query", schema: { type: "string", minimumx: 5 } },
+                ],
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        },
+      ],
+    ]);
+    const findings = checkSpec(spec);
+    // `minimumx` on the second parameter's schema. The schema class
+    // labels a finding by operation and parameter name rather than by
+    // pointer, so what this pins is that the pass ran at all and still
+    // reached the parameter beside the unserved one.
+    expect(findings.map((f) => `${f.class}/${f.code} ${f.location ?? ""}`).join("\n")).toContain(
+      'parameter "b"',
+    );
   });
 });
