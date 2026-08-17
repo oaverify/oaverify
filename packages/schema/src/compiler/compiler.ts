@@ -30,6 +30,7 @@ import {
   stepPosition,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
+  SUBSCHEMA_MIXED_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
   walkSubschemas,
 } from "../subschema-positions.js";
@@ -1317,6 +1318,13 @@ export function schemaUsesUnevaluated(schema: SchemaOrBoolean): boolean {
         for (const v of Object.values(obj)) if (walk(v)) return true;
       }
     }
+    for (const key of SUBSCHEMA_MIXED_MAP_POSITIONS) {
+      const obj = (s as Record<string, unknown>)[key];
+      if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
+        // Array entries name properties; only the rest are schemas.
+        for (const v of Object.values(obj)) if (!Array.isArray(v) && walk(v)) return true;
+      }
+    }
     return false;
   };
   return walk(schema);
@@ -1366,6 +1374,13 @@ export function scanDynamicScopeUsage(schema: SchemaOrBoolean): {
       const obj = (s as Record<string, unknown>)[key];
       if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
         for (const v of Object.values(obj)) walk(v);
+      }
+    }
+    for (const key of SUBSCHEMA_MIXED_MAP_POSITIONS) {
+      const obj = (s as Record<string, unknown>)[key];
+      if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
+        // Array entries name properties; only the rest are schemas.
+        for (const v of Object.values(obj)) if (!Array.isArray(v)) walk(v);
       }
     }
   };
@@ -2065,7 +2080,10 @@ function needsPropTracking(schema: SchemaObject, state: CompileState): boolean {
     "else" in schema ||
     "$ref" in schema ||
     "$dynamicRef" in schema ||
-    "dependentSchemas" in schema
+    "dependentSchemas" in schema ||
+    // The draft-07 spelling of dependentSchemas, which applies its
+    // object-valued entries to the same instance.
+    "dependencies" in schema
   );
 }
 

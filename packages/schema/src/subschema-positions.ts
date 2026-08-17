@@ -7,6 +7,7 @@ import {
 import {
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
+  SUBSCHEMA_MIXED_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
 } from "@oaverify/internal-core/subschema-positions";
 
@@ -17,6 +18,7 @@ export {
   isSubschemaKey,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
+  SUBSCHEMA_MIXED_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
 } from "@oaverify/internal-core/subschema-positions";
 
@@ -292,6 +294,20 @@ export function walkSubschemas(
       const v = n[k];
       if (v !== null && typeof v === "object" && !Array.isArray(v)) {
         for (const [kk, vv] of Object.entries(v as Record<string, unknown>)) {
+          go(
+            vv as SchemaOrBoolean,
+            path === "" ? `${k}.${kk}` : `${path}.${k}.${kk}`,
+            stepPosition(stepPosition(at, k), kk),
+          );
+        }
+      }
+    }
+    for (const k of SUBSCHEMA_MIXED_MAP_POSITIONS) {
+      const v = n[k];
+      if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+        for (const [kk, vv] of Object.entries(v as Record<string, unknown>)) {
+          // Array entries name properties; there is no schema there.
+          if (Array.isArray(vv)) continue;
           go(
             vv as SchemaOrBoolean,
             path === "" ? `${k}.${kk}` : `${path}.${k}.${kk}`,

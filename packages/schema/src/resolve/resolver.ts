@@ -1,4 +1,10 @@
 import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import {
+  SUBSCHEMA_ARRAY_POSITIONS,
+  SUBSCHEMA_MAP_POSITIONS,
+  SUBSCHEMA_MIXED_MAP_POSITIONS,
+  SUBSCHEMA_SINGLE_POSITIONS,
+} from "@oaverify/internal-core/subschema-positions";
 import { SchemaRegistry } from "./registry.js";
 
 /**
@@ -176,54 +182,52 @@ function walkScoped(
     getOrCreateScope(dynamicAnchorScopes, nextBase).set(obj.$dynamicAnchor, schema);
   }
 
-  walkRecord(obj.$defs, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkRecord(obj.properties, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkRecord(
-    obj.patternProperties,
-    nextBase,
-    byId,
-    anchorScopes,
-    dynamicAnchorScopes,
-    schemaBaseUri,
-  );
-  walkRecord(
-    obj.dependentSchemas,
-    nextBase,
-    byId,
-    anchorScopes,
-    dynamicAnchorScopes,
-    schemaBaseUri,
-  );
+  // Driven by the shared position constants rather than a list written
+  // out here. The hand-written list had drifted: `definitions` was in
+  // the constants and missing here, so an `$anchor` under it resolved
+  // to "unknown anchor".
+  const fields = obj as unknown as Record<string, unknown>;
+  const walkArgs = [nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri] as const;
 
-  walkMaybe(
-    obj.additionalProperties,
-    nextBase,
-    byId,
-    anchorScopes,
-    dynamicAnchorScopes,
-    schemaBaseUri,
-  );
-  walkMaybe(obj.propertyNames, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkMaybe(obj.items, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkMaybe(obj.contains, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkMaybe(
-    obj.unevaluatedProperties,
-    nextBase,
-    byId,
-    anchorScopes,
-    dynamicAnchorScopes,
-    schemaBaseUri,
-  );
-  walkMaybe(obj.unevaluatedItems, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkMaybe(obj.not, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkMaybe(obj.if, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkMaybe(obj.then, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkMaybe(obj.else, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
+  for (const key of SUBSCHEMA_MAP_POSITIONS) {
+    walkRecord(fields[key] as Record<string, SchemaOrBoolean> | undefined, ...walkArgs);
+  }
+  for (const key of SUBSCHEMA_MIXED_MAP_POSITIONS) {
+    walkMixedRecord(fields[key], ...walkArgs);
+  }
+  for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
+    walkMaybe(fields[key] as SchemaOrBoolean | undefined, ...walkArgs);
+  }
+  for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
+    walkArray(fields[key] as SchemaOrBoolean[] | undefined, ...walkArgs);
+  }
+}
 
-  walkArray(obj.prefixItems, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkArray(obj.allOf, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkArray(obj.anyOf, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  walkArray(obj.oneOf, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
+/**
+ * Walk a {@link SUBSCHEMA_MIXED_MAP_POSITIONS} map, whose values are a
+ * subschema at some entries and an array of property names at others.
+ * Only the former are walked.
+ */
+function walkMixedRecord(
+  record: unknown,
+  currentBase: string,
+  byId: Map<string, SchemaOrBoolean>,
+  anchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
+  dynamicAnchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
+  schemaBaseUri: WeakMap<object, string>,
+): void {
+  if (record === null || typeof record !== "object" || Array.isArray(record)) return;
+  for (const value of Object.values(record as Record<string, unknown>)) {
+    if (value === undefined || Array.isArray(value)) continue;
+    walkScoped(
+      value as SchemaOrBoolean,
+      currentBase,
+      byId,
+      anchorScopes,
+      dynamicAnchorScopes,
+      schemaBaseUri,
+    );
+  }
 }
 
 function walkMaybe(

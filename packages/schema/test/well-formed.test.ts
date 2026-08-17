@@ -123,12 +123,35 @@ describe("well-formedness: every schema-valued position", () => {
       /"properties" at <root> must be an object mapping names to schemas; got an array/,
     ],
     ["map value ($defs)", { $defs: { A: 7 } }, /schema at "\$defs\.A".*got a number/],
+    [
+      "mixed map holder (dependencies)",
+      { dependencies: [] },
+      /"dependencies" at <root> must be an object mapping names to schemas or to arrays of property names; got an array/,
+    ],
+    [
+      "mixed map value (dependencies.x)",
+      { dependencies: { x: "nope" } },
+      /schema at "dependencies\.x".*got a string/,
+    ],
+    [
+      "inside a mixed map value (dependencies.x.items)",
+      { dependencies: { x: { items: [] } } },
+      /"items" at "dependencies\.x" must be an object or boolean; got an array/,
+    ],
   ];
   for (const [label, schema, expected] of cases) {
     it(`rejects ${label}`, () => {
       expect(() => compileWith(schema)).toThrow(expected);
     });
   }
+
+  it("accepts the array form of a dependencies entry, which is not a schema", () => {
+    // `{x: ["b"]}` carries dependentRequired semantics and names
+    // properties. Checking it as a schema would reject a legal document.
+    const c = compileWith({ type: "object", dependencies: { x: ["b"], y: { title: "ok" } } });
+    expect(c.validate({ x: 1, b: 2 }).valid).toBe(true);
+    expect(c.validate({ x: 1 }).valid).toBe(false);
+  });
 
   it("accepts boolean schemas wherever a schema is legal", () => {
     const c = compileWith({

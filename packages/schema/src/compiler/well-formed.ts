@@ -5,6 +5,7 @@ import {
   pathForRef,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
+  SUBSCHEMA_MIXED_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
 } from "../subschema-positions.js";
 
@@ -276,6 +277,22 @@ export function assertWellFormedSchema(
         );
       }
       for (const [name, sub] of Object.entries(v as Record<string, unknown>)) {
+        go(sub, path === "" ? `${key}.${name}` : `${path}.${key}.${name}`);
+      }
+    }
+
+    for (const key of SUBSCHEMA_MIXED_MAP_POSITIONS) {
+      if (!Object.hasOwn(obj, key)) continue;
+      const v = obj[key];
+      if (typeof v !== "object" || v === null || Array.isArray(v)) {
+        fail(
+          `"${key}" at ${at(path)} must be an object mapping names to schemas or to arrays of property names; got ${describe(v)}.`,
+        );
+      }
+      for (const [name, sub] of Object.entries(v as Record<string, unknown>)) {
+        // An array entry names required properties rather than holding a
+        // schema, so there is nothing here to check as one.
+        if (Array.isArray(sub)) continue;
         go(sub, path === "" ? `${key}.${name}` : `${path}.${key}.${name}`);
       }
     }
