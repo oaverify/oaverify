@@ -1,3 +1,4 @@
+import { getOwn } from "./own-key.js";
 import type { JsonValue } from "./types.js";
 
 /**
@@ -60,6 +61,11 @@ const ARRAY_INDEX_RE = /^(?:0|[1-9]\d*)$/;
  *   - Missing targets and pointers that walk into a primitive throw
  *     `Error`; use a `try`/`catch` at call sites that expect the
  *     reference to optionally exist.
+ *   - Only own properties resolve. `/constructor`, `/toString` and
+ *     `/__proto__` name members every object inherits, not members of
+ *     the document, so they are "not found" like any other absent key.
+ *     Without this a `$ref` to a component nobody declared hands a
+ *     function to whatever consumes the result.
  *
  * Shared by `@oaverify/internal-schema`'s internal `$ref` resolver and `@oaverify/internal-spec`'s
  * document stitcher; having one implementation means a single place
@@ -89,8 +95,9 @@ export function resolveJsonPointer(root: unknown, pointer: string): JsonValue {
       // instead of failing, and two different pointers named one node.
       throw new Error(`JSON pointer ${pointer} not found (at ${part}: not an array index)`);
     }
-    const key = asArr ? Number.parseInt(part, 10) : part;
-    cur = (cur as Record<string, unknown>)[key as never];
+    cur = asArr
+      ? (cur as unknown[])[Number.parseInt(part, 10)]
+      : getOwn(cur as Record<string, unknown>, part);
     if (cur === undefined) {
       throw new Error(`JSON pointer ${pointer} not found (at ${part})`);
     }
