@@ -17,6 +17,7 @@ export {
   isSubschemaKey,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
+  SUBSCHEMA_MIXED_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
 } from "@oaverify/internal-core/subschema-positions";
 

@@ -609,6 +609,8 @@ export const dependenciesKeyword: KeywordDefinition = {
     ctx.gen.if(
       `typeof ${ctx.data} === "object" && ${ctx.data} !== null && !Array.isArray(${ctx.data})`,
       (g) => {
+        const passProps = ctx.evaluatedPropertiesVar ?? "undefined";
+        const passItems = ctx.evaluatedItemsVar ?? "undefined";
         for (const trigger of Object.keys(deps)) {
           const entry = deps[trigger];
           if (entry === undefined) continue;
@@ -632,15 +634,18 @@ export const dependenciesKeyword: KeywordDefinition = {
               }
             });
           } else {
-            // Schema form → dependent-schema semantics.
+            // Schema form → dependent-schema semantics, including the
+            // evaluated-keys hand-off its `dependentSchemas` twin does.
+            // Without it a property the dependent schema evaluates
+            // still looks unevaluated to an `unevaluated*` sibling.
             const fn = ctx.compileSubschema(entry);
             g.if(propertyPresent(ctx.data, triggerLit, trigger), (gi) => {
               if (ctx.predicate) {
-                gi.line(`if (!${fn}(${ctx.data})) return false;`);
+                gi.line(`if (!${fn}(${ctx.data}, ${passProps}, ${passItems})) return false;`);
                 return;
               }
               const errVar = gi.scope.name("e");
-              gi.const(errVar, `${fn}(${ctx.data}, ${ctx.path})`);
+              gi.const(errVar, `${fn}(${ctx.data}, ${ctx.path}, ${passProps}, ${passItems})`);
               gi.if(`${errVar} !== null`, () => ctx.emitError("lift", errVar));
             });
           }
