@@ -17,6 +17,10 @@ import {
 } from "@oaverify/internal-spec";
 import type { SchemaLintIssue } from "@oaverify/internal-schema";
 import { checkDocumentExamples, createValidator } from "@oaverify/internal-validator";
+import {
+  listUnservedParameterLocations,
+  unservedParameterLocationMessage,
+} from "@oaverify/internal-validator/internals";
 import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
 import { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
 import { ambiguityWitness, checkDocumentRedos } from "./redos-check.js";
@@ -214,6 +218,40 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
       message: issue.message,
       target: { pointer: issue.pointer, anchor: "node" },
     });
+  }
+
+  // A parameter location the validator cannot serve. Reported rather
+  // than left silent, because `createValidator` refuses to build for
+  // this document and `compile-spec` refuses to emit for it: a clean
+  // report on a document the other two verbs reject is the report
+  // being wrong about the only question a user asked it.
+  //
+  // A finding rather than the abort it used to be. The location can be
+  // legal (3.2's `querystring`), the rest of the document is still
+  // gradeable, and one parameter should not cost an author every other
+  // finding in the file.
+  if (classes.has("hygiene")) {
+    for (const unserved of listUnservedParameterLocations(document, {
+      followPathItemRefs: true,
+    })) {
+      findings.push({
+        class: "hygiene",
+        severity: defaultSeverityFor("hygiene", "unserved-parameter-location"),
+        code: "unserved-parameter-location",
+        location: unserved.pointer,
+        message: unservedParameterLocationMessage(unserved.where, unserved.name, unserved.location),
+        // A use site that is a `$ref` holds no `in` to highlight, so the
+        // target is the definition and the anchor says a `$ref` was
+        // crossed. `scoped-definition` rather than `definition`, because
+        // several operations can reach one definition and the message
+        // names the operation this finding is about, which is the case
+        // that anchor exists for.
+        target:
+          unserved.definitionPointer === undefined
+            ? { pointer: unserved.pointer, anchor: "node" }
+            : { pointer: unserved.definitionPointer, anchor: "scoped-definition" },
+      });
+    }
   }
 
   // The gradeability gate, unconditional on the selection. Building the

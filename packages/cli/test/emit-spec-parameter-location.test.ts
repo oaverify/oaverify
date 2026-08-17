@@ -219,3 +219,24 @@ describe("an entry that is not a parameter object", () => {
     expect(() => emitSpec(doc as never)).not.toThrow();
   });
 });
+
+describe("a parameters value that is not a list", () => {
+  it("is skipped, as the runtime skips it", () => {
+    // A mapping where a sequence belongs. Iterating it threw `object is
+    // not iterable` out of the emit, naming no path or parameter.
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          parameters: { name: "p", in: "query" },
+          get: {
+            parameters: { name: "q", in: "query" },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    expect(() => emitSpec(doc as never)).not.toThrow();
+  });
+});

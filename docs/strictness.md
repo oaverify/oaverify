@@ -354,6 +354,37 @@ is reported as a finding with the code `malformed-schema`, and `check`
 carries on with the rest of the document, so one bad `items` does not
 hide every other finding in the file.
 
+One hygiene code says something about oaverify rather than about the
+document. `unserved-parameter-location` reports a parameter whose `in`
+this validator cannot read a value for, which `createValidator` refuses
+to build for and `compile-spec` refuses to emit for. It is graded
+`warning`, because the location can be entirely legal: OpenAPI 3.2's
+`in: querystring` is a valid declaration that oaverify does not
+implement, so the document is not at fault and the report should not
+turn a pipeline red over it. A location that is not legal anywhere,
+such as a Swagger 2.0 `in: body`, is reported by the conformance pass as
+well, and that one is an `error`.
+
+Its purpose is to keep the verbs from disagreeing. Without it,
+`oaverify check` graded such a document clean while `oaverify validate`
+and `compile-spec` on the same file refused to run at all.
+
+The grade leaves one disagreement standing, and it is the deliberate
+half. At the default `--fail-on error`, `oaverify check` exits 0 on a
+legal 3.2 `in: querystring` document while `validate` and `compile-spec`
+exit 3 on the same file. The verbs now _say_ the same thing; what
+differs is how loudly, and a warning is the right volume for a document
+that is not at fault. Raise it with
+`--severity unserved-parameter-location=error` where the two exit codes
+need to match.
+
+It also reports slightly more than `validate` refuses, on purpose. A Path
+Item written as a `$ref` is never routed by `createValidator`, so its
+parameters cannot reach a request and the construction gate exempts
+them; `compile-spec` does resolve that path item and refuses. The
+finding covers both, so the report names every parameter some verb
+cannot serve rather than only the ones that stop the runtime.
+
 ### Class and severity are different questions
 
 Every finding carries both, and neither implies the other.

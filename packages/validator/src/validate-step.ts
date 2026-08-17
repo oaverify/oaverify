@@ -11,6 +11,7 @@ import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast, getOwn } f
 import type { OperationCache } from "./operation-cache.js";
 import type { MutableRequestValues } from "./request-values.js";
 import { assembleObjectCookieParam, assembleObjectQueryParam } from "./param-assembly.js";
+import { describeParameterLocation } from "./parameter-locations.js";
 
 /**
  * Media type of the (single) entry inside a parameter's `content` map,
@@ -239,7 +240,7 @@ export function validateParameter(
       // blame the client for a document defect.
       const unserved: never = p.in;
       throw new Error(
-        `validateParameter: parameter "${p.name}" declares in: ${JSON.stringify(unserved)}, ` +
+        `validateParameter: parameter "${p.name}" ${describeParameterLocation(unserved)}, ` +
           "which createValidator refuses at construction. The document changed after its " +
           "validator was built, or this cache was not built by createValidator.",
       );

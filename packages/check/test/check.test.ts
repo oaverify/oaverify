@@ -193,8 +193,89 @@ describe("checkSpec", () => {
     ];
     const findings = checkSpec(await resolve(spec));
     expect(findings.map((f) => f.code)).toContain("unused-component");
-    // Legal in 3.2, so nothing to say about the parameter itself.
+    // Legal in 3.2, so the conformance pass has nothing to say. What
+    // there is to say is that this validator cannot serve it, which is
+    // the hygiene finding below rather than a conformance one.
     expect(findings.filter((f) => f.class === "conformance")).toEqual([]);
+    const unserved = findings.filter((f) => f.code === "unserved-parameter-location");
+    expect(unserved).toHaveLength(1);
+    expect(unserved[0]?.location).toBe("/paths/~1t/get/parameters/0");
+    expect(unserved[0]?.severity).toBe("warning");
+    expect(unserved[0]?.message).toContain('with in: "querystring"');
+  });
+
+  it("reports one finding per use site, and none for a served document", async () => {
+    const two = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/a": {
+          post: {
+            parameters: [{ $ref: "#/components/parameters/Body" }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+        "/b": {
+          post: {
+            parameters: [{ $ref: "#/components/parameters/Body" }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: {
+        parameters: { Body: { name: "b", in: "body", schema: { type: "object" } } },
+      },
+    };
+    const findings = checkSpec(await resolve([["entry.json", two]]));
+    const unserved = findings.filter((f) => f.code === "unserved-parameter-location");
+    // Each use site, because a use site is where the author will look.
+    expect(unserved.map((f) => f.location)).toEqual([
+      "/paths/~1a/post/parameters/0",
+      "/paths/~1b/post/parameters/0",
+    ]);
+
+    const served = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [{ name: "p", in: "query", schema: { type: "string" } }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    expect(
+      checkSpec(await resolve([["entry.json", served]])).filter(
+        (f) => f.code === "unserved-parameter-location",
+      ),
+    ).toEqual([]);
+  });
+
+  it("stays out of a selection that did not ask for hygiene", async () => {
+    const doc = {
+      openapi: "3.2.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [
+              {
+                name: "q",
+                in: "querystring",
+                content: { "application/x-www-form-urlencoded": { schema: { type: "object" } } },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const findings = checkSpec(await resolve([["entry.json", doc]]), {
+      findings: resolveFindingSelection(parseFindingTerms("conformance")),
+    });
+    expect(findings.filter((f) => f.code === "unserved-parameter-location")).toEqual([]);
   });
 
   it("reports no findings on an abort when nothing had run", async () => {
@@ -557,5 +638,127 @@ describe("a parameter location the validator cannot serve (#836)", () => {
     expect(findings.map((f) => `${f.class}/${f.code} ${f.location ?? ""}`).join("\n")).toContain(
       'parameter "b"',
     );
+  });
+});
+
+describe("unserved-parameter-location, the addressing", () => {
+  it("anchors a $ref'd parameter at its definition, not at the $ref node", async () => {
+    // The use site holds a `$ref` and no `in`, so pointing SARIF at it
+    // highlights a line that does not contain the defect.
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/a": {
+          post: {
+            parameters: [{ $ref: "#/components/parameters/Body" }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: { parameters: { Body: { name: "b", in: "body", schema: { type: "object" } } } },
+    };
+    const finding = checkSpec(await resolve([["entry.json", doc]])).find(
+      (f) => f.code === "unserved-parameter-location",
+    );
+    expect(finding?.location).toBe("/paths/~1a/post/parameters/0");
+    expect(finding?.target?.pointer).toBe("/components/parameters/Body");
+    expect(finding?.target?.anchor).toBe("scoped-definition");
+  });
+
+  it("reports a parameter inside a $ref'd path item, which compile-spec refuses", async () => {
+    // `createValidator` never routes such an operation, so its gate
+    // exempts it. The emitter resolves and refuses it. A report that
+    // skipped it would be silent about a document one verb rejects.
+    const doc = {
+      openapi: "3.2.0",
+      info: { title: "t", version: "1" },
+      paths: { "/t": { $ref: "#/components/pathItems/P" } },
+      components: {
+        pathItems: {
+          P: {
+            get: {
+              parameters: [
+                {
+                  name: "q",
+                  in: "querystring",
+                  content: { "application/x-www-form-urlencoded": { schema: { type: "object" } } },
+                },
+              ],
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      },
+    };
+    const findings = checkSpec(await resolve([["entry.json", doc]])).filter(
+      (f) => f.code === "unserved-parameter-location",
+    );
+    expect(findings).toHaveLength(1);
+    // The declaration is inside the target, and that is where the
+    // pointer has to send a reader.
+    expect(findings[0]?.location).toBe("/components/pathItems/P/get/parameters/0");
+    // A `$ref` was crossed to reach it, so the anchor says so rather
+    // than claiming the pointer is the offending node in place.
+    expect(findings[0]?.target?.anchor).toBe("scoped-definition");
+  });
+
+  it("keeps one finding per referring operation on a shared path item", async () => {
+    // Two paths reference one Path Item, so one pointer carries two
+    // findings and only the message tells them apart. That is the case
+    // `scoped-definition` describes, and a consumer deduping by region
+    // alone would otherwise drop an operation.
+    const doc = {
+      openapi: "3.2.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/a": { $ref: "#/components/pathItems/P" },
+        "/b": { $ref: "#/components/pathItems/P" },
+      },
+      components: {
+        pathItems: {
+          P: {
+            get: {
+              parameters: [
+                { name: "q", in: "querystring", content: { "text/plain": { schema: {} } } },
+              ],
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      },
+    };
+    const findings = checkSpec(await resolve([["entry.json", doc]])).filter(
+      (f) => f.code === "unserved-parameter-location",
+    );
+    expect(findings.map((f) => f.message.split(" declares")[0])).toEqual(["GET /a", "GET /b"]);
+    expect(new Set(findings.map((f) => f.target?.anchor))).toEqual(new Set(["scoped-definition"]));
+  });
+});
+
+describe("unserved-parameter-location, a percent-encoded definition key", () => {
+  it("addresses the definition, so the finding keeps its source region", async () => {
+    // `#/components/parameters/a%20b` addresses the key `a b`. Slicing
+    // the `#` off produced a pointer addressing nothing, and the
+    // finding lost its region silently.
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          post: {
+            parameters: [{ $ref: "#/components/parameters/a%20b" }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: { parameters: { "a b": { name: "b", in: "body", schema: { type: "object" } } } },
+    };
+    const finding = checkSpec(await resolve([["entry.json", doc]])).find(
+      (f) => f.code === "unserved-parameter-location",
+    );
+    expect(finding?.target?.pointer).toBe("/components/parameters/a b");
+    // The point of addressing it correctly: a region resolves.
+    expect(finding?.target?.source).toBeDefined();
   });
 });

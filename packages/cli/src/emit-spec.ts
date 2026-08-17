@@ -460,6 +460,18 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     requestsOnly,
   } = args;
 
+  /**
+   * A `parameters` value as the list it is supposed to be, or empty.
+   *
+   * Anything else is a defect the hygiene lint owns, and reading it here
+   * produced an error naming no path, method or parameter.
+   *
+   * @internal
+   */
+  function asParameterList(value: unknown): Array<ParameterObject | ReferenceObject> {
+    return Array.isArray(value) ? (value as Array<ParameterObject | ReferenceObject>) : [];
+  }
+
   // Parameters: union of path-item-level + operation-level. Operation
   // wins on `(name, in)` collision.
   const combined = new Map<string, ParameterObject>();
@@ -468,11 +480,16 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // threw a `TypeError` out of `emitSpec` where `createValidator` skips
   // the entry and lets the hygiene lint locate it. Same skip, same
   // reason, three lines from the gate this file just gained.
-  for (const p of (pathItem.parameters ?? []) as Array<ParameterObject | ReferenceObject>) {
+  // `Array.isArray`, not `?? []`: `parameters:` written as a mapping is
+  // not iterable, and iterating it threw `object is not iterable` out
+  // of `emitSpec` where `createValidator` tolerates the document. Same
+  // parity as the `null` entry below; see #837 for the crash that is
+  // still owed a proper answer on both sides.
+  for (const p of asParameterList(pathItem.parameters)) {
     const resolved = resolveRef<ParameterObject>(p);
     if (resolved != null) combined.set(`${resolved.name}::${resolved.in}`, resolved);
   }
-  for (const p of (operation.parameters ?? []) as Array<ParameterObject | ReferenceObject>) {
+  for (const p of asParameterList(operation.parameters)) {
     const resolved = resolveRef<ParameterObject>(p);
     if (resolved != null) combined.set(`${resolved.name}::${resolved.in}`, resolved);
   }
