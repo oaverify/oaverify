@@ -25,9 +25,11 @@ import { builtInFormats } from "@oaverify/internal-formats";
 import {
   coercionView,
   compileMediaTypePatterns,
+  isServedParameterLocation,
   isValidMaxTotalBytes,
   maxTotalBytesErrorMessage,
   schemaRefResolverFor,
+  unservedParameterLocationMessage,
   walkDocumentSchemas,
   type SchemaRefResolver,
 } from "@oaverify/internal-validator/internals";
@@ -470,6 +472,38 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     if (resolved !== undefined) combined.set(`${resolved.name}::${resolved.in}`, resolved);
   }
   const parameters = [...combined.values()];
+
+  // Refuse before this operation's schemas compile, for a parameter
+  // location the emitted validator cannot read a value for. Same policy
+  // and same words as `createValidator` (#836); the rule and the
+  // message come from `@oaverify/core/validator/internals` rather than
+  // a second copy of the list.
+  //
+  // Emit time is the emitter's construction, and refusing here is the
+  // whole of it: no load-time guard is emitted into the module. A
+  // module that throws on import moves the failure from a build step
+  // holding the document and the CLI to a production boot holding
+  // neither.
+  //
+  // Scoped to the operations actually emitted, where `createValidator`
+  // refuses document-wide. `--only` drops operations from the emitted
+  // router and the emitted module answers 404 for them, so a dropped
+  // operation's parameters can never reach a verdict. The line is the
+  // false "valid", not the unimplemented feature, so an operation that
+  // claims nothing is left alone. A Path Item parameter is checked here
+  // rather than at the path, which is what makes it inherit that rule:
+  // it refuses once some emitted operation inherits it.
+  //
+  // No `emitSpec:` prefix, unlike the option errors above. The CLI
+  // prefixes what it prints with `compile-spec:`, and the subject here
+  // is the caller's document rather than the call, so naming the
+  // function again reads as `compile-spec: emitSpec: GET /t declares
+  // ...` for the only audience that sees it.
+  for (const p of parameters) {
+    if (isServedParameterLocation(p.in)) continue;
+    throw new Error(unservedParameterLocationMessage(`${method} ${pathPattern}`, p.name, p.in));
+  }
+
   const hasOwnReadParameters = parameters.some(
     (p) => p.in !== "header" && isObjectPrototypePropertyName(p.name),
   );
