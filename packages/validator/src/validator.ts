@@ -46,6 +46,7 @@ import {
   schemaRefResolverFor,
 } from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
+import { assertServedParameterLocations } from "./parameter-locations.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast } from "./headers.js";
 import {
   fetchBodyParseFailure,
@@ -1447,6 +1448,14 @@ export function createValidator(
 
   const resolveRef = <T>(value: T | ReferenceObject | undefined): T | undefined =>
     resolveOperationRef<T>(spec, value);
+
+  // Refuse a document declaring a parameter location this validator
+  // cannot read a value for, before anything is compiled and before any
+  // request is served. Eager and document-wide, which costs one walk of
+  // the parameter arrays here and nothing per request; see
+  // `parameter-locations.ts` for why refusing beats accepting or
+  // rejecting such a request (#836).
+  assertServedParameterLocations(spec, resolveRef);
 
   const operationCache = new WeakMap<OperationObject, OperationCache>();
 

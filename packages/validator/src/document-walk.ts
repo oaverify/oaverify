@@ -65,7 +65,15 @@ const METHOD_FIELDS: Record<HttpMethod, true> = {
   query: true,
 };
 
-const METHODS = Object.keys(METHOD_FIELDS) as readonly HttpMethod[];
+/**
+ * {@link METHOD_FIELDS} as a list. Exported so a second walk over
+ * Operation Objects reuses this one instead of writing its own copy:
+ * the `query` omission described above is what an independent copy
+ * costs.
+ *
+ * @internal
+ */
+export const METHODS = Object.keys(METHOD_FIELDS) as readonly HttpMethod[];
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);

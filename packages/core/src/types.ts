@@ -390,6 +390,21 @@ export interface OperationObject {
 /**
  * OpenAPI parameter location.
  *
+ * The four locations a validator can read a value for, which is not
+ * every location OpenAPI defines: 3.2 adds `querystring`, whose value is
+ * the whole query string rather than one key in it, and this union does
+ * not carry it.
+ *
+ * A document declaring a location outside this union is refused by
+ * `createValidator`, which throws naming the operation, the parameter
+ * and what to do about it. That covers a legal-but-unimplemented 3.2
+ * `querystring` and an illegal leftover alike (`in: body` or
+ * `in: formData` from a half-converted Swagger 2.0 document): the
+ * validator cannot read a value either way, so accepting requests to
+ * that operation would report them valid having checked nothing.
+ * Whether the location is legal for the declared version is a separate
+ * question, reported by `@oaverify/check`'s conformance pass.
+ *
  * @public
  */
 export type ParameterLocation = "path" | "query" | "header" | "cookie";
