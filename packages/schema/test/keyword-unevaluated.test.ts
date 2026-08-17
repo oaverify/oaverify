@@ -182,3 +182,70 @@ describe("discriminator keyword", () => {
     expect(failure(r).error.path).toEqual([2, "purr"]);
   });
 });
+
+describe("dependencies (draft-07) and unevaluated* siblings", () => {
+  // `dependencies` is the draft-07 spelling of `dependentSchemas` (plus
+  // the array form of `dependentRequired`). Its object-valued entries
+  // apply to the same instance, so they must take part in
+  // evaluated-key tracking exactly as `dependentSchemas` does.
+  // Each case is asserted against both spellings, because the two
+  // agreeing is the contract; pinning `dependencies` alone would not
+  // notice the pair drifting apart again.
+  const cases = ["dependentSchemas", "dependencies"] as const;
+
+  it.each(cases)("%s: a dependent schema's properties count as evaluated", (kw) => {
+    const v = compile({
+      type: "object",
+      properties: { x: {} },
+      [kw]: { x: { properties: { b: {} } } },
+      unevaluatedProperties: false,
+    });
+    // `b` is evaluated by the dependent schema that `x` triggered.
+    expect(v.validate({ x: 1, b: 2 }).valid).toBe(true);
+    // An unrelated property is still unevaluated.
+    expect(v.validate({ x: 1, b: 2, other: 3 }).valid).toBe(false);
+  });
+
+  it.each(cases)("%s: unevaluatedProperties inside the dependent schema is enforced", (kw) => {
+    // The tracking gate walks the schema looking for `unevaluated*`. It
+    // has to see through this position, or tracking never switches on
+    // and the inner keyword silently accepts everything.
+    //
+    // The dependent schema names both properties itself: annotations
+    // flow up from an in-place applicator, not down into one, so the
+    // parent's `properties` does not make `x` evaluated in here.
+    const v = compile(
+      {
+        type: "object",
+        properties: { x: {} },
+        [kw]: { x: { properties: { x: {}, b: {} }, unevaluatedProperties: false } },
+      },
+      { output: "flat" },
+    );
+    expect(v.validate({ x: 1, b: 2 }).valid).toBe(true);
+    const r = v.validate({ x: 1, b: 2, zzz: 3 });
+    expect(r.valid).toBe(false);
+    expect(failure(r).errors.map((e) => e.code)).toContain("unevaluatedProperties");
+  });
+
+  it("keeps the array form, which names properties rather than holding a schema", () => {
+    const v = compile({ type: "object", dependencies: { x: ["b"] } }, { output: "flat" });
+    expect(v.validate({ x: 1, b: 2 }).valid).toBe(true);
+    const r = v.validate({ x: 1 });
+    expect(r.valid).toBe(false);
+    expect(failure(r).errors.map((e) => e.code)).toContain("dependencies");
+  });
+
+  it("handles a map holding one entry of each kind", () => {
+    const v = compile({
+      type: "object",
+      properties: { x: {}, y: {} },
+      dependencies: { x: ["b"], y: { properties: { c: {} } } },
+      unevaluatedProperties: false,
+    });
+    // `c` is evaluated by y's dependent schema; `b` is only required by
+    // x's array entry, and nothing evaluates it.
+    expect(v.validate({ y: 1, c: 2 }).valid).toBe(true);
+    expect(v.validate({ x: 1, b: 2 }).valid).toBe(false);
+  });
+});
