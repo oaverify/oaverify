@@ -87,6 +87,24 @@ describe("resolveJsonPointer", () => {
   it("rejects non-empty pointers that don't start with `/`", () => {
     expect(() => resolveJsonPointer(doc, "a/b")).toThrow(/invalid JSON pointer/);
   });
+
+  it("does not resolve an inherited member", () => {
+    // Every object has these; none of them is a position in the
+    // document. Resolving one hands a function to whatever consumes the
+    // result, so a `$ref` to a component nobody declared silently
+    // becomes `Object.prototype.constructor`.
+    expect(() => resolveJsonPointer(doc, "/constructor")).toThrow(/not found/);
+    expect(() => resolveJsonPointer(doc, "/toString")).toThrow(/not found/);
+    expect(() => resolveJsonPointer(doc, "/valueOf")).toThrow(/not found/);
+    expect(() => resolveJsonPointer(doc, "/a/__proto__")).toThrow(/not found/);
+  });
+
+  it("still resolves an own key that shadows an inherited one", () => {
+    // A spec may legitimately name a schema `constructor`, and the
+    // fixture is raw JSON because a JS literal would set the prototype.
+    const shadowed = JSON.parse(`{ "constructor": { "type": "string" } }`) as unknown;
+    expect(resolveJsonPointer(shadowed, "/constructor")).toEqual({ type: "string" });
+  });
 });
 
 describe("resolveJsonPointer takes a pointer, not a URI fragment", () => {
