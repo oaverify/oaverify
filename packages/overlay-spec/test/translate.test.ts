@@ -550,3 +550,38 @@ describe("isOverlayDocument", () => {
     expect(isOverlayDocument({ addServers: [{ url: "https://a.example" }] })).toBe(false);
   });
 });
+
+describe("a path key that names an inherited member", () => {
+  /**
+   * `overrides[pathKey] ??= {}` reads `Object.prototype` for
+   * `__proto__`, finds it non-nullish, assigns nothing, and then writes
+   * `operations` onto the prototype every object in the process shares.
+   * The action vanished from the overlay at the same time.
+   *
+   * The target is a raw string on purpose: nothing here may build the
+   * key with a JS object literal, which would set a prototype instead.
+   */
+  it("stores it as an own key and leaves Object.prototype alone", () => {
+    const before = Object.keys(Object.prototype).length;
+    const out = translateOverlay(
+      doc([{ target: "$.paths['__proto__'].get", update: { operationId: "injected" } }]),
+    );
+
+    expect((Object.prototype as Record<string, unknown>).operations).toBeUndefined();
+    expect(Object.keys(Object.prototype).length).toBe(before);
+
+    const overrides = out.overrides ?? {};
+    expect(Object.hasOwn(overrides, "__proto__")).toBe(true);
+    expect(overrides["__proto__"]?.operations?.get).toEqual({ operationId: "injected" });
+  });
+
+  it("does not lose a later action for a real path", () => {
+    const out = translateOverlay(
+      doc([
+        { target: "$.paths['__proto__'].get", update: { operationId: "injected" } },
+        { target: "$.paths['/pets'].get", update: { operationId: "listPets" } },
+      ]),
+    );
+    expect(out.overrides?.["/pets"]?.operations?.get).toEqual({ operationId: "listPets" });
+  });
+});

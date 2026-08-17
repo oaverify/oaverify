@@ -146,4 +146,29 @@ describe("a __proto__ key survives an overlay merge", () => {
     expect(schemas["__proto__"]).toEqual({ type: "string" });
     expect(Object.getPrototypeOf(schemas)).toBe(Object.prototype);
   });
+
+  it("keeps an operation extension named __proto__ set by setExtensions", () => {
+    const doc = JSON.parse(`{
+      "openapi": "3.1.0",
+      "info": { "title": "t", "version": "1" },
+      "paths": { "/t": { "get": { "responses": { "200": { "description": "ok" } } } } }
+    }`) as never;
+    const overlay = JSON.parse(`{
+      "overrides": {
+        "/t": {
+          "operations": {
+            "get": { "setExtensions": { "__proto__": { "x": 1 }, "x-ok": 1 } }
+          }
+        }
+      }
+    }`) as SpecOverlay;
+    const out = applyOverlays(doc, [overlay]);
+    const op = (out as unknown as { paths: Record<string, Record<string, object>> }).paths["/t"]!
+      .get!;
+    expect(Object.hasOwn(op, "__proto__")).toBe(true);
+    expect(Object.getPrototypeOf(op)).toBe(Object.prototype);
+    // The sibling extension still lands, and nothing is inherited.
+    expect((op as Record<string, unknown>)["x-ok"]).toBe(1);
+    expect((op as { x?: unknown }).x).toBeUndefined();
+  });
 });

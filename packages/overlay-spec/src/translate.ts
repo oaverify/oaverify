@@ -13,7 +13,7 @@ import type {
   ResponseOverride,
   SpecOverlay,
 } from "@oaverify/internal-spec";
-import { setSpecKey } from "@oaverify/internal-core";
+import { getOwn, setSpecKey } from "@oaverify/internal-core";
 import {
   type FilterExpr,
   type PathToken,
@@ -403,7 +403,7 @@ function applyPathLevel(
   }
   if (Object.keys(pathItemFields).length === 0) return;
   const overrides = ensureOverrides(overlay);
-  const existing = overrides[pathKey] ?? {};
+  const existing = getOwn(overrides, pathKey) ?? {};
   setSpecKey(overrides, pathKey, {
     ...existing,
     pathItem: { ...existing.pathItem, ...pathItemFields },
@@ -485,7 +485,7 @@ function mergeOperationOverride(
             patches,
             status,
             mergeResponseOverride(
-              patches[status] ?? {},
+              getOwn(patches, status) ?? {},
               r as Record<string, JsonValue | undefined>,
             ),
           );
@@ -659,7 +659,7 @@ function applyOperationResponses(
     // partial update. Wholesale-replace-per-status would drop them.
     const payload = asObject(target, action.value);
     const patches = opOverride.patchResponses ?? {};
-    setSpecKey(patches, status, mergeResponseOverride(patches[status] ?? {}, payload));
+    setSpecKey(patches, status, mergeResponseOverride(getOwn(patches, status) ?? {}, payload));
     opOverride.patchResponses = patches;
   }
   setOperationOverride(overlay, pathKey, method, opOverride);
@@ -712,16 +712,33 @@ function ensureOverrides(overlay: SpecOverlay): Record<string, PathOverride> {
   return overlay.overrides;
 }
 
+/**
+ * The path override for `pathKey`, created if absent, with its
+ * `operations` map present.
+ *
+ * `pathKey` is a path template taken from the overlay's target string,
+ * so both the read and the write go through the own-key helpers: `??=`
+ * on a raw index reads `Object.prototype` for `__proto__`, finds it
+ * non-nullish, assigns nothing, and then writes `operations` onto the
+ * prototype every object in the process shares.
+ */
+function ensurePathOverride(overlay: SpecOverlay, pathKey: string): PathOverride {
+  const overrides = ensureOverrides(overlay);
+  let pathOverride = getOwn(overrides, pathKey);
+  if (pathOverride === undefined) {
+    pathOverride = {};
+    setSpecKey(overrides, pathKey, pathOverride);
+  }
+  pathOverride.operations ??= {};
+  return pathOverride;
+}
+
 function getOperationOverride(
   overlay: SpecOverlay,
   pathKey: string,
   method: HttpMethod | "*",
 ): OperationOverride {
-  const overrides = ensureOverrides(overlay);
-  overrides[pathKey] ??= {};
-  const pathOverride = overrides[pathKey];
-  pathOverride.operations ??= {};
-  const ops = pathOverride.operations as Record<string, OperationOverride>;
+  const ops = ensurePathOverride(overlay, pathKey).operations as Record<string, OperationOverride>;
   ops[method] ??= {};
   return ops[method];
 }
@@ -732,11 +749,8 @@ function setOperationOverride(
   method: HttpMethod | "*",
   op: OperationOverride,
 ): void {
-  const overrides = ensureOverrides(overlay);
-  overrides[pathKey] ??= {};
-  const pathOverride = overrides[pathKey];
-  pathOverride.operations ??= {};
-  (pathOverride.operations as Record<string, OperationOverride>)[method] = op;
+  const ops = ensurePathOverride(overlay, pathKey).operations as Record<string, OperationOverride>;
+  ops[method] = op;
 }
 
 // --------------------------------------------------------- payload helpers
