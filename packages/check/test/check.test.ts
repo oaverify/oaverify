@@ -159,6 +159,42 @@ describe("checkSpec", () => {
     expect(() => checkSpec(resolved)).not.toThrow(CheckAbortedError);
   });
 
+  it("aborts with the reason, and its findings, on a parameter location the validator cannot serve", async () => {
+    // OpenAPI 3.2 makes `in: querystring` legal, so the conformance pass
+    // has nothing to report, and `createValidator` refuses to build a
+    // validator that could not read a value for it (#836). That is an
+    // abort rather than a finding, and the abort is the whole answer
+    // only if it names the reason and keeps what the earlier passes
+    // found.
+    const spec: Array<[string, unknown]> = [
+      [
+        "entry.json",
+        {
+          openapi: "3.2.0",
+          info: { title: "t", version: "1" },
+          paths: {
+            "/t": {
+              get: {
+                parameters: [{ name: "q", in: "querystring", schema: { type: "string" } }],
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+          components: { schemas: { Unused: { type: "string" } } },
+        },
+      ],
+    ];
+    const resolved = await resolve(spec);
+    try {
+      checkSpec(resolved);
+      expect.unreachable("expected CheckAbortedError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(CheckAbortedError);
+      expect((err as CheckAbortedError).message).toContain('with in: "querystring"');
+      expect((err as CheckAbortedError).findings.map((f) => f.code)).toContain("unused-component");
+    }
+  });
+
   it("reports no findings on an abort when nothing had run", async () => {
     // The common case: a document that is not OpenAPI at all aborts with
     // nothing to say beyond the abort itself.
