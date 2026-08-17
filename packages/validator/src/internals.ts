@@ -59,8 +59,12 @@ export { escapePointer, walkDocumentSchemas, type DocumentWalkHooks } from "./do
 // parameter at a time.
 export {
   assertServedParameterLocations,
+  describeParameterLocation,
   isServedParameterLocation,
+  listUnservedParameterLocations,
+  renderParameterLocation,
   unservedParameterLocationMessage,
+  type UnservedParameterLocation,
 } from "./parameter-locations.js";
 
 // Body extraction from a Web Standards `Request` / `Response`. The

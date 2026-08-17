@@ -146,9 +146,22 @@ export const MALFORMED_CODES = ["malformed-schema"] as const;
  */
 const CLI_SCHEMA_CODES = ["format-not-validated"] as const;
 
+/**
+ * Hygiene codes `check` owns rather than reading off a
+ * `SpecHygieneIssue`, on the same footing as `format-not-validated`
+ * above.
+ *
+ * `unserved-parameter-location` is a fact about this validator, not
+ * about the document: the location may be perfectly legal (3.2's
+ * `querystring`) and still be one `createValidator` refuses to build
+ * for. `@oaverify/internal-spec` has no business knowing that, so the
+ * code is emitted here from the rule the validator publishes.
+ */
+const CHECK_HYGIENE_CODES = ["unserved-parameter-location"] as const;
+
 /** Every code, by the class that emits it. */
 export const CODES_BY_CLASS = {
-  hygiene: HYGIENE_CODES,
+  hygiene: [...HYGIENE_CODES, ...CHECK_HYGIENE_CODES],
   schema: [...SCHEMA_CODES, ...CLI_SCHEMA_CODES],
   conformance: CONFORMANCE_CODES,
   examples: EXAMPLES_CODES,

@@ -395,6 +395,53 @@ describe("what review narrowed the gate to leave alone", () => {
   });
 });
 
+describe("a $ref'd path item", () => {
+  it("is exempt when the entry declares no method of its own", () => {
+    // The router reads methods off the entry, so a bare `$ref` entry is
+    // never matched and its target's parameters cannot reach a request.
+    expect(() =>
+      createValidator({
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: { "/t": { $ref: "#/components/pathItems/P" } },
+        components: {
+          pathItems: {
+            P: {
+              get: {
+                parameters: [{ name: "b", in: "body", required: true, schema: {} }],
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        },
+      } as never),
+    ).not.toThrow();
+  });
+
+  it("is not exempt for a method the entry declares beside the $ref", () => {
+    // `methodsDeclaredOn` reads the entry's own keys, so POST is routed
+    // and its parameter is read. Skipping the whole entry let that
+    // parameter reach `validateParameter`, which threw at request time:
+    // the failure this module exists to turn into a refusal.
+    expect(() =>
+      createValidator({
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/t": {
+            $ref: "#/components/pathItems/P",
+            post: {
+              parameters: [{ name: "b", in: "body", required: true, schema: {} }],
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+        components: { pathItems: { P: { get: { responses: { "200": { description: "ok" } } } } } },
+      } as never),
+    ).toThrow('with in: "body"');
+  });
+});
+
 describe("a $ref the gate cannot follow", () => {
   // The gate resolves every parameter ref to read its `in`. Raising on
   // one it cannot follow made a stale pointer on an unrouted operation
@@ -440,5 +487,102 @@ describe("a $ref the gate cannot follow", () => {
         components: { parameters: { Bad: { name: "p", in: "body", schema: {} } } },
       } as never),
     ).toThrow('with in: "body"');
+  });
+});
+
+describe("the message renders a value it did not write", () => {
+  // Each of these came out of a review round as a fix with no test.
+  const message = (parameter: Record<string, unknown>): string => {
+    try {
+      createValidator({
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/t": { get: { parameters: [parameter], responses: { "200": { description: "ok" } } } },
+        },
+      } as never);
+      return "built";
+    } catch (e) {
+      return (e as Error).message;
+    }
+  };
+
+  it("renders a value JSON cannot serialize as its type, rather than raising", () => {
+    // `JSON.stringify` throws on both. A gate whose purpose is to
+    // replace an opaque TypeError cannot raise one of its own.
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(message({ name: "p", in: circular })).toContain("with in: a value of type object");
+    expect(message({ name: "p", in: 10n })).toContain("with in: a value of type bigint");
+  });
+
+  it("gives a length for a long value instead of an unbalanced quote", () => {
+    const long = "x".repeat(200);
+    const m = message({ name: "p", in: long });
+    expect(m).toContain("a string of 202 characters");
+    // The defect this replaced: `"xxx...` with the quote never closed.
+    expect(m).not.toContain(`"${long.slice(0, 40)}`);
+  });
+
+  it("names a parameter whose name is present and not a string", () => {
+    const m = message({ name: 42, in: "body" });
+    expect(m).toContain("declares parameter 42");
+    expect(m).not.toContain("unnamed");
+  });
+});
+
+describe('unservedParameterLocations: "ignore"', () => {
+  // The exemption `@oaverify/check` uses. Its TSDoc said requests were
+  // skipped; they throw, and review caught the claim rather than the
+  // code, so the claim is pinned now.
+  const doc = {
+    openapi: "3.2.0",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/t": {
+        get: {
+          parameters: [{ name: "q", in: "querystring", content: { "text/plain": { schema: {} } } }],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+
+  it("builds where the default refuses", () => {
+    expect(() => createValidator(doc as never)).toThrow('with in: "querystring"');
+    expect(() =>
+      createValidator(doc as never, { unservedParameterLocations: "ignore" }),
+    ).not.toThrow();
+  });
+
+  it("still refuses to answer a request for that operation", () => {
+    const v = createValidator(doc as never, { unservedParameterLocations: "ignore" });
+    // Not a verdict: answering would report a request valid on a
+    // parameter nothing checked, which is what the gate exists to stop.
+    expect(() => v.validateRequest({ method: "GET", path: "/t" } as never)).toThrow(
+      'declares in: "querystring"',
+    );
+  });
+
+  it("describes an absent in with prose rather than a rendered undefined", () => {
+    const mutable = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [{ name: "p", in: "query", schema: { type: "string" } }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const v = createValidator(mutable as never);
+    // The residual arm's own case: the document changed after
+    // construction, so the gate never saw this.
+    delete (mutable.paths["/t"].get.parameters[0] as { in?: string }).in;
+    expect(() => v.validateRequest({ method: "GET", path: "/t?p=x" } as never)).toThrow(
+      'no "in" field',
+    );
   });
 });
