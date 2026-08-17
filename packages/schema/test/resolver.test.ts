@@ -107,3 +107,71 @@ describe("the refResolver option is checked where it is passed (#478)", () => {
     expect(compiled.validate({ a: 1 }).valid).toBe(false);
   });
 });
+
+describe("the anchor walk covers every subschema position", () => {
+  /**
+   * The walk is driven by the shared position constants. It used to
+   * name each position inline, and the two had drifted: `definitions`
+   * was in the constants and not in the walk, so an `$anchor` declared
+   * under it did not resolve. `dependencies` was in neither.
+   *
+   * Every position is exercised here rather than the two that were
+   * broken, so the next position added to the constants and forgotten
+   * by a walker fails somewhere.
+   */
+  const at = (kw: string, value: unknown): SchemaOrBoolean =>
+    ({ [kw]: value }) as unknown as SchemaOrBoolean;
+  const anchored = { $anchor: "a", type: "string" } as const;
+
+  const mapPositions = [
+    "$defs",
+    "definitions",
+    "properties",
+    "patternProperties",
+    "dependentSchemas",
+    "dependencies",
+  ];
+  const singlePositions = [
+    "additionalProperties",
+    "propertyNames",
+    "contains",
+    "not",
+    "if",
+    "then",
+    "else",
+    "items",
+    "unevaluatedProperties",
+    "unevaluatedItems",
+  ];
+  const arrayPositions = ["allOf", "anyOf", "oneOf", "prefixItems"];
+
+  it.each(mapPositions)("finds an $anchor under %s", (kw) => {
+    expect(resolve(at(kw, { A: anchored })).byAnchor.get("a")).toEqual(anchored);
+  });
+
+  it.each(singlePositions)("finds an $anchor under %s", (kw) => {
+    expect(resolve(at(kw, anchored)).byAnchor.get("a")).toEqual(anchored);
+  });
+
+  it.each(arrayPositions)("finds an $anchor under %s", (kw) => {
+    expect(resolve(at(kw, [anchored])).byAnchor.get("a")).toEqual(anchored);
+  });
+
+  it("compiles a $ref to an anchor declared under definitions", () => {
+    const v = compileSchema(
+      { $ref: "#a", definitions: { A: { $anchor: "a", type: "string" } } } as SchemaOrBoolean,
+      { dialect: openapi31Dialect },
+    );
+    expect(v.validate("ok").valid).toBe(true);
+    expect(v.validate(42).valid).toBe(false);
+  });
+
+  it("skips the array entries of a mixed map rather than walking them as schemas", () => {
+    // `dependencies: { x: ["b"] }` names properties; there is no schema
+    // there and nothing to collect, and it must not throw on the way past.
+    const graph = resolve({
+      dependencies: { x: ["b"], y: { $anchor: "a", type: "string" } },
+    } as SchemaOrBoolean);
+    expect(graph.byAnchor.get("a")).toEqual({ $anchor: "a", type: "string" });
+  });
+});

@@ -456,7 +456,9 @@ export function collectRequiredIssues(
       }
     }
 
-    for (const key of [...SUBSCHEMA_MAP_POSITIONS, "dependentSchemas"]) {
+    // `dependentSchemas` is already in the constant; it was appended by
+    // hand here as well.
+    for (const key of SUBSCHEMA_MAP_POSITIONS) {
       const v = node[key];
       if (!isObj(v)) continue;
       for (const [name, sub] of Object.entries(v)) {
