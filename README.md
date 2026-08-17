@@ -408,6 +408,14 @@ Other 3.2 document-level additions (`additionalOperations`,
 operation declared under `additionalOperations` is not routed, so a
 request for it gets a 405 rather than being validated.
 
+`in: querystring` is refused rather than ignored: `createValidator`
+throws, naming the operation and the parameter. It sits on an operation
+that _does_ route, so accepting requests to it would report them valid
+having read nothing for that parameter. The same throw covers a location
+that is not OpenAPI 3.x at all, such as the `in: body` or `in: formData`
+left behind by a half-converted Swagger 2.0 document. The `ParameterLocation`
+TSDoc carries the contract.
+
 Override via `createValidator(spec, { dialect })` to force or customize
 one of the built-in dialects (`jsonSchemaDialect`, `openapi31Dialect`,
 `oas30Dialect`). The option wins over the version the document declares,
