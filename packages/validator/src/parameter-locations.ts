@@ -114,7 +114,7 @@ export function unservedParameterLocationMessage(
   const subject =
     typeof name === "string" && name !== ""
       ? `${where} declares parameter "${name}"`
-      : `${where} declares a parameter with no name`;
+      : `${where} declares an unnamed parameter`;
   if (typeof location !== "string") {
     return (
       `${subject} with no "in" field. ` +
@@ -171,6 +171,15 @@ export function assertServedParameterLocations(
   resolveRef: <T>(value: T | ReferenceObject | undefined) => T | undefined,
 ): void {
   const paths = document.paths ?? {};
+  // `$ref` targets already cleared, by pointer. A published document
+  // points many operations at the same `components/parameters` entry
+  // (16,521 of the 73,075 parameters across the 300 documents in
+  // `detection/real-world/specs` are behind a `$ref`), and resolving
+  // each use site walks the pointer again for an answer that cannot
+  // differ. Measured on `large-github.json`, the largest of them:
+  // `createValidator` medians 1.19ms with this walk removed, 3.50ms
+  // with it and no cache, and 1.95ms as written.
+  const clearedRefs = new Set<string>();
   for (const [pathPattern, item] of Object.entries(paths)) {
     // The Path Item itself is read as written, not through `resolveRef`,
     // because `createRouter` reads it that way: a `$ref`'d Path Item
@@ -178,11 +187,16 @@ export function assertServedParameterLocations(
     // its parameters are never read. Refusing one would refuse a
     // document over an operation this validator does not serve at all.
     if (item === null || typeof item !== "object") continue;
-    check(item.parameters, `path item ${pathPattern}`, resolveRef);
+    check(item.parameters, `path item ${pathPattern}`, resolveRef, clearedRefs);
     for (const method of METHODS) {
       const operation = item[method];
       if (operation === null || typeof operation !== "object") continue;
-      check(operation.parameters, `${method.toUpperCase()} ${pathPattern}`, resolveRef);
+      check(
+        operation.parameters,
+        `${method.toUpperCase()} ${pathPattern}`,
+        resolveRef,
+        clearedRefs,
+      );
     }
   }
 }
@@ -191,6 +205,7 @@ function check(
   parameters: unknown,
   where: string,
   resolveRef: <T>(value: T | ReferenceObject | undefined) => T | undefined,
+  clearedRefs: Set<string>,
 ): void {
   // Not `!== undefined`: `parameters:` carrying an object rather than a
   // list is a malformed document that the hygiene lint reports, and
@@ -198,9 +213,18 @@ function check(
   // second, less useful error ahead of the one that names the defect.
   if (!Array.isArray(parameters)) return;
   for (const raw of parameters as (ParameterObject | ReferenceObject)[]) {
+    // A pointer is recorded only after its target cleared, so the skip
+    // can never swallow an offender: the first use site of a bad target
+    // throws before anything is recorded. The site it names is that
+    // first one in document order, which is the same site an
+    // uncached walk would name.
+    const ref = raw === null || typeof raw !== "object" ? undefined : (raw as ReferenceObject).$ref;
+    if (typeof ref === "string" && clearedRefs.has(ref)) continue;
     const p = resolveRef<ParameterObject>(raw);
     if (p === null || typeof p !== "object") continue;
-    if (isServedParameterLocation(p.in)) continue;
-    throw new Error(`createValidator: ${unservedParameterLocationMessage(where, p.name, p.in)}`);
+    if (!isServedParameterLocation(p.in)) {
+      throw new Error(`createValidator: ${unservedParameterLocationMessage(where, p.name, p.in)}`);
+    }
+    if (typeof ref === "string") clearedRefs.add(ref);
   }
 }
