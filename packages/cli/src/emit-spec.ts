@@ -257,7 +257,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   // First pass: identify which paths have ≥ 1 included op.
   for (const [pathPattern, pathItemRaw] of Object.entries(document.paths ?? {})) {
     const pathItem = resolveRef<PathItem>(pathItemRaw as PathItem | ReferenceObject);
-    if (pathItem === undefined) continue;
+    if (pathItem == null) continue;
     for (const method of HTTP_METHODS) {
       const opRaw = (pathItem as Record<string, unknown>)[method];
       if (opRaw === undefined) continue;
@@ -274,14 +274,14 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   for (const [pathPattern, pathItemRaw] of Object.entries(document.paths ?? {})) {
     if (!includedPaths.has(pathPattern)) continue;
     const pathItem = resolveRef<PathItem>(pathItemRaw as PathItem | ReferenceObject);
-    if (pathItem === undefined) continue;
+    if (pathItem == null) continue;
 
     const allDeclared = new Set<string>();
     for (const method of HTTP_METHODS) {
       const opRaw = (pathItem as Record<string, unknown>)[method];
       if (opRaw === undefined) continue;
       const op = resolveRef<OperationObject>(opRaw as OperationObject | ReferenceObject);
-      if (op === undefined) continue;
+      if (op == null) continue;
       const upperMethod = method.toUpperCase();
       allDeclared.add(upperMethod);
 
@@ -463,13 +463,18 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // Parameters: union of path-item-level + operation-level. Operation
   // wins on `(name, in)` collision.
   const combined = new Map<string, ParameterObject>();
+  // `!= null` rather than `!== undefined`: a `- ` list entry with
+  // nothing under it resolves to `null`, and reading `.name` off it
+  // threw a `TypeError` out of `emitSpec` where `createValidator` skips
+  // the entry and lets the hygiene lint locate it. Same skip, same
+  // reason, three lines from the gate this file just gained.
   for (const p of (pathItem.parameters ?? []) as Array<ParameterObject | ReferenceObject>) {
     const resolved = resolveRef<ParameterObject>(p);
-    if (resolved !== undefined) combined.set(`${resolved.name}::${resolved.in}`, resolved);
+    if (resolved != null) combined.set(`${resolved.name}::${resolved.in}`, resolved);
   }
   for (const p of (operation.parameters ?? []) as Array<ParameterObject | ReferenceObject>) {
     const resolved = resolveRef<ParameterObject>(p);
-    if (resolved !== undefined) combined.set(`${resolved.name}::${resolved.in}`, resolved);
+    if (resolved != null) combined.set(`${resolved.name}::${resolved.in}`, resolved);
   }
   const parameters = [...combined.values()];
 
@@ -500,6 +505,11 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // function again reads as `compile-spec: emitSpec: GET /t declares
   // ...` for the only audience that sees it.
   for (const p of parameters) {
+    // A non-object entry is not a parameter to judge. `createValidator`
+    // skips it and the hygiene lint names the line; refusing here
+    // reported it as a parameter with no `in`, which points at the
+    // wrong defect and breaks the parity this gate exists to keep.
+    if (p === null || typeof p !== "object") continue;
     if (isServedParameterLocation(p.in)) continue;
     throw new Error(unservedParameterLocationMessage(`${method} ${pathPattern}`, p.name, p.in));
   }

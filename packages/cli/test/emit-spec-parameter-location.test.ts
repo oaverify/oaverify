@@ -177,3 +177,45 @@ describe("--only scopes the refusal to what is emitted", () => {
     );
   });
 });
+
+describe("an empty parameters entry", () => {
+  it("is skipped rather than crashing the emit", async () => {
+    // `- ` with nothing under it is `null`. `createValidator` skips it
+    // and the hygiene lint locates it; the emitter read `.name` off it
+    // and threw.
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: { parameters: [null], responses: { "200": { description: "ok" } } },
+        },
+      },
+    };
+    expect(() => emitSpec(doc as never)).not.toThrow();
+  });
+});
+
+describe("an entry that is not a parameter object", () => {
+  it("is skipped, as the runtime skips it", () => {
+    // Refusing it reported "an unnamed parameter with no in field",
+    // which names the wrong defect. The hygiene lint locates the entry.
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": { get: { parameters: ["oops"], responses: { "200": { description: "ok" } } } },
+      },
+    };
+    expect(() => emitSpec(doc as never)).not.toThrow();
+  });
+
+  it("skips a null path item and a null operation", () => {
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: { "/a": null, "/b": { get: null } },
+    };
+    expect(() => emitSpec(doc as never)).not.toThrow();
+  });
+});
