@@ -59,7 +59,35 @@ export const SUBSCHEMA_MAP_POSITIONS = [
   "definitions",
 ] as const;
 
-/** Every key in the three sets above, for membership tests. */
+/**
+ * Positions holding a `string -> ...` map whose values are a subschema
+ * for some entries and something else for others.
+ *
+ * `dependencies` (draft-07, still accepted under a 2020-12 dialect) is
+ * the only one: an array value carries `dependentRequired` semantics
+ * and names properties, an object or boolean value is a subschema. So
+ * `{ "a": ["b"], "c": { "type": "string" } }` is one map with an entry
+ * of each kind.
+ *
+ * Kept out of {@link SUBSCHEMA_MAP_POSITIONS} rather than added to it,
+ * because that set promises every value is a subschema and callers rely
+ * on the promise: `assertWellFormedSchema` rejects a value there that
+ * is not an object, which would refuse the legal array form, and the
+ * validator's direction transform would rewrite `["b"]` as though it
+ * were a schema.
+ *
+ * A caller walking these must test each value and skip the arrays.
+ *
+ * @internal
+ */
+export const SUBSCHEMA_MIXED_MAP_POSITIONS = ["dependencies"] as const;
+
+/**
+ * Every key in the three uniform sets above, for membership tests.
+ *
+ * Deliberately excludes {@link SUBSCHEMA_MIXED_MAP_POSITIONS}; see
+ * {@link isSubschemaKey}.
+ */
 const ALL_SUBSCHEMA_KEYS: ReadonlySet<string> = new Set<string>([
   ...SUBSCHEMA_SINGLE_POSITIONS,
   ...SUBSCHEMA_ARRAY_POSITIONS,
@@ -67,8 +95,14 @@ const ALL_SUBSCHEMA_KEYS: ReadonlySet<string> = new Set<string>([
 ]);
 
 /**
- * Does `key` hold a subschema (or subschemas) rather than arbitrary
- * data?
+ * Is every value at `key` a subschema, rather than arbitrary data?
+ *
+ * False for a mixed position: `dependencies` holds a subschema at some
+ * entries and an array of property names at others, so a caller cannot
+ * act on the key alone and has to look at each value. Answering `true`
+ * here would hand that caller the wrong answer for half the entries,
+ * which is worse than not answering. See
+ * {@link SUBSCHEMA_MIXED_MAP_POSITIONS}.
  *
  * @internal
  */
