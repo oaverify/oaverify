@@ -705,6 +705,52 @@ describe("schema lint: required-not-in-properties (instance-position aware)", ()
   });
 });
 
+describe("required-not-in-properties across both dependent-schema spellings", () => {
+  // `dependencies` is the draft-07 spelling of `dependentSchemas`. Its
+  // object-valued entries constrain the same instance, so the rule has
+  // to reach through both or it fires on a correct schema and stays
+  // quiet on a wrong one. Asserted as a pair, because the two agreeing
+  // is the contract.
+  const flagged = (schema: unknown) =>
+    compileSchema(schema as SchemaOrBoolean, {
+      dialect: jsonSchemaDialect,
+    }).stats.schemaLintIssues.filter((i) => i.code === "silent-rewrite/required-not-in-properties");
+
+  const spellings = ["dependentSchemas", "dependencies"] as const;
+
+  it.each(spellings)("%s: a name the dependent schema declares is not a typo", (kw) => {
+    expect(
+      flagged({
+        type: "object",
+        properties: { x: {} },
+        [kw]: { x: { properties: { y: {} } } },
+        required: ["y"],
+      }),
+    ).toHaveLength(0);
+  });
+
+  it.each(spellings)("%s: a typo inside the dependent schema is still reported", (kw) => {
+    const issues = flagged({
+      type: "object",
+      properties: { x: {} },
+      [kw]: { x: { properties: { name: {} }, required: ["nmae"] } },
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('"nmae"');
+  });
+
+  it("the array form constrains nothing and is not walked as a schema", () => {
+    expect(
+      flagged({
+        type: "object",
+        properties: { x: {}, y: {} },
+        dependencies: { x: ["y"] },
+        required: ["y"],
+      }),
+    ).toHaveLength(0);
+  });
+});
+
 describe("strict mode: silent-rewrite/redundant-composition-branches", () => {
   const lint = (schema: SchemaOrBoolean) =>
     compileSchema(schema, { dialect: jsonSchemaDialect }).stats.schemaLintIssues;

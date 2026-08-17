@@ -249,3 +249,38 @@ describe("dependencies (draft-07) and unevaluated* siblings", () => {
     expect(v.validate({ x: 1, b: 2 }).valid).toBe(false);
   });
 });
+
+describe("dependencies as a route to the dynamic-scope machinery", () => {
+  // The $dynamicRef gate is a second walk with the same three-loop shape
+  // as the unevaluated one. Missing the mixed position there leaves
+  // `ref` false, the machinery switched off, and the reference bound
+  // statically, which changes the verdict rather than the diagnostics.
+  const build = (kw: "dependentSchemas" | "dependencies") =>
+    compile({
+      $id: "https://ex/strict-tree",
+      $dynamicAnchor: "node",
+      $ref: "https://ex/tree",
+      unevaluatedProperties: false,
+      $defs: {
+        tree: {
+          $id: "https://ex/tree",
+          $dynamicAnchor: "node",
+          type: "object",
+          properties: { data: true },
+          [kw]: {
+            data: { properties: { children: { type: "array", items: { $dynamicRef: "#node" } } } },
+          },
+        },
+      },
+    });
+
+  it.each(["dependentSchemas", "dependencies"] as const)(
+    "%s: a $dynamicRef reached only through the position still rebinds",
+    (kw) => {
+      // `extra` is unevaluated at the strict-tree resource, and is only
+      // rejected if the reference rebinds there.
+      expect(build(kw).validate({ data: 1, children: [{ data: 1, extra: 2 }] }).valid).toBe(false);
+      expect(build(kw).validate({ data: 1, children: [{ data: 1 }] }).valid).toBe(true);
+    },
+  );
+});

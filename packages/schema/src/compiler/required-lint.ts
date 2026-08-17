@@ -4,6 +4,7 @@ import {
   stepPosition,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
+  SUBSCHEMA_MIXED_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
   type SubschemaPosition,
 } from "../subschema-positions.js";
@@ -15,7 +16,9 @@ import type { SchemaLintIssue } from "./compiler.js";
  * of its siblings rather than alongside it.
  *
  * `dependentSchemas` belongs here too: its values apply to the enclosing
- * object, conditionally on a key being present.
+ * object, conditionally on a key being present. So does `dependencies`,
+ * its draft-07 spelling, whose object-valued entries mean the same
+ * thing.
  */
 const IN_PLACE = [
   "allOf",
@@ -26,6 +29,7 @@ const IN_PLACE = [
   "else",
   "not",
   "dependentSchemas",
+  "dependencies",
 ] as const;
 const IN_PLACE_SET = new Set<string>(IN_PLACE);
 
@@ -134,8 +138,12 @@ function closure(
       if (v === undefined) continue;
       if (Array.isArray(v)) {
         for (const b of v) add(b, depth + 1);
-      } else if (kw === "dependentSchemas") {
-        if (isObj(v)) for (const b of Object.values(v)) add(b, depth + 1);
+      } else if (kw === "dependentSchemas" || kw === "dependencies") {
+        // A map of schemas. `dependencies` also carries the array form,
+        // whose entries name properties rather than holding a schema.
+        if (isObj(v)) {
+          for (const b of Object.values(v)) if (!Array.isArray(b)) add(b, depth + 1);
+        }
       } else {
         add(v, depth + 1);
       }
@@ -458,10 +466,13 @@ export function collectRequiredIssues(
 
     // `dependentSchemas` is already in the constant; it was appended by
     // hand here as well.
-    for (const key of SUBSCHEMA_MAP_POSITIONS) {
+    for (const key of [...SUBSCHEMA_MAP_POSITIONS, ...SUBSCHEMA_MIXED_MAP_POSITIONS]) {
       const v = node[key];
       if (!isObj(v)) continue;
       for (const [name, sub] of Object.entries(v)) {
+        // A mixed map's array entries name properties; there is no
+        // schema to descend into.
+        if (Array.isArray(sub)) continue;
         descend(
           sub,
           path === "" ? `${key}.${name}` : `${path}.${key}.${name}`,

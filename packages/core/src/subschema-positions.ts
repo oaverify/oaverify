@@ -78,6 +78,15 @@ export const SUBSCHEMA_MAP_POSITIONS = [
  *
  * A caller walking these must test each value and skip the arrays.
  *
+ * Being excluded from {@link isSubschemaKey} has a consequence worth
+ * stating: a caller that decides "is this a schema position" from that
+ * predicate alone does not reach these entries. `packages/spec`'s two
+ * resolvers do, so an external `$ref` written inside `dependencies` is
+ * not hoisted and the document it names is never loaded. That gap
+ * predates this set and is not closed by it; closing it means teaching
+ * those resolvers the mixed shape, since the predicate cannot answer
+ * for a position whose values disagree with each other.
+ *
  * @internal
  */
 export const SUBSCHEMA_MIXED_MAP_POSITIONS = ["dependencies"] as const;

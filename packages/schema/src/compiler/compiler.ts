@@ -1376,6 +1376,13 @@ export function scanDynamicScopeUsage(schema: SchemaOrBoolean): {
         for (const v of Object.values(obj)) walk(v);
       }
     }
+    for (const key of SUBSCHEMA_MIXED_MAP_POSITIONS) {
+      const obj = (s as Record<string, unknown>)[key];
+      if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
+        // Array entries name properties; only the rest are schemas.
+        for (const v of Object.values(obj)) if (!Array.isArray(v)) walk(v);
+      }
+    }
   };
   walk(schema);
   return { anchor, ref };
