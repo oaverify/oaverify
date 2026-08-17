@@ -3,6 +3,7 @@ import { createValidator } from "@oaverify/internal-validator";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { describe, expect, it, vi } from "vitest";
 import { ResponseValidationError } from "../src/response-error.js";
+import { markRequestRefused } from "../src/request-marks.js";
 import { validateResponses } from "../src/validate-responses.js";
 
 function widgetSpec(): OpenAPIDocument {
@@ -44,7 +45,26 @@ function fakeReply(statusCode = 200, contentType = "application/json"): FastifyR
 }
 
 function fakeRequest(): FastifyRequest {
-  return { method: "GET", url: "/widgets/42", headers: {} } as unknown as FastifyRequest;
+  // `routeOptions.url` is what Fastify sets when it matched a route, and
+  // the hook only validates a reply a route handler produced. A fake
+  // without it is an unmatched request, which is a different case; see
+  // `fakeUnroutedRequest`.
+  return {
+    method: "GET",
+    url: "/widgets/42",
+    headers: {},
+    routeOptions: { url: "/widgets/:id" },
+  } as unknown as FastifyRequest;
+}
+
+/** A request Fastify matched no route for, i.e. the not-found handler. */
+function fakeUnroutedRequest(): FastifyRequest {
+  return {
+    method: "GET",
+    url: "/no-such-path",
+    headers: {},
+    routeOptions: {},
+  } as unknown as FastifyRequest;
 }
 
 const v = createValidator(widgetSpec());
@@ -269,5 +289,34 @@ describe("validateResponses (Fastify)", () => {
     const [errors, ctx] = onError.mock.calls[0]!;
     expect(Array.isArray(errors)).toBe(true);
     expect(ctx).toMatchObject({ reply });
+  });
+});
+
+describe("validateResponses scope (Fastify)", () => {
+  // `onSend` runs for every reply, so two kinds reach the hook that no
+  // route handler wrote. Checking either turns a correct 4xx into a 500.
+  const spec = v;
+
+  it("passes through the not-found handler's reply", async () => {
+    const hook = validateResponses(spec);
+    const payload = '{"error":"not found"}';
+    await expect(run(hook, fakeUnroutedRequest(), fakeReply(404), payload)).resolves.toBe(payload);
+  });
+
+  it("passes through a reply for a request the request validator refused", async () => {
+    const hook = validateResponses(spec);
+    const request = fakeRequest();
+    markRequestRefused(request);
+    const payload = '{"title":"Validation failed"}';
+    await expect(run(hook, request, fakeReply(400), payload)).resolves.toBe(payload);
+  });
+
+  it("still checks a routed reply that was not refused", async () => {
+    const hook = validateResponses(spec);
+    // Undeclared status on a route the spec knows: the application's own
+    // output, so this one is a finding.
+    await expect(run(hook, fakeRequest(), fakeReply(418), '{"id":"ok"}')).rejects.toBeInstanceOf(
+      ResponseValidationError,
+    );
   });
 });

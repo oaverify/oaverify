@@ -93,6 +93,10 @@ if (process.env.NODE_ENV !== "production") {
 }
 ```
 
+Registration order does not matter, and there is nothing to get wrong by mounting it alongside `validateRequests`. `onSend` sees every reply, including ones no route handler wrote, so the hook scopes itself: a request `validateRequests` refused keeps its 400, and an unmatched route keeps Fastify's 404. A path Fastify routed that the spec does not declare is still reported, since that response is your application's.
+
+This is where the Fastify adapter differs from its Express siblings, which solve the same problem by asking you to mount `validateResponses` after `validateRequests`. `onSend` is a lifecycle hook rather than a position in a chain, so no order helps and the adapter does the scoping instead.
+
 | option          | type                                                        | default                         |
 | --------------- | ----------------------------------------------------------- | ------------------------------- |
 | `toHttpRequest` | `(request: FastifyRequest) => HttpRequest`                  | `httpRequestFromFastify`        |

@@ -8,6 +8,7 @@ import {
 } from "@oaverify/internal-core";
 import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromFastify } from "./extract.js";
+import { requestWasRefused, routeWasMatched } from "./request-marks.js";
 import { ResponseValidationError } from "./response-error.js";
 import type { ErrorHandler, FastifyContext } from "./types.js";
 
@@ -85,14 +86,23 @@ const VALIDATED = Symbol("oaverify.responseValidated");
  * the configured `onError` runs (default: throw a
  * {@link ResponseValidationError} to Fastify's error handler as a 500).
  *
- * Response status and declared headers are checked for every reply,
- * regardless of media type: a 204, a redirect, or a text error page
- * still has a status the spec may not declare and headers it may
- * require. The body is validated only when the payload is a parseable
- * JSON string; non-JSON, unparseable, buffer, and stream payloads pass
- * their bodies through untouched (status and headers still checked). A
- * per-request guard means the error handler's own response (rendered in
- * reaction to a failure) is not re-validated, so there is no loop.
+ * Scoped to replies a route handler produced. `onSend` runs for every
+ * reply, so two kinds arrive here that no handler wrote: the
+ * problem-details body {@link validateRequests} renders for a request
+ * it refused, and Fastify's not-found reply. Neither is checked, since
+ * checking them turns a 400 or a 404 into a 500. A path Fastify routed
+ * that the spec does not declare is still reported: that one is the
+ * application's own output.
+ *
+ * Within that scope, response status and declared headers are checked
+ * for every reply regardless of media type: a 204, a redirect, or a
+ * text error page still has a status the spec may not declare and
+ * headers it may require. The body is validated only when the payload
+ * is a parseable JSON string; non-JSON, unparseable, buffer, and stream
+ * payloads pass their bodies through untouched (status and headers
+ * still checked). A per-request guard means the error handler's own
+ * response (rendered in reaction to a failure) is not re-validated, so
+ * there is no loop.
  *
  * @example
  * ```ts
@@ -124,6 +134,19 @@ export function validateResponses(
     const marker = request as FastifyRequest & { [VALIDATED]?: boolean };
     if (marker[VALIDATED] === true) return payload;
     marker[VALIDATED] = true;
+
+    // Only a route handler's own output is this hook's business.
+    //
+    // `onSend` runs for every reply, including ones produced before any
+    // handler did: the problem-details body `validateRequests` renders
+    // for a request it refused, and Fastify's not-found reply. Checking
+    // those against the spec reports an undeclared status or an
+    // unmatched route, and the user sees a 500 where their 400 or 404
+    // should have been.
+    //
+    // The Express adapters get this from mount order, which `onSend`
+    // has no equivalent of; see `request-marks.ts`.
+    if (requestWasRefused(request) || !routeWasMatched(request)) return payload;
 
     if (!shouldValidate(reply.statusCode)) return payload;
 

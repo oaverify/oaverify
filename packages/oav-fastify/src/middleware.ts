@@ -2,6 +2,7 @@ import type { FastifyRequest, preValidationAsyncHookHandler } from "fastify";
 import { collectLeaves, type HttpRequest, type ValidationError } from "@oaverify/internal-core";
 import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromFastify } from "./extract.js";
+import { markRequestRefused } from "./request-marks.js";
 import { renderProblemDetails } from "./render.js";
 import type { ErrorHandler, FastifyContext } from "./types.js";
 
@@ -92,6 +93,10 @@ export function validateRequests(
     if (result.valid) return;
     const errors: ValidationError[] =
       "errors" in result ? result.errors : collectLeaves(result.error);
+    // Marked before `onError` runs, so a handler that throws still
+    // leaves the mark: what matters to `validateResponses` is that the
+    // route handler never ran, not how the refusal was rendered.
+    markRequestRefused(request);
     // Fastify awaits the returned promise; thrown errors / rejected
     // promises propagate to Fastify's error handler. The hook
     // returns once onError settles; Fastify treats a sent reply

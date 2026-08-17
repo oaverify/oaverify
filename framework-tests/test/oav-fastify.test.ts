@@ -557,3 +557,81 @@ describe("oav-fastify integration: validateResponses with requireResponseBody", 
     expect(r.statusCode).toBe(200);
   });
 });
+
+describe("oav-fastify integration: both hooks mounted together", () => {
+  /**
+   * `onSend` runs for every reply, including ones no route handler
+   * produced. Without scoping, mounting both hooks (which is what the
+   * README's two recipes do) turned every request-validation 400 and
+   * every Fastify 404 into a 500.
+   *
+   * The Express adapters avoid this by mount order: `validateResponses`
+   * patches `res.send`, so mounting it after `validateRequests` leaves
+   * the refusal outside what it wraps. `onSend` is a lifecycle hook, so
+   * no registration order helps and the adapter has to scope itself.
+   */
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    const validator = createValidator(petSpec());
+    app = Fastify();
+    app.addHook("preValidation", validateRequests(validator));
+    app.addHook("onSend", validateResponses(validator));
+    app.post("/pets", async (_req, reply) => reply.code(200).send({ id: "1", name: "rex" }));
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it("a refused request keeps its 400 instead of becoming a 500", async () => {
+    const r = await app.inject({
+      method: "POST",
+      url: "/pets",
+      headers: { "content-type": "application/json", "x-tenant": "acme" },
+      payload: { wrong: 1 },
+    });
+    expect(r.statusCode).toBe(400);
+    expect(r.headers["content-type"]).toContain("application/problem+json");
+  });
+
+  it("an unmatched route keeps Fastify's 404", async () => {
+    const r = await app.inject({ method: "GET", url: "/no-such-path" });
+    expect(r.statusCode).toBe(404);
+  });
+
+  it("a valid request is still response-validated", async () => {
+    const r = await app.inject({
+      method: "POST",
+      url: "/pets",
+      headers: { "content-type": "application/json", "x-tenant": "acme" },
+      payload: { name: "rex" },
+    });
+    expect(r.statusCode).toBe(200);
+  });
+});
+
+describe("oav-fastify integration: validateResponses alone still reports an undeclared path", () => {
+  // The skip is scoped to replies no handler produced, so it must not
+  // swallow a finding about a route Fastify matched. With only the
+  // response hook mounted, an undocumented path reaches the handler and
+  // its response has no operation to be checked against.
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = Fastify();
+    app.addHook("onSend", validateResponses(createValidator(petSpec())));
+    app.get("/undocumented", async (_req, reply) => reply.code(200).send({ hi: true }));
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it("reports a route the spec does not declare", async () => {
+    const r = await app.inject({ method: "GET", url: "/undocumented" });
+    expect(r.statusCode).toBe(500);
+  });
+});
