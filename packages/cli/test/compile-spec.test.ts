@@ -768,6 +768,43 @@ describe("unknown formats (#660)", () => {
     expect(mem.stderr.value).toContain("--unknown-formats ignore");
   });
 
+  it("refuses a parameter location the validator cannot serve, through the CLI", async () => {
+    // `emit-spec-parameter-location.test.ts` pins the refusal and its
+    // scoping at the emitting boundary. This pins what a user meets:
+    // the `compile-spec:` wrapper, exit 3 rather than the loader's 2,
+    // and nothing written.
+    const querystringDoc = {
+      openapi: "3.2.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [
+              { name: "q", in: "querystring", required: true, schema: { type: "string" } },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const mem = memoryIo([["spec.json", querystringDoc]]);
+    const res = await compileSpecCommand(
+      {
+        spec: "spec.json",
+        overlays: [],
+        output: "out.mjs",
+        resolveDir: RESOLVE_DIR,
+        bundleAlias: CORE_ALIASES,
+      },
+      mem.io,
+    );
+    expect(res.exitCode).toBe(3);
+    expect(mem.stderr.value).toContain(
+      'compile-spec: GET /t declares parameter "q" with in: "querystring"',
+    );
+    expect(mem.writes).toHaveLength(0);
+  });
+
   it("emits under ignore: warns on stderr, records in warnings, asserts nothing", async () => {
     const mem = memoryIo([["spec.json", vendorDoc]]);
     const res = await compileSpecCommand(
