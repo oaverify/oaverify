@@ -1278,7 +1278,7 @@ function applyOperationOverride(op: OperationObject, override: OperationOverride
       if (value === undefined) {
         delete (next as Record<string, unknown>)[key];
       } else {
-        (next as Record<string, unknown>)[key] = value;
+        setSpecKey(next as unknown as Record<string, unknown>, key, value);
       }
     }
   }
