@@ -206,6 +206,25 @@ describe("a parameter location the validator does not serve", () => {
   });
 });
 
+describe("the residual path the gate cannot cover", () => {
+  it("names the broken invariant when a document is mutated after construction", () => {
+    // The gate reads the document once, at construction. A caller that
+    // edits it afterwards holds a validator whose plan no longer
+    // matches, and the parameter loop meets a location it cannot read.
+    // Before #836 that was `TypeError: path is not iterable`.
+    const param = { name: "q", in: "query", required: true, schema: stringSchema };
+    const validator = createValidator(doc("3.2.0", get([param])));
+    (param as { in: string }).in = "querystring";
+    expect(() =>
+      validator.validateRequest({ method: "GET", path: "/t", query: { q: "x" } }),
+    ).toThrow(
+      'validateParameter: parameter "q" declares in: "querystring", which createValidator ' +
+        "refuses at construction. The document changed after its validator was built, or " +
+        "this cache was not built by createValidator.",
+    );
+  });
+});
+
 describe("what the gate deliberately leaves alone", () => {
   it("builds a document whose parameters are all served, and validates them", () => {
     const validator = createValidator(
