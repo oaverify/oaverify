@@ -24,6 +24,7 @@ import {
   makeStitchRef,
   mergeHoistedSchemas,
   noteInlinedComponent,
+  removeComponentSchema,
   mergeStitchedExternals,
   type MountState,
   type Mutable,
@@ -35,6 +36,8 @@ import {
   setSpecKey,
   targetKey,
   wrapReadError,
+  HoleLog,
+  UNREADABLE,
 } from "./resolver-shared.js";
 import type { SourceHop } from "./provenance.js";
 import { subschemaFamilyOf } from "@oaverify/internal-core/subschema-positions";
@@ -58,6 +61,11 @@ export interface ResolveSpecSyncOptions {
    * {@link ResolveSpecOptions.provenance}.
    */
   provenance?: boolean;
+  /**
+   * What to do with a reference whose target cannot be read. Defaults
+   * to `"throw"`. See {@link ResolveSpecOptions.onUnresolved}.
+   */
+  onUnresolved?: "throw" | "record";
 }
 
 /**
@@ -105,15 +113,30 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   // Populated as the walk derives each target URI; read back only on
   // failure, to name the reference that pulled the bad document in.
   const referrers: ReferrerTrail = new Map();
-  const readDoc = (uri: string): unknown => {
+  // Mirrors resolveSpec; the commentary lives there.
+  const holes = options.onUnresolved === "record" ? new HoleLog() : null;
+  const readDoc = (uri: string, via: readonly SourceHop[]): unknown => {
+    // Mirrors resolveSpec; the commentary lives there.
+    if (holes !== null && holes.has(uri)) return UNREADABLE;
+    const referrer = referrers.get(uri) ?? null;
     try {
       return reader.read(uri);
     } catch (err) {
-      throw wrapReadError(err, uri, referrers.get(uri) ?? null);
+      const wrapped = wrapReadError(err, uri, referrer);
+      if (holes === null) throw wrapped;
+      holes.record(uri, referrer ?? uri, via, wrapped, err);
+      return UNREADABLE;
     }
   };
 
-  const entryDoc = readDoc(options.entry);
+  // `record` mode does not cover the entry. See
+  // `ResolveSpecOptions.onUnresolved`.
+  let entryDoc: unknown;
+  try {
+    entryDoc = reader.read(options.entry);
+  } catch (err) {
+    throw wrapReadError(err, options.entry, null);
+  }
   assertEntryDocument(entryDoc, options.entry);
   docs.set(options.entry, entryDoc);
 
@@ -131,6 +154,10 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   // Seeded with the entry document's own component names so hoisting can
   // never shadow a schema the author wrote.
   const names = new HoistNames(existingSchemaNames(entryDoc));
+  // Component names the author bound to an external target by writing a
+  // slot that is nothing but a `$ref`. Read back only when such a target
+  // fails to read; see `removeComponentSchema`.
+  const boundSlots = new Set<string>();
   const hoistQueue = new Set<string>();
   const targets = new Map<string, { uri: string; fragment: string }>();
 
@@ -144,6 +171,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     if (keys.length !== 1 || typeof slotRef !== "string" || slotRef.startsWith("#")) continue;
     const [refPath, fragment = ""] = slotRef.split("#") as [string, string | undefined];
     names.bind(resolveRelative(baseDir, refPath), fragment, name);
+    boundSlots.add(name);
   }
 
   /**
@@ -320,7 +348,23 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       sources.add(targetUri);
       let targetDoc = docs.get(targetUri);
       if (targetDoc === undefined) {
-        targetDoc = readDoc(targetUri);
+        targetDoc = readDoc(targetUri, trail?.chain() ?? []);
+        if (targetDoc === UNREADABLE) {
+          // Mirrors resolveSpec; the commentary lives there.
+          visiting.delete(cycleKey(targetUri, fragment));
+          const unfollowed: Mutable = {
+            $ref: fragment === "" ? targetUri : `${targetUri}#${fragment}`,
+          };
+          for (const key of Object.keys(obj)) {
+            if (key === "$ref") continue;
+            setSpecKey(
+              unfollowed,
+              key,
+              walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
+            );
+          }
+          return unfollowed;
+        }
         docs.set(targetUri, targetDoc);
       }
       const resolved =
@@ -446,6 +490,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   // a self-reference resolves to an already-claimed name rather than
   // recursing.
   const hoisted: Mutable = {};
+  const missingHoists = new Set<string>();
   while (hoistQueue.size > 0) {
     const key = hoistQueue.values().next().value as string;
     hoistQueue.delete(key);
@@ -457,7 +502,11 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     setSpecKey(hoisted, name, true);
     let targetDoc = docs.get(target.uri);
     if (targetDoc === undefined) {
-      targetDoc = readDoc(target.uri);
+      targetDoc = readDoc(target.uri, hoistVia.get(key) ?? []);
+      if (targetDoc === UNREADABLE) {
+        missingHoists.add(name);
+        continue;
+      }
       docs.set(target.uri, targetDoc);
     }
     const content =
@@ -475,6 +524,10 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     }
     setSpecKey(hoisted, name, walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS));
     if (trail !== null && mounted !== undefined) trail.leave(mounted, true);
+  }
+  for (const name of missingHoists) {
+    delete hoisted[name];
+    if (boundSlots.has(name)) removeComponentSchema(resolved, name);
   }
   if (trail !== null && Object.keys(hoisted).length > 0) {
     const components = (resolved as unknown as Mutable).components;
@@ -494,7 +547,8 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       sources.add(uri);
       let targetDoc = docs.get(uri);
       if (targetDoc === undefined) {
-        targetDoc = readDoc(uri);
+        targetDoc = readDoc(uri, stitchVia.get(uri) ?? []);
+        if (targetDoc === UNREADABLE) continue;
         docs.set(uri, targetDoc);
       }
       const savedVisiting = new Set(visiting);
@@ -522,6 +576,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     specHygieneIssues,
     inlinedComponents: inlined,
     ...(trail !== null && { regions: trail.regions }),
+    ...(holes !== null && { unresolved: holes.entries() }),
   };
 }
 

@@ -15,6 +15,7 @@ export {
   type ResolveSpecOptions,
   type ResolvedSpec,
 } from "./resolver.js";
+export type { UnresolvedRef } from "./resolver-shared.js";
 export {
   applyOverlays,
   isSpecOverlay,
