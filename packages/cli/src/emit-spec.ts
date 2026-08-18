@@ -652,14 +652,6 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
         hasRequestBody: requestBody !== undefined,
         bodyValidators: toPlaceholderMap(bodyValidators),
         bodyMediaTypes: compileMediaTypePatterns(declaredBodyMediaTypes),
-        // The runtime gate is keyed on compiled schemas, not declared
-        // types: `matchRequestBodyMediaType` returns null when
-        // `bodyValidators.size === 0`, so an operation whose media
-        // types all lack a schema negotiates nothing and accepts any
-        // Content-Type. Negotiating here instead would answer 415 where
-        // `createValidator` answers 200, which is #849 with the legs
-        // swapped. See #870 for the behaviour itself.
-        hasBodySchemas: Object.keys(bodyValidators).length > 0,
         responses: mapResponsesToPlaceholders(responses),
         __security: security,
       },
@@ -742,8 +734,6 @@ function mapResponsesToPlaceholders(
     setSpecKey(out, status, {
       bodyValidators: toPlaceholderMap(r.bodyValidators),
       bodyMediaTypes: compileMediaTypePatterns(r.declaredMediaTypes),
-      /** See the request-side flag; the response gate mirrors it. */
-      hasBodySchemas: Object.keys(r.bodyValidators).length > 0,
       headers: headerOut,
     });
   }
@@ -931,7 +921,11 @@ function renderValidateRequestTree(): string {
   const hasBody = req.body !== undefined;
   const bodyMediaTypes = op.bodyMediaTypes;
   let requestBodyMediaType;
-  if (op.hasRequestBody && hasBody && op.hasBodySchemas && bodyMediaTypes.length > 0) {
+  // Mirrors validate-step.ts exactly: a declared Content-Type that
+  // matches nothing is the actionable signal even when no body was
+  // sent. Skipping on !hasBody alone let the emitted module accept a
+  // wrong Content-Type that the runtime rejects.
+  if (op.hasRequestBody && (hasBody || req.contentType !== undefined) && bodyMediaTypes.length > 0) {
     requestBodyMediaType = matchParsedMediaType(req.contentType, bodyMediaTypes);
     if (requestBodyMediaType === undefined) {
       return createBranchError(
@@ -1080,7 +1074,7 @@ function renderValidateResponseTree(): string {
       }
       // Body validation.
       const bodyMediaTypes = resp.bodyMediaTypes;
-      if (resp.hasBodySchemas && bodyMediaTypes.length > 0 && res.body !== undefined) {
+      if (bodyMediaTypes.length > 0 && res.body !== undefined) {
         const mt = matchParsedMediaType(res.contentType, bodyMediaTypes);
         if (mt === undefined) {
           children.push(createLeafError("content-type", ["body"], contentTypeErrorMessage("response", res.contentType, res.headers, statusKey), { contentType: res.contentType, declared: bodyMediaTypes.map((m) => m.pattern) }));
