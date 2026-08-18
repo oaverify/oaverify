@@ -433,7 +433,9 @@ export function primarySink(
     return once((content) => io.writeText(path, content));
   }
   if (opts.quiet) return once(() => {});
-  return once(io.stdout);
+  // Called through `io` rather than passed unbound, so a `CommandIo`
+  // whose `stdout` is written as a method shorthand keeps its receiver.
+  return once((content) => io.stdout(content));
 }
 
 /**
@@ -1110,11 +1112,11 @@ export async function compileSchemaCommand(
     io.stderr(`compile-schema: ${(err as Error).message}\n`);
     return { exitCode: 3 };
   }
-  if (args.output !== undefined) {
-    await io.writeText(args.output, source);
-    return { exitCode: 0 };
-  }
-  io.stdout(source);
+  // Through the shared sink rather than an inline `-o`-else-stdout
+  // dispatch, so "how a command emits its primary output" has one
+  // implementation and one enforced invariant. `--quiet` is not a flag
+  // either command declares, so it is pinned false rather than plumbed.
+  await primarySink(io, { output: args.output, quiet: false })(source);
   return { exitCode: 0 };
 }
 
@@ -1290,10 +1292,10 @@ export async function compileSpecCommand(
     io.stderr(`compile-spec: ${(err as Error).message}\n`);
     return { exitCode: 3 };
   }
-  if (args.output !== undefined) {
-    await io.writeText(args.output, source);
-    return { exitCode: 0 };
-  }
-  io.stdout(source);
+  // Through the shared sink rather than an inline `-o`-else-stdout
+  // dispatch, so "how a command emits its primary output" has one
+  // implementation and one enforced invariant. `--quiet` is not a flag
+  // either command declares, so it is pinned false rather than plumbed.
+  await primarySink(io, { output: args.output, quiet: false })(source);
   return { exitCode: 0 };
 }

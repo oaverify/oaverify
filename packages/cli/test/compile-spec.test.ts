@@ -1299,3 +1299,42 @@ describe("compile-spec: negotiation-skip parity (#849 / #870)", () => {
     expect(aotLeaf?.params).toEqual(runtimeLeaf?.params);
   });
 });
+
+describe("compile-spec: primary output sink (#868)", () => {
+  // `compileSpecCommand`'s stdout branch had no assertion in the suite:
+  // every other call here passes `output`, so the branch this refactor
+  // rewrote was unguarded. Pairs with the `compileSchemaCommand` case in
+  // commands.test.ts.
+  const tiny: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "Tiny", version: "1" },
+    paths: { "/a": { get: { responses: { "204": { description: "ok" } } } } },
+  };
+
+  const run = async (output?: string) => {
+    const mem = memoryIo([["spec.json", tiny]]);
+    const res = await compileSpecCommand(
+      {
+        spec: "spec.json",
+        overlays: [],
+        ...(output === undefined ? {} : { output }),
+        resolveDir: RESOLVE_DIR,
+        bundleAlias: CORE_ALIASES,
+      },
+      mem.io,
+    );
+    return { res, mem };
+  };
+
+  it("writes to the file with -o and to stdout without it, byte for byte", async () => {
+    const toFile = await run("out.mjs");
+    expect(toFile.res.exitCode).toBe(0);
+    expect(toFile.mem.writes.map(([path]) => path)).toEqual(["out.mjs"]);
+    expect(toFile.mem.stdout.value).toBe("");
+
+    const toStdout = await run();
+    expect(toStdout.res.exitCode).toBe(0);
+    expect(toStdout.mem.writes).toEqual([]);
+    expect(toStdout.mem.stdout.value).toBe(toFile.mem.writes[0]?.[1]);
+  });
+});
