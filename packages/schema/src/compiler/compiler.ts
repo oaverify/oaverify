@@ -28,10 +28,7 @@ import {
 import {
   positionFields,
   stepPosition,
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_MIXED_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
+  forEachSubschema,
   walkSubschemas,
 } from "../subschema-positions.js";
 import { createDeps, type RegexCompiler, type ValidatorDeps } from "./runtime.js";
@@ -1303,29 +1300,13 @@ export function schemaUsesUnevaluated(schema: SchemaOrBoolean): boolean {
     if (seen.has(s)) return false;
     seen.add(s);
     if ("unevaluatedProperties" in s || "unevaluatedItems" in s) return true;
-    for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
-      if (key in s && walk((s as Record<string, unknown>)[key])) return true;
-    }
-    for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
-      const arr = (s as Record<string, unknown>)[key];
-      if (Array.isArray(arr)) {
-        for (const item of arr) if (walk(item)) return true;
-      }
-    }
-    for (const key of SUBSCHEMA_MAP_POSITIONS) {
-      const obj = (s as Record<string, unknown>)[key];
-      if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
-        for (const v of Object.values(obj)) if (walk(v)) return true;
-      }
-    }
-    for (const key of SUBSCHEMA_MIXED_MAP_POSITIONS) {
-      const obj = (s as Record<string, unknown>)[key];
-      if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
-        // Array entries name properties; only the rest are schemas.
-        for (const v of Object.values(obj)) if (!Array.isArray(v) && walk(v)) return true;
-      }
-    }
-    return false;
+    let found = false;
+    forEachSubschema(s, (value) => {
+      if (!walk(value)) return;
+      found = true;
+      return false; // stop at the first hit
+    });
+    return found;
   };
   return walk(schema);
 }
@@ -1363,26 +1344,9 @@ export function scanDynamicScopeUsage(schema: SchemaOrBoolean): {
     if ("$dynamicAnchor" in s) anchor = true;
     if ("$dynamicRef" in s) ref = true;
     if (anchor && ref) return;
-    for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
-      if (key in s) walk((s as Record<string, unknown>)[key]);
-    }
-    for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
-      const arr = (s as Record<string, unknown>)[key];
-      if (Array.isArray(arr)) for (const item of arr) walk(item);
-    }
-    for (const key of SUBSCHEMA_MAP_POSITIONS) {
-      const obj = (s as Record<string, unknown>)[key];
-      if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
-        for (const v of Object.values(obj)) walk(v);
-      }
-    }
-    for (const key of SUBSCHEMA_MIXED_MAP_POSITIONS) {
-      const obj = (s as Record<string, unknown>)[key];
-      if (obj !== null && typeof obj === "object" && !Array.isArray(obj)) {
-        // Array entries name properties; only the rest are schemas.
-        for (const v of Object.values(obj)) if (!Array.isArray(v)) walk(v);
-      }
-    }
+    forEachSubschema(s, (value) => {
+      walk(value);
+    });
   };
   walk(schema);
   return { anchor, ref };

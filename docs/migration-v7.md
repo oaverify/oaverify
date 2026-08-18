@@ -419,6 +419,43 @@ accidental: three of the four already lived behind `/internals`.
 `/internals` is outside the semver contract, so this is a move rather
 than a promise; the new path is the same code with the same names.
 
+### Prefer the iteration helpers to the constants
+
+If you import the constants in order to walk a schema, reach for
+`subschemaEntries`, `transformSubschemaValue` or `subschemaFamilyOf`
+from the same entry point instead. They dispatch on one table covering
+every position family, including the mixed `dependencies` map that a
+hand-written loop per constant tends to omit:
+
+```diff
+-for (const key of SUBSCHEMA_MAP_POSITIONS) { /* ... one loop per family */ }
++for (const { key, family, value, at } of subschemaEntries(schema)) { /* ... */ }
+```
+
+The constants stay exported. In-repo, `pnpm check:walkers` rejects a
+direct use outside a short list of stated exemptions, the load-bearing
+one being `assertWellFormedSchema`: it validates the _shape_ of each
+position with a different message per family, so it cannot be built on
+a helper that assumes well-formed input.
+
+## `check` may report findings inside `dependencies`
+
+The document walk behind `oaverify check` (and the `example`, `redos`
+and `format` passes) previously stepped over `dependencies` entirely,
+so nothing declared inside one was ever examined. It now descends there
+like any other subschema position.
+
+Nothing about your document changed, and no rule changed. A document
+that declared a bad example, a risky pattern or an unknown format under
+`dependencies` was always non-conforming; the check simply could not
+see it. If `oaverify check` was green and is now red, the findings it
+reports were already true of the spec.
+
+Request validation tightens in the same place, and this one can reject
+traffic that was previously accepted: a `readOnly` property declared
+under `dependencies` is now enforced on the request leg, so a client
+sending that server-owned field gets a 400 where it used to get through.
+
 ## Checklist
 
 - [ ] Replace `@oaverify/yaml` with `@oaverify/syntax` in every manifest

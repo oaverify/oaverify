@@ -1,10 +1,5 @@
 import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
-import {
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_MIXED_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
-} from "@oaverify/internal-core/subschema-positions";
+import { forEachSubschema } from "@oaverify/internal-core/subschema-positions";
 import { SchemaRegistry } from "./registry.js";
 
 /**
@@ -182,94 +177,12 @@ function walkScoped(
     getOrCreateScope(dynamicAnchorScopes, nextBase).set(obj.$dynamicAnchor, schema);
   }
 
-  // Driven by the shared position constants rather than a list written
-  // out here. The hand-written list had drifted: `definitions` was in
-  // the constants and missing here, so an `$anchor` under it resolved
-  // to "unknown anchor".
-  const fields = obj as unknown as Record<string, unknown>;
-  const walkArgs = [nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri] as const;
-
-  for (const key of SUBSCHEMA_MAP_POSITIONS) {
-    walkRecord(fields[key] as Record<string, SchemaOrBoolean> | undefined, ...walkArgs);
-  }
-  for (const key of SUBSCHEMA_MIXED_MAP_POSITIONS) {
-    walkMixedRecord(fields[key], ...walkArgs);
-  }
-  for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
-    walkMaybe(fields[key] as SchemaOrBoolean | undefined, ...walkArgs);
-  }
-  for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
-    walkArray(fields[key] as SchemaOrBoolean[] | undefined, ...walkArgs);
-  }
-}
-
-/**
- * Walk a {@link SUBSCHEMA_MIXED_MAP_POSITIONS} map, whose values are a
- * subschema at some entries and an array of property names at others.
- * Only the former are walked.
- */
-function walkMixedRecord(
-  record: unknown,
-  currentBase: string,
-  byId: Map<string, SchemaOrBoolean>,
-  anchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
-  dynamicAnchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
-  schemaBaseUri: WeakMap<object, string>,
-): void {
-  if (record === null || typeof record !== "object" || Array.isArray(record)) return;
-  for (const value of Object.values(record as Record<string, unknown>)) {
-    if (value === undefined || Array.isArray(value)) continue;
-    walkScoped(
-      value as SchemaOrBoolean,
-      currentBase,
-      byId,
-      anchorScopes,
-      dynamicAnchorScopes,
-      schemaBaseUri,
-    );
-  }
-}
-
-function walkMaybe(
-  schema: SchemaOrBoolean | undefined,
-  currentBase: string,
-  byId: Map<string, SchemaOrBoolean>,
-  anchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
-  dynamicAnchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
-  schemaBaseUri: WeakMap<object, string>,
-): void {
-  if (schema !== undefined) {
-    walkScoped(schema, currentBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  }
-}
-
-function walkArray(
-  schemas: SchemaOrBoolean[] | undefined,
-  currentBase: string,
-  byId: Map<string, SchemaOrBoolean>,
-  anchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
-  dynamicAnchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
-  schemaBaseUri: WeakMap<object, string>,
-): void {
-  if (schemas === undefined) return;
-  for (const s of schemas) {
-    walkScoped(s, currentBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-  }
-}
-
-function walkRecord(
-  record: Record<string, SchemaOrBoolean> | undefined,
-  currentBase: string,
-  byId: Map<string, SchemaOrBoolean>,
-  anchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
-  dynamicAnchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
-  schemaBaseUri: WeakMap<object, string>,
-): void {
-  if (record === undefined) return;
-  for (const key of Object.keys(record)) {
-    const value = record[key];
-    if (value !== undefined) {
-      walkScoped(value, currentBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
-    }
-  }
+  // Driven by the shared iteration rather than a list written out here.
+  // The hand-written list had drifted: `definitions` was in the
+  // constants and missing here, so an `$anchor` under it resolved to
+  // "unknown anchor". Going through the shared iteration means a
+  // position family cannot be omitted at all.
+  forEachSubschema(obj, (value) => {
+    walkScoped(value, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
+  });
 }

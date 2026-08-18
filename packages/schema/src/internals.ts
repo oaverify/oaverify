@@ -65,13 +65,22 @@ export { buildKeywordMap } from "./introspection.js";
 // keyword in isolation) need to build one.
 export { createKeywordContext, type KeywordContextInputs } from "./keywords/context.js";
 
-// Subschema-position constants: the raw sets of schema-valued keys.
-// Prefer the public `walkSubschemas` helper when a read-walk suffices;
-// reach for these only when you need to transform / rewrite.
+// Subschema positions. `subschemaEntries` (or `forEachSubschema` on a
+// hot path) walks one node's positions, `transformSubschemaValue`
+// rebuilds one, `subschemaFamilyOf` classifies a key; the public
+// `walkSubschemas` covers a whole-tree read-walk. The raw constants
+// come with them, but a walker built on them has to write a loop per
+// family and can miss one, which `pnpm check:walkers` now rejects.
 export {
+  forEachSubschema,
   isSubschemaKey,
+  subschemaEntries,
+  subschemaFamilyOf,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_MIXED_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
+  transformSubschemaValue,
+  type SubschemaEntry,
+  type SubschemaFamily,
 } from "./subschema-positions.js";

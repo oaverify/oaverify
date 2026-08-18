@@ -30,11 +30,7 @@ import {
   type HttpMethod,
   type OpenAPIDocument,
 } from "@oaverify/internal-core";
-import {
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
-} from "@oaverify/internal-core/subschema-positions";
+import { subschemaEntries } from "@oaverify/internal-core/subschema-positions";
 
 /**
  * The fixed method fields that hold an Operation Object under a Path
@@ -132,20 +128,9 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
 
     hooks.onSchemaNode?.(schema, pointer);
 
-    for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
-      if (key in schema) walkSchema(schema[key], `${pointer}/${key}`);
-    }
-    for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
-      const arr = schema[key];
-      if (!Array.isArray(arr)) continue;
-      for (const [i, sub] of arr.entries()) walkSchema(sub, `${pointer}/${key}/${i}`);
-    }
-    for (const key of SUBSCHEMA_MAP_POSITIONS) {
-      const map = schema[key];
-      if (!isObj(map)) continue;
-      for (const [name, sub] of Object.entries(map)) {
-        walkSchema(sub, `${pointer}/${key}/${escapePointer(name)}`);
-      }
+    for (const { key, value, at } of subschemaEntries(schema)) {
+      const step = at === undefined ? "" : `/${typeof at === "number" ? at : escapePointer(at)}`;
+      walkSchema(value, `${pointer}/${key}${step}`);
     }
   };
 

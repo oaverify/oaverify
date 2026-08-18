@@ -21,15 +21,7 @@
  */
 
 import { setSpecKey, type SchemaObject, type SchemaOrBoolean } from "@oaverify/internal-core";
-import {
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
-} from "@oaverify/internal-schema/internals";
-
-const SINGLE = new Set<string>(SUBSCHEMA_SINGLE_POSITIONS);
-const ARRAY = new Set<string>(SUBSCHEMA_ARRAY_POSITIONS);
-const MAP = new Set<string>(SUBSCHEMA_MAP_POSITIONS);
+import { subschemaFamilyOf, transformSubschemaValue } from "@oaverify/internal-schema/internals";
 
 function isObjectSchema(s: unknown): s is SchemaObject {
   return typeof s === "object" && s !== null && !Array.isArray(s);
@@ -83,19 +75,14 @@ export function normalizeOas30(schema: SchemaOrBoolean): SchemaOrBoolean {
     if (key === "nullable") continue; // folded into `type` below
     if (key === "components" && isObjectSchema(val))
       setSpecKey(out, key, normalizeComponents(val as Record<string, unknown>));
-    else if (SINGLE.has(key)) setSpecKey(out, key, normalizeOas30(val as SchemaOrBoolean));
-    else if (ARRAY.has(key))
+    else {
+      const family = subschemaFamilyOf(key);
       setSpecKey(
         out,
         key,
-        Array.isArray(val) ? val.map((v) => normalizeOas30(v as SchemaOrBoolean)) : val,
+        family === undefined ? val : transformSubschemaValue(family, val, normalizeOas30),
       );
-    else if (MAP.has(key) && isObjectSchema(val)) {
-      const m: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(val))
-        setSpecKey(m, k, normalizeOas30(v as SchemaOrBoolean));
-      setSpecKey(out, key, m);
-    } else setSpecKey(out, key, val);
+    }
   }
 
   // nullable: true -> add "null" to the type.

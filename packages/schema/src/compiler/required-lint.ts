@@ -2,10 +2,7 @@ import { pointerFromRefFragment } from "@oaverify/internal-core";
 import {
   positionFields,
   stepPosition,
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_MIXED_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
+  forEachSubschema,
   type SubschemaPosition,
 } from "../subschema-positions.js";
 import type { SchemaLintIssue } from "./compiler.js";
@@ -445,43 +442,23 @@ export function collectRequiredIssues(
       );
     };
 
-    for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
-      const v = node[key];
-      if (v === undefined) continue;
-      descend(v, path === "" ? key : `${path}.${key}`, key, stepPosition(at, key));
-    }
-
-    for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
-      const v = node[key];
-      if (!Array.isArray(v)) continue;
-      for (const [i, item] of v.entries()) {
-        descend(
-          item,
-          path === "" ? `${key}[${i}]` : `${path}.${key}[${i}]`,
-          key,
-          stepPosition(stepPosition(at, key), i),
-        );
-      }
-    }
-
-    // `dependentSchemas` is already in the constant; it was appended by
-    // hand here as well.
-    for (const key of [...SUBSCHEMA_MAP_POSITIONS, ...SUBSCHEMA_MIXED_MAP_POSITIONS]) {
-      const v = node[key];
-      if (!isObj(v)) continue;
-      for (const [name, sub] of Object.entries(v)) {
-        // A mixed map's array entries name properties; there is no
-        // schema to descend into.
-        if (Array.isArray(sub)) continue;
-        descend(
-          sub,
-          path === "" ? `${key}.${name}` : `${path}.${key}.${name}`,
-          key,
-          stepPosition(stepPosition(at, key), name),
-          name,
-        );
-      }
-    }
+    // One loop over every subschema position, so a position family
+    // cannot be reached by one walker and missed by this one. Only the
+    // rendered path differs per family: `allOf[0]` against
+    // `properties.name`.
+    forEachSubschema(node, (value, key, family, index) => {
+      const rendered =
+        index === undefined ? key : family === "array" ? `${key}[${index}]` : `${key}.${index}`;
+      descend(
+        value,
+        path === "" ? rendered : `${path}.${rendered}`,
+        key,
+        index === undefined ? stepPosition(at, key) : stepPosition(stepPosition(at, key), index),
+        // The name half of a map entry is the property the rule reasons
+        // about; an array index names no property.
+        typeof index === "string" ? index : undefined,
+      );
+    });
   };
 
   const rootClosure = closure([root], root, resolve);

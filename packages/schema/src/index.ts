@@ -174,8 +174,9 @@ export {
 } from "./resolve/index.js";
 
 // Generic subschema walk: intended for linters / introspection /
-// tooling. For rewriting use cases, the raw `SUBSCHEMA_*_POSITIONS`
-// constants are in `./internals`.
+// tooling. For rewriting use cases, `transformSubschemaValue` is in
+// `./internals`, alongside `subschemaEntries` / `forEachSubschema` for
+// walking one node's positions.
 export {
   walkSubschemas,
   type SubschemaPosition,
