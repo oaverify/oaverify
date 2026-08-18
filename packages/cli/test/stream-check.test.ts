@@ -38,6 +38,24 @@ function io() {
 const base = { spec: "spec.json", overlays: [], failOnUnbounded: false, verbose: false };
 
 describe("streamCheckCommand", () => {
+  // `--output` is a truncating write, so a command that reaches its sink
+  // more than once silently loses all but the last call (#848). Both
+  // formats are pinned here because the sink is per-command, not per
+  // format, and only one of them was ever exercised with `-o`.
+  it.each(["text", "json"] as const)("writes a %s report to --output exactly once", async (fmt) => {
+    const { io: cmdIo, writes, stdout } = io();
+    const res = await streamCheckCommand(
+      { ...base, format: fmt, options: { ...textOpts, output: "out.txt" } },
+      cmdIo,
+    );
+
+    expect(res.exitCode).toBe(0);
+    expect(writes.map(([path]) => path)).toEqual(["out.txt"]);
+    expect(writes[0]?.[1]).not.toBe("");
+    // `-o` redirects the report rather than duplicating it.
+    expect(stdout.value).toBe("");
+  });
+
   it("prints a per-operation table with island counts (text, non-verbose)", async () => {
     const { io: cmdIo, stdout } = io();
     const res = await streamCheckCommand({ ...base, format: "text", options: textOpts }, cmdIo);
