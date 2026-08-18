@@ -34,23 +34,10 @@ import {
   keywordDefinitions,
   walkSubschemas,
 } from "@oaverify/internal-schema";
-import {
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
-} from "@oaverify/internal-schema/internals";
+import { subschemaFamilyOf } from "@oaverify/internal-schema/internals";
 import { resolveRef as resolveRefLocal } from "../ref-resolve.js";
 import { KEYWORD_CATEGORY } from "./keyword-table.js";
 import { joinStrategy, type Strategy } from "./strategy.js";
-
-// Recognized schema-valued positions are structural containers, not
-// "unknown" keywords, even when not in KEYWORD_CATEGORY (e.g. draft-07
-// `definitions`). Their contents are reached by the walk / `$ref`.
-const SUBSCHEMA_POSITIONS = new Set<string>([
-  ...SUBSCHEMA_SINGLE_POSITIONS,
-  ...SUBSCHEMA_ARRAY_POSITIONS,
-  ...SUBSCHEMA_MAP_POSITIONS,
-]);
 
 /**
  * A compile-time classification failure: a keyword or `$ref` the engine
@@ -220,7 +207,11 @@ export function classify(root: SchemaOrBoolean, options: ClassifyOptions = {}): 
       const cat = KEYWORD_CATEGORY[key];
       if (cat === undefined) {
         if (folded.has(key)) continue; // folded keyword (then/else/min|maxContains)
-        if (SUBSCHEMA_POSITIONS.has(key)) continue; // structural container (e.g. definitions)
+        // A recognized schema-valued position is a structural container
+        // rather than an "unknown" keyword, even when it has no
+        // KEYWORD_CATEGORY entry (e.g. draft-07 `definitions`). Its
+        // contents are reached by the walk / `$ref`.
+        if (subschemaFamilyOf(key) !== undefined) continue;
         // A `$ref`-target container, not a validation keyword. Its
         // referenced members are pulled in and classified via the
         // ref-follow pass above; the container itself asserts nothing.

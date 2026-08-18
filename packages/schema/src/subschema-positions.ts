@@ -4,22 +4,23 @@ import {
   type PathSegment,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
-import {
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_MIXED_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
-} from "@oaverify/internal-core/subschema-positions";
+import { forEachSubschema } from "@oaverify/internal-core/subschema-positions";
 
 // The position constants live in `core` so the compiler, the validator
 // and the spec resolver share one definition; re-exported here because
 // this module is where every existing importer looks for them.
 export {
+  forEachSubschema,
   isSubschemaKey,
+  subschemaEntries,
+  subschemaFamilyOf,
   SUBSCHEMA_ARRAY_POSITIONS,
   SUBSCHEMA_MAP_POSITIONS,
   SUBSCHEMA_MIXED_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
+  transformSubschemaValue,
+  type SubschemaEntry,
+  type SubschemaFamily,
 } from "@oaverify/internal-core/subschema-positions";
 
 /**
@@ -218,9 +219,13 @@ export function positionFields(at: SubschemaPosition): SubschemaPosition {
  * Intended for tooling (linters, introspection, tree rewriters) that
  * would otherwise re-derive the set of schema-valued keys and risk
  * drifting from the vocabulary. Callers that need to *rewrite* schemas
- * in place can instead reach for the underlying
- * `SUBSCHEMA_*_POSITIONS` constants exported from
- * `@oaverify/core/schema/internals`.
+ * reach for `transformSubschemaValue` from
+ * `@oaverify/core/schema/internals`, which rebuilds one position while
+ * preserving its shape; a caller wanting the positions one at a time
+ * takes `subschemaEntries` from the same entry point. Not the
+ * `SUBSCHEMA_*_POSITIONS` constants: consuming those means a loop per
+ * position family, which is how `dependencies` came to be skipped by
+ * four separate walkers.
  *
  * @public
  */
@@ -273,49 +278,17 @@ export function walkSubschemas(
         });
       }
     }
-    for (const k of SUBSCHEMA_SINGLE_POSITIONS) {
-      const v = n[k];
-      if (v !== undefined)
-        go(v as SchemaOrBoolean, path === "" ? k : `${path}.${k}`, stepPosition(at, k));
-    }
-    for (const k of SUBSCHEMA_ARRAY_POSITIONS) {
-      const v = n[k];
-      if (Array.isArray(v)) {
-        for (let i = 0; i < v.length; i += 1) {
-          go(
-            v[i] as SchemaOrBoolean,
-            path === "" ? `${k}[${i}]` : `${path}.${k}[${i}]`,
-            stepPosition(stepPosition(at, k), i),
-          );
-        }
-      }
-    }
-    for (const k of SUBSCHEMA_MAP_POSITIONS) {
-      const v = n[k];
-      if (v !== null && typeof v === "object" && !Array.isArray(v)) {
-        for (const [kk, vv] of Object.entries(v as Record<string, unknown>)) {
-          go(
-            vv as SchemaOrBoolean,
-            path === "" ? `${k}.${kk}` : `${path}.${k}.${kk}`,
-            stepPosition(stepPosition(at, k), kk),
-          );
-        }
-      }
-    }
-    for (const k of SUBSCHEMA_MIXED_MAP_POSITIONS) {
-      const v = n[k];
-      if (v !== null && typeof v === "object" && !Array.isArray(v)) {
-        for (const [kk, vv] of Object.entries(v as Record<string, unknown>)) {
-          // Array entries name properties; there is no schema there.
-          if (Array.isArray(vv)) continue;
-          go(
-            vv as SchemaOrBoolean,
-            path === "" ? `${k}.${kk}` : `${path}.${k}.${kk}`,
-            stepPosition(stepPosition(at, k), kk),
-          );
-        }
-      }
-    }
+    // One loop over every position family. Only the rendered path
+    // differs between them: `allOf[0]` against `properties.name`.
+    forEachSubschema(n, (v, k, family, index) => {
+      const rendered =
+        index === undefined ? k : family === "array" ? `${k}[${index}]` : `${k}.${index}`;
+      go(
+        v,
+        path === "" ? rendered : `${path}.${rendered}`,
+        index === undefined ? stepPosition(at, k) : stepPosition(stepPosition(at, k), index),
+      );
+    });
   };
   go(root, "", { pointer: opts.pointer, schemaPath: [], anchor: opts.anchor ?? "node" });
 }

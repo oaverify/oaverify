@@ -25,6 +25,16 @@ import type { Dialect } from "../src/keywords/types.js";
  * This test is what stops the two drifting again. A keyword gaining or
  * losing `applicator` fails here unless the positions move with it, or
  * unless it is named below with the reason it is exempt.
+ *
+ * It pins the table only, and deliberately: membership here is
+ * satisfied by a position appearing in any one of the four sets, which
+ * says nothing about whether a given walker reads that set. That is the
+ * other half of the same class, and it is
+ * `scripts/check-subschema-walkers.mjs` that closes it, by making the
+ * sets unreachable outside the module that defines them. Neither guard
+ * substitutes for the other: this one catches a position that should
+ * exist and does not, that one catches a position that exists and goes
+ * unread.
  */
 
 /**

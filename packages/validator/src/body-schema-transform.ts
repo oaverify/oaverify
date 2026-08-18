@@ -21,11 +21,7 @@
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { type RefResolver } from "@oaverify/internal-schema";
 import { pointerFromRefFragment, setSpecKey } from "@oaverify/internal-core";
-import {
-  SUBSCHEMA_ARRAY_POSITIONS,
-  SUBSCHEMA_MAP_POSITIONS,
-  SUBSCHEMA_SINGLE_POSITIONS,
-} from "@oaverify/internal-schema/internals";
+import { subschemaFamilyOf, transformSubschemaValue } from "@oaverify/internal-schema/internals";
 
 /**
  * Which leg of the HTTP exchange a schema is being validated against.
@@ -243,31 +239,14 @@ function transformInner(
     }
   }
 
-  for (const k of SUBSCHEMA_SINGLE_POSITIONS) {
-    const v = clone[k];
-    if (v !== undefined) {
-      clone[k] = transformInner(v as SchemaOrBoolean, direction, refResolver, cache);
-    }
-  }
-  for (const k of SUBSCHEMA_ARRAY_POSITIONS) {
-    const v = clone[k];
-    if (Array.isArray(v)) {
-      clone[k] = (v as SchemaOrBoolean[]).map((s) =>
-        transformInner(s, direction, refResolver, cache),
-      );
-    }
-  }
-  for (const k of SUBSCHEMA_MAP_POSITIONS) {
+  for (const k of Object.keys(clone)) {
     // `properties` is handled specially above (readOnly/writeOnly filtering).
     if (k === "properties") continue;
-    const v = clone[k];
-    if (v !== null && typeof v === "object" && !Array.isArray(v)) {
-      const m: Record<string, SchemaOrBoolean> = {};
-      for (const [kk, vv] of Object.entries(v as Record<string, SchemaOrBoolean>)) {
-        setSpecKey(m, kk, transformInner(vv, direction, refResolver, cache));
-      }
-      clone[k] = m;
-    }
+    const family = subschemaFamilyOf(k);
+    if (family === undefined) continue;
+    clone[k] = transformSubschemaValue(family, clone[k], (sub) =>
+      transformInner(sub, direction, refResolver, cache),
+    );
   }
 
   return clone as unknown as SchemaOrBoolean;
