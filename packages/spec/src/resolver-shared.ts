@@ -536,3 +536,40 @@ export function mergeStitchedExternals(resolved: object, stitched: Mutable): voi
 }
 
 export { setSpecKey };
+
+/**
+ * Assert that the entry document is one an OpenAPI document could be.
+ *
+ * An OpenAPI document is an object. Without this the loaders passed a
+ * scalar straight through: an empty or comment-only YAML file parses to
+ * `null`, and `loadSpecSync` returned `{ document: null }` and threw
+ * nothing, so the failure surfaced much later inside `createValidator`
+ * as something unrelated-looking (#850).
+ *
+ * Only the *entry* is constrained. A `$ref` target may legitimately be
+ * other shapes, a boolean schema being the obvious one, and the
+ * position that consumes it reports a better error than this could:
+ * `assertWellFormedSchema` names the pointer.
+ *
+ * The reader layer answers the narrower question of whether a file
+ * contained a document at all; this answers whether the caller was
+ * handed a spec.
+ *
+ * @internal
+ */
+export function assertEntryDocument(document: unknown, entry: string): void {
+  if (typeof document === "object" && document !== null && !Array.isArray(document)) return;
+
+  const got =
+    document === null
+      ? "null"
+      : document === undefined
+        ? "nothing at all"
+        : Array.isArray(document)
+          ? "an array"
+          : `a ${typeof document}`;
+  throw new Error(
+    `${entry} is not an OpenAPI document: expected an object, got ${got}. ` +
+      `A spec's entry document is an object with an "openapi" field.`,
+  );
+}

@@ -12,6 +12,7 @@ import type { SyncDocumentReader } from "./reader.js";
 import { lintResolvedSpec } from "./lint.js";
 import type { ResolvedSpec } from "./resolver.js";
 import {
+  assertEntryDocument,
   baseDirOf,
   cycleKey,
   componentSchemaSlots,
@@ -113,6 +114,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   };
 
   const entryDoc = readDoc(options.entry);
+  assertEntryDocument(entryDoc, options.entry);
   docs.set(options.entry, entryDoc);
 
   const visiting = new Set<string>();

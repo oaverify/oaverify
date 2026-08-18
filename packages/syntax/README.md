@@ -78,7 +78,14 @@ column, a spec fetched by your own client):
 import { createValidator, type OpenAPIDocument } from "@oaverify/core";
 import { parseYamlString } from "@oaverify/syntax";
 
-const document = parseYamlString(source) as OpenAPIDocument;
+const parsed = parseYamlString(source);
+// `parseYamlString` is the parser, not a loader: a source with no
+// document in it returns null rather than throwing. The readers behind
+// `loadSpec` refuse that input for you; a bare parse does not.
+if (typeof parsed !== "object" || parsed === null) {
+  throw new Error("not an OpenAPI document");
+}
+const document = parsed as OpenAPIDocument;
 const validator = createValidator(document);
 ```
 
