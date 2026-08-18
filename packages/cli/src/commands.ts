@@ -383,18 +383,49 @@ function readOverlays(reader: DocumentReader, paths: string[]): Promise<SpecOver
  *
  * Commands write exactly once through this sink, so `-o` naturally
  * redirects the "would go to stdout" content to a file without
- * duplicating it.
+ * duplicating it. Build the whole report first and hand it over in one
+ * call; a sink is not a stream.
+ *
+ * That invariant is checked rather than trusted. It was stated here and
+ * quietly broken by the `check` text branch, which wrote a line at a
+ * time: to stdout that looks identical, and to a file each write
+ * truncated the last, so `-o` produced a one-line report of what should
+ * have been a full one (#848). Silent output loss through a documented
+ * flag is worth a loud failure, and any second call is a bug in this
+ * file rather than anything a user did.
+ *
+ * Exported for its own test. No command constructs a sink from outside
+ * this module, and the guard is the one piece of it that no command can
+ * exercise: a second call is by definition a path that should not
+ * exist, so nothing short of calling it directly pins the behaviour.
+ *
+ * @internal
  */
-function primarySink(
+export function primarySink(
   io: CommandIo,
   opts: { output?: string; quiet: boolean },
 ): (content: string) => Promise<void> | void {
+  const once = <T>(write: (content: string) => T): ((content: string) => T) => {
+    let written = false;
+    return (content) => {
+      if (written) {
+        throw new Error(
+          "internal: a command wrote through its primary sink more than once. " +
+            "Build the whole report and write it in one call; with --output " +
+            "each write truncates the last.",
+        );
+      }
+      written = true;
+      return write(content);
+    };
+  };
+
   if (opts.output !== undefined) {
     const path = opts.output;
-    return (content) => io.writeText(path, content);
+    return once((content) => io.writeText(path, content));
   }
-  if (opts.quiet) return () => {};
-  return io.stdout;
+  if (opts.quiet) return once(() => {});
+  return once(io.stdout);
 }
 
 /**
@@ -753,13 +784,18 @@ export async function checkCommand(
     };
     await sink(JSON.stringify(report, null, 2) + "\n");
   } else if (findings.length === 0) {
-    await sink(`check: no findings (${[...classes].sort().join(", ")})\n`);
-    if (skipLine !== "") await sink(skipLine);
-    if (noopLine !== "") await sink(noopLine);
+    const report = [`check: no findings (${[...classes].sort().join(", ")})\n`];
+    if (skipLine !== "") report.push(skipLine);
+    if (noopLine !== "") report.push(noopLine);
+    await sink(report.join(""));
   } else {
     const width = args.width ?? DEFAULT_REPORT_WIDTH;
+    // Built whole and written once. A text report is many lines and the
+    // sink is a single write: `--output` truncates per call, so writing
+    // line by line left the file holding only the last one (#848).
+    const report: string[] = [];
     for (const f of findings) {
-      for (const line of formatFinding(f, width)) await sink(line);
+      report.push(...formatFinding(f, width));
     }
     // A bare total does not say whether to act. The breakdown does, and
     // it is the whole reason severity exists as a field.
@@ -768,12 +804,13 @@ export async function checkCommand(
       .map((sev) => `${findings.filter((f) => f.severity === sev).length} ${sev}`)
       .join(", ");
     // No leading blank line: each finding block already ends with one.
-    await sink(`${findings.length} finding(s): ${bySeverity}\n`);
+    report.push(`${findings.length} finding(s): ${bySeverity}\n`);
     // After the total, because it qualifies it: the count above is what
     // survived, and this is what did not.
-    if (skipLine !== "") await sink(skipLine);
-    if (noopLine !== "") await sink(noopLine);
-    for (const line of formatRuleNotes(findings, width)) await sink(line);
+    if (skipLine !== "") report.push(skipLine);
+    if (noopLine !== "") report.push(noopLine);
+    report.push(...formatRuleNotes(findings, width));
+    await sink(report.join(""));
   }
 
   // A malformed schema outranks the gate: the document cannot be
