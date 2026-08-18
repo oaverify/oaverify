@@ -12,6 +12,13 @@
  *   - **Match `JSON.parse`.** Numbers are JS doubles; lone surrogate
  *     escapes are accepted; trailing non-whitespace is rejected;
  *     multiple top-level texts are rejected.
+ *   - **A U+FEFF inside a string is content.** It survives decoding and
+ *     reaches the handler, so a string keyword compares against what the
+ *     sender wrote. A document-*leading* BOM is a parse error, which is
+ *     what `JSON.parse` does and what RFC 8259 8.1 permits ("MAY
+ *     ignore"). The spec reader's `trimStdinText` strips one on the
+ *     stdin path, because a document piped from an editor or a shell
+ *     tracks what those emit rather than what `JSON.parse` accepts.
  *   - **Decoded strings, escape-aware lengths.** String content is
  *     decoded to JS text (UTF-8 + JSON escapes, surrogate-pair escapes
  *     combined). Lengths are counted in Unicode code points, not UTF-16
@@ -92,7 +99,15 @@ function hexValue(b: number): number {
  */
 export class JsonTokenizer {
   private readonly handler: JsonEventHandler;
-  private readonly decoder = new TextDecoder("utf-8");
+  // `ignoreBOM` keeps a U+FEFF that appears in the input instead of
+  // treating it as a byte-order mark. Every `decode` with
+  // `{ stream: false }` ends the decode stream, so the next call starts a
+  // fresh one, and a fresh stream strips a U+FEFF that begins it. A
+  // decoded run begins at a string's opening quote, after an escape, and
+  // after a chunk boundary that ended the stream, so a BOM at any of
+  // those three positions was deleted from the value while the
+  // escape-aware code-point counter still counted it (#851).
+  private readonly decoder = new TextDecoder("utf-8", { ignoreBOM: true });
 
   private state = ST_VALUE;
   private readonly stack: number[] = [];
