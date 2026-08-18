@@ -97,14 +97,13 @@ export interface ResolveSpecOptions {
    * half-typed for as long as it takes to type the rest of it.
    * {@link UnresolvedRef.fragment} is what tells them apart.
    *
-   * What a hole looks like depends on the position, because that is
-   * what the walk does with a reference it can follow. A schema
-   * position has already been rewritten to an internal `$ref` at the
-   * component the target was going to be hoisted into, so the hole is
-   * that component's absence, and the compiler reports the dangling
-   * reference exactly as it reports one an author wrote. A non-schema
-   * position would have been inlined, so the hole is the reference
-   * itself, siblings kept.
+   * In a schema position the compiler reports the dangling reference
+   * exactly as it reports one an author wrote. In a non-schema position
+   * the derived reference survives in the document, and `createValidator`
+   * answers "external ref not resolved; run resolveSpec() ... before
+   * passing it to createValidator()", which is wrong advice here: the
+   * resolver did run and left the reference deliberately. Read
+   * `unresolved` rather than that message.
    *
    * That surviving reference is written as the target the walk derived
    * rather than as the author spelled it. The two differ only for a
@@ -116,12 +115,14 @@ export interface ResolveSpecOptions {
    * Writing the derived target is also what keeps the document and
    * {@link ResolvedSpec.unresolved} naming the same file.
    *
-   * Nothing is ever substituted for the missing content: a permissive
-   * placeholder would grade clean and say nothing was wrong. A
-   * `components.schemas` slot the author wrote as nothing but an
-   * external `$ref` is removed for the same reason, since the hoist
-   * that was going to fill it did not happen and the slot would
-   * otherwise point at itself.
+   * Nothing is substituted for content that could not be read: a
+   * permissive placeholder would grade clean and say nothing was
+   * wrong. A target that reads and answers with nothing (`null` or
+   * `undefined`) counts as unread for the same reason. A target that
+   * reads and answers with a scalar, an array or a boolean is passed
+   * through, because those are legal in some positions and the
+   * position that consumes one reports a better error than this layer
+   * could.
    *
    * The entry document is not covered. A reference that will not
    * resolve leaves a hole in a document; an entry that will not read
@@ -282,7 +283,18 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     if (holes !== null && holes.has(uri)) return UNREADABLE;
     const referrer = referrers.get(uri) ?? null;
     try {
-      return await reader.read(uri);
+      const doc = await reader.read(uri);
+      // A read that answers with nothing did not produce a document.
+      // The reader layer refuses an empty YAML source already (#850),
+      // but `JSON.parse("null")` succeeds, and a reader is free to
+      // answer `null` or `undefined` for a buffer that has just been
+      // created. Treating that as a document substitutes it into the
+      // spec and reports no hole, so `unresolved: []` would say the
+      // document is whole while a schema position holds `null`.
+      if (doc === null || doc === undefined) {
+        throw new Error(`${uri} contains no document`);
+      }
+      return doc;
     } catch (err) {
       const wrapped = wrapReadError(err, uri, referrer);
       if (holes === null) throw wrapped;
@@ -305,8 +317,13 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     try {
       return resolveJsonPointer(doc, pointerFromFragment(fragment));
     } catch (err) {
-      if (holes === null) throw err;
       const referrer = referrers.get(uri) ?? null;
+      // Both modes word this the same way. A bare pointer error names
+      // neither end of the edge, which is #817: `oaverify check` on a
+      // 300KB entry with 30 sibling files reported
+      // `JSON pointer /components/responses/2XX not found` and left the
+      // reader grepping for which of 26 references meant it.
+      if (holes === null) throw wrapFragmentError(err, uri, fragment, referrer);
       holes.recordFragment(
         uri,
         fragment,

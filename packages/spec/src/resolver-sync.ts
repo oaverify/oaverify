@@ -121,7 +121,18 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     if (holes !== null && holes.has(uri)) return UNREADABLE;
     const referrer = referrers.get(uri) ?? null;
     try {
-      return reader.read(uri);
+      const doc = reader.read(uri);
+      // A read that answers with nothing did not produce a document.
+      // The reader layer refuses an empty YAML source already (#850),
+      // but `JSON.parse("null")` succeeds, and a reader is free to
+      // answer `null` or `undefined` for a buffer that has just been
+      // created. Treating that as a document substitutes it into the
+      // spec and reports no hole, so `unresolved: []` would say the
+      // document is whole while a schema position holds `null`.
+      if (doc === null || doc === undefined) {
+        throw new Error(`${uri} contains no document`);
+      }
+      return doc;
     } catch (err) {
       const wrapped = wrapReadError(err, uri, referrer);
       if (holes === null) throw wrapped;
@@ -144,8 +155,13 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     try {
       return resolveJsonPointer(doc, pointerFromFragment(fragment));
     } catch (err) {
-      if (holes === null) throw err;
       const referrer = referrers.get(uri) ?? null;
+      // Both modes word this the same way. A bare pointer error names
+      // neither end of the edge, which is #817: `oaverify check` on a
+      // 300KB entry with 30 sibling files reported
+      // `JSON pointer /components/responses/2XX not found` and left the
+      // reader grepping for which of 26 references meant it.
+      if (holes === null) throw wrapFragmentError(err, uri, fragment, referrer);
       holes.recordFragment(
         uri,
         fragment,

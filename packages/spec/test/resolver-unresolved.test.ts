@@ -800,3 +800,100 @@ describe("resolveSpec with onUnresolved: record, a fragment that names no node",
     expect(result.unresolved).toHaveLength(1);
   });
 });
+
+describe("a target that reads and answers with nothing", () => {
+  // `JSON.parse("null")` succeeds, and a reader may answer `null` for a
+  // buffer that has just been created. Treating that as a document
+  // substitutes it into the spec and reports no hole, so `unresolved`
+  // would be empty while a schema position held `null`.
+  const doc = {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/p": {
+        post: {
+          requestBody: { content: { "application/json": { schema: { $ref: "ext.json" } } } },
+          responses: { "204": { description: "ok" } },
+        },
+      },
+    },
+  };
+  const reader = (ext: unknown): DocumentReader => ({
+    canRead: () => true,
+    read: (uri) => Promise.resolve(uri === "main.json" ? structuredClone(doc) : ext),
+  });
+
+  it.each([
+    ["null", null],
+    ["undefined", undefined],
+  ])("records a hole when the target reads as %s", async (_label, ext) => {
+    const resolved = await resolveSpec({
+      reader: reader(ext),
+      entry: "main.json",
+      onUnresolved: "record",
+    });
+
+    expect(resolved.unresolved).toHaveLength(1);
+    expect(resolved.unresolved?.[0]?.uri).toBe("ext.json");
+    expect(resolved.document.components?.schemas?.ext).toBeUndefined();
+  });
+
+  it.each([
+    ["null", null],
+    ["undefined", undefined],
+  ])("throws under the default mode when the target reads as %s", async (_label, ext) => {
+    await expect(resolveSpec({ reader: reader(ext), entry: "main.json" })).rejects.toThrow(
+      /failed to read ext\.json \(referenced from main\.json\)/,
+    );
+  });
+
+  it.each([
+    ["a boolean schema", true],
+    ["a scalar", "text"],
+    ["an array", ["a"]],
+  ])("passes %s through, because those are legal in some positions", async (_label, ext) => {
+    const resolved = await resolveSpec({
+      reader: reader(ext),
+      entry: "main.json",
+      onUnresolved: "record",
+    });
+
+    expect(resolved.unresolved).toEqual([]);
+    expect(resolved.document.components?.schemas?.ext).toEqual(ext);
+  });
+});
+
+describe("a fragment that names no node is worded the same in both modes (#817)", () => {
+  // The reported symptom: `oaverify check` on a 300KB entry with 30
+  // sibling files answered `JSON pointer /components/responses/2XX not
+  // found` and named neither the file it read nor the reference that
+  // asked for it. The wrapping existed here but only under `record`,
+  // which is the mode nothing ships with yet.
+  const main = {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/p": { get: { responses: { "200": { $ref: "ext.json#/components/responses/2XX" } } } },
+    },
+  };
+  const reader: DocumentReader = {
+    canRead: () => true,
+    read: (uri) =>
+      Promise.resolve(
+        uri === "main.json" ? structuredClone(main) : { components: { responses: {} } },
+      ),
+  };
+
+  it("names the file and the referrer when it throws", async () => {
+    await expect(resolveSpec({ reader, entry: "main.json" })).rejects.toThrow(
+      /failed to resolve ext\.json#\/components\/responses\/2XX \(referenced from main\.json\)/,
+    );
+  });
+
+  it("carries the identical wording on the record", async () => {
+    const thrown = await resolveSpec({ reader, entry: "main.json" }).catch((e: Error) => e.message);
+    const resolved = await resolveSpec({ reader, entry: "main.json", onUnresolved: "record" });
+
+    expect(resolved.unresolved?.[0]?.message).toBe(thrown);
+  });
+});

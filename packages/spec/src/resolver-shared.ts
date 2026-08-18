@@ -671,7 +671,9 @@ export interface UnresolvedRef {
    */
   readonly via: readonly SourceHop[];
   /**
-   * The failure, worded exactly as the throwing mode words it.
+   * The failure, worded exactly as the throwing mode words it. Both
+   * modes wrap a fragment failure with the file and the referrer, so a
+   * caller can compare or reuse the two without translating.
    *
    * The serializable answer to what went wrong. Prefer it over
    * {@link UnresolvedRef.cause} anywhere the record is logged, sent
@@ -721,9 +723,8 @@ export class HoleLog {
   }
 
   /**
-   * Record a failed read, or count a repeat of one already recorded.
-   * First writer wins for everything but the count, matching
-   * {@link noteReferrer}.
+   * Record a failed read. A repeat of one already recorded is dropped,
+   * so first writer wins, matching {@link noteReferrer}.
    */
   record(
     uri: string,
@@ -755,7 +756,13 @@ export class HoleLog {
     this.byKey.set(key, { uri, fragment, referrer, via, message: wrapped.message, cause });
   }
 
-  /** Every hole, in the order the walk found them. */
+  /**
+   * Every hole, grouped by the phase that found it: holes from the walk
+   * first, then holes from the hoist drain, which runs after the walk
+   * has finished. Not document order, and not the order `sources`
+   * lists the same files in. A consumer rendering these positionally
+   * should sort them itself.
+   */
   entries(): readonly UnresolvedRef[] {
     return [...this.byKey.values()];
   }
