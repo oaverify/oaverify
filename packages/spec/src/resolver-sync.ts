@@ -36,7 +36,7 @@ import {
   wrapReadError,
 } from "./resolver-shared.js";
 import type { SourceHop } from "./provenance.js";
-import { isSubschemaKey } from "@oaverify/internal-core/subschema-positions";
+import { subschemaFamilyOf } from "@oaverify/internal-core/subschema-positions";
 
 /**
  * Options accepted by {@link resolveSpecSync}. Mirror of
@@ -402,9 +402,14 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
 
     let childPos: Pos;
     let mapOfChildren: boolean;
+    let mixedMap = false;
     if (parentPos.inSchema) {
-      childPos = isSubschemaKey(key) ? SCHEMA_POS : UNKNOWN_POS;
-      mapOfChildren = isSchemaMapKey(key);
+      const family = subschemaFamilyOf(key);
+      childPos = family === undefined ? UNKNOWN_POS : SCHEMA_POS;
+      // The subschema *map* positions hold `name -> schema`, so the
+      // schemas are one level below the key.
+      mapOfChildren = family === "map" || family === "mixed-map";
+      mixedMap = family === "mixed-map";
     } else {
       const at = refPositionFor(version, parentPos.kind, key);
       childPos = at === undefined ? UNKNOWN_POS : posOf(at.kind, at.refable);
@@ -412,10 +417,16 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     }
 
     if (mapOfChildren && typeof value === "object" && value !== null && !Array.isArray(value)) {
+      const entryPos = (sub: unknown): Pos =>
+        mixedMap && Array.isArray(sub) ? UNKNOWN_POS : childPos;
       const out: Mutable = {};
       for (const [name, sub] of Object.entries(value as Mutable)) {
         trail?.push(name);
-        setSpecKey(out, name, walk(sub, currentBase, stitchingUri, externalSourceUri, childPos));
+        setSpecKey(
+          out,
+          name,
+          walk(sub, currentBase, stitchingUri, externalSourceUri, entryPos(sub)),
+        );
         trail?.pop();
       }
       trail?.pop();
@@ -497,17 +508,6 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       setSpecKey(stitched, uri, inlined);
     }
     mergeStitchedExternals(resolved, stitched);
-  }
-
-  /** Subschema positions whose value is a `name -> schema` map. */
-  function isSchemaMapKey(key: string): boolean {
-    return (
-      key === "properties" ||
-      key === "patternProperties" ||
-      key === "dependentSchemas" ||
-      key === "$defs" ||
-      key === "definitions"
-    );
   }
 
   const inlined = [...inlinedComponents];

@@ -61,6 +61,47 @@ const map = (entries: [string, unknown][]): Map<string, unknown> => new Map(entr
 // pre-existing $defs, and the #38 internal-ref-rewriting cases.
 const fixtures: { name: string; entry: string; sources: Map<string, unknown> }[] = [
   {
+    // The mixed-map position (#859): one map carrying an external `$ref`
+    // to hoist, a property-name array that must not be walked as a
+    // schema, and a second external target so read *order* through the
+    // branch is gated too, not just the resulting document.
+    name: "external refs inside a mixed-map position",
+    entry: "main.json",
+    sources: map([
+      [
+        "main.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1" },
+          paths: {
+            "/a": {
+              post: {
+                requestBody: {
+                  content: {
+                    "application/json": {
+                      schema: {
+                        type: "object",
+                        properties: { x: {}, y: {} },
+                        dependencies: {
+                          needsY: ["y"],
+                          first: { $ref: "one.json" },
+                          second: { $ref: "two.json" },
+                        },
+                      },
+                    },
+                  },
+                },
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        },
+      ],
+      ["one.json", { type: "string", minLength: 1 }],
+      ["two.json", { type: "integer" }],
+    ]),
+  },
+  {
     name: "no external refs",
     entry: "main.json",
     sources: map([

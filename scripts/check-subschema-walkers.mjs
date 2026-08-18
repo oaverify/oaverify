@@ -36,12 +36,28 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
-/** The constants a walker must not consume directly. */
-const RAW_CONSTANTS = [
+/**
+ * The symbols a walker must not classify positions with directly.
+ *
+ * The four constants are here because consuming them means a loop per
+ * family and omitting one is invisible.
+ *
+ * `isSubschemaKey` is here for a different and sharper reason: it is
+ * wrong-by-design for a mixed position. It promises that *every* value
+ * at the key is a subschema, so it must answer `false` for
+ * `dependencies`, where half the values are property-name arrays. That
+ * `false` means "cannot say", and every caller so far has read it as
+ * "not a schema position": both `packages/spec` resolvers did, which is
+ * how an external `$ref` under `dependencies` went unhoisted. The
+ * predicate is a fine question to ask; it is not a way to classify a
+ * position. `subschemaFamilyOf` is.
+ */
+const BANNED_SYMBOLS = [
   "SUBSCHEMA_SINGLE_POSITIONS",
   "SUBSCHEMA_ARRAY_POSITIONS",
   "SUBSCHEMA_MAP_POSITIONS",
   "SUBSCHEMA_MIXED_MAP_POSITIONS",
+  "isSubschemaKey",
 ];
 
 /**
@@ -77,7 +93,7 @@ const EXEMPT = new Map([
   ],
   [
     "scripts/check-subschema-walkers.mjs",
-    "this script, which names the constants in order to ban them",
+    "this script, which names the symbols in order to ban them",
   ],
 ]);
 
@@ -119,7 +135,7 @@ for (const dir of ROOTS) {
     const text = readFileSync(file, "utf8")
       .replaceAll(/\/\*[\s\S]*?\*\//g, "")
       .replaceAll(/\/\/[^\n]*/g, "");
-    const used = RAW_CONSTANTS.filter((name) => text.includes(name));
+    const used = BANNED_SYMBOLS.filter((name) => text.includes(name));
     scanned += 1;
     if (used.length === 0) continue;
     if (EXEMPT.has(rel)) {
@@ -130,7 +146,7 @@ for (const dir of ROOTS) {
       `${rel}: names ${used.join(", ")} directly. Walk with ` +
         `subschemaEntries() (or transformSubschemaValue() when rewriting, ` +
         `subschemaFamilyOf() when classifying a key) so a position family ` +
-        `cannot be missed.`,
+        `cannot be missed and a mixed one cannot read as absent.`,
     );
   }
 }
@@ -151,5 +167,5 @@ if (errors.length > 0) {
 
 console.log(
   `check-subschema-walkers: ${scanned} files scanned, ` +
-    `raw position constants confined to ${EXEMPT.size} stated exemptions.`,
+    `position classification confined to ${EXEMPT.size} stated exemptions.`,
 );

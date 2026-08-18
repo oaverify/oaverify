@@ -13,7 +13,7 @@ describe("subschemaFamilyOf", () => {
     expect(subschemaFamilyOf("properties")).toBe("map");
   });
 
-  it("answers for a mixed position, where isSubschemaKey cannot", () => {
+  it("answers for a mixed position, where the every-value predicate cannot", () => {
     expect(subschemaFamilyOf("dependencies")).toBe("mixed-map");
   });
 

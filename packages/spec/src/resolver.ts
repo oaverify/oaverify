@@ -35,7 +35,7 @@ import {
   wrapReadError,
 } from "./resolver-shared.js";
 import type { SourceHop, SpecRegion } from "./provenance.js";
-import { isSubschemaKey } from "@oaverify/internal-core/subschema-positions";
+import { subschemaFamilyOf } from "@oaverify/internal-core/subschema-positions";
 
 // Re-export the canonical implementation so @oaverify/internal-spec consumers who
 // imported `resolveJsonPointer` keep working. `pointerFromFragment` rides
@@ -526,11 +526,22 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
 
     let childPos: Pos;
     let mapOfChildren: boolean;
+    // Only a mixed map has entries that are not subschemas at all.
+    let mixedMap = false;
     if (parentPos.inSchema) {
-      childPos = isSubschemaKey(key) ? SCHEMA_POS : UNKNOWN_POS;
+      // One classification for every subschema position, mixed included.
+      // This asked `isSubschemaKey`, which answers `false` for a mixed
+      // position by design: it promises every value at the key is a
+      // schema, and under `dependencies` that is untrue of half of them.
+      // A `false` there is "cannot say", and reading it as "not a schema
+      // position" left an external `$ref` written inside one unhoisted
+      // and its document never loaded (#859).
+      const family = subschemaFamilyOf(key);
+      childPos = family === undefined ? UNKNOWN_POS : SCHEMA_POS;
       // The subschema *map* positions hold `name -> schema`, so the
       // schemas are one level below the key.
-      mapOfChildren = isSchemaMapKey(key);
+      mapOfChildren = family === "map" || family === "mixed-map";
+      mixedMap = family === "mixed-map";
     } else {
       const at = refPositionFor(version, parentPos.kind, key);
       childPos = at === undefined ? UNKNOWN_POS : posOf(at.kind, at.refable);
@@ -538,13 +549,20 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     }
 
     if (mapOfChildren && typeof value === "object" && value !== null && !Array.isArray(value)) {
+      // Under a mixed map an array entry names required properties, so
+      // it must not inherit the schema position: an *object* written
+      // inside that array would otherwise be hoisted as a schema. A
+      // string there is already safe, since a scalar is returned
+      // untouched whatever position it carries.
+      const entryPos = (sub: unknown): Pos =>
+        mixedMap && Array.isArray(sub) ? UNKNOWN_POS : childPos;
       const out: Mutable = {};
       for (const [name, sub] of Object.entries(value as Mutable)) {
         trail?.push(name);
         setSpecKey(
           out,
           name,
-          await walk(sub, currentBase, stitchingUri, externalSourceUri, childPos),
+          await walk(sub, currentBase, stitchingUri, externalSourceUri, entryPos(sub)),
         );
         trail?.pop();
       }
@@ -661,15 +679,4 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
 /** A JSON object, as opposed to an array, a null, or a scalar. */
 function isPlainObject(value: unknown): value is Mutable {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** Subschema positions whose value is a `name -> schema` map. */
-function isSchemaMapKey(key: string): boolean {
-  return (
-    key === "properties" ||
-    key === "patternProperties" ||
-    key === "dependentSchemas" ||
-    key === "$defs" ||
-    key === "definitions"
-  );
 }
