@@ -62,10 +62,11 @@ app.use(async (req, res, next) => {
   const errors = result.errors;
   const allow = allowHeaderFor(errors);
   if (allow !== undefined) res.setHeader("Allow", allow);
+  const status = httpStatusFor(errors);
   res
-    .status(httpStatusFor(errors))
+    .status(status)
     .type("application/problem+json")
-    .json(toProblemDetails(errors, { instance: req.originalUrl }));
+    .json(toProblemDetails(errors, { status, instance: req.originalUrl }));
 });
 
 // Business handlers.

@@ -20,15 +20,19 @@ import type { ExpressContext } from "./types.js";
  *    the error yourself.
  * 2. You want a slightly different renderer: use this as the
  *    starting point and adjust (e.g. swap the body, override the
- *    status, add headers).
+ *    status, add headers). An overridden status goes to
+ *    `toProblemDetails` too, per RFC 9457 3.1.2.
  *
  * @public
  */
 export function renderProblemDetails(errors: ValidationError[], ctx: ExpressContext): void {
   const allow = allowHeaderFor(errors);
   if (allow !== undefined) ctx.res.setHeader("Allow", allow);
+  // One status, asked once, used twice: RFC 9457 3.1.2 requires the
+  // body's `status` to be the code the response actually carries.
+  const status = httpStatusFor(errors);
   ctx.res
-    .status(httpStatusFor(errors))
+    .status(status)
     .type("application/problem+json")
-    .json(toProblemDetails(errors, { instance: ctx.req.originalUrl }));
+    .json(toProblemDetails(errors, { status, instance: ctx.req.originalUrl }));
 }

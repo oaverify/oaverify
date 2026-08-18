@@ -55,6 +55,18 @@ describe("renderProblemDetails", () => {
     renderProblemDetails([err], { req: fakeReq(), res, next: vi.fn() });
     expect(res.status).toHaveBeenCalledWith(405);
     expect(res.setHeader).toHaveBeenCalledWith("Allow", "GET, POST");
+    expect(res.json.mock.calls[0]?.[0]).toMatchObject({ status: 405 });
+  });
+
+  it("gives the body the status the response carries (RFC 9457 3.1.2)", () => {
+    const err = createLeafError("route", [], "no route matches GET /nope", {
+      method: "GET",
+      path: "/nope",
+    });
+    const res = fakeRes();
+    renderProblemDetails([err], { req: fakeReq("/nope"), res, next: vi.fn() });
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json.mock.calls[0]?.[0]).toMatchObject({ status: 404 });
   });
 
   it("does not set Allow on errors that aren't 405s", () => {

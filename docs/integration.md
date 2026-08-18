@@ -70,20 +70,21 @@ install); the recipes below assume they are in scope. All but
 `formatSummary` accept either a single `ValidationError` tree or a
 flat `ValidationError[]`, so `result.errors` passes straight through.
 
-| Helper                              | Gives you                                                                                                                                              |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `httpStatusFor(errors, overrides?)` | The HTTP status for the failure; table and overrides under [Status-code mapping](#status-code-mapping)                                                 |
-| `allowHeaderFor(errors)`            | The `Allow` header value for a 405 (RFC 9110 §15.5.6 requires it), else `undefined`                                                                    |
-| `toProblemDetails(errors, opts?)`   | An [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) `application/problem+json` body, failing leaves in `issues`; pass `detail` to override it   |
-| `formatSummary(err, opts?)`         | One tree as a string, for log lines and monitoring titles; `FormatSummaryOptions.select` picks which leaves (`{ select: "all" }` enumerates every one) |
-| `collectIssues(errors)`             | The flat leaf list for custom envelopes, each with a raw `path: PathSegment[]` and an RFC 6901 `pointer`                                               |
+| Helper                              | Gives you                                                                                                                                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `httpStatusFor(errors, overrides?)` | The HTTP status for the failure; table and overrides under [Status-code mapping](#status-code-mapping)                                                                                           |
+| `allowHeaderFor(errors)`            | The `Allow` header value for a 405 (RFC 9110 §15.5.6 requires it), else `undefined`                                                                                                              |
+| `toProblemDetails(errors, opts?)`   | An [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) `application/problem+json` body, failing leaves in `issues`; pass `status` to match the response and `detail` to override the summary |
+| `formatSummary(err, opts?)`         | One tree as a string, for log lines and monitoring titles; `FormatSummaryOptions.select` picks which leaves (`{ select: "all" }` enumerates every one)                                           |
+| `collectIssues(errors)`             | The flat leaf list for custom envelopes, each with a raw `path: PathSegment[]` and an RFC 6901 `pointer`                                                                                         |
 
 ## Per-framework integration
 
 The three adapter packages share export names, options and defaults:
 `validateRequests(validator, options?)`, with status from
 `httpStatusFor`, `Allow` from `allowHeaderFor` on 405, and an RFC 9457
-`application/problem+json` body from `toProblemDetails`. Each also
+`application/problem+json` body from `toProblemDetails` carrying that
+same status. Each also
 exports its extractor (`httpRequestFromExpress` /
 `httpRequestFromFastify`) and `renderProblemDetails` standalone, for
 callers composing their own middleware. The adapter READMEs
@@ -162,10 +163,11 @@ app.use(async (req, res, next) => {
   if (result.valid) return next();
   const allow = allowHeaderFor(result.errors);
   if (allow !== undefined) res.setHeader("Allow", allow);
+  const status = httpStatusFor(result.errors);
   res
-    .status(httpStatusFor(result.errors))
+    .status(status)
     .type("application/problem+json")
-    .json(toProblemDetails(result.errors, { instance: req.originalUrl }));
+    .json(toProblemDetails(result.errors, { status, instance: req.originalUrl }));
 });
 ```
 
@@ -206,10 +208,11 @@ fastify.addHook("preValidation", async (request, reply) => {
   if (!result.valid) {
     const allow = allowHeaderFor(result.errors);
     if (allow !== undefined) reply.header("Allow", allow);
+    const status = httpStatusFor(result.errors);
     return reply
-      .code(httpStatusFor(result.errors))
+      .code(status)
       .type("application/problem+json")
-      .send(toProblemDetails(result.errors, { instance: request.url }));
+      .send(toProblemDetails(result.errors, { status, instance: request.url }));
   }
 });
 ```
@@ -254,8 +257,9 @@ export async function POST(request: Request) {
     const allow = allowHeaderFor(result.errors);
     const headers: Record<string, string> = { "Content-Type": "application/problem+json" };
     if (allow !== undefined) headers["Allow"] = allow;
-    return Response.json(toProblemDetails(result.errors, { instance: request.url }), {
-      status: httpStatusFor(result.errors),
+    const status = httpStatusFor(result.errors);
+    return Response.json(toProblemDetails(result.errors, { status, instance: request.url }), {
+      status,
       headers,
     });
   }
@@ -306,9 +310,10 @@ export async function middleware(request: NextRequest) {
   const allow = allowHeaderFor(result.errors);
   const headers: Record<string, string> = { "Content-Type": "application/problem+json" };
   if (allow !== undefined) headers["Allow"] = allow;
+  const status = httpStatusFor(result.errors);
   return new NextResponse(
-    JSON.stringify(toProblemDetails(result.errors, { instance: request.url })),
-    { status: httpStatusFor(result.errors), headers },
+    JSON.stringify(toProblemDetails(result.errors, { status, instance: request.url })),
+    { status, headers },
   );
 }
 ```
@@ -452,6 +457,13 @@ Default mapping:
 This table is request-side: every row reads the failure as "what do I
 tell this client about the request they sent", 413 included.
 
+Whatever code you send, pass it to `toProblemDetails` as well. RFC 9457
+3.1.2 requires the body's `status` member to carry the same code as the
+response, and the default is a constant `400`: a problem-details body
+has no direction, so it cannot ask this request-side table on your
+behalf. The recipes above all bind it once and use it twice. See
+`ProblemDetailsOptions.status` for the contract.
+
 `httpStatusFor` is not the helper for a response-validation result, and
 there is no sibling that is. Nothing in the leaf determines the answer:
 a gateway holding a response that violates its own contract might
@@ -499,8 +511,8 @@ data-exposure surface. Two override points: pass `detail` to
 ```ts
 import { httpStatusFor, toProblemDetails, type ValidationError } from "@oaverify/core";
 
-function safeProblemDetails(errors: ValidationError[], instance: string) {
-  const pd = toProblemDetails(errors, { instance });
+function safeProblemDetails(errors: ValidationError[], status: number, instance: string) {
+  const pd = toProblemDetails(errors, { status, instance });
   return {
     ...pd,
     // Structural summary; nothing about the offending value reaches detail.
@@ -513,10 +525,11 @@ function safeProblemDetails(errors: ValidationError[], instance: string) {
 app.use(
   validateRequests(validator, {
     onError: (errors, ctx) => {
+      const status = httpStatusFor(errors);
       ctx.res
-        .status(httpStatusFor(errors))
+        .status(status)
         .type("application/problem+json")
-        .json(safeProblemDetails(errors, ctx.req.originalUrl));
+        .json(safeProblemDetails(errors, status, ctx.req.originalUrl));
     },
   }),
 );
@@ -727,10 +740,11 @@ app.post("/avatar", upload.any(), async (req, res, next) => {
     body: { ...req.body, ...files },
   });
   if (!result.valid) {
+    const status = httpStatusFor(result.errors);
     return res
-      .status(httpStatusFor(result.errors))
+      .status(status)
       .type("application/problem+json")
-      .json(toProblemDetails(result.errors, { instance: req.originalUrl }));
+      .json(toProblemDetails(result.errors, { status, instance: req.originalUrl }));
   }
   // handler uses req.body + req.files as normal
 });

@@ -121,9 +121,11 @@ describe("oav-express4 integration: default validateRequests", () => {
     expect(allow).toMatch(/GET/);
   });
 
-  it("unknown path returns 404", async () => {
+  it("unknown path returns 404, and the body agrees", async () => {
     const r = await fetch(`${baseUrl}/nope`, { method: "GET" });
     expect(r.status).toBe(404);
+    // RFC 9457 3.1.2: the body's `status` is the code the response carries.
+    expect(await r.json()).toMatchObject({ status: 404 });
   });
 
   it("missing required header returns 400 problem+details", async () => {

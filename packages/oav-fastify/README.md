@@ -35,7 +35,9 @@ app.addHook("preValidation", validateRequests(validator));
 app.post("/pets", async () => ({ ok: true }));
 ```
 
-Invalid requests receive a `400 application/problem+json` response (status from `httpStatusFor`, body from `toProblemDetails`, `Allow` header on 405). Valid requests reach the route handlers.
+Invalid requests receive an `application/problem+json` response, with an `Allow` header on a 405. Valid requests reach the route handlers.
+
+The status comes from `httpStatusFor`: 404 for an unmatched route, 415 for an undeclared media type, 400 for a schema violation, and [Status-code mapping](https://github.com/oaverify/oaverify/blob/main/docs/integration.md#status-code-mapping) has every row. The body's `status` member carries the same code.
 
 ## Hardening for untrusted input
 
@@ -121,7 +123,8 @@ Use this when you want to compose your own hook (e.g. validate inside a custom p
 
 The default `onError`. Takes the flat list of failing leaves and writes
 an RFC 9457 `application/problem+json` body (via `toProblemDetails`),
-status from `httpStatusFor`, `Allow` header from `allowHeaderFor` on 405.
+status from `httpStatusFor` and the same code in the body's `status`
+member, `Allow` header from `allowHeaderFor` on 405.
 `onError` receives the same leaf list whatever `output` the validator
 uses (a tree validator's result is flattened first).
 

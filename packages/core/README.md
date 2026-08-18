@@ -111,7 +111,8 @@ migrating from).
 
 - `httpStatusFor(err, overrides?)`: maps a `ValidationError` tree to
   an HTTP status code. Defaults: `route` → 404, `method` → 405,
-  `security` → 401, `content-type` → 415, `status` → 500, else 400.
+  `security` → 401, `content-type` → 415, `status` → 500,
+  `body-too-large` → 413, else 400.
   Correctly inspects the tree shape (some codes appear as leaves
   under a top-level `"request"` / `"response"` branch, not as
   `err.code`). Pass `{ default: 422 }` etc. to override a slot.
@@ -121,9 +122,12 @@ migrating from).
   RFC 9457 `application/problem+json` envelope with a typed `issues`
   array as an extension member. Defaults: `about:blank` type,
   `"Validation failed"` title, status `400`, and `detail` = `formatSummary(err)`
-  (first failing leaf). Pass `detail` explicitly for a structural
-  summary like `` `${pd.issues.length} validation errors` `` or any
-  other override.
+  (first failing leaf). Pass `status` whenever the response carries
+  anything other than 400: RFC 9457 3.1.2 requires the two to agree,
+  and this helper cannot ask `httpStatusFor` on your behalf because a
+  problem-details body has no direction. Pass `detail` explicitly for
+  a structural summary like `` `${pd.issues.length} validation errors` ``
+  or any other override.
 - `collectIssues(err)`: the flat leaf list, for rolling your own
   response shape. Each issue carries a raw `path` (`PathSegment[]`)
   and a `pointer`, the same path pre-formatted as an
@@ -135,11 +139,12 @@ migrating from).
 ### Common envelope shapes
 
 ```ts
-// RFC 9457 (default), one call.
+// RFC 9457 (default): one status, on the wire and in the body.
+const status = httpStatusFor(err);
 res
-  .status(httpStatusFor(err))
+  .status(status)
   .type("application/problem+json")
-  .json(toProblemDetails(err, { instance: req.originalUrl }));
+  .json(toProblemDetails(err, { status, instance: req.originalUrl }));
 
 // Custom envelope, eov-style flat list.
 res.status(httpStatusFor(err)).json({

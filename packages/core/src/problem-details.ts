@@ -46,7 +46,14 @@ export interface ProblemDetails {
   type: string;
   /** Short human-readable summary. Defaults to `"Validation failed"`. */
   title: string;
-  /** HTTP status code for the response. Defaults to `400`. */
+  /**
+   * HTTP status code for the response. Defaults to `400`.
+   *
+   * [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) 3.1.2
+   * requires this to be the same code the response actually carries,
+   * so a caller serving anything other than 400 has to say so. See
+   * {@link ProblemDetailsOptions.status}.
+   */
   status: number;
   /** Human-readable explanation specific to this occurrence. */
   detail: string;
@@ -69,7 +76,24 @@ export interface ProblemDetailsOptions {
   type?: string;
   /** Short title. Default: `"Validation failed"`. */
   title?: string;
-  /** HTTP status code. Default: `400`. */
+  /**
+   * HTTP status code. Default: `400`.
+   *
+   * [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) 3.1.2
+   * makes this member advisory and puts the obligation on the sender:
+   * "Generators MUST use the same status code in the actual HTTP
+   * response, to assure that generic HTTP software that does not
+   * understand this format still behaves correctly." The default is a
+   * constant rather than a derivation, because a body has no direction
+   * and {@link httpStatusFor} answers a request-side question only. A
+   * caller serving any other code has to pass it here too, so a
+   * request-side renderer asks once and uses the answer twice:
+   *
+   * ```ts
+   * const status = httpStatusFor(errors);
+   * res.status(status).json(toProblemDetails(errors, { status }));
+   * ```
+   */
   status?: number;
   /** URI reference identifying this specific occurrence (e.g. the request URL). */
   instance?: string;
@@ -142,9 +166,10 @@ export function collectIssues(
  * // Express 5
  * const result = validator.validateRequest(httpRequest);
  * if (!result.valid) {
- *   res.status(400)
+ *   const status = httpStatusFor(result.errors);
+ *   res.status(status)
  *      .type("application/problem+json")
- *      .json(toProblemDetails(result.errors, { instance: req.originalUrl }));
+ *      .json(toProblemDetails(result.errors, { status, instance: req.originalUrl }));
  * }
  * ```
  *

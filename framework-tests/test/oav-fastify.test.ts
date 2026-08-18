@@ -101,9 +101,11 @@ describe("oav-fastify integration: default validateRequests", () => {
     expect(allow).toMatch(/GET/);
   });
 
-  it("unknown path returns 404", async () => {
+  it("unknown path returns 404, and the body agrees", async () => {
     const r = await app.inject({ method: "GET", url: "/nope" });
     expect(r.statusCode).toBe(404);
+    // RFC 9457 3.1.2: the body's `status` is the code the response carries.
+    expect(r.json()).toMatchObject({ status: 404 });
   });
 
   it("missing required header returns 400 problem+details", async () => {
