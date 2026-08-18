@@ -35,6 +35,18 @@ export interface LoadSpecOptions {
    * no longer says it.
    */
   provenance?: boolean;
+  /**
+   * What to do with a reference whose target cannot be read. Defaults
+   * to `"throw"`. See {@link ResolveSpecOptions.onUnresolved}.
+   *
+   * Under `"record"` the holes land in
+   * {@link ResolvedSpec.unresolved}, and they describe the resolved
+   * document rather than the post-overlay one. An overlay that removes
+   * the node holding an unfollowed reference leaves the record in
+   * place, which is the safe direction: it says the document was built
+   * from incomplete input, which stays true.
+   */
+  onUnresolved?: "throw" | "record";
 }
 
 /**
@@ -66,6 +78,7 @@ export async function loadSpec(options: LoadSpecOptions): Promise<ResolvedSpec> 
     entry: options.entry,
     ...(options.baseUri !== undefined && { baseUri: options.baseUri }),
     ...(options.provenance === true && { provenance: true }),
+    ...(options.onUnresolved !== undefined && { onUnresolved: options.onUnresolved }),
   });
   const overlaid =
     options.overlays && options.overlays.length > 0
@@ -81,6 +94,7 @@ export async function loadSpec(options: LoadSpecOptions): Promise<ResolvedSpec> 
     ...(resolved.regions !== undefined && {
       regions: afterOverlays(resolved.regions, resolved.document, overlaid),
     }),
+    ...(resolved.unresolved !== undefined && { unresolved: resolved.unresolved }),
   };
 }
 
@@ -157,6 +171,18 @@ export interface LoadSpecSyncOptions {
    * no longer says it.
    */
   provenance?: boolean;
+  /**
+   * What to do with a reference whose target cannot be read. Defaults
+   * to `"throw"`. See {@link ResolveSpecOptions.onUnresolved}.
+   *
+   * Under `"record"` the holes land in
+   * {@link ResolvedSpec.unresolved}, and they describe the resolved
+   * document rather than the post-overlay one. An overlay that removes
+   * the node holding an unfollowed reference leaves the record in
+   * place, which is the safe direction: it says the document was built
+   * from incomplete input, which stays true.
+   */
+  onUnresolved?: "throw" | "record";
 }
 
 /**
@@ -192,6 +218,7 @@ export function loadSpecSync(options: LoadSpecSyncOptions): ResolvedSpec {
     entry: options.entry,
     ...(options.baseUri !== undefined && { baseUri: options.baseUri }),
     ...(options.provenance === true && { provenance: true }),
+    ...(options.onUnresolved !== undefined && { onUnresolved: options.onUnresolved }),
   });
   const overlaid =
     options.overlays && options.overlays.length > 0
@@ -207,5 +234,6 @@ export function loadSpecSync(options: LoadSpecSyncOptions): ResolvedSpec {
     ...(resolved.regions !== undefined && {
       regions: afterOverlays(resolved.regions, resolved.document, overlaid),
     }),
+    ...(resolved.unresolved !== undefined && { unresolved: resolved.unresolved }),
   };
 }

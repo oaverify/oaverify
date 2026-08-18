@@ -23,6 +23,7 @@ import {
   makeStitchRef,
   mergeHoistedSchemas,
   noteInlinedComponent,
+  removeComponentSchema,
   mergeStitchedExternals,
   type MountState,
   type Mutable,
@@ -34,6 +35,10 @@ import {
   setSpecKey,
   targetKey,
   wrapReadError,
+  wrapFragmentError,
+  HoleLog,
+  UNREADABLE,
+  type UnresolvedRef,
 } from "./resolver-shared.js";
 import type { SourceHop, SpecRegion } from "./provenance.js";
 import { subschemaFamilyOf } from "@oaverify/internal-core/subschema-positions";
@@ -72,6 +77,58 @@ export interface ResolveSpecOptions {
    * check. See {@link sourceOf} for what the regions answer.
    */
   provenance?: boolean;
+  /**
+   * What to do with a reference the resolver cannot follow.
+   *
+   * `"throw"`, the default, is the historical behaviour: the first
+   * reference that will not follow ends the resolution and no document
+   * comes back.
+   *
+   * `"record"` carries on. The reference is left unfollowed, the
+   * failure lands in {@link ResolvedSpec.unresolved}, and a document
+   * comes back with a hole where the target would have been. That is
+   * for a caller holding a buffer someone is still typing in, where a
+   * reference that will not follow is a transient state rather than a
+   * verdict.
+   *
+   * Both halves of a reference are covered: a document that will not
+   * read, and a document that reads whose fragment names no node. The
+   * second is the commoner one in an editor, since a fragment is
+   * half-typed for as long as it takes to type the rest of it.
+   * {@link UnresolvedRef.fragment} is what tells them apart.
+   *
+   * In a schema position the compiler reports the dangling reference
+   * exactly as it reports one an author wrote. In a non-schema position
+   * the derived reference survives in the document, and `createValidator`
+   * answers "external ref not resolved; run resolveSpec() ... before
+   * passing it to createValidator()", which is wrong advice here: the
+   * resolver did run and left the reference deliberately. Read
+   * `unresolved` rather than that message.
+   *
+   * That surviving reference is written as the target the walk derived
+   * rather than as the author spelled it. The two differ only for a
+   * relative reference copied out of another source document: it is
+   * relative to the file it was written in, and it is landing in a
+   * document whose base is the entry, so keeping the spelling would
+   * point it at a different file that may well exist. An entry-local
+   * reference derives back to what the author wrote and is unchanged.
+   * Writing the derived target is also what keeps the document and
+   * {@link ResolvedSpec.unresolved} naming the same file.
+   *
+   * Nothing is substituted for content that could not be read: a
+   * permissive placeholder would grade clean and say nothing was
+   * wrong. A target that reads and answers with nothing (`null` or
+   * `undefined`) counts as unread for the same reason. A target that
+   * reads and answers with a scalar, an array or a boolean is passed
+   * through, because those are legal in some positions and the
+   * position that consumes one reports a better error than this layer
+   * could.
+   *
+   * The entry document is not covered. A reference that will not
+   * resolve leaves a hole in a document; an entry that will not read
+   * leaves no document at all, so that still throws.
+   */
+  onUnresolved?: "throw" | "record";
 }
 
 /**
@@ -82,7 +139,16 @@ export interface ResolveSpecOptions {
  */
 export interface ResolvedSpec {
   document: OpenAPIDocument;
-  /** URIs of every file that was read during resolution, the entry included. */
+  /**
+   * URIs of every file the resolution read, the entry included.
+   *
+   * Under `onUnresolved: "record"` it also holds the targets that were
+   * reached for and would not read. That is deliberate rather than an
+   * oversight: a caller watching these files wants to be told when the
+   * missing one appears, which is the edit that fixes the document, and
+   * a list that omits it cannot say so. {@link ResolvedSpec.unresolved}
+   * is what separates the two.
+   */
   sources: string[];
   /**
    * Spec-hygiene findings from {@link lintResolvedSpec}. Empty unless
@@ -121,6 +187,34 @@ export interface ResolvedSpec {
    * with `undefined` and cannot answer the former.
    */
   regions?: readonly SpecRegion[];
+  /**
+   * References the resolver could not follow.
+   *
+   * Present only under {@link ResolveSpecOptions.onUnresolved}
+   * `"record"`, and the one way to tell a document with holes in it
+   * from a whole one. Three states, the same convention
+   * {@link ResolvedSpec.inlinedComponents} uses: absent says nobody
+   * asked, `[]` says the resolution was asked and every reference
+   * resolved, and a non-empty array says this document is missing
+   * pieces and names which.
+   *
+   * A non-empty array says this document is **partial**, and that is a
+   * statement about every consumer downstream of it, not only about the
+   * references named here. A caller reading findings computed from a
+   * partial document needs a policy for which of them to trust: a rule
+   * whose verdict rests on something being absent can be wrong about a
+   * document that is missing pieces, while one whose verdict rests on
+   * what is present cannot. Reporting all of them and leaving the
+   * reader to sort it out moves that problem rather than answering it.
+   *
+   * A field on the ordinary result rather than a type of its own, so a
+   * consumer that never asks for holes keeps the signature it has. The
+   * cost is that a function taking a `ResolvedSpec` cannot make a
+   * caller think about this; the three states are the whole of the
+   * contract, so a consumer that means to handle partial input checks
+   * the field.
+   */
+  unresolved?: readonly UnresolvedRef[];
 }
 
 /**
@@ -179,15 +273,77 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   // Populated as the walk derives each target URI; read back only on
   // failure, to name the reference that pulled the bad document in.
   const referrers: ReferrerTrail = new Map();
-  const readDoc = async (uri: string): Promise<unknown> => {
+  // Null unless the caller asked to record; every read below then
+  // throws exactly as it always did.
+  const holes = options.onUnresolved === "record" ? new HoleLog() : null;
+  const readDoc = async (uri: string, via: readonly SourceHop[]): Promise<unknown> => {
+    // A target already known to be missing is not read again. One
+    // missing file costs one failed read however many references name
+    // it, which is what keeps a document mid-rename cheap to re-check.
+    if (holes !== null && holes.has(uri)) return UNREADABLE;
+    const referrer = referrers.get(uri) ?? null;
     try {
-      return await reader.read(uri);
+      const doc = await reader.read(uri);
+      // A read that answers with nothing did not produce a document.
+      // The reader layer refuses an empty YAML source already (#850),
+      // but `JSON.parse("null")` succeeds, and a reader is free to
+      // answer `null` or `undefined` for a buffer that has just been
+      // created. Treating that as a document substitutes it into the
+      // spec and reports no hole, so `unresolved: []` would say the
+      // document is whole while a schema position holds `null`.
+      if (doc === null || doc === undefined) {
+        throw new Error(`${uri} contains no document`);
+      }
+      return doc;
     } catch (err) {
-      throw wrapReadError(err, uri, referrers.get(uri) ?? null);
+      const wrapped = wrapReadError(err, uri, referrer);
+      if (holes === null) throw wrapped;
+      holes.record(uri, referrer ?? uri, via, wrapped, err);
+      return UNREADABLE;
     }
   };
 
-  const entryDoc = await readDoc(options.entry);
+  // The other half of a reference: the document was found, the node
+  // inside it may not be. Under `record` a fragment that does not
+  // resolve is a hole of its own, keyed by document and fragment, since
+  // one document can hold the node one reference names and not another.
+  const readFragment = (
+    doc: unknown,
+    uri: string,
+    fragment: string,
+    via: readonly SourceHop[],
+  ): unknown => {
+    if (fragment === "") return doc;
+    try {
+      return resolveJsonPointer(doc, pointerFromFragment(fragment));
+    } catch (err) {
+      const referrer = referrers.get(uri) ?? null;
+      // Both modes word this the same way. A bare pointer error names
+      // neither end of the edge, which is #817: `oaverify check` on a
+      // 300KB entry with 30 sibling files reported
+      // `JSON pointer /components/responses/2XX not found` and left the
+      // reader grepping for which of 26 references meant it.
+      if (holes === null) throw wrapFragmentError(err, uri, fragment, referrer);
+      holes.recordFragment(
+        uri,
+        fragment,
+        referrer ?? uri,
+        via,
+        wrapFragmentError(err, uri, fragment, referrer),
+        err,
+      );
+      return UNREADABLE;
+    }
+  };
+
+  // Read directly rather than through `readDoc`, because `record` mode
+  // does not cover the entry. See `ResolveSpecOptions.onUnresolved`.
+  let entryDoc: unknown;
+  try {
+    entryDoc = await reader.read(options.entry);
+  } catch (err) {
+    throw wrapReadError(err, options.entry, null);
+  }
   assertEntryDocument(entryDoc, options.entry);
   docs.set(options.entry, entryDoc);
 
@@ -208,6 +364,10 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   // Seeded with the entry document's own component names so hoisting can
   // never shadow a schema the author wrote.
   const names = new HoistNames(existingSchemaNames(entryDoc));
+  // Component names the author bound to an external target by writing a
+  // slot that is nothing but a `$ref`. Read back only when such a target
+  // fails to read; see `removeComponentSchema`.
+  const boundSlots = new Set<string>();
   const hoistQueue = new Set<string>();
   const targets = new Map<string, { uri: string; fragment: string }>();
 
@@ -221,6 +381,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     if (keys.length !== 1 || typeof slotRef !== "string" || slotRef.startsWith("#")) continue;
     const [refPath, fragment = ""] = slotRef.split("#") as [string, string | undefined];
     names.bind(resolveRelative(baseDir, refPath), fragment, name);
+    boundSlots.add(name);
   }
 
   /**
@@ -417,11 +578,53 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       sources.add(targetUri);
       let targetDoc = docs.get(targetUri);
       if (targetDoc === undefined) {
-        targetDoc = await readDoc(targetUri);
+        targetDoc = await readDoc(targetUri, trail?.chain() ?? []);
+        if (targetDoc === UNREADABLE) {
+          // Nothing to inline, so the reference survives into the
+          // resolved document and the walk carries on past it. Siblings
+          // are still walked, because they are this document's content
+          // and have nothing to do with the target.
+          //
+          // Written as the target the walk derived rather than as the
+          // author spelled it. A relative reference is relative to the
+          // document it was written in, and this one is landing in the
+          // resolved document, whose base is the entry; keeping the
+          // spelling would silently re-point `gone.json` written in
+          // `sub/a.json` at a different `gone.json` beside the entry.
+          // The URI here is the same one `unresolved` names, so the
+          // document and the record agree on which file is missing.
+          visiting.delete(cycleKey(targetUri, fragment));
+          const unfollowed: Mutable = {
+            $ref: fragment === "" ? targetUri : `${targetUri}#${fragment}`,
+          };
+          for (const key of Object.keys(obj)) {
+            if (key === "$ref") continue;
+            setSpecKey(
+              unfollowed,
+              key,
+              await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
+            );
+          }
+          return unfollowed;
+        }
         docs.set(targetUri, targetDoc);
       }
-      const resolved =
-        fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, pointerFromFragment(fragment));
+      const resolved = readFragment(targetDoc, targetUri, fragment, trail?.chain() ?? []);
+      if (resolved === UNREADABLE) {
+        visiting.delete(cycleKey(targetUri, fragment));
+        const unfollowed: Mutable = {
+          $ref: fragment === "" ? targetUri : `${targetUri}#${fragment}`,
+        };
+        for (const key of Object.keys(obj)) {
+          if (key === "$ref") continue;
+          setSpecKey(
+            unfollowed,
+            key,
+            await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
+          );
+        }
+        return unfollowed;
+      }
       // The target's content replaces the reference in place, so it is
       // mounted at the position the walk is standing on.
       let mounted: MountState | undefined;
@@ -583,6 +786,10 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   // a self-reference resolves to an already-claimed name rather than
   // recursing.
   const hoisted: Mutable = {};
+  // Names whose target could not be read. Collected rather than deleted
+  // in the loop, so the `hasOwn` guard above still collapses a repeat
+  // instead of walking it a second time.
+  const missingHoists = new Set<string>();
   while (hoistQueue.size > 0) {
     const key = hoistQueue.values().next().value as string;
     hoistQueue.delete(key);
@@ -594,13 +801,23 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     setSpecKey(hoisted, name, true);
     let targetDoc = docs.get(target.uri);
     if (targetDoc === undefined) {
-      targetDoc = await readDoc(target.uri);
+      targetDoc = await readDoc(target.uri, hoistVia.get(key) ?? []);
+      if (targetDoc === UNREADABLE) {
+        // The use site was rewritten to `#/components/schemas/<name>`
+        // before the target was read, so leaving the slot empty leaves
+        // an internal reference to a component that is not there, which
+        // is the dangling reference the compiler already reports with a
+        // pointer at the use site.
+        missingHoists.add(name);
+        continue;
+      }
       docs.set(target.uri, targetDoc);
     }
-    const content =
-      target.fragment === ""
-        ? targetDoc
-        : resolveJsonPointer(targetDoc, pointerFromFragment(target.fragment));
+    const content = readFragment(targetDoc, target.uri, target.fragment, hoistVia.get(key) ?? []);
+    if (content === UNREADABLE) {
+      missingHoists.add(name);
+      continue;
+    }
     // Hoisting relocates: the target lands under a derived component
     // name rather than where it was referenced, so the mount names
     // where it ends up and the chain that found it is read back from
@@ -620,6 +837,10 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       await walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS),
     );
     if (trail !== null && mounted !== undefined) trail.leave(mounted, true);
+  }
+  for (const name of missingHoists) {
+    delete hoisted[name];
+    if (boundSlots.has(name)) removeComponentSchema(resolved, name);
   }
   // `components` / `components.schemas` may be containers the resolver
   // invented to hold the hoisted schemas. The document is not merged
@@ -644,7 +865,11 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       sources.add(uri);
       let targetDoc = docs.get(uri);
       if (targetDoc === undefined) {
-        targetDoc = await readDoc(uri);
+        targetDoc = await readDoc(uri, stitchVia.get(uri) ?? []);
+        // Same shape as an unread hoist: the references into this
+        // document were rewritten before it was read, so leaving it out
+        // leaves them dangling where they were written.
+        if (targetDoc === UNREADABLE) continue;
         docs.set(uri, targetDoc);
       }
       const savedVisiting = new Set(visiting);
@@ -675,6 +900,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     specHygieneIssues,
     inlinedComponents: inlined,
     ...(trail !== null && { regions: trail.regions }),
+    ...(holes !== null && { unresolved: holes.entries() }),
   };
 }
 

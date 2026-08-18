@@ -318,6 +318,27 @@ export function mergeHoistedSchemas(resolved: object, hoisted: Mutable): void {
   rootObj.components = { ...components, schemas: { ...schemas, ...hoisted } };
 }
 
+/**
+ * Remove a `components.schemas` entry the author wrote, because the
+ * external target it named could not be read.
+ *
+ * Only reached under `onUnresolved: "record"`, and only for a slot
+ * {@link HoistNames.bind} bound to an external target: that slot said
+ * "this component is that file", the walk rewrote it to point at the
+ * name it was going to be hoisted into, and with the file missing it
+ * would otherwise be left pointing at itself. A self-reference compiles
+ * and grades clean, which is the one outcome a hole must never produce.
+ * Removing it leaves every use site referring to a component that is not
+ * there, which is the hole shape every other position produces.
+ */
+export function removeComponentSchema(resolved: object, name: string): void {
+  const components = (resolved as Mutable).components;
+  if (typeof components !== "object" || components === null || Array.isArray(components)) return;
+  const schemas = (components as Mutable).schemas;
+  if (typeof schemas !== "object" || schemas === null || Array.isArray(schemas)) return;
+  delete (schemas as Mutable)[name];
+}
+
 /** The entry document's `components.schemas` map, or an empty one. */
 export function componentSchemaSlots(doc: unknown): Mutable {
   if (typeof doc !== "object" || doc === null) return {};
@@ -520,6 +541,27 @@ export function wrapReadError(err: unknown, uri: string, referrer: string | null
   return new Error(`failed to read ${uri}${from}: ${cause}`, { cause: err });
 }
 
+/**
+ * Wrap a fragment that did not resolve with the document it was looked
+ * up in and the document that referenced it.
+ *
+ * Worded like {@link wrapReadError} because it answers the same
+ * question one step further in: the file was found, the node inside it
+ * was not. A bare pointer error names neither end of the edge, and in
+ * an editor this is the commoner of the two failures, since a fragment
+ * is half-typed for as long as it takes to type the rest of it.
+ */
+export function wrapFragmentError(
+  err: unknown,
+  uri: string,
+  fragment: string,
+  referrer: string | null,
+): Error {
+  const cause = err instanceof Error ? err.message : String(err);
+  const from = referrer === null || referrer === uri ? "" : ` (referenced from ${referrer})`;
+  return new Error(`failed to resolve ${uri}#${fragment}${from}: ${cause}`, { cause: err });
+}
+
 /** Cycle-detection key for a (uri, fragment) pair. */
 export function cycleKey(targetUri: string, fragment: string): string {
   return targetUri + "#" + fragment;
@@ -572,4 +614,156 @@ export function assertEntryDocument(document: unknown, entry: string): void {
     `${entry} is not an OpenAPI document: expected an object, got ${got}. ` +
       `A spec's entry document is an object with an "openapi" field.`,
   );
+}
+
+/**
+ * What a read answers with when it failed and the resolver was told to
+ * record rather than throw.
+ *
+ * A symbol rather than `undefined` or `null`, because both of those are
+ * legal parsed documents: a YAML file holding nothing but comments
+ * parses to `null`, and a reader is free to answer with either.
+ */
+export const UNREADABLE: unique symbol = Symbol("oaverify.unreadable");
+
+/**
+ * A reference the resolver was asked to follow and could not.
+ *
+ * Produced only under `onUnresolved: "record"`. The same failure that
+ * throws under the default mode, kept as data so the walk can carry on
+ * and the caller can report it where it was written.
+ *
+ * `via` is what makes it locatable: a {@link SourceHop} is `uri` plus a
+ * pointer to the `$ref` node itself, which is exactly the shape
+ * `SpanRequest` takes, so a caller holding the file's text resolves a
+ * hole to a line and column through the resolver it already uses for
+ * findings. It is empty unless `provenance` was set, since that is what
+ * the pointers are recorded by; `referrer` names the file either way.
+ *
+ * @public
+ */
+export interface UnresolvedRef {
+  /** The target document the reference named. */
+  readonly uri: string;
+  /**
+   * The fragment that did not resolve, present only when the document
+   * was read and the node inside it was not found.
+   *
+   * The two failures are different edits. Absent says the file is
+   * missing or unreadable, so the fix is to the filename or to the
+   * filesystem. Present says the file is fine and this pointer into it
+   * is not, so the fix is to the fragment. An editor drawing one
+   * message for both would send a reader to the wrong half of the
+   * reference.
+   */
+  readonly fragment?: string;
+  /**
+   * The document holding the reference the walk followed to reach
+   * `uri`. The first one, matching {@link noteReferrer}: a target
+   * several references name is read once, and this is the reference the
+   * walk actually took.
+   */
+  readonly referrer: string;
+  /**
+   * The references followed to reach `uri`, outermost first, the one
+   * that failed last. Empty when the resolver was not tracking
+   * provenance.
+   */
+  readonly via: readonly SourceHop[];
+  /**
+   * The failure, worded exactly as the throwing mode words it. Both
+   * modes wrap a fragment failure with the file and the referrer, so a
+   * caller can compare or reuse the two without translating.
+   *
+   * The serializable answer to what went wrong. Prefer it over
+   * {@link UnresolvedRef.cause} anywhere the record is logged, sent
+   * over a wire, or written to a file.
+   */
+  readonly message: string;
+  /**
+   * Whatever the reader threw, unchanged.
+   *
+   * Diagnostic, and the one field on a resolution result that does not
+   * survive `JSON.stringify`: an `Error` serializes to `{}`, so a
+   * caller persisting the record keeps the field name and loses its
+   * contents. `message` is the field to read instead.
+   *
+   * Handed over rather than mined, because mining it means knowing what
+   * a parser's error looks like. A YAML reader's failure carries the
+   * position of the syntax error on this object, and a caller that
+   * wired that reader knows the error type and can ask; this package
+   * cannot, and taking a parser dependency to find out is what its role
+   * forbids.
+   */
+  readonly cause: unknown;
+}
+
+/**
+ * The holes recorded during one `record`-mode resolution, keyed by
+ * target URI.
+ *
+ * Keyed by target rather than by reference site because that is what a
+ * reader fixes: one missing file is one edit, whatever number of `$ref`s
+ * name it.
+ *
+ * How many references named it is deliberately not reported. The count
+ * this class can see is read attempts, and those do not stand in for
+ * references: a schema position collapses every reference to one target
+ * into a single queued read, while a non-schema position reads per
+ * reference, so one document answers 1 or 3 for the same three
+ * references depending on where they sit. Counting references honestly
+ * means counting them where they are found, which is a separate change.
+ */
+export class HoleLog {
+  private readonly byKey = new Map<string, UnresolvedRef>();
+
+  /** Whether this document has already failed to read. */
+  has(uri: string): boolean {
+    return this.byKey.has(uri);
+  }
+
+  /**
+   * Record a failed read. A repeat of one already recorded is dropped,
+   * so first writer wins, matching {@link noteReferrer}.
+   */
+  record(
+    uri: string,
+    referrer: string,
+    via: readonly SourceHop[],
+    wrapped: Error,
+    cause: unknown,
+  ): void {
+    if (this.byKey.has(uri)) return;
+    this.byKey.set(uri, { uri, referrer, via, message: wrapped.message, cause });
+  }
+
+  /**
+   * Record a fragment that did not resolve in a document that read.
+   *
+   * Keyed by document and fragment together, because one document can
+   * hold the node one reference names and not the node another does.
+   */
+  recordFragment(
+    uri: string,
+    fragment: string,
+    referrer: string,
+    via: readonly SourceHop[],
+    wrapped: Error,
+    cause: unknown,
+  ): void {
+    const key = cycleKey(uri, fragment);
+    if (this.byKey.has(key)) return;
+    this.byKey.set(key, { uri, fragment, referrer, via, message: wrapped.message, cause });
+  }
+
+  /**
+   * Every hole, grouped by the phase that found it: holes from the walk
+   * first, then holes from the hoist drain, which runs after the walk
+   * has finished. Not document order, and not the order `sources`
+   * lists the same files in. A consumer rendering these positionally
+   * should sort them itself.
+   */
+  entries(): readonly UnresolvedRef[] {
+    return [...this.byKey.values()];
+  }
 }
