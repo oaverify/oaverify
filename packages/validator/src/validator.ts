@@ -1747,7 +1747,7 @@ export function createValidator(
           }
         }
 
-        if (responseCompiled.bodySchemas.size > 0 && res.body === undefined) {
+        if (responseCompiled.bodyMediaTypes.length > 0 && res.body === undefined) {
           // Opt-in absent-body finding. HEAD answers against the GET
           // operation, whose declared content is correctly absent
           // (RFC 9110 9.3.2); 204 / 205 / 304 are bodyless by status
@@ -1770,7 +1770,7 @@ export function createValidator(
           }
         }
 
-        if (responseCompiled.bodySchemas.size > 0 && res.body !== undefined) {
+        if (responseCompiled.bodyMediaTypes.length > 0 && res.body !== undefined) {
           const mt = matchParsedMediaType(res.contentType, responseCompiled.bodyMediaTypes);
           if (mt === undefined) {
             children.push(

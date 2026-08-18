@@ -10,7 +10,14 @@ to `style: matrix` parameters, and one removes three field aliases
 deprecated in v6.
 
 If you use the library with Express or Fastify and read no `check`
-findings, the upgrade is the rename and nothing else.
+findings, the breaking changes above are the rename and nothing else.
+
+Read the two runtime-behaviour sections at the end anyway. They are not
+breaking changes in the semver sense, since each is a defect fix, but
+both tighten request validation in ways that can reject traffic a
+working deployment sends today: `readOnly` under `dependencies` is now
+enforced, and an operation that declares media types without schemas now
+honours them instead of accepting anything.
 
 ## Breaking: `@oaverify/yaml` is now `@oaverify/syntax`
 
@@ -455,6 +462,45 @@ Request validation tightens in the same place, and this one can reject
 traffic that was previously accepted: a `readOnly` property declared
 under `dependencies` is now enforced on the request leg, so a client
 sending that server-owned field gets a 400 where it used to get through.
+
+## Content negotiation honours a declared media type with no schema
+
+Two changes in the same area, one loosening and one tightening.
+
+A Media Type Object with no `schema` is legal and means "anything goes".
+It is now **accepted**: a request whose `Content-Type` matches such an
+entry passes, with the body unvalidated. It used to be rejected as
+un-accepted, because negotiation was built from the media types a
+validator had been compiled for rather than from what the document
+declares.
+
+The other half follows from the same correction. An operation whose
+media types **all** lack schemas used to negotiate nothing at all and
+accept any `Content-Type`, declared or not:
+
+```yaml
+requestBody:
+  content:
+    application/octet-stream: {}
+```
+
+A request sending `Content-Type: application/json` against that
+operation was accepted. It is now a 415. That is the ordinary
+binary-upload declaration, so check any operation that declares content
+without schemas if you have clients sending something other than what
+it names.
+
+Sending **no** `Content-Type` with a body is a 415 for the same reason,
+which is what such an operation already did when its media types
+carried schemas. Sending neither a body nor a header is unchanged: the
+client said nothing about the payload, so there is nothing to negotiate.
+
+The response leg tightens the same way, and if you set
+`requireResponseBody: true` it tightens in a second way as well. That
+check fires when a response declares content and sends no body, and it
+was reading the same compiled-schema count, so a response declaring only
+`{"text/plain": {}}` never triggered it. An empty `200` against such a
+response is now a finding. `HEAD`, `204`, `205` and `304` stay excluded.
 
 ## Checklist
 

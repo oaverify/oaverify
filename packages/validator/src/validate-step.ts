@@ -326,11 +326,8 @@ export function validateParameter(
  * the more actionable signal than the downstream "body required" leaf.
  * Returns `null` (deliberately not a content-type error) when:
  * - the operation declares no `requestBody`,
- * - no declared media type carries a schema, which includes the empty
- *   `content` map and also the schema-less binary-upload shape
- *   (`{"application/octet-stream": {}}`). The gate is skipped entirely
- *   there, so any `Content-Type` is accepted, declared or not. That is
- *   wider than this function's own rule and predates it; see #870,
+ * - the operation's `requestBody.content` map declares no media type
+ *   this validator can match against,
  * - the request has no body AND no `Content-Type` (body-missing is a
  *   separate concern, handled by {@link validateBody}).
  *
@@ -355,7 +352,12 @@ export function matchRequestBodyMediaType(
   cache: OperationCache,
 ): string | ValidationError | null {
   if (cache.requestBody === undefined) return null;
-  if (cache.bodyValidators.size === 0) return null;
+  // Keyed on what the operation declares, not on what compiled. Keying
+  // it on validators skipped the gate whenever no declared media type
+  // carried a schema, which is the ordinary binary-upload shape
+  // (`{"application/octet-stream": {}}`), and made those operations
+  // accept any Content-Type at all (#870).
+  if (cache.bodyMediaTypes.length === 0) return null;
   // See validateBody: only `undefined` means absent.
   const hasBody = req.body !== undefined;
   // No body and no Content-Type: the client said nothing about the

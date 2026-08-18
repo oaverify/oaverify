@@ -1194,14 +1194,13 @@ describe("compile-spec: schema-less media type parity (#849)", () => {
   });
 });
 
-describe("compile-spec: negotiation-skip parity (#849 / #870)", () => {
-  // The runtime gate is keyed on compiled schemas, not declared types:
-  // an operation whose media types all lack a schema negotiates nothing
-  // and accepts any Content-Type. Widening the emitted pattern set to
-  // the declared list without mirroring that skip reintroduced #849
-  // with the legs swapped, AOT answering 415 where the runtime answers
-  // 200. The behaviour itself is #870; what this pins is that both
-  // spellings hold the same one.
+describe("compile-spec: negotiation parity on a schema-less body (#849 / #870)", () => {
+  // Both spellings gate on what the operation declares. They briefly
+  // disagreed: #849 widened the emitted pattern set to the declared
+  // list while the runtime still skipped the gate whenever nothing
+  // compiled, so AOT answered 415 where the runtime answered 200. #870
+  // moved the runtime to declared types as well, which is the direction
+  // that makes an undeclared Content-Type a 415 on both sides.
   const uploadSpec: OpenAPIDocument = {
     openapi: "3.1.0",
     info: { title: "Upload", version: "1" },
@@ -1217,23 +1216,65 @@ describe("compile-spec: negotiation-skip parity (#849 / #870)", () => {
     },
   };
 
-  it("accepts an undeclared request Content-Type, matching createValidator", async () => {
+  it("refuses an undeclared request Content-Type, matching createValidator", async () => {
     const aot = await buildAot(uploadSpec);
     const runtime = createValidator(uploadSpec);
     const req = { method: "POST", path: "/things", contentType: "application/xml", body: "<x/>" };
+
+    expect(runtime.validateRequest(req as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(req as never)).map((e) => e.code)).toEqual([
+      "content-type",
+    ]);
+  });
+
+  it("accepts the declared schema-less type on both spellings", async () => {
+    const aot = await buildAot(uploadSpec);
+    const runtime = createValidator(uploadSpec);
+    const req = {
+      method: "POST",
+      path: "/things",
+      contentType: "application/octet-stream",
+      body: "bytes",
+    };
 
     expect(runtime.validateRequest(req as never).valid).toBe(true);
     expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
   });
 
-  it("accepts an undeclared response Content-Type, matching createValidator", async () => {
+  it("refuses an undeclared Content-Type sent without a body, matching createValidator", async () => {
+    // The emitted gate skipped on "no body" alone while the runtime
+    // skips only when there is no body AND no Content-Type. A declared
+    // Content-Type that matches nothing is the actionable signal either
+    // way, and this is the case the with-body tests cannot see.
+    const aot = await buildAot(uploadSpec);
+    const runtime = createValidator(uploadSpec);
+    const req = { method: "POST", path: "/things", contentType: "application/xml" };
+
+    expect(runtime.validateRequest(req as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(req as never)).map((e) => e.code)).toEqual([
+      "content-type",
+    ]);
+  });
+
+  it("says nothing when neither a body nor a Content-Type was sent", async () => {
+    const aot = await buildAot(uploadSpec);
+    const runtime = createValidator(uploadSpec);
+    const req = { method: "POST", path: "/things" };
+
+    expect(runtime.validateRequest(req as never).valid).toBe(true);
+    expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
+  });
+
+  it("refuses an undeclared response Content-Type, matching createValidator", async () => {
     const aot = await buildAot(uploadSpec);
     const runtime = createValidator(uploadSpec);
     const res = { status: 200, contentType: "application/xml", body: "<x/>" };
     const where = { method: "POST", path: "/things" };
 
-    expect(runtime.validateResponse(where as never, res as never).valid).toBe(true);
-    expect(flatErrors(aot.validateResponse(where as never, res as never))).toEqual([]);
+    expect(runtime.validateResponse(where as never, res as never).valid).toBe(false);
+    expect(
+      flatErrors(aot.validateResponse(where as never, res as never)).map((e) => e.code),
+    ).toEqual(["content-type"]);
   });
 
   it("does not treat a prototype-named media type as a validator", async () => {

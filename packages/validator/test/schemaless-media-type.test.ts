@@ -152,4 +152,150 @@ describe("a declared media type carrying no schema (#849)", () => {
 
     expect(result?.valid).toBe(true);
   });
+
+  describe("when no declared media type carries a schema (#870)", () => {
+    // The gate used to key on compiled schemas, so an operation like
+    // this negotiated nothing at all and accepted any Content-Type. It
+    // is the ordinary binary-upload declaration, not an edge case.
+    const upload = () => doc({ "application/octet-stream": {} });
+
+    it("still accepts the declared type", () => {
+      const result = createValidator(upload()).validateRequest({
+        method: "POST",
+        path: "/things",
+        contentType: "application/octet-stream",
+        body: "bytes",
+      });
+
+      expect(result?.valid).toBe(true);
+    });
+
+    it("now refuses an undeclared type", () => {
+      const result = createValidator(upload()).validateRequest({
+        method: "POST",
+        path: "/things",
+        contentType: "application/json",
+        body: { a: 1 },
+      });
+
+      expect(result?.valid).toBe(false);
+      expect(result?.valid === false ? result.errors[0]?.code : undefined).toBe("content-type");
+    });
+
+    it("still says nothing about an operation declaring no request body", () => {
+      const noBody = {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/things": { post: { responses: { "204": { description: "ok" } } } },
+        },
+      } as unknown as OpenAPIDocument;
+
+      const result = createValidator(noBody).validateRequest({
+        method: "POST",
+        path: "/things",
+        contentType: "application/json",
+        body: { a: 1 },
+      });
+
+      expect(result?.valid).toBe(true);
+    });
+
+    it("refuses a body sent with no Content-Type at all", () => {
+      // Same rule a schema-carrying operation already applied: a body
+      // arrived, and nothing says which of the declared types it is.
+      const result = createValidator(upload()).validateRequest({
+        method: "POST",
+        path: "/things",
+        body: "bytes",
+      });
+
+      expect(result?.valid).toBe(false);
+    });
+
+    it("says nothing when neither a body nor a Content-Type was sent", () => {
+      const result = createValidator(upload()).validateRequest({
+        method: "POST",
+        path: "/things",
+      });
+
+      expect(result?.valid).toBe(true);
+    });
+
+    it("reports an absent response body under requireResponseBody", () => {
+      // The absent-body check read the same compiled-schema count, so a
+      // response declaring only schema-less content never triggered the
+      // message that names exactly that condition.
+      const responseOnly = {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/things": {
+            get: {
+              responses: {
+                // Both declared, so the 204 probe below tests the
+                // bodyless-status exclusion rather than an undeclared
+                // status.
+                "200": { description: "ok", content: { "text/plain": {} } },
+                "204": { description: "no content", content: { "text/plain": {} } },
+              },
+            },
+          },
+        },
+      } as unknown as OpenAPIDocument;
+
+      const validator = createValidator(responseOnly, { requireResponseBody: true });
+      const where = { method: "GET" as const, path: "/things" };
+
+      const missing = validator.validateResponse(where, { status: 200 });
+      expect(missing?.valid).toBe(false);
+      expect(missing?.valid === false ? missing.errors[0]?.message : "").toContain(
+        "declares content but no body was sent",
+      );
+
+      // The exclusions still hold: a bodyless status says nothing.
+      expect(validator.validateResponse(where, { status: 204 })?.valid).toBe(true);
+      expect(
+        validator.validateResponse({ method: "HEAD", path: "/things" }, { status: 200 })?.valid,
+      ).toBe(true);
+    });
+
+    it("refuses an undeclared response type, and accepts the declared one", () => {
+      // `doc()` always declares `application/json` on the response, so
+      // the response leg needs its own document to have a response
+      // whose media types all lack a schema.
+      const responseOnly = {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/things": {
+            post: {
+              responses: {
+                "200": { description: "ok", content: { "text/plain": {} } },
+              },
+            },
+          },
+        },
+      } as unknown as OpenAPIDocument;
+
+      const validator = createValidator(responseOnly);
+      const where = { method: "POST" as const, path: "/things" };
+
+      expect(
+        validator.validateResponse(where, {
+          status: 200,
+          contentType: "text/plain",
+          body: "ok",
+        })?.valid,
+      ).toBe(true);
+
+      expect(
+        validator.validateResponse(where, {
+          status: 200,
+          contentType: "application/json",
+          body: { a: 1 },
+        })?.valid,
+      ).toBe(false);
+    });
+  });
 });
