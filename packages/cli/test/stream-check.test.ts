@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { streamCheckCommand, type CommandOptions } from "../src/commands.js";
 import { memoryIo } from "./fixtures.js";
 
-const textOpts: CommandOptions = { format: "text", quiet: false };
+const textOpts: CommandOptions = { quiet: false };
 
 // A spec with one streamable response and one request body that buffers
 // unboundedly (a `pattern` string with no `maxLength`).

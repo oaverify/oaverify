@@ -24,11 +24,12 @@ const spec = (orphan: boolean): unknown => ({
 });
 
 // `format` is a top-level argument; `output` and `quiet` live in
-// `options`. Passing format into `options` silently selects the default
-// text branch instead of failing, which is how the first draft of this
-// file "covered" three formats while exercising one. (`CommandOptions`
-// carries a `format` of its own, over a different set of values, and
-// `checkCommand` does not read it.)
+// `options`. That is worth stating because the first draft of this file
+// put `format` in `options` and so "covered" three formats while
+// exercising one: `CommandOptions` carried a `format` of its own back
+// then, over a different set of values, and `checkCommand` never read
+// it. The field is `errorFormat` now (#867), so the same mistake is a
+// compile error rather than a silent one.
 type Format = "text" | "json" | "sarif";
 
 const run = async (format: Format, orphan: boolean) => {

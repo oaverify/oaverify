@@ -377,6 +377,41 @@ describe("compile-schema output", () => {
     expect(mod.validate({}).valid).toBe(false);
   });
 
+  it("emits through the shared primary sink, to a file or to stdout (#868)", async () => {
+    // Both compile commands hand-rolled the `-o`-else-stdout dispatch,
+    // so they sat outside the single-write guard the shared sink
+    // enforces. Same bytes either way; the point is that there is one
+    // implementation of "emit the primary output".
+    //
+    // Lives here rather than beside the other compile-schema unit tests
+    // because the command always bundles, and the bundle needs the
+    // resolveDir this file sets up. Without it the command exits 3 and
+    // the assertion is on the wrong thing.
+    const { compileSchemaCommand } = await import("../src/commands.js");
+    const { resolve } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const resolveDir = resolve(fileURLToPath(new URL("../../oav", import.meta.url)));
+    const schema = { type: "object" };
+    const args = {
+      schema: "schema.json",
+      dialect: "2020-12" as const,
+      resolveDir,
+      bundleAlias: CORE_ALIASES,
+    };
+
+    const toFile = memoryIo([], [["schema.json", JSON.stringify(schema)]]);
+    const fileRes = await compileSchemaCommand({ ...args, output: "v.mjs" }, toFile.io);
+    expect(fileRes.exitCode).toBe(0);
+    expect(toFile.writes.map(([path]) => path)).toEqual(["v.mjs"]);
+    expect(toFile.stdout.value).toBe("");
+
+    const toStdout = memoryIo([], [["schema.json", JSON.stringify(schema)]]);
+    const outRes = await compileSchemaCommand(args, toStdout.io);
+    expect(outRes.exitCode).toBe(0);
+    expect(toStdout.writes).toEqual([]);
+    expect(toStdout.stdout.value).toBe(toFile.writes[0]?.[1]);
+  });
+
   it("surfaces unknown-format errors on stderr with exit 3 (before bundle)", async () => {
     const { compileSchemaCommand } = await import("../src/commands.js");
     const schema = { type: "string", format: "phone-number" };

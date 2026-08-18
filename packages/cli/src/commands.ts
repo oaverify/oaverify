@@ -207,11 +207,19 @@ interface CheckJsonReport {
 export interface CommandOptions {
   /**
    * How `validate` renders an error tree. Only that command reads it;
-   * `resolve` and `check` produce their own output and leave it unset.
-   * Distinct from `check --format`, which selects an envelope shape
-   * rather than an error renderer.
+   * `resolve`, `check` and `stream-check` produce their own output and
+   * leave it unset.
+   *
+   * Named for the question it answers rather than for the flag that
+   * sets it, because `check` takes a `format` of its own, at the top
+   * level of its arguments, selecting an envelope shape rather than an
+   * error renderer. While both were called `format`, one sat inside the
+   * other's argument object: setting `options.format` on a `check` call
+   * type-checked wherever the two unions overlapped and did nothing at
+   * all, which is how a test came to claim three formats and exercise
+   * one (#867).
    */
-  format?: OutputFormat;
+  errorFormat?: OutputFormat;
   depth?: number;
   output?: string;
   quiet: boolean;
@@ -425,7 +433,9 @@ export function primarySink(
     return once((content) => io.writeText(path, content));
   }
   if (opts.quiet) return once(() => {});
-  return once(io.stdout);
+  // Called through `io` rather than passed unbound, so a `CommandIo`
+  // whose `stdout` is written as a method shorthand keeps its receiver.
+  return once((content) => io.stdout(content));
 }
 
 /**
@@ -983,7 +993,7 @@ export async function validateCommand(
 
   // Silence on success; no bare-newline leak, matches Unix convention.
   if (err === null) return { exitCode: 0 };
-  const rendered = formatError(err, args.options.format ?? "text", args.options.depth);
+  const rendered = formatError(err, args.options.errorFormat ?? "text", args.options.depth);
   await primarySink(io, args.options)(rendered + "\n");
   return { exitCode: 1 };
 }
@@ -1102,11 +1112,11 @@ export async function compileSchemaCommand(
     io.stderr(`compile-schema: ${(err as Error).message}\n`);
     return { exitCode: 3 };
   }
-  if (args.output !== undefined) {
-    await io.writeText(args.output, source);
-    return { exitCode: 0 };
-  }
-  io.stdout(source);
+  // Through the shared sink rather than an inline `-o`-else-stdout
+  // dispatch, so "how a command emits its primary output" has one
+  // implementation and one enforced invariant. `--quiet` is not a flag
+  // either command declares, so it is pinned false rather than plumbed.
+  await primarySink(io, { output: args.output, quiet: false })(source);
   return { exitCode: 0 };
 }
 
@@ -1282,10 +1292,10 @@ export async function compileSpecCommand(
     io.stderr(`compile-spec: ${(err as Error).message}\n`);
     return { exitCode: 3 };
   }
-  if (args.output !== undefined) {
-    await io.writeText(args.output, source);
-    return { exitCode: 0 };
-  }
-  io.stdout(source);
+  // Through the shared sink rather than an inline `-o`-else-stdout
+  // dispatch, so "how a command emits its primary output" has one
+  // implementation and one enforced invariant. `--quiet` is not a flag
+  // either command declares, so it is pinned false rather than plumbed.
+  await primarySink(io, { output: args.output, quiet: false })(source);
   return { exitCode: 0 };
 }
