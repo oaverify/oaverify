@@ -130,6 +130,17 @@ const VALID_DOCS: string[] = [
   '"astral literal: \u{1f600}"',
   '"mixed é\u{1f600}text"',
   '{"\\u006b\\u0065\\u0079":"value"}',
+  // A BOM is a legal character inside a string value, and only a decoder
+  // that keeps it can compare `const` / `enum` / `pattern` against what
+  // the caller actually sent (#851).
+  '"\ufeffleading BOM"',
+  '{"a":"\ufeff","b":"x\ufeffy"}',
+  // A decoded run starts at the opening quote, after an escape, and
+  // after a chunk boundary. These pin the other two: a key (the same
+  // run, a louder failure, since `required` and `additionalProperties`
+  // both misfire on a renamed key) and a post-escape run.
+  '{"\ufeffk":1}',
+  '"a\\n\ufeffb"',
   '[{"a":[]},{"b":{}},[]]',
   '"lone surrogate: \\ud800 end"',
 ];
@@ -170,6 +181,9 @@ describe("JsonTokenizer escape-aware code-point length", () => {
     ['"\\ud800"', 1], // lone high-surrogate escape = 1
     ['"a\u{1f600}b"', 3],
     ['"\\u00e9\u{1f600}"', 2],
+    // The counter was already right when the decoder dropped the BOM from
+    // the value (#851), so this pins the half that never broke.
+    ['"\ufeffa"', 2],
   ];
   for (const [doc, expected] of cases) {
     it(`counts ${JSON.stringify(doc)} as ${expected} code points`, () => {
