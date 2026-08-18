@@ -42,6 +42,27 @@ describe("primarySink", () => {
     expect(stdout.value).toBe("to stdout\n");
   });
 
+  it("calls stdout through io, so a method-shorthand implementation keeps its receiver", async () => {
+    // `once(io.stdout)` passed the method unbound. Every in-repo
+    // `CommandIo` writes `stdout` as an arrow, so nothing noticed, but
+    // the interface declares a plain function property and a caller may
+    // reasonably use `this`.
+    const seen: string[] = [];
+    const io = {
+      ...memoryIo([]).io,
+      stdout(chunk: string) {
+        (this as { seen?: string[] }).seen?.push(chunk);
+        seen.push(chunk);
+      },
+      seen: [] as string[],
+    };
+
+    await primarySink(io, { quiet: false })("through the receiver\n");
+
+    expect(seen).toEqual(["through the receiver\n"]);
+    expect(io.seen).toEqual(["through the receiver\n"]);
+  });
+
   it("writes to the file even under --quiet, which suppresses stdout only", async () => {
     const { io, writes, stdout } = memoryIo([]);
     await primarySink(io, { output: "out.txt", quiet: true })("deliberate\n");
