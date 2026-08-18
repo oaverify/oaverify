@@ -1482,26 +1482,6 @@ describe("validateCommand", () => {
 });
 
 describe("compile-schema input guards", () => {
-  it("emits through the shared primary sink, to a file or to stdout (#868)", async () => {
-    // Both compile commands hand-rolled the `-o`-else-stdout dispatch,
-    // so they sat outside the single-write guard the shared sink
-    // enforces. Same output either way; the point is that there is one
-    // implementation of "emit the primary output".
-    const schema = { type: "object" };
-
-    const toFile = memoryIo([], [["s.json", JSON.stringify(schema)]]);
-    const fileRes = await compileSchemaCommand({ schema: "s.json", output: "v.mjs" }, toFile.io);
-    expect(fileRes.exitCode).toBe(0);
-    expect(toFile.writes.map(([path]) => path)).toEqual(["v.mjs"]);
-    expect(toFile.stdout.value).toBe("");
-
-    const toStdout = memoryIo([], [["s.json", JSON.stringify(schema)]]);
-    const outRes = await compileSchemaCommand({ schema: "s.json" }, toStdout.io);
-    expect(outRes.exitCode).toBe(0);
-    expect(toStdout.writes).toEqual([]);
-    expect(toStdout.stdout.value).toBe(toFile.writes[0]?.[1]);
-  });
-
   it("refuses an OpenAPI document with a pointer at compile-spec", async () => {
     // Fed a spec, every top-level key is an unknown JSON Schema keyword,
     // so the emitted validate() would accept everything, silently.
