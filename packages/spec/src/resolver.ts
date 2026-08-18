@@ -11,6 +11,7 @@ import {
 import type { DocumentReader } from "./reader.js";
 import { lintResolvedSpec, type SpecHygieneIssue } from "./lint.js";
 import {
+  assertEntryDocument,
   baseDirOf,
   cycleKey,
   componentSchemaSlots,
@@ -187,6 +188,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   };
 
   const entryDoc = await readDoc(options.entry);
+  assertEntryDocument(entryDoc, options.entry);
   docs.set(options.entry, entryDoc);
 
   // Which positions may hold a `$ref` is version-dependent, so the

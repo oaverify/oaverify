@@ -45,7 +45,7 @@ import {
   trimStdinText,
   type SyncDocumentReader,
 } from "@oaverify/internal-spec/internals";
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, parseDocument as parseYamlNode } from "yaml";
 
 function decodePercent(s: string): string {
   return s.replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
@@ -94,9 +94,45 @@ export function createYamlFileReader(
       const path = await resolveReadPath(root, decoded, uri, options.confine === true);
       await assertWithinMaxBytes(path, uri, options.maxBytes);
       const raw = await readFile(path, "utf8");
-      return parseYaml(raw);
+      return parseYamlDocument(raw, uri);
     },
   };
+}
+
+/**
+ * Parse YAML, refusing a source that carries no document.
+ *
+ * An empty file, a whitespace-only one, and one holding nothing but
+ * comments all parse to `null`, and returning that hands the caller a
+ * document-shaped hole: `loadSpecSync` answered `{ document: null }` and
+ * threw nothing, so the failure surfaced later as something unrelated
+ * (#850). The JSON sibling throws `Unexpected end of JSON input` on a
+ * source with nothing in it, and these two readers should not disagree
+ * about whether a file contained anything. They agree at the other end
+ * too: a source that explicitly says `null`, `~` or `---` is a document
+ * whose value is null, `JSON.parse` accepts that, and so does this.
+ *
+ * Deliberately narrow. This asks whether there is a document, not
+ * whether it is a *spec*: a scalar, an array and a boolean all pass,
+ * because JSON accepts `42` and `true` too and because a `$ref` target
+ * is not always an object. Whether the entry document is an OpenAPI
+ * document is `assertEntryDocument`'s question, one layer up, where the
+ * caller's intent is known.
+ */
+function parseYamlDocument(source: string, uri: string): unknown {
+  const parsed = parseYaml(source) as unknown;
+  if (parsed !== null && parsed !== undefined) return parsed;
+
+  // `null` here has two causes and only one is a mistake. A source with
+  // no content node at all (empty, whitespace, comments) carries no
+  // document. A source that says `null`, `~` or `---` is a document
+  // whose value happens to be null, which `JSON.parse` accepts too, so
+  // refusing it would make these readers disagree with their JSON
+  // siblings on identical content. `parseDocument` tells the two apart,
+  // and runs only on this path, which is the rare one.
+  if (parseYamlNode(source).contents !== null) return parsed;
+
+  throw new Error(`${uri} contains no document: it is empty, whitespace, or comments only.`);
 }
 
 /**
@@ -153,7 +189,7 @@ export function createYamlStdinReader(stdin?: AsyncIterable<Uint8Array>): Docume
       pending ??= (async () => {
         const text = trimStdinText(await readStream(stdin ?? process.stdin));
         if (text === "") throw new Error("stdin: no input");
-        return text.startsWith("{") ? JSON.parse(text) : parseYaml(text);
+        return text.startsWith("{") ? JSON.parse(text) : parseYamlDocument(text, "stdin");
       })();
       return pending;
     },
@@ -216,14 +252,14 @@ export function createSmartHttpReader(options: HttpReaderOptions = {}): Document
       const text = await responseText(res, uri, options.maxBytes);
       const contentType = res.headers.get("content-type") ?? "";
       const mime = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
-      if (isYamlMime(mime)) return parseYaml(text);
+      if (isYamlMime(mime)) return parseYamlDocument(text, uri);
       if (isJsonMime(mime)) return JSON.parse(text);
       // Ambiguous Content-Type: use URL extension as the tiebreaker,
       // defaulting to JSON for extensionless URLs. A misconfigured
       // server that returns YAML with `text/plain` and a URL like
       // `/openapi` will fail with a JSON parse error; escape hatch is
       // to supply a `.yaml` suffix or plug in a custom reader.
-      if (hasYamlExtension(uri)) return parseYaml(text);
+      if (hasYamlExtension(uri)) return parseYamlDocument(text, uri);
       return JSON.parse(text);
     },
   };
@@ -246,6 +282,14 @@ export function createSmartHttpReader(options: HttpReaderOptions = {}): Document
  * const spec = parseYamlString(yamlSource) as OpenAPIDocument;
  * const validator = createValidator(spec);
  * ```
+ *
+ * Raw parse semantics, unlike the readers. A source carrying no
+ * document (empty, whitespace, or comments only) returns `null` here
+ * rather than throwing, because this is the primitive a caller reaches
+ * for when it wants the parser rather than a spec loader. The readers
+ * behind `loadSpec` refuse that input instead, so the loaders cannot
+ * hand back `{ document: null }` (#850). A caller feeding this function
+ * a file it did not write should check the result before casting.
  *
  * @public
  */
@@ -278,7 +322,7 @@ function createYamlFileReaderSync(
       const decoded = decodePercent(stripped);
       const path = resolveReadPathSync(root, decoded, uri, options.confine === true);
       assertWithinMaxBytesSync(path, uri, options.maxBytes);
-      return parseYaml(readFileSync(path, "utf8"));
+      return parseYamlDocument(readFileSync(path, "utf8"), uri);
     },
   };
 }
