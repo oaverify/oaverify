@@ -85,7 +85,7 @@ Returns an Express 4 `RequestHandler`.
 | `toHttpRequest` | `(req: Request) => HttpRequest`                             | `httpRequestFromExpress` |
 | `onError`       | `(errors: ValidationError[], ctx) => void \| Promise<void>` | `renderProblemDetails`   |
 
-`onError` may be async; the middleware awaits it. If it throws or rejects, the error is forwarded via `next(err)` so the host's error middleware sees it. The middleware does **not** call `next()` after `onError` returns; your callback owns the response (write to `ctx.res`, or call `ctx.next(err)` to delegate).
+`onError` may be async. Express 4 middleware returns synchronously, so this middleware does not await it: it returns once `onError` returns, or once `onError` suspends at its first `await`, and your response is written when your promise settles. `@oaverify/express5` and `@oaverify/fastify` await instead, so the adapters differ here. A rejection routes to `next(err)` whenever it arrives, and a falsy rejection reason is replaced with an `Error` carrying it as `cause`, since Express reads `next(falsy)` as "carry on routing" and would otherwise deliver the refused request to your route handler. Two reasons stay untouched on both Express versions, because Express reserves them as routing instructions: `"route"` and `"router"`. Neither reaches your error handler, and at the app-level mount this page recommends, rejecting with `"route"` continues routing and delivers the refused request to your handler, which is the failure this substitution otherwise prevents. `"router"` exits the router and answers 404. If your callback already wrote the response before rejecting, the forwarded error reaches an error handler that can no longer answer. The middleware does **not** call `next()` after `onError` returns; your callback owns the response (write to `ctx.res`, or call `ctx.next(err)` to delegate).
 
 > **Validation failures don't traverse Express's error chain by default.** The default `onError` (`renderProblemDetails`) writes the response directly. If you're migrating from `express-openapi-validator` (which emits validation failures as `HttpError` through `next(err)`), your existing error middleware won't see validation failures unless you forward them; see [Forward to Express's error middleware](#forward-to-expresss-error-middleware) below. Same goes for observability: see [Add observability without changing the response](#add-observability-without-changing-the-response).
 
@@ -247,7 +247,7 @@ app.use(
 );
 ```
 
-The middleware awaits the returned promise; rejections route to `next(err)`.
+The middleware does not await the returned promise, since Express 4 middleware is synchronous. The response is written when it settles, and a rejection routes to `next(err)`. On `@oaverify/express5` and `@oaverify/fastify` the same callback is awaited.
 
 ### Per-route mounting
 

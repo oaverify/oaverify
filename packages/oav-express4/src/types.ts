@@ -24,7 +24,8 @@ export interface ExpressContext {
  * everywhere.
  *
  * Returning a Promise is supported on every adapter. `@oaverify/express4`
- * handles the returned promise: a rejection forwards to `next(err)`, so
+ * handles the returned promise: a rejection forwards to `next(err)`, with a falsy reason
+ * replaced by an `Error` carrying it as `cause`, so
  * async work (logging to a remote service, loading per-tenant rendering
  * config, etc.) fails visibly. Completion is not awaited; the middleware
  * returns while the handler runs. Sync handlers pay no measurable

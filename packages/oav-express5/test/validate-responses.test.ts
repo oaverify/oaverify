@@ -316,6 +316,25 @@ describe("validateResponses (Express 5)", () => {
     expect(err.message).toMatch(/mounted twice/);
   });
 
+  it("forwards an Error when onError rejects with a falsy reason", async () => {
+    // Express reads next(falsy) as "carry on routing", so a falsy reason
+    // would drop the finding and let the request fall through (#881).
+    const { res } = fakeRes();
+    const next = vi.fn();
+    mount(res, next, {
+      onError: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        throw 0;
+      },
+    });
+    res.json({ id: 123 });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // next() is also called once to continue the chain, so pick the error.
+    const arg = next.mock.calls.map((c) => c[0]).find((a) => a !== undefined);
+    expect(arg).toBeInstanceOf(Error);
+    expect((arg as Error).cause).toBe(0);
+  });
+
   it("invokes a custom onError with the failing leaves and context", () => {
     const onError = vi.fn();
     const { res } = fakeRes();

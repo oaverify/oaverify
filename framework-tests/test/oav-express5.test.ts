@@ -5,6 +5,7 @@ import {
   ResponseValidationError,
   validateRequests,
   validateResponses,
+  type ValidateResponsesOptions,
 } from "@oaverify/internal-oav-express5";
 import { createValidator } from "@oaverify/internal-validator";
 import express, { type Express, type Request } from "express-5";
@@ -260,7 +261,7 @@ describe("oav-express5 integration: async onError", () => {
     await closeServer(server);
   });
 
-  it("async onError is awaited before the response settles", async () => {
+  it("an async onError writes the response, and the middleware awaits it", async () => {
     const r = await fetch(`${baseUrl}/pets`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-tenant": "acme" },
@@ -834,4 +835,87 @@ describe("oav-express5 integration: validateResponses with requireResponseBody",
     const r = await fetch(`${baseUrl}/widgets/empty`, { method: "HEAD" });
     expect(r.status).toBe(200);
   });
+});
+
+describe("oav-express5 integration: a falsy onError rejection is not read as continue-routing", () => {
+  let server: Server;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    const validator = createValidator(widgetSpec());
+    const app = express();
+    // Express reads next(falsy) as "carry on routing". Before #881 a
+    // callback rejecting with a falsy reason dropped the finding here and
+    // the request fell through to a 404, on both Express versions.
+    app.use(
+      validateResponses(validator, {
+        onError: async () => {
+          await new Promise((r) => setTimeout(r, 1));
+          throw undefined;
+        },
+      }),
+    );
+    app.get("/widgets/:id", (_req, res) => {
+      res.json({ id: 123 }); // id must be a string, so onError runs
+    });
+    app.use(((_err: unknown, _req, res, _next) => {
+      res.status(599).end();
+    }) as express.ErrorRequestHandler);
+    ({ server, baseUrl } = await listenOnZero(app));
+  });
+
+  afterAll(async () => {
+    await closeServer(server);
+  });
+
+  it("the rejection reaches the host error chain", async () => {
+    const r = await fetch(`${baseUrl}/widgets/w1`);
+    expect(r.status).toBe(599);
+  });
+});
+
+describe("oav-express5 integration: every falsy failure spelling forwards, none is swallowed", () => {
+  // A synchronous throw escapes before any promise exists, and a throwing
+  // extractor never installs the send wrapper at all, so the response would
+  // otherwise go out unchecked. Each case needs its own server: a second
+  // validateResponses on one chain trips the double-mount guard, which
+  // answers 599 for an unrelated reason.
+  const cases: Array<[string, ValidateResponsesOptions]> = [
+    [
+      "a synchronous falsy throw",
+      {
+        onError: () => {
+          throw undefined;
+        },
+      },
+    ],
+    [
+      "a falsy throw from the extractor",
+      {
+        toHttpRequest: () => {
+          throw undefined;
+        },
+      },
+    ],
+  ];
+
+  for (const [label, options] of cases) {
+    it(`${label} reaches the host error chain`, async () => {
+      const app = express();
+      app.use(validateResponses(createValidator(widgetSpec()), options));
+      app.get("/widgets/:id", (_req, res) => {
+        res.json({ id: 123 });
+      });
+      app.use(((_err: unknown, _req, res, _next) => {
+        res.status(599).end();
+      }) as express.ErrorRequestHandler);
+      const { server, baseUrl } = await listenOnZero(app);
+      try {
+        const r = await fetch(`${baseUrl}/widgets/w1`);
+        expect(r.status).toBe(599);
+      } finally {
+        await closeServer(server);
+      }
+    });
+  }
 });

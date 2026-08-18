@@ -25,7 +25,10 @@ export interface ExpressContext {
  *
  * Returning a Promise is supported on every adapter. `@oaverify/express5`
  * awaits the return; rejected promises propagate through Express 5's
- * native promise handling to the host's error middleware.
+ * native promise handling to the host's error middleware. Where this
+ * adapter forwards a rejection itself, a falsy reason is replaced by an
+ * `Error` carrying it as `cause`, because Express reads `next(falsy)` as
+ * "carry on routing".
  *
  * `errors` is the flat list of failing leaves, regardless of the
  * validator's `output` mode (a tree validator's result is flattened

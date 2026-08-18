@@ -257,7 +257,7 @@ Same package shape, same exports, same defaults. The only differences:
 - No `try/catch` wrapper around the extractor; Express 5 routes thrown errors and rejected promises to the error chain via the promise itself.
 - `peerDependencies` requires `express ^5.0.0` (`@oaverify/express4` requires `^4.0.0`).
 
-A migrating consumer's `import { validateRequests } from "@oaverify/express5"` is the only line that changes after upgrading from `@oaverify/express4`.
+A migrating consumer's `import { validateRequests } from "@oaverify/express5"` is the only line that changes after upgrading from `@oaverify/express4`. Two runtime behaviours differ without a code change. This adapter awaits an async `onError` and `@oaverify/express4` does not, so a callback whose promise settles late writes its response before the middleware returns here and after it there. And when a `validateRequests` callback rejects with a falsy reason, Express 5's router supplies the substitute error while `@oaverify/express4` supplies its own, so an error handler sees a different message and, on this adapter, no `cause`. The `validateResponses` leg substitutes here too, with the reason preserved as `cause` on both.
 
 ## See also
 
