@@ -541,6 +541,27 @@ export function wrapReadError(err: unknown, uri: string, referrer: string | null
   return new Error(`failed to read ${uri}${from}: ${cause}`, { cause: err });
 }
 
+/**
+ * Wrap a fragment that did not resolve with the document it was looked
+ * up in and the document that referenced it.
+ *
+ * Worded like {@link wrapReadError} because it answers the same
+ * question one step further in: the file was found, the node inside it
+ * was not. A bare pointer error names neither end of the edge, and in
+ * an editor this is the commoner of the two failures, since a fragment
+ * is half-typed for as long as it takes to type the rest of it.
+ */
+export function wrapFragmentError(
+  err: unknown,
+  uri: string,
+  fragment: string,
+  referrer: string | null,
+): Error {
+  const cause = err instanceof Error ? err.message : String(err);
+  const from = referrer === null || referrer === uri ? "" : ` (referenced from ${referrer})`;
+  return new Error(`failed to resolve ${uri}#${fragment}${from}: ${cause}`, { cause: err });
+}
+
 /** Cycle-detection key for a (uri, fragment) pair. */
 export function cycleKey(targetUri: string, fragment: string): string {
   return targetUri + "#" + fragment;
@@ -622,8 +643,20 @@ export const UNREADABLE: unique symbol = Symbol("oaverify.unreadable");
  * @public
  */
 export interface UnresolvedRef {
-  /** The target URI the resolver could not read. */
+  /** The target document the reference named. */
   readonly uri: string;
+  /**
+   * The fragment that did not resolve, present only when the document
+   * was read and the node inside it was not found.
+   *
+   * The two failures are different edits. Absent says the file is
+   * missing or unreadable, so the fix is to the filename or to the
+   * filesystem. Present says the file is fine and this pointer into it
+   * is not, so the fix is to the fragment. An editor drawing one
+   * message for both would send a reader to the wrong half of the
+   * reference.
+   */
+  readonly fragment?: string;
   /**
    * The document holding the reference the walk followed to reach
    * `uri`. The first one, matching {@link noteReferrer}: a target
@@ -680,11 +713,11 @@ export interface UnresolvedRef {
  * means counting them where they are found, which is a separate change.
  */
 export class HoleLog {
-  private readonly byUri = new Map<string, UnresolvedRef>();
+  private readonly byKey = new Map<string, UnresolvedRef>();
 
-  /** Whether this target has already failed to read. */
+  /** Whether this document has already failed to read. */
   has(uri: string): boolean {
-    return this.byUri.has(uri);
+    return this.byKey.has(uri);
   }
 
   /**
@@ -699,12 +732,31 @@ export class HoleLog {
     wrapped: Error,
     cause: unknown,
   ): void {
-    if (this.byUri.has(uri)) return;
-    this.byUri.set(uri, { uri, referrer, via, message: wrapped.message, cause });
+    if (this.byKey.has(uri)) return;
+    this.byKey.set(uri, { uri, referrer, via, message: wrapped.message, cause });
+  }
+
+  /**
+   * Record a fragment that did not resolve in a document that read.
+   *
+   * Keyed by document and fragment together, because one document can
+   * hold the node one reference names and not the node another does.
+   */
+  recordFragment(
+    uri: string,
+    fragment: string,
+    referrer: string,
+    via: readonly SourceHop[],
+    wrapped: Error,
+    cause: unknown,
+  ): void {
+    const key = cycleKey(uri, fragment);
+    if (this.byKey.has(key)) return;
+    this.byKey.set(key, { uri, fragment, referrer, via, message: wrapped.message, cause });
   }
 
   /** Every hole, in the order the walk found them. */
   entries(): readonly UnresolvedRef[] {
-    return [...this.byUri.values()];
+    return [...this.byKey.values()];
   }
 }

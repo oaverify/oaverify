@@ -475,6 +475,27 @@ describe("resolveSpecSync parity under onUnresolved: record", () => {
       ]),
     ],
     [
+      "fragment that names no node, schema position",
+      map([
+        ["main.json", withBodySchema({ $ref: "ext.json#/Ord" })],
+        ["ext.json", { Order: { type: "object" } }],
+      ]),
+    ],
+    [
+      "fragment that names no node, non-schema position",
+      map([
+        [
+          "main.json",
+          {
+            openapi: "3.1.0",
+            info,
+            paths: { "/p": { get: { responses: { "200": { $ref: "ext.json#/Nope" } } } } },
+          },
+        ],
+        ["ext.json", { Ok: okResponse }],
+      ]),
+    ],
+    [
       "path item position",
       map([
         ["main.json", { openapi: "3.1.0", info, paths: { "/p": { $ref: "missing.json#/p" } } }],
@@ -539,4 +560,243 @@ describe("resolveSpecSync parity under onUnresolved: record", () => {
       expect(s.reads).toEqual(a.reads);
     });
   }
+});
+
+describe("resolveSpec with onUnresolved: record, a fragment that names no node", () => {
+  it("records a schema-position fragment that does not resolve", async () => {
+    const sources = map([
+      ["main.json", withBodySchema({ $ref: "ext.json#/Ord" })],
+      ["ext.json", { Order: { type: "object" } }],
+    ]);
+    const r = readers(sources);
+    const result = await resolveSpec({
+      reader: r.async,
+      entry: "main.json",
+      provenance: true,
+      onUnresolved: "record",
+    });
+
+    expect(result.unresolved).toHaveLength(1);
+    const hole = result.unresolved![0]!;
+    expect(hole.uri).toBe("ext.json");
+    // What tells the two failures apart: the file is fine, the pointer
+    // into it is not.
+    expect(hole.fragment).toBe("/Ord");
+    expect(hole.message).toContain("failed to resolve ext.json#/Ord");
+    expect(hole.via.at(-1)).toEqual({
+      uri: "main.json",
+      pointer: "/paths/~1p/get/responses/200/content/application~1json/schema",
+    });
+  });
+
+  it("records a non-schema-position fragment that does not resolve", async () => {
+    const sources = map([
+      [
+        "main.json",
+        {
+          openapi: "3.1.0",
+          info,
+          paths: { "/p": { get: { responses: { "200": { $ref: "ext.json#/Nope" } } } } },
+        },
+      ],
+      ["ext.json", { Ok: okResponse }],
+    ]);
+    const r = readers(sources);
+    const result = await resolveSpec({
+      reader: r.async,
+      entry: "main.json",
+      onUnresolved: "record",
+    });
+    const response = (
+      result.document as unknown as {
+        paths: Record<string, { get: { responses: Record<string, unknown> } }>;
+      }
+    ).paths["/p"]!.get.responses["200"];
+    expect(response).toEqual({ $ref: "ext.json#/Nope" });
+    expect(result.unresolved![0]!.fragment).toBe("/Nope");
+  });
+
+  it("keeps a fragment that resolves in the same document as one that does not", async () => {
+    const sources = map([
+      [
+        "main.json",
+        {
+          openapi: "3.1.0",
+          info,
+          paths: {
+            "/a": {
+              get: {
+                responses: {
+                  "200": {
+                    ...okResponse,
+                    content: { "application/json": { schema: { $ref: "ext.json#/Order" } } },
+                  },
+                },
+              },
+            },
+            "/b": {
+              get: {
+                responses: {
+                  "200": {
+                    ...okResponse,
+                    content: { "application/json": { schema: { $ref: "ext.json#/Ord" } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+      ["ext.json", { Order: { type: "object" } }],
+    ]);
+    const r = readers(sources);
+    const result = await resolveSpec({
+      reader: r.async,
+      entry: "main.json",
+      onUnresolved: "record",
+    });
+    const schemas = (
+      result.document as unknown as { components: { schemas: Record<string, unknown> } }
+    ).components.schemas;
+    expect(Object.values(schemas)).toContainEqual({ type: "object" });
+    expect(result.unresolved).toHaveLength(1);
+    expect(result.unresolved![0]!.fragment).toBe("/Ord");
+  });
+
+  it("distinguishes a missing file from a missing node", async () => {
+    const sources = map([
+      [
+        "main.json",
+        {
+          openapi: "3.1.0",
+          info,
+          paths: {
+            "/a": {
+              get: {
+                responses: {
+                  "200": {
+                    ...okResponse,
+                    content: { "application/json": { schema: { $ref: "gone.json#/Order" } } },
+                  },
+                },
+              },
+            },
+            "/b": {
+              get: {
+                responses: {
+                  "200": {
+                    ...okResponse,
+                    content: { "application/json": { schema: { $ref: "ext.json#/Ord" } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+      ["ext.json", { Order: { type: "object" } }],
+    ]);
+    const r = readers(sources);
+    const result = await resolveSpec({
+      reader: r.async,
+      entry: "main.json",
+      onUnresolved: "record",
+    });
+    const byUri = new Map(result.unresolved!.map((u) => [u.uri, u]));
+    expect(byUri.get("gone.json")!.fragment).toBeUndefined();
+    expect(byUri.get("ext.json")!.fragment).toBe("/Ord");
+  });
+
+  it("still throws on a fragment that does not resolve by default", async () => {
+    const sources = map([
+      ["main.json", withBodySchema({ $ref: "ext.json#/Ord" })],
+      ["ext.json", { Order: { type: "object" } }],
+    ]);
+    const r = readers(sources);
+    await expect(resolveSpec({ reader: r.async, entry: "main.json" })).rejects.toThrow(
+      /JSON pointer \/Ord not found/,
+    );
+  });
+
+  it("leaves a discriminator mapping pointing at the component the hole removed", async () => {
+    // The mapping is rewritten to the hoist name before the target is
+    // read, so a missing branch leaves the mapping naming a component
+    // that is not there. That is the same dangling reference every
+    // other schema-position hole leaves, and the compiler reports it.
+    const sources = map([
+      [
+        "main.json",
+        {
+          openapi: "3.1.0",
+          info,
+          paths: {
+            "/p": {
+              get: {
+                responses: {
+                  "200": {
+                    ...okResponse,
+                    content: {
+                      "application/json": {
+                        schema: {
+                          oneOf: [{ $ref: "gone.json#/Cat" }],
+                          discriminator: {
+                            propertyName: "kind",
+                            mapping: { cat: "gone.json#/Cat" },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+      ["ext.json", { Cat: { type: "object" } }],
+    ]);
+    const r = readers(sources);
+    const result = await resolveSpec({
+      reader: r.async,
+      entry: "main.json",
+      onUnresolved: "record",
+    });
+    const schema = (
+      result.document as unknown as {
+        paths: Record<
+          string,
+          {
+            get: {
+              responses: Record<
+                string,
+                {
+                  content: Record<
+                    string,
+                    {
+                      schema: {
+                        oneOf: Array<{ $ref: string }>;
+                        discriminator: { mapping: Record<string, string> };
+                      };
+                    }
+                  >;
+                }
+              >;
+            };
+          }
+        >;
+      }
+    ).paths["/p"]!.get.responses["200"]!.content["application/json"]!.schema;
+
+    // The branch and the mapping agree, and both name a component that
+    // the hole removed. One dangling reference, not two disagreeing
+    // ones.
+    const branch = schema.oneOf[0]!.$ref;
+    expect(schema.discriminator.mapping.cat).toBe(branch);
+    const name = branch.slice("#/components/schemas/".length);
+    const schemas = (
+      result.document as unknown as { components?: { schemas?: Record<string, unknown> } }
+    ).components?.schemas;
+    expect(schemas?.[name]).toBeUndefined();
+    expect(result.unresolved).toHaveLength(1);
+  });
 });

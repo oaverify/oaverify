@@ -35,6 +35,7 @@ import {
   setSpecKey,
   targetKey,
   wrapReadError,
+  wrapFragmentError,
   HoleLog,
   UNREADABLE,
   type UnresolvedRef,
@@ -77,16 +78,24 @@ export interface ResolveSpecOptions {
    */
   provenance?: boolean;
   /**
-   * What to do with a reference whose target cannot be read.
+   * What to do with a reference the resolver cannot follow.
    *
    * `"throw"`, the default, is the historical behaviour: the first
-   * unreadable target ends the resolution and no document comes back.
+   * reference that will not follow ends the resolution and no document
+   * comes back.
    *
    * `"record"` carries on. The reference is left unfollowed, the
    * failure lands in {@link ResolvedSpec.unresolved}, and a document
    * comes back with a hole where the target would have been. That is
-   * for a caller holding a buffer someone is still typing in, where an
-   * unreadable target is a transient state rather than a verdict.
+   * for a caller holding a buffer someone is still typing in, where a
+   * reference that will not follow is a transient state rather than a
+   * verdict.
+   *
+   * Both halves of a reference are covered: a document that will not
+   * read, and a document that reads whose fragment names no node. The
+   * second is the commoner one in an editor, since a fragment is
+   * half-typed for as long as it takes to type the rest of it.
+   * {@link UnresolvedRef.fragment} is what tells them apart.
    *
    * What a hole looks like depends on the position, because that is
    * what the walk does with a reference it can follow. A schema
@@ -94,10 +103,25 @@ export interface ResolveSpecOptions {
    * component the target was going to be hoisted into, so the hole is
    * that component's absence, and the compiler reports the dangling
    * reference exactly as it reports one an author wrote. A non-schema
-   * position would have been inlined, so the hole is the `$ref` node
-   * left as authored. Nothing is ever substituted for the missing
-   * content: a permissive placeholder would grade clean and say
-   * nothing was wrong.
+   * position would have been inlined, so the hole is the reference
+   * itself, siblings kept.
+   *
+   * That surviving reference is written as the target the walk derived
+   * rather than as the author spelled it. The two differ only for a
+   * relative reference copied out of another source document: it is
+   * relative to the file it was written in, and it is landing in a
+   * document whose base is the entry, so keeping the spelling would
+   * point it at a different file that may well exist. An entry-local
+   * reference derives back to what the author wrote and is unchanged.
+   * Writing the derived target is also what keeps the document and
+   * {@link ResolvedSpec.unresolved} naming the same file.
+   *
+   * Nothing is ever substituted for the missing content: a permissive
+   * placeholder would grade clean and say nothing was wrong. A
+   * `components.schemas` slot the author wrote as nothing but an
+   * external `$ref` is removed for the same reason, since the hoist
+   * that was going to fill it did not happen and the slot would
+   * otherwise point at itself.
    *
    * The entry document is not covered. A reference that will not
    * resolve leaves a hole in a document; an entry that will not read
@@ -263,6 +287,34 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       const wrapped = wrapReadError(err, uri, referrer);
       if (holes === null) throw wrapped;
       holes.record(uri, referrer ?? uri, via, wrapped, err);
+      return UNREADABLE;
+    }
+  };
+
+  // The other half of a reference: the document was found, the node
+  // inside it may not be. Under `record` a fragment that does not
+  // resolve is a hole of its own, keyed by document and fragment, since
+  // one document can hold the node one reference names and not another.
+  const readFragment = (
+    doc: unknown,
+    uri: string,
+    fragment: string,
+    via: readonly SourceHop[],
+  ): unknown => {
+    if (fragment === "") return doc;
+    try {
+      return resolveJsonPointer(doc, pointerFromFragment(fragment));
+    } catch (err) {
+      if (holes === null) throw err;
+      const referrer = referrers.get(uri) ?? null;
+      holes.recordFragment(
+        uri,
+        fragment,
+        referrer ?? uri,
+        via,
+        wrapFragmentError(err, uri, fragment, referrer),
+        err,
+      );
       return UNREADABLE;
     }
   };
@@ -540,8 +592,22 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
         }
         docs.set(targetUri, targetDoc);
       }
-      const resolved =
-        fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, pointerFromFragment(fragment));
+      const resolved = readFragment(targetDoc, targetUri, fragment, trail?.chain() ?? []);
+      if (resolved === UNREADABLE) {
+        visiting.delete(cycleKey(targetUri, fragment));
+        const unfollowed: Mutable = {
+          $ref: fragment === "" ? targetUri : `${targetUri}#${fragment}`,
+        };
+        for (const key of Object.keys(obj)) {
+          if (key === "$ref") continue;
+          setSpecKey(
+            unfollowed,
+            key,
+            await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
+          );
+        }
+        return unfollowed;
+      }
       // The target's content replaces the reference in place, so it is
       // mounted at the position the walk is standing on.
       let mounted: MountState | undefined;
@@ -730,10 +796,11 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       }
       docs.set(target.uri, targetDoc);
     }
-    const content =
-      target.fragment === ""
-        ? targetDoc
-        : resolveJsonPointer(targetDoc, pointerFromFragment(target.fragment));
+    const content = readFragment(targetDoc, target.uri, target.fragment, hoistVia.get(key) ?? []);
+    if (content === UNREADABLE) {
+      missingHoists.add(name);
+      continue;
+    }
     // Hoisting relocates: the target lands under a derived component
     // name rather than where it was referenced, so the mount names
     // where it ends up and the chain that found it is read back from

@@ -387,3 +387,61 @@ describe("the cost of withholding by code alone", () => {
     expect(artefacts.filter((c) => absenceBased.has(c))).toEqual([]);
   });
 });
+
+describe("how wide the evidence region is", () => {
+  /**
+   * `path-param-undeclared` is the code where withholding by code and
+   * withholding by region come apart, so how wide its region is decides
+   * whether the region rule is implementable at all.
+   *
+   * It is wider than the operation. The lint computes a path's
+   * effective parameters from the Path Item's list and the operation's
+   * together, so a Path Item `$ref` that did not resolve can be the
+   * reason an operation looks short of a parameter, while the finding
+   * is reported at the operation and the hole sits at the Path Item
+   * beside it.
+   */
+  it("reports at the operation while the hole sits at the path item", async () => {
+    const sources = map([
+      [
+        "main.json",
+        {
+          openapi: "3.1.0",
+          info,
+          paths: {
+            "/p/{id}": {
+              $ref: "ext.json#/PathItem",
+              get: { responses: { "200": okResponse } },
+            },
+          },
+        },
+      ],
+      [
+        "ext.json",
+        {
+          PathItem: {
+            parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          },
+        },
+      ],
+    ]);
+
+    const artefacts = await artefactCodes(sources);
+    expect(artefacts).toContain("path-param-undeclared");
+
+    const holed = await findingsFor(sources, "ext.json");
+    const finding = holed.find((f) => f.code === "path-param-undeclared")!;
+    // The finding names the operation.
+    expect(finding.target?.pointer).toBe("/paths/~1p~1{id}/get");
+    // The hole is at the path item, one level above it. A rule keyed on
+    // "a hole inside the pointer this finding names" would not withhold
+    // this, and it is an artefact.
+    const resolved = await resolveSpec({
+      reader: readerOver(sources, "ext.json"),
+      entry: "main.json",
+      provenance: true,
+      onUnresolved: "record",
+    });
+    expect(resolved.unresolved![0]!.via.at(-1)?.pointer).toBe("/paths/~1p~1{id}");
+  });
+});

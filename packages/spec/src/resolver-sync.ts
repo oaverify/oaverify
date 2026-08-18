@@ -36,6 +36,7 @@ import {
   setSpecKey,
   targetKey,
   wrapReadError,
+  wrapFragmentError,
   HoleLog,
   UNREADABLE,
 } from "./resolver-shared.js";
@@ -125,6 +126,34 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       const wrapped = wrapReadError(err, uri, referrer);
       if (holes === null) throw wrapped;
       holes.record(uri, referrer ?? uri, via, wrapped, err);
+      return UNREADABLE;
+    }
+  };
+
+  // The other half of a reference: the document was found, the node
+  // inside it may not be. Under `record` a fragment that does not
+  // resolve is a hole of its own, keyed by document and fragment, since
+  // one document can hold the node one reference names and not another.
+  const readFragment = (
+    doc: unknown,
+    uri: string,
+    fragment: string,
+    via: readonly SourceHop[],
+  ): unknown => {
+    if (fragment === "") return doc;
+    try {
+      return resolveJsonPointer(doc, pointerFromFragment(fragment));
+    } catch (err) {
+      if (holes === null) throw err;
+      const referrer = referrers.get(uri) ?? null;
+      holes.recordFragment(
+        uri,
+        fragment,
+        referrer ?? uri,
+        via,
+        wrapFragmentError(err, uri, fragment, referrer),
+        err,
+      );
       return UNREADABLE;
     }
   };
@@ -367,8 +396,22 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
         }
         docs.set(targetUri, targetDoc);
       }
-      const resolved =
-        fragment === "" ? targetDoc : resolveJsonPointer(targetDoc, pointerFromFragment(fragment));
+      const resolved = readFragment(targetDoc, targetUri, fragment, trail?.chain() ?? []);
+      if (resolved === UNREADABLE) {
+        visiting.delete(cycleKey(targetUri, fragment));
+        const unfollowed: Mutable = {
+          $ref: fragment === "" ? targetUri : `${targetUri}#${fragment}`,
+        };
+        for (const key of Object.keys(obj)) {
+          if (key === "$ref") continue;
+          setSpecKey(
+            unfollowed,
+            key,
+            walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
+          );
+        }
+        return unfollowed;
+      }
       let mounted: MountState | undefined;
       if (trail !== null) {
         mounted = trail.enter(targetUri, pointerFromFragment(fragment), trail.chain());
@@ -509,10 +552,11 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       }
       docs.set(target.uri, targetDoc);
     }
-    const content =
-      target.fragment === ""
-        ? targetDoc
-        : resolveJsonPointer(targetDoc, pointerFromFragment(target.fragment));
+    const content = readFragment(targetDoc, target.uri, target.fragment, hoistVia.get(key) ?? []);
+    if (content === UNREADABLE) {
+      missingHoists.add(name);
+      continue;
+    }
     let mounted: MountState | undefined;
     if (trail !== null) {
       mounted = trail.enterAt(
