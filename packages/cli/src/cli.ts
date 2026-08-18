@@ -10,6 +10,7 @@ import {
   streamCheckCommand,
   validateCommand,
   type CommandIo,
+  type CommandOptions,
   type ValidateMode,
 } from "./commands.js";
 import type { StandaloneDialect } from "./emit-standalone.js";
@@ -293,7 +294,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           overlays: opts.overlay ?? [],
           mode,
           options: readerFlagged(opts, {
-            format: opts.format as OutputFormat,
+            errorFormat: opts.format as OutputFormat,
             depth: opts.depth,
             output: opts.output,
             quiet: opts.quiet,
@@ -371,7 +372,6 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             failOnUnbounded: opts.failOnUnbounded,
             verbose: opts.verbose,
             options: readerFlagged(opts, {
-              format: "text",
               output: opts.output,
               quiet: opts.quiet,
             }),
@@ -536,10 +536,22 @@ function readerFlagsOf(opts: { remoteRefs?: RemoteRefsMode; untrusted?: boolean 
 }
 
 /** Fold the reader flags into a command's shared options object. */
-function readerFlagged<T extends object>(
+/**
+ * Fold the reader-posture flags into a command's options.
+ *
+ * Typed against {@link CommandOptions} rather than a generic, so an
+ * options literal that names a field the type does not have fails here.
+ * A generic parameter infers its own shape from the literal, which
+ * silently accepts any extra key: that is how a `format` came to sit in
+ * `stream-check`'s options, read by nothing, while the command took its
+ * real format from the top level (#867). Every command's options go
+ * through this function, so this is the one place that check is worth
+ * having.
+ */
+function readerFlagged(
   opts: { remoteRefs?: RemoteRefsMode; untrusted?: boolean },
-  options: T,
-): T & ReaderFlags {
+  options: Omit<CommandOptions, keyof ReaderFlags>,
+): CommandOptions {
   return { ...options, ...readerFlagsOf(opts) };
 }
 

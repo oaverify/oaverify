@@ -12,7 +12,7 @@ import {
 import { policyFor } from "../src/reader-policy.js";
 import { memoryIo } from "./fixtures.js";
 
-const textOpts: CommandOptions = { format: "text", quiet: false };
+const textOpts: CommandOptions = { quiet: false };
 
 describe("defaultCommandIo", () => {
   afterEach(() => {
@@ -1336,6 +1336,40 @@ describe("validateCommand", () => {
       },
     };
   }
+
+  it("renders the error tree through options.errorFormat (#867)", async () => {
+    // The field `validate` reads is named for the question it answers,
+    // because `check` takes a `format` of its own at the top level of
+    // its arguments. While both were spelled `format`, one sat inside
+    // the other's argument object and setting the wrong one silently
+    // did nothing.
+    const run = async (errorFormat: "text" | "json" | undefined) => {
+      const { io, stdout } = memoryIo([["spec.json", specWithRequiredBody()]], []);
+      await validateCommand(
+        {
+          spec: "spec.json",
+          overlays: [],
+          mode: { kind: "bodyForPath", method: "POST", path: "/pets", body: "-" },
+          options: { quiet: false, ...(errorFormat === undefined ? {} : { errorFormat }) },
+        },
+        {
+          ...io,
+          async readText() {
+            return "{}";
+          },
+        },
+      );
+      return stdout.value;
+    };
+
+    const asJson = await run("json");
+    expect(() => JSON.parse(asJson)).not.toThrow();
+
+    // Unset renders text, the documented default.
+    const unset = await run(undefined);
+    expect(() => JSON.parse(unset)).toThrow();
+    expect(await run("text")).toBe(unset);
+  });
 
   it("refuses to take both the spec and the payload from stdin (#602)", async () => {
     // One stream, two consumers. Whichever read first would win and the
