@@ -95,12 +95,13 @@ export const SUBSCHEMA_MAP_POSITIONS = [
  *
  * Being excluded from {@link isSubschemaKey} has a consequence worth
  * stating: a caller that decides "is this a schema position" from that
- * predicate alone does not reach these entries. `packages/spec`'s two
- * resolvers do, so an external `$ref` written inside `dependencies` is
- * not hoisted and the document it names is never loaded. That gap
- * predates this set and is not closed by it; closing it means teaching
- * those resolvers the mixed shape, since the predicate cannot answer
- * for a position whose values disagree with each other.
+ * predicate alone does not reach these entries, and gets no hint that
+ * it has missed a position rather than found none. `packages/spec`'s
+ * two resolvers decided that way, so an external `$ref` written inside
+ * `dependencies` was not hoisted and the document it named was never
+ * loaded. Both now classify with {@link subschemaFamilyOf}, which
+ * answers for a mixed position and says so, leaving the caller to test
+ * each value.
  *
  * @internal
  */
@@ -160,10 +161,11 @@ const FAMILY_BY_KEY: ReadonlyMap<string, SubschemaFamily> = new Map<string, Subs
  * says which kind it is, so the caller knows it has to test each value.
  * A key-driven walker (one iterating the schema's own keys rather than
  * the position table) classifies with this instead of hand-writing a
- * set. The two `packages/spec` resolvers still hand-write one, in the
- * 5th and 6th copy of this knowledge; they are the intended next
- * caller, and until they move the gap described on
- * {@link SUBSCHEMA_MIXED_MAP_POSITIONS} stays open.
+ * set. `packages/spec`'s two resolvers are the caller shape it was
+ * designed for: each hand-wrote a `name -> schema` map predicate, the
+ * 5th and 6th copy of this knowledge, and each asked
+ * {@link isSubschemaKey} the question that predicate cannot answer for
+ * a mixed position.
  *
  * @internal
  */
@@ -202,10 +204,9 @@ function isSchemaObject(value: unknown): value is Record<string, unknown> {
  * property declared under `dependencies` was never enforced on the
  * request leg. Adding a fifth family here reaches every caller at once.
  *
- * `packages/spec`'s two resolvers are the one walker class this does
- * not yet reach: they classify by {@link isSubschemaKey}, which cannot
- * answer for a mixed position, so an external `$ref` under
- * `dependencies` is still not hoisted. See that predicate.
+ * A walker that classifies a key it already holds, rather than
+ * iterating positions, reaches for {@link subschemaFamilyOf} instead;
+ * `packages/spec`'s two resolvers are that shape.
  *
  * The mixed-map rule lives here rather than at each call site: an array
  * value under `dependencies` names required properties and is not a
