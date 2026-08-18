@@ -455,9 +455,8 @@ const validator = createValidator(spec, { maxTotalBytes: 256 * 1024 });
 // Hono, Next.js route handler, Bun.serve, Deno.serve
 const result = await validator.validateFetchRequest(request);
 if (!result.ok) {
-  return Response.json(toProblemDetails(result.errors), {
-    status: httpStatusFor(result.errors), // 413 for an over-cap body
-  });
+  const status = httpStatusFor(result.errors); // 413 for an over-cap body
+  return Response.json(toProblemDetails(result.errors, { status }), { status });
 }
 ```
 

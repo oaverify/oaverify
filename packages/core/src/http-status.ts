@@ -93,11 +93,14 @@ export const DEFAULT_HTTP_STATUS_MAP: HttpStatusMap = {
  * negotiation, so a request that fails both answers 401:
  *
  * ```ts
- * import { httpStatusFor } from "@oaverify/core";
+ * import { httpStatusFor, toProblemDetails } from "@oaverify/core";
  *
  * const result = validator.validateRequest(httpRequest);
  * if (!result.valid) {
- *   res.status(httpStatusFor(result.errors)).json(toProblemDetails(result.errors));
+ *   // Asked once, used twice: RFC 9457 3.1.2 requires the body's
+ *   // `status` to be the code the response carries.
+ *   const status = httpStatusFor(result.errors);
+ *   res.status(status).json(toProblemDetails(result.errors, { status }));
  * }
  * ```
  *
@@ -142,7 +145,8 @@ export function httpStatusFor(
  * ```ts
  * const allow = allowHeaderFor(error);
  * if (allow !== undefined) res.setHeader("Allow", allow);
- * res.status(httpStatusFor(error)).json(toProblemDetails(error));
+ * const status = httpStatusFor(error);
+ * res.status(status).json(toProblemDetails(error, { status }));
  * ```
  *
  * @public

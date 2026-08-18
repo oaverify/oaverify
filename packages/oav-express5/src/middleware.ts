@@ -33,6 +33,10 @@ export interface ValidateRequestsOptions {
    * and rejected promises propagate to Express 5's error middleware
    * automatically (no try/catch wrapper needed).
    *
+   * A custom status is yours to keep consistent: pass it to
+   * `toProblemDetails` as well, since RFC 9457 3.1.2 requires the
+   * body's `status` member to carry the code the response does.
+   *
    * The middleware does not call `next()` after `onError` returns;
    * the callback owns the response.
    */

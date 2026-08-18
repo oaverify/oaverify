@@ -34,6 +34,10 @@ export interface ValidateRequestsOptions {
    * propagate to Fastify's error handler automatically (no try/catch
    * wrapper needed).
    *
+   * A custom status is yours to keep consistent: pass it to
+   * `toProblemDetails` as well, since RFC 9457 3.1.2 requires the
+   * body's `status` member to carry the code the response does.
+   *
    * The hook does not call `reply.send()` after `onError` returns;
    * the callback owns the response.
    */

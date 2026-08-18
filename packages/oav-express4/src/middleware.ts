@@ -33,6 +33,10 @@ export interface ValidateRequestsOptions {
    * promise rather than awaiting it, so completion is not waited on.
    * Thrown errors and rejected promises forward via `next(err)`.
    *
+   * A custom status is yours to keep consistent: pass it to
+   * `toProblemDetails` as well, since RFC 9457 3.1.2 requires the
+   * body's `status` member to carry the code the response does.
+   *
    * The middleware does not call `next()` after `onError` returns;
    * the callback owns the response.
    */

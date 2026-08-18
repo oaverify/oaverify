@@ -20,7 +20,8 @@ import type { FastifyContext } from "./types.js";
  *    yourself.
  * 2. You want a slightly different renderer: use this as the
  *    starting point and adjust (e.g. swap the body, override the
- *    status, add headers).
+ *    status, add headers). An overridden status goes to
+ *    `toProblemDetails` too, per RFC 9457 3.1.2.
  *
  * Pairs with sibling `renderProblemDetails` in `@oaverify/express4` /
  * `@oaverify/express5`. Same logic, framework-native API.
@@ -30,8 +31,11 @@ import type { FastifyContext } from "./types.js";
 export function renderProblemDetails(errors: ValidationError[], ctx: FastifyContext): void {
   const allow = allowHeaderFor(errors);
   if (allow !== undefined) ctx.reply.header("Allow", allow);
+  // One status, asked once, used twice: RFC 9457 3.1.2 requires the
+  // body's `status` to be the code the response actually carries.
+  const status = httpStatusFor(errors);
   ctx.reply
-    .code(httpStatusFor(errors))
+    .code(status)
     .type("application/problem+json")
-    .send(toProblemDetails(errors, { instance: ctx.request.url }));
+    .send(toProblemDetails(errors, { status, instance: ctx.request.url }));
 }
