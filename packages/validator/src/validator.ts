@@ -1780,7 +1780,11 @@ export function createValidator(
                 contentTypeErrorMessage("response", res.contentType, res.headers, statusKey),
                 {
                   contentType: res.contentType,
-                  declared: [...responseCompiled.bodySchemas.keys()],
+                  // Declared, not compiled: the sibling of the request
+                  // leg's `accepted`, and a schema-less media type is
+                  // declared (#849). Read off the compiled patterns for
+                  // the same reason that one is.
+                  declared: responseCompiled.bodyMediaTypes.map((p) => p.pattern),
                 },
               ),
             );

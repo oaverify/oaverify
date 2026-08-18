@@ -546,10 +546,17 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     operation.requestBody as RequestBodyObject | ReferenceObject,
   );
   const bodyValidators: Record<string, string> = {};
+  // Negotiation reads what the document declares, not what compiled: a
+  // Media Type Object with no `schema` is legal and means "anything
+  // goes". Keeping this list in step with the runtime validator's
+  // `declaredBodyMediaTypes` is what stops the emitted module answering
+  // 415 where `createValidator` answers 200 (#849).
+  const declaredBodyMediaTypes: string[] = [];
   let requestBodyRequired = false;
   if (requestBody !== undefined) {
     requestBodyRequired = requestBody.required === true;
     for (const [mediaType, media] of Object.entries(requestBody.content ?? {})) {
+      declaredBodyMediaTypes.push(mediaType);
       if (media.schema !== undefined) {
         setSpecKey(bodyValidators, mediaType, named(media.schema));
       }
@@ -561,6 +568,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     string,
     {
       bodyValidators: Record<string, string>;
+      declaredMediaTypes: string[];
       headers: Record<
         string,
         { readOwn: boolean; required: boolean; schema: unknown; validator: string | null }
@@ -572,7 +580,9 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
       const resp = resolveRef<ResponseObject>(respRaw as ResponseObject | ReferenceObject);
       if (resp === undefined) continue;
       const bodyVs: Record<string, string> = {};
+      const declaredMediaTypes: string[] = [];
       for (const [mediaType, media] of Object.entries(resp.content ?? {})) {
+        declaredMediaTypes.push(mediaType);
         if (media.schema !== undefined) {
           setSpecKey(bodyVs, mediaType, named(media.schema));
         }
@@ -596,7 +606,11 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
           validator: schema !== undefined ? named(schema) : null,
         });
       }
-      setSpecKey(responses, statusKey, { bodyValidators: bodyVs, headers });
+      setSpecKey(responses, statusKey, {
+        bodyValidators: bodyVs,
+        declaredMediaTypes,
+        headers,
+      });
     }
   }
   const hasGuardedResponseHeaders = Object.values(responses).some((response) =>
@@ -637,7 +651,15 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
         requestBodyRequired,
         hasRequestBody: requestBody !== undefined,
         bodyValidators: toPlaceholderMap(bodyValidators),
-        bodyMediaTypes: compileMediaTypePatterns(Object.keys(bodyValidators)),
+        bodyMediaTypes: compileMediaTypePatterns(declaredBodyMediaTypes),
+        // The runtime gate is keyed on compiled schemas, not declared
+        // types: `matchRequestBodyMediaType` returns null when
+        // `bodyValidators.size === 0`, so an operation whose media
+        // types all lack a schema negotiates nothing and accepts any
+        // Content-Type. Negotiating here instead would answer 415 where
+        // `createValidator` answers 200, which is #849 with the legs
+        // swapped. See #870 for the behaviour itself.
+        hasBodySchemas: Object.keys(bodyValidators).length > 0,
         responses: mapResponsesToPlaceholders(responses),
         __security: security,
       },
@@ -695,6 +717,7 @@ function mapResponsesToPlaceholders(
     string,
     {
       bodyValidators: Record<string, string>;
+      declaredMediaTypes: string[];
       headers: Record<
         string,
         { readOwn: boolean; required: boolean; schema: unknown; validator: string | null }
@@ -718,7 +741,9 @@ function mapResponsesToPlaceholders(
     }
     setSpecKey(out, status, {
       bodyValidators: toPlaceholderMap(r.bodyValidators),
-      bodyMediaTypes: compileMediaTypePatterns(Object.keys(r.bodyValidators)),
+      bodyMediaTypes: compileMediaTypePatterns(r.declaredMediaTypes),
+      /** See the request-side flag; the response gate mirrors it. */
+      hasBodySchemas: Object.keys(r.bodyValidators).length > 0,
       headers: headerOut,
     });
   }
@@ -906,7 +931,7 @@ function renderValidateRequestTree(): string {
   const hasBody = req.body !== undefined;
   const bodyMediaTypes = op.bodyMediaTypes;
   let requestBodyMediaType;
-  if (op.hasRequestBody && hasBody && bodyMediaTypes.length > 0) {
+  if (op.hasRequestBody && hasBody && op.hasBodySchemas && bodyMediaTypes.length > 0) {
     requestBodyMediaType = matchParsedMediaType(req.contentType, bodyMediaTypes);
     if (requestBodyMediaType === undefined) {
       return createBranchError(
@@ -939,9 +964,18 @@ function renderValidateRequestTree(): string {
     } else {
       const mt = requestBodyMediaType ?? matchParsedMediaType(req.contentType, bodyMediaTypes);
       if (mt !== undefined) {
-        const v = op.bodyValidators[mt];
-        const r = v.validate(req.body, ["body"]);
-        if (!r.valid && r.error !== undefined) children.push(r.error);
+        // Own-property test rather than an undefined check: the map is
+        // a plain object literal, and a media type may now be declared
+        // without a schema. A bare word parses as a media type, so
+        // "constructor" is a matchable pattern whose inherited value is
+        // not undefined and is not a validator.
+        const v = Object.hasOwn(op.bodyValidators, mt) ? op.bodyValidators[mt] : undefined;
+        // A declared media type with no schema negotiates but does not
+        // validate; the body passes through.
+        if (v !== undefined) {
+          const r = v.validate(req.body, ["body"]);
+          if (!r.valid && r.error !== undefined) children.push(r.error);
+        }
       }
     }
   }
@@ -1046,14 +1080,16 @@ function renderValidateResponseTree(): string {
       }
       // Body validation.
       const bodyMediaTypes = resp.bodyMediaTypes;
-      if (bodyMediaTypes.length > 0 && res.body !== undefined) {
+      if (resp.hasBodySchemas && bodyMediaTypes.length > 0 && res.body !== undefined) {
         const mt = matchParsedMediaType(res.contentType, bodyMediaTypes);
         if (mt === undefined) {
-          children.push(createLeafError("content-type", ["body"], contentTypeErrorMessage("response", res.contentType, res.headers, statusKey), { contentType: res.contentType, accepted: bodyMediaTypes.map((m) => m.pattern) }));
+          children.push(createLeafError("content-type", ["body"], contentTypeErrorMessage("response", res.contentType, res.headers, statusKey), { contentType: res.contentType, declared: bodyMediaTypes.map((m) => m.pattern) }));
         } else {
-          const v = resp.bodyValidators[mt];
-          const r = v.validate(res.body, ["body"]);
-          if (!r.valid && r.error !== undefined) children.push(r.error);
+          const v = Object.hasOwn(resp.bodyValidators, mt) ? resp.bodyValidators[mt] : undefined;
+          if (v !== undefined) {
+            const r = v.validate(res.body, ["body"]);
+            if (!r.valid && r.error !== undefined) children.push(r.error);
+          }
         }
       }
     }

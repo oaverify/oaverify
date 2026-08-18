@@ -1132,3 +1132,170 @@ describe("compile-spec: matrix parameter parity (#758)", () => {
     }
   });
 });
+
+describe("compile-spec: schema-less media type parity (#849)", () => {
+  // Negotiation is built twice, once in the runtime operation cache and
+  // once here, and both read "what does this operation accept". When
+  // only one learned that a schema-less Media Type Object is legal, the
+  // emitted module answered 415 where `createValidator` answered 200:
+  // the same document, two verdicts, no error anywhere.
+  const schemalessSpec: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "Mixed", version: "1" },
+    paths: {
+      "/things": {
+        post: {
+          requestBody: {
+            content: {
+              "application/json": { schema: { type: "object", required: ["id"] } },
+              "text/plain": {},
+            },
+          },
+          responses: { "204": { description: "ok" } },
+        },
+      },
+    },
+  };
+
+  const post = (contentType: string, body: unknown): Record<string, unknown> => ({
+    method: "POST",
+    path: "/things",
+    contentType,
+    body,
+  });
+
+  it("accepts a declared schema-less media type, matching createValidator", async () => {
+    const aot = await buildAot(schemalessSpec);
+    const runtime = createValidator(schemalessSpec);
+    const req = post("text/plain", "anything goes");
+
+    expect(runtime.validateRequest(req as never).valid).toBe(true);
+    expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
+  });
+
+  it("still validates the sibling that carries a schema, matching createValidator", async () => {
+    const aot = await buildAot(schemalessSpec);
+    const runtime = createValidator(schemalessSpec);
+    const req = post("application/json", {});
+
+    expect(runtime.validateRequest(req as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(req as never)).map((e) => e.code)).toEqual(["required"]);
+  });
+
+  it("still refuses an undeclared media type, matching createValidator", async () => {
+    const aot = await buildAot(schemalessSpec);
+    const runtime = createValidator(schemalessSpec);
+    const req = post("application/xml", "<x/>");
+
+    expect(runtime.validateRequest(req as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(req as never)).map((e) => e.code)).toEqual([
+      "content-type",
+    ]);
+  });
+});
+
+describe("compile-spec: negotiation-skip parity (#849 / #870)", () => {
+  // The runtime gate is keyed on compiled schemas, not declared types:
+  // an operation whose media types all lack a schema negotiates nothing
+  // and accepts any Content-Type. Widening the emitted pattern set to
+  // the declared list without mirroring that skip reintroduced #849
+  // with the legs swapped, AOT answering 415 where the runtime answers
+  // 200. The behaviour itself is #870; what this pins is that both
+  // spellings hold the same one.
+  const uploadSpec: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "Upload", version: "1" },
+    paths: {
+      "/things": {
+        post: {
+          requestBody: { content: { "application/octet-stream": {} } },
+          responses: {
+            "200": { description: "ok", content: { "text/plain": {} } },
+          },
+        },
+      },
+    },
+  };
+
+  it("accepts an undeclared request Content-Type, matching createValidator", async () => {
+    const aot = await buildAot(uploadSpec);
+    const runtime = createValidator(uploadSpec);
+    const req = { method: "POST", path: "/things", contentType: "application/xml", body: "<x/>" };
+
+    expect(runtime.validateRequest(req as never).valid).toBe(true);
+    expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
+  });
+
+  it("accepts an undeclared response Content-Type, matching createValidator", async () => {
+    const aot = await buildAot(uploadSpec);
+    const runtime = createValidator(uploadSpec);
+    const res = { status: 200, contentType: "application/xml", body: "<x/>" };
+    const where = { method: "POST", path: "/things" };
+
+    expect(runtime.validateResponse(where as never, res as never).valid).toBe(true);
+    expect(flatErrors(aot.validateResponse(where as never, res as never))).toEqual([]);
+  });
+
+  it("does not treat a prototype-named media type as a validator", async () => {
+    // The emitted validator map is a plain object literal, so a matched
+    // key that names an inherited property used to read back as
+    // `Object.prototype.constructor` and blow up on `.validate`.
+    const protoSpec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "Proto", version: "1" },
+      paths: {
+        "/things": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": { schema: { type: "object" } },
+                constructor: {},
+              },
+            },
+            responses: { "204": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const aot = await buildAot(protoSpec);
+    const runtime = createValidator(protoSpec);
+    const req = { method: "POST", path: "/things", contentType: "constructor", body: "x" };
+
+    expect(runtime.validateRequest(req as never).valid).toBe(true);
+    expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
+  });
+
+  it("names the response content-type list the same way the runtime does", async () => {
+    const mixedSpec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "Mixed", version: "1" },
+      paths: {
+        "/things": {
+          post: {
+            responses: {
+              "200": {
+                description: "ok",
+                content: {
+                  "application/json": { schema: { type: "object" } },
+                  "text/plain": {},
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const aot = await buildAot(mixedSpec);
+    const runtime = createValidator(mixedSpec);
+    const where = { method: "POST", path: "/things" };
+    const res = { status: 200, contentType: "application/xml", body: "<x/>" };
+
+    const runtimeLeaf = flatErrors(
+      runtime.validateResponse(where as never, res as never) as never,
+    )[0];
+    const aotLeaf = flatErrors(aot.validateResponse(where as never, res as never))[0];
+
+    expect(aotLeaf?.code).toBe("content-type");
+    expect(aotLeaf?.params).toEqual(runtimeLeaf?.params);
+  });
+});

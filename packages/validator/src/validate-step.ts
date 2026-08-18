@@ -326,8 +326,11 @@ export function validateParameter(
  * the more actionable signal than the downstream "body required" leaf.
  * Returns `null` (deliberately not a content-type error) when:
  * - the operation declares no `requestBody`,
- * - the operation's `requestBody.content` map is empty (nothing to
- *   match against),
+ * - no declared media type carries a schema, which includes the empty
+ *   `content` map and also the schema-less binary-upload shape
+ *   (`{"application/octet-stream": {}}`). The gate is skipped entirely
+ *   there, so any `Content-Type` is accepted, declared or not. That is
+ *   wider than this function's own rule and predates it; see #870,
  * - the request has no body AND no `Content-Type` (body-missing is a
  *   separate concern, handled by {@link validateBody}).
  *
@@ -365,7 +368,12 @@ export function matchRequestBodyMediaType(
     "content-type",
     ["body"],
     contentTypeErrorMessage("request", req.contentType, req.headers),
-    { contentType: req.contentType, accepted: [...cache.bodyValidators.keys()] },
+    // What the document declares, not what compiled: a schema-less
+    // media type is accepted and belongs in this list. Read back off
+    // the compiled patterns rather than the raw keys, so the list holds
+    // exactly what a request could actually match, and so the AOT
+    // emitter (which has only the patterns) reports the same set.
+    { contentType: req.contentType, accepted: cache.bodyMediaTypes.map((p) => p.pattern) },
   );
 }
 
