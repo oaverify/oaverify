@@ -469,11 +469,19 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
     const inTemplate = extractPathTemplateNames(pathTemplate);
     const pathItemPointer = `/paths/${escapePointerSegment(pathTemplate)}`;
     const itemLevelDeclared = collectPathParams(pathItem.parameters ?? [], document);
+    // A `parameters` that is not a list is unreadable rather than empty,
+    // so what it declares is unknown. Claiming a template name is
+    // undeclared would be a false statement about a document whose
+    // author did write it, one missing `- ` away. The conformance pass
+    // reports `must be array` at the pointer, and this rule stays quiet
+    // for that operation (#837).
+    const itemListUnreadable = !isParameterList(pathItem.parameters);
     for (const method of HTTP_METHODS) {
       const op = pathItem[method];
       if (!op) continue;
       const opPointer = `${pathItemPointer}/${method}`;
       const opLevelDeclared = collectPathParams(op.parameters ?? [], document);
+      if (itemListUnreadable || !isParameterList(op.parameters)) continue;
 
       // OpenAPI: operation-level parameters with same (name, in) override
       // path-item-level. Compute the effective set by name.
@@ -592,12 +600,21 @@ function extractPathTemplateNames(template: string): Set<string> {
   return names;
 }
 
-function collectPathParams(
-  parameters: readonly (ParameterObject | ReferenceObject)[],
-  document: OpenAPIDocument,
-): Set<string> {
+/** `parameters` is absent or a list, so what it declares is readable. */
+function isParameterList(parameters: unknown): boolean {
+  return parameters === undefined || Array.isArray(parameters);
+}
+
+function collectPathParams(parameters: unknown, document: OpenAPIDocument): Set<string> {
   const names = new Set<string>();
-  for (const entry of parameters) {
+  // OpenAPI declares `parameters` as an array. A document writing one
+  // parameter as a mapping is a missing `- `, and iterating it threw
+  // `parameters is not iterable` out of the whole lint, which took
+  // `oaverify check` to exit 3 naming nothing. Reading it as no
+  // parameters lets the run reach the conformance pass, which reports
+  // `must be array` at the offending pointer (#837).
+  if (!Array.isArray(parameters)) return names;
+  for (const entry of parameters as readonly (ParameterObject | ReferenceObject)[]) {
     const param = isReference(entry) ? resolveParamRef(entry, document) : entry;
     if (!param) continue;
     if (param.in === "path") names.add(param.name);

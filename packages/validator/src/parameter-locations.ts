@@ -468,12 +468,11 @@ function collect(
   // Not `!== undefined`: `parameters:` carrying an object rather than a
   // list is a different defect, and this walk answers one question.
   //
-  // Note what it does not do: nothing downstream handles that document
-  // gracefully either. `buildOperationCache` throws a raw `TypeError`
-  // at request time and `checkSpec` exits on one, which is #837 and is
-  // older than this module. Skipping here neither causes that nor fixes
-  // it; iterating would only add a second, less useful error ahead of
-  // whatever eventually names the defect.
+  // Skipping leaves the defect to the conformance pass, which reports
+  // `must be array` at the offending pointer. `buildOperationCache` and
+  // the hygiene lint read the same shape as no parameters so that pass
+  // is what the author sees (#837). Iterating here would add a second,
+  // less useful error ahead of it.
   if (!Array.isArray(parameters)) return;
   for (const [index, raw] of (parameters as unknown[]).entries()) {
     // A pointer is recorded only after its target cleared, so the skip

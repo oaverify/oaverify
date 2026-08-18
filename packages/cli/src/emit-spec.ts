@@ -463,7 +463,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   /**
    * A `parameters` value as the list it is supposed to be, or empty.
    *
-   * Anything else is a defect the hygiene lint owns, and reading it here
+   * Anything else is a defect the conformance pass owns, and reading it here
    * produced an error naming no path, method or parameter.
    *
    * @internal
@@ -478,13 +478,13 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // `!= null` rather than `!== undefined`: a `- ` list entry with
   // nothing under it resolves to `null`, and reading `.name` off it
   // threw a `TypeError` out of `emitSpec` where `createValidator` skips
-  // the entry and lets the hygiene lint locate it. Same skip, same
+  // the entry and lets the conformance pass locate it. Same skip, same
   // reason, three lines from the gate this file just gained.
   // `Array.isArray`, not `?? []`: `parameters:` written as a mapping is
-  // not iterable, and iterating it threw `object is not iterable` out
-  // of `emitSpec` where `createValidator` tolerates the document. Same
-  // parity as the `null` entry below; see #837 for the crash that is
-  // still owed a proper answer on both sides.
+  // not iterable, and iterating it threw `object is not iterable`. The
+  // validator, the hygiene lint and the overlay reader all read the
+  // same shape as no parameters now, so the conformance pass is what
+  // names it (#837).
   for (const p of asParameterList(pathItem.parameters)) {
     const resolved = resolveRef<ParameterObject>(p);
     if (resolved != null) combined.set(`${resolved.name}::${resolved.in}`, resolved);
@@ -523,7 +523,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // ...` for the only audience that sees it.
   for (const p of parameters) {
     // A non-object entry is not a parameter to judge. `createValidator`
-    // skips it and the hygiene lint names the line; refusing here
+    // skips it and the conformance pass names the line; refusing here
     // reported it as a parameter with no `in`, which points at the
     // wrong defect and breaks the parity this gate exists to keep.
     if (p === null || typeof p !== "object") continue;

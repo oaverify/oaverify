@@ -406,3 +406,34 @@ describe("lintResolvedSpec: path-template-malformed", () => {
     expect(lintResolvedSpec(spec).map((i) => i.code)).not.toContain("path-template-malformed");
   });
 });
+
+describe("a parameters field that is not a list (#837)", () => {
+  const holed = (template: string, params: unknown): OpenAPIDocument =>
+    ({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        [template]: { get: { parameters: params, responses: { "200": { description: "ok" } } } },
+      },
+    }) as unknown as OpenAPIDocument;
+
+  it("does not throw out of the whole lint", () => {
+    // `parameters is not iterable` took `oaverify check` to exit 3,
+    // naming no path, method or parameter.
+    expect(() => lintResolvedSpec(holed("/t", { name: "id", in: "query" }))).not.toThrow();
+    expect(lintResolvedSpec(holed("/t", { name: "id", in: "query" }))).toEqual([]);
+  });
+
+  it("stays quiet on a templated path rather than calling the parameter undeclared", () => {
+    // The author did declare `{id}`, one missing `- ` away. Reporting it
+    // undeclared would be false, and it would sit ahead of the
+    // conformance finding that names the real defect.
+    const issues = lintResolvedSpec(holed("/p/{id}", { name: "id", in: "path", required: true }));
+    expect(issues.map((i) => i.code)).not.toContain("path-param-undeclared");
+  });
+
+  it("still reports an undeclared path parameter when the list is readable", () => {
+    const issues = lintResolvedSpec(holed("/p/{id}", []));
+    expect(issues.map((i) => i.code)).toContain("path-param-undeclared");
+  });
+});
