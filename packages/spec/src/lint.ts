@@ -8,6 +8,7 @@ import {
   type ParameterObject,
   type PathItem,
   type ReferenceObject,
+  type SecurityRequirementObject,
   type TagObject,
 } from "@oaverify/internal-core";
 
@@ -244,7 +245,7 @@ function collectAllRefs(
   componentEdges: Map<string, Set<string>>,
 ): void {
   // Top-level security scheme references.
-  for (const req of document.security ?? []) {
+  for (const req of asSecurityList(document.security)) {
     for (const schemeName of Object.keys(req)) {
       fromRoots.add(`securitySchemes/${schemeName}`);
     }
@@ -282,11 +283,46 @@ function collectAllRefs(
   }
 }
 
+/**
+ * A document's or an operation's `security` as a list to iterate.
+ *
+ * OpenAPI declares the field as an array, and a document writing one
+ * requirement as a mapping is a missing `- `. Iterating that threw
+ * `object is not iterable` out of the whole lint, which took
+ * `oaverify check` to exit 3 naming nothing, the same way an unreadable
+ * `parameters` did before #837. Reading it as no requirements lets the
+ * run reach the conformance pass, which reports `must be array` at the
+ * offending pointer (#883).
+ *
+ * The lint's own subject here is which schemes are referenced, so an
+ * unreadable requirement contributes none and `unused-component` may
+ * then call a scheme unused. That is the same trade `path-param-mismatch`
+ * takes for an unreadable `parameters`, and the conformance finding that
+ * names the real defect sits alongside it.
+ *
+ * The request-time answer is deliberately different: an unreadable
+ * `security` compiles to a failing requirement rather than to none, so a
+ * document that meant to require auth does not serve anonymous traffic
+ * while it is being fixed. See `compileOperationSecurity` in
+ * `@oaverify/internal-validator`.
+ */
+function asSecurityList(security: unknown): readonly SecurityRequirementObject[] {
+  if (!Array.isArray(security)) return [];
+  // A list item written with nothing under it parses as `null`, which is
+  // an element rather than a malformed container, so it survives the
+  // array test and reached `Object.keys(null)`. Same throw, same exit 3
+  // (#883).
+  return (security as readonly unknown[]).filter(
+    (req): req is SecurityRequirementObject =>
+      req !== null && typeof req === "object" && !Array.isArray(req),
+  );
+}
+
 function walkPathItem(pathItem: PathItem, sink: Set<string>): void {
   for (const method of HTTP_METHODS) {
     const op = pathItem[method];
     if (!op) continue;
-    for (const req of op.security ?? []) {
+    for (const req of asSecurityList(op.security)) {
       for (const schemeName of Object.keys(req)) {
         sink.add(`securitySchemes/${schemeName}`);
       }

@@ -463,3 +463,56 @@ describe("a parameters field that is not a list (#837)", () => {
     expect(issues.map((i) => i.code)).toContain("path-param-undeclared");
   });
 });
+
+describe("a security field that is not a list (#883)", () => {
+  const holed = (security: unknown, where: "op" | "doc"): OpenAPIDocument =>
+    ({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      components: { securitySchemes: { k: { type: "apiKey", in: "header", name: "x-k" } } },
+      ...(where === "doc" ? { security } : {}),
+      paths: {
+        "/t": {
+          get: {
+            ...(where === "op" ? { security } : {}),
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    }) as unknown as OpenAPIDocument;
+
+  for (const where of ["op", "doc"] as const) {
+    it(`does not throw out of the whole lint, ${where}-level`, () => {
+      // `object is not iterable` took `oaverify check` to exit 3, naming
+      // nothing, which is the symptom #837 had for `parameters`.
+      expect(() => lintResolvedSpec(holed({ k: [] }, where))).not.toThrow();
+    });
+  }
+
+  it("still reaches a scheme reference when the list is readable", () => {
+    const issues = lintResolvedSpec(holed([{ k: [] }], "op"));
+    expect(issues.map((i) => i.code)).not.toContain("unused-component");
+  });
+
+  it("does not throw on a list whose element is not a requirement object", () => {
+    // `security:` with a bare `- ` under it parses as `[null]`, which is
+    // an array, so it passes the container guard and reached
+    // `Object.keys(null)`.
+    expect(() => lintResolvedSpec(holed([null], "op"))).not.toThrow();
+    expect(() => lintResolvedSpec(holed([null], "doc"))).not.toThrow();
+  });
+
+  it("still reaches the readable requirements beside an unreadable element", () => {
+    const issues = lintResolvedSpec(holed([{ k: [] }, null], "op"));
+    expect(issues.map((i) => i.code)).not.toContain("unused-component");
+  });
+
+  it("counts an unreadable requirement as reaching no scheme", () => {
+    // The trade `path-param-mismatch` takes for an unreadable
+    // `parameters`: the lint cannot see what it references, so the
+    // scheme reads as unused. The conformance finding naming the real
+    // defect sits alongside it.
+    const issues = lintResolvedSpec(holed({ k: [] }, "op"));
+    expect(issues.map((i) => i.code)).toContain("unused-component");
+  });
+});

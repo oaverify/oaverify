@@ -1417,3 +1417,32 @@ describe("compile-spec: primary output sink (#868)", () => {
     expect(toStdout.mem.stdout.value).toBe(toFile.mem.writes[0]?.[1]);
   });
 });
+
+describe("a security field that is not a list (#883)", () => {
+  const spec = {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    components: { securitySchemes: { k: { type: "apiKey", in: "header", name: "x-k" } } },
+    paths: {
+      "/t": { get: { security: { k: [] }, responses: { "200": { description: "ok" } } } },
+    },
+  } as unknown as OpenAPIDocument;
+
+  it("fails the request closed, as the opted-in runtime does", async () => {
+    // The emitted module embeds the mapping verbatim and hands it to the
+    // same `compileOperationSecurity`, so the fail-closed answer reaches
+    // the AOT without an emitter change (#883).
+    //
+    // The runtime is opted in deliberately: `validateSecurity` defaults
+    // to `"off"`, while the emitter compiles operation-level security
+    // unconditionally and offers no equivalent flag. That mismatch is
+    // #895, and it is not what this pins. What this pins is that an
+    // unreadable `security` does not silently pass wherever the check
+    // does run.
+    const aot = await buildAot(spec);
+    const runtime = createValidator(spec, { validateSecurity: "shape" });
+    const req = { method: "GET", path: "/t" };
+    expect(runtime.validateRequest(req as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(req as never)).map((e) => e.code)).toEqual(["security"]);
+  });
+});

@@ -165,6 +165,68 @@ describe("checkSpec", () => {
     expect(located[0]?.class).toBe("conformance");
   });
 
+  it("grades a document whose security field is not a list, and locates it", async () => {
+    // The same missing `- `, one field over. The hygiene lint iterated
+    // it and threw `object is not iterable`, so `oaverify check` exited
+    // 3 naming nothing, exactly as it did for `parameters` before #837.
+    // The lint and the overlay reader read a non-array as no
+    // requirements, which lets the run reach the conformance pass. The
+    // validator deliberately does not: an unreadable `security`
+    // compiles to a failing requirement there, so a document that meant
+    // to require auth does not serve anonymous traffic (#883).
+    const spec: Array<[string, unknown]> = [
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          components: {
+            securitySchemes: { k: { type: "apiKey", in: "header", name: "x-k" } },
+          },
+          paths: {
+            "/p": {
+              get: {
+                security: { k: [] },
+                responses: { "200": { description: "ok" } },
+              },
+            },
+          },
+        },
+      ],
+    ];
+    const resolved = await resolve(spec);
+    const findings = checkSpec(resolved);
+    const located = findings.filter((f) => f.location === "/paths/~1p/get/security");
+    expect(located.length).toBeGreaterThan(0);
+    expect(located[0]?.class).toBe("conformance");
+  });
+
+  it("grades a security list whose element is not a requirement object", async () => {
+    // `security:` with a bare `- ` under it parses as `[null]`. The list
+    // is an array, so it passed the container guard and reached
+    // `Object.keys(null)`, which is the same exit 3 by another route
+    // (#883).
+    const spec: Array<[string, unknown]> = [
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          components: {
+            securitySchemes: { k: { type: "apiKey", in: "header", name: "x-k" } },
+          },
+          paths: {
+            "/p": { get: { security: [null], responses: { "200": { description: "ok" } } } },
+          },
+        },
+      ],
+    ];
+    const resolved = await resolve(spec);
+    expect(() => checkSpec(resolved)).not.toThrow();
+    const located = checkSpec(resolved).filter((f) => f.location === "/paths/~1p/get/security/0");
+    expect(located.length).toBeGreaterThan(0);
+  });
+
   it("rethrows a hygiene lint failure when the document is otherwise gradeable", async () => {
     // The lint runs ahead of the gate, so its failure is held rather
     // than thrown. Holding it must not swallow it: a gradeable document

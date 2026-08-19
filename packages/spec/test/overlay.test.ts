@@ -1102,3 +1102,129 @@ describe("a parameters field that is not a list (#837)", () => {
     ).not.toThrow();
   });
 });
+
+describe("a security field that is not a list (#883)", () => {
+  const holed = (where: "op" | "doc"): OpenAPIDocument =>
+    ({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      components: { securitySchemes: { k: { type: "apiKey", in: "header", name: "x-k" } } },
+      ...(where === "doc" ? { security: { k: [] } } : {}),
+      paths: {
+        "/t": {
+          get: {
+            ...(where === "op" ? { security: { k: [] } } : {}),
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    }) as unknown as OpenAPIDocument;
+
+  it("does not throw on addSecurity at the document level", () => {
+    expect(() => applyOverlays(holed("doc"), [{ addSecurity: [{ k: [] }] }])).not.toThrow();
+  });
+
+  it("does not throw on addSecurity for an operation", () => {
+    expect(() =>
+      applyOverlays(holed("op"), [
+        { overrides: { "/t": { operations: { get: { addSecurity: [{ k: [] }] } } } } },
+      ]),
+    ).not.toThrow();
+  });
+
+  it("leaves an unreadable document security exactly as written", () => {
+    // Assigning the added requirements alone would delete what the
+    // author wrote and take the conformance finding that names the
+    // defect with it, which is the data loss #892 fixed for
+    // `parameters`.
+    const out = applyOverlays(holed("doc"), [{ addSecurity: [{ other: [] }] }]);
+    expect(out.security).toEqual({ k: [] });
+  });
+
+  it("leaves an unreadable operation security exactly as written", () => {
+    const out = applyOverlays(holed("op"), [
+      { overrides: { "/t": { operations: { get: { addSecurity: [{ other: [] }] } } } } },
+    ]);
+    expect(out.paths?.["/t"]?.get?.security).toEqual({ k: [] });
+  });
+
+  it("removes from a list holding an unreadable element without throwing", () => {
+    // `securityRequirementEquals` reached `Object.keys(null)` on the
+    // bare `- ` element. An unreadable element matches nothing, so the
+    // filter keeps it rather than deleting what the author wrote.
+    // `removeSecurity` is an operation-level route; the document level
+    // carries `security` (replace) and `addSecurity` only.
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            security: [{ k: [] }, null],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const out = applyOverlays(doc, [
+      { overrides: { "/t": { operations: { get: { removeSecurity: [{ k: [] }] } } } } },
+    ]);
+    expect(out.paths?.["/t"]?.get?.security).toEqual([null]);
+  });
+
+  it("keeps an array element that an empty requirement would compare equal to", () => {
+    // `Object.keys([])` and `Object.keys({})` are both empty, so an
+    // array element matched `removeSecurity: [{}]` and was deleted.
+    // The `null` case above does not cover it: that guard catches null
+    // and non-objects, and an array is neither.
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: { security: [[]], responses: { "200": { description: "ok" } } },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const out = applyOverlays(doc, [
+      { overrides: { "/t": { operations: { get: { removeSecurity: [{}] } } } } },
+    ]);
+    expect(out.paths?.["/t"]?.get?.security).toEqual([[]]);
+  });
+
+  it("still removes a readable requirement beside an unreadable element", () => {
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: { security: [{ k: [] }, []], responses: { "200": { description: "ok" } } },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const out = applyOverlays(doc, [
+      { overrides: { "/t": { operations: { get: { removeSecurity: [{ k: [] }] } } } } },
+    ]);
+    expect(out.paths?.["/t"]?.get?.security).toEqual([[]]);
+  });
+
+  it("still adds to a readable list", () => {
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      security: [{ k: [] }],
+      paths: { "/t": { get: { responses: { "200": { description: "ok" } } } } },
+    } as unknown as OpenAPIDocument;
+    expect(applyOverlays(doc, [{ addSecurity: [{ other: [] }] }]).security).toEqual([
+      { k: [] },
+      { other: [] },
+    ]);
+  });
+
+  it("replaces an unreadable security wholesale, which the author asked for", () => {
+    // `security` (replace) is an explicit instruction, unlike
+    // `addSecurity`, which needs a readable base to add to.
+    const out = applyOverlays(holed("doc"), [{ security: [{ k: [] }] }]);
+    expect(out.security).toEqual([{ k: [] }]);
+  });
+});

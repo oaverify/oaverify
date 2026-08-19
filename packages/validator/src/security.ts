@@ -82,7 +82,15 @@ export function compileOperationSecurity(
   mode: SecurityMode = "shape",
 ): CompiledSecurity | undefined {
   const effective = operation.security ?? document.security;
-  if (effective === undefined || effective.length === 0) return undefined;
+  // `== null`, not `=== undefined`: `security:` with nothing under it
+  // parses as `null` and says nothing is declared, which is readable.
+  // Reading it as unreadable made a commented-out document-level
+  // requirement fail every request to every operation, including one
+  // carrying the credential, while the same YAML on an operation passed.
+  // The overlay reader spells the same predicate the same way.
+  if (effective == null) return undefined;
+  if (!Array.isArray(effective)) return [unreadableSecurityRequirement()];
+  if (effective.length === 0) return undefined;
 
   const schemes = document.components?.securitySchemes ?? {};
   const resolvedSchemes: Record<string, SecuritySchemeObject | undefined> = {};
@@ -93,11 +101,74 @@ export function compileOperationSecurity(
   return effective.map((req) => compileRequirement(req, resolvedSchemes, mode));
 }
 
+/**
+ * The requirement an unreadable `security` compiles to: one that no
+ * request satisfies.
+ *
+ * OpenAPI declares `security` as an array of Security Requirement
+ * Objects, and a document writing one as a mapping is a missing `- `.
+ * Iterating it threw `TypeError: effective.map is not a function` out of
+ * every `validateRequest` (#883).
+ *
+ * Reading it as absent is what the sibling shape does for a `parameters`
+ * that is not a list (#837), and it is the wrong answer here. The
+ * consequence there is that nothing asserts the parameters the document
+ * meant to declare; the same consequence for `security` is that nothing
+ * asserts the credential, so an operation whose author did require auth
+ * serves every anonymous request. This file already answers that
+ * question the other way twice: an undeclared scheme name and a
+ * malformed `apiKey` definition both compile to a failing check rather
+ * than a passing one, so a typo produces a 401 instead of silently
+ * passing.
+ *
+ * The document defect still reaches the author through `check`, which
+ * reports `must be array` at the pointer. The 401 is what stops an
+ * unreadable requirement being read as no requirement in the meantime.
+ *
+ * `declared` names the field rather than a scheme because there is no
+ * readable scheme name to report: the mapping's own keys would be a
+ * guess at a shape that failed to parse.
+ */
+function unreadableSecurityRequirement(): CompiledSecurityRequirement {
+  return {
+    schemes: [
+      {
+        scheme: "security",
+        check: () => "is not a list of security requirement objects",
+      },
+    ],
+  };
+}
+
+/**
+ * A Security Requirement Object is a mapping of scheme name to scopes.
+ * A list item written with nothing under it parses as `null`, which is
+ * an array element rather than a malformed container, so it passes the
+ * `Array.isArray` guard above and used to reach `Object.keys(null)`:
+ *
+ * ```yaml
+ * security:
+ *   -
+ * ```
+ *
+ * That threw the same raw `TypeError` out of `validateRequest` and took
+ * `oaverify check` to exit 3, which is the symptom #883 exists to
+ * remove, so the element gets the same fail-closed answer the container
+ * does.
+ *
+ * `checkSecurity` ORs across requirements, so a readable alternative
+ * that the request satisfies still passes. That is the right reading of
+ * an OR: only one alternative has to hold, and the unreadable one is
+ * simply never the one that does.
+ */
 function compileRequirement(
   req: SecurityRequirementObject,
   schemes: Record<string, SecuritySchemeObject | undefined>,
   mode: SecurityMode,
 ): CompiledSecurityRequirement {
+  if (req === null || typeof req !== "object" || Array.isArray(req)) {
+    return unreadableSecurityRequirement();
+  }
   const compiled: CompiledSchemeCheck[] = [];
   for (const name of Object.keys(req)) {
     const scheme = getOwn(schemes, name);
