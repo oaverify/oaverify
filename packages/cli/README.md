@@ -301,17 +301,40 @@ more than a row:
 
 ### Bundle size
 
-Output size scales with op count and schema complexity:
+Output scales with operation count and schema complexity, and both
+numbers matter: the file on disk, and what it compresses to. The
+platform limits below are on the compressed artifact, so a raw byte
+count read against them is wrong by roughly an order of magnitude at
+this end of the range.
 
-| Spec shape     | Ops  | Output (bundled) |
-| -------------- | ---- | ---------------- |
-| petstore       | 2    | ~20 KB           |
-| Adyen Checkout | 23   | ~200 KB          |
-| Stripe         | 400+ | ~2–3 MB          |
+Measured on four real published documents, full emit and
+`--requests-only`, as `bytes (gzip)`:
 
-Fits Cloudflare Workers' 10 MB compressed limit through Stripe-scale.
-Fits Lambda@Edge's 1 MB viewer-function limit through low-hundreds
-of ops. `--requests-only` and `--only` both shrink output materially.
+| Document                       | Ops | Full emit        | `--requests-only` |
+| ------------------------------ | --- | ---------------- | ----------------- |
+| `examples/specs/petstore.yaml` | 2   | 89 KB (21 KB)    | 83 KB (20 KB)     |
+| ably.io platform               | 22  | 712 KB (39 KB)   | 394 KB (32 KB)    |
+| peertube                       | 186 | 3.1 MB (171 KB)  | 1.3 MB (83 KB)    |
+| github.com                     | 845 | 34.7 MB (2.1 MB) | 8.2 MB (417 KB)   |
+
+The three named documents are from
+[APIs.guru](https://apis.guru/), which `detection/real-world/specs`
+pins; the last three needed `--unknown-formats ignore`, since published
+documents routinely name formats outside the built-in set.
+
+Two things the table shows that a single column would not. Compression
+does most of the work, because the bulk of a large emit is repetitive
+generated validator source: github.com is 34.7 MB on disk and 2.1 MB
+compressed, a 16x ratio that grows with size. And `--requests-only` is
+worth far more at scale than at petstore scale, 4x on github.com against
+1.07x on petstore, because response schemas dominate a large document.
+
+Against the platform limits, both of which are on the compressed
+artifact: Cloudflare Workers' 10 MB fits through 845 operations with
+room to spare. Lambda@Edge's 1 MB viewer-function limit fits through
+low hundreds of operations (186 ops compresses to 171 KB) and is
+exceeded somewhere before 845. `--only` shrinks output proportionally
+to what it drops and is the lever when a deployment serves a subset.
 
 ### Not serialised
 
