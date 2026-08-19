@@ -75,6 +75,15 @@ export type DivergenceEntry =
       why: string;
     });
 
+/**
+ * `ignoreUndocumented` and `ignorePaths` produce the same difference:
+ * the runtime passes a request the emitted module 404s. Two entries
+ * rather than one, because the predicates are what say which option
+ * caused it and a single entry spanning both would claim a case it
+ * did not account for.
+ */
+const ROUTE_SIGNATURE = 'verdict:valid->invalid | leaves:[]->[{"code":"route","path":[]}]';
+
 const isJsonContent = (axes: CaseAxes): boolean =>
   axes.source === "content" && axes.mediaType === "application/json";
 
@@ -193,6 +202,85 @@ export const DIVERGENCES: DivergenceEntry[] = [
     // exists because a verdict-only comparison calls this identical.
     signatures: [
       'leaves:[{"code":"security","path":["security"]}]->[{"code":"type","path":["query","n"]}]',
+    ],
+  },
+
+  // Runtime options the emitted module cannot express.
+  //
+  // Kept apart from #895 on a distinction the grid measured. Each of
+  // these four has the emitted module agreeing with `createValidator`
+  // at its defaults and differing only once the caller opts in, so the
+  // artifact matches a real runtime configuration and names which one.
+  // #895's security case matches none: the emitted module always checks
+  // operation-level security, and no setting of `validateSecurity`
+  // produces that. Matching the default is a limit; matching nothing is
+  // the defect.
+  //
+  // The limit is documented in packages/cli/README.md under
+  // "Not serialised". An `intentional` entry asserts a difference is
+  // correct, and an undocumented difference is not correct, it is
+  // merely known.
+  {
+    name: "options/strict-query",
+    kind: "intentional",
+    issue: "#895",
+    why:
+      "`strictQueryParameters` refuses a query key the operation does not declare. " +
+      "The emitted module has no such option and answers as the runtime does by default, " +
+      "which is to ignore the extra key.",
+    match: (axes, wireId) =>
+      axes.shape === "runtime-options" &&
+      axes.runtimeOptions.strictQueryParameters === true &&
+      wireId === "undeclaredQueryKey",
+    signatures: [
+      'verdict:invalid->valid | leaves:[{"code":"query-param","path":["query","extra"]}]->[]',
+    ],
+  },
+  {
+    name: "options/ignore-undocumented",
+    kind: "intentional",
+    issue: "#895",
+    why:
+      "`ignoreUndocumented` passes a request to a path the document does not declare. " +
+      "The emitted module has no such option and 404s it, as the runtime does by default.",
+    match: (axes, wireId) =>
+      axes.shape === "runtime-options" &&
+      axes.runtimeOptions.ignoreUndocumented === true &&
+      wireId === "undeclaredPath",
+    signatures: [ROUTE_SIGNATURE],
+  },
+  {
+    name: "options/ignore-paths",
+    kind: "intentional",
+    issue: "#895",
+    why:
+      "`ignorePaths` passes a request whose path the caller's own predicate exempts. " +
+      "The emitted module has no such option and 404s it, as the runtime does by default. " +
+      "The option is function-valued, so an emitter counterpart would have to be something " +
+      "other than a flag baked into the module.",
+    match: (axes, wireId) =>
+      axes.shape === "runtime-options" &&
+      axes.runtimeOptions.ignorePaths !== undefined &&
+      wireId === "ignoredPath",
+    signatures: [ROUTE_SIGNATURE],
+  },
+  {
+    name: "options/bracketed-arrays",
+    kind: "intentional",
+    issue: "#895",
+    why:
+      "`allowBracketedQueryArrays` reads `?p[]=a&p[]=b` as `p`. The emitted module has no " +
+      "such option and refuses it, as the runtime does by default. The only one of the four " +
+      "that moves the value channel as well as the verdict, because the option decides " +
+      "whether a value arrives at all.",
+    match: (axes, wireId) =>
+      axes.shape === "runtime-options" &&
+      axes.runtimeOptions.allowBracketedQueryArrays === true &&
+      wireId === "bracketed",
+    signatures: [
+      'verdict:valid->invalid | leaves:[]->[{"code":"query-param","path":["query","p"]}] | ' +
+        'value:{"path":{},"query":{"p":["a","b"]},"headers":{},"cookies":{}}->' +
+        '{"path":{},"query":{},"headers":{},"cookies":{}}',
     ],
   },
 ];

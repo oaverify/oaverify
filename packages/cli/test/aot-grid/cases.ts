@@ -773,6 +773,128 @@ export function productB(): Declaration[] {
     }
   }
 
+  // Runtime options with no emitter counterpart.
+  //
+  // The generalisation of the `validateSecurity` cases above. Every
+  // option `createValidator` accepts is a place the two sides can
+  // disagree by configuration, because the emitted module takes none of
+  // them, and #895 is that shape for one option out of several.
+  //
+  // Each shape below runs twice, at the default and with the option
+  // set, so the difference is attributable to the option rather than to
+  // the document. The document and the requests are chosen to make the
+  // option decide the answer; at the default both sides agree, which is
+  // what the first of the two cells asserts.
+  //
+  // `maxDepth` and `onUnknownVersion` were measured and produced no
+  // difference reachable from a request, so they are absent rather than
+  // held back. `formats`, `keywords` and `regexCompiler` are extension
+  // points the emitter takes at compile time instead, so they are not
+  // the same axis.
+  const optionShapes: Array<{
+    id: string;
+    options: RuntimeOptions;
+    doc: OpenAPIDocument;
+    requests: Declaration["requests"];
+  }> = [
+    {
+      id: "strict-query",
+      options: { strictQueryParameters: true },
+      doc: {
+        openapi: "3.1.0",
+        info: { title: "grid-B-opt-strict-query", version: "1" },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [{ name: "q", in: "query", schema: { type: "string" } }],
+              responses: okResponses,
+            },
+          },
+        },
+      } as OpenAPIDocument,
+      requests: [
+        { wireId: "undeclaredQueryKey", request: { method: "GET", path: "/t?q=x&extra=y" } },
+        { wireId: "declaredOnly", request: { method: "GET", path: "/t?q=x" } },
+      ],
+    },
+    {
+      id: "ignore-undocumented",
+      options: { ignoreUndocumented: true },
+      doc: {
+        openapi: "3.1.0",
+        info: { title: "grid-B-opt-ignore-undoc", version: "1" },
+        paths: { "/t": { get: { parameters: PLAIN_PARAMS, responses: okResponses } } },
+      } as OpenAPIDocument,
+      requests: [
+        { wireId: "undeclaredPath", request: { method: "GET", path: "/nope" } },
+        { wireId: "declaredPath", request: { method: "GET", path: "/t", query: { q: "x" } } },
+      ],
+    },
+    {
+      id: "ignore-paths",
+      // A function-valued option, which is why it is worth its own
+      // shape rather than a value of another: an emitter counterpart
+      // would have to be something other than a serialised flag, and
+      // the grid should still see the divergence in the meantime.
+      options: { ignorePaths: (path: string) => path === "/health" },
+      doc: {
+        openapi: "3.1.0",
+        info: { title: "grid-B-opt-ignore-paths", version: "1" },
+        paths: { "/t": { get: { parameters: PLAIN_PARAMS, responses: okResponses } } },
+      } as OpenAPIDocument,
+      requests: [
+        { wireId: "ignoredPath", request: { method: "GET", path: "/health" } },
+        { wireId: "otherUndeclaredPath", request: { method: "GET", path: "/nope" } },
+        { wireId: "declaredPath", request: { method: "GET", path: "/t", query: { q: "x" } } },
+      ],
+    },
+    {
+      id: "bracketed-arrays",
+      options: { allowBracketedQueryArrays: true },
+      doc: {
+        openapi: "3.1.0",
+        info: { title: "grid-B-opt-bracketed", version: "1" },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [
+                {
+                  name: "p",
+                  in: "query",
+                  required: true,
+                  schema: { type: "array", items: { type: "string" } },
+                },
+              ],
+              responses: okResponses,
+            },
+          },
+        },
+      } as OpenAPIDocument,
+      // The bracketed spelling has to arrive as a query string rather
+      // than a pre-parsed object: the option acts on how the string is
+      // read, so handing it an object skips the step under test and
+      // reports agreement.
+      requests: [
+        { wireId: "bracketed", request: { method: "GET", path: "/t?p[]=a&p[]=b" } },
+        { wireId: "repeated", request: { method: "GET", path: "/t?p=a&p=b" } },
+      ],
+    },
+  ];
+  for (const shape of optionShapes) {
+    for (const runtimeOptions of [{}, shape.options]) {
+      push(
+        `option=${shape.id}|runtime=${renderOptions(runtimeOptions)}`,
+        {
+          shape: "runtime-options",
+          runtimeOptions,
+          version: "3.1.0",
+        },
+        shape.doc,
+        shape.requests,
+      );
+    }
+  }
+
   return out;
 }
 

@@ -60,7 +60,9 @@ x `allowEmptyValue`, against the per-location wire tables.
 
 Product B: declared methods driven by five HTTP methods; `security`
 undeclared / operation / document / both / operation-empty, each against
-the runtime's `validateSecurity` in both settings; one parameter and two
+the runtime's `validateSecurity` in both settings; a runtime option with
+no emitter counterpart, each shape run at the default and with the
+option set; one parameter and two
 contending in one location; parameters named `constructor`, `__proto__`
 and `toString`, in all four locations, against an empty frame and a
 supplied value; OpenAPI 3.0, 3.1 and 3.2; and 3.2's `style: cookie`.
@@ -201,6 +203,15 @@ instrument: a gap nobody wrote down reads as coverage.
   only.
 - **Request bodies and response validation are absent.** Requests only,
   parameters and dispatch.
+- **The runtime-option axis lives in product B only.** Product A runs at
+  `createValidator`'s defaults throughout, so an option that changes
+  parameter deserialization is measured against one boring parameter
+  rather than across the parameter surface. Crossing it into product A
+  would multiply ~1,300 declarations by each option; the shapes in
+  product B are hand-built to make each option decide the answer
+  instead. `strictQueryParameters` is the one where that trade is
+  visible, since product A's wire table sends undeclared query keys in
+  several cells.
 - **`allowReserved` is absent**, as it is from the runtime grid.
 - **No `$ref`-ed parameters or path-item-level parameters.** Every
   declaration is inline on the operation.
