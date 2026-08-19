@@ -173,7 +173,7 @@ export function assembleObjectQueryParam(
  */
 export function assembleObjectCookieParam(
   p: ParameterObject,
-  cookies: Record<string, string> | undefined,
+  cookies: Record<string, string | string[]> | undefined,
 ): { value: unknown } | undefined {
   if (p.in !== "cookie") return undefined;
   if (p.style !== "cookie") return undefined;
