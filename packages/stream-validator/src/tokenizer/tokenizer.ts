@@ -357,8 +357,8 @@ export class JsonTokenizer {
       // low one, so the counter treats them as unpaired. Hoisted out of
       // the loop: per-byte it never ran for a run of continuation bytes,
       // which are literal text (one U+FFFD each) and do separate the
-      // pair. A partial sequence the decoder still holds is the one case
-      // where the delivered string pairs them anyway; see #886.
+      // pair. A sequence the decoder holds separates them too, once
+      // flushed, which is what `flushHeldPartial` is for (#886).
       this.pendingHighSurrogate = false;
       // Decode the literal run (streaming: a multibyte char split at the
       // chunk end is held by the decoder and completed next chunk).
@@ -383,9 +383,32 @@ export class JsonTokenizer {
     if (i >= n) return i; // chunk exhausted mid-string
     const b = chunk[i] as number;
     if (b === CH_QUOTE) return this.finishString(i);
-    // backslash
+    // backslash. Flush before the escape, for the same reason
+    // `finishString` flushes before the closing quote: a `write` that
+    // begins at the backslash leaves `i === start`, so the branch above
+    // never decodes, and bytes the decoder still held would otherwise be
+    // completed by text arriving after the escape. The escape's own
+    // character would then be emitted ahead of them, and a truncated
+    // sequence would pair with a following continuation byte into a
+    // character the sender never sent. A non-empty run ending here
+    // already flushed: `atChunkEnd` is false, so its decode passed
+    // `stream: false` (#886).
+    this.flushHeldPartial(this.pos(i));
     this.state = ST_IN_STRING_ESCAPE;
     return i + 1;
+  }
+
+  // Ends the decode stream and emits whatever partial sequence it held,
+  // as U+FFFD per unpaired byte, matching `Buffer#toString`. Empty when
+  // the decoder held nothing, which is every well-formed boundary.
+  private flushHeldPartial(offset: number): void {
+    const tail = this.decoder.decode(EMPTY, { stream: false });
+    if (tail.length === 0) return;
+    this.strCodePoints += countCodePoints(tail);
+    // Flushed text separates a `\uXXXX` high surrogate from any later
+    // low one, exactly as a literal run does.
+    this.pendingHighSurrogate = false;
+    this.emitStringText(tail, offset);
   }
 
   private emitStringText(text: string, offset: number): void {
@@ -464,18 +487,12 @@ export class JsonTokenizer {
   }
 
   private finishString(i: number): number {
-    // Flush any UTF-8 partial held by the decoder (valid input leaves
-    // none; truncated bytes decode to U+FFFD, matching Buffer#toString).
-    const tail = this.decoder.decode(EMPTY, { stream: false });
-    // The flush completes any sequence the decoder held, so it can emit a
-    // U+FFFD the literal-run branch never saw: a `write` ending mid
-    // sequence followed by one starting with the closing quote leaves
+    // Flush any UTF-8 partial held by the decoder. It can emit a U+FFFD
+    // the literal-run branch never saw: a `write` ending mid sequence
+    // followed by one starting with the closing quote leaves
     // `i === start`, skipping that branch entirely. Counting only there
     // left the string one code point short (#852).
-    if (tail.length > 0) {
-      this.strCodePoints += countCodePoints(tail);
-      this.emitStringText(tail, this.pos(i));
-    }
+    this.flushHeldPartial(this.pos(i));
     const endOffset = this.pos(i) + 1; // past the closing quote
     if (this.stringIsKey) {
       this.handler.onKey(this.keyBuf, this.strCodePoints, this.stringStart, endOffset);
