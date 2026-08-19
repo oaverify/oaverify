@@ -95,6 +95,25 @@ function hexValue(b: number): number {
 }
 
 /**
+ * A string's length in Unicode code points.
+ *
+ * Iterating the string yields one per code point, pairing surrogates.
+ * Written as a loop rather than `[...s].length` so no array is built,
+ * and because the spread form trips `typescript(no-misused-spread)` in
+ * the type-aware lint.
+ *
+ * `@oaverify/internal-schema` has the same helper for the buffered
+ * engine, and does not re-export it through
+ * `@oaverify/core/schema/internals`, so a local copy is cheaper than
+ * widening that surface for four lines.
+ */
+function countCodePoints(s: string): number {
+  let n = 0;
+  for (const _ of s) n++;
+  return n;
+}
+
+/**
  * @public
  */
 export class JsonTokenizer {
@@ -321,22 +340,40 @@ export class JsonTokenizer {
   private scanStringBody(chunk: Uint8Array, start: number): number {
     let i = start;
     const n = chunk.length;
+    let nonAscii = false;
     while (i < n) {
       const b = chunk[i] as number;
       if (b === CH_QUOTE || b === CH_BACKSLASH) break;
       if (b < 0x20) return this.fail("unescaped control character in string", i);
-      // Count code points: every non-continuation byte starts one.
-      if ((b & 0xc0) !== 0x80) {
-        this.strCodePoints++;
-        this.pendingHighSurrogate = false;
-      }
+      if (b >= 0x80) nonAscii = true;
       i++;
     }
     if (i > start) {
+      // Any literal text separates a `\uXXXX` high surrogate from a later
+      // low one, so the counter treats them as unpaired. Hoisted out of
+      // the loop: per-byte it never ran for a run of continuation bytes,
+      // which are literal text (one U+FFFD each) and do separate the
+      // pair. A partial sequence the decoder still holds is the one case
+      // where the delivered string pairs them anyway; see #886.
+      this.pendingHighSurrogate = false;
       // Decode the literal run (streaming: a multibyte char split at the
       // chunk end is held by the decoder and completed next chunk).
       const atChunkEnd = i === n;
       const text = this.decoder.decode(chunk.subarray(start, i), { stream: atChunkEnd });
+      // Count the decode's output. Counting input bytes missed a stray
+      // continuation byte, which is no lead byte and one U+FFFD, so a
+      // lead-byte count read a string of them as empty: `minLength`
+      // rejected 1000 characters as too short, and once `maxLength` shared
+      // this counter it stopped bounding them at all (#852).
+      //
+      // An all-ASCII run that produced one UTF-16 unit per byte decoded to
+      // one BMP code point per byte, so the length is the count and the
+      // common case never walks the string. Both conditions are needed:
+      // the length test alone accepts a run finishing an astral character
+      // the decoder held, whose two remaining bytes give two units, and
+      // the ASCII test alone accepts a run that a held character prefixes.
+      this.strCodePoints +=
+        !nonAscii && text.length === i - start ? text.length : countCodePoints(text);
       if (text.length > 0) this.emitStringText(text, this.pos(start));
     }
     if (i >= n) return i; // chunk exhausted mid-string
@@ -349,7 +386,10 @@ export class JsonTokenizer {
 
   private emitStringText(text: string, offset: number): void {
     if (this.stringIsKey) this.keyBuf += text;
-    else this.handler.onStringChunk(text, offset);
+    // `strCodePoints` counts exactly what has been emitted: the literal
+    // scan counts the decoded run, and both escape paths increment before
+    // emitting.
+    else this.handler.onStringChunk(text, offset, this.strCodePoints);
   }
 
   private stepStringEscape(chunk: Uint8Array, i: number): number {
@@ -423,7 +463,15 @@ export class JsonTokenizer {
     // Flush any UTF-8 partial held by the decoder (valid input leaves
     // none; truncated bytes decode to U+FFFD, matching Buffer#toString).
     const tail = this.decoder.decode(EMPTY, { stream: false });
-    if (tail.length > 0) this.emitStringText(tail, this.pos(i));
+    // The flush completes any sequence the decoder held, so it can emit a
+    // U+FFFD the literal-run branch never saw: a `write` ending mid
+    // sequence followed by one starting with the closing quote leaves
+    // `i === start`, skipping that branch entirely. Counting only there
+    // left the string one code point short (#852).
+    if (tail.length > 0) {
+      this.strCodePoints += countCodePoints(tail);
+      this.emitStringText(tail, this.pos(i));
+    }
     const endOffset = this.pos(i) + 1; // past the closing quote
     if (this.stringIsKey) {
       this.handler.onKey(this.keyBuf, this.strCodePoints, this.stringStart, endOffset);
