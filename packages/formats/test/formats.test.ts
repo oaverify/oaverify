@@ -1299,3 +1299,68 @@ describe("media-range: the boundaries of tchar and quoted-string", () => {
     expect(validateMediaRange('text/html;a="\\\u007F"')).toBe(false);
   });
 });
+
+describe("uri-template literals (RFC 6570)", () => {
+  it("accepts the templates it always did", () => {
+    expect(validateUriTemplate("/pets/{id}")).toBe(true);
+    expect(validateUriTemplate("/search{?q,page}")).toBe(true);
+    expect(validateUriTemplate("/a%41b")).toBe(true);
+    expect(validateUriTemplate("/{+path}/here")).toBe(true);
+    expect(validateUriTemplate("/中文")).toBe(true);
+  });
+
+  it("accepts a ucschar the `\\s` class excluded", () => {
+    // RFC 6570 literals include `ucschar`, which starts at U+00A0, and
+    // every `\s` member above U+009F is legal there. Sampled rather than
+    // exhaustive: U+2000-200A is a uniform block, so its endpoints
+    // stand for the eleven. Each is spelled by code point rather than
+    // pasted, so the case survives an editor normalizing whitespace
+    // (#854).
+    const legal = [0x00a0, 0x1680, 0x2000, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff];
+    for (const cp of legal) {
+      expect(validateUriTemplate(`/a${String.fromCharCode(cp)}b`), `U+${cp.toString(16)}`).toBe(
+        true,
+      );
+    }
+  });
+
+  it("still rejects the space, the C0 controls and DEL", () => {
+    // U+0020 is excluded by the ABNF. The C0 controls and DEL come from
+    // the explicit U+0000-U+001F and U+007F ranges beside it, not from
+    // `\s`, so removing `\s` leaves them rejected.
+    expect(validateUriTemplate("/a b")).toBe(false);
+    for (const cp of [0x00, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x1f, 0x7f]) {
+      expect(validateUriTemplate(`/a${String.fromCharCode(cp)}b`), `U+${cp.toString(16)}`).toBe(
+        false,
+      );
+    }
+  });
+
+  it("still rejects the other excluded literals and a malformed expression", () => {
+    for (const s of ['/a"b', "/a<b", "/a>b", "/a\\b", "/a^b", "/a`b", "/a|b", "/a{", "/a}b"]) {
+      expect(validateUriTemplate(s), s).toBe(false);
+    }
+    // `%` is excluded from the class so that only the pct-encoded
+    // alternative can accept one. Nothing else asserted it, so dropping
+    // it from the class passed the whole suite.
+    expect(validateUriTemplate("/a%zz")).toBe(false);
+    expect(validateUriTemplate("/a%41b")).toBe(true);
+  });
+
+  it("accepts an astral literal", () => {
+    expect(validateUriTemplate("/a\u{1f600}b")).toBe(true);
+  });
+
+  it("does not reject a lone surrogate, which the `u` flag does not change", () => {
+    // Recorded rather than asserted as correct. RFC 6570's `ucschar`
+    // excludes the surrogate range, so a stricter reading would reject
+    // this; the class only excludes ASCII, so nothing here tests it.
+    // The `u` flag makes no difference for the same reason: the class
+    // excludes only ASCII, so both surrogate halves of an astral
+    // character sit outside it exactly as the whole code point does.
+    // (A sweep over BMP code points would not show this either way; one
+    // BMP code point is one UTF-16 unit, so the two modes agree there
+    // by construction.)
+    expect(validateUriTemplate(`/a${String.fromCharCode(0xd800)}b`)).toBe(true);
+  });
+});
