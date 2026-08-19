@@ -200,6 +200,7 @@ describe("minLength and maxLength count the same string", () => {
       [...enc.encode("\\ude00")],
     ];
     let mismatches = 0;
+    let valueMismatches = 0;
     let checked = 0;
     for (let t = 0; t < 4000; t++) {
       const body: number[] = [];
@@ -219,18 +220,29 @@ describe("minLength and maxLength count the same string", () => {
       }
       checked++;
       if (cap.reported !== countOf(cap.text)) mismatches++;
+      // The count agreeing with the delivered text says nothing about
+      // whether that text is right. Malformed input makes the two
+      // separate questions, and #886 was wrong on the second while
+      // staying consistent on the first, so the oracle a caller
+      // buffering the whole body would get is checked too.
+      if (cap.text !== JSON.parse(Buffer.from(bytes).toString("utf8"))) valueMismatches++;
     }
-    expect({ checked, mismatches }).toEqual({ checked, mismatches: 0 });
+    expect({ checked, mismatches, valueMismatches }).toEqual({
+      checked,
+      mismatches: 0,
+      valueMismatches: 0,
+    });
     expect(checked).toBeGreaterThan(3000);
   });
 
-  it("pins the one shape where the count leads the delivered string", () => {
-    // A truncated sequence between two `\uXXXX` escapes: the decoder still
-    // holds the partial when the escape is counted, so the two surrogate
-    // halves land adjacent in the value and pair, while the counter treats
-    // the held bytes as text between them. The value is wrong here on main
-    // too, and the fix is a decoder flush before an escape; tracked as
-    // #886. Pinned so the divergence is recorded rather than discovered.
+  it("agrees with the delivered string where a truncated sequence precedes an escape", () => {
+    // A truncated sequence between two `\uXXXX` escapes. The decoder used
+    // to hold the partial past the escape, so the two surrogate halves
+    // landed adjacent and paired into one astral character the sender
+    // never sent, while the counter treated the held bytes as text
+    // between them: the value was wrong and the count led it by one
+    // (#886). The flush before an escape separates them, and the result
+    // is what a caller buffering the whole body would parse.
     const bytes = Uint8Array.from([
       0x22,
       ...enc.encode("\\ud83d"),
@@ -245,8 +257,12 @@ describe("minLength and maxLength count the same string", () => {
     tok.write(bytes.subarray(0, 9));
     tok.write(bytes.subarray(9));
     tok.end();
-    expect(cap.reported).toBe(3);
-    expect(countOf(cap.text)).toBe(2);
+    // U+D83D, one U+FFFD for the truncated pair, U+DE00: the halves stay
+    // unpaired, and `Buffer#toString` replaces `f0 9f` with a single
+    // U+FFFD rather than one per byte.
+    expect(cap.text).toBe(JSON.parse(Buffer.from(bytes).toString("utf8")));
+    expect(countOf(cap.text)).toBe(3);
+    expect(cap.reported).toBe(countOf(cap.text));
   });
 
   it("still rejects a string over the cap, at every chunk size", async () => {
