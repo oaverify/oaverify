@@ -34,15 +34,14 @@ export {
   type SchemaRefResolver,
 } from "./deserialize.js";
 
-// Object assembly helpers. Handle the OAS shapes that spread an object
-// across several wire keys: in the query, `style: form + explode: true`
-// (the default) and `style: deepObject`; in a cookie, OpenAPI 3.2's
-// `style: cookie` when exploded.
+// Object assembly pieces the validator itself consumes: the per-style
+// builders and the scalar coercion a property of an assembled object
+// reads by. (`assembleObjectQueryParam` / `assembleObjectCookieParam`,
+// the two location dispatchers, are emit-side and live in
+// ./codegen-runtime.js.)
 export {
   assembleDeepObject,
   assembleFormExplodedObject,
-  assembleObjectCookieParam,
-  assembleObjectQueryParam,
   coerceQueryScalar,
 } from "./param-assembly.js";
 

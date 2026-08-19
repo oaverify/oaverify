@@ -1446,3 +1446,109 @@ describe("a security field that is not a list (#883)", () => {
     expect(flatErrors(aot.validateRequest(req as never)).map((e) => e.code)).toEqual(["security"]);
   });
 });
+
+describe("an object parameter spread across several wire keys (#888)", () => {
+  // OpenAPI stores no value under the parameter's own name for these
+  // shapes, so the emitted module has to assemble one the way
+  // validate-step.ts does. Reading the name directly reported the
+  // parameter missing when it was required, and skipped validating it
+  // entirely when it was not.
+  const OBJ = {
+    type: "object",
+    properties: { R: { type: "integer" }, G: { type: "integer" } },
+    required: ["R", "G"],
+  };
+
+  const spec = (param: Record<string, unknown>): OpenAPIDocument =>
+    ({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": { get: { parameters: [param], responses: { "200": { description: "ok" } } } },
+      },
+    }) as unknown as OpenAPIDocument;
+
+  // Spellings that assemble, each with the request that carries the
+  // object. Not every such spelling: the assemblers gate on several
+  // fields, and `deepObject` in particular returns before it consults
+  // `explode`, so more combinations reach the branch than are listed
+  // here. `param-assembly.ts` holds the gates. The issue measured only
+  // the cookie case and left the query side as "presumably diverges the
+  // same way"; all three query cases below diverged.
+  const assembled: Array<[string, Record<string, unknown>, Record<string, unknown>]> = [
+    [
+      "cookie style:cookie explode:true",
+      { name: "p", in: "cookie", style: "cookie", explode: true },
+      { method: "GET", path: "/t", cookies: { R: "100", G: "200" } },
+    ],
+    [
+      "query style:form explode:true by default",
+      { name: "p", in: "query" },
+      { method: "GET", path: "/t", query: { R: "100", G: "200" } },
+    ],
+    [
+      "query style:form explode:true declared",
+      { name: "p", in: "query", style: "form", explode: true },
+      { method: "GET", path: "/t", query: { R: "100", G: "200" } },
+    ],
+    [
+      "query style:deepObject",
+      { name: "p", in: "query", style: "deepObject", explode: true },
+      { method: "GET", path: "/t", query: { "p[R]": "100", "p[G]": "200" } },
+    ],
+  ];
+
+  for (const [label, param, req] of assembled) {
+    it(`accepts a required ${label}, matching createValidator`, async () => {
+      const doc = spec({ ...param, required: true, schema: OBJ });
+      const aot = await buildAot(doc);
+      expect(createValidator(doc).validateRequest(req as never).valid).toBe(true);
+      expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
+    });
+
+    it(`validates an optional ${label} rather than skipping it`, async () => {
+      // The quieter half. With the parameter optional, reading the name
+      // found nothing, `missing()` returned null for a non-required
+      // parameter, and the value was never validated: the emitted module
+      // accepted a request the runtime rejects.
+      const doc = spec({ ...param, schema: OBJ });
+      const bad = { ...req } as Record<string, unknown>;
+      if ("cookies" in bad) bad.cookies = { ...(bad.cookies as object), R: "not-an-int" };
+      else
+        bad.query = {
+          ...(bad.query as object),
+          ...("p[R]" in (bad.query as object) ? { "p[R]": "not-an-int" } : { R: "not-an-int" }),
+        };
+      const aot = await buildAot(doc);
+      expect(createValidator(doc).validateRequest(bad as never).valid).toBe(false);
+      expect(flatErrors(aot.validateRequest(bad as never)).map((e) => e.code)).toEqual(["type"]);
+    });
+  }
+
+  it("still reports a required assembled parameter that is absent", async () => {
+    const doc = spec({ name: "p", in: "query", required: true, schema: OBJ });
+    const aot = await buildAot(doc);
+    const req = { method: "GET", path: "/t" };
+    expect(createValidator(doc).validateRequest(req as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(req as never)).map((e) => e.code)).toEqual([
+      "query-param",
+    ]);
+  });
+
+  it("leaves a non-assembled shape on the by-name path", async () => {
+    // `explode: false` keeps the whole object under the parameter's own
+    // name, so the assembler declines and nothing about this changes.
+    const doc = spec({
+      name: "p",
+      in: "query",
+      style: "form",
+      explode: false,
+      required: true,
+      schema: OBJ,
+    });
+    const aot = await buildAot(doc);
+    const req = { method: "GET", path: "/t", query: { p: "R,100,G,200" } };
+    expect(createValidator(doc).validateRequest(req as never).valid).toBe(true);
+    expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
+  });
+});

@@ -55,6 +55,14 @@ export {
 } from "./deserialize.js";
 export { checkSecurity, compileOperationSecurity } from "./security.js";
 
+// Object assembly. OpenAPI spreads an object-typed parameter over
+// several wire keys for `style: form + explode: true` and
+// `style: deepObject` in the query, and for 3.2's `style: cookie` when
+// exploded, so nothing is stored under the parameter's own name and the
+// value has to be rebuilt before the schema sees it. The emitted module
+// read the name directly and reported the parameter missing (#888).
+export { assembleObjectCookieParam, assembleObjectQueryParam } from "./param-assembly.js";
+
 // Operation-level `$ref` resolver, called while the emitted module
 // assembles its per-operation table.
 export { resolveOperationRef } from "./operation-cache.js";
