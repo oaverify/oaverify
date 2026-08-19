@@ -4,15 +4,20 @@
  * is.
  *
  * **An entry does not excuse a case. An entry asserts what the
- * difference is.** Three rules keep that from being a place to bury a
- * defect, and the gate enforces all three:
+ * difference is.** Four rules keep that from being a place to bury a
+ * defect. `gate.ts` enforces the first three at run time; the fourth is
+ * enforced by {@link DivergenceEntry}'s own shape, so `pnpm typecheck`
+ * is what rejects it.
  *
  * 1. An entry whose predicate matches no case fails the run, so a fixed
  *    defect cannot leave a stale exemption behind.
- * 2. A case whose observed signature is not one the entry lists fails
+ * 2. A listed signature no case produced fails the run too. Once an
+ *    entry lists several, the signature is the exemption, so a dead one
+ *    cannot sit waiting for the next difference shaped like it.
+ * 3. A case whose observed signature is not one the entry lists fails
  *    the run. Widening an entry is a visible edit to a signature rather
  *    than a predicate quietly growing.
- * 3. `open-defect` and `intentional` are not interchangeable. An
+ * 4. `open-defect` and `intentional` are not interchangeable. An
  *    `open-defect` entry names the issue and is expected to stop
  *    matching when that issue is fixed. An `intentional` entry has to
  *    say why the difference is correct, because nothing else will.
@@ -30,17 +35,12 @@
 import type { CaseAxes } from "./cases.js";
 import type { CaseResult } from "./run.js";
 
-export interface DivergenceEntry {
+/** The fields both kinds of entry carry. */
+interface DivergenceEntryBase {
   /** Short name, used in the report. */
   name: string;
-  kind: "open-defect" | "intentional";
   /** The issue this divergence belongs to. */
   issue: string;
-  /**
-   * Why this difference is correct. Required for `intentional`, and
-   * left unset for `open-defect`, where "it is a defect" is the reason.
-   */
-  why?: string;
   /** Matches on axes and on the wire input, never on the case id. */
   match: (axes: CaseAxes, wireId: string) => boolean;
   /**
@@ -51,6 +51,29 @@ export interface DivergenceEntry {
    */
   signatures: string[];
 }
+
+/**
+ * A registry entry, in the two kinds rule 4 keeps apart.
+ *
+ * A union rather than one interface with an optional `why`, so the rule
+ * is a thing you cannot write rather than a thing something checks: an
+ * `intentional` entry without a justification does not compile, and
+ * `pnpm typecheck` is where it fails. The previous shape stated the
+ * rule in prose above and enforced it nowhere, which is the failure
+ * this instrument exists to catch, one level up.
+ *
+ * `why` is absent on `open-defect` for the same reason it is required
+ * on `intentional`: the issue number is the justification there, and a
+ * second free-text field would be a place to argue that a defect is
+ * fine.
+ */
+export type DivergenceEntry =
+  | (DivergenceEntryBase & { kind: "open-defect"; why?: never })
+  | (DivergenceEntryBase & {
+      kind: "intentional";
+      /** Why this difference is correct, in the emitter's own terms. */
+      why: string;
+    });
 
 const isJsonContent = (axes: CaseAxes): boolean =>
   axes.source === "content" && axes.mediaType === "application/json";

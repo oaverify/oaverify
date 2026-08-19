@@ -82,8 +82,10 @@ the instrument meant to detect changes in that reading. Same rule as
 ## The registry, and why it is not a hiding place
 
 `divergences.ts` holds the differences this gate accepts. An entry does
-not excuse a case; **an entry asserts what the difference is**, and the
-gate enforces three rules:
+not excuse a case; **an entry asserts what the difference is**, and four
+rules keep it that way. `gate.ts` enforces the first three at run time.
+The fourth is the shape of `DivergenceEntry` itself, so `pnpm typecheck`
+is what rejects it.
 
 1. An entry matching no case fails the run, so a fixed defect cannot
    leave a stale exemption behind.
@@ -96,8 +98,13 @@ gate enforces three rules:
 3. A case an entry claims whose observed signature the entry does not
    list fails the run. Widening an entry is a visible edit to a
    signature rather than a predicate quietly growing.
-4. `open-defect` and `intentional` are separate kinds. An `intentional`
-   entry has to say why the difference is correct.
+4. `open-defect` and `intentional` are separate kinds, and an
+   `intentional` entry has to say why the difference is correct.
+   `DivergenceEntry` is a union of the two rather than one interface
+   with an optional `why`, so an unjustified `intentional` entry does
+   not compile. It was prose here and in `divergences.ts` before it was
+   a rule anything applied, which is this instrument's own failure mode
+   one level up.
 
 Predicates read the structured axes of a case, never its id: an id
 changes whenever the generator gains an axis, which is exactly when
