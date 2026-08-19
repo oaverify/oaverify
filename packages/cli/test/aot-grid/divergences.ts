@@ -239,8 +239,8 @@ export const DIVERGENCES: DivergenceEntry[] = [
   //
   // The limit is documented in packages/cli/README.md under
   // "Not serialised". An `intentional` entry asserts a difference is
-  // correct, and an undocumented difference is not correct, it is
-  // merely known.
+  // correct, and an undocumented difference is known rather than
+  // correct.
   {
     name: "options/strict-query",
     kind: "intentional",

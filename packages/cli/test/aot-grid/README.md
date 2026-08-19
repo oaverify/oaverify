@@ -9,7 +9,7 @@ pnpm vitest run packages/cli/test/aot-parity-grid.test.ts
 AOT_GRID_REPORT=1 pnpm vitest run packages/cli/test/aot-parity-grid.test.ts   # print the report on a pass too
 ```
 
-19,712 cases from 1,393 declarations in ~800ms.
+19,734 cases from 1,403 declarations in ~900ms.
 
 | file             | what it holds                                           |
 | ---------------- | ------------------------------------------------------- |
@@ -122,7 +122,11 @@ nobody wants to rewrite the table.
 ## The first run
 
 The registry was written from this run, and not before it. Reproducing
-it is one edit: empty `DIVERGENCES` and run.
+it is still one edit, empty `DIVERGENCES` and run, but the transcript
+below is the run as it was at the time. Case counts and ids have moved
+since: the grid has gained axes, and `runtime=off` is spelled
+`runtime=default` now. The signatures are what the entries were written
+from, and those have not moved.
 
 ```
 grid: 19688 cases from 1381 declarations in 761ms
@@ -214,6 +218,11 @@ instrument: a gap nobody wrote down reads as coverage.
   visible, since product A's wire table sends undeclared query keys in
   several cells.
 - **`allowReserved` is absent**, as it is from the runtime grid.
+- **No recursive schemas.** With no recursive schema and no body, the
+  grid cannot reach `maxDepth`, which does change a request verdict
+  against a `compile-spec` module that has no counterpart for it. It is
+  absent from the runtime-option axis for that reason and not because
+  it agrees.
 - **No `$ref`-ed parameters or path-item-level parameters.** Every
   declaration is inline on the operation.
 - **The wire lexemes and the 17 schema shapes are a copy**, seeded from
