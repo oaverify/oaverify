@@ -103,13 +103,14 @@ is what rejects it.
 3. A case an entry claims whose observed signature the entry does not
    list fails the run. Widening an entry is a visible edit to a
    signature rather than a predicate quietly growing.
-4. `open-defect` and `intentional` are separate kinds, and an
-   `intentional` entry has to say why the difference is correct.
+4. `open-defect` and `intentional` are separate kinds, and each
+   carries its own justification: an `open-defect` entry names the issue
+   whose fix retires it, an `intentional` entry says why the difference
+   is correct, and neither may carry the other's field.
    `DivergenceEntry` is a union of the two rather than one interface
-   with an optional `why`, so an unjustified `intentional` entry does
-   not compile. It was prose here and in `divergences.ts` before it was
-   a rule anything applied, which is this instrument's own failure mode
-   one level up.
+   with both optional, so the wrong combination does not compile. It was
+   prose here and in `divergences.ts` before it was a rule anything
+   applied, which is this instrument's own failure mode one level up.
 
 Predicates read the structured axes of a case, never its id: an id
 changes whenever the generator gains an axis, which is exactly when
