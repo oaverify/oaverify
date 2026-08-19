@@ -509,7 +509,12 @@ data-exposure surface. Two override points: pass `detail` to
 `issues[*].params` before sending.
 
 ```ts
-import { httpStatusFor, toProblemDetails, type ValidationError } from "@oaverify/core";
+import {
+  allowHeaderFor,
+  httpStatusFor,
+  toProblemDetails,
+  type ValidationError,
+} from "@oaverify/core";
 
 function safeProblemDetails(errors: ValidationError[], status: number, instance: string) {
   const pd = toProblemDetails(errors, { status, instance });
@@ -525,6 +530,10 @@ function safeProblemDetails(errors: ValidationError[], status: number, instance:
 app.use(
   validateRequests(validator, {
     onError: (errors, ctx) => {
+      // A custom renderer owns the whole response, including the header
+      // RFC 9110 15.5.6 requires on a 405.
+      const allow = allowHeaderFor(errors);
+      if (allow !== undefined) ctx.res.setHeader("Allow", allow);
       const status = httpStatusFor(errors);
       ctx.res
         .status(status)
@@ -550,7 +559,7 @@ top-levels, and security/content-type leaves under `request` /
 `response` wrappers.
 
 ```ts
-import { collectIssues, httpStatusFor, type ValidationError } from "@oaverify/core";
+import { allowHeaderFor, collectIssues, httpStatusFor, type ValidationError } from "@oaverify/core";
 
 // .. or whatever your clients already parse.
 type ClientError = {
@@ -572,6 +581,9 @@ function toClientError(errors: ValidationError[]): ClientError {
 app.use(
   validateRequests(validator, {
     onError: (errors, ctx) => {
+      // Your envelope still owes a 405 its `Allow` header.
+      const allow = allowHeaderFor(errors);
+      if (allow !== undefined) ctx.res.setHeader("Allow", allow);
       ctx.res.status(httpStatusFor(errors)).json(toClientError(errors));
     },
   }),

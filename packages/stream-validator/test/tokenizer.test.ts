@@ -135,10 +135,11 @@ const VALID_DOCS: string[] = [
   // the caller actually sent (#851).
   '"\ufeffleading BOM"',
   '{"a":"\ufeff","b":"x\ufeffy"}',
-  // A decoded run starts at the opening quote, after an escape, and
-  // after a chunk boundary. These pin the other two: a key (the same
-  // run, a louder failure, since `required` and `additionalProperties`
-  // both misfire on a renamed key) and a post-escape run.
+  // A decoded run that follows an ended stream starts at the opening
+  // quote or after an escape; a chunk end keeps the stream open. These
+  // pin a key (the same run, a louder failure, since `required` and
+  // `additionalProperties` both misfire on a renamed key) and a
+  // post-escape run.
   '{"\ufeffk":1}',
   '"a\\n\ufeffb"',
   '[{"a":[]},{"b":{}},[]]',
@@ -181,8 +182,8 @@ describe("JsonTokenizer escape-aware code-point length", () => {
     ['"\\ud800"', 1], // lone high-surrogate escape = 1
     ['"a\u{1f600}b"', 3],
     ['"\\u00e9\u{1f600}"', 2],
-    // The counter was already right when the decoder dropped the BOM from
-    // the value (#851), so this pins the half that never broke.
+    // The counter measures the decode's output (#852), so it dropped the
+    // BOM alongside the value and this case fails without the fix too.
     ['"\ufeffa"', 2],
   ];
   for (const [doc, expected] of cases) {
@@ -210,6 +211,10 @@ describe("JsonTokenizer rejects malformed input (matching JSON.parse)", () => {
     "", // no value
     "   ", // whitespace only
     "42x", // trailing garbage
+    // The other half of the BOM contract: inside a string it is content,
+    // at the document start it is a parse error, which is what
+    // `JSON.parse` does and RFC 8259 8.1 permits (#851).
+    "\ufeff42",
     "1 2", // two top-level texts
     "[1,]", // trailing comma
     "[1 2]", // missing comma

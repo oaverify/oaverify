@@ -432,6 +432,32 @@ describe("a parameters field that is not a list (#837)", () => {
     expect(issues.map((i) => i.code)).not.toContain("path-param-undeclared");
   });
 
+  it("treats an empty `parameters:` as nothing declared, not unreadable", () => {
+    // `parameters:` with nothing under it parses as null. Reading it as
+    // unreadable silenced a true finding for a common YAML slip.
+    const issues = lintResolvedSpec(holed("/p/{id}", null));
+    expect(issues.map((i) => i.code)).toContain("path-param-undeclared");
+  });
+
+  it("keeps reporting an unused parameter beside an unreadable sibling", () => {
+    // `path-param-unused` reads the declarations it can see, so an
+    // unreadable list at the other level does not blind it.
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/p/{id}": {
+          parameters: { name: "a", in: "query" },
+          get: {
+            parameters: [{ name: "ghost", in: "path", required: true, schema: { type: "string" } }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    expect(lintResolvedSpec(doc).map((i) => i.code)).toContain("path-param-unused");
+  });
+
   it("still reports an undeclared path parameter when the list is readable", () => {
     const issues = lintResolvedSpec(holed("/p/{id}", []));
     expect(issues.map((i) => i.code)).toContain("path-param-undeclared");
