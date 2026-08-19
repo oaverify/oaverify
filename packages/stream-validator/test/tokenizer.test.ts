@@ -172,6 +172,80 @@ describe("JsonTokenizer chunk-boundary invariance", () => {
   }
 });
 
+/**
+ * Malformed UTF-8, as raw bytes. `VALID_DOCS` takes its expectations from
+ * `JSON.parse` of a JS string, so it can only ever describe well-formed
+ * input, and no suite fed bytes a decoder must replace. That is the gap
+ * #886 sat in: the delivered value depended on where the `write` boundary
+ * fell, which no well-formed document can show.
+ *
+ * The oracle is `JSON.parse(Buffer.from(bytes).toString("utf8"))`, which
+ * is what a caller buffering the whole body would get.
+ */
+const MALFORMED_DOCS: Array<[string, Uint8Array]> = [
+  // A truncated 4-byte lead, an escape, then the continuation byte that
+  // would have completed it. Split before the backslash, the held bytes
+  // used to survive the escape and merge with the byte after it into
+  // U+1F600, so the value was `"\n\u{1f600}"` at one chunk size and
+  // `"\ufffd\n\ufffd"` at every other (#886).
+  [
+    "truncated lead, escape, stray continuation",
+    Uint8Array.from([0x22, 0xf0, 0x9f, 0x98, 0x5c, 0x6e, 0x80, 0x22]),
+  ],
+  // The same shape against a `\uXXXX` escape rather than a two-char one.
+  [
+    "truncated lead, \\u escape, stray continuation",
+    Uint8Array.from([0x22, 0xe2, 0x82, 0x5c, 0x75, 0x30, 0x30, 0x34, 0x31, 0x80, 0x22]),
+  ],
+  // A truncated sequence a high surrogate escape precedes and a low one
+  // follows: the flush has to separate the pair the way a literal run does.
+  [
+    "surrogate escape, truncated lead, surrogate escape",
+    Uint8Array.from([
+      0x22, 0x5c, 0x75, 0x64, 0x38, 0x33, 0x64, 0xf0, 0x9f, 0x5c, 0x75, 0x64, 0x65, 0x30, 0x30,
+      0x22,
+    ]),
+  ],
+  // Truncated immediately before the closing quote: the case #852 fixed,
+  // kept here so the flush cannot regress in the other direction.
+  [
+    "truncated lead before the closing quote",
+    Uint8Array.from([0x22, 0x61, 0xf0, 0x9f, 0x98, 0x22]),
+  ],
+  // Stray continuation bytes are one U+FFFD each and no lead byte.
+  ["stray continuation bytes", Uint8Array.from([0x22, 0x80, 0x80, 0x80, 0x22])],
+  // A key, not a value: the same run reaches `keyBuf` instead of the
+  // handler, and a renamed key misfires `required` as well as the value.
+  [
+    "truncated lead in a key",
+    Uint8Array.from([0x7b, 0x22, 0xf0, 0x9f, 0x98, 0x5c, 0x6e, 0x80, 0x22, 0x3a, 0x31, 0x7d]),
+  ],
+];
+
+describe("JsonTokenizer value parity with JSON.parse for malformed UTF-8", () => {
+  for (const [label, bytes] of MALFORMED_DOCS) {
+    it(`reconstructs ${label}`, () => {
+      const expected: unknown = JSON.parse(Buffer.from(bytes).toString("utf8"));
+      expect(run(bytes).value).toEqual(expected);
+    });
+  }
+});
+
+describe("JsonTokenizer chunk-boundary invariance for malformed UTF-8", () => {
+  for (const [label, bytes] of MALFORMED_DOCS) {
+    it(`same events + value at every chunk size for ${label}`, () => {
+      const whole = run(bytes);
+      const expectedValue: unknown = JSON.parse(Buffer.from(bytes).toString("utf8"));
+      expect(whole.value).toEqual(expectedValue);
+      for (let size = 1; size <= bytes.length; size++) {
+        const rec = run(bytes, size);
+        expect(rec.events, `chunkSize=${size}`).toEqual(whole.events);
+        expect(rec.value, `chunkSize=${size}`).toEqual(expectedValue);
+      }
+    });
+  }
+});
+
 describe("JsonTokenizer escape-aware code-point length", () => {
   const cases: Array<[string, number]> = [
     ['"abc"', 3],
