@@ -466,6 +466,12 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       parseMaxTotalBytes,
     )
     .option(
+      "--return-values",
+      "also hand back the deserialized parameter values under `value` " +
+        "(mirrors returnValues; rejected with --output-mode predicate)",
+      false,
+    )
+    .option(
       "--unknown-formats <mode>",
       "formats outside the built-in set: error (refuse) | ignore (emit without asserting them, with a warning)",
       parseUnknownFormats,
@@ -495,6 +501,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           outputMode?: "flat" | "tree" | "predicate";
           maxErrors?: number;
           maxTotalBytes?: number;
+          returnValues?: boolean;
           unknownFormats: "ignore" | "error";
           output?: string;
         },
@@ -510,6 +517,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             outputMode: opts.outputMode,
             maxErrors: opts.maxErrors,
             maxTotalBytes: opts.maxTotalBytes,
+            returnValues: opts.returnValues === true,
             unknownFormats: opts.unknownFormats,
             ...readerFlagsOf(opts),
           },

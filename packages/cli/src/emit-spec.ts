@@ -98,6 +98,27 @@ export interface EmitSpecOptions {
    */
   maxErrors?: number;
   /**
+   * When `true`, the emitted `validateRequest` (and the request-side
+   * Fetch wrapper) additionally return the deserialized parameter
+   * values under a `value` field, matching
+   * `ValidatorOptions.returnValues`. Default `false`.
+   *
+   * The presence rule is the runtime's, mirrored site for site: a
+   * parameter appears when this call reached it, deserialized it, and
+   * its schema accepted the result. See `RequestValues` for the
+   * contract and `validate-step.ts` for the sites.
+   *
+   * Emission is byte-identical to the option being absent when this is
+   * `false`, the way `maxDepth` and `$dynamicRef` are on the compiler
+   * side.
+   *
+   * Incompatible with `outputMode: "predicate"`, which returns a bare
+   * boolean and has nowhere to carry a value. {@link emitSpec} throws
+   * when both are set, matching what `createValidator` does at
+   * construction.
+   */
+  returnValues?: boolean;
+  /**
    * Byte cap on the emitted `validateFetch*` helpers' body read,
    * matching `createValidator`'s `maxTotalBytes`. Default 1 MiB;
    * `Number.POSITIVE_INFINITY` reads unbounded.
@@ -137,6 +158,17 @@ const DIALECT_MAP: Record<StandaloneDialect, Dialect> = {
 export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {}): string {
   const importPrefix = options.importPrefix ?? "@oaverify/core";
   const outputMode = options.outputMode ?? "flat";
+  const returnValues = options.returnValues === true;
+  if (returnValues && outputMode === "predicate") {
+    // The emitter is the only moment this can be caught: the emitted
+    // module has no construction step for `createValidator`'s throw to
+    // live in. Same wording, so a user who hits it from either side
+    // reads the same sentence.
+    throw new Error(
+      'emitSpec: `returnValues` cannot be combined with `outputMode: "predicate"`, ' +
+        'which returns a bare boolean. Use `outputMode: "flat"` (the default) or `"tree"`.',
+    );
+  }
   const maxErrors = options.maxErrors ?? 1;
   // Bake the cap as a JS literal; Infinity has no JSON form.
   const maxErrorsLiteral = Number.isFinite(maxErrors)
@@ -332,7 +364,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     // membership in `@oaverify/core/codegen-runtime` follows this import
     // (see that module's header). Do not point it at a subpath that
     // promises less.
-    `import { deserialize, matchParsedMediaType, matchResponseKey, normalizeRequestQuery, assembleObjectQueryParam, assembleObjectCookieParam, FetchBodyParseError, FetchBodyTooLargeError, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
+    `import { deserialize, matchParsedMediaType, matchResponseKey, normalizeRequestQuery, assembleObjectQueryParam, assembleObjectCookieParam, FetchBodyParseError, FetchBodyTooLargeError, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage${returnValues ? ", emptyRequestValues" : ""} } from "${importPrefix}/codegen-runtime";`,
     "",
     "void createBranchError; void createError; void deepEqual; void typeOf; void wrapErrors;",
     "void resolveOperationRef;",
@@ -399,11 +431,11 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     ...(usesOwnHelper ? [renderOwnHelper(), ""] : []),
     ...(usesHeaderHelper ? [renderHeaderHelper(), ""] : []),
     ...(usesHeaderFastHelper ? [renderHeaderFastHelper(), ""] : []),
-    renderValidateRequestTree(),
+    renderValidateRequestTree(returnValues),
     "",
     options.requestsOnly === true ? renderValidateResponseTreeNoop() : renderValidateResponseTree(),
     "",
-    renderPublicValidators(),
+    renderPublicValidators(returnValues),
     "",
     renderGetOperation(),
     "",
@@ -645,6 +677,12 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
             required: p.required === true,
             style: p.style,
             explode: p.explode,
+            // Spread rather than a plain field: emitting
+            // `allowEmptyValue: false` on every parameter would change
+            // the output of every document for the sake of the few
+            // that declare it. Absent means false, which is what
+            // `__validateParameter` tests for.
+            ...(p.allowEmptyValue === true ? { allowEmptyValue: true } : {}),
             schema: p.schema ?? undefined,
             __validator: paramValidatorName(combined, p, named),
           })),
@@ -868,7 +906,7 @@ function renderHeaderFastHelper(): string {
 `;
 }
 
-function renderValidateRequestTree(): string {
+function renderValidateRequestTree(returnValues: boolean): string {
   // Mirrors validator.ts's validateRequestTree closely. Differences:
   //   - state comes from the `ops` table, keyed on
   //     `${pathPattern}::${method}`, rather than cacheFor+WeakMap
@@ -876,7 +914,22 @@ function renderValidateRequestTree(): string {
   //   - no strict-query-parameter option surfaced yet
   // Returns the nested error tree (or null when valid); the exported
   // validateRequest wrapper reshapes it to the configured output.
-  return `function __validateRequestTree(rawReq) {
+  //
+  // `returnValues` threads a `sink` argument through this function and
+  // __validateParameter, and splits the two schema-accept sites so a
+  // value can be recorded between the accept and the return. Every
+  // fragment it interpolates is the empty string when the option is
+  // off, so the emitted text is byte-identical to the option's absence
+  // and there is one copy of the parameter logic rather than two.
+  const sinkParam = returnValues ? ", sink" : "";
+  // The accept site, both spellings. Off: the combined test the
+  // emitter has always written. On: the runtime's shape from
+  // validate-step.ts, where the valid branch records before returning.
+  const accept = (indent: string, valueExpr: string): string =>
+    returnValues
+      ? `if (r.valid) {\n${indent}  __recordValue(sink, p, ${valueExpr});\n${indent}  return null;\n${indent}}\n${indent}if (r.error === undefined) return null;`
+      : "if (r.valid || r.error === undefined) return null;";
+  return `function __validateRequestTree(rawReq${sinkParam}) {
   // A query string embedded in path folds into query, matching
   // createValidator; the explicit field wins when both are present.
   const req = normalizeRequestQuery(rawReq);
@@ -945,7 +998,7 @@ function renderValidateRequestTree(): string {
 
   // Parameter validation. Mirrors validate-step.ts:validateParameter.
   for (const p of op.parameters) {
-    const err = __validateParameter(p, req, match);
+    const err = __validateParameter(p, req, match${sinkParam});
     if (err !== null) children.push(err);
   }
 
@@ -993,7 +1046,7 @@ function __missingParameter(p) {
   );
 }
 
-function __validateParameter(p, req, match) {
+function __validateParameter(p, req, match${sinkParam}) {
   // Object assembly, ahead of the by-name read. OpenAPI spreads an
   // object-typed parameter over several wire keys for style form with
   // explode true and for style deepObject in the query, and for 3.2's
@@ -1011,11 +1064,15 @@ function __validateParameter(p, req, match) {
     if (p.__validator === null) return null;
     if (assembled.value === undefined) return __missingParameter(p);
     const r = p.__validator.validate(assembled.value, [p.in, p.name]);
-    if (r.valid || r.error === undefined) return null;
+    ${accept("    ", "assembled.value")}
     return r.error;
   }
   const raw = __readParamRaw(p, req, match);
   if (raw === undefined) return __missingParameter(p);
+  // Mirrors validate-step.ts, which skips the schema here per OpenAPI
+  // 3.1 4.8.12.1. Skipping it is also what keeps the parameter out of
+  // the returnValues channel.
+  if (raw === "" && p.in === "query" && p.allowEmptyValue === true) return null;
   if (p.__validator === null) return null;
   const value = deserialize(raw, p);
   // Mirrors validateParameter in validate-step.ts: a present token can
@@ -1025,7 +1082,7 @@ function __validateParameter(p, req, match) {
   // absence. See #758 and #789.
   if (value === undefined && (p.style === "matrix" || p.style === "label")) return __missingParameter(p);
   const r = p.__validator.validate(value, [p.in, p.name]);
-  if (r.valid || r.error === undefined) return null;
+  ${accept("  ", "value")}
   return r.error;
 }
 
@@ -1038,8 +1095,33 @@ function __readParamRaw(p, req, match) {
   if (p.in === "cookie") return p.__readOwn ? __own(req.cookies, p.name) : req.cookies?.[p.name];
   return undefined;
 }
-`;
+${returnValues ? RECORD_VALUE_HELPER : ""}`;
 }
+
+/**
+ * The emitted twin of `recordValue` in validate-step.ts, appended to
+ * the request-tree block when `returnValues` is on.
+ *
+ * The accumulator's field names differ from `p.in` for two of the four
+ * locations, so the mapping is explicit here for the same reason it is
+ * explicit there.
+ *
+ * Four arms and no `default`, matching the runtime rather than reading
+ * the last location as an else. A location this switch has never heard
+ * of records nothing, which is what the runtime does; recording it
+ * under whichever arm happened to be last would put a value in the
+ * channel under a name no reader could predict.
+ */
+const RECORD_VALUE_HELPER = `
+function __recordValue(sink, p, value) {
+  switch (p.in) {
+    case "path": sink.path[p.name] = value; return;
+    case "query": sink.query[p.name] = value; return;
+    case "header": sink.headers[p.name] = value; return;
+    case "cookie": sink.cookies[p.name] = value; return;
+  }
+}
+`;
 
 function renderValidateResponseTreeNoop(): string {
   return `function __validateResponseTree(_req, _res) {
@@ -1126,9 +1208,28 @@ function renderValidateResponseTree(): string {
  * output (`__outputMode` / `__maxErrors`) exactly as validator.ts does
  * at its public boundary, so the AOT output matches `createValidator`.
  */
-function renderPublicValidators(): string {
+function renderPublicValidators(returnValues: boolean): string {
+  // With `returnValues` on, validateRequest allocates the accumulator,
+  // hands it to the walk, and attaches it to the object reshapeResult
+  // just returned. Mirrors validator.ts's public entry point, including
+  // attaching after the reshape rather than inside it.
+  const validateRequestBody = returnValues
+    ? `  const sink = emptyRequestValues();
+  const result = reshapeResult(__validateRequestTree(req, sink), __outputMode, __maxErrors);
+  result.value = sink;
+  return result;`
+    : "  return reshapeResult(__validateRequestTree(req), __outputMode, __maxErrors);";
+  // A body the reader rejects fails before any request validation, so
+  // no parameter was reached and the request side answers with an empty
+  // channel rather than an absent one. The response side carries none:
+  // `returnValues` is a request-side option.
+  const bodyFailureTail = returnValues
+    ? `  const reshaped = reshapeResult(wrapped, __outputMode, __maxErrors);
+  if (direction.kind === "request") reshaped.value = emptyRequestValues();
+  return toFetchResult(reshaped, undefined);`
+    : "  return toFetchResult(reshapeResult(wrapped, __outputMode, __maxErrors), undefined);";
   return `export function validateRequest(req) {
-  return reshapeResult(__validateRequestTree(req), __outputMode, __maxErrors);
+${validateRequestBody}
 }
 
 export function validateResponse(req, res) {
@@ -1179,7 +1280,7 @@ function __bodyFailure(err, direction) {
           params: { status: direction.status },
           children: [leaf],
         };
-  return toFetchResult(reshapeResult(wrapped, __outputMode, __maxErrors), undefined);
+${bodyFailureTail}
 }
 
 export async function validateFetchRequest(request, options) {

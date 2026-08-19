@@ -67,6 +67,14 @@ export { assembleObjectCookieParam, assembleObjectQueryParam } from "./param-ass
 // assembles its per-operation table.
 export { resolveOperationRef } from "./operation-cache.js";
 
+// The `returnValues` accumulator, allocated per call by the emitted
+// `validateRequest` when `compile-spec` ran with that option. Shared
+// rather than inlined because the null-prototype discipline is the
+// load-bearing part: a parameter named `__proto__` is spec data, and an
+// emitted `{}` would write through to Object.prototype semantics.
+export { emptyRequestValues } from "./request-values.js";
+export type { MutableRequestValues, RequestValues } from "./request-values.js";
+
 // The AOT-emitted validator builds the same content-type diagnostics as
 // the interpreted one. Sharing the builder is what stops the two
 // wordings drifting apart.

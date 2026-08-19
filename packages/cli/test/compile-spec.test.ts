@@ -10,7 +10,7 @@
 import { describe, expect, it } from "vitest";
 import { resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { OpenAPIDocument, ValidationError } from "@oaverify/internal-core";
+import type { OpenAPIDocument, SchemaOrBoolean, ValidationError } from "@oaverify/internal-core";
 import { createValidator } from "@oaverify/internal-validator";
 import { compileSpecCommand } from "../src/commands.js";
 import { emitSpec } from "../src/emit-spec.js";
@@ -1550,5 +1550,95 @@ describe("an object parameter spread across several wire keys (#888)", () => {
     const req = { method: "GET", path: "/t", query: { p: "R,100,G,200" } };
     expect(createValidator(doc).validateRequest(req as never).valid).toBe(true);
     expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
+  });
+});
+
+describe("compile-spec: allowEmptyValue on a query parameter", () => {
+  // `validate-step.ts` skips the schema for `?p=` on a query parameter
+  // declaring `allowEmptyValue`, per OpenAPI 3.1 4.8.12.1. The emitted
+  // module read the parameter and ran the schema, so a request the
+  // runtime accepted was rejected by the compiled validator whenever
+  // the schema refused an empty string, and delivered a value the
+  // runtime withheld whenever it accepted one. Found by hand while
+  // building the value channel, before the parity grid existed.
+  const spec = (schema: SchemaOrBoolean): OpenAPIDocument => ({
+    openapi: "3.1.0",
+    info: { title: "Empty", version: "1" },
+    paths: {
+      "/t": {
+        get: {
+          parameters: [{ name: "p", in: "query", allowEmptyValue: true, schema }],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  });
+
+  const empty = { method: "GET", path: "/t", query: { p: "" } };
+
+  it("skips a schema that would reject the empty string", async () => {
+    const doc = spec({ type: "string", minLength: 1 });
+    const aot = await buildAot(doc);
+    expect(createValidator(doc).validateRequest(empty as never).valid).toBe(true);
+    expect(flatErrors(aot.validateRequest(empty as never))).toEqual([]);
+  });
+
+  it("skips a schema that would accept the empty string", async () => {
+    // The verdict agreed here before the fix and the delivered value did
+    // not, which is the half a verdict-only comparison cannot see.
+    const doc = spec({ type: "string" });
+    const aot = await buildAot(doc);
+    expect(flatErrors(aot.validateRequest(empty as never))).toEqual([]);
+  });
+
+  it("still validates a non-empty value against the schema", async () => {
+    const doc = spec({ type: "integer" });
+    const aot = await buildAot(doc);
+    const req = { method: "GET", path: "/t", query: { p: "notanint" } };
+    expect(createValidator(doc).validateRequest(req as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(req as never)).map((e) => e.code)).toEqual(["type"]);
+  });
+
+  it("leaves a parameter without allowEmptyValue alone", async () => {
+    const doc: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "Empty", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [{ name: "p", in: "query", schema: { type: "string", minLength: 1 } }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const aot = await buildAot(doc);
+    expect(createValidator(doc).validateRequest(empty as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(empty as never)).map((e) => e.code)).toEqual([
+      "minLength",
+    ]);
+  });
+
+  it("emits no parameter-table field for a document that does not declare it", () => {
+    const declared = emitSpec(spec({ type: "string" }));
+    const plain = emitSpec({
+      openapi: "3.1.0",
+      info: { title: "Empty", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [{ name: "p", in: "query", schema: { type: "string" } }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    });
+    expect(declared).toContain('"allowEmptyValue": true');
+    // Absent means false, which is what the guard tests, so the field
+    // is emitted only where declared. The guard itself is emitted
+    // unconditionally and appears in both, so this is a claim about the
+    // parameter table and not about the module being unchanged.
+    expect(plain).not.toContain('"allowEmptyValue"');
+    expect(plain).toContain("p.allowEmptyValue === true");
   });
 });
