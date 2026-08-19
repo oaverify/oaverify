@@ -207,7 +207,7 @@ export interface CaseAxes {
    *
    * Typed as whatever `createValidator` accepts rather than as a list
    * of the options this grid happens to vary, so adding one is a
-   * literal in `runtimeOptionCases` and not an edit here. `returnValues`
+   * literal in `optionShapes` and not an edit here. `returnValues`
    * is excluded because `run.ts` sets it for every case: the value
    * channel is how the comparison is made, not a thing to vary.
    */
@@ -831,11 +831,17 @@ export function productB(): Declaration[] {
   // option decide the answer; at the default both sides agree, which is
   // what the first of the two cells asserts.
   //
-  // `maxDepth` and `onUnknownVersion` were measured and produced no
-  // difference reachable from a request, so they are absent rather than
-  // held back. `formats`, `keywords` and `regexCompiler` are extension
-  // points the emitter takes at compile time instead, so they are not
-  // the same axis.
+  // The list is what has been measured, not what exists. Adding a
+  // shape is how an option gets onto the axis, and every option
+  // `createValidator` takes is a candidate until someone drives it.
+  //
+  // Two that were driven and are absent for different reasons.
+  // `onUnknownVersion` produced no difference on the requests tried.
+  // `maxDepth` does diverge, and not from anything reachable here: it
+  // takes a recursive schema and a body deep enough to hit the bound,
+  // and this grid has neither, which is two entries in the gaps list
+  // rather than a property of the option. Both are worth revisiting
+  // when bodies arrive.
   const optionShapes: Array<{
     id: string;
     options: RuntimeOptions;
