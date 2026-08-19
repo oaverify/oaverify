@@ -151,6 +151,13 @@ export interface RouteInfo {
  * - `undefined`: no path template matched at all. Callers map this
  *   to HTTP 404.
  *
+ * `method` is compared case-insensitively against the `HttpMethod`
+ * union. Anything outside it is an undeclared method, never a match:
+ * a matching path answers `MethodNotAllowed` and any other path
+ * answers `undefined`. The caller may pass an arbitrary string, and a
+ * Path Item field name (`parameters`, `servers`) or a prototype key
+ * (`__proto__`) is not a way to reach an operation.
+ *
  * @public
  */
 export interface Router {
@@ -167,10 +174,18 @@ export interface Router {
 }
 
 // HTTP methods to scan on a `PathItem` when collecting `allowed` for a
-// 405 response. Mirrors the `HttpMethod` union in @oaverify/internal-core; kept local
-// here to avoid pulling an extra symbol across the package boundary
-// for a constant array.
-const ALL_METHODS: HttpMethod[] = [
+// 405 response, and the set a request method must be a member of to
+// route at all. Mirrors the `HttpMethod` union in
+// @oaverify/internal-core; kept local here to avoid pulling an extra
+// symbol across the package boundary for a constant array.
+//
+// `as const satisfies` catches a member this array holds and the union
+// does not; `_allMethodsComplete` below catches the other direction,
+// which is the one that bites: adding a method to core without adding
+// it here stops the router enumerating it in `routes()` and in the 405
+// `allowed` set, silently. Same idiom as `@oaverify/check`'s code
+// tables (#855).
+const ALL_METHODS = [
   "get",
   "put",
   "post",
@@ -180,7 +195,34 @@ const ALL_METHODS: HttpMethod[] = [
   "patch",
   "trace",
   "query",
-];
+] as const satisfies readonly HttpMethod[];
+
+// Reads as: no HttpMethod is missing from the array above.
+const _allMethodsComplete: Exclude<HttpMethod, (typeof ALL_METHODS)[number]> extends never
+  ? true
+  : ["missing from ALL_METHODS", Exclude<HttpMethod, (typeof ALL_METHODS)[number]>] = true;
+
+// Membership test for the request method. `match` lower-cased the
+// method and cast the result, and `operationOn` guards only "is there
+// an object here", so the rule was: a Path Item lookup for
+// `method.toLowerCase()` that yields an object routed as that
+// operation. `toLowerCase` never emits an ASCII `A`-`Z`, so a key
+// carrying one could not be reached at all, which is why 3.2's
+// camelCase `additionalOperations` never routed.
+//
+// Stated as a rule rather than a list on purpose. It reached, among
+// others, `parameters` and `servers`; a lowercase `x-` extension
+// holding an object, which published specs really do at Path Item
+// level; `summary`, `description` or `$ref` in a
+// document that wrote them as objects; an own `constructor`; and
+// `__proto__`, both as the inherited accessor yielding
+// `Object.prototype` and as an own field, since `JSON.parse` and the
+// YAML reader define that key rather than invoking the setter.
+//
+// Node's HTTP parser rejects each of these with `HPE_INVALID_METHOD`,
+// but `httpRequestFromFetch` (Hono / Next / Bun / Deno) and direct API
+// callers do not (#855).
+const METHOD_SET: ReadonlySet<string> = new Set(ALL_METHODS);
 
 interface Route {
   segments: Segment[];
@@ -517,7 +559,19 @@ export function createRouter(paths: Record<string, PathItem>): Router {
       return routeList;
     },
     match(method, path) {
-      const normMethod = method.toLowerCase() as HttpMethod;
+      const lowered = method.toLowerCase();
+      // A method the union does not carry declares no operation. The
+      // cast alone let `operationOn` read a same-named Path Item field,
+      // so `PARAMETERS` matched with the parameters array as its
+      // operation and `SERVERS` with the servers array (#855).
+      //
+      // Suppressing the lookup rather than returning early keeps the
+      // structural scan, so an unknown method on a known path answers
+      // 405 with the declared `allowed` set, which is what every other
+      // unknown method (`SUMMARY`, `FOO`) already did. Returning 404
+      // here would have changed those.
+      const isMethod = METHOD_SET.has(lowered);
+      const normMethod = lowered as HttpMethod;
       // Cut at the first "?" or "#". A request target never carries a
       // fragment on the wire (RFC 9112), so one here is a hand-built
       // URL-shaped string; "?" was already tolerated, and stopping
@@ -581,7 +635,7 @@ export function createRouter(paths: Record<string, PathItem>): Router {
           }
         }
         if (!matched) continue;
-        let operation = operationOn(route.pathItem, normMethod);
+        let operation = isMethod ? operationOn(route.pathItem, normMethod) : undefined;
         // RFC 9110 §9.3.2: any resource that answers GET must also answer
         // HEAD. OpenAPI authors rarely declare HEAD explicitly, so fall
         // back to the GET operation when no explicit HEAD is present.

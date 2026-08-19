@@ -673,3 +673,112 @@ describe("malformed path items", () => {
     expect(router.routes()).toEqual([{ method: "POST", pathPattern: "/b" }]);
   });
 });
+
+describe("a request method that is not an HTTP method (#855)", () => {
+  // `match` lower-cased and cast to `HttpMethod`, and `operationOn`
+  // guards only "is this an object". `METHOD_SET`'s comment in
+  // `matcher.ts` carries the rule and why it is a rule; these are the
+  // cases it was worth pinning.
+  const router = createRouter({
+    "/pets/{id}": {
+      get: op("getPet"),
+      parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+    },
+    "/x": { servers: [{ url: "http://a" }], get: op("getX") },
+  } as unknown as Record<string, PathItem>);
+
+  it("does not route a PARAMETERS request against the parameters array", () => {
+    const m = router.match("PARAMETERS", "/pets/42");
+    expect(m?.kind).toBe("method-not-allowed");
+  });
+
+  it("does not route a SERVERS request against the servers array", () => {
+    // `servers` is the sibling `parameters` has: a Path Item field a
+    // conformant document gives an object value.
+    const m = router.match("SERVERS", "/x");
+    expect(m?.kind).toBe("method-not-allowed");
+  });
+
+  it("does not route a lowercase x- extension that holds an object", () => {
+    // A real shape: `x-amazon-apigateway-any-method` is a published AWS
+    // extension declared at Path Item level whose value is an Operation
+    // Object. Extensions are open-ended, which is why `METHOD_SET`'s
+    // comment states a rule rather than a list; see it for the rule.
+    const withExt = createRouter({
+      "/z": {
+        get: op("getZ"),
+        "x-amazon-apigateway-any-method": op("anyMethod"),
+      },
+    } as unknown as Record<string, PathItem>);
+    expect(withExt.match("X-AMAZON-APIGATEWAY-ANY-METHOD", "/z")?.kind).toBe("method-not-allowed");
+  });
+
+  it("does not route a summary that a malformed document wrote as an object", () => {
+    // `summary` is a string in a conformant document, so the object
+    // guard rejected it there. Malformed input is what these guards are
+    // for, and it is where the string assumption stops holding.
+    const malformed = createRouter({
+      "/m": { get: op("getM"), summary: op("summaryOp") },
+    } as unknown as Record<string, PathItem>);
+    expect(malformed.match("SUMMARY", "/m")?.kind).toBe("method-not-allowed");
+  });
+
+  it("does not route __proto__ against Object.prototype", () => {
+    // The widest of them: `item["__proto__"]` is
+    // `Object.prototype`, which is an object, so this matched against
+    // any document at all rather than only one declaring an
+    // object-valued Path Item field. `constructor` and `toString`
+    // resolve to functions, which the object guard already rejected.
+    const plain = createRouter({
+      "/pets/{id}": { get: op("getPet") },
+    } as unknown as Record<string, PathItem>);
+    expect(plain.match("__proto__", "/pets/42")?.kind).toBe("method-not-allowed");
+    expect(plain.match("__PROTO__", "/pets/42")?.kind).toBe("method-not-allowed");
+  });
+
+  it("does not route an own __proto__ field the document declared", () => {
+    // The second way `__proto__` reached an operation. `JSON.parse` and
+    // the YAML reader both define the key rather than invoking the
+    // setter, so a document can carry it as an own object-valued field
+    // and it routed as that value rather than as `Object.prototype`.
+    const doc = JSON.parse(
+      '{"/j":{"get":{"operationId":"getJ","responses":{"200":{"description":"ok"}}},' +
+        '"__proto__":{"operationId":"declared"}}}',
+    ) as Record<string, PathItem>;
+    // Pin the parser behaviour the case rests on. Without this the test
+    // passes either way: if `JSON.parse` invoked the setter instead, the
+    // lookup would still find the same object, just on the prototype.
+    expect(Object.prototype.hasOwnProperty.call(doc["/j"], "__proto__")).toBe(true);
+    expect(createRouter(doc).match("__proto__", "/j")?.kind).toBe("method-not-allowed");
+  });
+
+  it("does not route an own constructor the document declared", () => {
+    // The inherited `constructor` is a function, which the object guard
+    // rejects. An own one declared as an object is not, and routed.
+    const declared = createRouter({
+      "/c": { get: op("getC"), constructor: op("ctor") },
+    } as unknown as Record<string, PathItem>);
+    expect(declared.match("CONSTRUCTOR", "/c")?.kind).toBe("method-not-allowed");
+  });
+
+  it("answers exactly as any other unknown method does", () => {
+    // 405 with the declared set, not 404: that is what `SUMMARY` and
+    // `POST` already returned here, and suppressing the operation
+    // lookup rather than returning early is what keeps them agreeing.
+    const shape = (method: string) => {
+      const m = router.match(method, "/pets/42");
+      return m?.kind === "method-not-allowed" ? m.allowed : m?.kind;
+    };
+    expect(shape("PARAMETERS")).toEqual(["GET", "HEAD"]);
+    expect(shape("SUMMARY")).toEqual(["GET", "HEAD"]);
+    expect(shape("POST")).toEqual(["GET", "HEAD"]);
+  });
+
+  it("still routes the declared methods, and still misses an unknown path", () => {
+    expect(matched(router.match("GET", "/pets/42")).operation).toEqual(op("getPet"));
+    // GET implicitly answers HEAD (RFC 9110 9.3.2); the suppression
+    // must not break the fallback.
+    expect(matched(router.match("HEAD", "/pets/42")).operation).toEqual(op("getPet"));
+    expect(router.match("GET", "/nope")).toBeUndefined();
+  });
+});
