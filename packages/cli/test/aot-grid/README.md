@@ -11,12 +11,12 @@ AOT_GRID_REPORT=1 pnpm vitest run packages/cli/test/aot-parity-grid.test.ts   # 
 
 19,712 cases from 1,393 declarations in ~800ms.
 
-| file             | what it holds                                                    |
-| ---------------- | ---------------------------------------------------------------- |
-| `cases.ts`       | the generator: documents, and the wire inputs for each           |
-| `run.ts`         | drives both sides, records `(verdict, leaves, value, operation)` |
-| `gate.ts`        | the accounting: which differences an entry accounts for          |
-| `divergences.ts` | the registry of differences this gate accepts                    |
+| file             | what it holds                                           |
+| ---------------- | ------------------------------------------------------- |
+| `cases.ts`       | the generator: documents, and the wire inputs for each  |
+| `run.ts`         | drives both sides, records the five channels below      |
+| `gate.ts`        | the accounting: which differences an entry accounts for |
+| `divergences.ts` | the registry of differences this gate accepts           |
 
 ## What a green run does not certify
 
@@ -87,10 +87,16 @@ gate enforces three rules:
 
 1. An entry matching no case fails the run, so a fixed defect cannot
    leave a stale exemption behind.
-2. A case an entry claims whose observed signature the entry does not
+2. A **listed signature** no case produced fails the run too. Entry-level
+   staleness is not enough once an entry lists several: fix two
+   locations of a four-location defect and the entry still matches while
+   two dead signatures wait in the registry for the next difference
+   shaped like them. With multiple signatures, the signature is the
+   exemption.
+3. A case an entry claims whose observed signature the entry does not
    list fails the run. Widening an entry is a visible edit to a
    signature rather than a predicate quietly growing.
-3. `open-defect` and `intentional` are separate kinds. An `intentional`
+4. `open-defect` and `intentional` are separate kinds. An `intentional`
    entry has to say why the difference is correct.
 
 Predicates read the structured axes of a case, never its id: an id
@@ -155,6 +161,22 @@ belong in a differential.
 What the grid adds there is the differential half of the same class: the
 hostile-name cells above put those names under the comparison, where the
 pinned test says what the answer has to be.
+
+## Five channels
+
+`verdict`, `leaves`, `value`, `operation`, `error`.
+
+`leaves` are `(code, path)` tuples with `path` kept as the array the
+validator produced. Joining it on `.` would make `["query", "a.b"]` and
+`["query", "a", "b"]` compare equal, and a name containing a dot is
+legal, so the flattened form can call an attribution mistake identical.
+
+`error` carries the message of a `throw` or a `build-error`. Two sides
+refusing the same document for unrelated reasons agree on the verdict
+and are not the same event. The wording comes from two independently
+written implementations, so a difference here is expected to need an
+entry rather than to be a defect by itself, and the entry is where a
+human says which it is. No case reaches it today.
 
 ## Coverage gaps
 

@@ -25,7 +25,7 @@ function diverging(overrides: Partial<CaseResult> = {}): CaseResult {
     runtime: { verdict: "valid", leaves: [], value: { query: { p: 1 } }, operation: "/t" },
     aot: {
       verdict: "invalid",
-      leaves: [{ code: "type", path: "query.p" }],
+      leaves: [{ code: "type", path: ["query", "p"] }],
       value: { query: {} },
       operation: "/t",
     },
@@ -39,7 +39,7 @@ function agreeing(): CaseResult {
 }
 
 const SIGNATURE =
-  'verdict:valid->invalid | leaves:[]->[{"code":"type","path":"query.p"}] | ' +
+  'verdict:valid->invalid | leaves:[]->[{"code":"type","path":["query","p"]}] | ' +
   'value:{"query":{"p":1}}->{"query":{}}';
 
 const entry = (overrides: Partial<DivergenceEntry> = {}): DivergenceEntry => ({
@@ -74,7 +74,7 @@ describe("parity grid: what the registry can and cannot absorb", () => {
     const second = diverging({
       aot: {
         verdict: "invalid",
-        leaves: [{ code: "type", path: "query.p" }],
+        leaves: [{ code: "type", path: ["query", "p"] }],
         value: { query: { p: "wrong" } },
         operation: "/t",
       },
@@ -89,6 +89,61 @@ describe("parity grid: what the registry can and cannot absorb", () => {
     const r = evaluate([agreeing()], [entry({ name: "stale-one" })]);
     expect(r.unexplained).toEqual([]);
     expect(r.stale).toEqual(["stale-one"]);
+  });
+
+  it("reports a listed signature no case produced, even when the entry still matches", () => {
+    // The half entry-level staleness misses. An entry covering four
+    // locations whose query half is fixed still matches cases, so
+    // `stale` stays empty while a dead signature sits in the registry
+    // ready to absorb the next difference shaped like it.
+    const twoSignatures = entry({ signatures: [SIGNATURE, "verdict:valid->invalid"] });
+    const r = evaluate([diverging()], [twoSignatures]);
+    expect(r.stale).toEqual([]);
+    expect(r.unexplained).toEqual([]);
+    expect(r.staleSignatures).toEqual(["e/verdict:valid->invalid"]);
+  });
+
+  it("compares leaf paths as arrays, not as a joined string", () => {
+    // `["query", "a.b"]` and `["query", "a", "b"]` join to the same
+    // string, and a parameter or property name may contain a dot. A
+    // flattened comparison calls this pair identical, which is exactly
+    // the attribution mistake leaf tuples exist to catch.
+    const dotted: CaseResult = {
+      id: "synthetic",
+      axes,
+      wireId: "w",
+      runtime: {
+        verdict: "invalid",
+        leaves: [{ code: "type", path: ["query", "a.b"] }],
+        value: {},
+        operation: "/t",
+      },
+      aot: {
+        verdict: "invalid",
+        leaves: [{ code: "type", path: ["query", "a", "b"] }],
+        value: {},
+        operation: "/t",
+      },
+    };
+    const r = evaluate([dotted], []);
+    expect(r.perChannel.leaves.differing).toBe(1);
+    expect(r.unexplained).toHaveLength(1);
+  });
+
+  it("compares the error of a refusal both sides share", () => {
+    // Same verdict, different reason. Two implementations refusing one
+    // document for unrelated causes is not one event, and the verdict
+    // alone cannot say so.
+    const refused: CaseResult = {
+      id: "synthetic",
+      axes,
+      wireId: "w",
+      runtime: { verdict: "build-error", error: "Error: unserved parameter location" },
+      aot: { verdict: "build-error", error: "Error: unknown format" },
+    };
+    const r = evaluate([refused], []);
+    expect(r.perChannel.error.differing).toBe(1);
+    expect(r.perChannel.verdict.differing).toBe(0);
   });
 
   it("matches on axes rather than on the case id", () => {

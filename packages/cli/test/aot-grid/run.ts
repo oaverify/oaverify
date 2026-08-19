@@ -31,10 +31,20 @@ const CORE_ALIASES = Object.fromEntries(
 );
 const RESOLVE_DIR = resolvePath(fileURLToPath(new URL("../../../oav", import.meta.url)));
 
-/** One leaf error, reduced to what two implementations can be compared on. */
+/**
+ * One leaf error, reduced to what two implementations can be compared
+ * on.
+ *
+ * `path` stays the array the validator produced. Joining it on `.`
+ * would make `["query", "a.b"]` and `["query", "a", "b"]` compare
+ * equal, and a parameter or property name containing a dot is legal, so
+ * the flattened form can call an attribution mistake identical. The
+ * whole reason leaves are compared as tuples is to catch attribution
+ * mistakes.
+ */
 export interface Leaf {
   code: string;
-  path: string;
+  path: (string | number)[];
 }
 
 /** What one side did with one request. */
@@ -85,10 +95,14 @@ async function buildAot(document: OpenAPIDocument): Promise<AotModule> {
 /** Leaves of a flat result, sorted by (path, code) so order cannot differ. */
 function leavesOf(errors: ValidationError[] | undefined): Leaf[] {
   return (errors ?? [])
-    .map((e) => ({ code: e.code, path: (e.path ?? []).join(".") }))
-    .sort((a, b) =>
-      a.path === b.path ? a.code.localeCompare(b.code) : a.path.localeCompare(b.path),
-    );
+    .map((e) => ({ code: e.code, path: [...(e.path ?? [])] }))
+    .sort((a, b) => {
+      // Sorted on the serialized array rather than a joined string, for
+      // the reason on `Leaf.path`.
+      const pa = JSON.stringify(a.path);
+      const pb = JSON.stringify(b.path);
+      return pa === pb ? a.code.localeCompare(b.code) : pa.localeCompare(pb);
+    });
 }
 
 type FlatResult = {
@@ -209,16 +223,26 @@ export async function runDeclaration(decl: Declaration): Promise<CaseResult[]> {
 }
 
 /** Which channels differ for one case. Empty means the two agree. */
-export type Channel = "verdict" | "leaves" | "value" | "operation";
+export type Channel = "verdict" | "leaves" | "value" | "operation" | "error";
 
 const json = (v: unknown) => JSON.stringify(v ?? null);
 
+/**
+ * `error` carries the message of a `throw` or a `build-error`, and it
+ * is compared: two sides refusing the same document for unrelated
+ * reasons agree on the verdict and are not the same event. The wording
+ * comes from two independently written implementations, so a difference
+ * here is expected to need a registry entry rather than to be a defect
+ * on its own; the entry is where a human says which it is. No case
+ * reaches it today.
+ */
 export function differences(c: CaseResult): Channel[] {
   const out: Channel[] = [];
   if (c.runtime.verdict !== c.aot.verdict) out.push("verdict");
   if (json(c.runtime.leaves) !== json(c.aot.leaves)) out.push("leaves");
   if (json(c.runtime.value) !== json(c.aot.value)) out.push("value");
   if (json(c.runtime.operation) !== json(c.aot.operation)) out.push("operation");
+  if (json(c.runtime.error) !== json(c.aot.error)) out.push("error");
   return out;
 }
 
@@ -234,6 +258,7 @@ export function signatureOf(c: CaseResult): string {
       return `leaves:${json(c.runtime.leaves)}->${json(c.aot.leaves)}`;
     }
     if (ch === "value") return `value:${json(c.runtime.value)}->${json(c.aot.value)}`;
+    if (ch === "error") return `error:${json(c.runtime.error)}->${json(c.aot.error)}`;
     return `operation:${json(c.runtime.operation)}->${json(c.aot.operation)}`;
   });
   return parts.join(" | ");
