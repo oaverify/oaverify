@@ -129,7 +129,10 @@ export const DIVERGENCES: DivergenceEntry[] = [
     kind: "open-defect",
     issue: "#895",
     match: (axes, wireId) =>
-      axes.shape === "security" && axes.runtimeSecurity === "off" && wireId === "noCredential",
+      axes.shape === "security" &&
+      axes.runtimeSecurity === "off" &&
+      (axes.security === "operation" || axes.security === "both") &&
+      wireId === "noCredential",
     // Operation-level security, runtime default. The runtime does not
     // check security unless asked; the emitted module always does, so
     // a compiled validator rejects a request the interpreted one
