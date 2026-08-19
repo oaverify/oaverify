@@ -49,8 +49,19 @@ export interface JsonEventHandler {
    *
    * @param chunk - Decoded text (escapes resolved, UTF-8 decoded).
    * @param offset - Byte offset of this slice's first source byte.
+   * @param codePoints - The code points delivered so far, this slice
+   *   included, counted the same way {@link onStringEnd} reports. A
+   *   consumer applying an eager length bound reads this rather than
+   *   measuring the slice: a `\uXXXX` surrogate pair arrives as two
+   *   slices and is one code point, so counting slices disagreed with the
+   *   final count (#852). A multibyte character split across `write`
+   *   calls is counted when the decoder completes it, so for well-formed
+   *   input this tracks the text the handler has received. It can lead by
+   *   one where a truncated sequence sits between two `\uXXXX` escapes,
+   *   because the decoder still holds the partial when the escape is
+   *   counted; see #886.
    */
-  onStringChunk(chunk: string, offset: number): void;
+  onStringChunk(chunk: string, offset: number, codePoints: number): void;
   /**
    * The current value string is complete.
    *

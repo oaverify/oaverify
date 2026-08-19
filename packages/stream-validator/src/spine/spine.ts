@@ -504,8 +504,13 @@ export class SpineValidator implements JsonEventHandler {
     captureTruncated: boolean;
     // Eager `maxLength`: the tightest applicable cap (min across schemas, a
     // STREAM string only; an island string's length is the delegate's job),
-    // a running code-point count, and a once-fired flag. `undefined` cap =
-    // no `maxLength` applies, so the per-chunk counter is skipped entirely.
+    // the tokenizer's code-point count as of the last chunk, and a
+    // once-fired flag. `undefined` cap = no `maxLength` applies, so the
+    // check is skipped entirely.
+    //
+    // `cp` mirrors the tokenizer rather than accumulating here. Counting
+    // per chunk read a `\uXXXX` surrogate pair as two code points, since
+    // the tokenizer emits each escape as its own chunk (#852).
     maxLen: number | undefined;
     cp: number;
     lenFailed: boolean;
@@ -1532,23 +1537,29 @@ export class SpineValidator implements JsonEventHandler {
     };
   }
 
-  onStringChunk(chunk: string, offset: number): void {
+  onStringChunk(chunk: string, offset: number, codePoints: number): void {
     this.curOffset = offset;
     if (this.tee !== null) {
-      this.teeFeed((s) => s.onStringChunk(chunk, offset));
+      this.teeFeed((s) => s.onStringChunk(chunk, offset, codePoints));
       return;
     }
     if (this.island !== null) {
       this.forwardIsland((b) => b.onStringChunk(chunk));
       return;
     }
-    // Eager `maxLength`: count code points as they arrive (for..of yields one
-    // per code point, matching the tokenizer's lead-byte count) and fail the
+    // Eager `maxLength`: read the tokenizer's running count and fail the
     // moment the cap is first exceeded, before the rest of the string
     // streams. Skipped entirely when no `maxLength` applies. `minLength`
     // necessarily waits for string close (see {@link checkScalar}).
+    //
+    // The count comes from the tokenizer rather than from this slice.
+    // Measuring the slice counted a `\uXXXX` surrogate pair as 2, because
+    // the tokenizer emits each escape as its own slice, while the
+    // escape-aware count `onStringEnd` reports collapses the pair to 1.
+    // One code point then failed `maxLength: 1` and passed `minLength: 1`
+    // (#852). One counter, one string.
     if (this.str !== null && this.str.maxLen !== undefined && !this.str.lenFailed) {
-      for (const _ of chunk) this.str.cp += 1;
+      this.str.cp = codePoints;
       if (this.str.cp > this.str.maxLen) {
         this.fail("maxLength", this.pendingPath());
         this.str.lenFailed = true;
