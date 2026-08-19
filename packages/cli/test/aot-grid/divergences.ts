@@ -106,22 +106,6 @@ export type DivergenceEntry =
 const ROUTE_SIGNATURE = 'verdict:valid->invalid | leaves:[]->[{"code":"route","path":[]}]';
 
 export const DIVERGENCES: DivergenceEntry[] = [
-  // #899. The router answers HEAD with the GET operation on the
-  // interpreted side and not in the emitted module, so a HEAD request
-  // to a path declaring only `get` is a 404 from a compiled validator.
-  // Four channels at once, and `operation` is the one that names the
-  // router rather than the symptom.
-  {
-    name: "router/implicit-head",
-    kind: "open-defect",
-    issue: "#899",
-    match: (axes, wireId) =>
-      axes.shape === "methods" && wireId === "HEAD" && axes.methods?.includes("get") === true,
-    signatures: [
-      'verdict:valid->invalid | leaves:[]->[{"code":"route","path":[]}] | value:{"path":{},"query":{"q":"x"},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}} | operation:"/t"->null',
-    ],
-  },
-
   // #895, in three entries: the same issue reaches the request by
   // three different routes, and each has its own signature.
   {

@@ -1720,3 +1720,138 @@ describe("a parameter carrying its value in a content media type (#903)", () => 
     expect(createValidator(text).validateRequest(req)).toEqual({ valid: true });
   });
 });
+
+describe("an implicit HEAD on a path declaring only GET (#899)", () => {
+  // RFC 9110 9.3.2: a resource that answers GET must answer HEAD. The
+  // router implements it as a fallback and the emitted `ops` table is
+  // keyed on declared methods, so the two disagreed and the table won.
+  const getOnly: OpenAPIDocument = {
+    openapi: "3.1.1",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/pets/{id}": {
+        get: {
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+
+  it("routes HEAD to the GET operation", async () => {
+    const aot = await buildAot(getOnly);
+    const req = { method: "HEAD", path: "/pets/42" };
+    expect(aot.validateRequest(req)).toEqual({ valid: true });
+    expect(createValidator(getOnly).validateRequest(req)).toEqual({ valid: true });
+  });
+
+  it("still validates the GET operation's parameters on that HEAD", async () => {
+    // The alias is the same object, so the path parameter is checked.
+    // A HEAD that routes but validates nothing would be the same defect
+    // wearing a passing verdict.
+    const aot = await buildAot(getOnly);
+    const leaves = flatErrors(aot.validateRequest({ method: "HEAD", path: "/pets/abc" }));
+    expect(leaves.map((e) => e.code)).toEqual(["type"]);
+  });
+
+  it("reports the GET operation from getOperation", async () => {
+    const aot = await buildAot(getOnly);
+    expect(aot.getOperation({ method: "HEAD", path: "/pets/42" })?.pathPattern).toBe("/pets/{id}");
+  });
+
+  it("does not override an explicitly declared HEAD", async () => {
+    const explicit: OpenAPIDocument = {
+      openapi: "3.1.1",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [{ name: "q", in: "query", required: true, schema: { type: "string" } }],
+            responses: { "200": { description: "ok" } },
+          },
+          head: { responses: { "200": { description: "ok" } } },
+        },
+      },
+    };
+    const aot = await buildAot(explicit);
+    // The declared HEAD has no required `q`, so a bare HEAD passes
+    // where the GET operation would have rejected it.
+    expect(aot.validateRequest({ method: "HEAD", path: "/t" })).toEqual({ valid: true });
+    expect(
+      flatErrors(aot.validateRequest({ method: "GET", path: "/t" })).map((e) => e.code),
+    ).toEqual(["query-param"]);
+  });
+
+  it("leaves HEAD unrouted on a path with no GET", async () => {
+    const postOnly: OpenAPIDocument = {
+      openapi: "3.1.1",
+      info: { title: "t", version: "1" },
+      paths: { "/t": { post: { responses: { "200": { description: "ok" } } } } },
+    };
+    const aot = await buildAot(postOnly);
+    const leaves = flatErrors(aot.validateRequest({ method: "HEAD", path: "/t" }));
+    expect(leaves.map((e) => e.code)).toEqual(["method"]);
+  });
+
+  it("decodes a content-typed parameter on an aliased HEAD", async () => {
+    // The cross term between this fix and #903, which neither branch
+    // could test because neither existed when the other was written.
+    // The alias hands HEAD the GET operation, and that operation's
+    // parameter still has to be JSON-decoded rather than handed to the
+    // schema raw.
+    const doc: OpenAPIDocument = {
+      openapi: "3.1.1",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [
+              {
+                name: "p",
+                in: "query",
+                required: true,
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      properties: { R: { type: "integer" } },
+                      required: ["R"],
+                    },
+                  },
+                },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const aot = await buildAot(doc);
+    const ok = { method: "HEAD", path: "/t", query: { p: '{"R":1}' } };
+    expect(aot.validateRequest(ok)).toEqual({ valid: true });
+    expect(createValidator(doc).validateRequest(ok)).toEqual({ valid: true });
+    const bad = { method: "HEAD", path: "/t", query: { p: "R,1" } };
+    expect(flatErrors(aot.validateRequest(bad))[0]?.params).toMatchObject({
+      reason: "content-parse",
+    });
+  });
+
+  it("emits no alias when --only drops the GET", async () => {
+    // The gate reads the ops actually emitted, so a filtered build has
+    // nothing to alias and the request is a route miss, which is what
+    // --only already promises for a dropped method.
+    const both: OpenAPIDocument = {
+      openapi: "3.1.1",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: { responses: { "200": { description: "ok" } } },
+          post: { responses: { "200": { description: "ok" } } },
+        },
+      },
+    };
+    const aot = await buildAot(both, { only: [{ method: "POST", path: "/t" }] });
+    const leaves = flatErrors(aot.validateRequest({ method: "HEAD", path: "/t" }));
+    expect(leaves.map((e) => e.code)).toEqual(["route"]);
+  });
+});

@@ -349,6 +349,14 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     ([pattern, methods]) =>
       `  ${JSON.stringify(pattern)}: { ${[...methods].map((m) => `${m.toLowerCase()}: {}`).join(", ")} },`,
   );
+  // A path declaring `get` and no explicit `head` is what the router's
+  // fallback answers for, so it is exactly when the alias below has
+  // anything to do. `--only` filtering is already reflected in
+  // `opsEmitted`, so a run that dropped every GET emits nothing.
+  const emittedKeys = new Set(opsEmitted.map((op) => `${op.pathPattern}::${op.method}`));
+  const aliasesHead = opsEmitted.some(
+    (op) => op.method === "GET" && !emittedKeys.has(`${op.pathPattern}::HEAD`),
+  );
   const usesOwnHelper = opsEmitted.some((op) => op.usesOwnHelper);
   const usesContentParameters = opsEmitted.some((op) => op.usesContentParameters);
   const usesHeaderHelper = opsEmitted.some((op) => op.usesHeaderHelper);
@@ -417,6 +425,25 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     ...metaTableEntries,
     "};",
     "",
+    ...(aliasesHead
+      ? [
+          "// RFC 9110 9.3.2: a resource answering GET answers HEAD, and",
+          "// the router returns the GET operation for a HEAD request on a",
+          "// path declaring no explicit one. The tables above are keyed on",
+          "// declared methods, so alias rather than re-derive: the HEAD key",
+          "// is the same object, already security-compiled above, which is",
+          "// also what makes the response side and getOperation agree with",
+          "// the runtime for free (#899).",
+          "for (const key of Object.keys(ops)) {",
+          '  if (!key.endsWith("::GET")) continue;',
+          '  const headKey = key.slice(0, -3) + "HEAD";',
+          "  if (Object.hasOwn(ops, headKey)) continue;",
+          "  ops[headKey] = ops[key];",
+          "  if (Object.hasOwn(__meta, key)) __meta[headKey] = __meta[key];",
+          "}",
+          "",
+        ]
+      : []),
     "// ---- detected version + warnings ----",
     `export const detectedVersion = ${JSON.stringify(detectVersionBucket(document))};`,
     `export const warnings = Object.freeze(${JSON.stringify(warnings)});`,
