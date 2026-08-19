@@ -548,7 +548,17 @@ function applyDocumentMetadata(doc: OpenAPIDocument, overlay: SpecOverlay): Open
   if (overlay.security !== undefined) {
     next.security = [...overlay.security];
   }
-  if (overlay.addSecurity) {
+  // `addSecurity` onto an unreadable `security` leaves it exactly as
+  // written. Spreading it threw `(next.security ?? []) is not iterable`,
+  // and replacing it with just the added requirements would delete what
+  // the author wrote and take the conformance finding that names the
+  // defect with it, which is the data loss #892 fixed for `parameters`
+  // (#883).
+  //
+  // `== null` rather than `=== undefined`: `security:` with nothing
+  // under it parses as `null` and says nothing is declared, which is
+  // readable.
+  if (overlay.addSecurity && (next.security == null || Array.isArray(next.security))) {
     next.security = [...(next.security ?? []), ...overlay.addSecurity];
   }
 
@@ -1274,7 +1284,12 @@ function applyOperationOverride(op: OperationObject, override: OperationOverride
 
   if (override.security !== undefined) {
     next.security = [...override.security];
-  } else if (override.addSecurity || override.removeSecurity) {
+    // An unreadable `security` is left exactly as written, for the
+    // reason the document-level route above states (#883).
+  } else if (
+    (override.addSecurity || override.removeSecurity) &&
+    (op.security == null || Array.isArray(op.security))
+  ) {
     let security = [...(op.security ?? [])];
     if (override.addSecurity) security = [...security, ...override.addSecurity];
     if (override.removeSecurity) {
@@ -1341,10 +1356,27 @@ function applyResponseOverride(
   return next;
 }
 
+/** A Security Requirement Object: a mapping, not a list and not `null`. */
+function isRequirementObject(v: unknown): v is SecurityRequirementObject {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
 function securityRequirementEquals(
   a: SecurityRequirementObject,
   b: SecurityRequirementObject,
 ): boolean {
+  // A list item written with nothing under it parses as `null`, which is
+  // an element rather than a malformed container, so it reaches here and
+  // threw `Object.keys(null)` out of `removeSecurity`. An unreadable
+  // element matches nothing, so the filter keeps it: deleting what the
+  // author wrote is the data loss #892 fixed for `parameters` (#883).
+  // The `Array.isArray` clause is not decoration: `Object.keys([])` and
+  // `Object.keys({})` are both empty, so an array element compared
+  // against an empty requirement matched and was deleted. Spelled the
+  // same way as `compileRequirement` in `@oaverify/internal-validator`
+  // and `asSecurityList` in the lint, because three spellings of one
+  // predicate is how the element case got missed in the first place.
+  if (!isRequirementObject(a) || !isRequirementObject(b)) return false;
   const aKeys = Object.keys(a);
   const bKeys = Object.keys(b);
   if (aKeys.length !== bKeys.length) return false;
