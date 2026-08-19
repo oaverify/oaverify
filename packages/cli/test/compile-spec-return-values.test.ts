@@ -219,6 +219,40 @@ describe("compile-spec: returnValues presence rule vs createValidator", () => {
     expect(valueOf(got)).toEqual({ path: { id: "7" }, query: {}, headers: {}, cookies: {} });
   });
 
+  it("omits an allowEmptyValue parameter that arrived empty", async () => {
+    // The runtime skips the schema for `?p=` here, and the channel only
+    // holds values a schema accepted, so the parameter is absent even
+    // though the client sent it and the request is valid. The schema
+    // deliberately accepts the empty string: with one that rejects it
+    // the verdict would carry the difference, and the point of this
+    // case is that the verdict cannot.
+    const doc: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "Empty", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [
+              { name: "p", in: "query", allowEmptyValue: true, schema: { type: "string" } },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const aot = await buildAot(doc, { returnValues: true });
+    const req = { method: "GET", path: "/t", query: { p: "" } };
+    const rt = createValidator(doc, { returnValues: true }).validateRequest(req as never) as {
+      valid: boolean;
+      value: RequestValueBag;
+    };
+    const got = aot.validateRequest(req);
+    expect(got.valid).toBe(true);
+    expect(rt.valid).toBe(true);
+    expect(valueOf(got)).toEqual(rt.value);
+    expect(valueOf(got)).toEqual(EMPTY);
+  });
+
   it("fills in no schema default for an unsupplied parameter", async () => {
     const aot = await buildAot(spec, { returnValues: true });
     const req = { method: "GET", path: "/t/7" };

@@ -677,6 +677,12 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
             required: p.required === true,
             style: p.style,
             explode: p.explode,
+            // Spread rather than a plain field: emitting
+            // `allowEmptyValue: false` on every parameter would change
+            // the output of every document for the sake of the few
+            // that declare it. Absent means false, which is what
+            // `__validateParameter` tests for.
+            ...(p.allowEmptyValue === true ? { allowEmptyValue: true } : {}),
             schema: p.schema ?? undefined,
             __validator: paramValidatorName(combined, p, named),
           })),
@@ -1063,6 +1069,10 @@ function __validateParameter(p, req, match${sinkParam}) {
   }
   const raw = __readParamRaw(p, req, match);
   if (raw === undefined) return __missingParameter(p);
+  // Mirrors validate-step.ts, which skips the schema here per OpenAPI
+  // 3.1 4.8.12.1. Skipping it is also what keeps the parameter out of
+  // the returnValues channel.
+  if (raw === "" && p.in === "query" && p.allowEmptyValue === true) return null;
   if (p.__validator === null) return null;
   const value = deserialize(raw, p);
   // Mirrors validateParameter in validate-step.ts: a present token can
