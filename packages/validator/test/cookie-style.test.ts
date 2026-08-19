@@ -40,7 +40,7 @@ const objectSchema = {
 
 function run(
   doc: OpenAPIDocument,
-  cookies: Record<string, string>,
+  cookies: Record<string, string | string[]>,
 ): { valid: boolean; value?: RequestValuesLike; message?: string } {
   const v = createValidator(doc, { returnValues: true });
   const r = v.validateRequest({ method: "GET", path: "/t", cookies } as never) as {
@@ -194,12 +194,18 @@ describe("a schema that names no properties still reads by name", () => {
   }
 });
 
-describe("an exploded array reads the one crumb it was handed", () => {
-  // `HttpRequest.cookies` holds one value per name, so the elements a
-  // repeat would carry never arrive (#826). Splitting the crumb on
+describe("an exploded array reads every crumb it was handed", () => {
+  // A repeated name arrives as an array and is one element per crumb
+  // (#826). A single crumb stays a single element: splitting it on
   // commas would invent elements the wire never separated, which is the
   // silent-wrong-value class rather than a short array.
   const arraySpec = cookieSpec({ style: "cookie" }, { type: "array", items: { type: "string" } });
+
+  it("takes a repeated name as one element per crumb", () => {
+    const r = run(arraySpec, { p: ["blue", "black"] });
+    expect(r.valid).toBe(true);
+    expect(r.value?.cookies.p).toEqual(["blue", "black"]);
+  });
 
   it("takes a single crumb as a single element", () => {
     const r = run(arraySpec, { p: "blue" });
@@ -213,13 +219,16 @@ describe("an exploded array reads the one crumb it was handed", () => {
     expect(r.value?.cookies.p).toEqual(["blue,black"]);
   });
 
-  it("lets minItems reject the shortened array rather than passing a fabricated one", () => {
+  it("lets minItems reject one comma-bearing crumb rather than passing a fabricated pair", () => {
+    // `blue,black` is one crumb and one element, so `minItems: 2` is not
+    // met. A repeat of the name is how two elements are sent, and that
+    // case is the first in this block.
     const doc = cookieSpec(
       { style: "cookie" },
       { type: "array", items: { type: "string" }, minItems: 2 },
     );
-    const r = run(doc, { p: "blue,black" });
-    expect(r.valid).toBe(false);
+    expect(run(doc, { p: "blue,black" }).valid).toBe(false);
+    expect(run(doc, { p: ["blue", "black"] }).valid).toBe(true);
   });
 });
 

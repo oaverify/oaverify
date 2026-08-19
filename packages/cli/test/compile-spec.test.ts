@@ -1306,6 +1306,44 @@ describe("compile-spec: negotiation parity on a schema-less body (#849 / #870)",
     expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
   });
 
+  it("reads a repeated cookie name the same way the runtime does", async () => {
+    // The emitted reader takes `req.cookies?.[name]`, which carries an
+    // array once the Fetch adapter preserves repeats (#826 / #827). The
+    // query line beside it already did, so this pins the array path.
+    // The exploded-object path is a separate matter and diverges today;
+    // see #888.
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [
+              {
+                name: "p",
+                in: "cookie",
+                required: true,
+                style: "cookie",
+                explode: true,
+                schema: { type: "array", items: { type: "string" }, minItems: 2 },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const aot = await buildAot(doc);
+    const runtime = createValidator(doc);
+    const req = { method: "GET", path: "/t", cookies: { p: ["blue", "black"] } };
+    expect(runtime.validateRequest(req as never).valid).toBe(true);
+    expect(flatErrors(aot.validateRequest(req as never))).toEqual([]);
+
+    const one = { method: "GET", path: "/t", cookies: { p: "blue" } };
+    expect(runtime.validateRequest(one as never).valid).toBe(false);
+    expect(flatErrors(aot.validateRequest(one as never)).length).toBeGreaterThan(0);
+  });
+
   it("names the response content-type list the same way the runtime does", async () => {
     const mixedSpec: OpenAPIDocument = {
       openapi: "3.1.0",

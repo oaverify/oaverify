@@ -119,10 +119,10 @@ export function deserialize(
     if (style === "cookie" && explode) {
       // One crumb is one element. The style escapes nothing, so a comma
       // inside the value is part of the value, and the elements that
-      // would follow it live under a repeat of the name that
-      // `HttpRequest.cookies` cannot carry (#826). Reading the crumb as
-      // a comma-joined list would invent elements the wire never
-      // separated.
+      // would follow it live under a repeat of the name. This branch
+      // sees one crumb; a repeat arrives as an array and is handled
+      // before here (#826). Reading the crumb as a comma-joined list
+      // would invent elements the wire never separated.
       return [coerceScalar(raw, items)];
     }
     const separator = arraySeparator(style, explode);
