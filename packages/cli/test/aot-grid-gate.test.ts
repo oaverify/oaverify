@@ -42,7 +42,14 @@ const SIGNATURE =
   'verdict:valid->invalid | leaves:[]->[{"code":"type","path":["query","p"]}] | ' +
   'value:{"query":{"p":1}}->{"query":{}}';
 
-const entry = (overrides: Partial<DivergenceEntry> = {}): DivergenceEntry => ({
+/**
+ * A synthetic entry. Typed on the `open-defect` variant rather than on
+ * `Partial<DivergenceEntry>`: a partial of a union widens `kind` back
+ * to both members, and the result then satisfies neither.
+ */
+const entry = (
+  overrides: Partial<Extract<DivergenceEntry, { kind: "open-defect" }>> = {},
+): DivergenceEntry => ({
   name: "e",
   kind: "open-defect",
   issue: "#1",
@@ -50,6 +57,45 @@ const entry = (overrides: Partial<DivergenceEntry> = {}): DivergenceEntry => ({
   signatures: [SIGNATURE],
   ...overrides,
 });
+
+/**
+ * Rule 4 is a type rule, so `pnpm typecheck` is the only place it can
+ * be pinned. `@ts-expect-error` fails when the error it names does not
+ * occur, which makes each of these an assertion that the rule still
+ * bites rather than a comment claiming it does.
+ */
+const KIND_RULE_PINS = (): void => {
+  // @ts-expect-error an `intentional` entry has to carry `why`
+  const unjustified: DivergenceEntry = {
+    name: "e",
+    kind: "intentional",
+    issue: "#1",
+    match: () => true,
+    signatures: [],
+  };
+  const justified: DivergenceEntry = {
+    name: "e",
+    kind: "intentional",
+    issue: "#1",
+    why: "the emitted module compiles one configuration and this is it",
+    match: () => true,
+    signatures: [],
+  };
+  // @ts-expect-error `why` belongs to `intentional`; the issue is an
+  // `open-defect` entry's whole justification
+  const overjustified: DivergenceEntry = {
+    name: "e",
+    kind: "open-defect",
+    issue: "#1",
+    why: "no",
+    match: () => true,
+    signatures: [],
+  };
+  void unjustified;
+  void justified;
+  void overjustified;
+};
+void KIND_RULE_PINS;
 
 describe("parity grid: what the registry can and cannot absorb", () => {
   it("reports a difference no entry claims", () => {
