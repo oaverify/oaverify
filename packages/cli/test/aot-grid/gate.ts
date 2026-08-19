@@ -13,7 +13,7 @@
 import type { DivergenceEntry } from "./divergences.js";
 import { differences, signatureOf, type CaseResult, type Channel } from "./run.js";
 
-export const CHANNELS: Channel[] = ["verdict", "leaves", "value", "operation"];
+export const CHANNELS: Channel[] = ["verdict", "leaves", "value", "operation", "error"];
 
 export interface ChannelTally {
   differing: number;
@@ -32,6 +32,18 @@ export interface GateResult {
   matched: Map<string, number>;
   /** Entries that claimed nothing: a fixed defect leaving an exemption behind. */
   stale: string[];
+  /**
+   * Listed signatures no case produced, as `entry/signature`.
+   *
+   * Entry-level staleness is not enough once an entry lists more than
+   * one signature: fix the query and header halves of a four-location
+   * defect and the entry still matches, while two dead signatures stay
+   * in the registry ready to absorb the next difference that happens to
+   * look like them. With multiple signatures, the signature is the
+   * exemption, so the signature is what has to still be earning its
+   * place.
+   */
+  staleSignatures: string[];
 }
 
 function emptyChannels(): Record<Channel, ChannelTally> {
@@ -40,6 +52,7 @@ function emptyChannels(): Record<Channel, ChannelTally> {
     leaves: { differing: 0, signed: 0, unexplained: 0 },
     value: { differing: 0, signed: 0, unexplained: 0 },
     operation: { differing: 0, signed: 0, unexplained: 0 },
+    error: { differing: 0, signed: 0, unexplained: 0 },
   };
 }
 
@@ -51,7 +64,9 @@ export function evaluate(cases: CaseResult[], entries: DivergenceEntry[]): GateR
     signatureMismatches: [],
     matched: new Map(),
     stale: [],
+    staleSignatures: [],
   };
+  const observed = new Map<string, Set<string>>();
 
   for (const c of cases) {
     const diffs = differences(c);
@@ -67,6 +82,12 @@ export function evaluate(cases: CaseResult[], entries: DivergenceEntry[]): GateR
       continue;
     }
     out.matched.set(entry.name, (out.matched.get(entry.name) ?? 0) + 1);
+    let seen = observed.get(entry.name);
+    if (seen === undefined) {
+      seen = new Set<string>();
+      observed.set(entry.name, seen);
+    }
+    seen.add(signature);
     // Claiming a case is not enough. The entry has to have said what
     // the difference would be, or a second defect in the same shape
     // rides in under the first one's name.
@@ -83,6 +104,12 @@ export function evaluate(cases: CaseResult[], entries: DivergenceEntry[]): GateR
   }
 
   out.stale = entries.filter((e) => (out.matched.get(e.name) ?? 0) === 0).map((e) => e.name);
+  for (const e of entries) {
+    const seen = observed.get(e.name) ?? new Set<string>();
+    for (const signature of e.signatures) {
+      if (!seen.has(signature)) out.staleSignatures.push(`${e.name}/${signature}`);
+    }
+  }
   return out;
 }
 
@@ -104,6 +131,9 @@ export function render(
   const lines = [
     `grid: ${r.cases} cases from ${declarationCount} declarations in ${Math.round(elapsedMs)}ms`,
   ];
+  for (const s of r.staleSignatures) {
+    lines.push(`  stale signature, no case produced it: ${s}`);
+  }
   for (const ch of CHANNELS) {
     if (!comparedChannels.includes(ch)) {
       lines.push(`  ${ch.padEnd(9)} not compared`);

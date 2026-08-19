@@ -69,10 +69,10 @@ export const DIVERGENCES: DivergenceEntry[] = [
     // string: the runtime accepts and delivers an object, the AOT
     // rejects and delivers nothing.
     signatures: [
-      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":"cookie.p"}] | value:{"path":{},"query":{},"headers":{},"cookies":{"p":{"R":1,"G":2}}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
-      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":"header.p"}] | value:{"path":{},"query":{},"headers":{"p":{"R":1,"G":2}},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
-      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":"path.p"}] | value:{"path":{"p":{"R":1,"G":2}},"query":{},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
-      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":"query.p"}] | value:{"path":{},"query":{"p":{"R":1,"G":2}},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
+      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":["cookie","p"]}] | value:{"path":{},"query":{},"headers":{},"cookies":{"p":{"R":1,"G":2}}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
+      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":["header","p"]}] | value:{"path":{},"query":{},"headers":{"p":{"R":1,"G":2}},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
+      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":["path","p"]}] | value:{"path":{"p":{"R":1,"G":2}},"query":{},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
+      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":["query","p"]}] | value:{"path":{},"query":{"p":{"R":1,"G":2}},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
     ],
   },
   {
@@ -84,10 +84,10 @@ export const DIVERGENCES: DivergenceEntry[] = [
     // the property inside the parsed object, the AOT blames the
     // parameter, so a client is told the wrong field is wrong.
     signatures: [
-      'leaves:[{"code":"type","path":"cookie.p.R"}]->[{"code":"type","path":"cookie.p"}]',
-      'leaves:[{"code":"type","path":"header.p.R"}]->[{"code":"type","path":"header.p"}]',
-      'leaves:[{"code":"type","path":"path.p.R"}]->[{"code":"type","path":"path.p"}]',
-      'leaves:[{"code":"type","path":"query.p.R"}]->[{"code":"type","path":"query.p"}]',
+      'leaves:[{"code":"type","path":["cookie","p","R"]}]->[{"code":"type","path":["cookie","p"]}]',
+      'leaves:[{"code":"type","path":["header","p","R"]}]->[{"code":"type","path":["header","p"]}]',
+      'leaves:[{"code":"type","path":["path","p","R"]}]->[{"code":"type","path":["path","p"]}]',
+      'leaves:[{"code":"type","path":["query","p","R"]}]->[{"code":"type","path":["query","p"]}]',
     ],
   },
   {
@@ -99,10 +99,10 @@ export const DIVERGENCES: DivergenceEntry[] = [
     // (`<location>-param`, `reason: content-parse`); the AOT says the
     // schema's type is wrong.
     signatures: [
-      'leaves:[{"code":"cookie-param","path":"cookie.p"}]->[{"code":"type","path":"cookie.p"}]',
-      'leaves:[{"code":"header-param","path":"header.p"}]->[{"code":"type","path":"header.p"}]',
-      'leaves:[{"code":"path-param","path":"path.p"}]->[{"code":"type","path":"path.p"}]',
-      'leaves:[{"code":"query-param","path":"query.p"}]->[{"code":"type","path":"query.p"}]',
+      'leaves:[{"code":"cookie-param","path":["cookie","p"]}]->[{"code":"type","path":["cookie","p"]}]',
+      'leaves:[{"code":"header-param","path":["header","p"]}]->[{"code":"type","path":["header","p"]}]',
+      'leaves:[{"code":"path-param","path":["path","p"]}]->[{"code":"type","path":["path","p"]}]',
+      'leaves:[{"code":"query-param","path":["query","p"]}]->[{"code":"type","path":["query","p"]}]',
     ],
   },
 
@@ -118,7 +118,7 @@ export const DIVERGENCES: DivergenceEntry[] = [
     match: (axes, wireId) =>
       axes.shape === "methods" && wireId === "HEAD" && axes.methods?.includes("get") === true,
     signatures: [
-      'verdict:valid->invalid | leaves:[]->[{"code":"route","path":""}] | value:{"path":{},"query":{"q":"x"},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}} | operation:"/t"->null',
+      'verdict:valid->invalid | leaves:[]->[{"code":"route","path":[]}] | value:{"path":{},"query":{"q":"x"},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}} | operation:"/t"->null',
     ],
   },
 
@@ -135,7 +135,7 @@ export const DIVERGENCES: DivergenceEntry[] = [
     // a compiled validator rejects a request the interpreted one
     // accepts and there is no option to turn it off.
     signatures: [
-      'verdict:valid->invalid | leaves:[]->[{"code":"security","path":"security"}] | value:{"path":{},"query":{"q":"x"},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
+      'verdict:valid->invalid | leaves:[]->[{"code":"security","path":["security"]}] | value:{"path":{},"query":{"q":"x"},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
     ],
   },
   {
@@ -148,7 +148,7 @@ export const DIVERGENCES: DivergenceEntry[] = [
     // cannot see: document-level security asked for by name is
     // enforced by the runtime and ignored by the emitted module.
     signatures: [
-      'verdict:invalid->valid | leaves:[{"code":"security","path":"security"}]->[] | value:{"path":{},"query":{},"headers":{},"cookies":{}}->{"path":{},"query":{"q":"x"},"headers":{},"cookies":{}}',
+      'verdict:invalid->valid | leaves:[{"code":"security","path":["security"]}]->[] | value:{"path":{},"query":{},"headers":{},"cookies":{}}->{"path":{},"query":{"q":"x"},"headers":{},"cookies":{}}',
     ],
   },
   {
@@ -164,7 +164,7 @@ export const DIVERGENCES: DivergenceEntry[] = [
     // no gate to stop at and reports the parameter instead. The cell
     // exists because a verdict-only comparison calls this identical.
     signatures: [
-      'leaves:[{"code":"security","path":"security"}]->[{"code":"type","path":"query.n"}]',
+      'leaves:[{"code":"security","path":["security"]}]->[{"code":"type","path":["query","n"]}]',
     ],
   },
 ];
