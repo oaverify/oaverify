@@ -42,6 +42,7 @@
  */
 
 import type { OpenAPIDocument, SchemaOrBoolean } from "@oaverify/internal-core";
+import type { ValidatorOptions } from "@oaverify/internal-validator";
 
 /** The parameter name every generated declaration uses. */
 const NAME = "p";
@@ -108,6 +109,29 @@ function styleExplodeCombos(location: Location): Array<{ style?: string; explode
 }
 
 /** The axes of a case, structured so a divergence entry can match on fields. */
+/**
+ * A `createValidator` option delta. See {@link CaseAxes.runtimeOptions}.
+ */
+export type RuntimeOptions = Omit<ValidatorOptions, "returnValues">;
+
+/**
+ * The option delta, rendered into a case id.
+ *
+ * Sorted by key so the id does not depend on literal order, and a
+ * function-valued option renders as `fn` rather than its source. Ids
+ * are for reading a report; nothing matches on them.
+ */
+export function renderOptions(o: RuntimeOptions): string {
+  const keys = Object.keys(o).sort();
+  if (keys.length === 0) return "default";
+  return keys
+    .map((k) => {
+      const v = (o as Record<string, unknown>)[k];
+      return `${k}=${typeof v === "function" ? "fn" : String(v)}`;
+    })
+    .join(",");
+}
+
 export interface CaseAxes {
   product: "A" | "B";
   in?: Location;
@@ -126,8 +150,23 @@ export interface CaseAxes {
   /** Product B: how many parameters the operation declares. */
   params?: number;
   version?: string;
-  /** The runtime's `validateSecurity`; the emitted module has no such option. */
-  runtimeSecurity: "off" | "shape";
+  /**
+   * The options this case builds `createValidator` with, as the delta
+   * from its defaults. `{}` is the default configuration.
+   *
+   * An axis over the **runtime**, not the document. The emitted module
+   * takes no options at all, so every field set here is a place the two
+   * sides can disagree by configuration rather than by defect, and a
+   * runtime option with no emitter counterpart is the exact shape of
+   * #895.
+   *
+   * Typed as whatever `createValidator` accepts rather than as a list
+   * of the options this grid happens to vary, so adding one is a
+   * literal in `runtimeOptionCases` and not an edit here. `returnValues`
+   * is excluded because `run.ts` sets it for every case: the value
+   * channel is how the comparison is made, not a thing to vary.
+   */
+  runtimeOptions: RuntimeOptions;
   /** Free-form label for a hand-built product B shape. */
   shape?: string;
 }
@@ -315,7 +354,7 @@ export function productA(): Declaration[] {
     let n = 0;
 
     const add = (
-      axes: Omit<CaseAxes, "product" | "runtimeSecurity">,
+      axes: Omit<CaseAxes, "product" | "runtimeOptions">,
       parameter: Record<string, unknown>,
     ) => {
       const key = `d${n}`;
@@ -327,7 +366,7 @@ export function productA(): Declaration[] {
       }|required=${axes.required === true}${axes.allowEmptyValue === true ? "|aev" : ""}`;
       perDecl.push({
         id,
-        axes: { ...axes, product: "A", in: location, runtimeSecurity: "off" },
+        axes: { ...axes, product: "A", in: location, runtimeOptions: {} },
         path: template,
       });
     };
@@ -465,7 +504,7 @@ export function productB(): Declaration[] {
     for (const m of methods) item[m] = { parameters: PLAIN_PARAMS, responses: okResponses };
     push(
       `methods=${id}`,
-      { shape: "methods", methods, runtimeSecurity: "off", version: "3.1.0" },
+      { shape: "methods", methods, runtimeOptions: {}, version: "3.1.0" },
       {
         openapi: "3.1.0",
         info: { title: "grid-B-methods", version: "1" },
@@ -483,6 +522,13 @@ export function productB(): Declaration[] {
   // side alone, which is what makes the configurability half of #895
   // visible: doc-level security rejects under `shape` and passes on the
   // AOT side whatever the option says.
+  // Both security shapes below cross the same two runtime settings:
+  // the default, where the runtime checks nothing, and `shape`, where
+  // it checks. The emitted module has neither setting and always
+  // checks, so the pair is what makes both halves of #895 visible
+  // rather than only the half where the AOT is stricter.
+  const SECURITY_OPTION_DELTAS: RuntimeOptions[] = [{}, { validateSecurity: "shape" }];
+
   const securityShapes: Array<[CaseAxes["security"], Record<string, unknown>]> = [
     ["none", {}],
     ["operation", { op: [{ k: [] }] }],
@@ -493,7 +539,7 @@ export function productB(): Declaration[] {
     ["operation-empty", { doc: [{ k: [] }], op: [] }],
   ];
   for (const [security, shape] of securityShapes) {
-    for (const runtimeSecurity of ["off", "shape"] as const) {
+    for (const runtimeOptions of SECURITY_OPTION_DELTAS) {
       const operation: Record<string, unknown> = {
         parameters: PLAIN_PARAMS,
         responses: okResponses,
@@ -507,8 +553,8 @@ export function productB(): Declaration[] {
         paths: { "/t": { get: operation } },
       } as OpenAPIDocument;
       push(
-        `security=${security}|runtime=${runtimeSecurity}`,
-        { shape: "security", security, runtimeSecurity, version: "3.1.0" },
+        `security=${security}|runtime=${renderOptions(runtimeOptions)}`,
+        { shape: "security", security, runtimeOptions, version: "3.1.0" },
         doc,
         [
           { wireId: "noCredential", request: { method: "GET", path: "/t", query: { q: "x" } } },
@@ -524,10 +570,15 @@ export function productB(): Declaration[] {
   // Security x a parameter that fails its schema. The named cross term:
   // the question is whether both sides short-circuit before recording
   // the parameter, which only the value channel can answer.
-  for (const runtimeSecurity of ["off", "shape"] as const) {
+  for (const runtimeOptions of SECURITY_OPTION_DELTAS) {
     push(
-      `security-vs-bad-parameter|runtime=${runtimeSecurity}`,
-      { shape: "security-x-parameter", security: "document", runtimeSecurity, version: "3.1.0" },
+      `security-vs-bad-parameter|runtime=${renderOptions(runtimeOptions)}`,
+      {
+        shape: "security-x-parameter",
+        security: "document",
+        runtimeOptions,
+        version: "3.1.0",
+      },
       {
         openapi: "3.1.0",
         info: { title: "grid-B-sec-param", version: "1" },
@@ -567,7 +618,7 @@ export function productB(): Declaration[] {
   const OBJ = { type: "object", properties: { a: { type: "string" }, n: { type: "integer" } } };
   push(
     "contending-query-objects",
-    { shape: "contention", params: 2, runtimeSecurity: "off", version: "3.1.0" },
+    { shape: "contention", params: 2, runtimeOptions: {}, version: "3.1.0" },
     {
       openapi: "3.1.0",
       info: { title: "grid-B-contend", version: "1" },
@@ -608,7 +659,7 @@ export function productB(): Declaration[] {
       if (location === "cookie") supplied.cookies = assign(name, "v");
       push(
         `hostile-name=${name}|${location}`,
-        { shape: "hostile-name", in: location, runtimeSecurity: "off", version: "3.1.0" },
+        { shape: "hostile-name", in: location, runtimeOptions: {}, version: "3.1.0" },
         {
           openapi: "3.1.0",
           info: { title: "grid-B-hostile", version: "1" },
@@ -646,7 +697,7 @@ export function productB(): Declaration[] {
   for (const version of ["3.0.3", "3.1.0", "3.2.0"]) {
     push(
       `version=${version}`,
-      { shape: "version", version, runtimeSecurity: "off" },
+      { shape: "version", version, runtimeOptions: {} },
       {
         openapi: version,
         info: { title: "grid-B-version", version: "1" },
@@ -695,7 +746,7 @@ export function productB(): Declaration[] {
           style: "cookie",
           explode,
           schemaId,
-          runtimeSecurity: "off",
+          runtimeOptions: {},
         },
         {
           openapi: "3.2.0",
