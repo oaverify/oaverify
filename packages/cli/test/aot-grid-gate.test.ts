@@ -14,7 +14,7 @@ import type { CaseResult } from "./aot-grid/run.js";
 import type { DivergenceEntry } from "./aot-grid/divergences.js";
 import { evaluate, render } from "./aot-grid/gate.js";
 
-const axes: CaseAxes = { product: "A", in: "query", runtimeSecurity: "off" };
+const axes: CaseAxes = { product: "A", in: "query", runtimeOptions: {} };
 
 /** A case where the runtime accepts and the AOT rejects with one leaf. */
 function diverging(overrides: Partial<CaseResult> = {}): CaseResult {

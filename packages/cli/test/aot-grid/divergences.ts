@@ -153,7 +153,7 @@ export const DIVERGENCES: DivergenceEntry[] = [
     issue: "#895",
     match: (axes, wireId) =>
       axes.shape === "security" &&
-      axes.runtimeSecurity === "off" &&
+      axes.runtimeOptions.validateSecurity === undefined &&
       (axes.security === "operation" || axes.security === "both") &&
       wireId === "noCredential",
     // Operation-level security, runtime default. The runtime does not
@@ -169,7 +169,9 @@ export const DIVERGENCES: DivergenceEntry[] = [
     kind: "open-defect",
     issue: "#895",
     match: (axes, wireId) =>
-      axes.shape === "security" && axes.runtimeSecurity === "shape" && wireId === "noCredential",
+      axes.shape === "security" &&
+      axes.runtimeOptions.validateSecurity === "shape" &&
+      wireId === "noCredential",
     // The reverse, and the half a grid without a runtime-option axis
     // cannot see: document-level security asked for by name is
     // enforced by the runtime and ignored by the emitted module.
@@ -183,7 +185,7 @@ export const DIVERGENCES: DivergenceEntry[] = [
     issue: "#895",
     match: (axes, wireId) =>
       axes.shape === "security-x-parameter" &&
-      axes.runtimeSecurity === "shape" &&
+      axes.runtimeOptions.validateSecurity === "shape" &&
       wireId === "badParamNoCredential",
     // Verdicts agree, both invalid, and the reported reason does not:
     // the runtime stops at the security gate, the emitted module has

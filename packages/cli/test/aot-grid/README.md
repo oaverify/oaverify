@@ -65,10 +65,13 @@ contending in one location; parameters named `constructor`, `__proto__`
 and `toString`, in all four locations, against an empty frame and a
 supplied value; OpenAPI 3.0, 3.1 and 3.2; and 3.2's `style: cookie`.
 
-`runtimeSecurity` is an axis over the **runtime option**, not the
-document, because the emitted module has no such option. Without it the
-grid reproduces only the half of #895 where the AOT is stricter, and
-reports #895 as covered.
+`runtimeOptions` is an axis over the **runtime's own options**, not the
+document. The emitted module takes no options at all, so every option
+`createValidator` accepts is a place the two sides can disagree by
+configuration rather than by defect, and #895 is exactly that shape.
+Crossing `validateSecurity` is what makes both halves of #895 visible:
+without it the grid sees only the half where the AOT is stricter and
+reports the issue as covered.
 
 ## The grid holds no opinion
 

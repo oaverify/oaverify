@@ -22,7 +22,13 @@ import { createValidator } from "@oaverify/internal-validator";
 import { compileSpecCommand } from "../../src/commands.js";
 import { memoryIo } from "../fixtures.js";
 import { workspaceAliases } from "../../../../workspace-aliases.js";
-import type { CaseAxes, Declaration, WireRequest } from "./cases.js";
+import {
+  renderOptions,
+  type CaseAxes,
+  type Declaration,
+  type RuntimeOptions,
+  type WireRequest,
+} from "./cases.js";
 
 const CORE_ALIASES = Object.fromEntries(
   Object.entries(
@@ -167,18 +173,20 @@ const builtCache = new Map<string, Built>();
 const docKeys = new WeakMap<object, number>();
 let nextDocKey = 0;
 
-function keyFor(doc: object, runtimeSecurity: string): string {
+// Keyed on the option delta as well as the document: the emitted
+// module is the same for both, and the runtime validator is not.
+function keyFor(doc: object, options: RuntimeOptions): string {
   let id = docKeys.get(doc);
   if (id === undefined) {
     id = nextDocKey;
     nextDocKey += 1;
     docKeys.set(doc, id);
   }
-  return `${id}::${runtimeSecurity}`;
+  return `${id}::${renderOptions(options)}`;
 }
 
 async function build(decl: Declaration): Promise<Built> {
-  const key = keyFor(decl.doc, decl.axes.runtimeSecurity);
+  const key = keyFor(decl.doc, decl.axes.runtimeOptions);
   const hit = builtCache.get(key);
   if (hit !== undefined) return hit;
   const out: Built = {};
@@ -188,9 +196,12 @@ async function build(decl: Declaration): Promise<Built> {
     out.aotError = describe(err);
   }
   try {
+    // `returnValues` first, so a case cannot switch off the channel
+    // the comparison is made through. Everything else is the case's
+    // own delta; see CaseAxes.runtimeOptions.
     out.runtime = createValidator(decl.doc, {
       returnValues: true,
-      ...(decl.axes.runtimeSecurity === "shape" ? { validateSecurity: "shape" as const } : {}),
+      ...decl.axes.runtimeOptions,
     });
   } catch (err) {
     out.runtimeError = describe(err);
