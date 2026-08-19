@@ -325,10 +325,10 @@ Same limits as `compile-schema`, plus:
 resolve` or `resolveSpec` before running `compile-spec`.
 - **Validator options with no counterpart**: the emitted module
   compiles one configuration, and it is `createValidator`'s default.
-  Some options survive into the artifact, through a flag or through
-  `compileSpecCommand` (`output`, `maxErrors`, `unknownFormats`,
-  `maxTotalBytes`, `returnValues`, the dialect). The rest of
-  `ValidatorOptions` has nothing to carry it, so a deployment that opts
+  Some options survive into the artifact, each through a flag in the
+  table above (`output`, `maxErrors`, `unknownFormats`, `maxTotalBytes`,
+  `returnValues`, the dialect). The rest of
+  `ValidatorOptions` has no flag to carry it, so a deployment that opts
   into one and a module compiled from the same document answer
   differently on the requests that option decides:
   `strictQueryParameters` and `allowBracketedQueryArrays` are two that
