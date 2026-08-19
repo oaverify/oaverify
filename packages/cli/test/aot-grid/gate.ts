@@ -167,7 +167,10 @@ export function render(
   }
   for (const entry of entries) {
     const n = r.matched.get(entry.name) ?? 0;
-    lines.push(`  entry ${entry.name} (${entry.kind}, ${entry.issue}): ${n} case(s)`);
+    // An `intentional` entry has no issue: nothing is expected to
+    // retire it. Printing one would say the opposite.
+    const tag = entry.kind === "open-defect" ? `open-defect, ${entry.issue}` : "intentional";
+    lines.push(`  entry ${entry.name} (${tag}): ${n} case(s)`);
   }
   return lines.join("\n");
 }

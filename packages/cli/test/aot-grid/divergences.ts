@@ -39,8 +39,6 @@ import type { CaseResult } from "./run.js";
 interface DivergenceEntryBase {
   /** Short name, used in the report. */
   name: string;
-  /** The issue this divergence belongs to. */
-  issue: string;
   /** Matches on axes and on the wire input, never on the case id. */
   match: (axes: CaseAxes, wireId: string) => boolean;
   /**
@@ -68,11 +66,29 @@ interface DivergenceEntryBase {
  * fine.
  */
 export type DivergenceEntry =
-  | (DivergenceEntryBase & { kind: "open-defect"; why?: never })
+  | (DivergenceEntryBase & {
+      kind: "open-defect";
+      /**
+       * The defect this difference is. Fixing it is what makes the
+       * entry go stale and fail the run, which is the whole of the
+       * justification and why there is no `why` beside it.
+       */
+      issue: string;
+      why?: never;
+    })
   | (DivergenceEntryBase & {
       kind: "intentional";
       /** Why this difference is correct, in the emitter's own terms. */
       why: string;
+      /**
+       * Absent, and not by omission. An issue number here reads as the
+       * defect that will retire the entry, and an `intentional` entry
+       * has none: it is expected to keep matching. Four of these
+       * carried `#895` and would have gone on matching after it closed,
+       * with the report line inviting a reader to think otherwise.
+       * Discussion belongs in `why`, which has room for a sentence.
+       */
+      issue?: never;
     });
 
 /**
@@ -228,7 +244,6 @@ export const DIVERGENCES: DivergenceEntry[] = [
   {
     name: "options/strict-query",
     kind: "intentional",
-    issue: "#895",
     why:
       "`strictQueryParameters` refuses a query key the operation does not declare. " +
       "The emitted module has no such option and answers as the runtime does by default, " +
@@ -244,7 +259,6 @@ export const DIVERGENCES: DivergenceEntry[] = [
   {
     name: "options/ignore-undocumented",
     kind: "intentional",
-    issue: "#895",
     why:
       "`ignoreUndocumented` passes a request to a path the document does not declare. " +
       "The emitted module has no such option and 404s it, as the runtime does by default.",
@@ -257,7 +271,6 @@ export const DIVERGENCES: DivergenceEntry[] = [
   {
     name: "options/ignore-paths",
     kind: "intentional",
-    issue: "#895",
     why:
       "`ignorePaths` passes a request whose path the caller's own predicate exempts. " +
       "The emitted module has no such option and 404s it, as the runtime does by default. " +
@@ -272,7 +285,6 @@ export const DIVERGENCES: DivergenceEntry[] = [
   {
     name: "options/bracketed-arrays",
     kind: "intentional",
-    issue: "#895",
     why:
       "`allowBracketedQueryArrays` reads `?p[]=a&p[]=b` as `p`. The emitted module has no " +
       "such option and refuses it, as the runtime does by default. The only one of the four " +

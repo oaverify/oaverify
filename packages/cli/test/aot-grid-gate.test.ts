@@ -88,8 +88,16 @@ const KIND_RULE_PINS = (): void => {
   const justified: DivergenceEntry = {
     name: "e",
     kind: "intentional",
-    issue: "#1",
     why: "the emitted module compiles one configuration and this is it",
+    match: () => true,
+    signatures: [],
+  };
+  // @ts-expect-error an `intentional` entry has no issue to retire it
+  const retirable: DivergenceEntry = {
+    name: "e",
+    kind: "intentional",
+    issue: "#1",
+    why: "x",
     match: () => true,
     signatures: [],
   };
@@ -105,6 +113,7 @@ const KIND_RULE_PINS = (): void => {
   };
   void unjustified;
   void justified;
+  void retirable;
   void overjustified;
 };
 void KIND_RULE_PINS;
