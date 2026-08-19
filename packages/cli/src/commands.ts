@@ -1229,6 +1229,11 @@ export async function compileSpecCommand(
      * rule and the byte-identity guarantee when off.
      */
     returnValues?: boolean;
+    /**
+     * Security mode baked into the emitted module. Default `"off"`.
+     * See `EmitSpecOptions.validateSecurity`.
+     */
+    validateSecurity?: "off" | "shape" | "strict";
     /** Fetch-helper body byte cap baked in. Default 1 MiB. */
     maxTotalBytes?: number;
     /** Policy for formats outside the built-in set. Default `"error"`. */
@@ -1278,6 +1283,7 @@ export async function compileSpecCommand(
       outputMode: args.outputMode,
       maxErrors: args.maxErrors,
       returnValues: args.returnValues,
+      validateSecurity: args.validateSecurity,
       maxTotalBytes: args.maxTotalBytes,
       importPrefix: args.importPrefix,
       unknownFormats: args.unknownFormats,

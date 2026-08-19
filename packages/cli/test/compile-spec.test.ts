@@ -129,6 +129,7 @@ async function buildAot(
     requestsOnly?: boolean;
     only?: Array<{ method: string; path: string }>;
     outputMode?: "flat" | "tree" | "predicate";
+    validateSecurity?: "off" | "shape" | "strict";
     maxErrors?: number;
     maxTotalBytes?: number;
   } = {},
@@ -144,6 +145,7 @@ async function buildAot(
       requestsOnly: extra.requestsOnly,
       only: extra.only,
       outputMode: extra.outputMode,
+      validateSecurity: extra.validateSecurity,
       maxErrors: extra.maxErrors,
       maxTotalBytes: extra.maxTotalBytes,
     },
@@ -1433,13 +1435,12 @@ describe("a security field that is not a list (#883)", () => {
     // same `compileOperationSecurity`, so the fail-closed answer reaches
     // the AOT without an emitter change (#883).
     //
-    // The runtime is opted in deliberately: `validateSecurity` defaults
-    // to `"off"`, while the emitter compiles operation-level security
-    // unconditionally and offers no equivalent flag. That mismatch is
-    // #895, and it is not what this pins. What this pins is that an
-    // unreadable `security` does not silently pass wherever the check
-    // does run.
-    const aot = await buildAot(spec);
+    // Both sides are opted in, because neither checks by default. What
+    // this pins is that an unreadable `security` does not silently pass
+    // wherever the check does run. The emitter used to check
+    // operation-level security unconditionally, so this passed with the
+    // AOT at its defaults; that mismatch was #895 and is fixed.
+    const aot = await buildAot(spec, { validateSecurity: "shape" });
     const runtime = createValidator(spec, { validateSecurity: "shape" });
     const req = { method: "GET", path: "/t" };
     expect(runtime.validateRequest(req as never).valid).toBe(false);
@@ -1853,5 +1854,123 @@ describe("an implicit HEAD on a path declaring only GET (#899)", () => {
     const aot = await buildAot(both, { only: [{ method: "POST", path: "/t" }] });
     const leaves = flatErrors(aot.validateRequest({ method: "HEAD", path: "/t" }));
     expect(leaves.map((e) => e.code)).toEqual(["route"]);
+  });
+});
+
+describe("the emitted validator's security mode (#895)", () => {
+  const API_KEY = { k: { type: "apiKey", in: "header", name: "X-Key" } };
+  const docWith = (placement: "operation" | "document"): OpenAPIDocument =>
+    ({
+      openapi: "3.1.1",
+      info: { title: "t", version: "1" },
+      components: { securitySchemes: API_KEY },
+      ...(placement === "document" ? { security: [{ k: [] }] } : {}),
+      paths: {
+        "/t": {
+          get: {
+            ...(placement === "operation" ? { security: [{ k: [] }] } : {}),
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    }) as OpenAPIDocument;
+
+  const anonymous = { method: "GET", path: "/t" };
+
+  it("checks nothing by default, matching createValidator", async () => {
+    // The emitted module used to enforce operation-level security
+    // unconditionally, which matched no configuration of the runtime.
+    for (const placement of ["operation", "document"] as const) {
+      const doc = docWith(placement);
+      const aot = await buildAot(doc);
+      expect(aot.validateRequest(anonymous)).toEqual({ valid: true });
+      expect(createValidator(doc).validateRequest(anonymous)).toEqual({ valid: true });
+    }
+  });
+
+  it("enforces both placements when asked", async () => {
+    // Document-level was dropped entirely: the load-time fold tested
+    // `op.__security` for null, which skipped every operation
+    // inheriting its requirement from the document.
+    for (const placement of ["operation", "document"] as const) {
+      const doc = docWith(placement);
+      const aot = await buildAot(doc, { validateSecurity: "shape" });
+      expect(flatErrors(aot.validateRequest(anonymous)).map((e) => e.code)).toEqual(["security"]);
+      const rt = createValidator(doc, { validateSecurity: "shape" });
+      expect(flatErrors(rt.validateRequest(anonymous)).map((e) => e.code)).toEqual(["security"]);
+    }
+  });
+
+  it("accepts a request carrying the declared credential", async () => {
+    const aot = await buildAot(docWith("document"), { validateSecurity: "shape" });
+    expect(aot.validateRequest({ ...anonymous, headers: { "x-key": "s" } })).toEqual({
+      valid: true,
+    });
+  });
+
+  it("passes an uninspectable scheme under shape and refuses it under strict", async () => {
+    // The documented difference between the two modes, and the reason
+    // the warning below exists.
+    const doc: OpenAPIDocument = {
+      openapi: "3.1.1",
+      info: { title: "t", version: "1" },
+      components: {
+        securitySchemes: {
+          o: {
+            type: "oauth2",
+            flows: { implicit: { authorizationUrl: "https://x/a", scopes: {} } },
+          },
+        },
+      },
+      security: [{ o: [] }],
+      paths: { "/t": { get: { responses: { "200": { description: "ok" } } } } },
+    } as OpenAPIDocument;
+    const shape = await buildAot(doc, { validateSecurity: "shape" });
+    expect(shape.validateRequest(anonymous)).toEqual({ valid: true });
+    const strict = await buildAot(doc, { validateSecurity: "strict" });
+    expect(flatErrors(strict.validateRequest(anonymous)).map((e) => e.code)).toEqual(["security"]);
+  });
+
+  it("warns when shape can inspect nothing the document requires", async () => {
+    const doc: OpenAPIDocument = {
+      openapi: "3.1.1",
+      info: { title: "t", version: "1" },
+      components: {
+        securitySchemes: {
+          o: {
+            type: "oauth2",
+            flows: { implicit: { authorizationUrl: "https://x/a", scopes: {} } },
+          },
+        },
+      },
+      security: [{ o: [] }],
+      paths: { "/t": { get: { responses: { "200": { description: "ok" } } } } },
+    } as OpenAPIDocument;
+    const warned = await buildAot(doc, { validateSecurity: "shape" });
+    expect(warned.warnings.join("\n")).toContain("cannot inspect any scheme");
+    expect(warned.warnings.join("\n")).toContain("o (oauth2)");
+
+    // Not on strict, which refuses the scheme rather than passing it.
+    expect((await buildAot(doc, { validateSecurity: "strict" })).warnings).toEqual([]);
+    // Not on a scheme it can inspect.
+    expect((await buildAot(docWith("document"), { validateSecurity: "shape" })).warnings).toEqual(
+      [],
+    );
+    // Not when the mode is off, whatever the document declares.
+    expect((await buildAot(doc)).warnings).toEqual([]);
+  });
+
+  it("emits no security machinery at all when off", async () => {
+    // The default has to cost nothing, not merely behave correctly: a
+    // module that never checks should not carry the document's
+    // requirements, its scheme definitions, or the runtime imports.
+    const off = emitSpec(docWith("document"));
+    expect(off).not.toContain("compileOperationSecurity");
+    expect(off).not.toContain("checkSecurity");
+    expect(off).not.toContain("__securitySchemes");
+    expect(off).not.toContain("X-Key");
+    const on = emitSpec(docWith("document"), { validateSecurity: "shape" });
+    expect(on).toContain("compileOperationSecurity");
+    expect(on).toContain("X-Key");
   });
 });

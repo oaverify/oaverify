@@ -106,57 +106,6 @@ export type DivergenceEntry =
 const ROUTE_SIGNATURE = 'verdict:valid->invalid | leaves:[]->[{"code":"route","path":[]}]';
 
 export const DIVERGENCES: DivergenceEntry[] = [
-  // #895, in three entries: the same issue reaches the request by
-  // three different routes, and each has its own signature.
-  {
-    name: "security/not-configurable-off",
-    kind: "open-defect",
-    issue: "#895",
-    match: (axes, wireId) =>
-      axes.shape === "security" &&
-      axes.runtimeOptions.validateSecurity === undefined &&
-      (axes.security === "operation" || axes.security === "both") &&
-      wireId === "noCredential",
-    // Operation-level security, runtime default. The runtime does not
-    // check security unless asked; the emitted module always does, so
-    // a compiled validator rejects a request the interpreted one
-    // accepts and there is no option to turn it off.
-    signatures: [
-      'verdict:valid->invalid | leaves:[]->[{"code":"security","path":["security"]}] | value:{"path":{},"query":{"q":"x"},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
-    ],
-  },
-  {
-    name: "security/document-level-unenforced",
-    kind: "open-defect",
-    issue: "#895",
-    match: (axes, wireId) =>
-      axes.shape === "security" &&
-      axes.runtimeOptions.validateSecurity === "shape" &&
-      wireId === "noCredential",
-    // The reverse, and the half a grid without a runtime-option axis
-    // cannot see: document-level security asked for by name is
-    // enforced by the runtime and ignored by the emitted module.
-    signatures: [
-      'verdict:invalid->valid | leaves:[{"code":"security","path":["security"]}]->[] | value:{"path":{},"query":{},"headers":{},"cookies":{}}->{"path":{},"query":{"q":"x"},"headers":{},"cookies":{}}',
-    ],
-  },
-  {
-    name: "security/gate-ordering",
-    kind: "open-defect",
-    issue: "#895",
-    match: (axes, wireId) =>
-      axes.shape === "security-x-parameter" &&
-      axes.runtimeOptions.validateSecurity === "shape" &&
-      wireId === "badParamNoCredential",
-    // Verdicts agree, both invalid, and the reported reason does not:
-    // the runtime stops at the security gate, the emitted module has
-    // no gate to stop at and reports the parameter instead. The cell
-    // exists because a verdict-only comparison calls this identical.
-    signatures: [
-      'leaves:[{"code":"security","path":["security"]}]->[{"code":"type","path":["query","n"]}]',
-    ],
-  },
-
   // Runtime options the emitted module cannot express.
   //
   // Kept apart from #895 on a distinction the grid measured. Each of

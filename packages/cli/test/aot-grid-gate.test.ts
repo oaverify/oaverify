@@ -26,7 +26,7 @@ import {
 } from "./aot-grid/cases.js";
 import { runDeclaration } from "./aot-grid/run.js";
 
-const axes: CaseAxes = { product: "A", in: "query", runtimeOptions: {} };
+const axes: CaseAxes = { product: "A", in: "query", runtimeOptions: {}, emitOptions: {} };
 
 /** A case where the runtime accepts and the AOT rejects with one leaf. */
 function diverging(overrides: Partial<CaseResult> = {}): CaseResult {
@@ -262,6 +262,7 @@ describe("parity grid: the build cache", () => {
       product: "B",
       shape: "cache-probe",
       runtimeOptions: { ignorePaths: (p: string) => p === path } as RuntimeOptions,
+      emitOptions: {},
     },
     doc,
     requests: [
