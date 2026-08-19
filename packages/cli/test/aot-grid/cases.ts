@@ -915,13 +915,47 @@ export function productB(): Declaration[] {
           },
         },
       } as OpenAPIDocument,
-      // The bracketed spelling has to arrive as a query string rather
-      // than a pre-parsed object: the option acts on how the string is
-      // read, so handing it an object skips the step under test and
-      // reports agreement.
+      // Either wire form does: the option acts at parameter lookup on
+      // `req.query`, not on how a query string is read, so a pre-parsed
+      // object reaches the same branch. Measured both ways.
       requests: [
         { wireId: "bracketed", request: { method: "GET", path: "/t?p[]=a&p[]=b" } },
         { wireId: "repeated", request: { method: "GET", path: "/t?p=a&p=b" } },
+      ],
+    },
+    {
+      id: "bracketed-arrays-optional",
+      options: { allowBracketedQueryArrays: true },
+      doc: {
+        openapi: "3.1.0",
+        info: { title: "grid-B-opt-bracketed-optional", version: "1" },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [
+                {
+                  name: "p",
+                  in: "query",
+                  required: false,
+                  schema: { type: "array", items: { type: "string" } },
+                },
+              ],
+              responses: okResponses,
+            },
+          },
+        },
+      } as OpenAPIDocument,
+      // The same option against an optional parameter. Required, it
+      // decides a verdict; optional, absence is valid on both sides and
+      // the only thing that moves is the delivered value. That half is
+      // #888's shape, and it is why this shape is a pair: a probe of
+      // the required case alone reports the option as covered.
+      requests: [
+        { wireId: "bracketed", request: { method: "GET", path: "/t?p[]=a&p[]=b" } },
+        {
+          wireId: "bracketedPreParsed",
+          request: { method: "GET", path: "/t", query: { "p[]": ["a", "b"] } },
+        },
       ],
     },
   ];
