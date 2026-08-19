@@ -23,7 +23,7 @@ import { compileSpecCommand } from "../../src/commands.js";
 import { memoryIo } from "../fixtures.js";
 import { workspaceAliases } from "../../../../workspace-aliases.js";
 import {
-  renderOptions,
+  optionCacheKey,
   type CaseAxes,
   type Declaration,
   type RuntimeOptions,
@@ -154,7 +154,7 @@ const describe = (err: unknown): string =>
  * is keyed on document identity: without it the grid recompiles a
  * 1,000-path module once per path, which is the difference between a
  * gate people run and one they skip. The runtime side is keyed on the
- * `validateSecurity` setting too, since that is an axis.
+ * option delta as well, since that is an axis; see `keyFor`.
  *
  * A document either side refuses is itself a datum: a side that starts
  * or stops refusing one has changed. The fold trades granularity for
@@ -173,8 +173,12 @@ const builtCache = new Map<string, Built>();
 const docKeys = new WeakMap<object, number>();
 let nextDocKey = 0;
 
-// Keyed on the option delta as well as the document: the emitted
-// module is the same for both, and the runtime validator is not.
+// Keyed on the option delta as well as the document. The emitted module
+// is the same whatever the delta says, and the runtime validator is not,
+// so keying on the document alone would hand one delta's validator to a
+// case built for another. `optionCacheKey` rather than `renderOptions`:
+// a key has to tell two `ignorePaths` predicates apart, and an id does
+// not.
 function keyFor(doc: object, options: RuntimeOptions): string {
   let id = docKeys.get(doc);
   if (id === undefined) {
@@ -182,7 +186,7 @@ function keyFor(doc: object, options: RuntimeOptions): string {
     nextDocKey += 1;
     docKeys.set(doc, id);
   }
-  return `${id}::${renderOptions(options)}`;
+  return `${id}::${optionCacheKey(options)}`;
 }
 
 async function build(decl: Declaration): Promise<Built> {
@@ -196,9 +200,10 @@ async function build(decl: Declaration): Promise<Built> {
     out.aotError = describe(err);
   }
   try {
-    // `returnValues` first, so a case cannot switch off the channel
-    // the comparison is made through. Everything else is the case's
-    // own delta; see CaseAxes.runtimeOptions.
+    // The case's own delta, over `returnValues`. A delta cannot switch
+    // the value channel off: `RuntimeOptions` omits `returnValues`, so
+    // a case setting it does not compile. The spread order is not what
+    // protects it, and a later key here would win.
     out.runtime = createValidator(decl.doc, {
       returnValues: true,
       ...decl.axes.runtimeOptions,

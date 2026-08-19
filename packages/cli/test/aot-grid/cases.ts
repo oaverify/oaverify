@@ -108,7 +108,6 @@ function styleExplodeCombos(location: Location): Array<{ style?: string; explode
   return combos;
 }
 
-/** The axes of a case, structured so a divergence entry can match on fields. */
 /**
  * A `createValidator` option delta. See {@link CaseAxes.runtimeOptions}.
  */
@@ -117,9 +116,14 @@ export type RuntimeOptions = Omit<ValidatorOptions, "returnValues">;
 /**
  * The option delta, rendered into a case id.
  *
- * Sorted by key so the id does not depend on literal order, and a
- * function-valued option renders as `fn` rather than its source. Ids
- * are for reading a report; nothing matches on them.
+ * Lossy on purpose: a function renders as `fn` and an object as
+ * whatever `String` makes of it, because this is read by a person
+ * looking at a report. Nothing matches on the result, and nothing may:
+ * `optionCacheKey` exists because the one caller that needed a key
+ * rather than a label was using this and could not tell two predicates
+ * apart.
+ *
+ * Sorted by key, so an id does not depend on literal order.
  */
 export function renderOptions(o: RuntimeOptions): string {
   const keys = Object.keys(o).sort();
@@ -132,6 +136,47 @@ export function renderOptions(o: RuntimeOptions): string {
     .join(",");
 }
 
+const refIds = new WeakMap<object, number>();
+let nextRefId = 0;
+
+/**
+ * The option delta as a key that distinguishes any two deltas that are
+ * not the same options.
+ *
+ * A primitive contributes its value, so two cases sharing
+ * `{ validateSecurity: "shape" }` share a key and a cache entry, which
+ * is the point of caching at all. A function or object contributes its
+ * identity, because `String(fn)` on two different predicates can be
+ * equal and `String(obj)` is `[object Object]` for every object. That
+ * collapse is fine in an id and wrong in a key: two `ignorePaths`
+ * predicates over one document would collide, and the second case would
+ * silently be measured against the first's validator and report
+ * agreement it never made.
+ *
+ * Identity rather than a structural hash because the deltas here are
+ * literals in this module, so two that should share a key already do.
+ */
+export function optionCacheKey(o: RuntimeOptions): string {
+  const keys = Object.keys(o).sort();
+  if (keys.length === 0) return "default";
+  return keys
+    .map((k) => {
+      const v = (o as Record<string, unknown>)[k];
+      if (typeof v !== "function" && (typeof v !== "object" || v === null)) {
+        return `${k}=${String(v)}`;
+      }
+      let id = refIds.get(v as object);
+      if (id === undefined) {
+        id = nextRefId;
+        nextRefId += 1;
+        refIds.set(v as object, id);
+      }
+      return `${k}=#${id}`;
+    })
+    .join(",");
+}
+
+/** The axes of a case, structured so a divergence entry can match on fields. */
 export interface CaseAxes {
   product: "A" | "B";
   in?: Location;
