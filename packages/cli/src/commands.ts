@@ -1223,6 +1223,12 @@ export async function compileSpecCommand(
     outputMode?: "flat" | "tree" | "predicate";
     /** Leaf-error cap baked into the emitted validators. Default `1`. */
     maxErrors?: number;
+    /**
+     * Emit the `returnValues` channel on the request side. Default
+     * `false`. See `EmitSpecOptions.returnValues` for the presence
+     * rule and the byte-identity guarantee when off.
+     */
+    returnValues?: boolean;
     /** Fetch-helper body byte cap baked in. Default 1 MiB. */
     maxTotalBytes?: number;
     /** Policy for formats outside the built-in set. Default `"error"`. */
@@ -1271,6 +1277,7 @@ export async function compileSpecCommand(
       only: args.only,
       outputMode: args.outputMode,
       maxErrors: args.maxErrors,
+      returnValues: args.returnValues,
       maxTotalBytes: args.maxTotalBytes,
       importPrefix: args.importPrefix,
       unknownFormats: args.unknownFormats,
