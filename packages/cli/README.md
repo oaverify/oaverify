@@ -193,6 +193,7 @@ below for the expected shape.
 | `--dialect 2020-12\|openapi-3.1\|openapi-3.0` | compile-schema / compile-spec                            | Schema dialect. Defaults: 2020-12 (compile-schema), auto-detect from `openapi` field (compile-spec).                                                                                                                                                                                                                                        |
 | `--requests-only`                             | compile-spec                                             | Skip response-validator emit. Smaller output.                                                                                                                                                                                                                                                                                               |
 | `--max-total-bytes <n>`                       | compile-spec                                             | Byte cap on the emitted Fetch helpers' body read: a positive integer or `none`. Default 1048576 (1 MiB).                                                                                                                                                                                                                                    |
+| `--return-values`                             | compile-spec                                             | Also hand back the deserialized parameter values from the emitted `validateRequest`, under a `value` field. Default off. Rejected with `--output-mode predicate`, which returns a bare boolean. Mirrors `returnValues`.                                                                                                                     |
 | `--only <method-path>`                        | compile-spec                                             | Repeatable; restrict emit to given ops, e.g. `--only "POST /pets"`.                                                                                                                                                                                                                                                                         |
 | `--output-mode flat\|tree\|predicate`         | compile-spec                                             | Result shape of the emitted validators. Default `flat`. Mirrors `output`.                                                                                                                                                                                                                                                                   |
 | `--max-errors <n>`                            | compile-spec                                             | Leaf-error cap baked in: a positive integer or `all`. Default `1`. Mirrors `maxErrors`.                                                                                                                                                                                                                                                     |
@@ -271,7 +272,7 @@ application boot get the same behavior with no YAML parse, no
 
 ### Flag notes
 
-The [Flags table](#flags) above covers the whole set; two deserve
+The [Flags table](#flags) above covers the whole set; three deserve
 more than a row:
 
 - **`--requests-only`**: skips response-validator emit.
@@ -288,6 +289,15 @@ more than a row:
   than "a partial view of the full spec". Gateway-routing layers
   that expect 405 (method not implemented here, try another
   service) need to account for this.
+- **`--return-values`**: the emitted `validateRequest` and
+  `validateFetchRequest` additionally return the parameter values they
+  deserialized while validating, under `value`, grouped by HTTP
+  location. Same channel and same presence rule as `createValidator`'s
+  `returnValues`: a parameter appears when the call reached it,
+  deserialized it, and its schema accepted the result, so `value` is
+  present on a failing request too and carries whatever passed. Off by
+  default, and emission is byte-identical to the flag's absence when it
+  is off.
 
 ### Bundle size
 

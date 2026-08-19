@@ -2,7 +2,8 @@
  * Parity tests for the emitted module's value channel, built through
  * `compileSpecCommand`'s `returnValues` option, against
  * `createValidator(document, { returnValues: true })` on the same
- * document and the same request. There is no commander flag for it.
+ * document and the same request. `--return-values` is the flag; the
+ * argv cover for it is at the foot of this file.
  *
  * Every assertion that can be written as a comparison is written as one.
  * A hard-coded expectation would pin what this file's author believed
@@ -16,6 +17,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { buildProgram } from "../src/cli.js";
 import { resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
@@ -414,5 +416,89 @@ describe("compile-spec: returnValues across output modes and entry points", () =
     const got = valueOf(aot.validateRequest(req));
     expect(got).toEqual(rt.value);
     expect(JSON.stringify(got)).not.toContain("anything");
+  });
+});
+
+describe("compile-spec --return-values (argv)", () => {
+  const SPEC = {
+    openapi: "3.1.1",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/t": {
+        get: {
+          parameters: [{ name: "p", in: "query", schema: { type: "integer" } }],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+
+  /**
+   * Parse argv and run the action, capturing the exit code and stderr.
+   *
+   * Nothing here may assert on emitted output. The CLI action calls
+   * `compileSpecCommand` without `resolveDir` or `bundleAlias`, so
+   * esbuild has to resolve a real `@oaverify/core`, which exists only
+   * after `pnpm build`. `pnpm test` runs against each package's `src`
+   * with no build, so a test that waits for a bundle passes on a
+   * machine that happens to have built and fails in CI. It did.
+   *
+   * What the emitted module contains is covered above, through
+   * `compileSpecCommand` with both of those supplied.
+   */
+  async function run(argv: string[]): Promise<{ exitCode: number; err: string }> {
+    const mem = memoryIo([["spec.json", SPEC]]);
+    let exitCode = 0;
+    const program = buildProgram({
+      io: mem.io,
+      exit: (code: number) => {
+        exitCode = code;
+      },
+    });
+    await program.parseAsync(["node", "oaverify", ...argv]);
+    return { exitCode, err: mem.stderr.value };
+  }
+
+  /** The parsed options of the compile-spec subcommand. */
+  async function opts(argv: string[]): Promise<Record<string, unknown>> {
+    const mem = memoryIo([["spec.json", SPEC]]);
+    const program = buildProgram({ io: mem.io, exit: () => {} });
+    await program.parseAsync(["node", "oaverify", ...argv]);
+    return program.commands.find((c) => c.name() === "compile-spec")?.opts() ?? {};
+  }
+
+  it("parses, and is off when absent", async () => {
+    expect(
+      (await opts(["compile-spec", "spec.json", "--return-values", "-o", "out.mjs"])).returnValues,
+    ).toBe(true);
+    expect((await opts(["compile-spec", "spec.json", "-o", "out.mjs"])).returnValues).toBe(false);
+  });
+
+  it("reaches the emitter, which is what refusing predicate mode proves", async () => {
+    // This doubles as the pass-through cover. `emitSpec` rejects the
+    // pair before anything is bundled, so the run gets that far without
+    // a build; and it can only reject when the flag actually arrived,
+    // since `returnValues: false` compiles predicate mode fine. The
+    // sentence is the emitter's, and the one `createValidator` throws
+    // at construction, so a caller reads the same words either way.
+    const { exitCode, err } = await run([
+      "compile-spec",
+      "spec.json",
+      "--return-values",
+      "--output-mode",
+      "predicate",
+      "-o",
+      "out.mjs",
+    ]);
+    expect(exitCode).toBe(3);
+    expect(err).toContain('`returnValues` cannot be combined with `outputMode: "predicate"`');
+  });
+
+  it("leaves emission byte-identical when off", async () => {
+    // Not an argv assertion, and here because it is the other half of
+    // the flag's contract: absent, it has to change nothing at all.
+    expect(emitSpec(SPEC as OpenAPIDocument)).toBe(
+      emitSpec(SPEC as OpenAPIDocument, { returnValues: false }),
+    );
   });
 });
