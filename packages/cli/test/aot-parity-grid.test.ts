@@ -37,13 +37,21 @@ describe("compile-spec: generated parity grid vs createValidator", () => {
     const report = render(result, DIVERGENCES, decls.length, performance.now() - started);
     if (process.env.AOT_GRID_REPORT !== undefined) process.stderr.write(`\n${report}\n`);
 
-    // Both halves in one assertion, so the report is attached to
-    // whichever fails. `stale` is the half that keeps a fixed defect
-    // from leaving its exemption behind.
-    expect({ unexplained: result.unexplained.length, stale: result.stale }, report).toEqual({
-      unexplained: 0,
-      stale: [],
-    });
+    // One assertion, so the report is attached to whichever part
+    // fails. `stale` and `staleSignatures` are the parts that keep a
+    // fixed defect from leaving an exemption behind: the first when a
+    // whole entry stops matching, the second when one signature of a
+    // multi-signature entry does. Computing `staleSignatures` and not
+    // asserting it would leave the hole in the assertion instead of in
+    // the accounting.
+    expect(
+      {
+        unexplained: result.unexplained.length,
+        stale: result.stale,
+        staleSignatures: result.staleSignatures,
+      },
+      report,
+    ).toEqual({ unexplained: 0, stale: [], staleSignatures: [] });
   }, 120_000);
 
   it("generates a grid, rather than reporting an empty one", () => {
