@@ -930,7 +930,13 @@ export function productB(): Declaration[] {
       push(
         `option=${shape.id}|runtime=${renderOptions(runtimeOptions)}`,
         {
-          shape: "runtime-options",
+          // The shape id is carried, not just the family name. A
+          // registry predicate that could only read the option key
+          // would claim every shape setting that option, and two
+          // options compose: a later shape setting `ignorePaths` and
+          // `ignoreUndocumented` together would land inside both of
+          // their entries.
+          shape: `runtime-options/${shape.id}`,
           runtimeOptions,
           version: "3.1.0",
         },
