@@ -1,11 +1,16 @@
 /**
- * Tests for the parity grid's own accounting.
+ * Tests for the parity grid's own machinery.
  *
  * The registry is the most attractive place in this repository to bury
  * a parity defect: it is the one file that can turn a real difference
  * into a green run. So the rules that decide what it can absorb are
  * tested on synthetic cases rather than trusted because the grid is
  * green.
+ *
+ * The build cache is the second such place, for the same reason and
+ * with none of the visibility: a cache that hands one case another's
+ * validator reports agreement it never measured, and the report reads
+ * the same as a real pass.
  */
 
 import { describe, expect, it } from "vitest";
@@ -13,6 +18,13 @@ import type { CaseAxes } from "./aot-grid/cases.js";
 import type { CaseResult } from "./aot-grid/run.js";
 import type { DivergenceEntry } from "./aot-grid/divergences.js";
 import { evaluate, render } from "./aot-grid/gate.js";
+import {
+  optionCacheKey,
+  renderOptions,
+  type Declaration,
+  type RuntimeOptions,
+} from "./aot-grid/cases.js";
+import { runDeclaration } from "./aot-grid/run.js";
 
 const axes: CaseAxes = { product: "A", in: "query", runtimeOptions: {} };
 
@@ -222,4 +234,60 @@ describe("parity grid: what the registry can and cannot absorb", () => {
     const report = render(evaluate([diverging()], []), [], 1, 0);
     expect(report).toContain(SIGNATURE);
   });
+});
+
+describe("parity grid: the build cache", () => {
+  // Product A hands one document object to hundreds of declarations, so
+  // the cache is keyed on document identity plus the option delta. The
+  // delta's key has to separate two options that are not the same
+  // options, which the id renderer deliberately does not do.
+  const doc = {
+    openapi: "3.1.0",
+    info: { title: "cache", version: "1" },
+    paths: { "/t": { get: { responses: { "200": { description: "ok" } } } } },
+  } as unknown as Declaration["doc"];
+
+  const exempting = (path: string): Declaration => ({
+    id: `exempt ${path}`,
+    axes: {
+      product: "B",
+      shape: "cache-probe",
+      runtimeOptions: { ignorePaths: (p: string) => p === path } as RuntimeOptions,
+    },
+    doc,
+    requests: [
+      { wireId: "health", request: { method: "GET", path: "/health" } },
+      { wireId: "metrics", request: { method: "GET", path: "/metrics" } },
+    ],
+  });
+
+  it("separates two function-valued options the id renderer cannot", () => {
+    const a = exempting("/health").axes.runtimeOptions;
+    const b = exempting("/metrics").axes.runtimeOptions;
+    expect(renderOptions(a)).toBe(renderOptions(b));
+    expect(optionCacheKey(a)).not.toBe(optionCacheKey(b));
+  });
+
+  it("shares a key for two deltas that are the same options", () => {
+    expect(optionCacheKey({ validateSecurity: "shape" })).toBe(
+      optionCacheKey({ validateSecurity: "shape" }),
+    );
+    expect(optionCacheKey({})).toBe(optionCacheKey({}));
+  });
+
+  it("does not hand one declaration another's validator", async () => {
+    // The two exempt opposite paths over one document object. Sharing a
+    // validator would make the second agree with the first, and the
+    // grid would report a difference it never ran.
+    const verdicts = async (path: string) =>
+      (await runDeclaration(exempting(path))).map((c) => [c.wireId, c.runtime.verdict]);
+    expect(await verdicts("/health")).toEqual([
+      ["health", "valid"],
+      ["metrics", "invalid"],
+    ]);
+    expect(await verdicts("/metrics")).toEqual([
+      ["health", "invalid"],
+      ["metrics", "valid"],
+    ]);
+  }, 120000);
 });
