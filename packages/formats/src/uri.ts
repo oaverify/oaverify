@@ -168,10 +168,25 @@ const VARSPEC = `${VARNAME}(?:\\*|:[1-9]\\d{0,3})?`;
 // The literal range runs to %x7E, so DEL (%x7F) is excluded alongside C0.
 // The apostrophe is a literal: it is absent from the ABNF's %x26 / %x28-3B
 // span, which errata correct, and the suite tests it as valid.
-const LITERAL = '[^\\u0000-\\u001F\\u007F"%<>\\\\^`{|}\\s]';
+//
+// The excluded space is U+0020 alone, spelled out rather than `\s`. RFC
+// 6570 literals include `ucschar`, which starts at U+00A0, and every
+// `\s` member above U+009F is legal there: U+00A0, U+1680, the eleven
+// of U+2000-200A, U+2028, U+2029, U+202F, U+205F, U+3000 and U+FEFF,
+// nineteen code points in all. A template containing an ideographic
+// space came back invalid (#854). The C0 controls `\s` also covered
+// (tab, LF, VT, FF, CR) are already in the `\u0000-\u001F` range
+// beside it.
+const LITERAL = '[^\\u0000-\\u001F\\u007F "%<>\\\\^`{|}]';
 
+// `u` for consistency with the URI grammars above, which is the whole
+// of the reason: it changes no answer this pattern gives. The class
+// excludes only ASCII, so an astral character passes as two surrogate
+// halves that are each outside it exactly as it passes as the one code
+// point that is.
 const URI_TEMPLATE_RE = new RegExp(
   `^(?:${LITERAL}|%[0-9A-Fa-f]{2}|\\{[+#./;?&]?${VARSPEC}(?:,${VARSPEC})*\\})*$`,
+  "u",
 );
 
 /**
