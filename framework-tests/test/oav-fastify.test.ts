@@ -231,7 +231,7 @@ describe("oav-fastify integration: async onError", () => {
     await app.close();
   });
 
-  it("async onError is awaited before the response settles", async () => {
+  it("an async onError writes the response, and the hook awaits it", async () => {
     const r = await app.inject({
       method: "POST",
       url: "/pets",

@@ -169,7 +169,7 @@ describe("validateRequests", () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  it("awaits an async onError before considering the request handled", async () => {
+  it("returns without awaiting an async onError, which still owns the response", async () => {
     let asyncWorkComplete = false;
     const onError = vi.fn(async (_err, ctx) => {
       await new Promise((resolve) => setTimeout(resolve, 5));
@@ -179,7 +179,7 @@ describe("validateRequests", () => {
     const mw = validateRequests(v, { onError });
     const res = fakeRes();
     const next = vi.fn() as unknown as NextFunction;
-    mw(
+    const returned = mw(
       fakeReq({
         method: "POST",
         path: "/pets",
@@ -189,11 +189,51 @@ describe("validateRequests", () => {
       res,
       next,
     );
+    // Express 4 middleware is synchronous, so the call above returns before
+    // the callback's promise settles. `@oaverify/express5` and
+    // `@oaverify/fastify` await instead, and the READMEs say so (#857).
+    //
+    // The return value is what separates the two: an awaiting middleware
+    // hands back a promise, and every assertion below it also holds for
+    // one, so without this the test would pass either way.
+    expect(returned).toBeUndefined();
+    expect(asyncWorkComplete).toBe(false);
+    expect(res.status).not.toHaveBeenCalled();
     // Microtask drain; the await inside onError needs the event loop to tick.
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(asyncWorkComplete).toBe(true);
     expect(res.status).toHaveBeenCalledWith(422);
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it("forwards an Error when onError rejects with a falsy reason", async () => {
+    // Express reads next(falsy) as "carry on routing", so a callback that
+    // rejects with any falsy reason would deliver the refused request to
+    // the route handler. `0` rather than `undefined` so the `cause`
+    // assertion below has something to carry (#881).
+    const onError = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      throw 0;
+    });
+    const mw = validateRequests(v, { onError });
+    const next = vi.fn() as unknown as NextFunction;
+    mw(
+      fakeReq({
+        method: "POST",
+        path: "/pets",
+        headers: { "content-type": "application/json" },
+        body: {},
+      }),
+      fakeRes(),
+      next,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(next).toHaveBeenCalledTimes(1);
+    const arg = (next as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(arg).toBeInstanceOf(Error);
+    // The original reason survives, so a handler can still see what was
+    // thrown. The routing consequence is covered in framework-tests.
+    expect((arg as Error).cause).toBe(0);
   });
 
   it("forwards a rejected onError promise via next(err)", async () => {

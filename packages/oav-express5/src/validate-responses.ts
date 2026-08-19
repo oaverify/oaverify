@@ -8,6 +8,7 @@ import {
 } from "@oaverify/internal-core";
 import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromExpress } from "./extract.js";
+import { forwardable } from "./forward-rejection.js";
 import { ResponseValidationError } from "./response-error.js";
 import type { ErrorHandler, ExpressContext } from "./types.js";
 
@@ -52,7 +53,10 @@ export interface ValidateResponsesOptions {
    *   return; once the response is sent the adapter does not also send
    *   the original.
    *
-   * May be async; the original body is sent (or not) after it settles.
+   * May be async; the original body is sent (or not) after it settles. A
+   * rejection forwards via `next(err)`; a falsy rejection reason is
+   * replaced with an `Error` carrying it as `cause`, because Express
+   * reads `next(falsy)` as "carry on routing".
    */
   onError?: ErrorHandler<ExpressContext>;
 }
@@ -140,7 +144,7 @@ export function validateResponses(
     try {
       httpReq = toHttpRequest(req);
     } catch (e) {
-      next(e);
+      next(forwardable(e, "toHttpRequest"));
       return;
     }
 
@@ -173,12 +177,14 @@ export function validateResponses(
       try {
         const maybe = onError(errors, { req, res, next });
         if (maybe !== undefined && typeof (maybe as Promise<void>).then === "function") {
-          (maybe as Promise<void>).then(sendIfUnsent).catch(next);
+          (maybe as Promise<void>).then(sendIfUnsent).catch((reason: unknown) => {
+            next(forwardable(reason, "onError"));
+          });
         } else {
           sendIfUnsent();
         }
       } catch (e) {
-        next(e);
+        next(forwardable(e, "onError"));
       }
     };
 

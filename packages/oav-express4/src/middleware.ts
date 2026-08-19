@@ -2,6 +2,7 @@ import type { Request, RequestHandler } from "express";
 import { collectLeaves, type HttpRequest, type ValidationError } from "@oaverify/internal-core";
 import type { TreeValidator, Validator } from "@oaverify/internal-validator";
 import { httpRequestFromExpress } from "./extract.js";
+import { forwardable } from "./forward-rejection.js";
 import { renderProblemDetails } from "./render.js";
 import type { ErrorHandler, ExpressContext } from "./types.js";
 
@@ -31,7 +32,10 @@ export interface ValidateRequestsOptions {
    * status, or call `ctx.next(err)` to delegate to the host's error
    * middleware. May be async; the middleware handles the returned
    * promise rather than awaiting it, so completion is not waited on.
-   * Thrown errors and rejected promises forward via `next(err)`.
+   * Thrown errors and rejected promises forward via `next(err)`. A
+   * falsy rejection reason is replaced with an `Error` carrying it as
+   * `cause`, because Express reads `next(falsy)` as "carry on routing"
+   * and the refused request would reach the route handler.
    *
    * A custom status is yours to keep consistent: pass it to
    * `toProblemDetails` as well, since RFC 9457 3.1.2 requires the
@@ -93,7 +97,7 @@ export function validateRequests(
     try {
       httpReq = toHttpRequest(req);
     } catch (e) {
-      next(e);
+      next(forwardable(e, "toHttpRequest"));
       return;
     }
     const result = validator.validateRequest(httpReq);
@@ -107,6 +111,21 @@ export function validateRequests(
     // (Express 4 middleware returns synchronously); the returned
     // promise is handled only so a rejection forwards to next(err)
     // and the host's error middleware sees it.
-    Promise.resolve(onError(errors, { req, res, next })).catch(next);
+    //
+    // A falsy rejection reason is substituted, because Express reads
+    // `next(falsy)` as "carry on routing" and the refused request would
+    // reach the route handler as though it had validated (#881).
+    // `onError` is called inside the try so a synchronous throw is
+    // forwarded here rather than escaping to Express's own layer catch,
+    // which would call `next` with the raw value. Calling it inside the
+    // try also keeps a synchronous callback synchronous, so the default
+    // renderer still writes the response in this tick.
+    try {
+      Promise.resolve(onError(errors, { req, res, next })).catch((reason: unknown) => {
+        next(forwardable(reason, "onError"));
+      });
+    } catch (e) {
+      next(forwardable(e, "onError"));
+    }
   };
 }
