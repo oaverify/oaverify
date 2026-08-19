@@ -77,10 +77,15 @@ export type DivergenceEntry =
 
 /**
  * `ignoreUndocumented` and `ignorePaths` produce the same difference:
- * the runtime passes a request the emitted module 404s. Two entries
- * rather than one, because the predicates are what say which option
- * caused it and a single entry spanning both would claim a case it
- * did not account for.
+ * the runtime passes a request the emitted module 404s.
+ *
+ * Two entries rather than one. A merged entry spanning both options
+ * would pass the gate today, so this is not a rule the accounting
+ * enforces; what it buys is that each option's exemption dies on its
+ * own. Give one of the two an emitter counterpart and its entry goes
+ * stale and fails the run, where a merged entry would still match the
+ * surviving option, still produce this signature, and carry the fixed
+ * one silently.
  */
 const ROUTE_SIGNATURE = 'verdict:valid->invalid | leaves:[]->[{"code":"route","path":[]}]';
 
@@ -229,7 +234,7 @@ export const DIVERGENCES: DivergenceEntry[] = [
       "The emitted module has no such option and answers as the runtime does by default, " +
       "which is to ignore the extra key.",
     match: (axes, wireId) =>
-      axes.shape === "runtime-options" &&
+      axes.shape === "runtime-options/strict-query" &&
       axes.runtimeOptions.strictQueryParameters === true &&
       wireId === "undeclaredQueryKey",
     signatures: [
@@ -244,7 +249,7 @@ export const DIVERGENCES: DivergenceEntry[] = [
       "`ignoreUndocumented` passes a request to a path the document does not declare. " +
       "The emitted module has no such option and 404s it, as the runtime does by default.",
     match: (axes, wireId) =>
-      axes.shape === "runtime-options" &&
+      axes.shape === "runtime-options/ignore-undocumented" &&
       axes.runtimeOptions.ignoreUndocumented === true &&
       wireId === "undeclaredPath",
     signatures: [ROUTE_SIGNATURE],
@@ -259,7 +264,7 @@ export const DIVERGENCES: DivergenceEntry[] = [
       "The option is function-valued, so an emitter counterpart would have to be something " +
       "other than a flag baked into the module.",
     match: (axes, wireId) =>
-      axes.shape === "runtime-options" &&
+      axes.shape === "runtime-options/ignore-paths" &&
       axes.runtimeOptions.ignorePaths !== undefined &&
       wireId === "ignoredPath",
     signatures: [ROUTE_SIGNATURE],
@@ -274,7 +279,7 @@ export const DIVERGENCES: DivergenceEntry[] = [
       "that moves the value channel as well as the verdict, because the option decides " +
       "whether a value arrives at all.",
     match: (axes, wireId) =>
-      axes.shape === "runtime-options" &&
+      axes.shape === "runtime-options/bracketed-arrays" &&
       axes.runtimeOptions.allowBracketedQueryArrays === true &&
       wireId === "bracketed",
     signatures: [
