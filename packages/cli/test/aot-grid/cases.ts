@@ -1,0 +1,995 @@
+/**
+ * The AOT parity grid's generator: documents, and the wire inputs to
+ * drive each one with.
+ *
+ * Two products rather than one cross-product. The parity defects this
+ * exists to find sit in two places, and the places do not interact
+ * across most of their cells:
+ *
+ * - **Product A**, parameter deserialization. One `get` operation, no
+ *   security, 3.1, and every parameter axis crossed. #888, #903 and the
+ *   `allowEmptyValue` divergence live here, and none of them cares what
+ *   the document declares above the operation.
+ * - **Product B**, request-level dispatch. A fixed, deliberately boring
+ *   parameter set, and the document shape crossed instead: declared
+ *   methods, `security`, parameter count, OpenAPI version. #899 and
+ *   #895 live here, and both short-circuit before any parameter is
+ *   read, which is why crossing them with product A's 1,300
+ *   declarations would re-derive one answer a thousand times.
+ *
+ * The interactions worth cells are enumerated instead (see
+ * `securityWithFailingParameter`). The claim is not that document shape
+ * never interacts with parameter shape; it is that the interactions
+ * worth cells are few enough to name.
+ *
+ * **No expected values live here.** This module produces inputs. The
+ * runner records what each side did and the gate compares them, so
+ * there is no oracle at this layer.
+ *
+ * **The grid holds no opinion.** `style: deepObject` on a `type: string`
+ * parameter is not a thing anyone writes, and `?p=0x1A` against
+ * `type: boolean` is not a request anyone means. They stay in, for the
+ * reason `scripts/grid/cases.mjs` gives: filtering to the combinations
+ * that "make sense" encodes one reading of the serialization rules into
+ * the instrument meant to detect changes in that reading.
+ *
+ * The schema shapes and the wire lexemes were seeded from
+ * `scripts/grid/cases.mjs` at `9577133` and are deliberately a separate
+ * copy: that module is a review aid that is explicitly not a gate, and
+ * importing it would make an edit there an edit to this gate. The cost
+ * is real and is named in this directory's README: the two sets can
+ * drift and nothing will notice.
+ */
+
+import type { OpenAPIDocument, SchemaOrBoolean } from "@oaverify/internal-core";
+import type { ValidatorOptions } from "@oaverify/internal-validator";
+
+/** The parameter name every generated declaration uses. */
+const NAME = "p";
+
+/**
+ * Schema shapes. The nullable pairs appear in both member orders
+ * because `["array","null"]` and `["null","array"]` are the same schema
+ * and #742 was them behaving differently. `strInt` is the
+ * two-readable-member case #752 tracks.
+ */
+export const SCHEMAS: Array<[string, SchemaOrBoolean]> = [
+  ["str", { type: "string" }],
+  ["int", { type: "integer" }],
+  ["num", { type: "number" }],
+  ["bool", { type: "boolean" }],
+  ["strNull", { type: ["string", "null"] }],
+  ["nullStr", { type: ["null", "string"] }],
+  ["intNull", { type: ["integer", "null"] }],
+  ["nullInt", { type: ["null", "integer"] }],
+  ["arrStr", { type: "array", items: { type: "string" } }],
+  ["arrInt", { type: "array", items: { type: "integer" } }],
+  ["arrNull", { type: ["array", "null"], items: { type: "string" } }],
+  ["nullArr", { type: ["null", "array"], items: { type: "string" } }],
+  ["objAN", { type: "object", properties: { a: { type: "string" }, n: { type: "integer" } } }],
+  ["objNull", { type: ["object", "null"], properties: { n: { type: "integer" } } }],
+  ["strInt", { type: ["string", "integer"] }],
+  ["intStr", { type: ["integer", "string"] }],
+  ["untyped", {}],
+];
+
+/** The styles OpenAPI defines for each location. 3.2 adds `cookie`. */
+const STYLES: Record<Location, string[]> = {
+  query: ["form", "spaceDelimited", "pipeDelimited", "deepObject"],
+  path: ["simple", "label", "matrix"],
+  header: ["simple"],
+  cookie: ["form"],
+};
+
+export type Location = "query" | "path" | "header" | "cookie";
+export const LOCATIONS: Location[] = ["query", "path", "header", "cookie"];
+
+/**
+ * `style` / `explode` combinations per location, including the ones
+ * where either field is left undeclared.
+ *
+ * Undeclared is not a gap in the declared set: the library resolves the
+ * default before deserializing anything, so it is a different code
+ * path, and #766 measured it as the path 92% of real parameters take
+ * while `scripts/grid` declares both on every case. One field set and
+ * the other unset is included for the same reason: the two defaults
+ * resolve independently.
+ */
+function styleExplodeCombos(location: Location): Array<{ style?: string; explode?: boolean }> {
+  const combos: Array<{ style?: string; explode?: boolean }> = [];
+  for (const style of STYLES[location]) {
+    combos.push({ style, explode: false });
+    combos.push({ style, explode: true });
+    combos.push({ style });
+  }
+  combos.push({ explode: false });
+  combos.push({ explode: true });
+  combos.push({});
+  return combos;
+}
+
+/**
+ * A `createValidator` option delta. See {@link CaseAxes.runtimeOptions}.
+ */
+export type RuntimeOptions = Omit<ValidatorOptions, "returnValues">;
+
+/**
+ * The option delta, rendered into a case id.
+ *
+ * Lossy on purpose: a function renders as `fn` and an object as
+ * whatever `String` makes of it, because this is read by a person
+ * looking at a report. Nothing matches on the result, and nothing may:
+ * `optionCacheKey` exists because the one caller that needed a key
+ * rather than a label was using this and could not tell two predicates
+ * apart.
+ *
+ * Sorted by key, so an id does not depend on literal order.
+ */
+export function renderOptions(o: RuntimeOptions): string {
+  const keys = Object.keys(o).sort();
+  if (keys.length === 0) return "default";
+  return keys
+    .map((k) => {
+      const v = (o as Record<string, unknown>)[k];
+      return `${k}=${typeof v === "function" ? "fn" : String(v)}`;
+    })
+    .join(",");
+}
+
+const refIds = new WeakMap<object, number>();
+let nextRefId = 0;
+
+/**
+ * The option delta as a key that distinguishes any two deltas that are
+ * not the same options.
+ *
+ * A primitive contributes its value, so two cases sharing
+ * `{ validateSecurity: "shape" }` share a key and a cache entry, which
+ * is the point of caching at all. A function or object contributes its
+ * identity, because `String(fn)` on two different predicates can be
+ * equal and `String(obj)` is `[object Object]` for every object. That
+ * collapse is fine in an id and wrong in a key: two `ignorePaths`
+ * predicates over one document would collide, and the second case would
+ * silently be measured against the first's validator and report
+ * agreement it never made.
+ *
+ * Identity rather than a structural hash because the deltas here are
+ * literals in this module, so two that should share a key already do.
+ */
+export function optionCacheKey(o: RuntimeOptions): string {
+  const keys = Object.keys(o).sort();
+  if (keys.length === 0) return "default";
+  return keys
+    .map((k) => {
+      const v = (o as Record<string, unknown>)[k];
+      if (typeof v !== "function" && (typeof v !== "object" || v === null)) {
+        return `${k}=${String(v)}`;
+      }
+      let id = refIds.get(v as object);
+      if (id === undefined) {
+        id = nextRefId;
+        nextRefId += 1;
+        refIds.set(v as object, id);
+      }
+      return `${k}=#${id}`;
+    })
+    .join(",");
+}
+
+/** The axes of a case, structured so a divergence entry can match on fields. */
+export interface CaseAxes {
+  product: "A" | "B";
+  in?: Location;
+  style?: string;
+  explode?: boolean;
+  schemaId?: string;
+  required?: boolean;
+  /** `schema` or `content`; see the media-type axis for the latter. */
+  source?: "schema" | "content";
+  mediaType?: string;
+  allowEmptyValue?: boolean;
+  /** Product B: which methods the path item declares. */
+  methods?: string[];
+  /** Product B: where `security` is declared. */
+  security?: "none" | "operation" | "document" | "both" | "operation-empty";
+  /** Product B: how many parameters the operation declares. */
+  params?: number;
+  version?: string;
+  /**
+   * The options this case builds `createValidator` with, as the delta
+   * from its defaults. `{}` is the default configuration.
+   *
+   * An axis over the **runtime**, not the document. The emitted module
+   * takes no options at all, so every field set here is a place the two
+   * sides can disagree by configuration rather than by defect, and a
+   * runtime option with no emitter counterpart is the exact shape of
+   * #895.
+   *
+   * Typed as whatever `createValidator` accepts rather than as a list
+   * of the options this grid happens to vary, so adding one is a
+   * literal in `optionShapes` and not an edit here. `returnValues`
+   * is excluded because `run.ts` sets it for every case: the value
+   * channel is how the comparison is made, not a thing to vary.
+   */
+  runtimeOptions: RuntimeOptions;
+  /** Free-form label for a hand-built product B shape. */
+  shape?: string;
+}
+
+/**
+ * A wire input, typed rather than a bag: the runner reads `method` and
+ * `path` to call `getOperation`, and a `Record<string, unknown>` makes
+ * that a stringification of `unknown` the type-aware lint rejects.
+ */
+export interface WireRequest {
+  method: string;
+  path: string;
+  query?: Record<string, string | string[]>;
+  headers?: Record<string, string>;
+  cookies?: Record<string, string>;
+}
+
+export interface Declaration {
+  /** Human-readable, for reports. Never used to match an entry. */
+  id: string;
+  axes: CaseAxes;
+  doc: OpenAPIDocument;
+  /** Requests to drive this declaration with. */
+  requests: Array<{ wireId: string; request: WireRequest }>;
+}
+
+/** Query wire inputs. Leads with the lexemes #736 and #751 decided. */
+const QUERY_WIRE: Array<[string, Record<string, string | string[]>]> = [
+  ["absent", {}],
+  ["empty", { [NAME]: "" }],
+  ["int", { [NAME]: "7" }],
+  ["hex", { [NAME]: "0x1A" }],
+  ["padded", { [NAME]: "  7  " }],
+  ["exp", { [NAME]: "1e3" }],
+  ["leadingZeros", { [NAME]: "007" }],
+  ["true", { [NAME]: "true" }],
+  ["word", { [NAME]: "abc" }],
+  ["csv", { [NAME]: "a,b,c" }],
+  ["csvInts", { [NAME]: "1,2,3" }],
+  ["ssv", { [NAME]: "a b c" }],
+  ["psv", { [NAME]: "a|b|c" }],
+  ["repeated", { [NAME]: ["a", "b"] }],
+  ["deep", { [`${NAME}[a]`]: "x", [`${NAME}[n]`]: "7" }],
+  ["deepHex", { [`${NAME}[n]`]: "0x1A" }],
+  ["topLevelProps", { a: "x", n: "7" }],
+  // The declared property names in one token. #824 sat under a green
+  // differential because every object case used names the schema does
+  // not declare, where there is no type to read and a string is right.
+  ["propsCsv", { [NAME]: "a,x,n,7" }],
+  ["propsCsvHex", { [NAME]: "a,x,n,0x1A" }],
+  ["propsExploded", { [NAME]: "a=x,n=7" }],
+];
+
+/** Path wire inputs, substituted into the template. */
+const PATH_WIRE: Array<[string, string]> = [
+  ["int", "7"],
+  ["hex", "0x1A"],
+  ["word", "abc"],
+  ["csv", "a,b,c"],
+  ["label", ".a.b"],
+  ["matrix", ";p=a"],
+  ["matrixCsv", ";p=a,b"],
+  ["matrixExploded", ";p=1;p=2"],
+  // Groups naming another parameter: #758, where `stripStyle` dropped
+  // any `;<name>=` prefix without checking the name.
+  ["matrixWrongName", ";q=1"],
+  ["matrixMixedNames", ";q=1;p=2"],
+  ["encodedComma", "a%2Cb"],
+  ["propsCsv", "a,x,n,7"],
+  ["propsExploded", "a=x,n=7"],
+  ["propsMatrix", ";p=a,x,n,7"],
+];
+
+/** Header and cookie wire inputs. */
+const SCALAR_WIRE: Array<[string, string | undefined]> = [
+  ["absent", undefined],
+  ["empty", ""],
+  ["int", "7"],
+  ["hex", "0x1A"],
+  ["csv", "a,b,c"],
+  ["word", "abc"],
+  ["propsCsv", "a,x,n,7"],
+  ["propsExploded", "a=x,n=7"],
+];
+
+const okResponses = { "200": { description: "ok" } };
+
+/**
+ * A record carrying one key as an own property.
+ *
+ * A literal cannot express this: `{ __proto__: "v" }` sets the
+ * prototype and produces no key at all, so the hostile-name cases below
+ * would test nothing if they were written the obvious way.
+ */
+function assign(name: string, value: string): Record<string, string> {
+  const out: Record<string, string> = Object.create(null) as Record<string, string>;
+  out[name] = value;
+  return out;
+}
+
+/** Requests for one product A declaration, by location and path template. */
+function requestsFor(location: Location, path: string): Declaration["requests"] {
+  if (location === "query") {
+    return QUERY_WIRE.map(([wireId, query]) => ({
+      wireId,
+      request: { method: "GET", path, query },
+    }));
+  }
+  if (location === "path") {
+    return PATH_WIRE.map(([wireId, segment]) => ({
+      wireId,
+      request: { method: "GET", path: path.replace(`{${NAME}}`, segment) },
+    }));
+  }
+  const out: Declaration["requests"] = SCALAR_WIRE.map(([wireId, value]) => {
+    const request: WireRequest = { method: "GET", path };
+    if (value !== undefined) {
+      if (location === "header") request.headers = { [NAME]: value };
+      else request.cookies = { [NAME]: value };
+    }
+    return { wireId, request };
+  });
+  if (location === "header") {
+    // Header names match case-insensitively (#575, where the lookup had
+    // drifted into three strategies).
+    out.push({
+      wireId: "uppercased",
+      request: { method: "GET", path, headers: { [NAME.toUpperCase()]: "7" } },
+    });
+  }
+  return out;
+}
+
+/**
+ * The `content` sub-axis: JSON against valid, invalid and
+ * schema-invalid payloads, plus a non-JSON media type that passes the
+ * raw string through. That is the branch structure of
+ * `firstContentMediaType` + `isJsonMediaType` in `validate-step.ts`,
+ * which the emitted module does not implement at all (#903).
+ */
+const CONTENT_VARIANTS: Array<{
+  id: string;
+  mediaType: string;
+  schema: SchemaOrBoolean;
+  wire: Array<[string, string]>;
+}> = [
+  {
+    id: "json-obj",
+    mediaType: "application/json",
+    schema: { type: "object", properties: { R: { type: "integer" }, G: { type: "integer" } } },
+    wire: [
+      ["validJson", '{"R":1,"G":2}'],
+      ["schemaInvalidJson", '{"R":"x","G":2}'],
+      ["notJson", "R,100,G,200"],
+    ],
+  },
+  {
+    id: "text-str",
+    mediaType: "text/plain",
+    schema: { type: "string", minLength: 2 },
+    wire: [
+      ["raw", "hello"],
+      ["tooShort", "h"],
+    ],
+  },
+];
+
+/**
+ * Product A. Every declaration for one location goes into a single
+ * document as its own path, so the whole location is one compile
+ * instead of hundreds: brief 2a measured 306 separate documents at 1.9s
+ * against 49ms folded.
+ *
+ * The fold trades a datum for speed, and the trade is stated rather
+ * than hidden: a declaration the compiler refuses takes its whole
+ * location's document with it, where one document per declaration would
+ * have recorded a `build-error` for that cell alone. The runner reports
+ * a failed fold as such.
+ */
+export function productA(): Declaration[] {
+  const out: Declaration[] = [];
+  for (const location of LOCATIONS) {
+    const paths: Record<string, unknown> = {};
+    const perDecl: Array<{ id: string; axes: CaseAxes; path: string }> = [];
+    let n = 0;
+
+    const add = (
+      axes: Omit<CaseAxes, "product" | "runtimeOptions">,
+      parameter: Record<string, unknown>,
+    ) => {
+      const key = `d${n}`;
+      n += 1;
+      const template = location === "path" ? `/${key}/{${NAME}}` : `/${key}`;
+      paths[template] = { get: { parameters: [parameter], responses: okResponses } };
+      const id = `A|${location}|${axes.style ?? "-"}|explode=${axes.explode ?? "-"}|${
+        axes.schemaId ?? axes.mediaType ?? "-"
+      }|required=${axes.required === true}${axes.allowEmptyValue === true ? "|aev" : ""}`;
+      perDecl.push({
+        id,
+        axes: { ...axes, product: "A", in: location, runtimeOptions: {} },
+        path: template,
+      });
+    };
+
+    for (const combo of styleExplodeCombos(location)) {
+      for (const [schemaId, schema] of SCHEMAS) {
+        for (const required of [false, true]) {
+          add(
+            { style: combo.style, explode: combo.explode, schemaId, required, source: "schema" },
+            {
+              name: NAME,
+              in: location,
+              ...(combo.style === undefined ? {} : { style: combo.style }),
+              ...(combo.explode === undefined ? {} : { explode: combo.explode }),
+              required,
+              schema,
+            },
+          );
+        }
+      }
+    }
+
+    // `content` instead of `schema`, on the default style only: the
+    // media type is what decides this branch, and crossing it with
+    // style would multiply a branch that never reads style.
+    for (const variant of CONTENT_VARIANTS) {
+      for (const required of [false, true]) {
+        add(
+          {
+            schemaId: variant.id,
+            required,
+            source: "content",
+            mediaType: variant.mediaType,
+          },
+          {
+            name: NAME,
+            in: location,
+            required,
+            content: { [variant.mediaType]: { schema: variant.schema } },
+          },
+        );
+      }
+    }
+
+    // `allowEmptyValue`, crossed with a schema that accepts the empty
+    // string and one that refuses it. Either alone hides half of the
+    // divergence round 1 fixed: the accepting schema shows it in the
+    // value channel, the refusing one in the verdict.
+    for (const [schemaId, schema] of [
+      ["strAcceptsEmpty", { type: "string" }],
+      ["strRejectsEmpty", { type: "string", minLength: 1 }],
+    ] as Array<[string, SchemaOrBoolean]>) {
+      for (const required of [false, true]) {
+        add(
+          { schemaId, required, source: "schema", allowEmptyValue: true },
+          { name: NAME, in: location, required, allowEmptyValue: true, schema },
+        );
+      }
+    }
+
+    const doc: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: `grid-A-${location}`, version: "1" },
+      paths,
+    } as OpenAPIDocument;
+
+    for (const decl of perDecl) {
+      const variant = CONTENT_VARIANTS.find((v) => v.id === decl.axes.schemaId);
+      const requests =
+        variant === undefined
+          ? requestsFor(location, decl.path)
+          : contentRequests(location, decl.path, variant.wire);
+      out.push({ id: decl.id, axes: decl.axes, doc, requests });
+    }
+  }
+  return out;
+}
+
+/** Wire inputs for a `content` declaration, per location. */
+function contentRequests(
+  location: Location,
+  path: string,
+  wire: Array<[string, string]>,
+): Declaration["requests"] {
+  return wire.map(([wireId, value]) => {
+    if (location === "query") {
+      return { wireId, request: { method: "GET", path, query: { [NAME]: value } } };
+    }
+    if (location === "path") {
+      return {
+        wireId,
+        request: { method: "GET", path: path.replace(`{${NAME}}`, encodeURIComponent(value)) },
+      };
+    }
+    const request: WireRequest = { method: "GET", path };
+    if (location === "header") request.headers = { [NAME]: value };
+    else request.cookies = { [NAME]: value };
+    return { wireId, request };
+  });
+}
+
+const API_KEY = { k: { type: "apiKey", in: "header", name: "X-Key" } };
+
+/** One boring parameter per location, for product B's document shapes. */
+const PLAIN_PARAMS = [
+  { name: "q", in: "query", schema: { type: "string" } },
+  { name: "X-H", in: "header", schema: { type: "string" } },
+  { name: "c", in: "cookie", schema: { type: "string" } },
+];
+
+/**
+ * Product B. The document shape is the axis, so these are not folded:
+ * folding would erase the shape under test.
+ */
+export function productB(): Declaration[] {
+  const out: Declaration[] = [];
+  const push = (
+    id: string,
+    axes: Omit<CaseAxes, "product">,
+    doc: OpenAPIDocument,
+    requests: Declaration["requests"],
+  ) => out.push({ id: `B|${id}`, axes: { ...axes, product: "B" }, doc, requests });
+
+  // Declared methods. #899: the router answers HEAD with the GET
+  // operation, so a path declaring only `get` has to agree about HEAD
+  // on both sides.
+  const methodSets: Array<[string, string[]]> = [
+    ["get", ["get"]],
+    ["get+post", ["get", "post"]],
+    ["post", ["post"]],
+  ];
+  const drivenMethods = ["GET", "HEAD", "POST", "DELETE", "OPTIONS"];
+  for (const [id, methods] of methodSets) {
+    const item: Record<string, unknown> = {};
+    for (const m of methods) item[m] = { parameters: PLAIN_PARAMS, responses: okResponses };
+    push(
+      `methods=${id}`,
+      { shape: "methods", methods, runtimeOptions: {}, version: "3.1.0" },
+      {
+        openapi: "3.1.0",
+        info: { title: "grid-B-methods", version: "1" },
+        paths: { "/t": item },
+      } as OpenAPIDocument,
+      drivenMethods.map((method) => ({
+        wireId: method,
+        request: { method, path: "/t", query: { q: "x" } },
+      })),
+    );
+  }
+
+  // Security, crossed with the runtime's `validateSecurity`. The
+  // emitted module has no such option, so the axis is over the runtime
+  // side alone, which is what makes the configurability half of #895
+  // visible: doc-level security rejects under `shape` and passes on the
+  // AOT side whatever the option says.
+  // Both security shapes below cross the same two runtime settings:
+  // the default, where the runtime checks nothing, and `shape`, where
+  // it checks. The emitted module has neither setting and always
+  // checks, so the pair is what makes both halves of #895 visible
+  // rather than only the half where the AOT is stricter.
+  const SECURITY_OPTION_DELTAS: RuntimeOptions[] = [{}, { validateSecurity: "shape" }];
+
+  const securityShapes: Array<[CaseAxes["security"], Record<string, unknown>]> = [
+    ["none", {}],
+    ["operation", { op: [{ k: [] }] }],
+    ["document", { doc: [{ k: [] }] }],
+    ["both", { doc: [{ k: [] }], op: [{ k: [] }] }],
+    // An empty operation-level array is the spec's way to opt one
+    // operation out of a document-level requirement.
+    ["operation-empty", { doc: [{ k: [] }], op: [] }],
+  ];
+  for (const [security, shape] of securityShapes) {
+    for (const runtimeOptions of SECURITY_OPTION_DELTAS) {
+      const operation: Record<string, unknown> = {
+        parameters: PLAIN_PARAMS,
+        responses: okResponses,
+      };
+      if (shape.op !== undefined) operation.security = shape.op;
+      const doc: OpenAPIDocument = {
+        openapi: "3.1.0",
+        info: { title: "grid-B-security", version: "1" },
+        components: { securitySchemes: API_KEY },
+        ...(shape.doc === undefined ? {} : { security: shape.doc }),
+        paths: { "/t": { get: operation } },
+      } as OpenAPIDocument;
+      push(
+        `security=${security}|runtime=${renderOptions(runtimeOptions)}`,
+        { shape: "security", security, runtimeOptions, version: "3.1.0" },
+        doc,
+        [
+          { wireId: "noCredential", request: { method: "GET", path: "/t", query: { q: "x" } } },
+          {
+            wireId: "withCredential",
+            request: { method: "GET", path: "/t", query: { q: "x" }, headers: { "x-key": "s" } },
+          },
+        ],
+      );
+    }
+  }
+
+  // Security x a parameter that fails its schema. The named cross term:
+  // the question is whether both sides short-circuit before recording
+  // the parameter, which only the value channel can answer.
+  for (const runtimeOptions of SECURITY_OPTION_DELTAS) {
+    push(
+      `security-vs-bad-parameter|runtime=${renderOptions(runtimeOptions)}`,
+      {
+        shape: "security-x-parameter",
+        security: "document",
+        runtimeOptions,
+        version: "3.1.0",
+      },
+      {
+        openapi: "3.1.0",
+        info: { title: "grid-B-sec-param", version: "1" },
+        components: { securitySchemes: API_KEY },
+        security: [{ k: [] }],
+        paths: {
+          "/t": {
+            get: {
+              parameters: [{ name: "n", in: "query", schema: { type: "integer" } }],
+              responses: okResponses,
+            },
+          },
+        },
+      } as OpenAPIDocument,
+      [
+        {
+          wireId: "badParamNoCredential",
+          request: { method: "GET", path: "/t", query: { n: "x" } },
+        },
+        {
+          wireId: "badParamWithCredential",
+          request: {
+            method: "GET",
+            path: "/t",
+            query: { n: "x" },
+            headers: { "x-key": "s" },
+          },
+        },
+      ],
+    );
+  }
+
+  // Two parameters contending in one location. Section 2e of the brief
+  // measured the obvious query case as sound today; it stays because it
+  // is the only shape where the value channel can show a value
+  // attributed to the wrong parameter, which no verdict expresses.
+  const OBJ = { type: "object", properties: { a: { type: "string" }, n: { type: "integer" } } };
+  push(
+    "contending-query-objects",
+    { shape: "contention", params: 2, runtimeOptions: {}, version: "3.1.0" },
+    {
+      openapi: "3.1.0",
+      info: { title: "grid-B-contend", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [
+              { name: "p", in: "query", style: "form", explode: true, schema: OBJ },
+              { name: "q", in: "query", style: "form", explode: true, schema: OBJ },
+            ],
+            responses: okResponses,
+          },
+        },
+      },
+    } as OpenAPIDocument,
+    [
+      { wireId: "bothProps", request: { method: "GET", path: "/t", query: { a: "x", n: "7" } } },
+      {
+        wireId: "oneBad",
+        request: { method: "GET", path: "/t", query: { a: "x", n: "notanint" } },
+      },
+      { wireId: "empty", request: { method: "GET", path: "/t", query: {} } },
+    ],
+  );
+
+  // Parameter names that are inherited members of a plain object. A
+  // by-name read that does not test own-property finds `constructor`
+  // on every record and satisfies a required parameter nobody sent.
+  // `compile-spec.test.ts` pins the codes for this as a regression;
+  // the grid's job is the differential half, so both sides answer the
+  // same way whatever that answer is.
+  for (const name of ["constructor", "__proto__", "toString"]) {
+    for (const location of LOCATIONS) {
+      const template = location === "path" ? `/t/{${name}}` : "/t";
+      const supplied: WireRequest = { method: "GET", path: location === "path" ? "/t/v" : "/t" };
+      if (location === "query") supplied.query = assign(name, "v");
+      if (location === "header") supplied.headers = assign(name, "v");
+      if (location === "cookie") supplied.cookies = assign(name, "v");
+      push(
+        `hostile-name=${name}|${location}`,
+        { shape: "hostile-name", in: location, runtimeOptions: {}, version: "3.1.0" },
+        {
+          openapi: "3.1.0",
+          info: { title: "grid-B-hostile", version: "1" },
+          paths: {
+            [template]: {
+              get: {
+                parameters: [{ name, in: location, required: true, schema: { type: "string" } }],
+                responses: okResponses,
+              },
+            },
+          },
+        } as OpenAPIDocument,
+        [
+          // The frame is present and empty, which is where an
+          // inherited member is reachable.
+          {
+            wireId: "absent",
+            request: {
+              method: "GET",
+              path: location === "path" ? "/t/v" : "/t",
+              query: {},
+              headers: {},
+              cookies: {},
+            },
+          },
+          { wireId: "supplied", request: supplied },
+        ],
+      );
+    }
+  }
+
+  // Versions. The parameters stay `{type: string}`, legal in all three,
+  // so the axis reaches dialect dispatch and version detection without
+  // forking the schema set the way 3.0's `nullable` would.
+  for (const version of ["3.0.3", "3.1.0", "3.2.0"]) {
+    push(
+      `version=${version}`,
+      { shape: "version", version, runtimeOptions: {} },
+      {
+        openapi: version,
+        info: { title: "grid-B-version", version: "1" },
+        paths: {
+          "/t/{id}": {
+            get: {
+              parameters: [
+                { name: "id", in: "path", required: true, schema: { type: "string" } },
+                ...PLAIN_PARAMS,
+              ],
+              responses: okResponses,
+            },
+          },
+        },
+      } as OpenAPIDocument,
+      [
+        {
+          wireId: "populated",
+          request: {
+            method: "GET",
+            path: "/t/7",
+            query: { q: "x" },
+            headers: { "x-h": "h" },
+            cookies: { c: "c" },
+          },
+        },
+        { wireId: "bare", request: { method: "GET", path: "/t/7" } },
+      ],
+    );
+  }
+
+  // 3.2's `style: cookie`, which spreads an exploded object over one
+  // crumb per property. The version axis above reaches dispatch; this
+  // reaches the serialization shape that is new in 3.2.
+  for (const explode of [false, true]) {
+    for (const [schemaId, schema] of [
+      ["objAN", OBJ],
+      ["str", { type: "string" }],
+    ] as Array<[string, SchemaOrBoolean]>) {
+      push(
+        `cookie-style-3.2|explode=${explode}|${schemaId}`,
+        {
+          shape: "cookie-style",
+          version: "3.2.0",
+          in: "cookie",
+          style: "cookie",
+          explode,
+          schemaId,
+          runtimeOptions: {},
+        },
+        {
+          openapi: "3.2.0",
+          info: { title: "grid-B-cookie", version: "1" },
+          paths: {
+            "/t": {
+              get: {
+                parameters: [{ name: "p", in: "cookie", style: "cookie", explode, schema }],
+                responses: okResponses,
+              },
+            },
+          },
+        } as OpenAPIDocument,
+        [
+          { wireId: "crumbs", request: { method: "GET", path: "/t", cookies: { a: "x", n: "7" } } },
+          {
+            wireId: "underName",
+            request: { method: "GET", path: "/t", cookies: { p: "a,x,n,7" } },
+          },
+          { wireId: "scalar", request: { method: "GET", path: "/t", cookies: { p: "hello" } } },
+          { wireId: "absent", request: { method: "GET", path: "/t" } },
+        ],
+      );
+    }
+  }
+
+  // Runtime options with no emitter counterpart.
+  //
+  // The generalisation of the `validateSecurity` cases above. Every
+  // option `createValidator` accepts is a place the two sides can
+  // disagree by configuration, because the emitted module takes none of
+  // them, and #895 is that shape for one option out of several.
+  //
+  // Each shape below runs twice, at the default and with the option
+  // set, so the difference is attributable to the option rather than to
+  // the document. The document and the requests are chosen to make the
+  // option decide the answer; at the default both sides agree, which is
+  // what the first of the two cells asserts.
+  //
+  // The list is what has been measured, not what exists. Adding a
+  // shape is how an option gets onto the axis, and every option
+  // `createValidator` takes is a candidate until someone drives it.
+  //
+  // Two that were driven and are absent for different reasons.
+  // `onUnknownVersion` produced no difference on the requests tried.
+  // `maxDepth` does diverge, and not from anything reachable here: it
+  // takes a recursive schema and a body deep enough to hit the bound,
+  // and this grid has neither, which is two entries in the gaps list
+  // rather than a property of the option. Both are worth revisiting
+  // when bodies arrive.
+  const optionShapes: Array<{
+    id: string;
+    options: RuntimeOptions;
+    doc: OpenAPIDocument;
+    requests: Declaration["requests"];
+  }> = [
+    {
+      id: "strict-query",
+      options: { strictQueryParameters: true },
+      doc: {
+        openapi: "3.1.0",
+        info: { title: "grid-B-opt-strict-query", version: "1" },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [{ name: "q", in: "query", schema: { type: "string" } }],
+              responses: okResponses,
+            },
+          },
+        },
+      } as OpenAPIDocument,
+      requests: [
+        { wireId: "undeclaredQueryKey", request: { method: "GET", path: "/t?q=x&extra=y" } },
+        { wireId: "declaredOnly", request: { method: "GET", path: "/t?q=x" } },
+      ],
+    },
+    {
+      id: "ignore-undocumented",
+      options: { ignoreUndocumented: true },
+      doc: {
+        openapi: "3.1.0",
+        info: { title: "grid-B-opt-ignore-undoc", version: "1" },
+        paths: { "/t": { get: { parameters: PLAIN_PARAMS, responses: okResponses } } },
+      } as OpenAPIDocument,
+      requests: [
+        { wireId: "undeclaredPath", request: { method: "GET", path: "/nope" } },
+        { wireId: "declaredPath", request: { method: "GET", path: "/t", query: { q: "x" } } },
+      ],
+    },
+    {
+      id: "ignore-paths",
+      // A function-valued option, which is why it is worth its own
+      // shape rather than a value of another: an emitter counterpart
+      // would have to be something other than a serialised flag, and
+      // the grid should still see the divergence in the meantime.
+      options: { ignorePaths: (path: string) => path === "/health" },
+      doc: {
+        openapi: "3.1.0",
+        info: { title: "grid-B-opt-ignore-paths", version: "1" },
+        paths: { "/t": { get: { parameters: PLAIN_PARAMS, responses: okResponses } } },
+      } as OpenAPIDocument,
+      requests: [
+        { wireId: "ignoredPath", request: { method: "GET", path: "/health" } },
+        { wireId: "otherUndeclaredPath", request: { method: "GET", path: "/nope" } },
+        { wireId: "declaredPath", request: { method: "GET", path: "/t", query: { q: "x" } } },
+      ],
+    },
+    {
+      id: "bracketed-arrays",
+      options: { allowBracketedQueryArrays: true },
+      doc: {
+        openapi: "3.1.0",
+        info: { title: "grid-B-opt-bracketed", version: "1" },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [
+                {
+                  name: "p",
+                  in: "query",
+                  required: true,
+                  schema: { type: "array", items: { type: "string" } },
+                },
+              ],
+              responses: okResponses,
+            },
+          },
+        },
+      } as OpenAPIDocument,
+      // Either wire form does: the option acts at parameter lookup on
+      // `req.query`, not on how a query string is read, so a pre-parsed
+      // object reaches the same branch. Measured both ways.
+      requests: [
+        { wireId: "bracketed", request: { method: "GET", path: "/t?p[]=a&p[]=b" } },
+        { wireId: "repeated", request: { method: "GET", path: "/t?p=a&p=b" } },
+      ],
+    },
+    {
+      id: "bracketed-arrays-optional",
+      options: { allowBracketedQueryArrays: true },
+      doc: {
+        openapi: "3.1.0",
+        info: { title: "grid-B-opt-bracketed-optional", version: "1" },
+        paths: {
+          "/t": {
+            get: {
+              parameters: [
+                {
+                  name: "p",
+                  in: "query",
+                  required: false,
+                  schema: { type: "array", items: { type: "string" } },
+                },
+              ],
+              responses: okResponses,
+            },
+          },
+        },
+      } as OpenAPIDocument,
+      // The same option against an optional parameter. Required, it
+      // decides a verdict; optional, absence is valid on both sides and
+      // the only thing that moves is the delivered value. That half is
+      // #888's shape, and it is why this shape is a pair: a probe of
+      // the required case alone reports the option as covered.
+      requests: [
+        { wireId: "bracketed", request: { method: "GET", path: "/t?p[]=a&p[]=b" } },
+        {
+          wireId: "bracketedPreParsed",
+          request: { method: "GET", path: "/t", query: { "p[]": ["a", "b"] } },
+        },
+      ],
+    },
+  ];
+  for (const shape of optionShapes) {
+    for (const runtimeOptions of [{}, shape.options]) {
+      push(
+        `option=${shape.id}|runtime=${renderOptions(runtimeOptions)}`,
+        {
+          // The shape id is carried, not just the family name. A
+          // registry predicate that could only read the option key
+          // would claim every shape setting that option, and two
+          // options compose: a later shape setting `ignorePaths` and
+          // `ignoreUndocumented` together would land inside both of
+          // their entries.
+          shape: `runtime-options/${shape.id}`,
+          runtimeOptions,
+          version: "3.1.0",
+        },
+        shape.doc,
+        shape.requests,
+      );
+    }
+  }
+
+  return out;
+}
+
+/** Every declaration, both products. */
+export function declarations(): Declaration[] {
+  return [...productA(), ...productB()];
+}

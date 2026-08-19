@@ -323,6 +323,21 @@ Same limits as `compile-schema`, plus:
 - **External `$ref`s**: internal refs within the document compile
   fine; multi-file external refs must be pre-inlined via `oaverify
 resolve` or `resolveSpec` before running `compile-spec`.
+- **Validator options with no counterpart**: the emitted module
+  compiles one configuration, and it is `createValidator`'s default.
+  Some options survive into the artifact, each through a flag in the
+  table above (`output`, `maxErrors`, `unknownFormats`, `maxTotalBytes`,
+  `returnValues`, the dialect). The rest of
+  `ValidatorOptions` has no flag to carry it, so a deployment that opts
+  into one and a module compiled from the same document answer
+  differently on the requests that option decides:
+  `strictQueryParameters` and `allowBracketedQueryArrays` are two that
+  do. The parity grid under `packages/cli/test/aot-grid` carries a case
+  for each one it has measured, and its registry is the current list
+  rather than this paragraph. `validateSecurity` is the exception, and a
+  defect rather than a limit: the emitted module always checks
+  operation-level security, which is no setting of that option
+  ([#895](https://github.com/oaverify/oaverify/issues/895)).
 
 ### Relationship to ajv's `standaloneCode`
 
