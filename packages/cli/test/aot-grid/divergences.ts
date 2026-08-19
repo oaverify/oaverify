@@ -300,6 +300,26 @@ export const DIVERGENCES: DivergenceEntry[] = [
         '{"path":{},"query":{},"headers":{},"cookies":{}}',
     ],
   },
+  {
+    name: "options/bracketed-arrays-optional",
+    kind: "intentional",
+    why:
+      "The same option against an optional parameter, where absence is valid on both sides " +
+      "and the only thing that moves is the delivered value. Separate from the required " +
+      "entry because the signature has no verdict in it: a comparison of verdicts alone " +
+      "calls this agreement, which is the half of #888 that shipped.",
+    // No wireId pin, unlike its required sibling. The explanation is
+    // that the option decides the value whatever spelling arrives, and
+    // both spellings produce one signature, so pinning one would make
+    // the predicate narrower than the claim rather than equal to it.
+    match: (axes) =>
+      axes.shape === "runtime-options/bracketed-arrays-optional" &&
+      axes.runtimeOptions.allowBracketedQueryArrays === true,
+    signatures: [
+      'value:{"path":{},"query":{"p":["a","b"]},"headers":{},"cookies":{}}->' +
+        '{"path":{},"query":{},"headers":{},"cookies":{}}',
+    ],
+  },
 ];
 
 /** The entry claiming a case, or undefined when nothing claims it. */
