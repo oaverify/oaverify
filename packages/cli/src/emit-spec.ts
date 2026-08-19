@@ -332,7 +332,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     // membership in `@oaverify/core/codegen-runtime` follows this import
     // (see that module's header). Do not point it at a subpath that
     // promises less.
-    `import { deserialize, matchParsedMediaType, matchResponseKey, normalizeRequestQuery, FetchBodyParseError, FetchBodyTooLargeError, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
+    `import { deserialize, matchParsedMediaType, matchResponseKey, normalizeRequestQuery, assembleObjectQueryParam, assembleObjectCookieParam, FetchBodyParseError, FetchBodyTooLargeError, httpRequestFromFetch, httpResponseFromFetch, checkSecurity, compileOperationSecurity, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage } from "${importPrefix}/codegen-runtime";`,
     "",
     "void createBranchError; void createError; void deepEqual; void typeOf; void wrapErrors;",
     "void resolveOperationRef;",
@@ -983,18 +983,39 @@ function renderValidateRequestTree(): string {
   );
 }
 
+function __missingParameter(p) {
+  if (!p.required) return null;
+  return createLeafError(
+    p.in === "header" ? "header-param" : p.in === "path" ? "path-param" : p.in === "query" ? "query-param" : "cookie-param",
+    [p.in, p.name],
+    \`missing required \${p.in} parameter "\${p.name}"\`,
+    { name: p.name, in: p.in },
+  );
+}
+
 function __validateParameter(p, req, match) {
+  // Object assembly, ahead of the by-name read. OpenAPI spreads an
+  // object-typed parameter over several wire keys for style form with
+  // explode true and for style deepObject in the query, and for 3.2's
+  // style cookie when exploded, so nothing is stored under the
+  // parameter's own name. Mirrors validate-step.ts, which gates on the
+  // same two assemblers and hands the result to validateAssembled;
+  // reading the name first reported the parameter missing when it was
+  // required, and skipped validating it entirely when it was not (#888).
+  const assembled = p.in === "query"
+    ? assembleObjectQueryParam(p, req.query)
+    : p.in === "cookie"
+      ? assembleObjectCookieParam(p, req.cookies)
+      : undefined;
+  if (assembled !== undefined) {
+    if (p.__validator === null) return null;
+    if (assembled.value === undefined) return __missingParameter(p);
+    const r = p.__validator.validate(assembled.value, [p.in, p.name]);
+    if (r.valid || r.error === undefined) return null;
+    return r.error;
+  }
   const raw = __readParamRaw(p, req, match);
-  const missing = () => {
-    if (!p.required) return null;
-    return createLeafError(
-      p.in === "header" ? "header-param" : p.in === "path" ? "path-param" : p.in === "query" ? "query-param" : "cookie-param",
-      [p.in, p.name],
-      \`missing required \${p.in} parameter "\${p.name}"\`,
-      { name: p.name, in: p.in },
-    );
-  };
-  if (raw === undefined) return missing();
+  if (raw === undefined) return __missingParameter(p);
   if (p.__validator === null) return null;
   const value = deserialize(raw, p);
   // Mirrors validateParameter in validate-step.ts: a present token can
@@ -1002,7 +1023,7 @@ function __validateParameter(p, req, match) {
   // Gated on the style there and here, because an object-typed
   // parameter handed an empty array reads undefined too and that is not
   // absence. See #758 and #789.
-  if (value === undefined && (p.style === "matrix" || p.style === "label")) return missing();
+  if (value === undefined && (p.style === "matrix" || p.style === "label")) return __missingParameter(p);
   const r = p.__validator.validate(value, [p.in, p.name]);
   if (r.valid || r.error === undefined) return null;
   return r.error;
