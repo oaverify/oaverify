@@ -1030,6 +1030,48 @@ describe("a parameters field that is not a list (#837)", () => {
     ).not.toThrow();
   });
 
+  it("leaves an unreadable parameters exactly as written", () => {
+    // Mapping it would assign the empty list `asParameterList` returns,
+    // deleting the author's content and taking the conformance finding
+    // that names the defect with it.
+    const modified = applyOverlays(holed(), [
+      { modifyParameters: [{ where: { in: "query" }, apply: { description: "x" } }] },
+    ]);
+    const upserted = applyOverlays(holed(), [
+      {
+        overrides: {
+          "/t": { operations: { get: { upsertParameters: [{ name: "z", in: "query" }] } } },
+        },
+      },
+    ]);
+    for (const out of [modified, upserted]) {
+      const item = out.paths?.["/t"] as Record<string, Record<string, unknown>>;
+      expect(item.parameters).toEqual({ name: "a", in: "query" });
+      expect(item.get?.parameters).toEqual({ name: "id", in: "query" });
+    }
+  });
+
+  it("upserts into an empty `parameters:`, which is readable", () => {
+    // `parameters:` with nothing under it parses as null and says nothing
+    // is declared. Spelling readability as `=== undefined` here made the
+    // upsert a silent no-op while the lint called the same input
+    // readable, so the two halves disagreed.
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: { "/t": { get: { parameters: null, responses: { "200": { description: "ok" } } } } },
+    } as unknown as OpenAPIDocument;
+    const out = applyOverlays(doc, [
+      {
+        overrides: {
+          "/t": { operations: { get: { upsertParameters: [{ name: "z", in: "query" }] } } },
+        },
+      },
+    ]);
+    const item = out.paths?.["/t"] as Record<string, Record<string, unknown>>;
+    expect(item.get?.parameters).toEqual([{ name: "z", in: "query" }]);
+  });
+
   it("survives upsertParameters, the route a plain Overlay action takes", () => {
     expect(() =>
       applyOverlays(holed(), [

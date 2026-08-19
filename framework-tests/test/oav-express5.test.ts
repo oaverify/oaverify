@@ -837,6 +837,52 @@ describe("oav-express5 integration: validateResponses with requireResponseBody",
   });
 });
 
+describe("oav-express5 integration: the request leg relies on the router, so pin it", () => {
+  // This adapter does not substitute on the request leg: it awaits
+  // `onError`, and Express 5's router turns a rejected middleware promise
+  // into an error itself. That is a third-party guarantee across the
+  // whole `express ^5.0.0` peer range, so it is pinned here rather than
+  // assumed (#881).
+  let server: Server;
+  let baseUrl: string;
+  let handlerRan = false;
+
+  beforeAll(async () => {
+    const app = express();
+    app.use(express.json());
+    app.use(
+      validateRequests(createValidator(petSpec()), {
+        onError: async () => {
+          await new Promise((r) => setTimeout(r, 1));
+          throw undefined;
+        },
+      }),
+    );
+    app.post("/pets", (_req, res) => {
+      handlerRan = true;
+      res.status(201).json({ reached: true });
+    });
+    app.use(((_err: unknown, _req, res, _next) => {
+      res.status(599).end();
+    }) as express.ErrorRequestHandler);
+    ({ server, baseUrl } = await listenOnZero(app));
+  });
+
+  afterAll(async () => {
+    await closeServer(server);
+  });
+
+  it("the route handler does not run", async () => {
+    const r = await fetch(`${baseUrl}/pets`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant": "acme" },
+      body: JSON.stringify({}),
+    });
+    expect(handlerRan).toBe(false);
+    expect(r.status).toBe(599);
+  });
+});
+
 describe("oav-express5 integration: a falsy onError rejection is not read as continue-routing", () => {
   let server: Server;
   let baseUrl: string;

@@ -783,16 +783,20 @@ function asParameterList(parameters: unknown): NonNullable<PathItem["parameters"
 
 function applyParamModifyToPathItem(item: PathItem, entry: ModifyParametersEntry): PathItem {
   const next: PathItem = { ...item };
-  if (item.parameters !== undefined) {
-    next.parameters = asParameterList(item.parameters).map((p) => mergeParamIfMatch(p, entry));
+  // `Array.isArray`, not a presence check: an unreadable `parameters` is
+  // left exactly as written. Mapping it would assign the empty list
+  // `asParameterList` returns, deleting the author's content and taking
+  // the conformance finding that names the defect with it (#837).
+  if (Array.isArray(item.parameters)) {
+    next.parameters = item.parameters.map((p) => mergeParamIfMatch(p, entry));
   }
   for (const method of METHODS) {
     const op = next[method];
     if (op === undefined) continue;
-    if (op.parameters !== undefined) {
+    if (Array.isArray(op.parameters)) {
       next[method] = {
         ...op,
-        parameters: asParameterList(op.parameters).map((p) => mergeParamIfMatch(p, entry)),
+        parameters: op.parameters.map((p) => mergeParamIfMatch(p, entry)),
       };
     }
   }
@@ -1190,7 +1194,14 @@ function applyOperationOverride(op: OperationObject, override: OperationOverride
 
   const next: OperationObject = { ...op };
 
-  if (override.upsertParameters) {
+  // An unreadable `parameters` has nothing to upsert into, and replacing
+  // it with only the upserted entries would delete what the author
+  // wrote. Left as-is for the conformance pass to report (#837).
+  //
+  // `== null` rather than `=== undefined`: `parameters:` with nothing
+  // under it parses as `null` and says nothing is declared, which is
+  // readable. The same predicate as `isParameterList` in the lint.
+  if (override.upsertParameters && (op.parameters == null || Array.isArray(op.parameters))) {
     const existing = [...asParameterList(op.parameters)];
     for (const newParam of override.upsertParameters) {
       // Reference-object entries (`{ $ref: … }`) can't be matched by

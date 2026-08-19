@@ -190,6 +190,9 @@ app.use(validateRequests(validator));
 app.use(
   validateRequests(validator, {
     onError: (errors, ctx) => {
+      // A custom envelope still owes a 405 its `Allow` header.
+      const allow = allowHeaderFor(errors);
+      if (allow !== undefined) ctx.res.setHeader("Allow", allow);
       ctx.res.status(httpStatusFor(errors)).json({
         message: `${errors.length} validation error(s)`,
         errors: collectIssues(errors),
@@ -261,7 +264,7 @@ When the validator is mounted globally and one or a few routes accept file uploa
 
 ## See also
 
-- [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `toProblemDetails`.
+- [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core): `createValidator`, `ValidatorOptions`, `formatSummary`, `collectIssues`, `httpStatusFor`, `allowHeaderFor`, `toProblemDetails`.
 - [`oaverify`](https://www.npmjs.com/package/oaverify): the CLI. The library is `@oaverify/core`.
 - The repo-root [`docs/integration.md`](https://github.com/oaverify/oaverify/blob/main/docs/integration.md): broader recipes (security, file uploads, response validation, status mapping, type coercion, ignoring paths).
 - The repo-root [`docs/migration-from-eov.md`](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md): porting from `express-openapi-validator`.

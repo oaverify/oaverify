@@ -481,7 +481,11 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
       if (!op) continue;
       const opPointer = `${pathItemPointer}/${method}`;
       const opLevelDeclared = collectPathParams(op.parameters ?? [], document);
-      if (itemListUnreadable || !isParameterList(op.parameters)) continue;
+      // Only the undeclared rule is blinded by an unreadable list, since
+      // it asks what the document declares in total. `path-param-unused`
+      // reads the declarations it can see and is unaffected, so it keeps
+      // reporting for whichever level is readable.
+      const declarationsUnknown = itemListUnreadable || !isParameterList(op.parameters);
 
       // OpenAPI: operation-level parameters with same (name, in) override
       // path-item-level. Compute the effective set by name.
@@ -489,14 +493,18 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
       for (const name of itemLevelDeclared) effective.set(name, "item");
       for (const name of opLevelDeclared) effective.set(name, "op");
 
-      for (const name of inTemplate) {
-        if (effective.has(name)) continue;
-        issues.push({
-          code: "path-param-undeclared",
-          pointer: opPointer,
-          message: `path template "${pathTemplate}" references "{${name}}" but neither the operation nor its path item declares a path parameter named "${name}"`,
-        });
-      }
+      // Skipped whole when a declaration cannot be read: the rule asks
+      // what the document declares in total, and an unreadable list
+      // makes that unknown.
+      if (!declarationsUnknown)
+        for (const name of inTemplate) {
+          if (effective.has(name)) continue;
+          issues.push({
+            code: "path-param-undeclared",
+            pointer: opPointer,
+            message: `path template "${pathTemplate}" references "{${name}}" but neither the operation nor its path item declares a path parameter named "${name}"`,
+          });
+        }
       for (const [name, source] of effective) {
         if (inTemplate.has(name)) continue;
         issues.push({
@@ -600,9 +608,16 @@ function extractPathTemplateNames(template: string): Set<string> {
   return names;
 }
 
-/** `parameters` is absent or a list, so what it declares is readable. */
+/**
+ * `parameters` is readable: absent, or a list.
+ *
+ * `parameters:` written with nothing under it parses as `null`, which
+ * says nothing is declared rather than that the declaration cannot be
+ * read. Treating it as unreadable silenced a true `path-param-undeclared`
+ * for a common YAML slip.
+ */
 function isParameterList(parameters: unknown): boolean {
-  return parameters === undefined || Array.isArray(parameters);
+  return parameters == null || Array.isArray(parameters);
 }
 
 function collectPathParams(parameters: unknown, document: OpenAPIDocument): Set<string> {

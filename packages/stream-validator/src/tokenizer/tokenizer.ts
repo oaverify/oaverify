@@ -119,13 +119,17 @@ function countCodePoints(s: string): number {
 export class JsonTokenizer {
   private readonly handler: JsonEventHandler;
   // `ignoreBOM` keeps a U+FEFF that appears in the input instead of
-  // treating it as a byte-order mark. Every `decode` with
-  // `{ stream: false }` ends the decode stream, so the next call starts a
-  // fresh one, and a fresh stream strips a U+FEFF that begins it. A
-  // decoded run begins at a string's opening quote, after an escape, and
-  // after a chunk boundary that ended the stream, so a BOM at any of
-  // those three positions was deleted from the value while the
-  // escape-aware code-point counter still counted it (#851).
+  // treating it as a byte-order mark. A `decode` with `{ stream: false }`
+  // ends the decode stream, so the next call starts a fresh one, and a
+  // fresh stream strips a U+FEFF that begins it. `scanStringBody` passes
+  // `stream: true` at a chunk end, which keeps the stream open, so the
+  // two run starts that follow an ended stream are a string's opening
+  // quote and the text after an escape. A BOM at either was deleted from
+  // the value the handler received (#851).
+  //
+  // The count agreed with the value both before and after, because the
+  // counter measures the decode's output (#852). The defect was the
+  // value alone.
   private readonly decoder = new TextDecoder("utf-8", { ignoreBOM: true });
 
   private state = ST_VALUE;
