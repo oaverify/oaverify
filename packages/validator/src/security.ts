@@ -227,7 +227,10 @@ function pickApiKey(
     const q = readOwn ? getOwn(req.query, name) : req.query?.[name];
     return Array.isArray(q) ? q[0] : q;
   }
-  return readOwn ? getOwn(req.cookies, name) : req.cookies?.[name];
+  // A credential is one value. A repeated cookie name takes the first
+  // crumb, the same answer the query branch above gives.
+  const c = readOwn ? getOwn(req.cookies, name) : req.cookies?.[name];
+  return Array.isArray(c) ? c[0] : c;
 }
 
 function tryBase64Decode(s: string): string | undefined {

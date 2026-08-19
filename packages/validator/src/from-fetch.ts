@@ -182,6 +182,12 @@ export class FetchBodyTooLargeError extends Error {
  * `request.body` is exhausted. Callers that need to re-read the body
  * should use `request.clone()` before calling.
  *
+ * Cookies come from the `Cookie` header, which this extractor parses
+ * itself. That makes it the one that can carry a repeated cookie name,
+ * since the framework siblings parse nothing and pass through the record
+ * `cookie-parser` or `@fastify/cookie` built. See
+ * {@link HttpRequest.cookies}.
+ *
  * Shape note: this is the one `httpRequestFrom*` extractor that is
  * async and returns `{ httpRequest, body }` (reading the stream is
  * async, and the parsed body is surfaced for the caller to consume).
@@ -212,11 +218,18 @@ export async function httpRequestFromFetch(
       ? await options.readBody(request)
       : await readBody(request, contentType, method, options?.maxTotalBytes);
 
+  // The `Cookie` header reaches this adapter as a header, and the
+  // validator reads cookie parameters from `cookies` only, so leaving it
+  // unset made every declared cookie parameter invisible (#827).
+  const cookieHeader = request.headers.get("cookie");
+  const cookies = cookieHeader === null ? undefined : cookiesFromHeader(cookieHeader);
+
   const httpRequest: HttpRequest = {
     method,
     path: url.pathname,
     query,
     headers,
+    ...(cookies !== undefined && { cookies }),
     ...(contentType !== undefined && { contentType }),
     ...(body !== undefined && { body }),
   };
@@ -321,6 +334,88 @@ function objectFromSearchParams(params: URLSearchParams): Record<string, string 
     setSpecKey(out, key, values.length === 1 ? (values[0] ?? "") : values);
   }
   return out;
+}
+
+/**
+ * Unwrap a DQUOTE-wrapped `cookie-value` and percent-decode it.
+ *
+ * A value that will not decode (a stray `%`, an invalid escape) is
+ * returned unchanged, so a malformed cookie reaches the schema as sent
+ * rather than throwing out of the extractor.
+ */
+function decodeCookieValue(raw: string): string {
+  const unwrapped =
+    raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"') ? raw.slice(1, -1) : raw;
+  if (!unwrapped.includes("%")) return unwrapped;
+  try {
+    return decodeURIComponent(unwrapped);
+  } catch {
+    return unwrapped;
+  }
+}
+
+/**
+ * Split a `Cookie` header into one entry per name.
+ *
+ * RFC 6265 4.2.1 gives the `cookie-string` grammar a server receives, and
+ * 4.2.2 tells servers not to depend on the order crumbs arrive in. This
+ * does depend on it, deliberately: OpenAPI 3.2 serializes an exploded
+ * array as a repeat, so order is the array. The rules are stated rather
+ * than inferred:
+ *
+ * - crumbs are separated by `;`, and surrounding whitespace is trimmed;
+ * - a crumb splits at its first `=`, so the value keeps any later ones;
+ * - a crumb with no `=` names no cookie and is dropped;
+ * - a value wrapped in DQUOTE is unwrapped, per the `cookie-value`
+ *   production;
+ * - values are percent-decoded, and a value that will not decode is
+ *   passed through unchanged.
+ *
+ * Decoding is the awkward one, because the right answer depends on the
+ * parameter's style and this runs before any spec is consulted. The
+ * default `style: form` is RFC 6570 form expansion, which
+ * percent-encodes, and `cookie-octet` forbids space, comma, semicolon
+ * and DQUOTE, so a value carrying any of them has to arrive encoded.
+ * OpenAPI 3.2's `style: cookie` says the opposite ("no percent-encoding
+ * or other escaping is applied"). Decoding matches the default style and
+ * matches `objectFromSearchParams` in this file, so query and cookie in
+ * one request follow one rule. A `style: cookie` value carrying a valid
+ * escape sequence is decoded anyway, which is the cost; the passthrough
+ * covers the ones that do not decode. See {@link HttpRequest.cookies},
+ * which is where a caller meets this.
+ *
+ * Names are not decoded. `cookie-name` is a token, so an encoded one is
+ * unusual, and a `style: cookie` exploded object reads its crumb names
+ * as property names.
+ *
+ * A repeated name collects into an array in header order, which is how
+ * OpenAPI 3.2 serializes an exploded array under `style: cookie`
+ * (`color=blue; color=black; color=brown`). This adapter parses the
+ * header itself, so it is the one that can preserve that; the Express
+ * and Fastify adapters parse nothing and carry whatever their cookie
+ * plugin built. See {@link HttpRequest.cookies}.
+ */
+function cookiesFromHeader(header: string): Record<string, string | string[]> | undefined {
+  const out: Record<string, string | string[]> = {};
+  let any = false;
+  for (const crumb of header.split(";")) {
+    const eq = crumb.indexOf("=");
+    if (eq === -1) continue;
+    const name = crumb.slice(0, eq).trim();
+    if (name === "") continue;
+    const value = decodeCookieValue(crumb.slice(eq + 1).trim());
+    // Own-property read and write, as `headersToRecord` does above. A
+    // cookie named "constructor" would otherwise read the inherited
+    // function as a prior value, and a repeated "__proto__" would set
+    // the record's prototype, letting a client satisfy a required
+    // parameter it never sent.
+    const seen = getOwn(out, name);
+    if (seen === undefined) setSpecKey(out, name, value);
+    else if (Array.isArray(seen)) seen.push(value);
+    else setSpecKey(out, name, [seen, value]);
+    any = true;
+  }
+  return any ? out : undefined;
 }
 
 /**

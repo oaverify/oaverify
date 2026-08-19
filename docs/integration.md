@@ -36,7 +36,7 @@ interface HttpRequest {
   headers?: Record<string, string | string[]>; // adapters lowercase; matching is case-insensitive
   contentType?: string; // the only media-type source; NOT read from headers
   body?: unknown; // already-parsed
-  cookies?: Record<string, string>;
+  cookies?: Record<string, string | string[]>; // an array is a repeated name
 }
 
 interface HttpResponse {
@@ -338,6 +338,18 @@ const { httpRequest } = await httpRequestFromFetch(request);
 // Mutate httpRequest.body however you need, then:
 const result = validator.validateRequest(httpRequest);
 ```
+
+This extractor fills `cookies` from the `Cookie` header itself, so a
+declared cookie parameter is read with no cookie middleware to install.
+It is also the one that carries a repeated cookie name, which an
+exploded array under 3.2's `style: cookie` needs
+(`Cookie: color=blue; color=black`); the Express and Fastify adapters
+pass through whatever their cookie plugin built.
+
+Values are percent-decoded and a DQUOTE-wrapped value is unwrapped, so
+cookies and query values in one request follow the same rule. That is
+right for the default `style: form` and deviates from `style: cookie`,
+which says no escaping is applied; see `HttpRequest.cookies`.
 
 **Hono, cross-cutting alternative.** `app.use('*', mw)` can host
 the adapter. Hono parallels the per-route Standard-Schema validator

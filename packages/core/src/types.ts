@@ -542,17 +542,29 @@ export interface HttpRequest {
    * `@fastify/cookie` produce this shape, and the adapters pass it
    * through.
    *
-   * One value per name, unlike {@link HttpRequest.query} and
-   * {@link HttpRequest.headers}. A repeated cookie name therefore has
-   * no representation here, which is what an exploded array under
-   * OpenAPI 3.2's `style: cookie` needs
-   * (`Cookie: p=blue; p=black`). Such a parameter validates against
-   * whichever single crumb the caller's cookie parser kept, so it
-   * reaches the schema one element long however many were sent, and a
-   * `minItems` above 1 rejects a conforming request. Every other
-   * cookie shape is read in full.
+   * An array carries a repeated cookie name in the order the header
+   * sent it (`Cookie: p=blue; p=black`), which is what an exploded
+   * array under OpenAPI 3.2's `style: cookie` needs. Same shape as
+   * {@link HttpRequest.query} and {@link HttpRequest.headers}, for the
+   * same reason: the field describes what HTTP can carry.
+   *
+   * Values arrive decoded. `httpRequestFromFetch` percent-decodes and
+   * unwraps a DQUOTE-wrapped value, matching the query values in the
+   * same request. That is right for the default `style: form`, which
+   * percent-encodes, and it deviates from OpenAPI 3.2's `style: cookie`,
+   * which says no escaping is applied: a `style: cookie` value carrying
+   * a valid escape sequence is decoded anyway. The adapter runs before
+   * any spec is read, so it cannot see the style to tell the two apart.
+   *
+   * How much of that reaches here depends on where the adapter gets its
+   * cookies. `httpRequestFromFetch` parses the header itself and keeps
+   * every crumb. The Express and Fastify adapters parse nothing: they
+   * pass through the record `cookie-parser` or `@fastify/cookie` built,
+   * so their fidelity is that parser's. A parser keeping one value per
+   * name delivers a repeated name as one crumb. That is a property of
+   * the parser the application chose rather than of this field.
    */
-  cookies?: Record<string, string>;
+  cookies?: Record<string, string | string[]>;
   /**
    * The request's media type, `"; charset=utf-8"` and all. Matched
    * against the operation's `requestBody.content` keys.
