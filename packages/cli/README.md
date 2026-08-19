@@ -194,6 +194,7 @@ below for the expected shape.
 | `--requests-only`                             | compile-spec                                             | Skip response-validator emit. Smaller output.                                                                                                                                                                                                                                                                                               |
 | `--max-total-bytes <n>`                       | compile-spec                                             | Byte cap on the emitted Fetch helpers' body read: a positive integer or `none`. Default 1048576 (1 MiB).                                                                                                                                                                                                                                    |
 | `--return-values`                             | compile-spec                                             | Also hand back the deserialized parameter values from the emitted `validateRequest`, under a `value` field. Default off. Rejected with `--output-mode predicate`, which returns a bare boolean. Mirrors `returnValues`.                                                                                                                     |
+| `--validate-security <mode>`                  | compile-spec                                             | Reject requests missing the declared credential: `off` (default), `shape`, `strict`. Shape-only, and never credential verification. Mirrors `validateSecurity`.                                                                                                                                                                             |
 | `--only <method-path>`                        | compile-spec                                             | Repeatable; restrict emit to given ops, e.g. `--only "POST /pets"`.                                                                                                                                                                                                                                                                         |
 | `--output-mode flat\|tree\|predicate`         | compile-spec                                             | Result shape of the emitted validators. Default `flat`. Mirrors `output`.                                                                                                                                                                                                                                                                   |
 | `--max-errors <n>`                            | compile-spec                                             | Leaf-error cap baked in: a positive integer or `all`. Default `1`. Mirrors `maxErrors`.                                                                                                                                                                                                                                                     |
@@ -272,7 +273,7 @@ application boot get the same behavior with no YAML parse, no
 
 ### Flag notes
 
-The [Flags table](#flags) above covers the whole set; three deserve
+The [Flags table](#flags) above covers the whole set; four deserve
 more than a row:
 
 - **`--requests-only`**: skips response-validator emit.
@@ -289,6 +290,34 @@ more than a row:
   than "a partial view of the full spec". Gateway-routing layers
   that expect 405 (method not implemented here, try another
   service) need to account for this.
+- **`--validate-security <mode>`**: bakes the runtime's
+  `validateSecurity` into the module. `off` (the default) emits no
+  security machinery at all, so a compiled module neither carries the
+  document's requirements nor checks them, matching
+  `createValidator`'s default. `shape` and `strict` enforce the
+  declared requirement, operation-level or document-level, with the
+  precedence OpenAPI defines.
+
+  The check is shape-only. It confirms a credential of the declared
+  kind arrived, and never that it is valid, so a passing request is not
+  an authenticated one. It also ignores scopes entirely. `shape`
+  silently satisfies schemes it cannot inspect (`oauth2`,
+  `openIdConnect`, `mutualTLS`, HTTP schemes other than bearer and
+  basic); when a document requires nothing else, the emitted module
+  records a `warnings` entry saying the gate accepts every request.
+  `strict` refuses those schemes instead.
+
+  For real enforcement, compose rather than configure. `getOperation`
+  returns the matched operation with its requirement and its scopes,
+  which is more than this check ever inspects:
+
+  ```js
+  const op = getOperation(req);
+  const required = op?.operation.security ?? documentSecurity;
+  if (required && !myAuth(req, required)) return unauthorized();
+  const result = validateRequest(req);
+  ```
+
 - **`--return-values`**: the emitted `validateRequest` and
   `validateFetchRequest` additionally return the parameter values they
   deserialized while validating, under `value`, grouped by HTTP

@@ -114,6 +114,17 @@ function styleExplodeCombos(location: Location): Array<{ style?: string; explode
 export type RuntimeOptions = Omit<ValidatorOptions, "returnValues">;
 
 /**
+ * A `compile-spec` option delta. See {@link CaseAxes.emitOptions}.
+ *
+ * Named against the emitter's own option surface rather than the
+ * runtime's, because the two are deliberately not the same set: an
+ * option the emitter cannot serialise has no member here.
+ */
+export interface EmitOptions {
+  validateSecurity?: "off" | "shape" | "strict";
+}
+
+/**
  * The option delta, rendered into a case id.
  *
  * Lossy on purpose: a function renders as `fn` and an object as
@@ -212,6 +223,19 @@ export interface CaseAxes {
    * channel is how the comparison is made, not a thing to vary.
    */
   runtimeOptions: RuntimeOptions;
+  /**
+   * The options this case compiles the emitted module with, as the delta
+   * from `compile-spec`'s defaults. `{}` is the default configuration.
+   *
+   * The sibling of {@link CaseAxes.runtimeOptions}, and the reason both
+   * exist: parity is "an artifact compiled with X answers like a
+   * validator configured with X", and a grid that varied only the
+   * runtime could see an option the emitter lacks but never an option
+   * the emitter has. `returnValues` is excluded for the same reason it
+   * is on the runtime side: `run.ts` sets it for every case, because the
+   * value channel is how the comparison is made.
+   */
+  emitOptions: EmitOptions;
   /** Free-form label for a hand-built product B shape. */
   shape?: string;
 }
@@ -399,7 +423,7 @@ export function productA(): Declaration[] {
     let n = 0;
 
     const add = (
-      axes: Omit<CaseAxes, "product" | "runtimeOptions">,
+      axes: Omit<CaseAxes, "product" | "runtimeOptions" | "emitOptions">,
       parameter: Record<string, unknown>,
     ) => {
       const key = `d${n}`;
@@ -411,7 +435,7 @@ export function productA(): Declaration[] {
       }|required=${axes.required === true}${axes.allowEmptyValue === true ? "|aev" : ""}`;
       perDecl.push({
         id,
-        axes: { ...axes, product: "A", in: location, runtimeOptions: {} },
+        axes: { ...axes, product: "A", in: location, runtimeOptions: {}, emitOptions: {} },
         path: template,
       });
     };
@@ -549,7 +573,7 @@ export function productB(): Declaration[] {
     for (const m of methods) item[m] = { parameters: PLAIN_PARAMS, responses: okResponses };
     push(
       `methods=${id}`,
-      { shape: "methods", methods, runtimeOptions: {}, version: "3.1.0" },
+      { shape: "methods", methods, runtimeOptions: {}, emitOptions: {}, version: "3.1.0" },
       {
         openapi: "3.1.0",
         info: { title: "grid-B-methods", version: "1" },
@@ -567,12 +591,18 @@ export function productB(): Declaration[] {
   // side alone, which is what makes the configurability half of #895
   // visible: doc-level security rejects under `shape` and passes on the
   // AOT side whatever the option says.
-  // Both security shapes below cross the same two runtime settings:
-  // the default, where the runtime checks nothing, and `shape`, where
-  // it checks. The emitted module has neither setting and always
-  // checks, so the pair is what makes both halves of #895 visible
-  // rather than only the half where the AOT is stricter.
-  const SECURITY_OPTION_DELTAS: RuntimeOptions[] = [{}, { validateSecurity: "shape" }];
+  // Both security shapes below cross all three security modes, applied
+  // to **both** sides at once.
+  //
+  // Matched pairs rather than a full cross, because the property under
+  // test is that an artifact compiled with a mode answers like a
+  // validator configured with the same mode. A mismatched pair differs
+  // by construction, so asserting on one would say nothing about parity
+  // and would need a registry entry to explain a difference nobody
+  // doubted.
+  const SECURITY_MODES = ["off", "shape", "strict"] as const;
+  const securityDelta = (mode: (typeof SECURITY_MODES)[number]) =>
+    mode === "off" ? {} : { validateSecurity: mode };
 
   const securityShapes: Array<[CaseAxes["security"], Record<string, unknown>]> = [
     ["none", {}],
@@ -584,7 +614,9 @@ export function productB(): Declaration[] {
     ["operation-empty", { doc: [{ k: [] }], op: [] }],
   ];
   for (const [security, shape] of securityShapes) {
-    for (const runtimeOptions of SECURITY_OPTION_DELTAS) {
+    for (const mode of SECURITY_MODES) {
+      const runtimeOptions: RuntimeOptions = securityDelta(mode);
+      const emitOptions: EmitOptions = securityDelta(mode);
       const operation: Record<string, unknown> = {
         parameters: PLAIN_PARAMS,
         responses: okResponses,
@@ -598,8 +630,8 @@ export function productB(): Declaration[] {
         paths: { "/t": { get: operation } },
       } as OpenAPIDocument;
       push(
-        `security=${security}|runtime=${renderOptions(runtimeOptions)}`,
-        { shape: "security", security, runtimeOptions, version: "3.1.0" },
+        `security=${security}|mode=${mode}`,
+        { shape: "security", security, runtimeOptions, emitOptions, version: "3.1.0" },
         doc,
         [
           { wireId: "noCredential", request: { method: "GET", path: "/t", query: { q: "x" } } },
@@ -615,13 +647,16 @@ export function productB(): Declaration[] {
   // Security x a parameter that fails its schema. The named cross term:
   // the question is whether both sides short-circuit before recording
   // the parameter, which only the value channel can answer.
-  for (const runtimeOptions of SECURITY_OPTION_DELTAS) {
+  for (const mode of SECURITY_MODES) {
+    const runtimeOptions: RuntimeOptions = securityDelta(mode);
+    const emitOptions: EmitOptions = securityDelta(mode);
     push(
-      `security-vs-bad-parameter|runtime=${renderOptions(runtimeOptions)}`,
+      `security-vs-bad-parameter|mode=${mode}`,
       {
         shape: "security-x-parameter",
         security: "document",
         runtimeOptions,
+        emitOptions,
         version: "3.1.0",
       },
       {
@@ -663,7 +698,7 @@ export function productB(): Declaration[] {
   const OBJ = { type: "object", properties: { a: { type: "string" }, n: { type: "integer" } } };
   push(
     "contending-query-objects",
-    { shape: "contention", params: 2, runtimeOptions: {}, version: "3.1.0" },
+    { shape: "contention", params: 2, runtimeOptions: {}, emitOptions: {}, version: "3.1.0" },
     {
       openapi: "3.1.0",
       info: { title: "grid-B-contend", version: "1" },
@@ -704,7 +739,13 @@ export function productB(): Declaration[] {
       if (location === "cookie") supplied.cookies = assign(name, "v");
       push(
         `hostile-name=${name}|${location}`,
-        { shape: "hostile-name", in: location, runtimeOptions: {}, version: "3.1.0" },
+        {
+          shape: "hostile-name",
+          in: location,
+          runtimeOptions: {},
+          emitOptions: {},
+          version: "3.1.0",
+        },
         {
           openapi: "3.1.0",
           info: { title: "grid-B-hostile", version: "1" },
@@ -742,7 +783,7 @@ export function productB(): Declaration[] {
   for (const version of ["3.0.3", "3.1.0", "3.2.0"]) {
     push(
       `version=${version}`,
-      { shape: "version", version, runtimeOptions: {} },
+      { shape: "version", version, runtimeOptions: {}, emitOptions: {} },
       {
         openapi: version,
         info: { title: "grid-B-version", version: "1" },
@@ -792,6 +833,7 @@ export function productB(): Declaration[] {
           explode,
           schemaId,
           runtimeOptions: {},
+          emitOptions: {},
         },
         {
           openapi: "3.2.0",
@@ -978,6 +1020,7 @@ export function productB(): Declaration[] {
           // their entries.
           shape: `runtime-options/${shape.id}`,
           runtimeOptions,
+          emitOptions: {},
           version: "3.1.0",
         },
         shape.doc,

@@ -466,6 +466,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       parseMaxTotalBytes,
     )
     .option(
+      "--validate-security <mode>",
+      "reject requests missing the declared credential: off (default) | shape | strict",
+      parseValidateSecurity,
+    )
+    .option(
       "--return-values",
       "also hand back the deserialized parameter values under `value` " +
         "(mirrors returnValues; rejected with --output-mode predicate)",
@@ -502,6 +507,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
           maxErrors?: number;
           maxTotalBytes?: number;
           returnValues?: boolean;
+          validateSecurity?: "off" | "shape" | "strict";
           unknownFormats: "ignore" | "error";
           output?: string;
         },
@@ -518,6 +524,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
             maxErrors: opts.maxErrors,
             maxTotalBytes: opts.maxTotalBytes,
             returnValues: opts.returnValues === true,
+            validateSecurity: opts.validateSecurity,
             unknownFormats: opts.unknownFormats,
             ...readerFlagsOf(opts),
           },
@@ -594,6 +601,15 @@ function parseUnknownFormats(value: string): "ignore" | "error" {
     throw new Error(`--unknown-formats must be ignore | error, got ${JSON.stringify(value)}`);
   }
   return value;
+}
+
+/**
+ * `--validate-security`. The three modes `createValidator` takes, under
+ * the same name, so a reader who knows the option can predict the flag.
+ */
+function parseValidateSecurity(value: string): "off" | "shape" | "strict" {
+  if (value === "off" || value === "shape" || value === "strict") return value;
+  throw new Error(`--validate-security must be off, shape or strict (got "${value}")`);
 }
 
 function parseOutputMode(value: string): "flat" | "tree" | "predicate" {

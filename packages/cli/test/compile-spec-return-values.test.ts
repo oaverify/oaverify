@@ -128,6 +128,16 @@ const spec: OpenAPIDocument = {
   },
 };
 
+/**
+ * Both sides, opted into the same two options.
+ *
+ * `validateSecurity` is on because one case below drives the security
+ * gate, and neither side checks by default: the emitted module gained
+ * the option in #895, and before that it checked operation-level
+ * requirements unconditionally, which is what let this file compare an
+ * opted-in runtime against a default AOT.
+ */
+const AOT_OPTIONS = { returnValues: true, validateSecurity: "shape" } as const;
 const runtime = () => createValidator(spec, { returnValues: true, validateSecurity: "shape" });
 
 describe("compile-spec: returnValues off", () => {
@@ -157,7 +167,7 @@ describe("compile-spec: returnValues off", () => {
 
 describe("compile-spec: returnValues presence rule vs createValidator", () => {
   it("carries every location on a request that populates all four", async () => {
-    const aot = await buildAot(spec, { returnValues: true });
+    const aot = await buildAot(spec, AOT_OPTIONS);
     const req = {
       method: "GET",
       path: "/t/7",
@@ -180,7 +190,7 @@ describe("compile-spec: returnValues presence rule vs createValidator", () => {
   });
 
   it("keys a header parameter by the document's spelling, not the wire's", async () => {
-    const aot = await buildAot(spec, { returnValues: true });
+    const aot = await buildAot(spec, AOT_OPTIONS);
     const req = { method: "GET", path: "/t/7", headers: { "X-SPELLED-ODD": "shouty" } };
     const rt = runtime().validateRequest(req as never) as { value: RequestValueBag };
     expect(valueOf(aot.validateRequest(req))).toEqual(rt.value);
@@ -188,7 +198,7 @@ describe("compile-spec: returnValues presence rule vs createValidator", () => {
   });
 
   it("carries the parameters that passed on an invalid request", async () => {
-    const aot = await buildAot(spec, { returnValues: true });
+    const aot = await buildAot(spec, AOT_OPTIONS);
     const req = {
       method: "GET",
       path: "/t/7",
@@ -208,7 +218,7 @@ describe("compile-spec: returnValues presence rule vs createValidator", () => {
   });
 
   it("omits an undeclared parameter, an unsupplied one, and a schema-less one", async () => {
-    const aot = await buildAot(spec, { returnValues: true });
+    const aot = await buildAot(spec, AOT_OPTIONS);
     const req = { method: "GET", path: "/t/7", query: { undeclared: "1", noschema: "hello" } };
     const rt = runtime().validateRequest(req as never) as { value: RequestValueBag };
     const got = aot.validateRequest(req);
@@ -256,7 +266,7 @@ describe("compile-spec: returnValues presence rule vs createValidator", () => {
   });
 
   it("fills in no schema default for an unsupplied parameter", async () => {
-    const aot = await buildAot(spec, { returnValues: true });
+    const aot = await buildAot(spec, AOT_OPTIONS);
     const req = { method: "GET", path: "/t/7" };
     const rt = runtime().validateRequest(req as never) as { value: RequestValueBag };
     expect(valueOf(aot.validateRequest(req))).toEqual(rt.value);
@@ -315,7 +325,7 @@ describe("compile-spec: returnValues on a request no parameter was reached by", 
 
   for (const [name, req] of cases) {
     it(`returns an empty channel on ${name}`, async () => {
-      const aot = await buildAot(spec, { returnValues: true });
+      const aot = await buildAot(spec, AOT_OPTIONS);
       const rt = runtime().validateRequest(req as never) as {
         valid: boolean;
         value: RequestValueBag;
@@ -369,7 +379,7 @@ describe("compile-spec: returnValues across output modes and entry points", () =
   });
 
   it("carries the channel through validateFetchRequest", async () => {
-    const aot = await buildAot(spec, { returnValues: true });
+    const aot = await buildAot(spec, AOT_OPTIONS);
     const rt = createValidator(spec, { returnValues: true });
     const url = "https://example.test/t/7?n=7";
     const got = await aot.validateFetchRequest(new Request(url));
@@ -380,7 +390,7 @@ describe("compile-spec: returnValues across output modes and entry points", () =
   });
 
   it("returns an empty channel when the fetch body cannot be parsed", async () => {
-    const aot = await buildAot(spec, { returnValues: true });
+    const aot = await buildAot(spec, AOT_OPTIONS);
     const rt = createValidator(spec, { returnValues: true });
     const make = () =>
       new Request("https://example.test/body?n=7", {
@@ -396,13 +406,13 @@ describe("compile-spec: returnValues across output modes and entry points", () =
   });
 
   it("puts no channel on validateResponse", async () => {
-    const aot = await buildAot(spec, { returnValues: true });
+    const aot = await buildAot(spec, AOT_OPTIONS);
     const res = aot.validateResponse({ method: "GET", path: "/t/7" }, { status: 200, headers: {} });
     expect("value" in res).toBe(false);
   });
 
   it("puts no request body in the channel", async () => {
-    const aot = await buildAot(spec, { returnValues: true });
+    const aot = await buildAot(spec, AOT_OPTIONS);
     const req = {
       method: "POST",
       path: "/body",

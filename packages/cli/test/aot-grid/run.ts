@@ -25,6 +25,7 @@ import { workspaceAliases } from "../../../../workspace-aliases.js";
 import {
   optionCacheKey,
   type CaseAxes,
+  type EmitOptions,
   type Declaration,
   type RuntimeOptions,
   type WireRequest,
@@ -77,7 +78,7 @@ interface AotModule {
 }
 
 /** Compile a document through the real CLI path and load the module. */
-async function buildAot(document: OpenAPIDocument): Promise<AotModule> {
+async function buildAot(document: OpenAPIDocument, emit: EmitOptions): Promise<AotModule> {
   const mem = memoryIo([["spec.json", document]]);
   const res = await compileSpecCommand(
     {
@@ -86,7 +87,11 @@ async function buildAot(document: OpenAPIDocument): Promise<AotModule> {
       output: "out.mjs",
       resolveDir: RESOLVE_DIR,
       bundleAlias: CORE_ALIASES,
+      // `returnValues` first for the same reason as on the runtime side:
+      // the case's delta is everything else, and the value channel is
+      // how the comparison is made rather than a thing to vary.
       returnValues: true,
+      ...emit,
     },
     mem.io,
   );
@@ -179,23 +184,23 @@ let nextDocKey = 0;
 // case built for another. `optionCacheKey` rather than `renderOptions`:
 // a key has to tell two `ignorePaths` predicates apart, and an id does
 // not.
-function keyFor(doc: object, options: RuntimeOptions): string {
+function keyFor(doc: object, options: RuntimeOptions, emit: EmitOptions): string {
   let id = docKeys.get(doc);
   if (id === undefined) {
     id = nextDocKey;
     nextDocKey += 1;
     docKeys.set(doc, id);
   }
-  return `${id}::${optionCacheKey(options)}`;
+  return `${id}::${optionCacheKey(options)}::${optionCacheKey(emit)}`;
 }
 
 async function build(decl: Declaration): Promise<Built> {
-  const key = keyFor(decl.doc, decl.axes.runtimeOptions);
+  const key = keyFor(decl.doc, decl.axes.runtimeOptions, decl.axes.emitOptions);
   const hit = builtCache.get(key);
   if (hit !== undefined) return hit;
   const out: Built = {};
   try {
-    out.aot = await buildAot(decl.doc);
+    out.aot = await buildAot(decl.doc, decl.axes.emitOptions);
   } catch (err) {
     out.aotError = describe(err);
   }
