@@ -264,10 +264,10 @@ describe("what the gate deliberately leaves alone", () => {
   });
 
   it("ignores a parameters field that is not a list", () => {
-    // A different defect, reported by the hygiene lint. Throwing here
-    // would put a less useful error ahead of the one that names it, and
-    // `@oaverify/check` has a case pinning that the document stays
-    // gradeable.
+    // A different defect, reported by the conformance pass as
+    // `must be array` at the offending pointer. Throwing here would put
+    // a less useful error ahead of it; `@oaverify/check` has a case
+    // pinning that the document grades and that the finding is located.
     const spec = doc("3.1.0", {
       get: { parameters: {}, responses: { "200": { description: "ok" } } },
     });

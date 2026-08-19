@@ -1001,3 +1001,62 @@ describe("isSpecOverlay", () => {
     expect(specOverlayVerbs.has("actions")).toBe(false);
   });
 });
+
+describe("a parameters field that is not a list (#837)", () => {
+  // One missing `- `. Every route through the overlay reader used to
+  // throw a raw TypeError naming no path or method; `oaverify check
+  // --overlay` exited on it. The entry is left as written and the
+  // conformance pass reports `must be array` at its pointer.
+  const holed = (): OpenAPIDocument =>
+    ({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          parameters: { name: "a", in: "query" },
+          get: {
+            parameters: { name: "id", in: "query" },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    }) as unknown as OpenAPIDocument;
+
+  it("survives modifyParameters, on the path item and the operation", () => {
+    expect(() =>
+      applyOverlays(holed(), [
+        { modifyParameters: [{ where: { in: "query" }, apply: { description: "x" } }] },
+      ]),
+    ).not.toThrow();
+  });
+
+  it("survives upsertParameters, the route a plain Overlay action takes", () => {
+    expect(() =>
+      applyOverlays(holed(), [
+        {
+          overrides: {
+            "/t": {
+              operations: {
+                get: {
+                  upsertParameters: [{ name: "id", in: "query", schema: { type: "string" } }],
+                },
+              },
+            },
+          },
+        },
+      ]),
+    ).not.toThrow();
+  });
+
+  it("survives removeParameters", () => {
+    expect(() =>
+      applyOverlays(holed(), [
+        {
+          overrides: {
+            "/t": { operations: { get: { removeParameters: [{ name: "id", in: "query" }] } } },
+          },
+        },
+      ]),
+    ).not.toThrow();
+  });
+});

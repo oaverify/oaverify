@@ -181,7 +181,7 @@ describe("--only scopes the refusal to what is emitted", () => {
 describe("an empty parameters entry", () => {
   it("is skipped rather than crashing the emit", async () => {
     // `- ` with nothing under it is `null`. `createValidator` skips it
-    // and the hygiene lint locates it; the emitter read `.name` off it
+    // and the conformance pass locates it; the emitter read `.name` off it
     // and threw.
     const doc = {
       openapi: "3.1.0",
@@ -199,7 +199,7 @@ describe("an empty parameters entry", () => {
 describe("an entry that is not a parameter object", () => {
   it("is skipped, as the runtime skips it", () => {
     // Refusing it reported "an unnamed parameter with no in field",
-    // which names the wrong defect. The hygiene lint locates the entry.
+    // which names the wrong defect. The conformance pass locates the entry.
     const doc = {
       openapi: "3.1.0",
       info: { title: "t", version: "1" },

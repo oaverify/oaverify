@@ -1,5 +1,5 @@
 import { createMemoryReader, loadSpec, type ResolvedSpec } from "@oaverify/internal-spec";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CheckAbortedError, checkSpec } from "../src/check.js";
 import { parseSeverityMap } from "../src/severity.js";
 import type { CheckFinding } from "../src/finding.js";
@@ -135,28 +135,67 @@ describe("checkSpec", () => {
     }
   });
 
-  it("rethrows a hygiene lint failure when the document is otherwise gradeable", async () => {
-    // The lint runs ahead of the gate, so its failure is held rather
-    // than thrown. Holding it must not swallow it: a gradeable document
-    // whose lint threw is a defect, not a clean report with an empty
-    // hygiene section.
+  it("grades a document whose parameters field is not a list, and locates it", async () => {
+    // One missing `- ` in YAML. The hygiene lint used to iterate the
+    // mapping and throw `parameters is not iterable`, so `oaverify check`
+    // exited 3 naming nothing. The lint, the operation cache and the
+    // overlay reader all take a non-array as no parameters now, which
+    // lets the run reach the conformance pass (#837).
     const spec: Array<[string, unknown]> = [
       [
         "entry.json",
         {
           openapi: "3.1.0",
           info: { title: "t", version: "1" },
-          // `parameters` must be an array; the lint iterates it. The
-          // validator builds fine, so the document is gradeable.
           paths: {
-            "/p": { get: { parameters: {}, responses: { "200": { description: "ok" } } } },
+            "/p": {
+              get: {
+                parameters: { name: "id", in: "query" },
+                responses: { "200": { description: "ok" } },
+              },
+            },
           },
         },
       ],
     ];
     const resolved = await resolve(spec);
-    expect(() => checkSpec(resolved)).toThrow();
-    expect(() => checkSpec(resolved)).not.toThrow(CheckAbortedError);
+    const findings = checkSpec(resolved);
+    const located = findings.filter((f) => f.location === "/paths/~1p/get/parameters");
+    expect(located.length).toBeGreaterThan(0);
+    expect(located[0]?.class).toBe("conformance");
+  });
+
+  it("rethrows a hygiene lint failure when the document is otherwise gradeable", async () => {
+    // The lint runs ahead of the gate, so its failure is held rather
+    // than thrown. Holding it must not swallow it: a gradeable document
+    // whose lint threw is a defect, not a clean report with an empty
+    // hygiene section.
+    //
+    // The lint is stubbed rather than driven by an input that happens to
+    // crash it. This case used `parameters: {}`, which stopped throwing
+    // when #837 taught the lint to read a non-array as no parameters,
+    // and the subject here is the holding, not any one crash.
+    const spec: Array<[string, unknown]> = [
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "t", version: "1" },
+          paths: { "/p": { get: { responses: { "200": { description: "ok" } } } } },
+        },
+      ],
+    ];
+    const resolved = await resolve(spec);
+    const lint = await import("@oaverify/internal-spec");
+    const spy = vi.spyOn(lint, "lintResolvedSpec").mockImplementation(() => {
+      throw new Error("lint exploded");
+    });
+    try {
+      expect(() => checkSpec(resolved)).toThrow(/lint exploded/);
+      expect(() => checkSpec(resolved)).not.toThrow(CheckAbortedError);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("grades a document whose parameter location the validator cannot serve", async () => {

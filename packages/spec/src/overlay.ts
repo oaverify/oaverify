@@ -765,18 +765,34 @@ function applyModifyParameters(
   return next;
 }
 
+/**
+ * A Path Item's or an Operation's `parameters` as a list to iterate.
+ *
+ * OpenAPI declares the field as an array, and a document writing one
+ * parameter as a mapping is a missing `- `. Reading it as no parameters
+ * leaves the entry as written and lets the conformance pass report
+ * `must be array` at its pointer, which is what the validator and the
+ * hygiene lint do with the same shape (#837).
+ *
+ * Pairs with `asParameterList` in `@oaverify/internal-validator`'s
+ * `operation-cache.ts` and `@oaverify/internal-cli`'s `emit-spec.ts`.
+ */
+function asParameterList(parameters: unknown): NonNullable<PathItem["parameters"]> {
+  return Array.isArray(parameters) ? (parameters as NonNullable<PathItem["parameters"]>) : [];
+}
+
 function applyParamModifyToPathItem(item: PathItem, entry: ModifyParametersEntry): PathItem {
   const next: PathItem = { ...item };
-  if (item.parameters) {
-    next.parameters = item.parameters.map((p) => mergeParamIfMatch(p, entry));
+  if (item.parameters !== undefined) {
+    next.parameters = asParameterList(item.parameters).map((p) => mergeParamIfMatch(p, entry));
   }
   for (const method of METHODS) {
     const op = next[method];
     if (op === undefined) continue;
-    if (op.parameters) {
+    if (op.parameters !== undefined) {
       next[method] = {
         ...op,
-        parameters: op.parameters.map((p) => mergeParamIfMatch(p, entry)),
+        parameters: asParameterList(op.parameters).map((p) => mergeParamIfMatch(p, entry)),
       };
     }
   }
@@ -1175,7 +1191,7 @@ function applyOperationOverride(op: OperationObject, override: OperationOverride
   const next: OperationObject = { ...op };
 
   if (override.upsertParameters) {
-    const existing = [...(op.parameters ?? [])];
+    const existing = [...asParameterList(op.parameters)];
     for (const newParam of override.upsertParameters) {
       // Reference-object entries (`{ $ref: … }`) can't be matched by
       // (name, in) without resolving them; overlays apply pre-resolve
@@ -1190,7 +1206,7 @@ function applyOperationOverride(op: OperationObject, override: OperationOverride
     next.parameters = existing;
   }
   if (override.removeParameters) {
-    const existing = next.parameters ?? op.parameters ?? [];
+    const existing = asParameterList(next.parameters ?? op.parameters);
     const filtered = existing.filter(
       (p) =>
         !("name" in p) ||

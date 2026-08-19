@@ -406,6 +406,36 @@ export function firstContentSchema(p: ParameterObject): SchemaOrBoolean | undefi
 }
 
 /**
+ * A Path Item's or an Operation's `parameters` as a list to iterate.
+ *
+ * OpenAPI declares the field as an array, and a document writing a
+ * single parameter as a mapping is the common YAML slip, one missing
+ * `- `. Spreading that mapping into an array literal threw
+ * `TypeError: (pathMatch.operation.parameters ?? []).map is not a
+ * function or its return value is not iterable` out of
+ * `validateRequest`, naming a private expression at
+ * request time for a defect in the document (#837).
+ *
+ * A non-array reads as no parameters, which is how this cache already
+ * treats a `null` entry, and for the same reason: the conformance pass
+ * locates it, reporting `must be array` at the offending pointer.
+ * `assertServedParameterLocations` skips the shape so that pass is what
+ * names it.
+ *
+ * The consequence is that the parameters the document meant to declare
+ * are absent, so nothing asserts them and a request omitting a required
+ * one is reported valid. That is the cost of reading a malformed list as
+ * empty, and it is why the defect has to reach the author through
+ * `check` rather than through a request verdict.
+ *
+ * Pairs with `asParameterList` in `@oaverify/internal-cli`'s
+ * `emit-spec.ts`, which reads the same field for the same reason.
+ */
+function asParameterList(parameters: unknown): (ParameterObject | ReferenceObject)[] {
+  return Array.isArray(parameters) ? (parameters as (ParameterObject | ReferenceObject)[]) : [];
+}
+
+/**
  * Build the per-operation cache: de-duplicate path+operation parameters,
  * compile every parameter / request-body schema eagerly, and freeze the
  * response-side plan (schemas captured; validators compiled lazily on
@@ -431,14 +461,14 @@ export function buildOperationCache(
   // is paired with its own pointer before the merge, and the pair is
   // what gets deduped.
   const rawParams: { raw: ParameterObject | ReferenceObject; pointer?: string }[] = [
-    ...(pathMatch.pathItem.parameters ?? []).map((raw, i) => ({
+    ...asParameterList(pathMatch.pathItem.parameters).map((raw, i) => ({
       raw,
       pointer:
         opPointer === undefined
           ? undefined
           : `/paths/${escapePointer(pathMatch.pathPattern)}/parameters/${i}`,
     })),
-    ...(pathMatch.operation.parameters ?? []).map((raw, i) => ({
+    ...asParameterList(pathMatch.operation.parameters).map((raw, i) => ({
       raw,
       pointer: opPointer === undefined ? undefined : `${opPointer}/parameters/${i}`,
     })),
