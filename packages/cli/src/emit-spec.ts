@@ -350,6 +350,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
       `  ${JSON.stringify(pattern)}: { ${[...methods].map((m) => `${m.toLowerCase()}: {}`).join(", ")} },`,
   );
   const usesOwnHelper = opsEmitted.some((op) => op.usesOwnHelper);
+  const usesContentParameters = opsEmitted.some((op) => op.usesContentParameters);
   const usesHeaderHelper = opsEmitted.some((op) => op.usesHeaderHelper);
   const usesHeaderFastHelper = opsEmitted.some((op) => op.usesHeaderFastHelper);
 
@@ -431,7 +432,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     ...(usesOwnHelper ? [renderOwnHelper(), ""] : []),
     ...(usesHeaderHelper ? [renderHeaderHelper(), ""] : []),
     ...(usesHeaderFastHelper ? [renderHeaderFastHelper(), ""] : []),
-    renderValidateRequestTree(returnValues),
+    renderValidateRequestTree(returnValues, usesContentParameters),
     "",
     options.requestsOnly === true ? renderValidateResponseTreeNoop() : renderValidateResponseTree(),
     "",
@@ -450,6 +451,8 @@ interface EmittedOp {
   usesOwnHelper: boolean;
   usesHeaderHelper: boolean;
   usesHeaderFastHelper: boolean;
+  /** Any parameter carrying its value in a `content` media type. */
+  usesContentParameters: boolean;
   /** The JSON-stringified state object for `ops[key]`. */
   stateLiteral: string;
   /**
@@ -565,6 +568,12 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
 
   const hasOwnReadParameters = parameters.some(
     (p) => p.in !== "header" && isObjectPrototypePropertyName(p.name),
+  );
+  // Same source as the parameter table's own `__contentMediaType`, so
+  // the gate and the data it gates cannot disagree about which
+  // parameters carry a media type.
+  const hasContentParameters = parameters.some(
+    (p) => contentFields(p).__contentMediaType !== undefined,
   );
   const hasGuardedHeaderParameters = parameters.some(
     (p) => p.in === "header" && isHeaderObjectPrototypePropertyName(p.name),
@@ -683,6 +692,12 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
             // that declare it. Absent means false, which is what
             // `__validateParameter` tests for.
             ...(p.allowEmptyValue === true ? { allowEmptyValue: true } : {}),
+            // Same spread reasoning as `allowEmptyValue`: absent on
+            // every parameter that declares `schema`, which is almost
+            // all of them. `firstContentMediaType` picks the entry
+            // `firstContentSchema` picked, so the media type and the
+            // validator describe the same encoding.
+            ...contentFields(p),
             schema: p.schema ?? undefined,
             __validator: paramValidatorName(combined, p, named),
           })),
@@ -710,6 +725,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     pathPattern,
     method,
     usesOwnHelper: hasOwnReadParameters,
+    usesContentParameters: hasContentParameters,
     usesHeaderHelper: hasGuardedHeaderParameters || hasGuardedResponseHeaders,
     usesHeaderFastHelper: hasFastHeaderParameters || hasFastResponseHeaders,
     stateLiteral,
@@ -725,6 +741,26 @@ function paramValidatorName(
   const schema = (p.schema ?? firstContentSchema(p)) as SchemaOrBoolean | undefined;
   if (schema === undefined) return "__NULL__";
   return `__REF:${named(schema)}__`;
+}
+
+/**
+ * The `content` fields a parameter contributes to the emitted table, or
+ * nothing when it declares `schema`.
+ *
+ * Both decisions are made here rather than in the emitted module
+ * because both are properties of the document: which media type carries
+ * the value, and whether that media type implies JSON. Mirrors
+ * `firstContentMediaType` and `isJsonMediaType` in validate-step.ts.
+ */
+function contentFields(p: ParameterObject): { __contentMediaType?: string; __contentJson?: true } {
+  if (p.content === undefined) return {};
+  for (const [mediaType, mto] of Object.entries(p.content)) {
+    if (mto.schema === undefined) continue;
+    const base = mediaType.split(";")[0]?.trim().toLowerCase() ?? "";
+    const json = base === "application/json" || base.endsWith("+json");
+    return { __contentMediaType: mediaType, ...(json ? { __contentJson: true as const } : {}) };
+  }
+  return {};
 }
 
 function firstContentSchema(p: ParameterObject | HeaderObject): SchemaOrBoolean | undefined {
@@ -906,7 +942,19 @@ function renderHeaderFastHelper(): string {
 `;
 }
 
-function renderValidateRequestTree(returnValues: boolean): string {
+/**
+ * The leaf error code for a parameter's location, as an expression the
+ * emitted module evaluates.
+ *
+ * A string here rather than an emitted helper function, so a module
+ * that never reaches the second site is byte-identical to one written
+ * before the site existed. The mapping is written once in this file
+ * either way, which is the part that would otherwise rot.
+ */
+const PARAM_CODE_EXPR =
+  'p.in === "header" ? "header-param" : p.in === "path" ? "path-param" : p.in === "query" ? "query-param" : "cookie-param"';
+
+function renderValidateRequestTree(returnValues: boolean, contentParameters: boolean): string {
   // Mirrors validator.ts's validateRequestTree closely. Differences:
   //   - state comes from the `ops` table, keyed on
   //     `${pathPattern}::${method}`, rather than cacheFor+WeakMap
@@ -929,6 +977,43 @@ function renderValidateRequestTree(returnValues: boolean): string {
     returnValues
       ? `if (r.valid) {\n${indent}  __recordValue(sink, p, ${valueExpr});\n${indent}  return null;\n${indent}}\n${indent}if (r.error === undefined) return null;`
       : "if (r.valid || r.error === undefined) return null;";
+  // Emitted only when some parameter declares `content`. Zero of 289
+  // real published documents do (53,391 inline parameters, none), and
+  // the branch is ~770 bytes in every module that carries it, so the
+  // default path does not pay for it. Gating is safe here in a way it
+  // was not before the parity grid existed: the grid drives `content`
+  // parameters in all four locations, so a gate that wrongly says no
+  // fails the gate rather than shipping.
+  const contentBranch = contentParameters
+    ? `  // \`content\` takes precedence over \`schema\`, and neither branch below
+  // reaches \`deserialize\`: its style rules describe a different
+  // encoding from the one the media type names. A JSON media type is
+  // parsed first and anything else reaches the schema as the raw
+  // string. Mirrors validate-step.ts; the media type is baked at emit
+  // time because that is where the validator was chosen from the same
+  // entry (#903).
+  if (p.__contentMediaType !== undefined) {
+    const rawStr = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof rawStr !== "string") return null;
+    let parsed = rawStr;
+    if (p.__contentJson === true) {
+      try {
+        parsed = JSON.parse(rawStr);
+      } catch (err) {
+        return createLeafError(
+          ${PARAM_CODE_EXPR},
+          [p.in, p.name],
+          \`\${p.in} parameter "\${p.name}" is not valid \${p.__contentMediaType}: \${err.message}\`,
+          { name: p.name, in: p.in, mediaType: p.__contentMediaType, reason: "content-parse" },
+        );
+      }
+    }
+    const r = p.__validator.validate(parsed, [p.in, p.name]);
+    ${accept("    ", "parsed")}
+    return r.error;
+  }
+`
+    : "";
   return `function __validateRequestTree(rawReq${sinkParam}) {
   // A query string embedded in path folds into query, matching
   // createValidator; the explicit field wins when both are present.
@@ -1039,7 +1124,7 @@ function renderValidateRequestTree(returnValues: boolean): string {
 function __missingParameter(p) {
   if (!p.required) return null;
   return createLeafError(
-    p.in === "header" ? "header-param" : p.in === "path" ? "path-param" : p.in === "query" ? "query-param" : "cookie-param",
+    ${PARAM_CODE_EXPR},
     [p.in, p.name],
     \`missing required \${p.in} parameter "\${p.name}"\`,
     { name: p.name, in: p.in },
@@ -1074,7 +1159,7 @@ function __validateParameter(p, req, match${sinkParam}) {
   // the returnValues channel.
   if (raw === "" && p.in === "query" && p.allowEmptyValue === true) return null;
   if (p.__validator === null) return null;
-  const value = deserialize(raw, p);
+${contentBranch}  const value = deserialize(raw, p);
   // Mirrors validateParameter in validate-step.ts: a present token can
   // still supply no value, which \`deserialize\` reports as undefined.
   // Gated on the style there and here, because an object-typed

@@ -105,60 +105,7 @@ export type DivergenceEntry =
  */
 const ROUTE_SIGNATURE = 'verdict:valid->invalid | leaves:[]->[{"code":"route","path":[]}]';
 
-const isJsonContent = (axes: CaseAxes): boolean =>
-  axes.source === "content" && axes.mediaType === "application/json";
-
 export const DIVERGENCES: DivergenceEntry[] = [
-  // #903, in three entries rather than one. The three payloads fail in
-  // three different channels, and a single `content` predicate would
-  // have hidden two of them behind the first: a broad entry is a
-  // hiding place even when the issue number is right.
-  {
-    name: "content-json/valid-payload",
-    kind: "open-defect",
-    issue: "#903",
-    match: (axes, wireId) => isJsonContent(axes) && wireId === "validJson",
-    // The emitted module never parses, so the schema sees the raw
-    // string: the runtime accepts and delivers an object, the AOT
-    // rejects and delivers nothing.
-    signatures: [
-      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":["cookie","p"]}] | value:{"path":{},"query":{},"headers":{},"cookies":{"p":{"R":1,"G":2}}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
-      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":["header","p"]}] | value:{"path":{},"query":{},"headers":{"p":{"R":1,"G":2}},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
-      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":["path","p"]}] | value:{"path":{"p":{"R":1,"G":2}},"query":{},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
-      'verdict:valid->invalid | leaves:[]->[{"code":"type","path":["query","p"]}] | value:{"path":{},"query":{"p":{"R":1,"G":2}},"headers":{},"cookies":{}}->{"path":{},"query":{},"headers":{},"cookies":{}}',
-    ],
-  },
-  {
-    name: "content-json/schema-invalid-payload",
-    kind: "open-defect",
-    issue: "#903",
-    match: (axes, wireId) => isJsonContent(axes) && wireId === "schemaInvalidJson",
-    // Both reject. The leaf path is what differs: the runtime blames
-    // the property inside the parsed object, the AOT blames the
-    // parameter, so a client is told the wrong field is wrong.
-    signatures: [
-      'leaves:[{"code":"type","path":["cookie","p","R"]}]->[{"code":"type","path":["cookie","p"]}]',
-      'leaves:[{"code":"type","path":["header","p","R"]}]->[{"code":"type","path":["header","p"]}]',
-      'leaves:[{"code":"type","path":["path","p","R"]}]->[{"code":"type","path":["path","p"]}]',
-      'leaves:[{"code":"type","path":["query","p","R"]}]->[{"code":"type","path":["query","p"]}]',
-    ],
-  },
-  {
-    name: "content-json/unparseable-payload",
-    kind: "open-defect",
-    issue: "#903",
-    match: (axes, wireId) => isJsonContent(axes) && wireId === "notJson",
-    // Both reject. The runtime says the parameter is not valid JSON
-    // (`<location>-param`, `reason: content-parse`); the AOT says the
-    // schema's type is wrong.
-    signatures: [
-      'leaves:[{"code":"cookie-param","path":["cookie","p"]}]->[{"code":"type","path":["cookie","p"]}]',
-      'leaves:[{"code":"header-param","path":["header","p"]}]->[{"code":"type","path":["header","p"]}]',
-      'leaves:[{"code":"path-param","path":["path","p"]}]->[{"code":"type","path":["path","p"]}]',
-      'leaves:[{"code":"query-param","path":["query","p"]}]->[{"code":"type","path":["query","p"]}]',
-    ],
-  },
-
   // #899. The router answers HEAD with the GET operation on the
   // interpreted side and not in the emitted module, so a HEAD request
   // to a path declaring only `get` is a 404 from a compiled validator.

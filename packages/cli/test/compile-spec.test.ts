@@ -1642,3 +1642,81 @@ describe("compile-spec: allowEmptyValue on a query parameter", () => {
     expect(plain).toContain("p.allowEmptyValue === true");
   });
 });
+
+describe("a parameter carrying its value in a content media type (#903)", () => {
+  // The grid compares the two implementations generatively. This pins
+  // what the answer has to be, with the citation: OpenAPI 3.1 4.8.12.1
+  // says `content` names the encoding, so the value is a JSON document
+  // rather than a `style`-delimited token, and a payload that is not
+  // valid JSON is a parameter error naming the parse rather than a
+  // schema error about the raw string.
+  const doc: OpenAPIDocument = {
+    openapi: "3.1.1",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/t": {
+        get: {
+          parameters: [
+            {
+              name: "p",
+              in: "query",
+              required: true,
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: { R: { type: "integer" }, G: { type: "integer" } },
+                    required: ["R", "G"],
+                  },
+                },
+              },
+            },
+          ],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+
+  it("parses the payload before validating it", async () => {
+    const aot = await buildAot(doc);
+    const req = { method: "GET", path: "/t", query: { p: '{"R":1,"G":2}' } };
+    expect(aot.validateRequest(req)).toEqual({ valid: true });
+    expect(createValidator(doc).validateRequest(req)).toEqual({ valid: true });
+  });
+
+  it("blames the property inside the parsed object, not the parameter", async () => {
+    const aot = await buildAot(doc);
+    const req = { method: "GET", path: "/t", query: { p: '{"R":"x","G":2}' } };
+    const leaves = flatErrors(aot.validateRequest(req));
+    expect(leaves.map((e) => [e.code, e.path])).toEqual([["type", ["query", "p", "R"]]]);
+  });
+
+  it("reports a parse failure as content-parse, not as a schema type error", async () => {
+    const aot = await buildAot(doc);
+    const req = { method: "GET", path: "/t", query: { p: "R,100,G,200" } };
+    const leaves = flatErrors(aot.validateRequest(req));
+    expect(leaves).toHaveLength(1);
+    expect(leaves[0]?.code).toBe("query-param");
+    expect(leaves[0]?.params).toMatchObject({
+      reason: "content-parse",
+      mediaType: "application/json",
+    });
+  });
+
+  it("passes a non-JSON media type through as the raw string", async () => {
+    // `content` without a JSON media type names an encoding this
+    // validator does not parse, so the schema sees what arrived. The
+    // point is that it does not reach `deserialize` either, whose
+    // style rules describe a different encoding entirely.
+    const text: OpenAPIDocument = JSON.parse(JSON.stringify(doc));
+    const param = (
+      text.paths!["/t"] as never as { get: { parameters: Array<Record<string, unknown>> } }
+    ).get.parameters[0]!;
+    param.content = { "text/plain": { schema: { type: "string", pattern: "^a,b$" } } };
+    const aot = await buildAot(text);
+    const req = { method: "GET", path: "/t", query: { p: "a,b" } };
+    expect(aot.validateRequest(req)).toEqual({ valid: true });
+    expect(createValidator(text).validateRequest(req)).toEqual({ valid: true });
+  });
+});
