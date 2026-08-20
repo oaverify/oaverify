@@ -20,12 +20,8 @@ import type {
   RequestBodyObject,
   ResponseObject,
 } from "@oaverify/internal-core";
-import {
-  carryComponents,
-  HTTP_METHODS,
-  resolveLocalRef,
-  versionFromDoc,
-} from "../openapi/body-schema.js";
+import { HTTP_METHODS } from "@oaverify/internal-core";
+import { carryComponents, resolveLocalRef, versionFromDoc } from "../openapi/body-schema.js";
 import type { StreamValidatorOptions } from "../options.js";
 import { analyzeStreamability, type StreamabilityReport } from "./analyze.js";
 

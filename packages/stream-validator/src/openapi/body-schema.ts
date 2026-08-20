@@ -13,21 +13,12 @@
  */
 
 import type { OpenAPIDocument, SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import { HTTP_METHODS } from "@oaverify/internal-core";
 import type { StreamValidatorOptions } from "../options.js";
 import { resolveRef } from "../ref-resolve.js";
 
 /** HTTP methods an OpenAPI Path Item Object may carry an operation under. */
-export const HTTP_METHODS = new Set<string>([
-  "get",
-  "put",
-  "post",
-  "delete",
-  "options",
-  "head",
-  "patch",
-  "trace",
-  "query",
-]);
+export const HTTP_METHOD_SET: ReadonlySet<string> = new Set(HTTP_METHODS);
 
 /**
  * Map an OpenAPI version string (`"3.0.3"`) to the engine's normalization

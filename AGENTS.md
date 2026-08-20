@@ -161,6 +161,7 @@ pnpm lint                         # oxlint + oxfmt --check + check:deps
 pnpm lint:type-aware              # oxlint --type-aware (NOT part of `pnpm lint`; CI runs it)
 pnpm check:deps                   # assert the @oaverify/internal-* dependency graph (see below)
 pnpm check:walkers                # assert no walker hand-rolls the subschema-position loops
+pnpm check:http-methods           # assert only core spells out the HTTP method list
 pnpm check:release                # assert release.yml's package lists against release-please-config.json
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)

@@ -347,16 +347,32 @@ export interface PathItem {
  *
  * @public
  */
-export type HttpMethod =
-  | "get"
-  | "put"
-  | "post"
-  | "delete"
-  | "options"
-  | "head"
-  | "patch"
-  | "trace"
-  | "query";
+export type HttpMethod = (typeof HTTP_METHODS)[number];
+
+/**
+ * Every method OpenAPI can declare an operation for, in specification
+ * order.
+ *
+ * This array is the source and {@link HttpMethod} is derived from it, so
+ * the two cannot disagree. That matters because seven packages walk a
+ * Path Item's methods, and a local copy of the list fails silently in
+ * the direction that bites: adding a method to the union and forgetting
+ * a site. `query` is the live precedent, added by OpenAPI 3.2 and then
+ * added to each list by hand (#898).
+ *
+ * @public
+ */
+export const HTTP_METHODS = [
+  "get",
+  "put",
+  "post",
+  "delete",
+  "options",
+  "head",
+  "patch",
+  "trace",
+  "query",
+] as const;
 
 /**
  * OpenAPI `operationObject` (a single method on a path).

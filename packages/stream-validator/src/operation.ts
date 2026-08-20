@@ -25,7 +25,7 @@ import type { HttpMethod, OpenAPIDocument, RequestBodyObject } from "@oaverify/i
 import { createStreamValidator, type StreamValidator } from "./engine/index.js";
 import {
   carryComponents,
-  HTTP_METHODS,
+  HTTP_METHOD_SET,
   resolveLocalRef,
   versionFromDoc,
 } from "./openapi/body-schema.js";
@@ -78,7 +78,7 @@ export function streamValidatorForOperation(
   options: StreamValidatorOptions = {},
 ): StreamValidator {
   const method = locator.method.toLowerCase();
-  if (!HTTP_METHODS.has(method)) {
+  if (!HTTP_METHOD_SET.has(method)) {
     throw new Error(`streamValidatorForOperation: unknown HTTP method "${locator.method}"`);
   }
   const pathItem = doc.paths?.[locator.path];

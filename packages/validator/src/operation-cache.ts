@@ -11,6 +11,7 @@ import {
   pointerFromRefFragment,
   resolveJsonPointer,
 } from "@oaverify/internal-core";
+import { HTTP_METHODS } from "@oaverify/internal-core";
 import {
   isHeaderObjectPrototypePropertyName,
   isObjectPrototypePropertyName,
@@ -258,17 +259,6 @@ export interface OperationCacheDeps {
  * router keeps its own copy: a constant array is not worth a symbol
  * across the package boundary.
  */
-const METHOD_KEYS = [
-  "get",
-  "put",
-  "post",
-  "delete",
-  "options",
-  "head",
-  "patch",
-  "trace",
-  "query",
-] as const;
 
 /**
  * `POST /things`, for labelling the schemas an operation owns.
@@ -285,7 +275,7 @@ const METHOD_KEYS = [
  * @internal
  */
 export function operationLabel(pathMatch: RouteMatch): string {
-  for (const method of METHOD_KEYS) {
+  for (const method of HTTP_METHODS) {
     if (pathMatch.pathItem[method] === pathMatch.operation) {
       return `${method.toUpperCase()} ${pathMatch.pathPattern}`;
     }
@@ -307,7 +297,7 @@ export function operationLabel(pathMatch: RouteMatch): string {
  * @internal
  */
 export function operationPointer(pathMatch: RouteMatch): string | undefined {
-  for (const method of METHOD_KEYS) {
+  for (const method of HTTP_METHODS) {
     if (pathMatch.pathItem[method] === pathMatch.operation) {
       return `/paths/${escapePointer(pathMatch.pathPattern)}/${method}`;
     }

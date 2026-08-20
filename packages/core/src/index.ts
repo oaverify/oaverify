@@ -65,6 +65,8 @@ export {
   type UnknownVersionReason,
 } from "./version.js";
 
+export { HTTP_METHODS } from "./types.js";
+
 export type {
   CallbackObject,
   ComponentsObject,
