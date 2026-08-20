@@ -25,6 +25,7 @@ import { builtInFormats } from "@oaverify/internal-formats";
 import {
   coercionView,
   compileMediaTypePatterns,
+  effectiveType,
   isServedParameterLocation,
   isValidMaxTotalBytes,
   maxTotalBytesErrorMessage,
@@ -760,6 +761,11 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
             // that declare it. Absent means false, which is what
             // `__validateParameter` tests for.
             ...(p.allowEmptyValue === true ? { allowEmptyValue: true } : {}),
+            // Same spread reasoning again. Baked here rather than
+            // computed in the emitted module, which would need
+            // `effectiveType` in the codegen runtime for a fact that is
+            // static in the document (#889).
+            ...(effectiveType(p.schema) === "object" ? { __objectTyped: true } : {}),
             // Same spread reasoning as `allowEmptyValue`: absent on
             // every parameter that declares `schema`, which is almost
             // all of them. `firstContentMediaType` picks the entry
@@ -1302,7 +1308,19 @@ function __validateParameter(p, req, match${sinkParam}) {
   // the returnValues channel.
   if (raw === "" && p.in === "query" && p.allowEmptyValue === true) return null;
   if (p.__validator === null) return null;
-${contentBranch}  const value = deserialize(raw, p);
+${contentBranch}  // Mirrors validateParameter in validate-step.ts: a repeated name is
+  // not how a style carries an object, and reading raw[0] handed the
+  // schema a string, so the failure read "must be object" about a value
+  // the caller never sent (#889). __objectTyped is baked at emit time.
+  if (Array.isArray(raw) && raw.length > 1 && p.__objectTyped) {
+    return createLeafError(
+      ${PARAM_CODE_EXPR},
+      [p.in, p.name],
+      \`\${p.in} parameter "\${p.name}" was sent more than once; an object-valued parameter in this style is carried by a single value\`,
+      { name: p.name, in: p.in },
+    );
+  }
+  const value = deserialize(raw, p);
   // Mirrors validateParameter in validate-step.ts: a present token can
   // still supply no value, which \`deserialize\` reports as undefined.
   // Gated on the style there and here, because an object-typed
