@@ -469,7 +469,7 @@ export const ifThenElseKeyword: KeywordDefinition = {
     // condition's only consumed output is its pass/fail (its annotations
     // would only matter for `unevaluated*`), so compile it as a predicate
     // and skip building, then discarding, its error tree on the common
-    // else-taken path. `then` / `else` stay in error mode -- their errors
+    // else-taken path. `then` / `else` stay in error mode: their errors
     // are reported.
     if (!ctx.predicate && outProps === null && outItems === null) {
       const ifPred = ctx.compileSubschema(ifSchema, "predicate");

@@ -441,13 +441,13 @@ export function buildOperationCache(
   const operation = operationLabel(pathMatch);
   const opPointer = operationPointer(pathMatch);
 
-  // The merge is where a parameter's address used to be lost. Source
+  // The merge is where a parameter's address would be lost. Source
   // array, index within it, and whether a `$ref` was followed are all
-  // gone by the time the compile loop runs, and none is recoverable
-  // from the resolved object: the dedup reorders, and an operation-level
-  // entry overwrites a path-level one at the same key. So each raw entry
-  // is paired with its own pointer before the merge, and the pair is
-  // what gets deduped.
+  // gone by the time the compile loop runs, and none is recoverable from
+  // the resolved object: the dedup reorders, and an operation-level entry
+  // overwrites a path-level one at the same key. So each raw entry is
+  // paired with its own pointer before the merge, and the pair is what
+  // gets deduped.
   const rawParams: { raw: ParameterObject | ReferenceObject; pointer?: string }[] = [
     ...asParameterList(pathMatch.pathItem.parameters).map((raw, i) => ({
       raw,

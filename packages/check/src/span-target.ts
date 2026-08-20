@@ -46,27 +46,27 @@
  * A reason's address is **resolved, never derived**, and that is the
  * thing to know before changing any of this.
  *
- * This file used to state the opposite as a fact: that an example value
- * is data the resolver does not follow a `$ref` into, so the value in
- * the resolved document and the value in the file are the same bytes,
- * so `source.pointer` plus the path is the source position. The first
- * two clauses are true and the conclusion is not. An overlay rewrites
- * nodes *after* resolution, and `withOverlayChanges` holes what it
- * changed while a container keeps its own address, so appending a path
- * to that address walks straight past the hole and lands on bytes the
- * overlay removed (#776).
+ * Deriving one looks safe and is not. The reasoning that tempts you:
+ * an example value is data the resolver does not follow a `$ref` into,
+ * so the value in the resolved document and the value in the file are
+ * the same bytes, so `source.pointer` plus the path is the source
+ * position. The first two clauses hold and the conclusion does not. An
+ * overlay rewrites nodes *after* resolution, and `withOverlayChanges`
+ * holes what it changed while a container keeps its own address, so
+ * appending a path to that address walks straight past the hole and
+ * lands on bytes the overlay removed (#776).
  *
  * So {@link reasonPointersFor} builds the pointer in the resolved
  * document, `checkSpec` maps it through `sourceOf` exactly as it maps
  * the finding's own pointer, and what reaches this file is an address
- * rather than a recipe for one. A reason with no address is a reason
- * with no located item.
+ * and not a recipe for one. A reason with no address is a reason with
+ * no located item.
  *
- * What survives from the old reading is the other half: a path that
- * resolves to nothing is not the file moving underneath us. It is
- * either a node an overlay rewrote, or a path naming something the
- * value does not contain, which is a property of the reason's code and
- * is what {@link reasonTargetFor} exists to state.
+ * The other half holds either way: a path that resolves to nothing is
+ * not the file moving underneath us. It is either a node an overlay
+ * rewrote, or a path naming something the value does not contain, which
+ * is a property of the reason's code and is what
+ * {@link reasonTargetFor} exists to state.
  *
  * @packageDocumentation
  */
@@ -284,11 +284,11 @@ function pointerFor(pointer: string, path: readonly PathSegment[]): string {
  * `index` is the reason's index in {@link CheckFinding.reasons}.
  *
  * Exported within the package so the pointer arithmetic lives in one
- * place. It used to happen inside {@link locatedReasonsFor}, against
- * `target.source`, which quietly assumed a path means the same thing in
- * the resolved document and in the file. An overlay breaks that
- * assumption (#776), and the fix is to resolve the same way every other
- * address is resolved rather than to derive one.
+ * place, and kept out of {@link locatedReasonsFor}: doing it there means
+ * doing it against `target.source`, which assumes a path means the same
+ * thing in the resolved document and in the file. An overlay breaks that
+ * assumption (#776), so an address is resolved the same way every other
+ * address is, never derived.
  *
  * Deliberately not on the package's public surface. Its output is only
  * useful to something holding the spec's regions, which is `checkSpec`
@@ -398,8 +398,8 @@ export function locatedReasonsFor(
 ): LocatedReason[] {
   // A related location supports a result. A result carrying none of its
   // own while pointing related ones into a file is incoherent, so the
-  // finding having an address stays a precondition even though a
-  // reason's address no longer derives from it.
+  // finding having an address is a precondition here, independently of
+  // each reason resolving its own.
   if (finding.target?.source === undefined) return [];
   const reasons = finding.reasons ?? [];
   const located: LocatedReason[] = [];

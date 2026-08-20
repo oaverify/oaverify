@@ -103,7 +103,7 @@ function resolveRef(ref: string, root: Obj, resolve: RequiredLintResolver | unde
  *
  * `unresolved` reports that a `$ref` could not be followed, which the
  * caller treats as "cannot enumerate" rather than "contributes
- * nothing" -- guessing the other way would invent findings.
+ * nothing". Guessing the other way would invent findings.
  */
 function closure(
   seeds: readonly unknown[],
@@ -260,7 +260,8 @@ function stepFor(key: string, name?: string): Step | undefined {
  * the wrong question and failed in both directions: it over-fired on a
  * `then` or `oneOf[i]` branch whose property is declared on a sibling
  * sharing the instance, and suppressed itself on schemas that
- * legitimately compose -- exactly where the unsatisfiable cases live.
+ * legitimately compose, which is exactly where the unsatisfiable cases
+ * live.
  * Measured at 2.6% signal (77 findings, 2 true positives) across 13
  * published specs, which is why it was withheld in #501.
  *

@@ -70,7 +70,7 @@ export interface LintOptions {
    * Components the resolver inlined at a use site, as pointers
    * (`/components/parameters/PageSize`). `unused-component` stays quiet
    * about these. Comes from {@link ResolvedSpec.inlinedComponents};
-   * omitting it restores the pre-#612 behaviour, which reports them.
+   * omit it and they are reported like any other unreached component.
    */
   inlinedComponents?: readonly string[];
 }
@@ -276,11 +276,11 @@ function collectAllRefs(
  * A document's or an operation's `security` as a list to iterate.
  *
  * OpenAPI declares the field as an array, and a document writing one
- * requirement as a mapping is a missing `- `. Iterating that threw
- * `object is not iterable` out of the whole lint, which took
- * `oaverify check` to exit 3 naming nothing, the same way an unreadable
- * `parameters` did before #837. Reading it as no requirements lets the
- * run reach the conformance pass, which reports `must be array` at the
+ * requirement as a mapping is a missing `- `. Iterating that throws
+ * `object is not iterable` out of the whole lint, taking `oaverify
+ * check` to exit 3 naming nothing, which is the same shape an unreadable
+ * `parameters` has (#837). Reading it as no requirements lets the run
+ * reach the conformance pass, which reports `must be array` at the
  * offending pointer (#883).
  *
  * The lint's own subject here is which schemes are referenced, so an

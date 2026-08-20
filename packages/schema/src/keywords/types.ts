@@ -665,9 +665,9 @@ export interface KeywordDefinition {
    * mode (see {@link CompileOptions.schemaLint}) so users know they're
    * getting degraded semantics rather than a silent fallback.
    *
-   * No built-in keyword sets this today. `$dynamicRef` did, while it
-   * resolved statically against the anchor map, and dropped it when
-   * runtime dynamic-scope resolution landed.
+   * No built-in keyword sets this today. It is for a keyword that can
+   * only honour part of its contract, which is the shape a static
+   * approximation of a runtime-resolved keyword takes.
    */
   partial?: string;
   /**

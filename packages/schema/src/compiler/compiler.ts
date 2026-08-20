@@ -981,7 +981,7 @@ export interface CompileOptions {
    * {@link CompileStats.schemaLintIssues} rather than throwing.
    *
    * This grades schemas that *are* schemas. A document that is not a
-   * schema at all -- a non-schema value in a schema-valued slot, say --
+   * schema at all (a non-schema value in a schema-valued slot, say)
    * is rejected before linting runs, by a throw that no mode
    * suppresses. Well-formedness is a precondition here, not the
    * strictest rung of this ladder, so `"off"` silences lint findings

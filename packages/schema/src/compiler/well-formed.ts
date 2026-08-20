@@ -118,7 +118,7 @@ function hintFor(key: string, value: unknown): string {
  * name the offending value, and give the dotted path to it.
  *
  * This runs in every mode, including `schemaLint: "off"`. Well-formedness is
- * a precondition rather than a lint level -- `strict` grades schemas
+ * a precondition, not a lint level: `strict` grades schemas
  * that *are* schemas, and there is nothing to grade here. The `"off"`
  * path already threw on these inputs, just without saying where.
  *

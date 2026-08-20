@@ -10,7 +10,7 @@ function isJsonPrimitive(v: JsonValue): v is string | number | boolean | null {
 /**
  * `enum` holds an array of arbitrary JSON values. An unchecked cast let
  * a non-array through to `values.filter`, which died with
- * `values.filter is not a function` -- an internal TypeError naming no
+ * `values.filter is not a function`, an internal TypeError naming no
  * schema and no path.
  */
 export function checkEnumValues(value: unknown): string | undefined {

@@ -1060,7 +1060,7 @@ export interface ValidatorOptions {
    */
   requireResponseBody?: boolean;
   /**
-   * When `true`, an unmatched path no longer produces a `route` error;
+   * When `true`, an unmatched path produces no `route` error;
    * `validateRequest` / `validateResponse` report the request as valid
    * (`{ valid: true }`). Mirrors
    * `express-openapi-validator`'s `ignoreUndocumented`. Does not affect
@@ -1280,11 +1280,11 @@ export function createValidator(
   //   (3) valid 3.x major but unknown minor (e.g. "3.7.0"): forward
   //       compat, governed by `onUnknownVersion`
   //
-  // `dialect` outranks all three. It used to be consulted only where
-  // detection failed, so on a spec that declared a version it was read
-  // and discarded, and a custom Dialect had no way in at all (#534).
-  // Detection still runs and still fills `detectedVersion`: the option
-  // decides what compiles, not what the document says it is.
+  // `dialect` outranks all three, on every branch. Consulted only where
+  // detection fails, it is read and discarded on any spec that declares
+  // a version, which leaves a custom Dialect no way in at all (#534).
+  // Detection runs regardless and fills `detectedVersion`: the option
+  // decides what compiles, and the document decides what it says it is.
   const detectedVersion = detectOpenAPIVersion(spec);
   const dialect: Dialect = (() => {
     if (detectedVersion !== undefined) return options.dialect ?? dialectFor(detectedVersion);

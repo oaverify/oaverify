@@ -117,9 +117,8 @@ export interface ExampleIssue {
    *
    * So this is longer than `message` where `message` truncated, and
    * never longer for having replayed a branch. A consumer wanting a
-   * coarser grouping (per `code`, per `path`) still applies its own key;
-   * what it no longer has to do is undo a duplication it did not ask
-   * for.
+   * coarser grouping (per `code`, per `path`) applies its own key to
+   * these, with no duplication to undo first.
    */
   reasons: readonly RejectionReason[];
 }

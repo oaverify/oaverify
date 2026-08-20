@@ -39,11 +39,11 @@ export const typeKeyword: KeywordDefinition = {
  * Validate `type`'s value before it reaches codegen.
  *
  * `typePredicate` returns `"false"` for a name it does not know, so an
- * unrecognised one used to compile into a validator that rejects every
- * payload. Nothing satisfies it, the failure surfaces at runtime on
- * production traffic, and the message (`must be Boolean`) points at the
- * payload rather than at the spec that is actually wrong. No author
- * means that, so it is a compile error.
+ * unrecognised one compiles into a validator nothing satisfies unless it
+ * is caught here. The failure would then surface at runtime on
+ * production traffic, with a message (`must be Boolean`) pointing at the
+ * payload instead of at the spec that is actually wrong. No author means
+ * that, so it is a compile error.
  */
 export function checkTypeNames(
   value: unknown,

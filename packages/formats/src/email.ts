@@ -32,7 +32,8 @@ const QUOTED_PAIR = "\\\\[\\u0020-\\u007E]";
  * RFC 5321 `Quoted-string`.
  *
  * A quoted local part is why a space, a double dot and a second `@` can
- * all appear legally, which is the class this used to reject outright.
+ * all appear legally. Rejecting that class outright is the easy mistake
+ * here, and it rejects addresses the RFC allows.
  */
 const QUOTED_STRING_RE = new RegExp(`^"(?:[${QTEXT_ASCII}]|${QUOTED_PAIR})*"$`, "u");
 

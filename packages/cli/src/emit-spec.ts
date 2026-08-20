@@ -741,8 +741,9 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
         pathPattern,
         method,
         // The emitted module carries the schema it will coerce against,
-        // so it carries the resolved view. Without this a compiled
-        // validator keeps #714 while createValidator no longer has it.
+        // so it carries the resolved view. Skip this and the compiled
+        // validator coerces against an unresolved `$ref` while
+        // createValidator coerces against the target (#714).
         parameters: parameters
           .map((raw) => coercionView(raw, resolveSchemaRef, { refSuppressesSiblings }))
           .map((p) => ({

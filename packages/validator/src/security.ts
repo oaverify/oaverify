@@ -143,8 +143,9 @@ function unreadableSecurityRequirement(): CompiledSecurityRequirement {
 /**
  * A Security Requirement Object is a mapping of scheme name to scopes.
  * A list item written with nothing under it parses as `null`, which is
- * an array element rather than a malformed container, so it passes the
- * `Array.isArray` guard above and used to reach `Object.keys(null)`:
+ * an array element and not a malformed container, so it passes the
+ * `Array.isArray` guard above and reaches `Object.keys` unless it is
+ * caught here:
  *
  * ```yaml
  * security:

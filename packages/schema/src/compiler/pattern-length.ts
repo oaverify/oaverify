@@ -70,7 +70,7 @@ function mul(a: number, b: number): number {
  * exactly 0, which is precise rather than merely safe. An anchor under
  * a quantifier that can skip it stops counting as an anchor, which
  * widens the span: `(^)*a$` reports `{min: 1, max: Infinity}`, and
- * since the group may match zero times that is exact -- the pattern
+ * since the group may match zero times that is exact: the pattern
  * accepts "xa" as readily as "a". Treating the anchor as surviving the
  * quantifier would bound the subject, which is the direction that
  * invents findings.

@@ -358,10 +358,9 @@ export function combineValidators(
     try {
       extracted = await httpResponseFromFetch(response, { maxTotalBytes });
     } catch (err) {
-      // The request side has converted a parse failure since it shipped;
-      // this side threw, so an unparseable upstream response escaped a
-      // composite where a single validator returned a verdict. Both
-      // errors convert here now.
+      // Converted, not thrown: an unparseable upstream response would
+      // otherwise escape a composite where a single validator returns a
+      // verdict for the same input. Both sides convert.
       const verdict = bodyFailure<T>(err, { kind: "response", status: response.status });
       if (verdict !== undefined) return verdict;
       throw err;
