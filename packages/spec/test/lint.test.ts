@@ -268,6 +268,94 @@ describe("lintResolvedSpec: path-param-undeclared / path-param-unused", () => {
     );
   });
 
+  // The undeclared rule is per-operation, because the effective set
+  // depends on the operation's own list. The unused rule for an
+  // item-level declaration is not: it is a fact about the Path Item, and
+  // reporting it inside the method loop produced one identical finding
+  // per operation, all carrying the same pointer (#891).
+  it("reports an unused path-item parameter once, not once per operation", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/p/{id}": {
+          parameters: [
+            { name: "id", in: "path", required: true, schema: { type: "string" } },
+            { name: "ghost", in: "path", required: true, schema: { type: "string" } },
+          ],
+          get: { responses: { "200": { description: "ok" } } },
+          post: { responses: { "200": { description: "ok" } } },
+          delete: { responses: { "200": { description: "ok" } } },
+        },
+      },
+    });
+    const unused = lintResolvedSpec(spec).filter((i) => i.code === "path-param-unused");
+    expect(unused).toEqual([expect.objectContaining({ pointer: "/paths/~1p~1{id}/parameters" })]);
+  });
+
+  it("still reports an unused operation parameter once per operation", () => {
+    const ghost = {
+      name: "ghost",
+      in: "path",
+      required: true,
+      schema: { type: "string" },
+    } as const;
+    const spec = minimalSpec({
+      paths: {
+        "/p/{id}": {
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          get: { parameters: [ghost], responses: { "200": { description: "ok" } } },
+          post: { parameters: [ghost], responses: { "200": { description: "ok" } } },
+        },
+      },
+    });
+    const unused = lintResolvedSpec(spec).filter((i) => i.code === "path-param-unused");
+    expect(unused.map((i) => i.pointer).sort()).toEqual([
+      "/paths/~1p~1{id}/get/parameters",
+      "/paths/~1p~1{id}/post/parameters",
+    ]);
+  });
+
+  it("reports both declarations when an operation shadows an unused item-level one", () => {
+    // Two declarations, two locations, both unused. The item-level one
+    // used to be masked: the effective-set lookup credited the name to
+    // the operation, so the path item's own declaration went unnamed.
+    const ghost = {
+      name: "ghost",
+      in: "path",
+      required: true,
+      schema: { type: "string" },
+    } as const;
+    const spec = minimalSpec({
+      paths: {
+        "/p/{id}": {
+          parameters: [
+            { name: "id", in: "path", required: true, schema: { type: "string" } },
+            ghost,
+          ],
+          get: { parameters: [ghost], responses: { "200": { description: "ok" } } },
+        },
+      },
+    });
+    const unused = lintResolvedSpec(spec).filter((i) => i.code === "path-param-unused");
+    expect(unused.map((i) => i.pointer).sort()).toEqual([
+      "/paths/~1p~1{id}/get/parameters",
+      "/paths/~1p~1{id}/parameters",
+    ]);
+  });
+
+  it("reports an unused item-level parameter on a path item with no operations", () => {
+    // Previously silent: the only reporting site was inside the method
+    // loop, which never ran.
+    const spec = minimalSpec({
+      paths: {
+        "/p": {
+          parameters: [{ name: "ghost", in: "path", required: true, schema: { type: "string" } }],
+        },
+      },
+    });
+    const unused = lintResolvedSpec(spec).filter((i) => i.code === "path-param-unused");
+    expect(unused).toEqual([expect.objectContaining({ pointer: "/paths/~1p/parameters" })]);
+  });
+
   it("accepts a parameter declared at the path-item level", () => {
     const spec = minimalSpec({
       paths: {

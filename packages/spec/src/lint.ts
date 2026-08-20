@@ -501,6 +501,22 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
     // reports `must be array` at the pointer, and this rule stays quiet
     // for that operation (#837).
     const itemListUnreadable = !isParameterList(pathItem.parameters);
+
+    // Each declaration is judged where it is written, so an item-level
+    // one is reported once. Reporting it inside the method loop below
+    // gave one identical finding per operation, every one carrying this
+    // same pointer (#891). Shadowing does not enter into it: a name
+    // absent from the template is unused wherever it is declared, and an
+    // operation that overrides it has an unused declaration of its own.
+    for (const name of itemLevelDeclared) {
+      if (inTemplate.has(name)) continue;
+      issues.push({
+        code: "path-param-unused",
+        pointer: `${pathItemPointer}/parameters`,
+        message: `path parameter "${name}" is declared on the path item but does not appear in the path template "${pathTemplate}"`,
+      });
+    }
+
     for (const method of HTTP_METHODS) {
       const op = pathItem[method];
       if (!op) continue;
@@ -530,12 +546,13 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
             message: `path template "${pathTemplate}" references "{${name}}" but neither the operation nor its path item declares a path parameter named "${name}"`,
           });
         }
-      for (const [name, source] of effective) {
+      // The item-level half is reported above, once for the path item.
+      for (const name of opLevelDeclared) {
         if (inTemplate.has(name)) continue;
         issues.push({
           code: "path-param-unused",
-          pointer: source === "op" ? `${opPointer}/parameters` : `${pathItemPointer}/parameters`,
-          message: `path parameter "${name}" is declared on ${source === "op" ? "the operation" : "the path item"} but does not appear in the path template "${pathTemplate}"`,
+          pointer: `${opPointer}/parameters`,
+          message: `path parameter "${name}" is declared on the operation but does not appear in the path template "${pathTemplate}"`,
         });
       }
     }
