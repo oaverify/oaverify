@@ -18,32 +18,20 @@ import { readdirSync, readFileSync, writeFileSync, existsSync, mkdtempSync, rmSy
 import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-
-interface Case {
-  name: string;
-  kind: "request" | "response";
-  method: string;
-  path: string;
-  query?: Record<string, string | string[]>;
-  headers?: Record<string, string>;
-  contentType?: string;
-  status?: number;
-  body?: unknown;
-  expect: "valid" | "invalid";
-  expectCodes?: string[];
-}
-
-interface CaseOutcome {
-  name: string;
-  expect: string;
-  expectCodes?: string[];
-  actual: "valid" | "invalid" | "error";
-  actualCodes: string[];
-  pass: boolean;
-  note?: string;
-}
+import { makeOutcome, stampCli, type Case, type CaseOutcome } from "./openapi-case-outcome.js";
 
 const CLI = resolve(dirname(fileURLToPath(import.meta.url)), "../packages/oav/dist/cli.js");
+
+/**
+ * Identity of the binary as of the probe that opened the run.
+ *
+ * A concurrent build rewrites `dist/cli.js` in place, so the file
+ * changing mid-run is the signal that the cases around it answered
+ * against something other than what was proved. Cheaper than probing
+ * per case, and it is what catches a wipe repaired before the run ends,
+ * which both bookend probes see as healthy.
+ */
+let cliStamp = "";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "openapi-cases");
 
 if (!existsSync(CLI)) {
@@ -81,7 +69,7 @@ function run(c: Case, specPath: string): CaseOutcome {
         [CLI, "validate", specPath, "--request", httpFile, "--format", "json"],
         { encoding: "utf8" },
       );
-      return makeOutcome(c, result.status, result.stdout);
+      return makeOutcome(c, result);
     } else {
       const bodyFile = join(tmp, "body.json");
       writeFileSync(bodyFile, c.body === undefined ? "" : JSON.stringify(c.body));
@@ -100,38 +88,60 @@ function run(c: Case, specPath: string): CaseOutcome {
         "json",
       ];
       const result = spawnSync(process.execPath, args, { encoding: "utf8" });
-      return makeOutcome(c, result.status, result.stdout);
+      return makeOutcome(c, result);
     }
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
 }
 
-function makeOutcome(c: Case, exitCode: number | null, stdout: string): CaseOutcome {
-  const actualCodes: string[] = [];
-  let actual: "valid" | "invalid" | "error" = "error";
-  if (exitCode === 0) actual = "valid";
-  else if (exitCode === 1) actual = "invalid";
-  if (stdout.trim().startsWith("{")) {
-    try {
-      const tree = JSON.parse(stdout);
-      collect(tree, actualCodes);
-    } catch {
-      // leave empty
-    }
-  }
-  const pass =
-    actual === c.expect &&
-    (c.expectCodes === undefined || c.expectCodes.every((code) => actualCodes.includes(code)));
-  return { name: c.name, expect: c.expect, expectCodes: c.expectCodes, actual, actualCodes, pass };
+/**
+ * Prove the CLI answers at all, which no per-case check can.
+ *
+ * The exit-1 crash is separable from a verdict because a corpse writes
+ * no JSON. Exit 0 is not: the CLI is silent on success, so a real pass
+ * and a binary that ran no code are byte-identical (status 0, empty
+ * stdout, empty stderr). The dangerous window is narrow and real: a
+ * `dist/cli.js` truncated at open, before its first byte is written, is
+ * empty, and node runs an empty module and exits 0. (A partly written
+ * one usually syntax-errors to exit 1, which the JSON rule already
+ * catches.) Left unchecked, every `expect: "valid"` case reports a pass
+ * against nothing, which is worse than the misattributed failure #804
+ * fixed: this runner gates PRs, so a false pass hides a real regression.
+ *
+ * Called on both sides of the loop. That proves the ends and not the
+ * middle: a wipe that starts and is repaired between the two probes
+ * leaves both green while the cases spanning it ran against nothing.
+ * `assertCliUnchanged` covers the middle, and deliberately does not live
+ * here: this function must not re-stamp, or the comparison at the end of
+ * the run would be against a stamp taken moments earlier.
+ */
+function assertCliAnswers(when: string): void {
+  const probe = spawnSync(process.execPath, [CLI, "--version"], { encoding: "utf8" });
+  const version = (probe.stdout ?? "").trim();
+  if (probe.status === 0 && /^\d+\.\d+\.\d+/.test(version)) return;
+  const how = probe.signal === null ? `exit ${probe.status}` : `killed by ${probe.signal}`;
+  console.error(
+    `CLI did not answer --version ${when} the run (${how}, stdout ${JSON.stringify(version)}), ` +
+      `so these results would be meaningless. Run "pnpm build".`,
+  );
+  const err = (probe.error?.message ?? probe.stderr ?? "").trim();
+  if (err) console.error(err);
+  process.exit(2);
 }
 
-function collect(node: unknown, out: string[]): void {
-  if (node === null || typeof node !== "object") return;
-  const n = node as { code?: string; children?: unknown[] };
-  if (typeof n.code === "string") out.push(n.code);
-  if (Array.isArray(n.children)) for (const c of n.children) collect(c, out);
+function assertCliUnchanged(where: string): void {
+  const now = stampCli(CLI);
+  if (now === cliStamp) return;
+  console.error(
+    `CLI binary changed during the run (${where}), ` +
+      `so these results would be meaningless. Re-run without a concurrent build.`,
+  );
+  process.exit(2);
 }
+
+assertCliAnswers("before");
+cliStamp = stampCli(CLI);
 
 const dirs = readdirSync(ROOT).filter((d) => !d.startsWith("."));
 const outcomes: Array<{ group: string } & CaseOutcome> = [];
@@ -141,10 +151,14 @@ for (const dir of dirs) {
   if (!existsSync(specPath) || !existsSync(casesPath)) continue;
   const cases = JSON.parse(readFileSync(casesPath, "utf8")) as Case[];
   for (const c of cases) {
+    assertCliUnchanged(`before case "${c.name}"`);
     const outcome = run(c, specPath);
     outcomes.push({ group: dir, ...outcome });
   }
 }
+
+assertCliUnchanged("after the last case");
+assertCliAnswers("after");
 
 let pass = 0;
 let fail = 0;
@@ -172,6 +186,7 @@ for (const o of outcomes) {
         " codes=" +
         o.actualCodes.join(","),
     );
+    if (o.note) console.log("    " + o.note);
   }
 }
 

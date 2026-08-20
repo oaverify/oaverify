@@ -10,6 +10,7 @@
     "format-suite": "tsx run-format-suite.ts",
     "parse": "tsx run-json-parse-suite.ts",
     "openapi": "tsx run-openapi-cases.ts",
+    "openapi:selftest": "tsx run-openapi-selftest.ts",
     "overlay": "tsx run-overlay-suite.ts",
     "corpora": "tsx fetch-corpora.ts",
     "corpora:stale": "tsx check-corpus-freshness.ts",
@@ -17,7 +18,7 @@
     "corpora:json-parse": "tsx fetch-corpora.ts JSONTestSuite",
     "corpora:overlay": "tsx fetch-corpora.ts Overlay-Specification",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm typecheck && pnpm openapi && pnpm suite --check-baseline && pnpm format-suite --check-baseline && pnpm parse --check-baseline && pnpm overlay --check-baseline"
+    "check": "pnpm typecheck && pnpm openapi:selftest && pnpm openapi && pnpm suite --check-baseline && pnpm format-suite --check-baseline && pnpm parse --check-baseline && pnpm overlay --check-baseline"
   },
   "devDependencies": {
     "tsx": "^4.23.12",
