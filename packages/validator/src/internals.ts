@@ -77,3 +77,8 @@ export { readBodyFromFetch } from "./from-fetch.js";
 // emitter validates at emit time rather than baking a value the
 // reader would reject on every request.
 export { isValidMaxTotalBytes, maxTotalBytesErrorMessage } from "./from-fetch.js";
+
+// Used by `compile-spec` to bake an object-typed flag onto each emitted
+// parameter, so the generated module can answer #889 without the
+// codegen runtime gaining a symbol.
+export { effectiveType } from "./schema-type.js";
