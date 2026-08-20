@@ -214,6 +214,9 @@ jobs:
       - name: fetch any corpus the cache did not supply
         working-directory: conformance
         run: pnpm corpora
+      - name: OpenAPI case runner self-tests
+        working-directory: conformance
+        run: pnpm openapi:selftest
       - name: OpenAPI conformance cases
         working-directory: conformance
         run: pnpm openapi
