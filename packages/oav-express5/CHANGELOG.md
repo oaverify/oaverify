@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.2.0](https://github.com/oaverify/oaverify/compare/express5-v7.1.0...express5-v7.2.0) (2026-08-20)
+
+
+### Bug Fixes
+
+* **adapters:** give the problem-details body the status the response carries ([16dd6e1](https://github.com/oaverify/oaverify/commit/16dd6e1cf4193212632850282d5b52ad77a26056)), closes [#864](https://github.com/oaverify/oaverify/issues/864)
+* **express:** substitute a falsy failure reason before forwarding it ([#882](https://github.com/oaverify/oaverify/issues/882)) ([93da25e](https://github.com/oaverify/oaverify/commit/93da25e45421adcb843632d1f301cfef6c28588e)), closes [#857](https://github.com/oaverify/oaverify/issues/857) [#881](https://github.com/oaverify/oaverify/issues/881)
+* **spec:** stop an overlay deleting a parameters field it cannot read ([#892](https://github.com/oaverify/oaverify/issues/892)) ([1de2abe](https://github.com/oaverify/oaverify/commit/1de2abe948891d1d07f1a0f6e439aeefd460d65c))
+
+
+### Documentation
+
+* defer to the canonical option docs, and realign the express pair ([#933](https://github.com/oaverify/oaverify/issues/933)) ([a826ebb](https://github.com/oaverify/oaverify/commit/a826ebb8d0c4c3a18dd18f2b1a2a8ba23310acf1))
+
 ## [7.1.0](https://github.com/oaverify/oaverify/compare/express5-v7.0.0...express5-v7.1.0) (2026-08-16)
 
 

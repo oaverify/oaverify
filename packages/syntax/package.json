@@ -1,6 +1,6 @@
 {
   "name": "@oaverify/syntax",
-  "version": "7.1.0",
+  "version": "7.2.0",
   "description": "Syntax support for @oaverify/core: readers that load hand-authored .yaml/.yml OpenAPI specs from disk or over HTTP, plus a synchronous loadSpecSync.",
   "keywords": [
     "oas",

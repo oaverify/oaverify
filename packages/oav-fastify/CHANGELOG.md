@@ -1,5 +1,14 @@
 # Changelog
 
+## [7.2.0](https://github.com/oaverify/oaverify/compare/fastify-v7.1.0...fastify-v7.2.0) (2026-08-20)
+
+
+### Bug Fixes
+
+* **adapters:** give the problem-details body the status the response carries ([16dd6e1](https://github.com/oaverify/oaverify/commit/16dd6e1cf4193212632850282d5b52ad77a26056)), closes [#864](https://github.com/oaverify/oaverify/issues/864)
+* **fastify:** validate only the responses a route handler produced ([#863](https://github.com/oaverify/oaverify/issues/863)) ([c5c7933](https://github.com/oaverify/oaverify/commit/c5c7933ef7d362964a40036a9d7e9b9eb594feca))
+* **spec:** stop an overlay deleting a parameters field it cannot read ([#892](https://github.com/oaverify/oaverify/issues/892)) ([1de2abe](https://github.com/oaverify/oaverify/commit/1de2abe948891d1d07f1a0f6e439aeefd460d65c))
+
 ## [7.1.0](https://github.com/oaverify/oaverify/compare/fastify-v7.0.0...fastify-v7.1.0) (2026-08-16)
 
 

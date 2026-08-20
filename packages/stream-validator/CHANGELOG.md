@@ -1,5 +1,26 @@
 # Changelog
 
+## [7.2.0](https://github.com/oaverify/oaverify/compare/stream-v7.1.0...stream-v7.2.0) (2026-08-20)
+
+
+### Features
+
+* **core:** make HTTP_METHODS the one source for the method list ([#925](https://github.com/oaverify/oaverify/issues/925)) ([004db81](https://github.com/oaverify/oaverify/commit/004db811bd39792753144aeeb4e2c14a813e1ff8))
+
+
+### Bug Fixes
+
+* **spec:** stop an overlay deleting a parameters field it cannot read ([#892](https://github.com/oaverify/oaverify/issues/892)) ([1de2abe](https://github.com/oaverify/oaverify/commit/1de2abe948891d1d07f1a0f6e439aeefd460d65c))
+* **stream:** count one string for minLength and maxLength ([#887](https://github.com/oaverify/oaverify/issues/887)) ([0502ebb](https://github.com/oaverify/oaverify/commit/0502ebb768366eaf3f62ea169f5d6e1614452d56)), closes [#852](https://github.com/oaverify/oaverify/issues/852)
+* **stream:** flush a held UTF-8 partial before a string escape ([#893](https://github.com/oaverify/oaverify/issues/893)) ([d89120c](https://github.com/oaverify/oaverify/commit/d89120c249bbcb8d253aedb0a27059b4a2a85de8)), closes [#886](https://github.com/oaverify/oaverify/issues/886)
+* **stream:** keep a byte-order mark that appears inside a string ([#880](https://github.com/oaverify/oaverify/issues/880)) ([13e7c37](https://github.com/oaverify/oaverify/commit/13e7c37db1b2c11cd28be05bdd3b3272d17efe19)), closes [#851](https://github.com/oaverify/oaverify/issues/851)
+* walk the mixed-map subschema position in every walker ([#865](https://github.com/oaverify/oaverify/issues/865)) ([e18d148](https://github.com/oaverify/oaverify/commit/e18d148af9a45720d19e3dba13020cf1223add43))
+
+
+### Documentation
+
+* defer to the canonical option docs, and realign the express pair ([#933](https://github.com/oaverify/oaverify/issues/933)) ([a826ebb](https://github.com/oaverify/oaverify/commit/a826ebb8d0c4c3a18dd18f2b1a2a8ba23310acf1))
+
 ## [7.1.0](https://github.com/oaverify/oaverify/compare/stream-v7.0.0...stream-v7.1.0) (2026-08-16)
 
 

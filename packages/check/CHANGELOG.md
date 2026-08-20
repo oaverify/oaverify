@@ -1,5 +1,25 @@
 # Changelog
 
+## [7.2.0](https://github.com/oaverify/oaverify/compare/check-v7.1.0...check-v7.2.0) (2026-08-20)
+
+
+### Features
+
+* **check:** report a parameter location the validator cannot serve ([#841](https://github.com/oaverify/oaverify/issues/841)) ([b3aac5b](https://github.com/oaverify/oaverify/commit/b3aac5b0342196a26ad1a68bad78d016bda6fd36))
+* **spec:** record a reference the resolver cannot follow instead of throwing ([#878](https://github.com/oaverify/oaverify/issues/878)) ([733214c](https://github.com/oaverify/oaverify/commit/733214c5db5bb72e5a239da0f05022a4f9aade2a)), closes [#817](https://github.com/oaverify/oaverify/issues/817)
+
+
+### Bug Fixes
+
+* read a parameters field that is not a list as no parameters ([#884](https://github.com/oaverify/oaverify/issues/884)) ([077af8c](https://github.com/oaverify/oaverify/commit/077af8c36ed405c71b062a4116b3b3efd02b9cac)), closes [#837](https://github.com/oaverify/oaverify/issues/837)
+* read a security field that is not a list without throwing ([#896](https://github.com/oaverify/oaverify/issues/896)) ([9100ffc](https://github.com/oaverify/oaverify/commit/9100ffc974f31d85acfbcb8414614c3cac6a725b)), closes [#883](https://github.com/oaverify/oaverify/issues/883)
+* **validator:** refuse a parameter location the validator cannot serve ([#838](https://github.com/oaverify/oaverify/issues/838)) ([57bae2a](https://github.com/oaverify/oaverify/commit/57bae2a11bfd2f22216d21110a48d1bbe2da6d00))
+
+
+### Documentation
+
+* state what the code does, not what it did ([#931](https://github.com/oaverify/oaverify/issues/931)) ([6d06081](https://github.com/oaverify/oaverify/commit/6d06081ab534cb297f3767a80a5e6bca569dcbb0))
+
 ## [7.1.0](https://github.com/oaverify/oaverify/compare/check-v7.0.0...check-v7.1.0) (2026-08-16)
 
 

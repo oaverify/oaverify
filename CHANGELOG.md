@@ -1,5 +1,70 @@
 # Changelog
 
+## [7.2.0](https://github.com/oaverify/oaverify/compare/core-v7.1.0...core-v7.2.0) (2026-08-20)
+
+
+### Features
+
+* **check:** report a parameter location the validator cannot serve ([#841](https://github.com/oaverify/oaverify/issues/841)) ([b3aac5b](https://github.com/oaverify/oaverify/commit/b3aac5b0342196a26ad1a68bad78d016bda6fd36))
+* **cli:** a returnValues mode for compile-spec ([#905](https://github.com/oaverify/oaverify/issues/905)) ([4011d53](https://github.com/oaverify/oaverify/commit/4011d53154734255e9b63f917f3e9a9f72d28d30))
+* **core:** make HTTP_METHODS the one source for the method list ([#925](https://github.com/oaverify/oaverify/issues/925)) ([004db81](https://github.com/oaverify/oaverify/commit/004db811bd39792753144aeeb4e2c14a813e1ff8))
+* **spec:** record a reference the resolver cannot follow instead of throwing ([#878](https://github.com/oaverify/oaverify/issues/878)) ([733214c](https://github.com/oaverify/oaverify/commit/733214c5db5bb72e5a239da0f05022a4f9aade2a)), closes [#817](https://github.com/oaverify/oaverify/issues/817)
+* **validator:** read cookies in the Fetch adapter, and carry a repeated name ([#890](https://github.com/oaverify/oaverify/issues/890)) ([728f54e](https://github.com/oaverify/oaverify/commit/728f54ee4b6a029215c39882e5a045527e382500)), closes [#826](https://github.com/oaverify/oaverify/issues/826) [#827](https://github.com/oaverify/oaverify/issues/827)
+
+
+### Bug Fixes
+
+* **adapters:** give the problem-details body the status the response carries ([16dd6e1](https://github.com/oaverify/oaverify/commit/16dd6e1cf4193212632850282d5b52ad77a26056)), closes [#864](https://github.com/oaverify/oaverify/issues/864)
+* **cli:** answer an implicit HEAD in the emitted validator ([#909](https://github.com/oaverify/oaverify/issues/909)) ([e50f99a](https://github.com/oaverify/oaverify/commit/e50f99a41cc7b2807312bbe7a2ba6a775ce72c77))
+* **cli:** assemble an object parameter in the emitted validator ([#904](https://github.com/oaverify/oaverify/issues/904)) ([9577133](https://github.com/oaverify/oaverify/commit/957713345c76befef0666638091cd123fb793509)), closes [#888](https://github.com/oaverify/oaverify/issues/888)
+* **cli:** decode a content-typed parameter before validating it ([#908](https://github.com/oaverify/oaverify/issues/908)) ([07230bc](https://github.com/oaverify/oaverify/commit/07230bc195c92c6b79ec072ffdd0ba844cc791ff))
+* **cli:** give compile-spec the runtime's security modes ([#911](https://github.com/oaverify/oaverify/issues/911)) ([b760520](https://github.com/oaverify/oaverify/commit/b76052090113c90c7dafdd8666d661134e62105b))
+* **cli:** refuse to emit a parameter location the validator cannot serve ([#839](https://github.com/oaverify/oaverify/issues/839)) ([07cd0bd](https://github.com/oaverify/oaverify/commit/07cd0bd4e5acb9f0e77d85874e0e71f47780d29d))
+* **cli:** write the check report to --output in one piece ([#869](https://github.com/oaverify/oaverify/issues/869)) ([4cd2142](https://github.com/oaverify/oaverify/commit/4cd2142ff45addb5dd5f33d1ef6ed6753f120510)), closes [#848](https://github.com/oaverify/oaverify/issues/848)
+* **conformance:** tell a crashed CLI from a validation verdict ([#921](https://github.com/oaverify/oaverify/issues/921)) ([5934ef2](https://github.com/oaverify/oaverify/commit/5934ef2b59e8c5f91b091525439f618a017ffecd))
+* correct two stale contributor-doc claims ([#918](https://github.com/oaverify/oaverify/issues/918)) ([abb1b4f](https://github.com/oaverify/oaverify/commit/abb1b4f6f525600ee598fd445d7dc5fde1f6cbf0))
+* **detection:** scrub absolute paths, and say what results/ describes ([#930](https://github.com/oaverify/oaverify/issues/930)) ([84edc27](https://github.com/oaverify/oaverify/commit/84edc2757977f3bd8f4b9af364df1ec8f7ff8277))
+* **express:** substitute a falsy failure reason before forwarding it ([#882](https://github.com/oaverify/oaverify/issues/882)) ([93da25e](https://github.com/oaverify/oaverify/commit/93da25e45421adcb843632d1f301cfef6c28588e)), closes [#857](https://github.com/oaverify/oaverify/issues/857) [#881](https://github.com/oaverify/oaverify/issues/881)
+* **fastify:** validate only the responses a route handler produced ([#863](https://github.com/oaverify/oaverify/issues/863)) ([c5c7933](https://github.com/oaverify/oaverify/commit/c5c7933ef7d362964a40036a9d7e9b9eb594feca))
+* **formats:** accept a ucschar the uri-template literal class excluded ([#902](https://github.com/oaverify/oaverify/issues/902)) ([2c3492f](https://github.com/oaverify/oaverify/commit/2c3492f65bf09f38818b68004d9b52b624736a08)), closes [#854](https://github.com/oaverify/oaverify/issues/854)
+* read a parameters field that is not a list as no parameters ([#884](https://github.com/oaverify/oaverify/issues/884)) ([077af8c](https://github.com/oaverify/oaverify/commit/077af8c36ed405c71b062a4116b3b3efd02b9cac)), closes [#837](https://github.com/oaverify/oaverify/issues/837)
+* read a security field that is not a list without throwing ([#896](https://github.com/oaverify/oaverify/issues/896)) ([9100ffc](https://github.com/oaverify/oaverify/commit/9100ffc974f31d85acfbcb8414614c3cac6a725b)), closes [#883](https://github.com/oaverify/oaverify/issues/883)
+* read and write untrusted keys as own properties ([#843](https://github.com/oaverify/oaverify/issues/843)) ([96ecd1b](https://github.com/oaverify/oaverify/commit/96ecd1b70ebc778a0054d15a0d6caddb4bed7e16))
+* **router:** refuse a request method the HttpMethod union does not carry ([#900](https://github.com/oaverify/oaverify/issues/900)) ([ec8a9f5](https://github.com/oaverify/oaverify/commit/ec8a9f5ed642f3d5fde2e3de21a4525a434397da)), closes [#855](https://github.com/oaverify/oaverify/issues/855)
+* **schema:** check the array entries of a dependencies value ([#922](https://github.com/oaverify/oaverify/issues/922)) ([1c1f30c](https://github.com/oaverify/oaverify/commit/1c1f30c689ec35fae648ad3cc8f97c4ea5c954af))
+* **spec:** guard an unreadable scopes value in removeSecurity ([#923](https://github.com/oaverify/oaverify/issues/923)) ([3fcac0c](https://github.com/oaverify/oaverify/commit/3fcac0c870102a631d13858bbcf2e0343cdd8fc2))
+* **spec:** hoist an external $ref written inside `dependencies` ([#866](https://github.com/oaverify/oaverify/issues/866)) ([af5316c](https://github.com/oaverify/oaverify/commit/af5316cd120a42ac5811e10f78a579097c059a7a)), closes [#859](https://github.com/oaverify/oaverify/issues/859)
+* **spec:** refuse an entry document that is not a document ([#876](https://github.com/oaverify/oaverify/issues/876)) ([29eb13d](https://github.com/oaverify/oaverify/commit/29eb13d2a3d9fe289614737289dc781c8678d7c2)), closes [#850](https://github.com/oaverify/oaverify/issues/850)
+* **spec:** report an unused path-item parameter once ([#924](https://github.com/oaverify/oaverify/issues/924)) ([84f4227](https://github.com/oaverify/oaverify/commit/84f42279fea02579704831adcebd007d0790a4d6))
+* **spec:** stop an overlay deleting a parameters field it cannot read ([#892](https://github.com/oaverify/oaverify/issues/892)) ([1de2abe](https://github.com/oaverify/oaverify/commit/1de2abe948891d1d07f1a0f6e439aeefd460d65c))
+* stop the subschema position table drifting from its walkers ([#845](https://github.com/oaverify/oaverify/issues/845)) ([69336c3](https://github.com/oaverify/oaverify/commit/69336c3877cda2ffc2f8d2c74399bf440aa98152))
+* **stream:** count one string for minLength and maxLength ([#887](https://github.com/oaverify/oaverify/issues/887)) ([0502ebb](https://github.com/oaverify/oaverify/commit/0502ebb768366eaf3f62ea169f5d6e1614452d56)), closes [#852](https://github.com/oaverify/oaverify/issues/852)
+* **stream:** flush a held UTF-8 partial before a string escape ([#893](https://github.com/oaverify/oaverify/issues/893)) ([d89120c](https://github.com/oaverify/oaverify/commit/d89120c249bbcb8d253aedb0a27059b4a2a85de8)), closes [#886](https://github.com/oaverify/oaverify/issues/886)
+* **stream:** keep a byte-order mark that appears inside a string ([#880](https://github.com/oaverify/oaverify/issues/880)) ([13e7c37](https://github.com/oaverify/oaverify/commit/13e7c37db1b2c11cd28be05bdd3b3272d17efe19)), closes [#851](https://github.com/oaverify/oaverify/issues/851)
+* **validator:** accept a declared media type that carries no schema ([#871](https://github.com/oaverify/oaverify/issues/871)) ([86c9dad](https://github.com/oaverify/oaverify/commit/86c9dade3afa6179360a4b1a05fd7e95058af9b2)), closes [#849](https://github.com/oaverify/oaverify/issues/849)
+* **validator:** honour a declared media type that carries no schema ([#875](https://github.com/oaverify/oaverify/issues/875)) ([22da15b](https://github.com/oaverify/oaverify/commit/22da15b5c7e352df88ec6d9c2957600b87630def)), closes [#870](https://github.com/oaverify/oaverify/issues/870)
+* **validator:** name the repeat when a repeated name meets an object schema ([#929](https://github.com/oaverify/oaverify/issues/929)) ([488d645](https://github.com/oaverify/oaverify/commit/488d645a5abd6b1b0f2fd23c8dd9b67beeac9d3b))
+* **validator:** refuse a parameter location the validator cannot serve ([#838](https://github.com/oaverify/oaverify/issues/838)) ([57bae2a](https://github.com/oaverify/oaverify/commit/57bae2a11bfd2f22216d21110a48d1bbe2da6d00))
+* walk the mixed-map subschema position in every walker ([#865](https://github.com/oaverify/oaverify/issues/865)) ([e18d148](https://github.com/oaverify/oaverify/commit/e18d148af9a45720d19e3dba13020cf1223add43))
+
+
+### Documentation
+
+* **agents:** state the citation rule for public artefacts ([#912](https://github.com/oaverify/oaverify/issues/912)) ([3709ecd](https://github.com/oaverify/oaverify/commit/3709ecd281df592fc644a8d2a6a8802647b72ce1))
+* **cli:** measure the compile-spec bundle sizes the README quotes ([#910](https://github.com/oaverify/oaverify/issues/910)) ([28078ca](https://github.com/oaverify/oaverify/commit/28078cac698cb01ee7a8cbdfb88d588537fcbe31))
+* **comparison:** re-measure the benchmark numbers on c7i.large ([#934](https://github.com/oaverify/oaverify/issues/934)) ([a6133d8](https://github.com/oaverify/oaverify/commit/a6133d8a730a3b34e3fb80f5e719680c5921c1b0))
+* correct the v7 breaking-change count, and pin it ([#927](https://github.com/oaverify/oaverify/issues/927)) ([fbae630](https://github.com/oaverify/oaverify/commit/fbae6307a5e6f8072ce9ffcf771cddb4bd0f586b))
+* defer to the canonical option docs, and realign the express pair ([#933](https://github.com/oaverify/oaverify/issues/933)) ([a826ebb](https://github.com/oaverify/oaverify/commit/a826ebb8d0c4c3a18dd18f2b1a2a8ba23310acf1))
+* state what the code does, not what it did ([#931](https://github.com/oaverify/oaverify/issues/931)) ([6d06081](https://github.com/oaverify/oaverify/commit/6d06081ab534cb297f3767a80a5e6bca569dcbb0))
+
+
+### Refactoring
+
+* **cli:** emit every command's primary output through one sink ([#873](https://github.com/oaverify/oaverify/issues/873)) ([a590a88](https://github.com/oaverify/oaverify/commit/a590a8814e864d62ef9f937b0a4a04d6da5ce0ea))
+* **cli:** name the error renderer `errorFormat` ([#872](https://github.com/oaverify/oaverify/issues/872)) ([be7a5a8](https://github.com/oaverify/oaverify/commit/be7a5a8e00a46d7a272842937b65ddc5a5377a3d)), closes [#867](https://github.com/oaverify/oaverify/issues/867)
+* **spec:** inline the array guard in compare ([#846](https://github.com/oaverify/oaverify/issues/846)) ([fb8051d](https://github.com/oaverify/oaverify/commit/fb8051d4f69d1638018774d017e1b1d6b9750768))
+* **validator:** drop the write-only declaredBodyMediaTypes ([#926](https://github.com/oaverify/oaverify/issues/926)) ([9ae1fe5](https://github.com/oaverify/oaverify/commit/9ae1fe54c191f928d54fc0c159938e38233c2432))
+
 ## [7.1.0](https://github.com/oaverify/oaverify/compare/core-v7.0.0...core-v7.1.0) (2026-08-16)
 
 

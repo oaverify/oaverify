@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.2.0](https://github.com/oaverify/oaverify/compare/oaverify-v7.1.0...oaverify-v7.2.0) (2026-08-20)
+
+
+### Documentation
+
+* defer to the canonical option docs, and realign the express pair ([#933](https://github.com/oaverify/oaverify/issues/933)) ([a826ebb](https://github.com/oaverify/oaverify/commit/a826ebb8d0c4c3a18dd18f2b1a2a8ba23310acf1))
+
 ## [7.1.0](https://github.com/oaverify/oaverify/compare/oaverify-v7.0.0...oaverify-v7.1.0) (2026-08-16)
 
 
