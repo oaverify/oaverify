@@ -169,6 +169,60 @@ describe("required and dependentRequired: array-of-strings", () => {
   });
 });
 
+// `dependencies` is the draft-07 keyword whose entries carry either
+// semantics: an array names required properties, anything else is a
+// schema. So its guard judges one half and declines the other, and
+// `assertWellFormedSchema` locates a bad schema entry (well-formed.test.ts
+// covers that side).
+//
+// Before the guard, a malformed element was not a confusing error but a
+// wrong verdict: `{x: [1]}` accepted `{"x":1,"1":2}`, and `{x: [{a:1}]}`
+// put an object into `ValidationError.path`, which is typed as
+// `PathSegment[]` and flows on into SARIF.
+describe("dependencies: the array half only", () => {
+  it("names the offending element", () => {
+    expect(() => compile2020({ type: "object", dependencies: { x: [1, 2] } })).toThrow(
+      /keyword "dependencies" entry "x" requires an array of strings; element 0 is number 1/,
+    );
+    expect(() => compile2020({ type: "object", dependencies: { x: ["a", 2] } })).toThrow(
+      /keyword "dependencies" entry "x" requires an array of strings; element 1 is number 2/,
+    );
+  });
+
+  it("declines the schema form rather than judging it as an array", () => {
+    // The distinction that matters: the guard must not fire here. It is
+    // the well-formedness pass that reports this, and it says something
+    // useful about schemas rather than about arrays of strings.
+    let message = "";
+    try {
+      compile2020({ type: "object", dependencies: { x: "nope" } });
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).not.toMatch(/requires an array of strings/);
+    expect(message).toMatch(/schema at "dependencies\.x"/);
+  });
+
+  it("accepts both forms, and an empty array", () => {
+    const c = compile2020({
+      type: "object",
+      dependencies: { x: ["b"], y: { required: ["c"] }, z: [] },
+    });
+    expect(c.validate({ x: 1, b: 2 }).valid).toBe(true);
+    expect(c.validate({ x: 1 }).valid).toBe(false);
+    expect(c.validate({ y: 1, c: 2 }).valid).toBe(true);
+    expect(c.validate({ y: 1 }).valid).toBe(false);
+    expect(c.validate({ z: 1 }).valid).toBe(true);
+    expect(c.validate({}).valid).toBe(true);
+  });
+
+  it("guards the OpenAPI 3.0 dialect too", () => {
+    expect(() => compileOas30({ type: "object", dependencies: { x: [1] } })).toThrow(
+      /keyword "dependencies" entry "x" requires an array of strings/,
+    );
+  });
+});
+
 describe("keyword values are checked across the whole graph", () => {
   // The per-keyword `compile` guards only fire where a keyword is
   // actually compiled, which leaves subschemas no `$ref` reaches
