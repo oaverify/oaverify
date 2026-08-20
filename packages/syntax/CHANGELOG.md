@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.2.0](https://github.com/oaverify/oaverify/compare/syntax-v7.1.0...syntax-v7.2.0) (2026-08-20)
+
+
+### Features
+
+* **spec:** record a reference the resolver cannot follow instead of throwing ([#878](https://github.com/oaverify/oaverify/issues/878)) ([733214c](https://github.com/oaverify/oaverify/commit/733214c5db5bb72e5a239da0f05022a4f9aade2a)), closes [#817](https://github.com/oaverify/oaverify/issues/817)
+
+
+### Bug Fixes
+
+* **spec:** refuse an entry document that is not a document ([#876](https://github.com/oaverify/oaverify/issues/876)) ([29eb13d](https://github.com/oaverify/oaverify/commit/29eb13d2a3d9fe289614737289dc781c8678d7c2)), closes [#850](https://github.com/oaverify/oaverify/issues/850)
+
 ## [7.1.0](https://github.com/oaverify/oaverify/compare/syntax-v7.0.0...syntax-v7.1.0) (2026-08-16)
 
 
