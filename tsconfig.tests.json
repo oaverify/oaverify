@@ -26,10 +26,12 @@
       "@oaverify/internal-core/prototype-properties": [
         "./packages/core/src/prototype-properties.ts"
       ],
+      "@oaverify/internal-core/subschema-positions": ["./packages/core/src/subschema-positions.ts"],
       "@oaverify/internal-schema": ["./packages/schema/src/index.ts"],
       "@oaverify/internal-schema/internals": ["./packages/schema/src/internals.ts"],
       "@oaverify/internal-formats": ["./packages/formats/src/index.ts"],
       "@oaverify/internal-spec": ["./packages/spec/src/index.ts"],
+      "@oaverify/internal-spec/internals": ["./packages/spec/src/internals.ts"],
       "@oaverify/internal-overlay-spec": ["./packages/overlay-spec/src/index.ts"],
       "@oaverify/internal-router": ["./packages/router/src/index.ts"],
       "@oaverify/internal-validator": ["./packages/validator/src/index.ts"],
@@ -37,7 +39,7 @@
       "@oaverify/internal-stream-validator": ["./packages/stream-validator/src/index.ts"],
       "@oaverify/stream": ["./packages/stream-validator/src/index.ts"],
       "@oaverify/internal-cli": ["./packages/cli/src/index.ts"],
-      "@oaverify/internal-syntax": ["./packages/syntax/src/index.ts"],
+      "@oaverify/syntax": ["./packages/syntax/src/index.ts"],
       "@oaverify/check": ["./packages/check/src/index.ts"]
     }
   },

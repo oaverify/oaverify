@@ -326,8 +326,12 @@ in the meantime.
   (#553) and what gives a recursive external schema a legal home
   (#556); it also means a schema used by N operations is stored once.
   External refs in non-schema positions (Response, Parameter, Path Item
-  Objects) still inline, and a cycle among _those_ still stitches under
-  `$defs.__ext__`. `applyOverlays()` is the extension system.
+  Objects) still inline, and a cycle among _those_ stitches under the
+  root `x-oaverify-externals` field. It is an `x-` extension because a
+  root `$defs`, its first home, is not a legal OpenAPI field, so `check`
+  reported the resolver's own output as non-conformant (#559); see
+  `EXTERNALS_FIELD` in `packages/spec/src/resolver-shared.ts`.
+  `applyOverlays()` is the extension system.
 - **`@oaverify/internal-overlay-spec`**: OpenAPI Overlay 1.0 -> typed
   `SpecOverlay`. A closed-form recogniser, not a JSONPath engine;
   unrecognised target shapes throw with the offending string.
