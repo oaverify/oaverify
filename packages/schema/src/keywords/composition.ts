@@ -604,6 +604,19 @@ export const dependenciesKeyword: KeywordDefinition = {
   keyword: "dependencies",
   vocabulary: APPLICATOR_VOCAB,
   applicator: true,
+  // Only the array form is this keyword's to judge. A non-array entry is
+  // a schema position, and a bad one there is located by
+  // `assertWellFormedSchema` (#845), as is a holder that is not a map;
+  // repeating either check here would answer the same question twice.
+  validateKeywordValue: (value) => {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+    for (const [trigger, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (!Array.isArray(entry)) continue;
+      const reason = checkStringArray(entry);
+      if (reason !== undefined) return `entry "${trigger}" ${reason}`;
+    }
+    return undefined;
+  },
   compile(ctx: KeywordCompileContext): void {
     const deps = ctx.schema as Record<string, string[] | SchemaOrBoolean>;
     ctx.gen.if(
