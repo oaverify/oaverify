@@ -548,7 +548,7 @@ committed files under `results/` and `check` should not dirty the tree,
 and `mem-bench`, because a benchmark is not a gate. `performance/`'s
 runs the smallest cross-library benchmark and still takes ~30s, since
 tinybench warms up every task against an ajv compile that costs
-milliseconds (~2.7ms on an M3 Ultra, 6-8ms on the host
+milliseconds (~2.7ms on an M3 Ultra, ~9ms on the host
 docs/comparison.md is stamped to).
 
 CI invokes the runners through their own package scripts (`pnpm

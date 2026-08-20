@@ -83,7 +83,7 @@ Two of those need explaining. `performance/` takes ~30 seconds for one
 schema at the minimum budget because tinybench warms up every task and
 ajv's compile is milliseconds per operation, so warmup dominates
 whatever budget you set. The figure is host-dependent: ~2.7ms on an
-M3 Ultra, 6-8ms on the c7i.large that docs/comparison.md is stamped to. And `detection/`'s `check` is typecheck only because
+M3 Ultra, ~9ms on the c7i.large that docs/comparison.md is stamped to. And `detection/`'s `check` is typecheck only because
 `pnpm detect` rewrites `results/audit.md`, `results/matrix.md` and
 `results/raw.json`, which are committed; a command called `check` should
 not leave you with a dirty working tree.

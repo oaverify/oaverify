@@ -35,12 +35,7 @@ per-shape numbers are below.
   x86_64, 2 vCPU, Linux
 - **Runtime:** Node v22.23.2, Ajv 8.20.0
 - **Method:** synthetic shape suite, 1000 ms/task, 500 ms cooldown,
-  median of 3 runs; commit `2cd9140`, 2026-08-07
-
-The `pattern-heavy` and `pattern-backtracking` shapes were added after
-this run and are absent from the tables below: benchmark numbers are
-only comparable when measured on one host, so they wait for the next
-run on the reference machine.
+  median of 3 runs; commit `a826ebb`, 2026-08-20
 
 The harness measures five configurations: Ajv fast-fail
 (`allErrors: false`), Ajv full-collect (`allErrors: true`), oaverify fast-fail
@@ -58,15 +53,17 @@ wherever validator construction
 is in the hot path (per-request, per-tenant, per-test, edge cold-start,
 AOT module emit).
 
-| shape               | Ajv     | oaverify | speedup |
-| ------------------- | ------- | -------- | ------- |
-| `tiny`              | 7.89 ms | 39.6 µs  | 199×    |
-| `petstore`          | 6.66 ms | 180.8 µs | 37×     |
-| `tree`              | 6.63 ms | 132.4 µs | 50×     |
-| `composition`       | 6.97 ms | 429.5 µs | 16×     |
-| `array-heavy`       | 6.46 ms | 141.6 µs | 46×     |
-| `unique-primitives` | 6.04 ms | 55.2 µs  | 109×    |
-| `long-string`       | 6.03 ms | 98.1 µs  | 61×     |
+| shape                  | Ajv     | oaverify | speedup |
+| ---------------------- | ------- | -------- | ------- |
+| `tiny`                 | 8.79 ms | 47.4 µs  | 185×    |
+| `petstore`             | 7.48 ms | 224.8 µs | 33×     |
+| `tree`                 | 7.36 ms | 165.1 µs | 45×     |
+| `composition`          | 7.71 ms | 518.7 µs | 15×     |
+| `array-heavy`          | 7.28 ms | 169.9 µs | 43×     |
+| `unique-primitives`    | 6.69 ms | 66.6 µs  | 100×    |
+| `long-string`          | 6.63 ms | 117.8 µs | 56×     |
+| `pattern-heavy`        | 6.86 ms | 160.2 µs | 43×     |
+| `pattern-backtracking` | 6.78 ms | 78.4 µs  | 87×     |
 
 ### Validate
 
@@ -80,30 +77,34 @@ compare down a column, not across.
 
 Valid input:
 
-| shape               | oaverify fast-fail | oaverify full-collect | oaverify predicate |
-| ------------------- | ------------------ | --------------------- | ------------------ |
-| `tiny`              | 138%               | 141%                  | 136%               |
-| `petstore`          | 89%                | 97%                   | 109%               |
-| `tree`              | 100%               | 92%                   | 124%               |
-| `composition`       | 137%               | 157%                  | 171%               |
-| `array-heavy`       | 118%               | 115%                  | 210%               |
-| `unique-primitives` | 172%               | 174%                  | 174%               |
-| `long-string`       | >1000×†            | >1000×†               | >1000×†            |
+| shape                  | oaverify fast-fail | oaverify full-collect | oaverify predicate |
+| ---------------------- | ------------------ | --------------------- | ------------------ |
+| `tiny`                 | 144%               | 153%                  | 143%               |
+| `petstore`             | 82%                | 98%                   | 105%               |
+| `tree`                 | 95%                | 98%                   | 118%               |
+| `composition`          | 140%               | 150%                  | 177%               |
+| `array-heavy`          | 117%               | 113%                  | 210%               |
+| `unique-primitives`    | 166%               | 170%                  | 169%               |
+| `long-string`          | >1000×†            | >1000×†               | >1000×†            |
+| `pattern-heavy`        | 93%                | 96%                   | 102%               |
+| `pattern-backtracking` | 98%                | 101%                  | 100%               |
 
 Invalid input (averaged across failure-position fixtures):
 
-| shape               | oaverify fast-fail | oaverify full-collect | oaverify predicate |
-| ------------------- | ------------------ | --------------------- | ------------------ |
-| `tiny`              | 84%                | 102%                  | 122%               |
-| `petstore`          | 94%                | 95%                   | 142%               |
-| `tree`              | 89%                | 108%                  | 183%               |
-| `composition`       | 111%               | 79%                   | 214%               |
-| `array-heavy`       | 109%               | 77%                   | 208%               |
-| `unique-primitives` | 330%               | 315%                  | 330%               |
-| `long-string`       | 42%                | 85%                   | >1000×†            |
+| shape                  | oaverify fast-fail | oaverify full-collect | oaverify predicate |
+| ---------------------- | ------------------ | --------------------- | ------------------ |
+| `tiny`                 | 84%                | 101%                  | 126%               |
+| `petstore`             | 91%                | 97%                   | 143%               |
+| `tree`                 | 87%                | 111%                  | 182%               |
+| `composition`          | 107%               | 76%                   | 225%               |
+| `array-heavy`          | 112%               | 78%                   | 211%               |
+| `unique-primitives`    | 336%               | 307%                  | 331%               |
+| `long-string`          | 41%                | 84%                   | >1000×†            |
+| `pattern-heavy`        | 88%                | 89%                   | 118%               |
+| `pattern-backtracking` | 106%               | 111%                  | 100%               |
 
 The trade-off: oaverify fast-fail trails Ajv fast-fail modestly on plain
-object rejection (`tiny`/`petstore`/`tree` at 84–94%), leads on
+object rejection (`tiny`/`petstore`/`tree` at 84–91%), leads on
 `composition` and `array-heavy`, and leads clearly on `uniqueItems`.
 oaverify full-collect stays close to Ajv full-collect: ahead on most
 accept-path shapes, mixed on rejection (trailing on `composition` and
@@ -111,25 +112,31 @@ accept-path shapes, mixed on rejection (trailing on `composition` and
 mode, which skips error materialisation, is at or above parity
 everywhere.
 
+The two `pattern` shapes sit near parity in every mode. Both
+libraries hand the pattern to the same `RegExp` engine, so a shape whose
+cost is dominated by regex execution leaves little for either compiler to
+decide. `pattern-backtracking` spends milliseconds per rejection in both.
+
 † `long-string` is a pathological shape: Ajv's handling of very long
 length-bounded strings is expensive on this input while oaverify
 short-circuits, hence the `>1000×` caps, and the fast-fail reject path
-swings the other way (42%). Read the row as a shape-specific signal,
+swings the other way (41%). Read the row as a shape-specific signal,
 not a typical result.
 
 ### Memory
 
 Steady-state HTTP-server footprint over 50,000 requests, oaverify vs
 `express-openapi-validator` (which wraps Ajv), both Express 4 against the
-same 40-schema spec and identical traffic:
+same 40-schema spec and identical traffic. Median of 3 runs, same host and
+commit as above:
 
 | metric                          | oaverify | eov + Ajv |
 | ------------------------------- | -------- | --------- |
-| Baseline RSS                    | 77.1 MB  | 71.4 MB   |
-| Steady-state RSS (avg)          | 102.3 MB | 103.9 MB  |
-| Steady-state heap used (avg)    | 13.2 MB  | 14.6 MB   |
-| Post-idle RSS                   | 102.0 MB | 104.7 MB  |
-| Throughput (ms / 500-req batch) | 871 ms   | 909 ms    |
+| Baseline RSS                    | 76.7 MB  | 72.5 MB   |
+| Steady-state RSS (avg)          | 102.1 MB | 104.4 MB  |
+| Steady-state heap used (avg)    | 13.8 MB  | 14.6 MB   |
+| Post-idle RSS                   | 101.8 MB | 104.4 MB  |
+| Throughput (ms / 500-req batch) | 902 ms   | 944 ms    |
 
 The steady-state footprints track each other closely; oaverify carries a
 little less heap and turns the same workload over a few percent faster.
