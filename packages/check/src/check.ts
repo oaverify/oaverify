@@ -226,10 +226,9 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   // report on a document the other two verbs reject is the report
   // being wrong about the only question a user asked it.
   //
-  // A finding rather than the abort it used to be. The location can be
-  // legal (3.2's `querystring`), the rest of the document is still
-  // gradeable, and one parameter should not cost an author every other
-  // finding in the file.
+  // A finding, not an abort: the location can be legal (3.2's
+  // `querystring`), the rest of the document is still gradeable, and one
+  // parameter should not cost an author every other finding in the file.
   if (classes.has("hygiene")) {
     for (const unserved of listUnservedParameterLocations(document, {
       followPathItemRefs: true,
@@ -257,9 +256,9 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   // The gradeability gate, unconditional on the selection. Building the
   // validator is what surfaces a document that cannot be graded at all
   // (not an OpenAPI object, an unresolvable ref), and it costs ~8ms and
-  // 2MB on stripe.json, against the 13s/2.5GB compile prepass it used to
-  // hide behind. When it was gated on the schema class, a selection like
-  // `--findings hygiene` returned an empty report with exit 0 on a
+  // 2MB on stripe.json, which is why it is cheap enough to run always.
+  // Gating it on the schema class is what makes a selection like
+  // `--findings hygiene` return an empty report with exit 0 on a
   // document nothing could grade (#674).
   let validator: ReturnType<typeof createValidator>;
   try {
@@ -565,9 +564,9 @@ function targetForSchemaLint(issue: SchemaLintIssue): FindingTarget | undefined 
  * Keyed on code plus message plus address. The message carries only the
  * path *within* a schema, so two distinct components with the same
  * defect at the same relative path (`Alpha.properties.a` and
- * `Beta.properties.a`) produce the same message and used to collapse
- * into one finding, hiding the second entirely. Those are two edits in
- * two places, not one defect seen twice.
+ * `Beta.properties.a`) produce the same message. Keyed on message alone
+ * they collapse into one finding and the second disappears, though they
+ * are two edits in two places rather than one defect seen twice.
  *
  * Including the pointer separates them and still collapses what #520
  * wanted collapsed: a genuine repeat is the same defect at the same

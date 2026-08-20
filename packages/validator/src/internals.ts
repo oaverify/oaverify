@@ -10,10 +10,10 @@
  *
  * Nothing here is covered by semver guarantees. Compare against the
  * main barrel in `./index.ts` before importing from here. The one
- * population that used to make that warning false has moved: everything
- * `oaverify compile-spec`'s emitted output imports lives in
- * `./codegen-runtime.js` (`@oaverify/core/codegen-runtime`), which is
- * semver-covered for exactly the reason this module is not.
+ * consumer that cannot live with that is `oaverify compile-spec`, whose
+ * emitted output imports only from `./codegen-runtime.js`
+ * (`@oaverify/core/codegen-runtime`), semver-covered for exactly the
+ * reason this module is not.
  *
  * @packageDocumentation
  */

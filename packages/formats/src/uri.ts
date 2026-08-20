@@ -5,34 +5,32 @@
  */
 
 // These four validators match the RFC 3986 / RFC 3987 grammars directly.
-// They used to delegate to `new URL()`, which cannot do this job in
-// either direction, because WHATWG URL is a parser with repairs and not
-// a grammar checker:
+// WHATWG `URL` cannot stand in for them in either direction, because it
+// is a parser with repairs and not a grammar checker:
 //
-//   - Too strict on the host. For a "special" scheme it interprets a
+//   - Too strict on the host. For a "special" scheme it reads a
 //     dotted-decimal host as an IPv4 address and throws when the octets
-//     do not parse, so it rejected `http://087.10.0.1/` and
+//     do not parse, rejecting `http://087.10.0.1/` and
 //     `http://999.999.999.999/`. RFC 3986 asks for no such thing:
 //     `IPv4address` is a strict *subset* of `reg-name`, so a host that
 //     looks like an address but is not one is still a legal reg-name.
-//     That subset relation is why `host` below is just
-//     `IP-literal / reg-name` with no IPv4 branch.
+//     That subset relation is why `host` below is `IP-literal /
+//     reg-name` with no IPv4 branch.
 //   - Too loose on everything after it. It silently percent-encodes
-//     characters the grammar excludes rather than rejecting them
+//     characters the grammar excludes instead of rejecting them
 //     (`foobar<>.txt` becomes `foobar%3C%3E.txt`), rewrites `\` to `/`
 //     for special schemes, moves a stray `[` into userinfo as `%5B`,
 //     and passes malformed percent-encoding (`%6G`, `%A`, a lone `%`)
 //     straight through.
 //
-// No pre-filter or post-check around `new URL` can fix the first class,
-// because the rejection happens inside it. Hence the grammar.
+// The first class cannot be fixed by a pre-filter or a post-check,
+// because the rejection happens inside `URL`. Hence the grammar.
 //
 // ReDoS: every alternation here is prefix-disjoint (`%` introduces only
 // the pct-encoded branch, `[` only the IP-literal branch), so a failing
 // match has no split to redistribute across two unbounded quantifiers.
-// That is the hazard the previous pre-filter was written to avoid, and
-// the `js/polynomial-redos` block in `test/formats.test.ts` still pins
-// it: format validators run on untrusted request values, so a quadratic
+// The `js/polynomial-redos` block in `test/formats.test.ts` pins that:
+// format validators run on untrusted request values, so a quadratic
 // path here is a usable DoS vector.
 
 /**

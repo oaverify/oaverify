@@ -17,10 +17,10 @@ import { HTTP_METHODS } from "@oaverify/internal-core";
  * (yielding the normal 404) instead of crashing.
  *
  * Spec-side literal segments decode through here too. A path template
- * such as `/bad%zz` used to throw `URIError` straight out of
- * `createValidator`; now it parses to its raw form, and the malformed
- * escape is reported as a located `path-template-malformed` finding by
- * `lintResolvedSpec` rather than as a crash with no location.
+ * such as `/bad%zz` parses to its raw form, so the malformed escape is
+ * reported as a located `path-template-malformed` finding by
+ * `lintResolvedSpec` instead of escaping `createValidator` as an
+ * uncaught `URIError` with no location.
  */
 function decodePathToken(token: string): string {
   // No "%" means nothing to decode; skip the decodeURIComponent call
@@ -36,21 +36,21 @@ function decodePathToken(token: string): string {
 /**
  * Strip leading and trailing `/` from a path or template.
  *
- * Replaces the obvious `.replace(/^\/+/, "").replace(/\/+$/, "")`, which
- * is quadratic on a request path carrying a long interior run of
- * slashes: `/\/+$/` has no anchor to pin it, so the engine retries the
- * `+` at every slash in the run and fails the `$` each time. A path of
- * `"a" + "/".repeat(32000) + "b"` costs roughly 400ms of event loop,
- * and `match` takes the path straight off the request
- * (GHSA-class polynomial ReDoS; CodeQL js/polynomial-redos).
+ * Scanned rather than matched, because the obvious
+ * `.replace(/^\/+/, "").replace(/\/+$/, "")` is quadratic on a request
+ * path carrying a long interior run of slashes: `/\/+$/` has no anchor
+ * to pin it, so the engine retries the `+` at every slash in the run and
+ * fails the `$` each time. A path of `"a" + "/".repeat(32000) + "b"`
+ * costs roughly 400ms of event loop, and `match` takes the path straight
+ * off the request (GHSA-class polynomial ReDoS; CodeQL
+ * js/polynomial-redos).
  *
  * A leading run alone is harmless, since `/^\/+/` is anchored and runs
- * first. The interior run is what bites, which makes the bug easy to
- * miss when probing by hand.
+ * first. The interior run is what bites, which is what makes the hazard
+ * easy to miss when probing by hand.
  *
- * Scanning from both ends is also ~5x faster than the two `.replace`
- * calls on ordinary paths: no regex machinery, and no allocation at all
- * when there is nothing to trim.
+ * Scanning from both ends is also ~5x faster on ordinary paths: no regex
+ * machinery, and no allocation at all when there is nothing to trim.
  */
 function trimSlashes(s: string): string {
   const SLASH = 47; // "/"

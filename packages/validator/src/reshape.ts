@@ -78,9 +78,9 @@ export function reshapeResult(
  * A `returnValues` result carries its `value` channel through both
  * branches. The failure branch gets it from the rest-spread; the success
  * branch has to copy it, and doing that here is what keeps the two
- * agreeing. Every caller previously patched `value` on afterwards, and a
- * caller that forgot produced a result whose type promised a channel it
- * did not have.
+ * agreeing. Patched on by each caller instead, one caller forgetting is
+ * enough to produce a result whose type promises a channel it does not
+ * have.
  *
  * `value` is absent from the output exactly when it is absent from
  * `result`, so the default path allocates the same object literal it

@@ -105,10 +105,9 @@ export async function loadSpec(options: LoadSpecOptions): Promise<ResolvedSpec> 
  * The resolver's list describes the document it resolved. An overlay
  * can move, remove or re-reference any of those components, so the list
  * stops being a statement about the document being linted and is
- * dropped, here and from the returned {@link ResolvedSpec}. That
- * restores the pre-#612 false positive under overlays, which is the
- * cheaper failure: keeping it risks staying quiet about a component an
- * overlay orphaned.
+ * dropped, here and from the returned {@link ResolvedSpec}. The cost is
+ * a false positive under overlays, which is the cheaper failure: keeping
+ * the list risks staying quiet about a component an overlay orphaned.
  */
 function lintOptionsFor(resolved: ResolvedSpec, overlaid: unknown): LintOptions {
   if (resolved.document !== overlaid) return {};

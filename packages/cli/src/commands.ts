@@ -116,12 +116,11 @@ function formatFinding(f: CheckFinding, width: number): string[] {
  * The rule notes that close a text report: one entry per explained rule
  * the run produced, whatever the number of findings under it.
  *
- * The counterpart to the message brevity of #773, and the reason that
- * change does not simply delete advice. `format-not-validated` used to
- * carry ~349 characters of explanation in each of sixteen findings; the
- * explanation is still here, once, and the sixteen messages are each a
- * line long. A run with 332 `example-invalid` findings pays for the
- * text once instead of 332 times.
+ * The counterpart to short finding messages: the advice is kept, and
+ * charged once. `format-not-validated` carries ~349 characters of
+ * explanation, printed here a single time however many findings cite it,
+ * while each of those findings stays a line long. A run with 332
+ * `example-invalid` findings pays for the text once, not 332 times.
  *
  * Only rules with an explanation appear. Most have none, because their
  * message already says everything: `unused-component` naming the
@@ -165,15 +164,13 @@ function formatRuleNotes(findings: readonly CheckFinding[], width: number): stri
  * What `check --format json` emits.
  *
  * The canonical statement of that report's shape, per AGENTS.md "Type
- * as canonical contract". It exists because the report is a contract
- * two other renderers have to stay level with, and nothing was saying
- * so: #773 shortened finding messages and moved the explanations onto
- * rules, SARIF and the text report each grew a place to put them, and
- * this report went a commit without one. Parity was remembered rather
- * than asserted, and remembering failed.
+ * as canonical contract". Three renderers carry the same facts, and
+ * parity between them is easy to lose one field at a time: an addition
+ * lands in SARIF and in the text report, and this one is the report
+ * nobody is looking at while making it.
  *
- * The rule for anyone adding to a report: **a fact a consumer can read
- * from SARIF or from the text report belongs here too.**
+ * So the rule for anyone adding to a report: **a fact a consumer can
+ * read from SARIF or from the text report belongs here too.**
  * `check-json-contract.test.ts` is what makes leaving one out a failing
  * test rather than a silent gap, by comparing `findings` against what
  * `checkSpec` returned rather than against a list of field names.

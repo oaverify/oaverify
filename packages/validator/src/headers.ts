@@ -75,9 +75,10 @@ export { getOwn } from "@oaverify/internal-core";
  * derived from `headers`, so that a caller sees one explicit field
  * rather than two sources that can disagree. The cost is a trap: a
  * hand-built request that fills in `headers["content-type"]` and leaves
- * the field unset used to be told the type was `"<missing>"`, which is
- * false and sends the reader looking for something they did supply.
- * Naming the header makes it a one-line fix instead.
+ * the field unset has supplied a type the validator does not read.
+ * Reporting `"<missing>"` there would be false and would send the reader
+ * looking for something they did supply, so the message names the header
+ * and the fix is one line.
  *
  * The header is only consulted on this path, which has already failed,
  * so the hot path pays nothing for it.
