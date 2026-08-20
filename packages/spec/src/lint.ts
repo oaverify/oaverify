@@ -11,6 +11,7 @@ import {
   type SecurityRequirementObject,
   type TagObject,
 } from "@oaverify/internal-core";
+import { HTTP_METHODS } from "@oaverify/internal-core";
 
 /**
  * A single spec-hygiene finding from {@link lintResolvedSpec}.
@@ -82,18 +83,6 @@ const COMPONENT_CATEGORIES = [
   "headers",
   "securitySchemes",
 ] as const satisfies readonly (keyof ComponentsObject)[];
-
-const HTTP_METHODS = [
-  "get",
-  "put",
-  "post",
-  "delete",
-  "options",
-  "head",
-  "patch",
-  "trace",
-  "query",
-] as const;
 
 const PATH_TEMPLATE_RE = /\{([^{}]+)\}/g;
 // Splitting form: the capture group keeps the placeholders in the output

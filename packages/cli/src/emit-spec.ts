@@ -44,7 +44,7 @@ import {
   type Dialect,
   type RefResolver,
 } from "@oaverify/internal-schema";
-import { classifyUnknownVersion, setSpecKey } from "@oaverify/internal-core";
+import { HTTP_METHODS, classifyUnknownVersion, setSpecKey } from "@oaverify/internal-core";
 import {
   isHeaderObjectPrototypePropertyName,
   isObjectPrototypePropertyName,
@@ -1036,8 +1036,6 @@ function resolveDialect(
 }
 
 // ----- orchestration templates -----
-
-const HTTP_METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace", "query"];
 
 function renderOwnHelper(): string {
   return `function __own(bag, name) {

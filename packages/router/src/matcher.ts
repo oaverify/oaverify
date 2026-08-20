@@ -4,6 +4,7 @@ import {
   type OperationObject,
   type PathItem,
 } from "@oaverify/internal-core";
+import { HTTP_METHODS } from "@oaverify/internal-core";
 
 /**
  * Decode a single path token, tolerating malformed percent-encoding.
@@ -185,22 +186,6 @@ export interface Router {
 // it here stops the router enumerating it in `routes()` and in the 405
 // `allowed` set, silently. Same idiom as `@oaverify/check`'s code
 // tables (#855).
-const ALL_METHODS = [
-  "get",
-  "put",
-  "post",
-  "delete",
-  "options",
-  "head",
-  "patch",
-  "trace",
-  "query",
-] as const satisfies readonly HttpMethod[];
-
-// Reads as: no HttpMethod is missing from the array above.
-const _allMethodsComplete: Exclude<HttpMethod, (typeof ALL_METHODS)[number]> extends never
-  ? true
-  : ["missing from ALL_METHODS", Exclude<HttpMethod, (typeof ALL_METHODS)[number]>] = true;
 
 // Membership test for the request method. `match` lower-cased the
 // method and cast the result, and `operationOn` guards only "is there
@@ -222,7 +207,7 @@ const _allMethodsComplete: Exclude<HttpMethod, (typeof ALL_METHODS)[number]> ext
 // Node's HTTP parser rejects each of these with `HPE_INVALID_METHOD`,
 // but `httpRequestFromFetch` (Hono / Next / Bun / Deno) and direct API
 // callers do not (#855).
-const METHOD_SET: ReadonlySet<string> = new Set(ALL_METHODS);
+const METHOD_SET: ReadonlySet<string> = new Set(HTTP_METHODS);
 
 interface Route {
   segments: Segment[];
@@ -240,7 +225,7 @@ interface Route {
  */
 function methodsDeclaredOn(item: PathItem): Set<HttpMethod> {
   const declared = new Set<HttpMethod>();
-  for (const m of ALL_METHODS) {
+  for (const m of HTTP_METHODS) {
     if (operationOn(item, m) !== undefined) declared.add(m);
   }
   if (declared.has("get")) declared.add("head");
@@ -547,7 +532,7 @@ export function createRouter(paths: Record<string, PathItem>): Router {
   // accessor can hand the same array out repeatedly without copying.
   const routeList: readonly RouteInfo[] = Object.freeze(
     routes.flatMap((route) =>
-      ALL_METHODS.filter((m) => operationOn(route.pathItem, m) !== undefined).map((m) => ({
+      HTTP_METHODS.filter((m) => operationOn(route.pathItem, m) !== undefined).map((m) => ({
         method: m.toUpperCase(),
         pathPattern: route.pathPattern,
       })),
@@ -657,7 +642,7 @@ export function createRouter(paths: Record<string, PathItem>): Router {
         // pattern, union the declared methods, and keep scanning.
         if (firstMatchedPattern === undefined) firstMatchedPattern = route.pathPattern;
         allowed ??= new Set<string>();
-        for (const m of ALL_METHODS) {
+        for (const m of HTTP_METHODS) {
           if (operationOn(route.pathItem, m) !== undefined) allowed.add(m.toUpperCase());
         }
         // GET implicitly answers HEAD (RFC 9110 §9.3.2).

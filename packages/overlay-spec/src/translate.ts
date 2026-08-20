@@ -13,7 +13,7 @@ import type {
   ResponseOverride,
   SpecOverlay,
 } from "@oaverify/internal-spec";
-import { getOwn, setSpecKey } from "@oaverify/internal-core";
+import { HTTP_METHODS, getOwn, setSpecKey } from "@oaverify/internal-core";
 import {
   type FilterExpr,
   type PathToken,
@@ -35,17 +35,7 @@ export type NormalizedAction =
  * use. Mirrors `@oaverify/core`'s `HttpMethod` but kept local so the
  * recogniser doesn't depend on a runtime constant.
  */
-const HTTP_METHODS: ReadonlySet<HttpMethod> = new Set([
-  "get",
-  "put",
-  "post",
-  "delete",
-  "options",
-  "head",
-  "patch",
-  "trace",
-  "query",
-]);
+const HTTP_METHOD_SET: ReadonlySet<HttpMethod> = new Set(HTTP_METHODS);
 
 const COMPONENT_BUCKETS = [
   "schemas",
@@ -356,7 +346,7 @@ function pathSelectorKey(target: string, tok: PathToken): string {
 
 function methodSelector(target: string, tok: PathToken): HttpMethod | "*" {
   if (tok.kind === "wildcard") return "*";
-  if (tok.kind === "name" && HTTP_METHODS.has(tok.name as HttpMethod))
+  if (tok.kind === "name" && HTTP_METHOD_SET.has(tok.name as HttpMethod))
     return tok.name as HttpMethod;
   if (tok.kind === "name") {
     throw new UnrecognisedTargetError(target, `unknown HTTP method \`${tok.name}\``);
@@ -386,7 +376,7 @@ function applyPathLevel(
   // path-level `parameters` array).
   const pathItemFields: Record<string, JsonValue | undefined> = {};
   for (const [k, v] of Object.entries(payload)) {
-    if (HTTP_METHODS.has(k as HttpMethod)) {
+    if (HTTP_METHOD_SET.has(k as HttpMethod)) {
       if (typeof v !== "object" || v === null || Array.isArray(v)) {
         throw new Error(
           `overlay action for target ${JSON.stringify(target)} has non-object payload for HTTP method \`${k}\``,

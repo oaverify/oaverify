@@ -23,7 +23,7 @@ import type {
   ServerObject,
   TagObject,
 } from "@oaverify/internal-core";
-import { setSpecKey } from "@oaverify/internal-core";
+import { HTTP_METHODS, setSpecKey } from "@oaverify/internal-core";
 
 /**
  * Per-operation override recipe used inside {@link SpecOverlay.overrides}.
@@ -474,18 +474,6 @@ export function isSpecOverlay(value: unknown): value is SpecOverlay {
   return Object.keys(value).every((key) => specOverlayVerbs.has(key));
 }
 
-const METHODS: HttpMethod[] = [
-  "get",
-  "put",
-  "post",
-  "delete",
-  "options",
-  "head",
-  "patch",
-  "trace",
-  "query",
-];
-
 /**
  * Apply a sequence of overlays to a base OpenAPI document, returning a new
  * document. Does not mutate the input.
@@ -733,7 +721,7 @@ function applyOpModifyToPathItem(
   }
   const next: PathItem = { ...item };
   let changed = false;
-  for (const method of METHODS) {
+  for (const method of HTTP_METHODS) {
     const op = next[method];
     if (op === undefined) continue;
     if (entry.where?.methods && !entry.where.methods.includes(method)) continue;
@@ -800,7 +788,7 @@ function applyParamModifyToPathItem(item: PathItem, entry: ModifyParametersEntry
   if (Array.isArray(item.parameters)) {
     next.parameters = item.parameters.map((p) => mergeParamIfMatch(p, entry));
   }
-  for (const method of METHODS) {
+  for (const method of HTTP_METHODS) {
     const op = next[method];
     if (op === undefined) continue;
     if (Array.isArray(op.parameters)) {
@@ -1144,7 +1132,9 @@ function applyPathOverride(item: PathItem, override: PathOverride): PathItem {
   }
   if (override.operations) {
     const methods =
-      "*" in override.operations ? METHODS : (Object.keys(override.operations) as HttpMethod[]);
+      "*" in override.operations
+        ? HTTP_METHODS
+        : (Object.keys(override.operations) as HttpMethod[]);
     for (const method of methods) {
       const opOverride = override.operations[method] ?? override.operations["*"];
       if (opOverride === undefined) continue;
