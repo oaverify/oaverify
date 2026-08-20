@@ -160,27 +160,21 @@ validator.editMember(["legacy_field"], () => ({ action: "drop" }));
 ```
 
 `at` matches the member's **full path** (the enclosing scope plus the key),
-the same coordinate `valueEvents.at` uses. Validation is pre-edit: the
-input shape is validated as received (a dropped member is still validated;
-the edit only changes the output). A rename whose target collides with a
-key in the same object, and two hooks returning conflicting edits for one
-member, are fatal. Two caps bound the buffering the edit introduces and
-default finite (unlike the resource limits above): `maxMemberPrefixBytes`
-(the held key-to-value span, default 4 KiB) and `maxMemberDropBytes` (a
-dropped member's span, default 64 KiB); over-cap is fatal. Dropping a
-container-valued member is not supported on the stream path; rename works
-for any value type.
+the same coordinate `valueEvents.at` uses. Validation is pre-edit: a
+dropped member is still validated, and the edit only changes the output.
+Dropping a container-valued member is not supported on the stream path;
+rename works for any value type. Collisions, conflicting hooks and the two
+buffering caps (`maxMemberPrefixBytes`, `maxMemberDropBytes`) are fatal
+where they apply; see `StreamValidatorOptions` for the limits.
 
 Recovering scalar fields: `valueEvents` emits a `value` event when a
 scalar object-member value completes, carrying the member's absolute
-input-byte span (`valueStart` / `valueEnd`). Code that needs a few small
-top-level scalars (an id, a version, a timestamp) recovers them without
-materializing the body or running a second parser: slice
-`[valueStart, valueEnd)` from its own copy of the input (a string span
-includes its quotes, so the slice is valid JSON) and `JSON.parse` it. The
-span is in the same pre-injection input space as `editClose` and
-violations, so slice the **input**, not the echoed output (under
-`editClose` the output is respliced and its offsets shift).
+input-byte span. Code that needs a few small top-level scalars (an id, a
+version, a timestamp) recovers them without materializing the body or
+running a second parser: slice `[valueStart, valueEnd)` from its own copy
+of the **input** (a string span includes its quotes, so the slice is valid
+JSON) and `JSON.parse` it. Slice the input rather than the echoed output,
+whose offsets shift under `editClose`.
 
 ```ts
 const captured = new Map<string, unknown>();
@@ -194,21 +188,11 @@ validator.on("value", (e) => captured.set(e.key, e.value));
 // `capture` for span-only events and slice the bytes yourself.
 ```
 
-A `value` event's `path` is the **full path to the value** (the enclosing
-scope plus the member key), the same coordinate `valueEvents.at` matches,
-so a top-level member `{version}` is `["version"]`, not `[]`. This differs
-from `keyEvents`, whose `at` and `path` are both the enclosing scope.
-
-`valueEvents` fires for scalar object members on both the STREAM path and
-scalar BUFFER islands, so a `format`-bearing string (`date-time`, `uri`,
-`uuid`) reports its value even under an asserting OpenAPI dialect that
-delegates it to the in-memory engine. Array elements, the root value,
-container-valued members, and members under a TEE composition branch do
-not fire. `capture` retains a matched member's decoded bytes bounded by
-`maxCaptureBytes` (default 64 KiB); an over-cap value reports
-`truncated: true` rather than buffering unbounded. A delegated scalar is
-already buffered for its own check, so there `maxCaptureBytes` only gates
-delivery (the memory bound is `maxBufferedBytes`).
+A `value` event's `path` is the full path to the value, the same
+coordinate `valueEvents.at` matches, so a top-level member `{version}` is
+`["version"]`. `keyEvents` differs: its `at` and `path` are both the
+enclosing scope. `StreamValidatorOptions.valueEvents` carries the rest:
+which members fire, and how `capture` and `maxCaptureBytes` interact.
 
 `onScopeClose` / `editClose` / `editMember` fire for STREAM structure
 only. A member whose enclosing object the classifier routes to a BUFFER
