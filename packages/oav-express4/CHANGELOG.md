@@ -2,6 +2,10 @@
 
 ## [7.2.0](https://github.com/oaverify/oaverify/compare/express4-v7.1.0...express4-v7.2.0) (2026-08-20)
 
+### Upgrading
+
+* **A problem-details body carries the status the response carries**
+  (401, 404, 405, 413, 415), where it always said 400 ([#864](https://github.com/oaverify/oaverify/issues/864)).
 
 ### Bug Fixes
 

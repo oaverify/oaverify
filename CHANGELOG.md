@@ -2,6 +2,55 @@
 
 ## [7.2.0](https://github.com/oaverify/oaverify/compare/core-v7.1.0...core-v7.2.0) (2026-08-20)
 
+### Upgrading
+
+Behaviour a working 7.1.0 deployment will notice. No API is removed,
+though two of these refuse at construction or compile time where 7.1.0
+proceeded.
+
+* **`compile-spec` no longer emits a security gate by default.** 7.1.0
+  compiled an unconditional operation-level check into the module, so a
+  deployment relying on it **stops checking on upgrade**. Pass
+  `--validate-security shape` or `strict` to opt back in; `shape` is
+  what 7.1.0 effectively ran, so it restores the old behaviour, and
+  `strict` is stricter than the old gate ever was. The emitted gate
+  now matches `createValidator` in all three modes, and honours
+  document-level requirements, which it previously dropped entirely:
+  before this, every operation inheriting its requirement from the
+  document served anonymous traffic ([#911](https://github.com/oaverify/oaverify/issues/911)).
+* **`createValidator` throws at construction** on a parameter location
+  it cannot serve (`querystring`, `body`, `formData`), where it used to
+  `TypeError` per request or skip the parameter silently. There is no
+  supported opt-out: the remedy is to fix the parameter, and the
+  refusal message says how ([#838](https://github.com/oaverify/oaverify/issues/838)).
+* **A problem-details body carries the status the response carries**
+  (401, 404, 405, 413, 415), where it always said 400 ([#864](https://github.com/oaverify/oaverify/issues/864)).
+* **A `security` or `parameters` field that cannot be read no longer
+  throws.** `createValidator` fails closed and answers 401 for an
+  unreadable `security` field. By a separate path, `oaverify check`
+  reports a located finding and exits 1 on such a document, where it
+  exited 3 ([#883](https://github.com/oaverify/oaverify/issues/883), [#884](https://github.com/oaverify/oaverify/issues/884)).
+* **A malformed entry in a `dependencies` array fails to compile.**
+  Such a schema previously compiled and returned a wrong verdict:
+  `{x:[1]}` accepted `{"x":1,"1":2}`. A non-string entry such as
+  `{x:[{a:1}]}` also leaked into `ValidationError.path` ([#860](https://github.com/oaverify/oaverify/issues/860)).
+* **A media type declared without a schema is honoured.** A
+  `text/plain: {}` beside a schema'd `application/json` answered 415
+  and is now accepted. In the other direction, an operation declaring
+  only `application/octet-stream: {}` now refuses a request sending
+  `Content-Type: application/json`, where it accepted any type
+  ([#871](https://github.com/oaverify/oaverify/issues/871), [#875](https://github.com/oaverify/oaverify/issues/875)).
+* **Malformed UTF-8 on the streaming path delivers different string
+  values**, so a `const`, `enum` or `pattern` verdict can change where a
+  document previously answered inconsistently by chunk boundary ([#886](https://github.com/oaverify/oaverify/issues/886)).
+* **A repeated name against an object-typed parameter** answers with the
+  parameter-location code and a message naming the repeat, where it
+  answered `type` and "must be object". The verdict is unchanged ([#889](https://github.com/oaverify/oaverify/issues/889)).
+* **`path-param-unused` is reported once per path item** rather than
+  once per operation, so a document with N operations loses N-1
+  duplicate findings, and two new cases report ([#891](https://github.com/oaverify/oaverify/issues/891)).
+* **`HTTP_METHODS` is a new public export of `@oaverify/core`.**
+  Additive ([#898](https://github.com/oaverify/oaverify/issues/898)).
 
 ### Features
 
@@ -21,9 +70,6 @@
 * **cli:** give compile-spec the runtime's security modes ([#911](https://github.com/oaverify/oaverify/issues/911)) ([b760520](https://github.com/oaverify/oaverify/commit/b76052090113c90c7dafdd8666d661134e62105b))
 * **cli:** refuse to emit a parameter location the validator cannot serve ([#839](https://github.com/oaverify/oaverify/issues/839)) ([07cd0bd](https://github.com/oaverify/oaverify/commit/07cd0bd4e5acb9f0e77d85874e0e71f47780d29d))
 * **cli:** write the check report to --output in one piece ([#869](https://github.com/oaverify/oaverify/issues/869)) ([4cd2142](https://github.com/oaverify/oaverify/commit/4cd2142ff45addb5dd5f33d1ef6ed6753f120510)), closes [#848](https://github.com/oaverify/oaverify/issues/848)
-* **conformance:** tell a crashed CLI from a validation verdict ([#921](https://github.com/oaverify/oaverify/issues/921)) ([5934ef2](https://github.com/oaverify/oaverify/commit/5934ef2b59e8c5f91b091525439f618a017ffecd))
-* correct two stale contributor-doc claims ([#918](https://github.com/oaverify/oaverify/issues/918)) ([abb1b4f](https://github.com/oaverify/oaverify/commit/abb1b4f6f525600ee598fd445d7dc5fde1f6cbf0))
-* **detection:** scrub absolute paths, and say what results/ describes ([#930](https://github.com/oaverify/oaverify/issues/930)) ([84edc27](https://github.com/oaverify/oaverify/commit/84edc2757977f3bd8f4b9af364df1ec8f7ff8277))
 * **express:** substitute a falsy failure reason before forwarding it ([#882](https://github.com/oaverify/oaverify/issues/882)) ([93da25e](https://github.com/oaverify/oaverify/commit/93da25e45421adcb843632d1f301cfef6c28588e)), closes [#857](https://github.com/oaverify/oaverify/issues/857) [#881](https://github.com/oaverify/oaverify/issues/881)
 * **fastify:** validate only the responses a route handler produced ([#863](https://github.com/oaverify/oaverify/issues/863)) ([c5c7933](https://github.com/oaverify/oaverify/commit/c5c7933ef7d362964a40036a9d7e9b9eb594feca))
 * **formats:** accept a ucschar the uri-template literal class excluded ([#902](https://github.com/oaverify/oaverify/issues/902)) ([2c3492f](https://github.com/oaverify/oaverify/commit/2c3492f65bf09f38818b68004d9b52b624736a08)), closes [#854](https://github.com/oaverify/oaverify/issues/854)
@@ -50,20 +96,10 @@
 
 ### Documentation
 
-* **agents:** state the citation rule for public artefacts ([#912](https://github.com/oaverify/oaverify/issues/912)) ([3709ecd](https://github.com/oaverify/oaverify/commit/3709ecd281df592fc644a8d2a6a8802647b72ce1))
 * **cli:** measure the compile-spec bundle sizes the README quotes ([#910](https://github.com/oaverify/oaverify/issues/910)) ([28078ca](https://github.com/oaverify/oaverify/commit/28078cac698cb01ee7a8cbdfb88d588537fcbe31))
 * **comparison:** re-measure the benchmark numbers on c7i.large ([#934](https://github.com/oaverify/oaverify/issues/934)) ([a6133d8](https://github.com/oaverify/oaverify/commit/a6133d8a730a3b34e3fb80f5e719680c5921c1b0))
 * correct the v7 breaking-change count, and pin it ([#927](https://github.com/oaverify/oaverify/issues/927)) ([fbae630](https://github.com/oaverify/oaverify/commit/fbae6307a5e6f8072ce9ffcf771cddb4bd0f586b))
 * defer to the canonical option docs, and realign the express pair ([#933](https://github.com/oaverify/oaverify/issues/933)) ([a826ebb](https://github.com/oaverify/oaverify/commit/a826ebb8d0c4c3a18dd18f2b1a2a8ba23310acf1))
-* state what the code does, not what it did ([#931](https://github.com/oaverify/oaverify/issues/931)) ([6d06081](https://github.com/oaverify/oaverify/commit/6d06081ab534cb297f3767a80a5e6bca569dcbb0))
-
-
-### Refactoring
-
-* **cli:** emit every command's primary output through one sink ([#873](https://github.com/oaverify/oaverify/issues/873)) ([a590a88](https://github.com/oaverify/oaverify/commit/a590a8814e864d62ef9f937b0a4a04d6da5ce0ea))
-* **cli:** name the error renderer `errorFormat` ([#872](https://github.com/oaverify/oaverify/issues/872)) ([be7a5a8](https://github.com/oaverify/oaverify/commit/be7a5a8e00a46d7a272842937b65ddc5a5377a3d)), closes [#867](https://github.com/oaverify/oaverify/issues/867)
-* **spec:** inline the array guard in compare ([#846](https://github.com/oaverify/oaverify/issues/846)) ([fb8051d](https://github.com/oaverify/oaverify/commit/fb8051d4f69d1638018774d017e1b1d6b9750768))
-* **validator:** drop the write-only declaredBodyMediaTypes ([#926](https://github.com/oaverify/oaverify/issues/926)) ([9ae1fe5](https://github.com/oaverify/oaverify/commit/9ae1fe54c191f928d54fc0c159938e38233c2432))
 
 ## [7.1.0](https://github.com/oaverify/oaverify/compare/core-v7.0.0...core-v7.1.0) (2026-08-16)
 

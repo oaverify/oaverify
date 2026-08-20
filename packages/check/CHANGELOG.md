@@ -2,6 +2,19 @@
 
 ## [7.2.0](https://github.com/oaverify/oaverify/compare/check-v7.1.0...check-v7.2.0) (2026-08-20)
 
+### Upgrading
+
+* **`path-param-unused` is reported once per path item** rather than
+  once per operation, so a document with N operations loses N-1
+  duplicate findings, and two new cases report. A finding count that
+  drops on upgrade is this ([#891](https://github.com/oaverify/oaverify/issues/891)).
+* **A `security` or `parameters` field that cannot be read is a
+  finding, not a crash.** `oaverify check` reports a located finding
+  and exits 1, where it exited 3 ([#883](https://github.com/oaverify/oaverify/issues/883), [#884](https://github.com/oaverify/oaverify/issues/884)).
+* **`unserved-parameter-location` is a new finding.** It reports a
+  parameter location the validator cannot serve. Graded `warning`, so
+  the exit code is unchanged by default, though the grade can fall and
+  `--severity` can promote it ([#841](https://github.com/oaverify/oaverify/issues/841)).
 
 ### Features
 
@@ -15,10 +28,6 @@
 * read a security field that is not a list without throwing ([#896](https://github.com/oaverify/oaverify/issues/896)) ([9100ffc](https://github.com/oaverify/oaverify/commit/9100ffc974f31d85acfbcb8414614c3cac6a725b)), closes [#883](https://github.com/oaverify/oaverify/issues/883)
 * **validator:** refuse a parameter location the validator cannot serve ([#838](https://github.com/oaverify/oaverify/issues/838)) ([57bae2a](https://github.com/oaverify/oaverify/commit/57bae2a11bfd2f22216d21110a48d1bbe2da6d00))
 
-
-### Documentation
-
-* state what the code does, not what it did ([#931](https://github.com/oaverify/oaverify/issues/931)) ([6d06081](https://github.com/oaverify/oaverify/commit/6d06081ab534cb297f3767a80a5e6bca569dcbb0))
 
 ## [7.1.0](https://github.com/oaverify/oaverify/compare/check-v7.0.0...check-v7.1.0) (2026-08-16)
 

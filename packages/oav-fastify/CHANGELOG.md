@@ -2,6 +2,14 @@
 
 ## [7.2.0](https://github.com/oaverify/oaverify/compare/fastify-v7.1.0...fastify-v7.2.0) (2026-08-20)
 
+### Upgrading
+
+* **A problem-details body carries the status the response carries**
+  (401, 404, 405, 413, 415), where it always said 400 ([#864](https://github.com/oaverify/oaverify/issues/864)).
+* **Status codes on the documented setup change.** Validating only the
+  responses a route handler produced means an invalid POST answers 400
+  rather than 500, and a GET on an unknown path answers 404 rather
+  than 500 ([#863](https://github.com/oaverify/oaverify/issues/863)).
 
 ### Bug Fixes
 

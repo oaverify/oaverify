@@ -2,6 +2,35 @@
 
 ## [7.2.0](https://github.com/oaverify/oaverify/compare/oaverify-v7.1.0...oaverify-v7.2.0) (2026-08-20)
 
+### Upgrading
+
+* **`compile-spec` no longer emits a security gate by default.** 7.1.0
+  compiled an unconditional operation-level check into the module, so a
+  deployment relying on it **stops checking on upgrade**. Pass
+  `--validate-security shape` or `strict` to opt back in; `shape` is
+  what 7.1.0 effectively ran, so it restores the old behaviour, and
+  `strict` is stricter than the old gate ever was. The emitted
+  gate now matches `createValidator` in all three modes, and honours
+  document-level requirements, which it previously dropped entirely:
+  before this, every operation inheriting its requirement from the
+  document served anonymous traffic ([#911](https://github.com/oaverify/oaverify/issues/911)).
+* **`oaverify check` answers exit 1 rather than exit 3** on a document
+  whose `security` or `parameters` field cannot be read ([#883](https://github.com/oaverify/oaverify/issues/883), [#884](https://github.com/oaverify/oaverify/issues/884)).
+
+
+### Features
+
+* **cli:** a `--return-values` mode for `compile-spec` ([#905](https://github.com/oaverify/oaverify/issues/905)) ([4011d53](https://github.com/oaverify/oaverify/commit/4011d53154734255e9b63f917f3e9a9f72d28d30))
+* **cli:** `--validate-security <mode>` for `compile-spec` ([#911](https://github.com/oaverify/oaverify/issues/911)) ([b760520](https://github.com/oaverify/oaverify/commit/b76052090113c90c7dafdd8666d661134e62105b))
+
+
+### Bug Fixes
+
+* **cli:** answer an implicit HEAD in the emitted validator ([#909](https://github.com/oaverify/oaverify/issues/909)) ([e50f99a](https://github.com/oaverify/oaverify/commit/e50f99a41cc7b2807312bbe7a2ba6a775ce72c77))
+* **cli:** assemble an object parameter in the emitted validator ([#904](https://github.com/oaverify/oaverify/issues/904)) ([9577133](https://github.com/oaverify/oaverify/commit/957713345c76befef0666638091cd123fb793509))
+* **cli:** decode a content-typed parameter before validating it ([#908](https://github.com/oaverify/oaverify/issues/908)) ([07230bc](https://github.com/oaverify/oaverify/commit/07230bc195c92c6b79ec072ffdd0ba844cc791ff))
+* **cli:** refuse to emit a parameter location the validator cannot serve ([#839](https://github.com/oaverify/oaverify/issues/839)) ([07cd0bd](https://github.com/oaverify/oaverify/commit/07cd0bd4e5acb9f0e77d85874e0e71f47780d29d))
+* **cli:** write the check report to `--output` in one piece ([#869](https://github.com/oaverify/oaverify/issues/869)) ([4cd2142](https://github.com/oaverify/oaverify/commit/4cd2142ff45addb5dd5f33d1ef6ed6753f120510))
 
 ### Documentation
 

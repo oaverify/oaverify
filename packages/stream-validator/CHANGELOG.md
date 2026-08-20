@@ -2,6 +2,18 @@
 
 ## [7.2.0](https://github.com/oaverify/oaverify/compare/stream-v7.1.0...stream-v7.2.0) (2026-08-20)
 
+### Upgrading
+
+* **Malformed UTF-8 delivers different string values.** A `const`,
+  `enum` or `pattern` verdict can change where a document previously
+  answered inconsistently depending on where the chunk boundary
+  fell ([#886](https://github.com/oaverify/oaverify/issues/886)).
+* **A surrogate pair counts as one character.** A one-code-point string
+  written as two `\uXXXX` escapes failed `maxLength: 1` and passed
+  `minLength: 1` ([#852](https://github.com/oaverify/oaverify/issues/852)).
+* **A byte-order mark inside a string is kept.** It was dropped, so
+  `const`, `enum` and `pattern` compared against a string the sender
+  never wrote ([#851](https://github.com/oaverify/oaverify/issues/851)).
 
 ### Features
 
