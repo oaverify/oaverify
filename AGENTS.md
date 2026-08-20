@@ -98,8 +98,38 @@ docs, TSDoc, commit messages, PR descriptions and code comments.
   "seamless", "comprehensive", "delve", "leverage", "unlock".
   Substantiate concretely or drop.
 
+**An enumeration in a comment is a claim that will rot.** A comment
+listing what a function handles, which callers reach it, or which cases
+a check covers is wrong the moment any of those changes, and nothing
+checks it. State the rule with an example, or point at the source that
+decides it. One comment here took eight review rounds: every round that
+_rewrote_ the list was corrected again, and the round that **deleted**
+it ended the argument.
+
 Generated output (error messages, log lines) is ASCII-only, simple and
 concise. Data passed through from a spec or user input is unchanged.
+
+### What a public artefact may cite
+
+Issues, PR descriptions, commit messages and checked-in docs are read by
+people with a different filesystem and no access to yours. So an
+absolute path is worse as a reference, and it names a person besides:
+`.gitignore:3` says what `/Users/<name>/<checkout>/.gitignore:3` says,
+to more readers, without naming anyone.
+
+- **Cite repo-relative paths.** A reader can follow one.
+- **Describe material kept outside the repository, do not link it.**
+  Spike write-ups, local corpora and engagement records live on one
+  machine, and a link to one rots the moment that directory is tidied
+  away. This rule exists because such links had already gone dead,
+  pointing at write-ups nobody could open.
+- **Move it, or summarise it, rather than pointing at it.** Where the
+  content is worth keeping and is about this project, paste it into the
+  issue. Where it is not, say what it concluded and stop.
+
+The same rule governs anything a session generates on the way through: a
+branch name, a worktree path or a scratch directory belongs in the
+conversation, not in a commit message.
 
 ### Scope discipline
 
