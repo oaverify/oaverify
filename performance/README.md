@@ -45,7 +45,7 @@ pnpm typecheck
 `pnpm check` takes ~30s for a single schema at the minimum budget. That is
 not the budget's fault: tinybench warms up every task and ajv's compile is
 milliseconds per operation, so warmup dominates whatever budget you set.
-The figure is host-dependent: ~2.7ms on an M3 Ultra, 6-8ms on the
+The figure is host-dependent: ~2.7ms on an M3 Ultra, ~9ms on the
 c7i.large that [docs/comparison.md](../docs/comparison.md) is stamped to.
 
 ## What it gates
