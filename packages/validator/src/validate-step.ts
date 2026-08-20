@@ -7,6 +7,7 @@ import {
 import type { RouteMatch } from "@oaverify/internal-router";
 import type { CompiledTreeSchema } from "@oaverify/internal-schema";
 import { deserialize, matchParsedMediaType } from "./deserialize.js";
+import { effectiveType } from "./schema-type.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast, getOwn } from "./headers.js";
 import type { OperationCache } from "./operation-cache.js";
 import type { MutableRequestValues } from "./request-values.js";
@@ -287,6 +288,23 @@ export function validateParameter(
     }
     if (r.error === undefined) return null;
     return r.error;
+  }
+
+  // A repeated name is not how a style carries an object. `deserialize`
+  // reads `raw[0]` for an object-typed parameter, handing the schema a
+  // string, so the failure was reported as "must be object" about a
+  // value the caller never sent as one (#889). The verdict is unchanged
+  // and the message is what improves. Reachable for a cookie since #826
+  // let `HttpRequest.cookies` carry an array, and for a query parameter
+  // whose name repeats; the query shapes that DO spread an object across
+  // keys are assembled above and never reach here.
+  if (Array.isArray(raw) && raw.length > 1 && effectiveType(p.schema) === "object") {
+    return createLeafError(
+      code,
+      pathPrefix,
+      `${p.in} parameter "${p.name}" was sent more than once; an object-valued parameter in this style is carried by a single value`,
+      { name: p.name, in: p.in },
+    );
   }
 
   const value = deserialize(raw, p);
