@@ -1382,8 +1382,15 @@ function securityRequirementEquals(
   if (aKeys.length !== bKeys.length) return false;
   for (const k of aKeys) {
     if (!(k in b)) return false;
-    const av = a[k] ?? [];
-    const bv = b[k] ?? [];
+    const av = a[k];
+    const bv = b[k];
+    // Scopes are unreadable in the same ways the requirement object one
+    // level up is, and were read without checking. A bare string spread
+    // into its characters, so `{k: "ab"}` compared equal to
+    // `{k: ["a", "b"]}` and deleted a requirement the author wrote; a
+    // non-iterable threw out of the spread below. Same answer as above:
+    // no match, so the filter keeps the element.
+    if (!Array.isArray(av) || !Array.isArray(bv)) return false;
     if (av.length !== bv.length) return false;
     const aSorted = [...av].sort();
     const bSorted = [...bv].sort();
