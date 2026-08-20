@@ -684,6 +684,66 @@ describe("applyOverlays: operation-level expansion", () => {
     expect(patched.paths?.["/pets"]?.get?.security).toEqual([{ oauth: ["read"] }]);
   });
 
+  // An unreadable *scopes* value, one level below the requirement object
+  // #883 guarded. Both shapes below reached `[...av]`: a bare string
+  // spread into its characters and compared equal, deleting a
+  // requirement the author wrote, and a non-iterable object threw a raw
+  // TypeError out of `applyOverlays`. Same answer as one level up: it
+  // matches nothing, so the filter keeps the element.
+  const unreadableScopes: Array<[string, unknown]> = [
+    ["a bare string, which spreads into its characters", "ab"],
+    ["a non-iterable object", { length: 2 }],
+    ["null, which is how an empty YAML value parses", null],
+    ["a number", 7],
+  ];
+  for (const [label, scopes] of unreadableScopes) {
+    it(`removeSecurity keeps a requirement whose scopes are ${label}`, () => {
+      const doc = basePlus();
+      doc.paths!["/pets"]!.get!.security = [{ k: scopes } as never];
+      const patched = applyOverlays(doc, [
+        {
+          overrides: {
+            "/pets": {
+              operations: { get: { removeSecurity: [{ k: ["a", "b"] }] } },
+            },
+          },
+        },
+      ]);
+      expect(patched.paths?.["/pets"]?.get?.security).toEqual([{ k: scopes }]);
+    });
+  }
+
+  it("removeSecurity keeps an unreadable scopes value against an empty removal", () => {
+    // The `?? []` this replaced made `{k: null}` compare equal to
+    // `{k: []}`, so the element was deleted on the strength of a value
+    // nobody could read.
+    const doc = basePlus();
+    doc.paths!["/pets"]!.get!.security = [{ k: null } as never];
+    const patched = applyOverlays(doc, [
+      {
+        overrides: {
+          "/pets": { operations: { get: { removeSecurity: [{ k: [] }] } } },
+        },
+      },
+    ]);
+    expect(patched.paths?.["/pets"]?.get?.security).toEqual([{ k: null }]);
+  });
+
+  it("removeSecurity still drops a requirement whose scopes genuinely match", () => {
+    const doc = basePlus();
+    doc.paths!["/pets"]!.get!.security = [{ k: ["b", "a"] }, { other: [] }];
+    const patched = applyOverlays(doc, [
+      {
+        overrides: {
+          "/pets": {
+            operations: { get: { removeSecurity: [{ k: ["a", "b"] }] } },
+          },
+        },
+      },
+    ]);
+    expect(patched.paths?.["/pets"]?.get?.security).toEqual([{ other: [] }]);
+  });
+
   it("servers / callbacks / externalDocs are set on the operation", () => {
     const patched = applyOverlays(basePlus(), [
       {
