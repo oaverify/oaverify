@@ -74,18 +74,17 @@ export interface OperationCache {
   requestBody: RequestBodyObject | undefined;
   bodyValidators: Map<string, CompiledTreeSchema>;
   /**
-   * Media types the document *declares*, which is not the same set as
-   * the ones a validator was built for. A Media Type Object with no
-   * `schema` is legal and means "anything goes", and a schema that
-   * failed to compile under `onMalformed: "collect"` leaves no
-   * validator either. Negotiation answers "does this operation accept
-   * this Content-Type", so it reads this; validation reads
-   * `bodyValidators` and passes the body through when there is none.
+   * Every media type the document *declares*, as a match pattern. Not
+   * the same set as the ones a validator was built for: a Media Type
+   * Object with no `schema` is legal and means "anything goes", and a
+   * schema that failed to compile under `onMalformed: "collect"` leaves
+   * no validator either.
    *
-   * Keying negotiation off the validators instead answered 415 for a
-   * legal request (#849).
+   * Negotiation answers "does this operation accept this Content-Type",
+   * so it reads this; validation reads `bodyValidators` and passes the
+   * body through when there is none. Keying negotiation off the
+   * validators instead answered 415 for a legal request (#849).
    */
-  declaredBodyMediaTypes: string[];
   bodyMediaTypes: ParsedMediaTypePattern[];
   responses: Map<string, ResponseCompiled>;
   /**
@@ -121,8 +120,7 @@ export interface ResponseCompiled {
    * are only ever asked about a single status/media-type pairing.
    */
   bodySchemas: Map<string, SchemaOrBoolean>;
-  /** Declared response media types; see the request-side field. */
-  declaredBodyMediaTypes: string[];
+  /** Declared response media types, as patterns; see the request-side field. */
   bodyMediaTypes: ParsedMediaTypePattern[];
   /**
    * `GET /pets 200 response`, prefixed onto the labels of the body and
@@ -676,7 +674,6 @@ export function buildOperationCache(
       anchor: responseOrigin.anchor,
       headers: headersResolved,
       bodySchemas,
-      declaredBodyMediaTypes: declaredResponseMediaTypes,
       bodyMediaTypes: compileMediaTypePatterns(declaredResponseMediaTypes),
       headerSchemas,
       bodyValidators: new Map(),
@@ -696,7 +693,6 @@ export function buildOperationCache(
     cookieParamValidators,
     requestBody,
     bodyValidators,
-    declaredBodyMediaTypes: declaredRequestMediaTypes,
     bodyMediaTypes: compileMediaTypePatterns(declaredRequestMediaTypes),
     responses,
     // Security is populated by `createValidator` after this call
