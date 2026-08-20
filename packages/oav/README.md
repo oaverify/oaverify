@@ -206,7 +206,7 @@ It addresses the **resolved** document, so it can name a position no
 author typed. That is what `target.source` is for. A component reached
 across documents keeps its own name (`/components/schemas/Cat/required`,
 agreeing with `target.source.pointer`) rather than being copied under a
-derived one; specs assembled from several files got that in 5.3.0.
+derived one.
 
 **`target.anchor` says what following the pointer gets you**, which is
 what a consumer needs before it edits anything. A closed vocabulary:
@@ -251,8 +251,8 @@ reported twice. A `description: null` is the common one, reported by
 `conformance/type` and by `schema/annotation-value-type`. Both carry a
 `target`, so a consumer recognises the pair by pointer.
 
-Note that `anchor` here is unrelated to the JSON Schema `$anchor` /
-`$dynamicRef` sense the `@oaverify/core` README uses.
+`anchor` here is unrelated to the JSON Schema `$anchor` / `$dynamicRef`
+sense the `@oaverify/core` README uses.
 
 ## SARIF, for code scanning
 

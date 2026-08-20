@@ -42,9 +42,9 @@ Invalid requests receive an `application/problem+json` response, with an `Allow`
 
 The status comes from `httpStatusFor`: 404 for an unmatched route, 415 for an undeclared media type, 400 for a schema violation, and [Status-code mapping](https://github.com/oaverify/oaverify/blob/main/docs/integration.md#status-code-mapping) has every row. The body's `status` member carries the same code.
 
-> **Body parser ordering matters.** `express.json()` (or any equivalent that populates `req.body` with a parsed object) must run **before** `validateRequests(...)`. Same for `cookie-parser` if your spec validates cookies. Any middleware that populates `req.body` works: `express.json()`, `body-parser`, custom streaming parsers, app-specific middleware all work the same way.
+> **Body parser ordering matters.** `express.json()` (or any equivalent that populates `req.body` with a parsed object) must run **before** `validateRequests(...)`, otherwise `req.body` is `undefined` and the validator emits `body required` for every request: a misleading error that points at the schema instead of at the missing parser. Same for `cookie-parser` if your spec validates cookies. Any middleware that populates `req.body` works: `express.json()`, `body-parser`, custom streaming parsers, app-specific middleware all work the same way.
 >
-> **Empty-body normalization.** Some parsers leave `req.body === undefined` for empty `{}`-equivalent payloads. When that happens, `required`-field checks short-circuit on the missing body. Normalize via `toHttpRequest`:
+> **Empty-body normalization.** Some parsers (streaming variants, custom multi-format setups) leave `req.body === undefined` even after they run, for empty `{}`-equivalent payloads. When that happens, `required`-field checks short-circuit on the missing body, so empty submissions pass validation. Normalize via `toHttpRequest`:
 >
 > ```ts
 > import { httpRequestFromExpress, validateRequests } from "@oaverify/express5";
