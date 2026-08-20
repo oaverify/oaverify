@@ -21,7 +21,7 @@ that ground with labelled cases.
 pnpm --dir .. install      # shares the detection sub-root's deps
 pnpm --dir ../.. build     # oaverify runs through its built CLI
 ./download.sh
-node run.mjs               # ~40 min for 313 specs across 4 tools
+node run.mjs               # ~40 min for ~300 specs across 4 tools
 ```
 
 `run.mjs --tools oaverify` skips the comparators and finishes in about
@@ -35,9 +35,14 @@ large, sometimes licensed, and this script regenerates them.
 
 | source               | count | why                                                     |
 | -------------------- | ----- | ------------------------------------------------------- |
-| `$OAV_AUDITED_SPECS` | 13    | already audited, ground truth known                     |
+| `$OAV_AUDITED_SPECS` | 13    | already audited, ground truth known. **Local only**     |
 | large public specs   | 7     | GitHub, Stripe, Twilio, Box, Asana, DigitalOcean, Adyen |
-| apis.guru            | 293   | volume and variety                                      |
+| apis.guru            | ~293  | volume and variety                                      |
+
+Only the last two are fetchable, so the corpus is about 300 specs on a
+machine without the audited set and about 313 on the one that has it.
+Counts in `results/` differ accordingly, which is the first thing to
+check when a number moves.
 
 The audited set is the harness's own test. It is expected to produce
 exactly 5 `required-not-in-properties` findings and 3 exit-2 rejections,
@@ -51,8 +56,12 @@ absent, in which case the rest still runs.
 (96, since 3.1 is where the interesting shapes are and apis.guru holds
 few), then a 3.0 sample capped at 2 per provider and round-robined
 across providers. Taking the first N alphabetically would produce a
-corpus of Amazon and Azure. Selection is deterministic, so a finding
-reported against this corpus can be reproduced by re-running the script.
+corpus of Amazon and Azure.
+
+Selection is deterministic given the same apis.guru index, so a finding
+survives a re-run on an unchanged upstream. The index itself changes as
+providers come and go, so two runs weeks apart measure different
+populations and neither is wrong.
 
 [#504]: https://github.com/oaverify/oaverify/issues/504
 
@@ -64,6 +73,15 @@ reported against this corpus can be reproduced by re-running the script.
 | `results/leads.md`      | the two differential seams, generated                       |
 | `results/triage.md`     | leads looked at and not filed, hand-written                 |
 | `results/per-spec.json` | every tool's output, capped per spec                        |
+
+**None of it is a baseline.** Every generated file opens with the count
+and date it was measured on, because a bare `4 of 313 specs.` invites
+the mistake it caused during the v7 review: a rule's finding count moved
+and was nearly attributed to a code change when the corpus had moved
+instead (#810). `specs/` is gitignored and `download.sh` re-selects from
+live upstreams, so there is no revision to pin the way `conformance/`
+pins its suites, and no CI job gates on these numbers. When a count
+moves, rule out the corpus before reading anything into it.
 
 `crashes.md` is the seam that needs no comparator and yielded the most.
 An exit 2 with a located message is `check` doing its job and is not

@@ -115,6 +115,38 @@ function firstJson(text) {
 // correct behaviour. Exit 3 means this harness is calling the CLI wrong.
 
 /**
+ * Strip absolute filesystem paths out of a captured tool message.
+ *
+ * `results/` is committed, and the messages in it are third-party tool
+ * output quoted verbatim, so an absolute path there names a developer
+ * and a machine to every reader of the repository. It is also useless
+ * as a reference: the paths committed before this named a checkout
+ * that was not this one, so nobody could follow them anyway (#914).
+ *
+ * A corpus-relative path is what a reader can act on. The home-directory
+ * fallback catches anything outside the corpus, which is rarer and has
+ * no natural relative form.
+ */
+/**
+ * Strip absolute filesystem paths out of a captured tool message.
+ *
+ * `results/` is committed, and the messages in it are third-party tool
+ * output quoted verbatim, so an absolute path there names a developer
+ * and a machine to every reader of the repository. It is also useless
+ * as a reference: the paths committed before this named a checkout
+ * that was not this one, so nobody could follow them anyway (#914).
+ *
+ * A corpus-relative path is what a reader can act on. The home-directory
+ * fallback catches anything outside the corpus, which is rarer and has
+ * no natural relative form.
+ */
+export function scrubPaths(text) {
+  return String(text)
+    .replace(/(?:\/[^\s"'()]+)?\/(?:detection\/real-world\/)?specs\//g, "specs/")
+    .replace(/\/(?:Users|home)\/[^/\s"'()]+/g, "<home>");
+}
+
+/**
  * Does this rejection message say *where* in the document the problem
  * is? Matches oaverify's own location idioms rather than guessing at
  * path-shaped text, because guessing was wrong in both directions. Too
@@ -171,8 +203,8 @@ async function runOaverify(specPath) {
       kind: "ran",
       findings: parsed.findings.map((f) => ({
         rule: f.code ?? "",
-        message: f.message ?? "",
-        location: f.location ?? "",
+        message: scrubPaths(f.message ?? ""),
+        location: scrubPaths(f.location ?? ""),
         severity: f.class ?? "warn",
       })),
     };
@@ -189,7 +221,12 @@ async function runAjv(specPath) {
   const r = await capture("node", [join(HERE, "..", "ajv-probe.mjs"), specPath]);
   const parsed = firstJson(r.out);
   if (parsed === undefined) {
-    return { kind: "fatal", ms: r.ms, findings: [], stderr: r.err.trim().slice(0, 400) };
+    return {
+      kind: "fatal",
+      ms: r.ms,
+      findings: [],
+      stderr: scrubPaths(r.err.trim()).slice(0, 400),
+    };
   }
   return { kind: "ran", ms: r.ms, findings: parsed.findings ?? [], stderr: parsed.fatal ?? "" };
 }
@@ -207,7 +244,12 @@ async function runSpectral(specPath) {
   ]);
   const parsed = firstJson(r.out);
   if (!Array.isArray(parsed)) {
-    return { kind: "fatal", ms: r.ms, findings: [], stderr: r.err.trim().slice(0, 400) };
+    return {
+      kind: "fatal",
+      ms: r.ms,
+      findings: [],
+      stderr: scrubPaths(r.err.trim()).slice(0, 400),
+    };
   }
   return {
     kind: "ran",
@@ -215,7 +257,7 @@ async function runSpectral(specPath) {
     stderr: "",
     findings: parsed.map((f) => ({
       rule: String(f.code ?? ""),
-      message: f.message ?? "",
+      message: scrubPaths(f.message ?? ""),
       location: Array.isArray(f.path) ? f.path.join("/") : "",
       severity: f.severity === 0 ? "error" : "warn",
     })),
@@ -226,7 +268,12 @@ async function runRedocly(specPath) {
   const r = await capture("npx", ["--no-install", "redocly", "lint", specPath, "--format=json"]);
   const parsed = firstJson(r.out);
   if (parsed?.problems === undefined) {
-    return { kind: "fatal", ms: r.ms, findings: [], stderr: r.err.trim().slice(0, 400) };
+    return {
+      kind: "fatal",
+      ms: r.ms,
+      findings: [],
+      stderr: scrubPaths(r.err.trim()).slice(0, 400),
+    };
   }
   return {
     kind: "ran",
@@ -234,7 +281,7 @@ async function runRedocly(specPath) {
     stderr: "",
     findings: parsed.problems.map((p) => ({
       rule: p.ruleId ?? "",
-      message: p.message ?? "",
+      message: scrubPaths(p.message ?? ""),
       location: (p.location ?? []).map((l) => l.pointer ?? "").join(" "),
       severity: p.severity ?? "warn",
     })),
@@ -257,6 +304,7 @@ if (LIMIT > 0) specs = specs.slice(0, LIMIT);
 
 mkdirSync(RESULTS, { recursive: true });
 const perSpec = {};
+const STAMP = new Date().toISOString().slice(0, 10);
 let done = 0;
 
 /**
@@ -315,9 +363,43 @@ const forDisk = Object.fromEntries(
     },
   ]),
 );
-writeFileSync(join(RESULTS, "per-spec.json"), `${JSON.stringify(forDisk, null, 2)}\n`);
+writeFileSync(
+  join(RESULTS, "per-spec.json"),
+  `${JSON.stringify({ $measured: { specs: specs.length, on: STAMP, baseline: false }, ...forDisk }, null, 2)}\n`,
+);
 
 // --- crashes.md -----------------------------------------------------
+
+/**
+ * What population a generated file describes.
+ *
+ * Every file under `results/` is committed, and each opened with a bare
+ * count and nothing else: `4 of 313 specs.` A reader has no way to tell
+ * which corpus that was, so the numbers read as a baseline and are not
+ * one. During the v7 review a finding-count move was nearly attributed
+ * to a code change when the corpus had moved instead, and the only
+ * reason it was caught is that the direction was wrong (#810).
+ *
+ * `specs/` is gitignored and `download.sh` re-selects from live
+ * upstreams, so no revision can be pinned the way `conformance/` pins
+ * its suites. What a reader can use instead is knowing what was
+ * measured, and that nothing gates on it.
+ */
+function provenance(specCount) {
+  const audited = specs.filter((f) => f.startsWith("audited-")).length;
+  return [
+    "> Measured against " + specCount + " specs on " + STAMP + ".",
+    ">",
+    "> Not a baseline. `specs/` is gitignored and `download.sh` re-selects",
+    "> from live upstreams, so a later run measures a different population",
+    "> and no CI job gates on these numbers. A count that moved may mean the",
+    "> corpus moved. " +
+      (audited > 0
+        ? audited + " local `audited-*` specs are included, which nobody else has."
+        : "No `audited-*` specs were present, so this is the public corpus alone."),
+    "",
+  ];
+}
 
 const entries = Object.values(perSpec);
 const oav = (e) => e.tools.oaverify;
@@ -327,7 +409,8 @@ const crashed = entries.filter((e) => oav(e) !== undefined && BAD.has(oav(e).kin
 const crashLines = [
   "# oaverify crashes and unlocated rejections",
   "",
-  "Generated by `run.mjs`. Every row here is a *lead*: an oaverify run",
+  ...provenance(entries.length),
+  "Generated by `run.mjs`. Every row here is a _lead_: an oaverify run",
   "that either threw, timed out, or rejected a document without saying",
   "where the problem is. A located exit 2 is correct behaviour and is",
   "not listed.",
@@ -350,7 +433,10 @@ for (const kind of ["crash", "timeout", "usage-error", "unknown", "rejected-unlo
     crashLines.push("");
   }
 }
-writeFileSync(join(RESULTS, "crashes.md"), `${crashLines.join("\n")}\n`);
+// Trailing blanks accumulate from the per-section spacers, and oxfmt
+// strips them, so emitting them meant every generated file needed a
+// formatting pass before it could be committed.
+writeFileSync(join(RESULTS, "crashes.md"), `${crashLines.join("\n").replace(/\n+$/, "")}\n`);
 
 // --- leads.md -------------------------------------------------------
 //
@@ -421,6 +507,7 @@ for (const [e, f] of solos) {
 const leadLines = [
   "# Differential leads",
   "",
+  ...provenance(entries.length),
   "Noisy by construction. Nothing here is a finding until it has been",
   "minimized to a hand-written document; the filters below are keyword",
   "heuristics over four tools' prose and they misjudge both ways.",
@@ -448,7 +535,7 @@ for (const [rule, hits] of [...byRule.entries()].sort((a, b) => b[1].length - a[
   }
   leadLines.push("");
 }
-writeFileSync(join(RESULTS, "leads.md"), `${leadLines.join("\n")}\n`);
+writeFileSync(join(RESULTS, "leads.md"), `${leadLines.join("\n").replace(/\n+$/, "")}\n`);
 
 // --- console summary ------------------------------------------------
 
