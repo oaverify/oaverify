@@ -88,27 +88,31 @@ All other optional files pass, including `dynamicRef.json` since #663.
 
 The per-format subtree (`optional/format/*.json`) has its own runner,
 `pnpm format-suite`, because `suite:optional` cannot measure it. The
-subtree is 720 cases across 21 formats, of which 363 expect a rejection.
-By spec default and ours, `format` is annotation-only, so those 363
+subtree is 822 cases across 21 formats, of which 425 expect a rejection.
+By spec default and ours, `format` is annotation-only, so those 425
 vacuously fail for every implementation that follows the default: a
 Bowtie run across ajv, hyperjump, boon, go-jsonschema and
-python-jsonschema returns the same 363 failures for all of them, with
-zero divergence between any two. No published comparative format number
-exists for anyone, which is why this one is measured locally.
+python-jsonschema returned the same failures for all of them, with zero
+divergence between any two. That run was made at the 2026-08-05 pin,
+when the subtree was 720 cases, and has not been repeated since. Its
+shape carries over; its count does not. No published comparative format number exists for
+anyone, which is why this one is measured locally.
 
 `format-suite` compiles with the OpenAPI 3.1 dialect, which promotes
-`format` to an assertion, and scores **629/720**. It reports the two
-directions separately, because they carry different consequences: 63
-**false accepts** (we allowed a value the format forbids, a missed
-catch) and 28 **false rejects** (we refused a value the format allows,
-which under the OpenAPI dialects refuses live traffic).
+`format` to an assertion, and scores **761/822** (re-measured at the
+2026-08-23 corpus pin; the rest of this report is older, see #937). It
+reports the two directions separately, because they carry different
+consequences: 40 **false accepts** (we allowed a value the format
+forbids, a missed catch) and 21 **false rejects** (we refused a value
+the format allows, which under the OpenAPI dialects refuses live
+traffic).
 
 The gap is concentrated rather than spread. `hostname` and
-`idn-hostname` are 56 of the 91 failures and are almost entirely
-IDNA / UTS-46 rules, deliberately punted. The rest are bounded:
-`uri` / `uri-reference` / `iri-reference` character and host handling,
-`duration` RFC 3339 ABNF ordering, `email` RFC 5321 quoted local parts
-and address literals, and one `regex` case.
+`idn-hostname` are 58 of the 61 failures and are almost entirely
+IDNA / UTS-46 rules, deliberately punted (#669). The other three are
+`email` accepting a domain that ends in a dot and rejecting a lowercase
+`ipv6:` tag in an address literal (#944), and `idn-email` rejecting a
+domain label that is not in Unicode NFC.
 
 `format-results.json` is the committed baseline, gated per format so a
 fix in one cannot pay for a regression in another.

@@ -140,9 +140,10 @@ runs under the root `pnpm test`; this suite adds corpus breadth.
 
 **`format-suite`** is separate from `suite:optional` because `format` is
 annotation-only under the default dialect. Run that way, every
-`"valid": false` format case passes without asserting anything, and 368 of
-the 720 cases expect a rejection, so `suite:optional` is not a measurement
-of format behaviour at any pass rate it reports. `format-suite` compiles
+`"valid": false` format case passes without asserting anything, and over
+half the subtree expects a rejection, so `suite:optional` is not a
+measurement of format behaviour at any pass rate it reports. Current
+counts are in [`REPORT.md`](./REPORT.md); they move with the corpus pin. `format-suite` compiles
 with `openapi31Dialect`, where `format` is an assertion, and splits the two
 directions because they carry different consequences:
 
