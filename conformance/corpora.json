@@ -1,10 +1,10 @@
 {
-  "$comment": "Pinned upstream corpora. Every checkout under conformance/ is gitignored, so without a pin here nothing records which revision a committed baseline was measured against. Bump a rev deliberately, in a commit that also re-measures whatever baseline it moves.",
+  "$comment": "Pinned upstream corpora. Every checkout under conformance/ is gitignored, so without a pin here nothing records which revision a committed baseline was measured against. Bump a rev deliberately, in a commit that also re-measures whatever baseline it moves. Each note opens with the pinned commit's committer date in UTC; nothing reads it, and a local timezone will render some pins a day earlier.",
   "corpora": {
     "JSON-Schema-Test-Suite": {
       "url": "https://github.com/json-schema-org/JSON-Schema-Test-Suite.git",
-      "rev": "6648e8194c69697b2e1a15fe76a06a480b183a51",
-      "note": "2026-08-13. Baselines: json-schema-results.json, format-results.json."
+      "rev": "ea54899edb898f4cd99fb0f778e0856e7d337c8f",
+      "note": "2026-08-23. Baselines: json-schema-results.json, format-results.json."
     },
     "JSONTestSuite": {
       "url": "https://github.com/nst/JSONTestSuite.git",

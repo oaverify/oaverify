@@ -4,7 +4,7 @@
  * Separate from `run-json-schema-suite.ts` for one reason: `format` is
  * annotation-only under the default dialect, so that runner's
  * `--optional` pass reports every `"valid": false` format case as a
- * pass without asserting anything. 363 of these cases expect a
+ * pass without asserting anything. Over half the subtree expects a
  * rejection, which is why a run under `jsonSchemaDialect` is not a
  * measurement. This one compiles with `openapi31Dialect`, where
  * `format` is an assertion, and reports the two directions separately:

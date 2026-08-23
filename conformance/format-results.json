@@ -37,12 +37,25 @@
   },
   {
     "format": "email",
-    "cases": 27,
-    "pass": 27,
-    "falseAccept": 0,
-    "falseReject": 0,
+    "cases": 71,
+    "pass": 69,
+    "falseAccept": 1,
+    "falseReject": 1,
     "error": 0,
-    "mismatches": []
+    "mismatches": [
+      {
+        "group": "validation of e-mail addresses",
+        "test": "a domain ending with a dot is not valid",
+        "data": "test@iana.org.",
+        "direction": "false-accept"
+      },
+      {
+        "group": "validation of e-mail addresses",
+        "test": "a lowercase IPv6 tag in an address literal is valid",
+        "data": "a@[ipv6:::1]",
+        "direction": "false-reject"
+      }
+    ]
   },
   {
     "format": "hostname",
@@ -216,10 +229,10 @@
   },
   {
     "format": "idn-hostname",
-    "cases": 90,
-    "pass": 58,
-    "falseAccept": 14,
-    "falseReject": 18,
+    "cases": 95,
+    "pass": 61,
+    "falseAccept": 15,
+    "falseReject": 19,
     "error": 0,
     "mismatches": [
       {
@@ -317,6 +330,18 @@
         "test": "ZERO WIDTH NON-JOINER not preceded by Virama but matches regexp",
         "data": "بي‌بي",
         "direction": "false-reject"
+      },
+      {
+        "group": "validation of internationalized host names",
+        "test": "a zero width space is ignored by the mapping",
+        "data": "a​b",
+        "direction": "false-reject"
+      },
+      {
+        "group": "validation of internationalized host names",
+        "test": "a label of only Arabic-Indic digits is invalid",
+        "data": "٠١",
+        "direction": "false-accept"
       },
       {
         "group": "validation of internationalized host names",
@@ -427,8 +452,8 @@
   },
   {
     "format": "ipv6",
-    "cases": 40,
-    "pass": 40,
+    "cases": 51,
+    "pass": 51,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,

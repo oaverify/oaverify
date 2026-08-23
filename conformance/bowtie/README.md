@@ -104,12 +104,12 @@ bowtie suite "$STAGE/tests/draft2020-12" \
   > out/report-optional.json
 ```
 
-Swap `optional/*.json` for `optional/format/*.json` to run the 720-case
-format subtree. **That run tells you nothing about format correctness**:
+Swap `optional/*.json` for `optional/format/*.json` to run the format
+subtree. **That run tells you nothing about format correctness**:
 `format` is annotation-only under 2020-12, so a conforming
-implementation accepts everything and fails exactly the 368 cases that
+implementation accepts everything and fails exactly the cases that
 expect a rejection, which is what oaverify and hyperjump both score.
-ajv errors on all 720, because Bowtie's ajv harness has no
+ajv errors on every case, because Bowtie's ajv harness has no
 `ajv-formats` and strict mode throws on an unknown format.
 
 The measurement that does mean something is `pnpm format-suite` in the
