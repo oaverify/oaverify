@@ -14,11 +14,7 @@ import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 /**
- * Real-server integration tests against Express 5. Same scenario
- * names as oav-express4's integration suite (cross-adapter test
- * parity is part of the contract); the implementations differ only
- * where Express 5's promise-native middleware diverges from
- * Express 4's sync model.
+ * Real-server integration tests against Express 5.
  *
  * `express-5` is an npm alias for express@5 (see this directory's
  * package.json). End users `import express from "express"`; the alias

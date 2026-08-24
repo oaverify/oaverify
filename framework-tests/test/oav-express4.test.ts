@@ -18,10 +18,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  * Real-server integration tests. Spin up Express 4 on a random port,
  * round-trip via native fetch, close the server when done.
  *
- * Same `it()` names as the sibling oav-express5 / oav-fastify
- * integration suites; adapter implementations differ, scenarios
- * stay identical.
- *
  * `express-4` is an npm alias for express@4 (see this directory's
  * package.json). End users `import express from "express"`; the alias
  * exists only so both express majors can be installed side-by-side
@@ -153,6 +149,8 @@ describe("oav-express4 integration: default validateRequests", () => {
       headers: { "x-tenant": "acme" },
     });
     expect(r.status).toBe(415);
+    const body = (await r.json()) as { issues: Array<{ code: string }> };
+    expect(body.issues.some((i) => i.code === "content-type")).toBe(true);
   });
 
   it("unmatched Content-Type returns 415", async () => {
