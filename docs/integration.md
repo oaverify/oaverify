@@ -737,8 +737,8 @@ Express 4's `express.json()` sets `req.body` to `{}` before it declines
 to parse, so a body is present and the missing header is answered:
 `content-type` / 415. Express 5's leaves `req.body` undefined, as does
 either major with no parser mounted, so the body is absent and the
-answer is `body` / 400. Both are pinned in `framework-tests`; see the
-empty-POST row in
+answer is `body` / 400. The two parser-mounted answers are pinned in
+`framework-tests`; see the empty-POST row in
 [migration-from-eov.md](./migration-from-eov.md#behavior-differences-to-watch-for).
 
 ### File uploads with multer
