@@ -15,7 +15,7 @@
 ## `malformed/if-null` (malformed)
 - **oaverify**: malformed-schema: GET /things 200 response body (application/json): "if" at <root> must be an object or boolean; got null. [GET /things 200 response]
 - ajv: no matching finding (1 raised)
-- spectral: no matching finding (1 raised)
+- **spectral**: oas3-schema: "if" property must be a valid Schema Object. [paths//things/get/responses/200/content/application/json/schema/if]
 - redocly: no matching finding (7 raised)
 
 ## `malformed/enum-scalar` (malformed)
@@ -58,7 +58,7 @@
 - **oaverify**: silent-rewrite/ref-siblings-oas30: OAS 3.0: "required" sibling of $ref at <root> is silently dropped (only description/summary survive) [GET /things 200 response body (application/json) -> <root>]
 - ajv: no matching finding (1 raised)
 - **spectral**: no-$ref-siblings: $ref must not be placed next to any other properties [paths//things/get/responses/200/content/application/json/schema/required]
-- redocly: no matching finding (5 raised)
+- **redocly**: spec-ref-siblings: Property `required` is not expected here because it is defined alongside `$ref`. [#/paths/~1things/get/responses/200/content/application~1json/schema/required]
 
 ## `lint/redundant-oneof` (lint)
 - **oaverify**: silent-rewrite/redundant-composition-branches: oneOf[1] is structurally identical to oneOf[0] (annotation-only differences ignored); branches collapse and the validator's match-count behavior diverges from the source spec [GET /things 200 response body (application/json) -> oneOf[1]]
@@ -75,7 +75,7 @@
 ## `lint/annotation-null-description` (lint)
 - **oaverify**: annotation-value-type: "description" at "properties.statusDate" should be a string; got null [GET /things 200 response body (application/json) -> properties.statusDate]
 - **ajv**: ajv/compile: schema is invalid: data/properties/statusDate/description must be string [paths./things.get.responses.200.application/json]
-- spectral: no matching finding (1 raised)
+- **spectral**: info-description: Info "description" must be present and non-empty string. [info]
 - **redocly**: struct: Expected type `string` but got `null`. [#/paths/~1things/get/responses/200/content/application~1json/schema/properties/statusDate/description]
 
 ## `lint/prefixitems-in-30` (lint)
@@ -85,7 +85,7 @@
 - **redocly**: struct: Property `prefixItems` is not expected here. [#/paths/~1things/get/responses/200/content/application~1json/schema/prefixItems]
 
 ## `lint/catastrophic-pattern` (lint)
-- **oaverify**: ambiguous-pattern: "^([A-Za-z0-9]+[ ,])*[A-Za-z0-9]+$" is ambiguous. An input of the form `[A-Za-z0-9][ ,][A-Za-z0-9][A-Za-z0-9]` matches more than one way. A backtracking engine can be made to explore every way of matching, so a crafted value may cost superlinear time; whether it does depends on the engine running the pattern. Rewrite to remove the ambiguity, or compile patterns with a linear-time engine (the regexCompiler option). [/paths/~1things/post/requestBody/content/application~1json/schema/properties/tags/pattern]
+- **oaverify**: ambiguous-pattern: "^([A-Za-z0-9]+[ ,])*[A-Za-z0-9]+$" is ambiguous. An input of the form `[A-Za-z0-9][ ,][A-Za-z0-9][A-Za-z0-9]` matches more than one way. A crafted value here may cost superlinear time to match. [/paths/~1things/post/requestBody/content/application~1json/schema/properties/tags/pattern]
 - ajv: no matching finding (0 raised)
 - spectral: no matching finding (5 raised)
 - redocly: no matching finding (5 raised)
@@ -121,7 +121,7 @@
 - **redocly**: security-defined: There is no `notDefinedAnywhere` security scheme defined. [#/paths/~1things/get/security/0/notDefinedAnywhere]
 
 ## `style/example-contradicts-schema` (style)
-- **oaverify**: example-invalid: oaverify rejects "example" against its schema: count: must be integer (actual: string) (example: {"count":"not-an-integer"}) [/paths/~1things/get/responses/200/content/application~1json/example]
+- **oaverify**: example-invalid: example does not match its schema: count: must be integer (actual: string) [/paths/~1things/get/responses/200/content/application~1json/example]
 - ajv: no matching finding (0 raised)
 - **spectral**: oas3-valid-media-example: "count" property type must be integer [paths//things/get/responses/200/content/application/json/example/count]
 - **redocly**: no-invalid-media-type-examples: Example value must conform to the schema: `count` property type must be integer. [#/paths/~1things/get/responses/200/content/application~1json/example/count]

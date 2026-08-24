@@ -62,8 +62,14 @@ The three comparators are dev dependencies here:
 rewrites the three committed files and a command called `check` should
 not leave a dirty tree.
 
-Nothing here gates CI. The matrix would turn red whenever Spectral ships
-a rule, which is news rather than a regression.
+The corpus is not re-run in CI. The matrix would turn red whenever
+Spectral ships a rule, which is news rather than a regression.
+
+What does gate CI is agreement: `pnpm check:detection-table`, wired into
+the root `pnpm lint`, asserts that
+[docs/comparison.md](../docs/comparison.md) still quotes what
+`results/matrix.md` says. So a `pnpm detect` whose numbers move fails
+the build until the doc follows.
 
 ## Classes
 
@@ -88,7 +94,7 @@ name resolves, so no amount of meta-schema coverage reaches them.
 
 `style` is six cases oaverify mostly does not report, and oaverify does
 not compete on style. Most of them are conventions, such as a missing
-`operationId`. It catches two, and one of those, `undeclared-path-param`,
+`operationId`. It catches three, and one of those, `undeclared-path-param`,
 is a specification violation rather than a matter of taste: a path
 template naming a variable the operation never declares means unvalidated
 input reaches the handler. `check` reports it at `error` severity for

@@ -157,11 +157,12 @@ pnpm build                        # tsup: @oaverify/core + stream + syntax + che
 pnpm check                        # the PR gate: test + typecheck + lint + lint:type-aware
 pnpm test                         # vitest for everything
 pnpm vitest run packages/schema   # run a single package's tests (path filter)
-pnpm lint                         # oxlint + oxfmt --check + check:deps
+pnpm lint                         # the non-type-aware gate: oxlint, oxfmt --check, and every check:* below
 pnpm lint:type-aware              # oxlint --type-aware (NOT part of `pnpm lint`; CI runs it)
 pnpm check:deps                   # assert the @oaverify/internal-* dependency graph (see below)
 pnpm check:walkers                # assert no walker hand-rolls the subschema-position loops
 pnpm check:http-methods           # assert only core spells out the HTTP method list
+pnpm check:detection-table        # assert docs/comparison.md against detection/results/matrix.md
 pnpm check:release                # assert release.yml's package lists against release-please-config.json
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)

@@ -1,25 +1,25 @@
-Run 2026-08-07 against:
+Run 2026-08-24 against:
 
-- oaverify 5.4.0
+- oaverify 7.2.0
 - ajv 8.20.0
-- spectral 6.16.2
-- redocly 2.43.2
+- spectral 6.16.3
+- redocly 2.46.2
 
 | case | class | oaverify | ajv | spectral | redocly |
 | --- | --- | --- | --- | --- | --- |
 | `malformed/items-array` | malformed | yes | yes | yes | yes |
 | `malformed/type-boolean` | malformed | yes | - | yes | yes |
-| `malformed/if-null` | malformed | yes | - | - | - |
+| `malformed/if-null` | malformed | yes | - | yes | - |
 | `malformed/enum-scalar` | malformed | yes | yes | yes | yes |
 | `malformed/required-string` | malformed | yes | yes | yes | yes |
 | `malformed/properties-array` | malformed | yes | yes | yes | yes |
 | `lint/required-typo` | lint | yes | yes | - | - |
 | `lint/required-typo-behind-ref` | lint | yes | yes | - | yes |
 | `lint/enum-type-mismatch` | lint | yes | - | yes | yes |
-| `lint/ref-siblings-oas30` | lint | yes | - | yes | - |
+| `lint/ref-siblings-oas30` | lint | yes | - | yes | yes |
 | `lint/redundant-oneof` | lint | yes | - | - | - |
 | `lint/unknown-keyword` | lint | yes | yes | - | yes |
-| `lint/annotation-null-description` | lint | yes | yes | - | yes |
+| `lint/annotation-null-description` | lint | yes | yes | yes | yes |
 | `lint/prefixitems-in-30` | lint | yes | yes | yes | yes |
 | `lint/catastrophic-pattern` | lint | yes | - | - | - |
 | `style/missing-operationid` | style | - | - | yes | yes |
@@ -43,9 +43,9 @@ Run 2026-08-07 against:
 
 | class | oaverify | ajv | spectral | redocly |
 | --- | --- | --- | --- | --- |
-| malformed (6) | 6/6 | 4/6 | 5/6 | 5/6 |
-| lint (9) | 9/9 | 5/9 | 3/9 | 5/9 |
+| malformed (6) | 6/6 | 4/6 | 6/6 | 5/6 |
+| lint (9) | 9/9 | 5/9 | 4/9 | 6/9 |
 | structural (8) | 7/8 | 2/8 | 7/8 | 5/8 |
 | style (6) | 3/6 | 0/6 | 6/6 | 6/6 |
 | control false positives (4) | 0 | 0 | 0 | 0 |
-| total findings raised | 25 | 19 | 183 | 195 |
+| total findings raised | 25 | 19 | 193 | 196 |
