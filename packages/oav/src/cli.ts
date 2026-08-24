@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-export {};
 
 // Type-only, so it is erased and does not defeat the lazy imports below.
 import type { ReaderPolicy } from "@oaverify/internal-cli";
