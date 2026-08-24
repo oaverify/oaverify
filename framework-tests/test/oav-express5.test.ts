@@ -143,6 +143,22 @@ describe("oav-express5 integration: default validateRequests", () => {
     expect(body.issues.some((i) => i.code === "header-param")).toBe(true);
   });
 
+  // Pins the empty-POST row in docs/migration-from-eov.md, which is answered
+  // by the body parser rather than by the adapter. Express 5's express.json()
+  // leaves req.body undefined when it declines to parse, so the adapter sees no
+  // body and answers body-required, the same answer either major gives with no
+  // parser mounted. The Express 4 sibling test expects 415 from the same
+  // request: its parser leaves req.body as {}, so a body appears to be present.
+  it("empty POST with no Content-Type returns 400 with express.json() mounted", async () => {
+    const r = await fetch(`${baseUrl}/pets`, {
+      method: "POST",
+      headers: { "x-tenant": "acme" },
+    });
+    expect(r.status).toBe(400);
+    const body = (await r.json()) as { issues: Array<{ code: string }> };
+    expect(body.issues.some((i) => i.code === "body")).toBe(true);
+  });
+
   it("unmatched Content-Type returns 415", async () => {
     const r = await fetch(`${baseUrl}/pets`, {
       method: "POST",
