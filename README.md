@@ -68,13 +68,15 @@ oaverify is built to be the boring, correct option for modern specs.
   ([numbers and methodology](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md#performance)).
   Cheap construction is what makes per-test, per-tenant, and
   overlay-patched validators practical.
-- **No dependencies, and your request objects come back untouched.**
+- **Zero dependencies, and nothing written back into your values.**
   The core carries zero runtime dependencies and failures are return
-  values. Request validation leaves `req.body`, `req.query` and
-  `req.params` exactly as it found them, so unmounting the middleware
-  cannot change what a handler sees. Response validation is the one
-  exception, and has to be: checking a response means observing the
-  write path, so it wraps `res.send` where you mount it
+  values. Coercion happens on the way into validation, never back into
+  your objects: `req.body`, `req.query` and `req.params` still hold
+  what your parser produced, so unmounting the middleware cannot change
+  what a handler sees. The adapters keep their own per-request
+  bookkeeping on the framework's objects, and on Express, mounting
+  response validation replaces `res.send`, since checking a response
+  means observing the write path
   ([`validateResponses`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md#validateresponsesvalidator-options)).
 - **Overlays patch specs you don't own, in memory.** Typed,
   OpenAPI-aware verbs, or standard Overlay 1.0 documents: 32/32 on the
