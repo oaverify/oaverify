@@ -104,8 +104,11 @@ function main() {
 
   const total = BUCKETS.reduce((n, k) => n + found[k].length, 0);
 
-  console.log(`base  ${base}  (${Object.keys(a.results).length} cases, oas ${a.meta.oasVersion})`);
-  console.log(`head  ${head}  (${Object.keys(b.results).length} cases, oas ${b.meta.oasVersion})`);
+  // A dump taken before #766 names one version; after it, a list. Print
+  // whichever the file carries so an older base still reads.
+  const oasOf = (meta) => (meta.oasVersions ?? [meta.oasVersion]).join(", ");
+  console.log(`base  ${base}  (${Object.keys(a.results).length} cases, oas ${oasOf(a.meta)})`);
+  console.log(`head  ${head}  (${Object.keys(b.results).length} cases, oas ${oasOf(b.meta)})`);
   console.log("");
   // A disabled bucket prints `off`, never `0`. The two read the same in
   // a summary line and mean opposite things: one is "nothing changed",

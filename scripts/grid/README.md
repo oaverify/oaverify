@@ -6,8 +6,9 @@ pnpm grid-check <rev>        # against any revision
 pnpm grid-check <rev> --keep # leave the dumps and the worktree in place
 ```
 
-Generates ~5,100 requests across the parameter surface, runs them against a
-build of the base revision and a build of the working tree, and triages every
+Generates every request in the parameter grid (see [Coverage](#coverage) for
+the count, which `gridSize()` is the source of), runs them against a build of
+the base revision and a build of the working tree, and triages every
 difference. This is the R3 relation from
 [#753](https://github.com/oaverify/oaverify/issues/753).
 
@@ -89,14 +90,14 @@ reading, which is how #742 got three review passes deep.
 
 ## Coverage
 
-4 locations x their legal styles x `explode` x 17 schema shapes, against 25
-query / 13 path / 6 header / 5 cookie wire inputs. 306 declarations, 5,100
-cases, a few seconds per side once both are built.
+2 OpenAPI versions x 4 locations x their legal styles _and unset_ x `explode`
+unset/false/true x the version's schema shapes, against 28 query / 17 path / 8
+header / 7 cookie wire inputs. 1,248 declarations, 23,328 cases, well under a
+second per side once both are built.
 
 Known gaps, each a decision rather than an oversight:
 
-- **OpenAPI 3.0 and 3.2.** 3.1 only. 3.0 spells nullability with `nullable`,
-  so the schema set has to fork per version before those can be added.
+- **OpenAPI 3.2.** 3.1 and 3.0 are generated.
 - **Request bodies and response validation.** The grid is parameters only.
 - **`content`-typed parameters** and **`allowReserved`.**
 - **Exactly one parameter is declared per document, always.** So the grid
@@ -104,26 +105,68 @@ Known gaps, each a decision rather than an oversight:
   real class: matrix and label both assign by position, and whether the name
   label is honoured is a separate question the grid never asks.
 
-### The coverage is weighted away from real documents
+### What the weighting looks like now
 
 Worth knowing before trusting a clean run. Counting parameters in
 `detection/real-world/specs` (301 published documents, 56,555 parameters):
 
-| declared `style`   | share of real parameters | share of this grid          |
-| ------------------ | ------------------------ | --------------------------- |
-| none declared      | 92%                      | **0%**                      |
-| `form` / `simple`  | 7%                       | some                        |
-| `deepObject`       | 0.65%                    | some                        |
-| `matrix` / `label` | **0%**                   | a third of the declarations |
+| declared `style`   | share of real parameters | share of declarations |
+| ------------------ | ------------------------ | --------------------- |
+| none declared      | 92%                      | 31%                   |
+| `form` / `simple`  | 7%                       | 31%                   |
+| `deepObject`       | 0.65%                    | 8%                    |
+| `matrix` / `label` | **0%**                   | 15%                   |
 
-`explode` is unset on 94% of real parameters and always set here. 87% of real
-documents are 3.0 and this grid is 3.1 only.
+Until #766 the "none declared" row read 0% here and `matrix` / `label` took a
+third of the declarations. Both moved by adding cells rather than deleting
+any: `matrix` and `label` keep every case they had, and are simply no longer
+most of the budget. The grid is still weighted well away from real documents,
+and deliberately: a probe earns its place by being a probe, and rare shapes
+are where the defects have been.
 
-The largest hole is that leaving `style` and `explode` unset is a different
-code path: the library resolves the default before deserializing anything. A
-hand-written or generated corpus reaches for the declared form by habit, so
-that path is untested no matter how many cases the grid runs. By the rule two
-sections up, it is this grid's own held-constant.
+Two things the unset cells are for, since the first one is easy to
+misread:
+
+- **Leaving `style` and `explode` unset is a different code path**, because
+  the library resolves the default before it deserializes anything. Writing
+  `style: form` out and omitting `style` are therefore separate cells even
+  though they should agree.
+- **They agree today.** All 1,740 unset-style-and-explode cells produce a
+  byte-identical result to the corresponding written-out default. That is the
+  expected answer and not a wasted dimension: default resolution had no cell
+  at all before, so a regression in it could not have been seen here. The
+  point of a differential cell is to exist before it is needed.
+
+### What the 3.0 half does and does not reach
+
+87% of the real corpus is 3.0, which is why 3.0 is generated rather than
+treated as a variant of 3.1. What differs is the compiler: 3.0 compiles under
+`oas30Dialect`, a different `type` keyword plus `nullable` and boolean
+`exclusive*`. Parameter _deserialization_ has one version-dependent branch and
+it only fires for a `$ref`'d parameter schema, which this grid does not
+generate, so the 3.0 half earns its place through the schema table or not at
+all.
+
+That is worth stating precisely, because most of it does not:
+
+- **`nullable` is inert here.** No wire input can produce a JSON `null`, so
+  `strNull` behaves exactly as `str` under 3.0 in all 714 comparable cells,
+  and likewise for `intNull` and `arrNull`. The cells are future-change
+  detectors, not a test of `nullable`.
+- **`exclMax` is what makes the fork visible.** It is spelled per version
+  (`exclusiveMaximum: 10` in 3.1, `maximum: 10` plus `exclusiveMaximum: true`
+  in 3.0) and the two report different codes for the same request:
+  `exclusiveMaximum` against `maximum`. 3.0 also gets `exclMaxNumeric`, the
+  3.1 spelling in a 3.0 document, where the keyword is currently **ignored**
+  and `?p=1000` is accepted against a bound of 10.
+- Without those, 3.0 and 3.1 agreed on every one of the 8,568 comparable
+  cells, which is the state this section exists to stop anyone assuming.
+
+Nullability in 3.0 is a flag rather than a union member, so it has no order to
+vary: `strNull` and `nullStr` collapse to one cell, and the null-first ids are
+the ones absent. `strInt` / `intStr` are absent by choice rather than
+necessity, since 3.0 has `anyOf`; spelling them by hand would test our reading
+of a translation nobody writes.
 
 ## Running the halves separately
 

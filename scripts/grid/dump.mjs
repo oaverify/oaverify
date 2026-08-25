@@ -20,7 +20,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { declarations, gridSize, requests, OAS_VERSION } from "./cases.mjs";
+import { declarations, gridSize, requests, OAS_VERSIONS } from "./cases.mjs";
 
 function parseArgs(argv) {
   const positional = [];
@@ -118,7 +118,7 @@ async function main() {
   const dump = {
     meta: {
       root,
-      oasVersion: OAS_VERSION,
+      oasVersions: OAS_VERSIONS,
       cases: gridSize(),
       declarations: built + failedBuilds,
       failedBuilds,
