@@ -20,7 +20,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { declarations, gridSize, requests, OAS_VERSIONS } from "./cases.mjs";
+import { declarations, gridSize, requestsFor, OAS_VERSIONS } from "./cases.mjs";
 
 function parseArgs(argv) {
   const positional = [];
@@ -100,7 +100,7 @@ async function main() {
       // A declaration the validator refuses to build is itself a datum:
       // a revision that starts or stops refusing one is a real change.
       failedBuilds += 1;
-      for (const { wireId } of requests(decl.location)) {
+      for (const { wireId } of requestsFor(decl)) {
         results[`${decl.id}::${wireId}`] = {
           verdict: "build-error",
           error: `${err?.name}: ${err?.message}`,
@@ -108,7 +108,7 @@ async function main() {
       }
       continue;
     }
-    for (const { wireId, request } of requests(decl.location)) {
+    for (const { wireId, request } of requestsFor(decl)) {
       const r = record(validator, request);
       if (r.value !== null && r.value !== undefined) valueChannel = true;
       results[`${decl.id}::${wireId}`] = r;
