@@ -276,6 +276,142 @@ export function* declarations() {
       }
     }
   }
+  yield* pairDeclarations();
+}
+
+/**
+ * Two-parameter documents, where one parameter's wire shape could claim
+ * the other's input.
+ *
+ * Everything above declares exactly one parameter, which made the grid
+ * structurally unable to see this class however many cases it ran (#765):
+ * `matrix` and `label` assign by position, and whether the name label is
+ * honoured is a separate question a single declaration never asks.
+ *
+ * Each entry names its own probes rather than reusing the location tables,
+ * because the interesting inputs here are relational: a segment swapped
+ * against its neighbour, one key that both declarations can read. The
+ * no-opinion rule holds exactly as above. These record what happens; none
+ * of them asserts what should. `form-object-scalar` in particular is
+ * live today, with one query key reaching two declared parameters, and
+ * the grid deliberately takes no view on whether that is correct.
+ */
+const PAIRS = [
+  {
+    id: "matrix-matrix",
+    template: "/t/{p}/{q}",
+    // Both segments carry matrix framing, so the name label is the only
+    // thing that can tell them apart.
+    params: (schema) => [
+      { name: "p", in: "path", required: true, style: "matrix", explode: false, schema },
+      { name: "q", in: "path", required: true, style: "matrix", explode: false, schema },
+    ],
+    probes: [
+      ["ordered", "/t/;p=1/;q=2"],
+      ["swapped", "/t/;q=1/;p=2"],
+      ["bothNameP", "/t/;p=1/;p=2"],
+      ["unframed", "/t/1/2"],
+      ["firstUnframed", "/t/1/;q=2"],
+    ],
+  },
+  {
+    id: "simple-matrix",
+    template: "/t/{p}/{q}",
+    // `p` declares no framing, so a `;q=` prefix in its segment is a
+    // token it has no rule for.
+    params: (schema) => [
+      { name: "p", in: "path", required: true, style: "simple", explode: false, schema },
+      { name: "q", in: "path", required: true, style: "matrix", explode: false, schema },
+    ],
+    probes: [
+      ["ordered", "/t/1/;q=2"],
+      ["matrixIntoSimple", "/t/;q=1/;q=2"],
+      ["matrixNamingP", "/t/;p=1/;q=2"],
+      ["unframed", "/t/1/2"],
+    ],
+  },
+  {
+    id: "form-object-scalar",
+    template: "/t",
+    // An exploded form object spreads its properties as top-level query
+    // keys, and one of those property names is also a declared parameter.
+    params: (schema) => [
+      {
+        name: "p",
+        in: "query",
+        style: "form",
+        explode: true,
+        schema: { type: "object", properties: { a: { type: "string" }, q: schema } },
+      },
+      { name: "q", in: "query", style: "form", explode: false, schema },
+    ],
+    probes: [
+      ["contested", { a: "x", q: "1" }],
+      ["onlyContested", { q: "1" }],
+      ["onlyOther", { a: "x" }],
+      ["absent", {}],
+    ],
+  },
+  {
+    id: "deepObject-prefix",
+    template: "/t",
+    // A scalar whose declared name is the bracketed key deepObject reads.
+    params: (schema) => [
+      {
+        name: "p",
+        in: "query",
+        style: "deepObject",
+        explode: true,
+        schema: { type: "object", properties: { a: schema } },
+      },
+      { name: "p[a]", in: "query", style: "form", explode: false, schema },
+    ],
+    probes: [
+      ["contested", { "p[a]": "1" }],
+      ["contestedPlusPlain", { "p[a]": "1", p: "2" }],
+      ["absent", {}],
+    ],
+  },
+];
+
+/** The schemas each pair is generated against. */
+const PAIR_SCHEMAS = [
+  ["str", { type: "string" }],
+  ["int", { type: "integer" }],
+  ["untyped", {}],
+];
+
+/** One document per (version, pair, schema), carrying its own probes. */
+function* pairDeclarations() {
+  for (const oas of OAS_VERSIONS) {
+    for (const pair of PAIRS) {
+      for (const [schemaId, schema] of PAIR_SCHEMAS) {
+        yield {
+          id: `${oas}|pair=${pair.id}|${schemaId}`,
+          location: "pair",
+          requests: pair.probes.map(([wireId, wire]) => ({
+            wireId,
+            request:
+              typeof wire === "string"
+                ? { method: "GET", path: wire }
+                : { method: "GET", path: "/t", query: wire },
+          })),
+          doc: {
+            openapi: oas,
+            info: { title: "grid", version: "1" },
+            paths: {
+              [pair.template]: {
+                get: {
+                  parameters: pair.params(schema),
+                  responses: { 200: { description: "ok" } },
+                },
+              },
+            },
+          },
+        };
+      }
+    }
+  }
 }
 
 /** The wire inputs to drive a declaration in `location` with. */
@@ -291,6 +427,13 @@ export function* requests(location) {
       yield { wireId, request: { method: "GET", path: `/t/${segment}` } };
     }
     return;
+  }
+  if (location !== "header" && location !== "cookie") {
+    // Every caller reaches this through `requestsFor`, which only asks for a
+    // location a declaration actually carries. Falling through to the scalar
+    // table for anything else would hand a `pair` declaration seven cookie
+    // probes and look like it worked.
+    throw new Error(`requests: no wire table for location "${location}"`);
   }
   for (const [wireId, value] of SCALAR_WIRE) {
     const request = { method: "GET", path: "/t" };
@@ -311,11 +454,24 @@ export function* requests(location) {
   }
 }
 
+/**
+ * The probes for one declaration. Most take their location's table; the
+ * two-parameter documents carry their own, because the inputs that matter
+ * there are relational rather than per-location.
+ */
+export function requestsFor(decl) {
+  const probes = decl.requests ?? [...requests(decl.location)];
+  if (probes.length === 0) {
+    // A declaration with no probes contributes no cases, which reads as a
+    // clean run rather than as a mistake.
+    throw new Error(`requestsFor: declaration "${decl.id}" has no probes`);
+  }
+  return probes;
+}
+
 /** Total case count, for the dump's metadata. */
 export function gridSize() {
   let n = 0;
-  for (const decl of declarations()) {
-    for (const _ of requests(decl.location)) n += 1;
-  }
+  for (const decl of declarations()) n += requestsFor(decl).length;
   return n;
 }

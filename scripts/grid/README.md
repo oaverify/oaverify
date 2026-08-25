@@ -92,18 +92,17 @@ reading, which is how #742 got three review passes deep.
 
 2 OpenAPI versions x 4 locations x their legal styles _and unset_ x `explode`
 unset/false/true x the version's schema shapes, against 28 query / 17 path / 8
-header / 7 cookie wire inputs. 1,248 declarations, 23,328 cases, well under a
-second per side once both are built.
+header / 7 cookie wire inputs, plus 24 two-parameter documents with their own
+probes. 1,272 declarations, 23,424 cases, well under a second per side once
+both are built.
 
 Known gaps, each a decision rather than an oversight:
 
 - **OpenAPI 3.2.** 3.1 and 3.0 are generated.
 - **Request bodies and response validation.** The grid is parameters only.
 - **`content`-typed parameters** and **`allowReserved`.**
-- **Exactly one parameter is declared per document, always.** So the grid
-  cannot see a defect where one parameter captures another's input, which is a
-  real class: matrix and label both assign by position, and whether the name
-  label is honoured is a separate question the grid never asks.
+- **Two-parameter documents cover four pairings, not the space.** Everything
+  else declares exactly one parameter. See below for what the pairs reach.
 
 ### What the weighting looks like now
 
@@ -116,6 +115,9 @@ Worth knowing before trusting a clean run. Counting parameters in
 | `form` / `simple`  | 7%                       | 31%                   |
 | `deepObject`       | 0.65%                    | 8%                    |
 | `matrix` / `label` | **0%**                   | 15%                   |
+
+The grid column counts the 1,248 single-parameter declarations. The 24
+two-parameter documents declare two styles each and have no row here.
 
 Until #766 the "none declared" row read 0% here and `matrix` / `label` took a
 third of the declarations. Both moved by adding cells rather than deleting
@@ -136,6 +138,46 @@ misread:
   expected answer and not a wasted dimension: default resolution had no cell
   at all before, so a regression in it could not have been seen here. The
   point of a differential cell is to exist before it is needed.
+
+### Two-parameter documents
+
+Until #765 every document declared exactly one parameter, so the grid was
+structurally unable to see a defect where one parameter claims another's
+input, however many cases it ran. `matrix` and `label` assign by position,
+and whether the name label is honoured is a question a single declaration
+cannot ask.
+
+Four pairings are generated, each against 3.0 and 3.1 and three schemas, with
+probes chosen for the relation rather than from the location tables:
+
+| pairing              | what it contests                                           |
+| -------------------- | ---------------------------------------------------------- |
+| `matrix-matrix`      | adjacent segments, both framed, swapped and doubled        |
+| `simple-matrix`      | a `;name=` prefix reaching a parameter with no rule for it |
+| `form-object-scalar` | an exploded object property sharing a declared name        |
+| `deepObject-prefix`  | a scalar declared as the bracketed key `deepObject` reads  |
+
+Two of them record one wire input reaching two declared parameters:
+`form-object-scalar` has `?q=1` land in both `p.q` and `q`, and
+`deepObject-prefix` has `?p[a]=1` land in both `p.a` and `p[a]`. **The grid
+takes no view on whether either is correct**, per the rule above; it records
+them so a change is visible. Deciding them needs a specification citation and
+belongs in a conformance suite.
+
+The pairing #765 opened with, two swapped `matrix` segments read across each
+other, does not reproduce: it is rejected. #788 fixed it, closing #758, the day
+after #765 was filed, and #823 hardened it by requiring a segment to carry its
+framing. Both are load-bearing for these cells: the swapped probe is rejected
+by the first and the unframed probe by the second. The cells stay, because
+pinning behaviour that was recently wrong is worth more than pinning behaviour
+that never was.
+
+Two of the counts here are not coverage. The 96 pair cases carry roughly 18
+distinct records today: 3.0 and 3.1 agree on every pairing, `untyped` behaves
+as `str` throughout, and `deepObject-prefix`'s `contestedPlusPlain` probe
+leaves no trace beyond `contested`. Under the no-opinion rule those are
+future-change detectors rather than redundancy, and they are cheap; they are
+just not eighteen more things being checked.
 
 ### What the 3.0 half does and does not reach
 
