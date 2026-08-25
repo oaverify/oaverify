@@ -115,19 +115,20 @@ shape carries over; its count does not. No published comparative format number e
 anyone, which is why this one is measured locally.
 
 `format-suite` compiles with the OpenAPI 3.1 dialect, which promotes
-`format` to an assertion, and scores **761/822**. It
+`format` to an assertion, and scores **763/822**. It
 reports the two directions separately, because they carry different
-consequences: 40 **false accepts** (we allowed a value the format
-forbids, a missed catch) and 21 **false rejects** (we refused a value
+consequences: 39 **false accepts** (we allowed a value the format
+forbids, a missed catch) and 20 **false rejects** (we refused a value
 the format allows, which under the OpenAPI dialects refuses live
 traffic).
 
 The gap is concentrated rather than spread. `hostname` and
-`idn-hostname` are 58 of the 61 failures and are almost entirely
-IDNA / UTS-46 rules, deliberately punted (#669). The other three are
-`email` accepting a domain that ends in a dot and rejecting a lowercase
-`ipv6:` tag in an address literal (#944), and `idn-email` rejecting a
-domain label that is not in Unicode NFC.
+`idn-hostname` are 58 of the 59 failures and are almost entirely
+IDNA / UTS-46 rules, deliberately punted (#669). The remaining one is
+`idn-email` rejecting a domain label that is not in Unicode NFC. The two
+`email` failures the previous pin introduced are fixed: it no longer
+accepts a domain ending in a dot, and it reads a lowercase `ipv6:` tag
+as the address-literal tag it is (#944).
 
 `format-results.json` is the committed baseline, gated per format so a
 fix in one cannot pay for a regression in another.

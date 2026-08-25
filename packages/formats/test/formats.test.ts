@@ -218,6 +218,54 @@ describe("email (RFC 5321 Mailbox grammar)", () => {
     expect(validateIdnEmail(`${DQ}a${DQ}b${DQ}@example.com`)).toBe(false);
   });
 
+  it("rejects a domain that ends in a dot", () => {
+    // `hostname` accepts `iana.org.`: RFC 1123 allows the root label
+    // written out. RFC 5321's `Domain` production has no such form, so
+    // delegating without saying so inherited an allowance that is not a
+    // mailbox's (#944). Both entry points, since both delegate.
+    expect(validateEmail("test@iana.org.")).toBe(false);
+    expect(validateIdnEmail("test@iana.org.")).toBe(false);
+    expect(validateEmail("test@iana.org")).toBe(true);
+    expect(validateIdnEmail("test@iana.org")).toBe(true);
+  });
+
+  it("reads the address-literal tag case-insensitively", () => {
+    // An ABNF string literal is case-insensitive (RFC 5234 section 2.3),
+    // so every spelling of the tag is the same production. Matching
+    // `IPv6:` exactly sent the rest to the IPv4 branch, which refused a
+    // legal address literal (#944).
+    expect(validateEmail("joe.bloggs@[ipv6:::1]")).toBe(true);
+    expect(validateEmail("joe.bloggs@[IPV6:::1]")).toBe(true);
+    expect(validateEmail("joe.bloggs@[iPv6:2001:db8::1]")).toBe(true);
+    expect(validateEmail("joe.bloggs@[ipv6:anything]")).toBe(false);
+  });
+
+  it("widens an unquoted idn local part to non-ASCII, including whitespace", () => {
+    // `UTF8-non-ascii` admits any non-ASCII character, and a character
+    // being whitespace in Unicode does not remove it from that set. The
+    // old class drew its boundary at whitespace, which is not the
+    // boundary `atext` draws, so it refused these (#901).
+    expect(validateIdnEmail("a\u00A0b@example.com")).toBe(true);
+    expect(validateIdnEmail("a\u2003b@example.com")).toBe(true);
+    expect(validateIdnEmail("a\u3000b@example.com")).toBe(true);
+    // The ASCII space is still not atext, quoted or nothing.
+    expect(validateIdnEmail("a b@example.com")).toBe(false);
+  });
+
+  it("keeps atext's ASCII specials out of an unquoted idn local part", () => {
+    // The same class was too permissive in the other direction: it
+    // admitted every ASCII special that is not whitespace, `@` or `.`,
+    // all of which `atext` excludes and which need quoting (#853).
+    for (const special of ["(", ")", ",", "<", ">", "[", "]", ":", ";"]) {
+      expect(validateIdnEmail(`a${special}b@example.com`), special).toBe(false);
+    }
+    // Quoted, they are legal, which is what makes the unquoted refusal a
+    // narrowing rather than a ban.
+    expect(validateIdnEmail(`${DQ}a(b${DQ}@example.com`)).toBe(true);
+    // And the atext punctuation stays accepted.
+    expect(validateIdnEmail("a!#$%&'*+/=?^_`{|}~-b@example.com")).toBe(true);
+  });
+
   it("caps a local part at 64 characters", () => {
     expect(validateEmail(`${"a".repeat(64)}@example.com`)).toBe(true);
     expect(validateEmail(`${"a".repeat(65)}@example.com`)).toBe(false);

@@ -38,24 +38,11 @@
   {
     "format": "email",
     "cases": 71,
-    "pass": 69,
-    "falseAccept": 1,
-    "falseReject": 1,
+    "pass": 71,
+    "falseAccept": 0,
+    "falseReject": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "validation of e-mail addresses",
-        "test": "a domain ending with a dot is not valid",
-        "data": "test@iana.org.",
-        "direction": "false-accept"
-      },
-      {
-        "group": "validation of e-mail addresses",
-        "test": "a lowercase IPv6 tag in an address literal is valid",
-        "data": "a@[ipv6:::1]",
-        "direction": "false-reject"
-      }
-    ]
+    "mismatches": []
   },
   {
     "format": "hostname",
