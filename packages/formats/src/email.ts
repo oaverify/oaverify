@@ -56,11 +56,22 @@ const IDN_QUOTED_STRING_RE = new RegExp(
   "u",
 );
 
+/** One `atext` character, or one non-ASCII character. */
+const IDN_ATOM = `(?:[${ATEXT}]|[^\\u0000-\\u007F\\uD800-\\uDFFF])`;
+
 /**
  * RFC 6531 unquoted local part: `atext` widened to any non-ASCII, with
  * the same `Dot-string` rules about where a `.` may sit.
+ *
+ * Built the same way as {@link IDN_QUOTED_STRING_RE}, and for the same
+ * reason: the ASCII set and the non-ASCII set are separate alternatives.
+ * Spelling it as "anything that is not whitespace, `@` or `.`" reads like
+ * the same rule and is wrong in both directions at once, because
+ * whitespace is not the boundary `atext` draws. It admitted ASCII that
+ * `atext` excludes and that needs quoting (#853), and it excluded
+ * non-ASCII whitespace, which `UTF8-non-ascii` admits (#901).
  */
-const IDN_DOT_STRING_RE = /^[^\s@.]+(?:\.[^\s@.]+)*$/u;
+const IDN_DOT_STRING_RE = new RegExp(`^${IDN_ATOM}+(?:\\.${IDN_ATOM}+)*$`, "u");
 
 /** RFC 5321 caps a local part at 64 octets. */
 const MAX_LOCAL_LENGTH = 64;
@@ -74,6 +85,20 @@ const MAX_LOCAL_LENGTH = 64;
 const utf8Octets = (s: string): number => new TextEncoder().encode(s).length;
 
 /**
+ * RFC 5321 writes the tag `IPv6:`, and an ABNF string literal is
+ * case-insensitive (RFC 5234 section 2.3), so `ipv6:` and `IPV6:` are the
+ * same production. Matching the tag exactly sent `a@[ipv6:::1]` to the
+ * IPv4 branch, which refuses a legal address literal (#944).
+ *
+ * No `u` flag, so `i` folds ASCII only: U+212A KELVIN SIGN does not
+ * become a `k` here, and no non-ASCII spelling of the tag is admitted.
+ */
+const IPV6_TAG_RE = /^IPv6:/i;
+
+/** Length of the tag {@link IPV6_TAG_RE} matches, which is fixed. */
+const IPV6_TAG_LENGTH = "IPv6:".length;
+
+/**
  * RFC 5321 `address-literal`: a bracketed IPv4 address, or an IPv6
  * address behind the mandatory `IPv6:` tag.
  *
@@ -84,8 +109,24 @@ const utf8Octets = (s: string): number => new TextEncoder().encode(s).length;
 function validateAddressLiteral(domain: string): boolean {
   if (!domain.startsWith("[") || !domain.endsWith("]")) return false;
   const inner = domain.slice(1, -1);
-  if (inner.startsWith("IPv6:")) return validateIpv6(inner.slice("IPv6:".length));
+  if (IPV6_TAG_RE.test(inner)) return validateIpv6(inner.slice(IPV6_TAG_LENGTH));
   return validateIpv4(inner);
+}
+
+/**
+ * RFC 5321 `Domain`: an address literal, or a hostname.
+ *
+ * The trailing-dot check belongs here rather than in the hostname
+ * validators, which are right to accept `iana.org.`: RFC 1123 allows the
+ * root label written out, and that is the grammar `hostname` is judged
+ * by. RFC 5321's `Domain` production has no such form, so a mailbox that
+ * delegates without saying so inherits an allowance that is not its own
+ * (#944).
+ */
+function validateMailboxDomain(domain: string, hostname: (value: string) => boolean): boolean {
+  if (domain.startsWith("[")) return validateAddressLiteral(domain);
+  if (domain.endsWith(".")) return false;
+  return hostname(domain);
 }
 
 /**
@@ -112,7 +153,7 @@ export function validateEmail(value: string): boolean {
   if (local.length > MAX_LOCAL_LENGTH) return false;
   const localOk = local.startsWith('"') ? QUOTED_STRING_RE.test(local) : DOT_STRING_RE.test(local);
   if (!localOk) return false;
-  return domain.startsWith("[") ? validateAddressLiteral(domain) : validateHostname(domain);
+  return validateMailboxDomain(domain, validateHostname);
 }
 
 /**
@@ -129,5 +170,5 @@ export function validateIdnEmail(value: string): boolean {
     ? IDN_QUOTED_STRING_RE.test(local)
     : IDN_DOT_STRING_RE.test(local);
   if (!localOk) return false;
-  return domain.startsWith("[") ? validateAddressLiteral(domain) : validateIdnHostname(domain);
+  return validateMailboxDomain(domain, validateIdnHostname);
 }

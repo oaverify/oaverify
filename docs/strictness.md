@@ -339,6 +339,25 @@ createValidator(spec, { formats: { int64: false } });
 See [configuration.md](./configuration.md#formats) for the registry,
 including why `int64` asserts only the safe-integer range.
 
+### `idn-email` narrowed in 7.2.1
+
+An unquoted `idn-email` local part is `atext` widened to any non-ASCII,
+per RFC 6531. Before 7.2.1 the check drew its boundary at whitespace
+instead, so it accepted ASCII that `atext` excludes: `(`, `)`, `,`, `<`,
+`>`, `[`, `]`, `:`, `;`, the double quote, the backslash, and the C0
+controls. Those need quoting, and `"a(b"@example.com` is still accepted.
+
+If you were relying on the looser reading, the per-format switch above
+turns the assertion off:
+
+```ts
+createValidator(spec, { formats: { "idn-email": false } });
+```
+
+The same release widened the other direction, so non-ASCII whitespace in
+a local part is now accepted where it was refused. Both are the same
+rule being applied where it was not.
+
 ## On the CLI
 
 Two verbs, one question each.
