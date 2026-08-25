@@ -67,21 +67,49 @@ function observe(c: Case): Observation {
 }
 
 /**
- * Compare a group's observations to its first member. Reporting against
- * one reference rather than pairwise keeps the failure message short and
- * still names both sides, since the reference's descriptor is printed too.
+ * Compare every observation in a group to the group's first member, and
+ * report all of the disagreements at once.
+ *
+ * Reporting against one reference rather than pairwise keeps the message
+ * short; collecting every mismatch rather than throwing on the first is
+ * what tells a reader whether one shape drifted or a whole family did,
+ * which is the difference between #825 (one shape of four) and #823
+ * (eight rows of thirteen).
  */
 function assertGroupAgrees(key: string, cases: Case[]): void {
   const first = cases[0]!;
   const reference = observe(first);
+  const disagreed: string[] = [];
   for (const c of cases.slice(1)) {
     const got = observe(c);
-    const context = `group ${key}\n  reference: ${descriptor(first)}\n  differing: ${descriptor(c)}`;
-    expect(
-      { valid: got.valid, value: got.value },
-      `${context}\n  verdict or value disagreed`,
-    ).toEqual({ valid: reference.valid, value: reference.value });
+    if (got.valid === reference.valid && deepEqual(got.value, reference.value)) continue;
+    disagreed.push(`  ${descriptor(c)}\n    got ${render(got)}`);
   }
+  if (disagreed.length === 0) return;
+  throw new Error(
+    `group ${key}: ${disagreed.length} of ${cases.length - 1} shapes disagreed with the reference\n` +
+      `  reference: ${descriptor(first)}\n    got ${render(reference)}\n` +
+      disagreed.join("\n"),
+  );
+}
+
+function render(o: Observation): string {
+  return `valid=${o.valid} value=${o.value === ABSENT ? "<absent>" : JSON.stringify(o.value)}`;
+}
+
+/** Structural equality, order-insensitive for object keys and not for arrays. */
+function deepEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
+}
+
+function normalize(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(normalize);
+  if (typeof v === "object" && v !== null) {
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(v).sort()) out[k] = normalize((v as Record<string, unknown>)[k]);
+    return out;
+  }
+  return typeof v === "symbol" ? "<absent>" : v;
 }
 
 describe("cross-shape relation: every serialization of one value agrees", () => {
