@@ -67,10 +67,11 @@ number can always be traced back to the machine that produced it.
 ```
 === petstore: object with required + scalar properties; realistic small API payload ===
 compile:
-  ajv compile                  356 ops/s       2.85ms / op
-  oav compile                17.1K ops/s      67.49µs / op
+  ajv compile                  162 ops/s       6.29ms / op
+  ajv-reused compile          2.1K ops/s     490.21µs / op
+  oav compile                 5.7K ops/s     188.01µs / op
 validate:
-  ajv validate (valid)              23.7M ops/s      42.95ns / op
+  ajv validate (valid)               8.79M ops/s     117.39ns / op
   ...
 ```
 
@@ -174,9 +175,9 @@ pnpm bench -- --spec=path/to/openapi.yaml       # real spec mode
 pnpm bench:render results/<timestamp>.json      # a specific run
 ```
 
-`render.ts` emits three tables, one concern each: **compile** (ajv against
-oav), **validate / valid input**, and **validate / invalid input**, each
-across the five configs. `--cooldown` adds a fallow sleep after every task;
+`render.ts` emits three tables, one concern each: **compile** (both ajv
+modes against oav), **validate / valid input**, and **validate / invalid
+input**, each across the five configs. `--cooldown` adds a fallow sleep after every task;
 set it for publishable runs to limit thermal and GC cross-talk between
 tasks.
 
@@ -238,12 +239,32 @@ BATCHES=20 PER_BATCH=500 WARMUP=250 pnpm bench:mem   # quick smoke
 
 ## Methodology
 
-**Compile (synthetic).** Each hot-loop iteration is only the library's work:
+**Compile (synthetic).** Each hot-loop iteration is only the library's work.
+ajv is measured twice, because the two answers differ by two orders of
+magnitude and only one of them describes a long-lived service (#935):
 
-- **ajv**: `new Ajv({allErrors, strict:false}).compile(schema)`. The
-  instance construction stays in; it is part of the cold-start cost for a
-  consumer that does not already have an Ajv around.
-- **oav**: `compileSchema(schema, opts)` with pre-built `opts`.
+- **ajv**: `new Ajv({allErrors, strict:false}).compile(schema)`, a fresh
+  instance per iteration. A fresh `Ajv2020` compiles the 2020-12
+  meta-schema before it compiles anything the caller passed, so this
+  column is dominated by that and is near-constant across schema sizes.
+  It is the honest number for a process that compiles one schema and
+  exits. Read a flat column here as the meta-schema, not as ajv having
+  constant per-schema cost.
+- **ajv-reused**: one instance shared across iterations, which is what a
+  service holding per-tenant or per-test validators has. ajv caches
+  compiled schemas by object identity, so the schema is evicted with
+  `removeSchema` after each compile; without that, every iteration after
+  the first is a cache hit and measures roughly 0.1 us. Eviction was
+  chosen over a clone pool (which silently becomes a cache hit once
+  tinybench outruns the pool) and over cloning in the loop (0.7-2.8 us
+  on these shapes, charged to ajv alone); it costs ~0.1 us and leaves
+  both libraries compiling the identical object.
+- **oav**: `compileSchema(schema, opts)` with pre-built `opts`. There is
+  no instance to reuse and no meta-schema to compile, so one task covers
+  it.
+
+`render.ts` quotes oav's speedup against **ajv-reused**, since that is the
+deployment shape the claim in the root README is about.
 
 **Compile (spec mode).** Same per-library semantics, one iteration per
 schema. Ajv runs with `logger: false` so OAS-specific format warnings do not

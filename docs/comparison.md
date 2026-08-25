@@ -35,7 +35,7 @@ per-shape numbers are below.
   x86_64, 2 vCPU, Linux
 - **Runtime:** Node v22.23.2, Ajv 8.20.0
 - **Method:** synthetic shape suite, 1000 ms/task, 500 ms cooldown,
-  median of 3 runs; commit `a826ebb`, 2026-08-20
+  median of 3 runs; commit `37851f5`, 2026-08-25
 
 The harness measures five configurations: Ajv fast-fail
 (`allErrors: false`), Ajv full-collect (`allErrors: true`), oaverify fast-fail
@@ -47,23 +47,43 @@ fast-fail.
 
 ### Compile
 
-Ajv's compile is near-constant per-schema overhead; oaverify scales
-with shape and runs an order of magnitude or two faster. This matters
-wherever validator construction
-is in the hot path (per-request, per-tenant, per-test, edge cold-start,
-AOT module emit).
+Ajv appears twice, because the two numbers differ by two orders of
+magnitude and answer different questions.
 
-| shape                  | Ajv     | oaverify | speedup |
-| ---------------------- | ------- | -------- | ------- |
-| `tiny`                 | 8.79 ms | 47.4 µs  | 185×    |
-| `petstore`             | 7.48 ms | 224.8 µs | 33×     |
-| `tree`                 | 7.36 ms | 165.1 µs | 45×     |
-| `composition`          | 7.71 ms | 518.7 µs | 15×     |
-| `array-heavy`          | 7.28 ms | 169.9 µs | 43×     |
-| `unique-primitives`    | 6.69 ms | 66.6 µs  | 100×    |
-| `long-string`          | 6.63 ms | 117.8 µs | 56×     |
-| `pattern-heavy`        | 6.86 ms | 160.2 µs | 43×     |
-| `pattern-backtracking` | 6.78 ms | 78.4 µs  | 87×     |
+**Cold** builds an `Ajv2020` per compile. A fresh instance compiles the
+2020-12 meta-schema before it compiles anything you hand it, so that
+column sits near 6 ms whatever the schema costs, and the flatness is the
+meta-schema rather than a constant per-schema overhead. It is the number
+for a process that compiles one schema and exits: a CLI invocation, some
+edge cold starts.
+
+**Reused** shares one instance across compiles, which is what a
+long-lived service holding per-test, per-tenant or overlay-patched
+validators has. oaverify has neither shape to choose between: it holds no
+instance and compiles no meta-schema, so one column covers it.
+
+| shape                  | Ajv (cold) | Ajv (reused) | oaverify | vs reused |
+| ---------------------- | ---------- | ------------ | -------- | --------- |
+| `tiny`                 | 7.07 ms    | 103.7 µs     | 40.6 µs  | 2.6×      |
+| `petstore`             | 6.31 ms    | 490.2 µs     | 188.0 µs | 2.6×      |
+| `tree`                 | 6.37 ms    | 535.2 µs     | 140.5 µs | 3.8×      |
+| `composition`          | 6.48 ms    | 759.3 µs     | 447.4 µs | 1.7×      |
+| `array-heavy`          | 6.00 ms    | 374.0 µs     | 146.3 µs | 2.6×      |
+| `unique-primitives`    | 5.83 ms    | 190.4 µs     | 58.6 µs  | 3.2×      |
+| `long-string`          | 5.89 ms    | 247.7 µs     | 101.3 µs | 2.4×      |
+| `pattern-heavy`        | 5.97 ms    | 347.3 µs     | 142.0 µs | 2.4×      |
+| `pattern-backtracking` | 5.78 ms    | 167.3 µs     | 72.0 µs  | 2.3×      |
+
+So against a reused instance oaverify compiles 1.7x to 3.8x faster, and
+both columns track schema shape. Against a cold instance it is 14x to
+174x, and most of that is meta-schema compilation Ajv pays once per
+instance rather than work either library does on your schema.
+
+Earlier versions of this table published only the cold column and quoted
+its ratio as the speedup, which is where the "one to two orders of
+magnitude" claim came from. The harness constructed a fresh `Ajv` inside
+the timed loop (#935). Cold start is a real cost and keeps its column;
+it was the wrong number to lead with.
 
 ### Validate
 
@@ -79,32 +99,32 @@ Valid input:
 
 | shape                  | oaverify fast-fail | oaverify full-collect | oaverify predicate |
 | ---------------------- | ------------------ | --------------------- | ------------------ |
-| `tiny`                 | 144%               | 153%                  | 143%               |
-| `petstore`             | 82%                | 98%                   | 105%               |
-| `tree`                 | 95%                | 98%                   | 118%               |
-| `composition`          | 140%               | 150%                  | 177%               |
-| `array-heavy`          | 117%               | 113%                  | 210%               |
-| `unique-primitives`    | 166%               | 170%                  | 169%               |
+| `tiny`                 | 141%               | 152%                  | 148%               |
+| `petstore`             | 91%                | 103%                  | 111%               |
+| `tree`                 | 113%               | 111%                  | 120%               |
+| `composition`          | 152%               | 170%                  | 174%               |
+| `array-heavy`          | 119%               | 115%                  | 211%               |
+| `unique-primitives`    | 175%               | 174%                  | 177%               |
 | `long-string`          | >1000×†            | >1000×†               | >1000×†            |
-| `pattern-heavy`        | 93%                | 96%                   | 102%               |
-| `pattern-backtracking` | 98%                | 101%                  | 100%               |
+| `pattern-heavy`        | 94%                | 95%                   | 106%               |
+| `pattern-backtracking` | 99%                | 100%                  | 102%               |
 
 Invalid input (averaged across failure-position fixtures):
 
 | shape                  | oaverify fast-fail | oaverify full-collect | oaverify predicate |
 | ---------------------- | ------------------ | --------------------- | ------------------ |
-| `tiny`                 | 84%                | 101%                  | 126%               |
-| `petstore`             | 91%                | 97%                   | 143%               |
-| `tree`                 | 87%                | 111%                  | 182%               |
-| `composition`          | 107%               | 76%                   | 225%               |
-| `array-heavy`          | 112%               | 78%                   | 211%               |
-| `unique-primitives`    | 336%               | 307%                  | 331%               |
-| `long-string`          | 41%                | 84%                   | >1000×†            |
-| `pattern-heavy`        | 88%                | 89%                   | 118%               |
-| `pattern-backtracking` | 106%               | 111%                  | 100%               |
+| `tiny`                 | 83%                | 102%                  | 127%               |
+| `petstore`             | 88%                | 76%                   | 151%               |
+| `tree`                 | 88%                | 110%                  | 181%               |
+| `composition`          | 116%               | 79%                   | 223%               |
+| `array-heavy`          | 111%               | 78%                   | 210%               |
+| `unique-primitives`    | 327%               | 310%                  | 328%               |
+| `long-string`          | 43%                | 84%                   | >1000×†            |
+| `pattern-heavy`        | 82%                | 85%                   | 116%               |
+| `pattern-backtracking` | 88%                | 112%                  | 81%                |
 
 The trade-off: oaverify fast-fail trails Ajv fast-fail modestly on plain
-object rejection (`tiny`/`petstore`/`tree` at 84–91%), leads on
+object rejection (`tiny`/`petstore`/`tree` at 83–88%), leads on
 `composition` and `array-heavy`, and leads clearly on `uniqueItems`.
 oaverify full-collect stays close to Ajv full-collect: ahead on most
 accept-path shapes, mixed on rejection (trailing on `composition` and
@@ -132,17 +152,25 @@ commit as above:
 
 | metric                          | oaverify | eov + Ajv |
 | ------------------------------- | -------- | --------- |
-| Baseline RSS                    | 76.7 MB  | 72.5 MB   |
-| Steady-state RSS (avg)          | 102.1 MB | 104.4 MB  |
+| Baseline RSS ‡                  | 76.6 MB  | 87.1 MB   |
+| Steady-state RSS (avg)          | 104.1 MB | 104.5 MB  |
 | Steady-state heap used (avg)    | 13.8 MB  | 14.6 MB   |
-| Post-idle RSS                   | 101.8 MB | 104.4 MB  |
-| Throughput (ms / 500-req batch) | 902 ms   | 944 ms    |
+| Post-idle RSS                   | 104.2 MB | 104.0 MB  |
+| Throughput (ms / 500-req batch) | 865 ms   | 900 ms    |
 
 The steady-state footprints track each other closely; oaverify carries a
 little less heap and turns the same workload over a few percent faster.
 Neither footprint is large; the gap is unlikely to decide a deployment.
 (Batch times are not comparable across runs of this table: the driver
 is bound by Node's fetch client, which shifts between Node versions.)
+
+‡ Read the baseline row as noise, not as a gap. eov's baseline RSS is
+bimodal on this host: the three runs behind this table gave 87.1, 73.8
+and 87.1 MB, and the previous run gave 71.9, 72.5 and 87.8 MB. The
+median moves between the two clusters depending on which side two runs
+land on, so the row is reported for completeness rather than as a
+difference between the libraries. Every other row is stable to within a
+few percent across runs.
 
 Full methodology, the synthetic shape definitions, the `--spec` mode for
 real-world OpenAPI documents, and the raw host-stamped JSON live in
@@ -443,8 +471,9 @@ large bodies with a design-time buffer budget you can check before
 deploy, overlays over specs you don't own, an OpenAPI 3.0 dialect built
 into the validator, explicit control over where validation runs in your
 HTTP stack, or standalone OpenAPI HTTP validator output for
-edge/serverless deployments. It also fits compile-heavy workloads,
-where the schema-compile gap is one to two orders of magnitude.
+edge/serverless deployments. It also fits compile-heavy workloads: the
+schema-compile gap is a few times over on a warm process, and two orders
+of magnitude against a cold Ajv.
 
 For the document rather than the traffic, pick oaverify when the question
 is whether a spec will validate the way its author intended: `oaverify

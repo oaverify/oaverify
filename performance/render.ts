@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url";
 type Result = {
   schema: string;
   metric: "compile" | "validate";
-  lib: "ajv" | "ajv-fast" | "oav" | "oav-all" | "oav-predicate";
+  lib: "ajv" | "ajv-reused" | "ajv-fast" | "oav" | "oav-all" | "oav-predicate";
   validity?: "valid" | "invalid";
   mean: number; // µs/op
 };
@@ -169,22 +169,33 @@ console.log(
 );
 
 // --- Compile (combined: absolute + oav speedup) ---------------------------
+// Two ajv columns, because they answer different questions and the
+// difference between them is most of the old headline (#935). "cold" pays
+// `new Ajv()` per compile, which means compiling the 2020-12 meta-schema
+// first; "reused" shares one instance, which is what a service holding
+// per-tenant or per-test validators does. oav's speedup is quoted against
+// the reused column, since that is the deployment the claim is about.
 const compileRows = shapes
   .filter((s) => results.some((r) => r.schema === s && r.metric === "compile"))
   .map((s) => {
-    const ajv = pickMean(s, "ajv", "compile");
+    const cold = pickMean(s, "ajv", "compile");
+    const reused = pickMean(s, "ajv-reused", "compile");
     const oav = pickMean(s, "oav", "compile");
     return [
       `\`${s}\``,
-      ajv === null ? "-" : fmtUs(ajv),
-      oav === null ? "-" : `${fmtUs(oav)} / ${rel(ajv, oav)}`,
+      cold === null ? "-" : fmtUs(cold),
+      reused === null ? "-" : fmtUs(reused),
+      oav === null ? "-" : `${fmtUs(oav)} / ${rel(reused, oav)}`,
     ];
   });
 console.log(`\n#### Compile (ajv vs oav)\n`);
 console.log(
-  `_Mean per schema. oav's \`N×\` is its speedup over the ajv baseline; higher is faster._\n`,
+  `_Mean per schema. **cold** constructs an \`Ajv2020\` per compile, so it ` +
+    `carries meta-schema compilation; **reused** shares one instance across ` +
+    `compiles. oav's \`N×\` is its speedup over **reused**, the shape most ` +
+    `deployments have; higher is faster._\n`,
 );
-console.log(table(["shape", "ajv", "oav (vs ajv)"], compileRows));
+console.log(table(["shape", "ajv (cold)", "ajv (reused)", "oav (vs reused)"], compileRows));
 
 // --- Validate, valid input ------------------------------------------------
 if (results.some((r) => r.metric === "validate" && r.validity === "valid")) {

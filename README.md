@@ -62,9 +62,11 @@ oaverify is built to be the boring, correct option for modern specs.
   (Stripe, GitHub, Twilio, and more) and Express 4 / 5 + Fastify
   integration tests
   ([conformance report](https://github.com/oaverify/oaverify/blob/main/conformance/REPORT.md)).
-- **Validator construction is cheap.** One to two orders of magnitude
-  faster than Ajv compile on the benchmark shapes, at steady-state
-  validation parity — including the cells where Ajv wins
+- **Validator construction is cheap.** 1.7x to 3.8x faster than Ajv
+  compiling on an instance it already holds, and 14x to 174x faster than
+  standing one up, since a fresh `Ajv2020` compiles the 2020-12
+  meta-schema first. Steady-state validation is at parity, including the
+  cells where Ajv wins
   ([numbers and methodology](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md#performance)).
   Cheap construction is what makes per-test, per-tenant, and
   overlay-patched validators practical.
