@@ -58,7 +58,7 @@ const taskOpts = cooldown > 0 ? { afterAll: () => sleep(cooldown) } : {};
 type Result = {
   schema: string;
   metric: "compile" | "validate";
-  lib: "ajv" | "ajv-fast" | "oav" | "oav-all" | "oav-predicate";
+  lib: "ajv" | "ajv-reused" | "ajv-fast" | "oav" | "oav-all" | "oav-predicate";
   validity?: "valid" | "invalid";
   hz: number; // ops/sec
   mean: number; // µs/op
@@ -108,16 +108,45 @@ async function benchSchema(s: PerfSchema): Promise<void> {
   const oavOpts = { dialect: jsonSchemaDialect, formats: builtInFormats };
   const ajvFactory = () => new Ajv({ allErrors: true, strict: false });
 
-  // COMPILE BENCH: each task turns a fresh schema object into a callable
-  // validator. For ajv that includes `new Ajv()` (it's part of the
-  // cold-start cost — a pool of compiled schemas still needs an instance
-  // to own them).
+  // COMPILE BENCH: each task turns a schema object into a callable
+  // validator. ajv is measured twice because the two numbers answer
+  // different questions and only one of them is what most deployments
+  // pay (#935).
+  //
+  //   "ajv compile" constructs an instance per iteration. A fresh
+  //   Ajv2020 compiles the 2020-12 meta-schema before it can compile
+  //   anything else, so this is dominated by that one-time cost. It is
+  //   the honest number for a process that compiles one schema and
+  //   exits, and it is why this column used to be flat across schemas
+  //   of wildly different sizes.
+  //
+  //   "ajv-reused compile" shares one instance, which is what a service
+  //   holding per-tenant or per-test validators actually does. ajv
+  //   caches compiled schemas by object identity, so compiling the same
+  //   object twice returns the first result and measures nothing; the
+  //   schema is evicted after each compile to keep every iteration a
+  //   real compile. Eviction is the cheapest way to do that which still
+  //   hands both libraries the identical object: measured at ~0.1us
+  //   against structuredClone's 0.7-2.8us on these shapes, so it sits
+  //   under the noise instead of inflating ajv's column.
+  //
+  // oav has no analogue of either: it holds no instance and compiles no
+  // meta-schema, so one task covers it.
+  const ajvReused = ajvFactory();
   const compileBench = new Bench({ time });
   compileBench
     .add(
       "ajv compile",
       () => {
         ajvFactory().compile(s.schema);
+      },
+      taskOpts,
+    )
+    .add(
+      "ajv-reused compile",
+      () => {
+        ajvReused.compile(s.schema);
+        ajvReused.removeSchema(s.schema);
       },
       taskOpts,
     )
