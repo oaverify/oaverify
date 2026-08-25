@@ -18,27 +18,31 @@
  * `form`'s separators), #825 (property values coerced in two shapes of
  * four). Each of those is this relation, failing.
  *
- * ## What this is not
+ * ## Scope
  *
- * It is not the grid. `scripts/grid/` compares one revision to another on
- * identical inputs and holds no opinion about what either produced. This
- * file is an oracle: it compares one shape to another on a single
- * revision, which is the half of #753 the grid cannot do because the grid
- * never compares cell to cell.
+ * `scripts/grid/` compares one revision to another on identical inputs and
+ * holds no opinion about what either produced. This file is an oracle,
+ * comparing one shape to another on a single revision, which is the half
+ * of #753 the grid cannot do: it never compares cell to cell, and #824 sat
+ * under a green differential for that reason. It also needs no base
+ * revision, so it gates.
  *
- * It is not a round-trip test, and the encoder below is not a serializer.
- * It is the Style Examples table transcribed as data, reachable only from
- * this directory, and it exists to produce inputs rather than to be
- * correct output for a caller.
+ * The encoder below is the Style Examples table transcribed as data,
+ * reachable only from this directory. It produces inputs. Treating it as
+ * the outbound half of parameter handling, which is what the round-trip
+ * relation would need, is out of scope for the spike.
  *
  * ## What it cannot see
  *
- * Five things, and they are the point of writing them down.
+ * The whole list lives here. `cross-shape.test.ts` points at it rather
+ * than keeping a second copy, because a list in two files is a list that
+ * disagrees with itself.
  *
  * 1. A change that breaks every shape identically. All shapes still agree
  *    and this file stays green. It is the failure mode #753 records for
  *    the permute-`type`-members relation, which ran 21,420 cases against a
- *    real regression and found nothing.
+ *    real regression and found nothing, and it is observable here: at
+ *    5d2abb5~1 all fifteen shapes of `objStr` agree and are wrong.
  * 2. A reading that is wrong but consistent. This compares shapes to each
  *    other, never to the specification, so if every shape reads "1,2" the
  *    same wrong way it passes. That needs a conformance corpus.
@@ -50,6 +54,23 @@
  * 5. Whether `returnValues` changes a verdict. Every validator compared
  *    here has it on, so the option is a constant and this relation says
  *    nothing about the separate invariant that it is verdict-neutral.
+ * 6. Error shape. Only the verdict and the deserialized value are
+ *    compared, because a query and a path parameter report at different
+ *    error paths by design.
+ * 7. A parameter that arrives malformed. The generator only ever emits a
+ *    correctly framed token naming the declared parameter, so a defect in
+ *    REJECTING a token that lacks its framing (#823) or that names another
+ *    parameter (#788) is invisible. This is the largest gap.
+ *
+ * ## The options axis
+ *
+ * The relation carries a `createValidator` option additively: the same
+ * groups run under a different option with no generator change. Measured
+ * once with `strictQueryParameters: true`, where the form-exploded and
+ * `deepObject` shapes reject a request whose value they had already
+ * assembled, which is #954. It is out of the gating set because it is not
+ * true on `main`, and a relation gates only when it is deterministic, true
+ * on `main`, and backed by a stated oracle.
  *
  * ## The value domain
  *
@@ -604,7 +625,11 @@ export function* absentGroups(): Generator<{ key: string; fixture: Fixture; case
                 ...(container === undefined ? {} : { [field]: { ...container } }),
               } as Case["request"],
             }));
-          if (cases.length > 1) {
+          // No `cases.length > 1` filter. A location and kind reaching
+          // only one shape still needs its verdict asserted, and dropping
+          // it hid every cookie-located object: `form` with `explode` is
+          // declined there, so the location resolves to a single shape.
+          if (cases.length > 0) {
             yield { key: `${oas}|${fixture.id}|${location}|absent:${absenceId}`, fixture, cases };
           }
         }

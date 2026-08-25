@@ -1,13 +1,11 @@
 /**
- * The cross-shape relation. See `cross-shape.ts` for the relation
- * statement, the value domain, and the five things it cannot see.
+ * The cross-shape relation. `cross-shape.ts` carries the relation
+ * statement, the value domain, and the full list of what it cannot see.
  *
- * What is compared, and what deliberately is not: the verdict and the
- * deserialized value. Not the errors. A query parameter and a path
- * parameter report at different error paths with different messages by
- * design, so error equality would fail on correct behaviour. A defect that
- * changes only an error's shape is therefore invisible here, which is a
- * sixth blind spot on top of the five in `cross-shape.ts`.
+ * Two assertions, and both are load-bearing. Agreement across shapes finds
+ * a shape that drifted from its siblings, and it is satisfied by every
+ * shape being wrong together. The per-fixture `verdict` is what turns that
+ * unanimous wrong answer into a failure. Neither alone is the relation.
  *
  * Every case prints its full descriptor on failure. There is no random
  * generation, so the descriptor is the input: a failure reproduces from
@@ -137,8 +135,16 @@ describe("cross-shape relation: the agreed verdict is the expected one", () => {
 });
 
 describe("cross-shape relation: an absent required parameter", () => {
+  // Every fixture declares `required: true`, so absence is invalid in
+  // every shape. Agreement alone would be satisfied by all of them turning
+  // valid at once, which is the same hole the present family closes with
+  // its `verdict` field.
   for (const group of absentGroups()) {
-    it(`${group.key} agrees across ${group.cases.length} shapes`, () => {
+    it(`${group.key} is invalid in all ${group.cases.length} shapes, and they agree`, () => {
+      for (const c of group.cases) {
+        const got = observe(c);
+        expect(got.valid, `${descriptor(c)}\n  a required parameter is absent`).toBe(false);
+      }
       assertGroupAgrees(group.key, group.cases);
     });
   }
@@ -201,12 +207,11 @@ describe("cross-shape relation: the failure descriptor is the reproducer", () =>
 });
 
 describe("cross-shape relation: case count", () => {
-  it("reports how many cases it generates", () => {
-    const counts = caseCount();
-    // A number that moves when the axes move. Recorded so a change to the
-    // generator that silently drops a whole axis is visible as a failing
-    // assertion rather than as a faster run.
-    expect(counts.present).toBeGreaterThan(0);
-    expect(counts.absent).toBeGreaterThan(0);
+  it("generates the recorded number of cases", () => {
+    // Pinned, not bounded. `> 0` would pass a generator that had dropped
+    // every object fixture, or one OpenAPI version, or most of the styles,
+    // which is the failure this assertion exists to make visible. Update
+    // the numbers deliberately when an axis moves.
+    expect(caseCount()).toEqual({ present: 454, absent: 516 });
   });
 });
