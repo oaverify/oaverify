@@ -1,6 +1,22 @@
 # Conformance report
 
-Generated 2026-08-05 against commit `bfb8e00`.
+`pnpm check:conformance-report`, which `pnpm lint` runs, holds this file
+to the committed baselines, so it tracks `main` rather than a date. What
+that covers is worth stating exactly, since the parts it does not cover
+are where the last two drifts happened:
+
+- **Gated against a committed baseline**: the required-suite row and the
+  sentence restating it, the Overlay row and all three translator
+  buckets, the format subtree's size, score and both failure directions,
+  and the headline `README.md` quotes.
+- **Gated by agreement**: the `+ optional` row, whose runner writes a
+  gitignored file. It is bounded by the required baseline and checked
+  against both places below that enumerate its non-passing cases, so
+  moving any one of the three alone fails.
+- **Not gated**: the OpenAPI petstore row, for the same gitignored-runner
+  reason and with nothing here stating it twice, and figures derived in
+  prose (the 162 extra optional cases, the 425 that expect a rejection,
+  "58 of the 61 failures").
 
 Run against three upstream / hand-curated test corpora:
 
@@ -20,7 +36,7 @@ Run against three upstream / hand-curated test corpora:
 | Source                                | Cases | Pass | Mismatch | Error | % pass |
 | ------------------------------------- | ----- | ---- | -------- | ----- | ------ |
 | JSON Schema Test Suite (required)     | 1299  | 1294 | 1        | 4     | 99.6%  |
-| JSON Schema Test Suite (+ optional)   | 1461  | 1452 | 5        | 4     | 99.4%  |
+| JSON Schema Test Suite (+ optional)   | 1461  | 1453 | 4        | 4     | 99.5%  |
 | OpenAPI Overlay 1.0 (envelope)        | 32    | 32   | 0        | 0     | 100%   |
 | OpenAPI `petstore` via `oaverify` CLI | 32    | 32   | 0        | 0     | 100%   |
 
@@ -99,8 +115,7 @@ shape carries over; its count does not. No published comparative format number e
 anyone, which is why this one is measured locally.
 
 `format-suite` compiles with the OpenAPI 3.1 dialect, which promotes
-`format` to an assertion, and scores **761/822** (re-measured at the
-2026-08-23 corpus pin; the rest of this report is older, see #937). It
+`format` to an assertion, and scores **761/822**. It
 reports the two directions separately, because they carry different
 consequences: 40 **false accepts** (we allowed a value the format
 forbids, a missed catch) and 21 **false rejects** (we refused a value

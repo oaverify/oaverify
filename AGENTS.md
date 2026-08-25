@@ -163,6 +163,7 @@ pnpm check:deps                   # assert the @oaverify/internal-* dependency g
 pnpm check:walkers                # assert no walker hand-rolls the subschema-position loops
 pnpm check:http-methods           # assert only core spells out the HTTP method list
 pnpm check:detection-table        # assert docs/comparison.md against detection/results/matrix.md
+pnpm check:conformance-report     # assert conformance/REPORT.md against the committed baselines
 pnpm check:release                # assert release.yml's package lists against release-please-config.json
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)
