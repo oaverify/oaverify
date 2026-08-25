@@ -198,6 +198,19 @@ export type OasVersion = (typeof OAS_VERSIONS)[number];
  * relation over the required arm alone could not tell an absent parameter
  * from one whose malformed token deserialized to a value the schema then
  * rejected.
+ *
+ * THE UNREQUIRED ARM IS DELIBERATELY NON-CONFORMANT OPENAPI. The Parameter
+ * Object says that when `in` is `path`, `required` is itself required and
+ * its value must be `true`, so `required: false` here is a declaration no
+ * conformant document contains. It is a runtime probe, not a claim about
+ * what a document may say: `createValidator` accepts the declaration, and
+ * what is being exercised is the absence-versus-value channel underneath
+ * it. Document conformance is `@oaverify/check`'s question and is not the
+ * subject of this file.
+ *
+ * Keep the arm. Removing it as "invalid OpenAPI" would leave the relation
+ * comparing two failing requests, which agree for reasons that have
+ * nothing to do with framing.
  */
 export const REQUIRED_ARMS = [true, false] as const;
 
