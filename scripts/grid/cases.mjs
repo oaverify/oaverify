@@ -22,18 +22,41 @@
  *
  * ## Coverage, and what is missing
  *
- * Declared: 4 locations x their legal styles x explode x 17 schema shapes,
- * against 18 query / 9 path / 5 header / 5 cookie wire inputs.
+ * Declared: 2 OpenAPI versions x 4 locations x their legal styles *plus
+ * leaving `style` unset* x `explode` unset/false/true x the version's
+ * schema shapes, against the wire inputs plausible for each location.
+ * `gridSize()` is the count; README.md quotes it and this comment does
+ * not, because a number in two places drifts in one of them.
  *
- * Not covered yet, each a known gap rather than an oversight:
- * OpenAPI 3.0 and 3.2 (3.1 only, because 3.0 spells nullability with
- * `nullable` and the schema set would have to fork per version), request
- * bodies, response validation, `content`-typed parameters, and
+ * `style` and `explode` are each generated unset as well as declared,
+ * because that is a different code path rather than a missing row: the
+ * library resolves the default before it deserializes anything, and a
+ * generated corpus reaches for the declared form by habit. It is also
+ * what real documents do. Counting `detection/real-world/specs` (301
+ * published documents, 56,555 parameters), 92% declare no `style` and
+ * 94% no `explode`, and before #766 this grid declared both on every
+ * single case: the majority path had never run here.
+ *
+ * The same count is why 3.0 is generated: 87% of those documents are 3.0.
+ * 3.0 has no type unions and spells nullability with `nullable`, so the
+ * schema set forks per version rather than being shared.
+ *
+ * Not covered yet, each a known gap rather than an oversight: OpenAPI 3.2,
+ * request bodies, response validation, `content`-typed parameters, and
  * `allowReserved`.
  */
 
-/** The OpenAPI version every generated document declares. */
-export const OAS_VERSION = "3.1.1";
+/**
+ * The OpenAPI versions generated. 87% of the real-world corpus is 3.0.
+ *
+ * What actually differs is the compiler, not the deserializer: 3.0 compiles
+ * under `oas30Dialect`, which is a different `type` keyword plus `nullable`
+ * and boolean `exclusive*`. Parameter deserialization has one
+ * version-dependent branch, `refSuppressesSiblings`, and it only fires for a
+ * `$ref`'d parameter schema, which this grid does not generate. So the 3.0
+ * half earns its place through the schema table below or not at all.
+ */
+export const OAS_VERSIONS = ["3.1.1", "3.0.3"];
 
 /** The parameter name every declaration uses. */
 const NAME = "p";
@@ -44,7 +67,7 @@ const NAME = "p";
  * and #742 was them behaving differently. `strInt` is the two-readable-member
  * case that #752 tracks, where member order decides and deliberately so.
  */
-const SCHEMAS = [
+const SCHEMAS_31 = [
   ["str", { type: "string" }],
   ["int", { type: "integer" }],
   ["num", { type: "number" }],
@@ -61,8 +84,54 @@ const SCHEMAS = [
   ["objNull", { type: ["object", "null"], properties: { n: { type: "integer" } } }],
   ["strInt", { type: ["string", "integer"] }],
   ["intStr", { type: ["integer", "string"] }],
+  ["exclMax", { type: "integer", exclusiveMaximum: 10 }],
   ["untyped", {}],
 ];
+
+/**
+ * The 3.0 set. Not a subset and not a translation.
+ *
+ * 3.0 spells nullability as `nullable: true` beside one `type`, which is a
+ * flag rather than a member of a union, so it has no order to vary: `strNull`
+ * and `nullStr` collapse to a single cell. The null-first ids `nullStr`,
+ * `nullInt` and `nullArr` are therefore the ones absent here, not `strNull`.
+ *
+ * `strInt` and `intStr` are absent by choice rather than necessity. 3.0 has
+ * `anyOf`, so a two-readable-member parameter can be written; it is left out
+ * because spelling it by hand would test our reading of a translation nobody
+ * writes, and #752 is a 3.1 question.
+ *
+ * Ids that mean the same thing keep the same name across the two tables so a
+ * reader can line the versions up. `exclMax` is the one id whose *spelling*
+ * differs on purpose: it is the version-appropriate way to say the same
+ * thing, and it is what stops the 3.0 half agreeing with the 3.1 half on
+ * every single case.
+ */
+const SCHEMAS_30 = [
+  ["str", { type: "string" }],
+  ["int", { type: "integer" }],
+  ["num", { type: "number" }],
+  ["bool", { type: "boolean" }],
+  ["strNull", { type: "string", nullable: true }],
+  ["intNull", { type: "integer", nullable: true }],
+  ["arrStr", { type: "array", items: { type: "string" } }],
+  ["arrInt", { type: "array", items: { type: "integer" } }],
+  ["arrNull", { type: "array", items: { type: "string" }, nullable: true }],
+  ["objAN", { type: "object", properties: { a: { type: "string" }, n: { type: "integer" } } }],
+  ["objNull", { type: "object", properties: { n: { type: "integer" } }, nullable: true }],
+  // The 3.0 spelling of the 3.1 `exclMax` above. Both mean "below 10".
+  ["exclMax", { type: "integer", maximum: 10, exclusiveMaximum: true }],
+  // The 3.1 spelling, in a 3.0 document, where it is currently ignored: a
+  // numeric `exclusiveMaximum` is not a 3.0 keyword. Recorded so that
+  // starting to honour it, or starting to reject it, is visible here.
+  ["exclMaxNumeric", { type: "integer", exclusiveMaximum: 10 }],
+  ["untyped", {}],
+];
+
+/** The schema table for a generated document's declared version. */
+function schemasFor(oas) {
+  return oas.startsWith("3.0") ? SCHEMAS_30 : SCHEMAS_31;
+}
 
 /** The styles OpenAPI defines for each location. */
 const STYLES = {
@@ -84,6 +153,9 @@ const QUERY_WIRE = [
   ["hex", { [NAME]: "0x1A" }],
   ["padded", { [NAME]: "  7  " }],
   ["exp", { [NAME]: "1e3" }],
+  // Exactly the bound the `exclMax` schemas name, so the exclusive/inclusive
+  // distinction is exercised rather than only "far over it".
+  ["bound", { [NAME]: "10" }],
   ["plus", { [NAME]: "+5" }],
   ["leadingZeros", { [NAME]: "007" }],
   ["infinity", { [NAME]: "Infinity" }],
@@ -163,34 +235,43 @@ const SCALAR_WIRE = [
  * declaration and then driven with every wire input for its location.
  */
 export function* declarations() {
-  for (const [location, styles] of Object.entries(STYLES)) {
-    for (const style of styles) {
-      for (const explode of [false, true]) {
-        for (const [schemaId, schema] of SCHEMAS) {
-          const template = location === "path" ? `/t/{${NAME}}` : "/t";
-          const parameter = {
-            name: NAME,
-            in: location,
-            style,
-            explode,
-            // OpenAPI requires path parameters to be required; anywhere
-            // else `false` keeps the absent-input cells meaningful.
-            required: location === "path",
-            schema,
-          };
-          yield {
-            id: `${location}|${style}|explode=${explode}|${schemaId}`,
-            location,
-            doc: {
-              openapi: OAS_VERSION,
-              info: { title: "grid", version: "1" },
-              paths: {
-                [template]: {
-                  get: { parameters: [parameter], responses: { 200: { description: "ok" } } },
+  for (const oas of OAS_VERSIONS) {
+    for (const [location, styles] of Object.entries(STYLES)) {
+      // `undefined` is the unset cell, and it is not the same as writing
+      // the default out: the library has to resolve a default before it
+      // can deserialize, and that resolution is the branch 92% of real
+      // parameters take. Declaring `style: form` and omitting `style`
+      // therefore stay separate cells even where they should agree.
+      for (const style of [undefined, ...styles]) {
+        for (const explode of [undefined, false, true]) {
+          for (const [schemaId, schema] of schemasFor(oas)) {
+            const template = location === "path" ? `/t/{${NAME}}` : "/t";
+            const parameter = {
+              name: NAME,
+              in: location,
+              // OpenAPI requires path parameters to be required; anywhere
+              // else `false` keeps the absent-input cells meaningful.
+              required: location === "path",
+              schema,
+            };
+            if (style !== undefined) parameter.style = style;
+            if (explode !== undefined) parameter.explode = explode;
+            yield {
+              id:
+                `${oas}|${location}|style=${style ?? "unset"}` +
+                `|explode=${explode ?? "unset"}|${schemaId}`,
+              location,
+              doc: {
+                openapi: oas,
+                info: { title: "grid", version: "1" },
+                paths: {
+                  [template]: {
+                    get: { parameters: [parameter], responses: { 200: { description: "ok" } } },
+                  },
                 },
               },
-            },
-          };
+            };
+          }
         }
       }
     }

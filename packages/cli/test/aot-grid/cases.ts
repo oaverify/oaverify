@@ -90,8 +90,8 @@ export const LOCATIONS: Location[] = ["query", "path", "header", "cookie"];
  *
  * Undeclared is not a gap in the declared set: the library resolves the
  * default before deserializing anything, so it is a different code
- * path, and #766 measured it as the path 92% of real parameters take
- * while `scripts/grid` declares both on every case. One field set and
+ * path, and #766 measured it as the path 92% of real parameters take.
+ * `scripts/grid` generates it too, since #766. One field set and
  * the other unset is included for the same reason: the two defaults
  * resolve independently.
  */
