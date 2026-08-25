@@ -562,29 +562,52 @@ export function* presentGroups(): Generator<{ key: string; fixture: Fixture; cas
 }
 
 /**
- * The ABSENT family: a required parameter with nothing on the wire.
+ * The ABSENT family: a required parameter the request does not carry.
  *
  * Within-location, unlike {@link presentGroups}. A path parameter with no
  * segment is a route miss, so the router answers rather than the parameter
  * layer, and comparing that to a missing query parameter would be
  * comparing two different subsystems. The route-miss case is pinned
  * separately in the test file.
+ *
+ * Two ways to be absent, because they reach different code. An empty
+ * container short-circuits: `assembleFormExplodedObject` opens with
+ * `if (query === undefined) return undefined`, so nothing downstream of
+ * that runs. A container carrying a key the declaration does not name
+ * reaches the property loop and its `any` decision, which is where an
+ * assembler deciding a foreign key supplies our parameter would show up.
+ * Generating only the first would have made this family agree by
+ * short-circuit rather than by agreement.
  */
+const ABSENCES = [
+  ["empty", undefined],
+  ["foreignKey", { other: "1" }],
+] as const;
+
 export function* absentGroups(): Generator<{ key: string; fixture: Fixture; cases: Case[] }> {
   for (const oas of OAS_VERSIONS) {
     for (const fixture of fixtures()) {
       for (const location of ["query", "header", "cookie"] as const) {
-        const cases = shapesFor(fixture.kind)
-          .filter((s) => s.location === location)
-          .map((shape) => ({
-            oas,
-            fixture,
-            shape,
-            document: documentFor(oas, shape, fixture),
-            request: { method: "GET", path: FLAT_PATH },
-          }));
-        if (cases.length > 1)
-          yield { key: `${oas}|${fixture.id}|${location}|absent`, fixture, cases };
+        for (const [absenceId, container] of ABSENCES) {
+          const field =
+            location === "query" ? "query" : location === "header" ? "headers" : "cookies";
+          const cases = shapesFor(fixture.kind)
+            .filter((s) => s.location === location)
+            .map((shape) => ({
+              oas,
+              fixture,
+              shape,
+              document: documentFor(oas, shape, fixture),
+              request: {
+                method: "GET",
+                path: FLAT_PATH,
+                ...(container === undefined ? {} : { [field]: { ...container } }),
+              } as Case["request"],
+            }));
+          if (cases.length > 1) {
+            yield { key: `${oas}|${fixture.id}|${location}|absent:${absenceId}`, fixture, cases };
+          }
+        }
       }
     }
   }
