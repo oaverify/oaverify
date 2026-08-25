@@ -68,13 +68,25 @@ oaverify is built to be the boring, correct option for modern specs.
   ([numbers and methodology](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md#performance)).
   Cheap construction is what makes per-test, per-tenant, and
   overlay-patched validators practical.
-- **No side effects, no dependencies.** The core carries zero runtime
-  dependencies, failures are return values, and framework request and
-  response objects are never mutated.
+- **Zero dependencies, and nothing written back into your values.**
+  The core carries zero runtime dependencies and failures are return
+  values. Coercion happens on the way into validation, never back into
+  your objects: `req.body`, `req.query` and `req.params` still hold
+  what your parser produced, so unmounting the middleware cannot change
+  what a handler sees. The adapters keep their own per-request
+  bookkeeping on the framework's objects, and on Express, mounting
+  response validation replaces `res.send`, since checking a response
+  means observing the write path
+  ([`validateResponses`](https://github.com/oaverify/oaverify/blob/main/packages/oav-express5/README.md#validateresponsesvalidator-options)).
 - **Overlays patch specs you don't own, in memory.** Typed,
-  OpenAPI-aware verbs or standard Overlay 1.0 documents (32/32
-  upstream), applied just before construction — versus hand-editing
-  parsed JSON or a build-time CLI
+  OpenAPI-aware verbs, or standard Overlay 1.0 documents: 32/32 on the
+  upstream suite, which validates the overlay envelope against the
+  canonical schema. Translating an overlay to our typed verbs is a
+  closed-form recogniser and covers less than that; the report scores
+  both
+  ([conformance report](https://github.com/oaverify/oaverify/blob/main/conformance/REPORT.md#openapi-overlay-10)).
+  Applied just before construction, in place of hand-editing parsed
+  JSON or a build-time CLI
   ([docs/overlays.md](https://github.com/oaverify/oaverify/blob/main/docs/overlays.md)).
 - **Two capabilities with no counterpart we know of:** streaming
   validation with pre-deploy peak-buffer budgets
