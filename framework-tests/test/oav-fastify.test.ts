@@ -15,9 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  * `fastify.inject()` (Fastify-native synthetic-request API) instead
  * of `app.listen(0)` + native fetch; `inject` is so idiomatic in
  * Fastify-land that bending the cross-adapter native-fetch
- * convention here earns its keep. Same `it()` names as the Express
- * adapters' integration suites; the implementations differ only
- * where Fastify diverges from Express.
+ * convention here earns its keep.
  */
 
 function petSpec(): OpenAPIDocument {
