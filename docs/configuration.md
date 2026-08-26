@@ -71,8 +71,14 @@ send them as strings. If you would rather accept them, write
 
 The narrower widths (`int8`, `int16`, `int32`, `uint8`, `uint16`,
 `uint32`) are exact: every value in range survives a JSON round trip.
-`double-int` is exact too, and its range is the safe-integer range by
-definition rather than by concession.
+`double-int` is exact too, and asserts integrality alone. A JSON number
+is already a double when it arrives, so an integral one is exactly
+representable and there is nothing further to check. It therefore
+accepts more than `int64` asserts here: `9007199254740992` passes
+`double-int` and is rejected under `int64`. The other side of that is
+an integer literal too fine for a double, which arrives already rounded
+and passes `double-int` as its neighbour. It was not a `double-int`
+before rounding either, so nothing valid is being altered.
 
 ### What is not asserted
 
