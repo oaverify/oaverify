@@ -1,5 +1,30 @@
 # Changelog
 
+## [7.2.1](https://github.com/oaverify/oaverify/compare/core-v7.2.0...core-v7.2.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **formats:** admit combining marks to a U-label, and cap the mailbox domain on both paths ([#966](https://github.com/oaverify/oaverify/issues/966)) ([028152e](https://github.com/oaverify/oaverify/commit/028152e20681fab4d14961d81547478e4607a3a7))
+* **formats:** assert integrality for double-int, not the safe-integer range ([#970](https://github.com/oaverify/oaverify/issues/970)) ([abd59b6](https://github.com/oaverify/oaverify/commit/abd59b6eddd89d9f755cc46d8b90a8b14a8144ed)), closes [#961](https://github.com/oaverify/oaverify/issues/961)
+* **formats:** correct the mailbox domain and the unquoted idn local part ([#959](https://github.com/oaverify/oaverify/issues/959)) ([4f5e72a](https://github.com/oaverify/oaverify/commit/4f5e72a667585572022bad71c84f89d266f30e2a)), closes [#944](https://github.com/oaverify/oaverify/issues/944) [#901](https://github.com/oaverify/oaverify/issues/901) [#853](https://github.com/oaverify/oaverify/issues/853)
+* **formats:** decide a leap year by the century rule, not Date.UTC ([#969](https://github.com/oaverify/oaverify/issues/969)) ([5c21d43](https://github.com/oaverify/oaverify/commit/5c21d43bf7e0e1e438ab42d0445e52dd00fbca0e)), closes [#962](https://github.com/oaverify/oaverify/issues/962)
+* **schema:** cap the length a format assertion runs against ([#968](https://github.com/oaverify/oaverify/issues/968)) ([235e0dd](https://github.com/oaverify/oaverify/commit/235e0dd6e1582fd33f83528ddb6fb6e12fab36ce)), closes [#960](https://github.com/oaverify/oaverify/issues/960)
+
+
+### Performance
+
+* **harness:** measure ajv compile with a reused instance, and re-measure the published numbers ([#953](https://github.com/oaverify/oaverify/issues/953)) ([8c1088f](https://github.com/oaverify/oaverify/commit/8c1088f44a7d5f7c8cb9359ff613331d37a6f742)), closes [#935](https://github.com/oaverify/oaverify/issues/935)
+
+
+### Documentation
+
+* **comparison:** re-run the detection corpus, and gate the table against it ([#950](https://github.com/oaverify/oaverify/issues/950)) ([2fbd5ee](https://github.com/oaverify/oaverify/commit/2fbd5ee9d749f19d193a6166a1cf266fc67cd3f6))
+* **conformance:** gate REPORT.md against the baselines, and drop the stamp ([#951](https://github.com/oaverify/oaverify/issues/951)) ([b7d61db](https://github.com/oaverify/oaverify/commit/b7d61db0e048fa79d1b5f84ed6a124eceaaa3ffb)), closes [#937](https://github.com/oaverify/oaverify/issues/937)
+* **formats:** cite the spec each format implements, and gate it ([#967](https://github.com/oaverify/oaverify/issues/967)) ([a4d753a](https://github.com/oaverify/oaverify/commit/a4d753a1e651fbd890821c0ca4612ead8c3a78c4))
+* **migration-from-eov:** correct the empty-POST row, and add strictQueryParameters ([#949](https://github.com/oaverify/oaverify/issues/949)) ([da6bae4](https://github.com/oaverify/oaverify/commit/da6bae40fbfe827f9c02de8de8e00865a6616742)), closes [#939](https://github.com/oaverify/oaverify/issues/939)
+* **readme:** correct the response-mutation and Overlay claims ([#948](https://github.com/oaverify/oaverify/issues/948)) ([a782a56](https://github.com/oaverify/oaverify/commit/a782a561f2a3f21ace3f9dae686f6584d5cab89b)), closes [#938](https://github.com/oaverify/oaverify/issues/938)
+
 ## [7.2.0](https://github.com/oaverify/oaverify/compare/core-v7.1.0...core-v7.2.0) (2026-08-20)
 
 ### Upgrading

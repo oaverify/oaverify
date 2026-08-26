@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.2.1](https://github.com/oaverify/oaverify/compare/express4-v7.2.0...express4-v7.2.1) (2026-08-26)
+
+
+### Chore
+
+* **express4:** Synchronize oaverify versions
+
 ## [7.2.0](https://github.com/oaverify/oaverify/compare/express4-v7.1.0...express4-v7.2.0) (2026-08-20)
 
 ### Upgrading
