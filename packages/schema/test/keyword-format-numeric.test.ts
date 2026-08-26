@@ -179,12 +179,20 @@ describe("unknownFormats sees one registry", () => {
 });
 
 describe("generated source", () => {
-  const sourceOf = (schema: Record<string, unknown>, formats: Record<string, unknown>): string =>
-    compileSchema(schema as SchemaOrBoolean, {
-      dialect: oas30Dialect,
-      formats: formats as never,
-      retainSource: true,
-    }).source;
+  const sourceOf = (
+    schema: Record<string, unknown>,
+    formats: Record<string, unknown>,
+    options: Record<string, unknown> = {},
+  ): string =>
+    compileSchema(
+      schema as SchemaOrBoolean,
+      {
+        dialect: oas30Dialect,
+        formats: formats as never,
+        retainSource: true,
+        ...options,
+      } as never,
+    ).source;
 
   it("emits a string guard for a string format", () => {
     const src = sourceOf({ format: "date-time" }, builtInFormats);
@@ -214,13 +222,29 @@ describe("generated source", () => {
     expect(src).toContain(`deps.formats.get("twiml")?.validate`);
   });
 
-  it("costs a string format the same guard it always did, plus `?.validate`", () => {
-    // The whole delta for a schema naming only string formats: one
-    // property access in the module prelude, hoisted, evaluated once
-    // when the factory binds deps. The per-call guard is unchanged.
+  it("costs a string format one typeof, one length compare, and `?.validate`", () => {
+    // The registry lookup is one property access in the module prelude,
+    // hoisted, evaluated once when the factory binds deps.
+    //
+    // The length compare is `maxFormatLength` (#960), and it is on the
+    // per-call path because that is the only place it can be: the value
+    // it bounds is the argument. It is a comparison against a literal on
+    // a string whose length is already known, which is why paying it per
+    // call is acceptable and why the cap is a constant rather than a
+    // `deps` read.
     const src = sourceOf({ format: "date-time" }, builtInFormats);
     expect(src).toContain(`deps.formats.get("date-time")?.validate`);
+    expect(src).toMatch(
+      /typeof data === "string" && data\.length <= \d+ && \w+ !== undefined && !\w+\(data\)/,
+    );
+  });
+
+  it("emits the pre-#960 guard exactly when the cap is uncapped", () => {
+    const src = sourceOf({ format: "date-time" }, builtInFormats, {
+      maxFormatLength: Number.POSITIVE_INFINITY,
+    });
     expect(src).toMatch(/typeof data === "string" && \w+ !== undefined && !\w+\(data\)/);
+    expect(src).not.toContain(".length <=");
   });
 });
 

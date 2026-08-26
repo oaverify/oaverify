@@ -114,9 +114,11 @@ export const formatKeyword: KeywordDefinition = {
  * is one registered as `false`.
  *
  * Which guard is emitted comes from the format's declared type at
- * compile time, so a site costs exactly one `typeof` test either way
- * and a schema naming only string formats compiles to the same guard it
- * always did.
+ * compile time, so a site costs one `typeof` test either way. A string
+ * format also carries a comparison against
+ * {@link CompileOptions.maxFormatLength}, and a numeric one does not,
+ * because a number has no length. Setting that cap to `Infinity` emits
+ * the guard this keyword produced before #960, byte for byte.
  *
  * @public
  */
@@ -144,8 +146,24 @@ export const formatAssertionKeyword: KeywordDefinition = {
     // Reaching `.validate` here rather than per call is why the tagged
     // registry costs nothing on the hot path.
     const fnVar = ctx.hoistConstant(`${NAMES.DEPS}.formats.get(${formatLit})?.validate`, "fmt");
+    // Above `maxFormatLength` a string format is not asserted, and the
+    // value is accepted. Several format grammars are `(?:X{4})*` over an
+    // unbounded matching run, which pushes a frame onto V8's regex
+    // backtrack stack per iteration and throws `RangeError` out of
+    // `validate()` on a long enough *valid* value (#960). Skipping is the
+    // permissive answer and the specified one: `format` is annotation-only
+    // by default in 2020-12, so a value too large to check safely falls
+    // back to exactly that rather than being called invalid on no evidence.
+    //
+    // Numeric formats have no length, so they never carry the guard, and an
+    // `Infinity` cap emits nothing at all: codegen stays byte-identical to
+    // the uncapped path.
+    const lengthGuard =
+      jsType === "string" && Number.isFinite(ctx.maxFormatLength)
+        ? ` && ${ctx.data}.length <= ${ctx.maxFormatLength}`
+        : "";
     ctx.gen.if(
-      `typeof ${ctx.data} === "${jsType}" && ${fnVar} !== undefined && !${fnVar}(${ctx.data})`,
+      `typeof ${ctx.data} === "${jsType}"${lengthGuard} && ${fnVar} !== undefined && !${fnVar}(${ctx.data})`,
       () => {
         ctx.emitError(
           "leaf",

@@ -591,3 +591,42 @@ try {
   throw err;
 }
 ```
+
+## Guarding against very long values under a `format`
+
+Several format grammars are written as a repeated group over an
+unbounded run: base64 is `(?:[A-Za-z0-9+/]{4})*`, and the URI family is
+built the same way. Each iteration of a greedy group pushes a frame onto
+V8's regex backtrack stack, which is a fixed 64 MB region separate from
+the JavaScript call stack. So a long enough value that **matches** would
+exhaust it and throw `RangeError` out of `validate()` rather than
+returning a verdict, and under an HTTP adapter that reaches the client as
+a 500.
+
+`maxFormatLength` bounds it, defaulting to 1 MiB of UTF-16 units:
+
+```ts
+createValidator(spec, { maxFormatLength: 4 * 1024 * 1024 });
+compileSchema(schema, { dialect, formats, maxFormatLength: Infinity });
+```
+
+**Above the cap a string format is not asserted, and the value is
+accepted.** It does not become an error. A value too large to check
+safely is not thereby known to be invalid, and `format` is annotation-only
+by default in JSON Schema 2020-12, so this is a fallback to the specified
+default rather than a new behaviour. Rejecting instead would refuse
+legitimate traffic on `byte`, the one format that exists to carry
+multi-megabyte base64.
+
+The cost is that a malformed value longer than the cap is accepted where
+it used to be rejected. That is a false accept, which this project treats
+as less serious than a false reject (see
+[strictness.md](./strictness.md)), and raising the cap is one option away.
+
+Two things worth knowing:
+
+- **`maxLength` is not a substitute.** Both keywords run, so `format` is
+  reached even when the length assertion has already failed.
+- **Numeric formats are unaffected**, having no length, and setting the
+  cap to `Infinity` emits the guard byte-for-byte as it was before the
+  option existed.
