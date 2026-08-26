@@ -132,6 +132,7 @@ function scanParameter(value: string, index: number): number {
  * parameter value containing a code point above `U+00FF` is rejected,
  * because no single octet spells it.
  *
+ * @see RFC 9110 section 12.5.1, https://datatracker.ietf.org/doc/html/rfc9110#section-12.5.1
  * @public
  */
 export function validateMediaRange(value: string): boolean {

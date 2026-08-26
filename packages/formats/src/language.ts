@@ -118,6 +118,7 @@ function isExtensionBody(subtag: string | undefined): boolean {
  * are accepted from a table, since they predate the grammar. The nine
  * regular ones parse as ordinary tags and need no table.
  *
+ * @see RFC 5646 (BCP 47) section 2.1, https://datatracker.ietf.org/doc/html/rfc5646#section-2.1
  * @public
  */
 export function validateLanguage(value: string): boolean {

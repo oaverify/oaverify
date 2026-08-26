@@ -11,6 +11,7 @@ const PREFIX_LEN_RE = /^(?:0|[1-9]\d{0,2})$/;
 /**
  * RFC 2673 `ipv4` (e.g. `"192.168.1.1"`).
  *
+ * @see RFC 2673 section 3.2, https://datatracker.ietf.org/doc/html/rfc2673#section-3.2
  * @public
  */
 export function validateIpv4(value: string): boolean {
@@ -28,6 +29,7 @@ export function validateIpv4(value: string): boolean {
  * RFC 4291 `ipv6` (e.g. `"2001:db8::1"`). Supports compressed forms and
  * embedded IPv4 (e.g. `"::ffff:192.0.2.1"`).
  *
+ * @see RFC 4291 section 2.2, https://datatracker.ietf.org/doc/html/rfc4291#section-2.2
  * @public
  */
 export function validateIpv6(value: string): boolean {
@@ -88,6 +90,7 @@ function cidrAddress(value: string, maxPrefix: number): string | undefined {
  * is used for a host-within-a-block ("this interface's address, and
  * the size of its subnet") as often as for the block itself.
  *
+ * @see RFC 4632 section 3.1, https://datatracker.ietf.org/doc/html/rfc4632#section-3.1
  * @public
  */
 export function validateIpv4Cidr(value: string): boolean {
@@ -104,6 +107,7 @@ export function validateIpv4Cidr(value: string): boolean {
  * {@link validateIpv4Cidr} gives; RFC 4291 §2.3 spells out the
  * node-address-plus-prefix-length form explicitly.
  *
+ * @see RFC 4291 section 2.3, https://datatracker.ietf.org/doc/html/rfc4291#section-2.3
  * @public
  */
 export function validateIpv6Cidr(value: string): boolean {

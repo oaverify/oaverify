@@ -55,6 +55,7 @@ const BASE64URL_RE = /^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-]{2}(?:==)?|[A-Za-z0-
  * produces, so the leniency is deliberate, and it is what Ajv and the
  * rest of the ecosystem do.
  *
+ * @see RFC 4648 section 4, https://datatracker.ietf.org/doc/html/rfc4648#section-4
  * @public
  */
 export function validateByte(value: string): boolean {
@@ -81,6 +82,7 @@ export function validateByte(value: string): boolean {
  * createValidator(doc, { formats: { byte: validateByteRfc4648 } });
  * ```
  *
+ * @see RFC 4648 section 4, https://datatracker.ietf.org/doc/html/rfc4648#section-4
  * @public
  */
 export function validateByteRfc4648(value: string): boolean {
@@ -97,6 +99,7 @@ export function validateByteRfc4648(value: string): boolean {
  * correct input. A value mixing the two alphabets fails, which is the
  * mistake this format is most useful for catching.
  *
+ * @see RFC 4648 section 5, https://datatracker.ietf.org/doc/html/rfc4648#section-5
  * @public
  */
 export function validateBase64Url(value: string): boolean {

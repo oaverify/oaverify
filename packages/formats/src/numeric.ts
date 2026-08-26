@@ -24,14 +24,34 @@
  */
 
 /**
+ * An integer inside a fixed inclusive range.
+ *
+ * The six exact widths differ only in their two bounds, so they say so by
+ * passing them rather than by each restating the rule. Six copies of
+ * `Number.isInteger(value) && value >= LO && value <= HI` is six places for
+ * one bound to be typed wrong, and a wrong bound looks exactly like a right
+ * one.
+ *
+ * The bounds stay written out at each call site rather than being derived
+ * from the width, because `2 ** 63` is not exact and a derivation that is
+ * right for four widths and wrong for two is worse than a literal.
+ * `packages/formats/test/formats.test.ts` derives them and asserts the match
+ * for the widths where the derivation is exact.
+ */
+function inRange(value: number, min: number, max: number): boolean {
+  return Number.isInteger(value) && value >= min && value <= max;
+}
+
+/**
  * OpenAPI `int8`: a signed 8-bit integer.
  *
  * Exact; see the module note on the exact widths.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateInt8(value: number): boolean {
-  return Number.isInteger(value) && value >= -128 && value <= 127;
+  return inRange(value, -128, 127);
 }
 
 /**
@@ -39,10 +59,11 @@ export function validateInt8(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateInt16(value: number): boolean {
-  return Number.isInteger(value) && value >= -32768 && value <= 32767;
+  return inRange(value, -32768, 32767);
 }
 
 /**
@@ -57,10 +78,11 @@ export function validateInt16(value: number): boolean {
  * not this function's business; the compiler applies it to numbers
  * only, the way a string format applies to strings only.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateInt32(value: number): boolean {
-  return Number.isInteger(value) && value >= -2147483648 && value <= 2147483647;
+  return inRange(value, -2147483648, 2147483647);
 }
 
 /**
@@ -68,10 +90,11 @@ export function validateInt32(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUint8(value: number): boolean {
-  return Number.isInteger(value) && value >= 0 && value <= 255;
+  return inRange(value, 0, 255);
 }
 
 /**
@@ -79,10 +102,11 @@ export function validateUint8(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUint16(value: number): boolean {
-  return Number.isInteger(value) && value >= 0 && value <= 65535;
+  return inRange(value, 0, 65535);
 }
 
 /**
@@ -90,10 +114,11 @@ export function validateUint16(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUint32(value: number): boolean {
-  return Number.isInteger(value) && value >= 0 && value <= 4294967295;
+  return inRange(value, 0, 4294967295);
 }
 
 /**
@@ -114,6 +139,7 @@ export function validateUint32(value: number): boolean {
  * strings, which is what the range exists to surface. Callers who
  * disagree register `int64: false` and keep the name as an annotation.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateInt64(value: number): boolean {
@@ -130,6 +156,7 @@ export function validateInt64(value: number): boolean {
  * on the wire. The floor is 0, which is the whole difference from
  * `int64`.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUint64(value: number): boolean {
@@ -146,6 +173,7 @@ export function validateUint64(value: number): boolean {
  * {@link validateInt64}'s implementation and means something different
  * by it.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateDoubleInt(value: number): boolean {
@@ -175,6 +203,7 @@ export function validateDoubleInt(value: number): boolean {
  * The string spelling exists for producers escaping the 2^53 ceiling,
  * which is exactly the range this cannot vouch for either way.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUnixtime(value: number): boolean {
