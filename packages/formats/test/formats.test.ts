@@ -9,6 +9,7 @@ import {
   validateDuration,
   validateEmail,
   validateHostname,
+  validateIdnHostname,
   validateHttpDate,
   validateIdnEmail,
   validateBase64Url,
@@ -278,6 +279,113 @@ describe("email (RFC 5321 Mailbox grammar)", () => {
     // 21 (63 octets) fit.
     expect(validateIdnEmail(`${"用".repeat(21)}@example.com`)).toBe(true);
     expect(validateIdnEmail(`${"用".repeat(22)}@example.com`)).toBe(false);
+  });
+});
+
+describe("hostname: labels, marks, and where the length cap is measured", () => {
+  // Real IANA-delegated IDN ccTLDs whose scripts write with combining
+  // marks. Every label under these was refused before, because the label
+  // class admitted letters and digits and not marks. RFC 5892 derives
+  // marks as PVALID and RFC 5891 section 4.2.3.2 constrains them in one
+  // position only, the first.
+  const MARK_CARRYING_TLDS = ["भारत", "বাংলা", "ලංකා", "భారత్", "ਭਾਰਤ", "ഭാരതം", "இந்தியா", "ไทย"];
+
+  it("accepts a label carrying a combining mark", () => {
+    for (const tld of MARK_CARRYING_TLDS) {
+      expect(validateIdnHostname(tld), tld).toBe(true);
+      expect(validateIdnHostname(`www.${tld}`), tld).toBe(true);
+    }
+    expect(validateIdnEmail("user@हिन्दी.भारत")).toBe(true);
+  });
+
+  it("still refuses a label that begins with a combining mark", () => {
+    // The one position RFC 5891 constrains. Admitting marks everywhere
+    // would have been the easy over-correction.
+    expect(validateIdnHostname("\u093Eअ")).toBe(false);
+    expect(validateIdnHostname("\u0301abc")).toBe(false);
+    // A mark anywhere else, including last, is ordinary.
+    expect(validateIdnHostname("अ\u093E")).toBe(true);
+  });
+
+  it("keeps the hyphen rules while admitting marks", () => {
+    expect(validateIdnHostname("-a")).toBe(false);
+    expect(validateIdnHostname("a-")).toBe(false);
+    expect(validateIdnHostname("a-b")).toBe(true);
+  });
+
+  it("measures the 253-character cap without the root dot", () => {
+    // The dot is a separator, not part of the name, so writing the root
+    // label out cannot change the verdict. Measuring before stripping it
+    // made these two disagree.
+    const name253 = ["a".repeat(63), "b".repeat(63), "c".repeat(63), "d".repeat(61)].join(".");
+    expect(name253).toHaveLength(253);
+    expect(validateHostname(name253)).toBe(true);
+    expect(validateHostname(`${name253}.`)).toBe(true);
+    const name254 = ["a".repeat(63), "b".repeat(63), "c".repeat(63), "d".repeat(62)].join(".");
+    expect(validateHostname(name254)).toBe(false);
+    expect(validateHostname(`${name254}.`)).toBe(false);
+  });
+});
+
+describe("email / idn-email: the pair rule", () => {
+  // AGENTS.md: names that pair let a reader predict one from the other.
+  // `idn-email` widens the ALPHABET of `email`. It must not widen the
+  // length bound, and it must not narrow anything.
+  //
+  // Two defects have now come from the mailbox inheriting an allowance
+  // that belongs to a hostname grammar and not to RFC 5321 `Domain`: the
+  // root dot (#944) and the total length cap. Both entry points delegate
+  // to a different hostname validator, so a rule fixed on one path is
+  // silently absent from the other. These are the class, not the two
+  // instances.
+  const LOCALS = ["a", "user", "first.last", '"quoted local"', "a!#$%&'*+/=?^_`{|}~-b"];
+  const DOMAINS = [
+    "example.com",
+    "a.b.c.example.com",
+    "xn--fiqs8s",
+    "[127.0.0.1]",
+    "[IPv6:::1]",
+    "[ipv6:::1]",
+    "example.com.",
+    ["a".repeat(63), "b".repeat(63), "c".repeat(63), "d".repeat(61)].join("."),
+    ["a".repeat(63), "b".repeat(63), "c".repeat(63), "d".repeat(62)].join("."),
+  ];
+
+  it("agrees with email on every ASCII mailbox, in both directions", () => {
+    // Equality rather than superset: on input with no non-ASCII
+    // character there is nothing for the widened alphabet to admit, so
+    // any disagreement is a rule living on one path and not the other.
+    let checked = 0;
+    for (const local of LOCALS) {
+      for (const domain of DOMAINS) {
+        const address = `${local}@${domain}`;
+        checked += 1;
+        expect(validateIdnEmail(address), address).toBe(validateEmail(address));
+      }
+    }
+    // Pinned, not bounded: a generator that loses an axis fails here
+    // rather than shrinking quietly (#753).
+    expect(checked).toBe(45);
+  });
+
+  it("caps the domain on both paths, at the same length", () => {
+    const at253 = ["a".repeat(63), "b".repeat(63), "c".repeat(63), "d".repeat(61)].join(".");
+    const at254 = ["a".repeat(63), "b".repeat(63), "c".repeat(63), "d".repeat(62)].join(".");
+    expect(validateEmail(`u@${at253}`)).toBe(true);
+    expect(validateIdnEmail(`u@${at253}`)).toBe(true);
+    expect(validateEmail(`u@${at254}`)).toBe(false);
+    expect(validateIdnEmail(`u@${at254}`)).toBe(false);
+    // `idn-hostname` itself still has no cap, deliberately: its limit is
+    // on the encoded form it does not compute (#669). The cap is the
+    // mailbox's, which is why it lives in the mailbox path.
+    expect(validateIdnHostname(at254)).toBe(true);
+  });
+
+  it("refuses a root dot on both paths, where the hostname pair accepts it", () => {
+    expect(validateHostname("iana.org.")).toBe(true);
+    expect(validateIdnHostname("iana.org.")).toBe(true);
+    expect(validateEmail("a@iana.org.")).toBe(false);
+    expect(validateIdnEmail("a@iana.org.")).toBe(false);
   });
 });
 

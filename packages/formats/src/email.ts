@@ -114,18 +114,36 @@ function validateAddressLiteral(domain: string): boolean {
 }
 
 /**
+ * RFC 5321 section 4.5.3.1.2 caps a domain at 255 octets, and RFC 1035
+ * section 2.3.4 states the same limit as 253 presentation characters,
+ * the octets counting the length bytes a presentation string does not
+ * write. 253 is the one used here, because it is the number
+ * {@link validateHostname} already enforces, and the pair agreeing on an
+ * ASCII domain matters more than which of two spellings of one limit is
+ * quoted.
+ */
+const MAX_DOMAIN_LENGTH = 253;
+
+/**
  * RFC 5321 `Domain`: an address literal, or a hostname.
  *
- * The trailing-dot check belongs here rather than in the hostname
- * validators, which are right to accept `iana.org.`: RFC 1123 allows the
- * root label written out, and that is the grammar `hostname` is judged
- * by. RFC 5321's `Domain` production has no such form, so a mailbox that
- * delegates without saying so inherits an allowance that is not its own
- * (#944).
+ * Both checks here are rules the hostname validators are right not to
+ * apply and a mailbox is wrong to inherit. `validateHostname` accepts
+ * `iana.org.` because RFC 1123 allows the root label written out, and
+ * `validateIdnHostname` applies no total length cap because the RFC's
+ * cap is on the encoded form it does not compute. RFC 5321's `Domain`
+ * production allows neither, so delegating without saying so took both
+ * allowances (#944 for the dot, and its sibling for the length).
+ *
+ * Applying the cap to both alphabets is what stops the pair disagreeing:
+ * before this, one pure-ASCII 254-character domain was refused by
+ * `email` and accepted by `idn-email`, for no reason a caller could
+ * predict from the names.
  */
 function validateMailboxDomain(domain: string, hostname: (value: string) => boolean): boolean {
   if (domain.startsWith("[")) return validateAddressLiteral(domain);
   if (domain.endsWith(".")) return false;
+  if (domain.length > MAX_DOMAIN_LENGTH) return false;
   return hostname(domain);
 }
 
