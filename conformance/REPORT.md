@@ -14,9 +14,14 @@ are where the last two drifts happened:
   against both places below that enumerate its non-passing cases, so
   moving any one of the three alone fails.
 - **Not gated**: the OpenAPI petstore row, for the same gitignored-runner
-  reason and with nothing here stating it twice, and figures derived in
-  prose (the 162 extra optional cases, the 425 that expect a rejection,
-  "58 of the 61 failures").
+  reason and with nothing here stating it twice, and every figure derived
+  in prose rather than read from a baseline: the extra optional cases,
+  the cases expecting a rejection, and the concentration of the format
+  failures. This list names the kinds and not the numbers on purpose. It
+  quoted one, "58 of the 61 failures", and that string went stale in the
+  very next commit while the prose it pointed at was updated, which is
+  the drift the gate exists to stop happening in the sentence describing
+  the gate.
 
 Run against three upstream / hand-curated test corpora:
 
@@ -106,29 +111,47 @@ The per-format subtree (`optional/format/*.json`) has its own runner,
 `pnpm format-suite`, because `suite:optional` cannot measure it. The
 subtree is 822 cases across 21 formats, of which 425 expect a rejection.
 By spec default and ours, `format` is annotation-only, so those 425
-vacuously fail for every implementation that follows the default: a
-Bowtie run across ajv, hyperjump, boon, go-jsonschema and
-python-jsonschema returned the same failures for all of them, with zero
-divergence between any two. That run was made at the 2026-08-05 pin,
-when the subtree was 720 cases, and has not been repeated since. Its
-shape carries over; its count does not. No published comparative format number exists for
-anyone, which is why this one is measured locally.
+vacuously fail for any implementation that follows the default. That is
+an identity rather than a measurement: an annotation-only implementation
+accepts every string, so it passes exactly the `valid: true` cases and
+fails exactly the `valid: false` ones, whatever it is. A Bowtie run
+across five implementations was cited here as agreeing, and it could not
+have done anything else. Such a run says nothing about the assertive
+score three lines below, because it cannot tell a complete format
+implementation apart from one carrying no formats whatever. The citation
+is gone rather than re-dated: a stale identity is still an identity. No published comparative format number exists for anyone,
+which is why this one is measured locally.
 
 `format-suite` compiles with the OpenAPI 3.1 dialect, which promotes
-`format` to an assertion, and scores **763/822**. It
+`format` to an assertion, and scores **762/822**. It
 reports the two directions separately, because they carry different
-consequences: 39 **false accepts** (we allowed a value the format
-forbids, a missed catch) and 20 **false rejects** (we refused a value
+consequences: 41 **false accepts** (we allowed a value the format
+forbids, a missed catch) and 19 **false rejects** (we refused a value
 the format allows, which under the OpenAPI dialects refuses live
 traffic).
 
 The gap is concentrated rather than spread. `hostname` and
-`idn-hostname` are 58 of the 59 failures and are almost entirely
-IDNA / UTS-46 rules, deliberately punted (#669). The remaining one is
-`idn-email` rejecting a domain label that is not in Unicode NFC. The two
-`email` failures the previous pin introduced are fixed: it no longer
-accepts a domain ending in a dot, and it reads a lowercase `ipv6:` tag
-as the address-literal tag it is (#944).
+`idn-hostname` are all 60 of the failures, and are almost entirely
+IDNA / UTS-46 rules, deliberately punted (#669). `email` and
+`idn-email` are clean.
+
+**This total went down by one, and that was a deliberate trade.**
+Admitting combining marks to a U-label fixed the `idn-email` NFC case
+and cost two `idn-hostname` false accepts, on code points RFC 5892
+Appendix B lists as DISALLOWED exceptions (U+302E, and the U+3031-3035 /
+U+303B set). The old label class refused those two cases for the wrong
+reason, by banning every combining mark, and so got the right answer by
+accident.
+
+The corpus cannot see what the trade bought. Combining marks are how
+Indic, Thai, pointed-Hebrew, vocalized-Arabic and NFD-Latin names are
+written, so refusing them refused every label under ten delegated IDN
+ccTLDs, `.भारत` and `.বাংলা` among them. One Latin case covered that
+whole class here, which is why it read as an NFC nit. Under the
+project's own ordering, where a false reject refuses live traffic and a
+false accept is a missed catch, two synthetic false accepts for ten
+ccTLDs is the trade to take. The remaining exceptions need the code-point
+table #669 tracks and should not be hand-rolled piecemeal.
 
 `format-results.json` is the committed baseline, gated per format so a
 fix in one cannot pay for a regression in another.

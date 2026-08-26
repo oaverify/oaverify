@@ -25,9 +25,10 @@
 //   required baseline and disagreeing with either statement fails.
 //
 //   Not gated: the petstore row, whose runner also writes a gitignored
-//   file and which has no second statement to check against, and the
-//   derived figures in the prose (162 extra cases, 425 expecting a
-//   rejection, "58 of the 61 failures").
+//   file and which has no second statement to check against, and every
+//   figure derived in prose rather than read from a baseline. Naming the
+//   kinds and not the numbers is deliberate: this comment quoted one and
+//   it went stale in the next commit.
 //
 // A review of the first draft built three inputs that passed when they
 // should have failed, all worth knowing before editing:

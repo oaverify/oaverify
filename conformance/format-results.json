@@ -201,27 +201,26 @@
   {
     "format": "idn-email",
     "cases": 18,
-    "pass": 17,
+    "pass": 18,
     "falseAccept": 0,
-    "falseReject": 1,
+    "falseReject": 0,
     "error": 0,
-    "mismatches": [
-      {
-        "group": "validation of an internationalized e-mail addresses",
-        "test": "a domain label that is not in Unicode NFC is valid",
-        "data": "user@café.com",
-        "direction": "false-reject"
-      }
-    ]
+    "mismatches": []
   },
   {
     "format": "idn-hostname",
     "cases": 95,
-    "pass": 61,
-    "falseAccept": 15,
+    "pass": 59,
+    "falseAccept": 17,
     "falseReject": 19,
     "error": 0,
     "mismatches": [
+      {
+        "group": "validation of internationalized host names",
+        "test": "contains illegal char U+302E Hangul single dot tone mark",
+        "data": "실〮례.테스트",
+        "direction": "false-accept"
+      },
       {
         "group": "validation of internationalized host names",
         "test": "invalid Punycode",
@@ -250,6 +249,12 @@
         "group": "validation of internationalized host names",
         "test": "Exceptions that are DISALLOWED, right-to-left chars",
         "data": "ـߺ",
+        "direction": "false-accept"
+      },
+      {
+        "group": "validation of internationalized host names",
+        "test": "Exceptions that are DISALLOWED, left-to-right chars",
+        "data": "〱〲〳〴〵〮〯〻",
         "direction": "false-accept"
       },
       {
