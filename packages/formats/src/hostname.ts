@@ -39,6 +39,7 @@ function labelsOf(value: string): string[] {
  * made `<253 chars>.` and `<253 chars>` different verdicts for the same
  * name.
  *
+ * @see RFC 1123 section 2.1, https://datatracker.ietf.org/doc/html/rfc1123#section-2
  * @public
  */
 export function validateHostname(value: string): boolean {
@@ -60,6 +61,7 @@ export function validateHostname(value: string): boolean {
  * `validateMailboxDomain`, which applies it to both alphabets so the
  * pair cannot disagree on an ASCII domain.
  *
+ * @see RFC 5890 section 2.3.2.3, https://datatracker.ietf.org/doc/html/rfc5890#section-2.3.2.3
  * @public
  */
 export function validateIdnHostname(value: string): boolean {

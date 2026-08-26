@@ -62,6 +62,7 @@ export function isValidMonthDay(year: number, month: number, day: number): boole
 /**
  * RFC 3339 `full-date` (e.g. `"2024-01-31"`).
  *
+ * @see RFC 3339 section 5.6, https://datatracker.ietf.org/doc/html/rfc3339#section-5.6
  * @public
  */
 export function validateDate(value: string): boolean {
@@ -117,6 +118,7 @@ function isLeapSecondPosition(second: number, utcMinute: number): boolean {
 /**
  * RFC 3339 `full-time` (e.g. `"12:34:56Z"` or `"12:34:56+02:00"`).
  *
+ * @see RFC 3339 section 5.6, https://datatracker.ietf.org/doc/html/rfc3339#section-5.6
  * @public
  */
 export function validateTime(value: string): boolean {
@@ -134,6 +136,7 @@ export function validateTime(value: string): boolean {
 /**
  * RFC 3339 `date-time` (e.g. `"2024-01-31T12:34:56Z"`).
  *
+ * @see RFC 3339 section 5.6, https://datatracker.ietf.org/doc/html/rfc3339#section-5.6
  * @public
  */
 export function validateDateTime(value: string): boolean {
@@ -176,6 +179,7 @@ function isLocalTimeOfDay(hour: number, minute: number, second: number): boolean
  * does: `:60` seconds pass at any minute, because with no offset
  * there is no instant to check a leap second against.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateTimeLocal(value: string): boolean {
@@ -197,6 +201,7 @@ export function validateTimeLocal(value: string): boolean {
  * leap-second rule: `:60` seconds pass at any minute, because with no
  * offset there is no instant to check a leap second against.
  *
+ * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateDateTimeLocal(value: string): boolean {
@@ -222,6 +227,7 @@ export function validateDateTimeLocal(value: string): boolean {
  * stand alone, and no component may carry a fraction (`PT0.5S` is ISO
  * 8601 but not RFC 3339).
  *
+ * @see RFC 3339 appendix A, https://datatracker.ietf.org/doc/html/rfc3339#appendix-A
  * @public
  */
 export function validateDuration(value: string): boolean {

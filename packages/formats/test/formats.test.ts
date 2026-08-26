@@ -739,6 +739,59 @@ describe("the exact integer widths", () => {
   });
 });
 
+describe("the exact widths: bounds, and the containment between them", () => {
+  // The six exact widths delegate to one `inRange`, so the rule is in one
+  // place. The bounds are still six pairs of hand-typed literals, and a
+  // wrong bound looks exactly like a right one. These derive them.
+  const SIGNED: Array<[number, (v: number) => boolean]> = [
+    [8, validateInt8],
+    [16, validateInt16],
+    [32, validateInt32],
+  ];
+  const UNSIGNED: Array<[number, (v: number) => boolean]> = [
+    [8, validateUint8],
+    [16, validateUint16],
+    [32, validateUint32],
+  ];
+
+  it("puts each signed width's boundary exactly where the width says", () => {
+    for (const [bits, validate] of SIGNED) {
+      const min = -(2 ** (bits - 1));
+      const max = 2 ** (bits - 1) - 1;
+      expect(validate(min), `int${bits} min`).toBe(true);
+      expect(validate(max), `int${bits} max`).toBe(true);
+      expect(validate(min - 1), `int${bits} min-1`).toBe(false);
+      expect(validate(max + 1), `int${bits} max+1`).toBe(false);
+    }
+  });
+
+  it("puts each unsigned width's boundary exactly where the width says", () => {
+    for (const [bits, validate] of UNSIGNED) {
+      const max = 2 ** bits - 1;
+      expect(validate(0), `uint${bits} zero`).toBe(true);
+      expect(validate(max), `uint${bits} max`).toBe(true);
+      expect(validate(-1), `uint${bits} below zero`).toBe(false);
+      expect(validate(max + 1), `uint${bits} max+1`).toBe(false);
+    }
+  });
+
+  it("nests the widths, so a narrower value is always valid in a wider one", () => {
+    // 64 is deliberately absent: it is the safe-integer range rather than
+    // the width, which the module note explains, so it is not a member of
+    // this progression.
+    const probes = [0, 1, -1, 127, -128, 32767, -32768, 2147483647, -2147483648, 255, 65535];
+    for (const v of probes) {
+      if (validateInt8(v)) expect(validateInt16(v), `int8 ${v} in int16`).toBe(true);
+      if (validateInt16(v)) expect(validateInt32(v), `int16 ${v} in int32`).toBe(true);
+      if (validateUint8(v)) expect(validateUint16(v), `uint8 ${v} in uint16`).toBe(true);
+      if (validateUint16(v)) expect(validateUint32(v), `uint16 ${v} in uint32`).toBe(true);
+      // An unsigned value is a signed value of the next width up.
+      if (validateUint8(v)) expect(validateInt16(v), `uint8 ${v} in int16`).toBe(true);
+      if (validateUint16(v)) expect(validateInt32(v), `uint16 ${v} in int32`).toBe(true);
+    }
+  });
+});
+
 describe("uint64 / double-int", () => {
   it("bounds uint64 at the safe-integer ceiling, not 2^64", () => {
     // Same reasoning as int64: a JSON number above 2^53 is provably

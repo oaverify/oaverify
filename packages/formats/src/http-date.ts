@@ -79,6 +79,7 @@ function monthNumber(name: string): number {
  *   in a year that had no February 29th. A four-digit year gets the
  *   exact check, leap years included.
  *
+ * @see RFC 9110 section 5.6.7, https://datatracker.ietf.org/doc/html/rfc9110#section-5.6.7
  * @public
  */
 export function validateHttpDate(value: string): boolean {

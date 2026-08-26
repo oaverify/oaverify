@@ -162,6 +162,7 @@ function splitMailbox(value: string): { local: string; domain: string } | undefi
 /**
  * RFC 5321 `email`.
  *
+ * @see RFC 5321 section 4.1.2, https://datatracker.ietf.org/doc/html/rfc5321#section-4.1.2
  * @public
  */
 export function validateEmail(value: string): boolean {
@@ -177,6 +178,7 @@ export function validateEmail(value: string): boolean {
 /**
  * RFC 6531 internationalized `email`.
  *
+ * @see RFC 6531 section 3.3, https://datatracker.ietf.org/doc/html/rfc6531#section-3.3
  * @public
  */
 export function validateIdnEmail(value: string): boolean {
