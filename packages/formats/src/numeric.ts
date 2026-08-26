@@ -13,12 +13,11 @@
  * The registry's other numeric names (`decimal`, `decimal128`) are
  * assertable and not yet implemented; see #696.
  *
- * The widths split two ways. `int8` through `int32` and `uint8`
- * through `uint32` are exact: every value in range survives a JSON
- * round trip, so the validator says everything the format name claims.
- * `int64`, `uint64` and `double-int` are bounded by what a JSON number
- * can carry rather than by the width, and each says so in its own
- * TSDoc.
+ * The widths split two ways. `int8` through `int32`, `uint8` through
+ * `uint32` and `double-int` are exact: every value in range survives a
+ * JSON round trip, so the validator says everything the format name
+ * claims. `int64` and `uint64` are bounded by what a JSON number can
+ * carry rather than by the width, and each says so in its own TSDoc.
  *
  * @packageDocumentation
  */
@@ -167,17 +166,30 @@ export function validateUint64(value: number): boolean {
  * OpenAPI `double-int`: an integer representable in an IEEE 754 double
  * with no loss.
  *
- * The one width whose bound is exactly what JavaScript can express, so
- * unlike `int64` this validator is complete rather than partial: the
- * safe-integer range *is* the format's range. It shares
- * {@link validateInt64}'s implementation and means something different
- * by it.
+ * Complete rather than partial. A JSON number has already been read
+ * into a double by the time it arrives, so an integral one is exactly
+ * representable and integrality is the whole of the question.
+ *
+ * That is why the bound is not the safe-integer range, which asks
+ * whether *n and n + 1* are both representable. `2^53` is a double and
+ * is a `double-int`; refusing it refused a value that provably was the
+ * one on the wire.
+ *
+ * {@link validateInt64}'s ceiling does not carry over, and the reason
+ * is worth stating because the arithmetic looks identical. A literal
+ * too fine for a double is rounded before either validator sees it.
+ * Under `int64` that literal was a legal int64, so the ceiling exists
+ * to refuse vouching for the substitute it arrived as. Under
+ * `double-int` a literal that survives rounding was outside the format
+ * to begin with, so what gets accepted was never valid rather than
+ * valid and silently altered: `9007199254740993` is accepted, as
+ * `2^53`. `packages/formats/test/formats.test.ts` pins that.
  *
  * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateDoubleInt(value: number): boolean {
-  return Number.isSafeInteger(value);
+  return Number.isInteger(value);
 }
 
 /**

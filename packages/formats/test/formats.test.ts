@@ -823,8 +823,40 @@ describe("uint64 / double-int", () => {
     expect(validateDoubleInt(0)).toBe(true);
     expect(validateDoubleInt(-Number.MAX_SAFE_INTEGER)).toBe(true);
     expect(validateDoubleInt(Number.MAX_SAFE_INTEGER)).toBe(true);
-    expect(validateDoubleInt(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
     expect(validateDoubleInt(1.5)).toBe(false);
+    expect(validateDoubleInt(Number.NaN)).toBe(false);
+    expect(validateDoubleInt(Number.POSITIVE_INFINITY)).toBe(false);
+  });
+
+  // The safe-integer range is where n and n+1 are both representable,
+  // which is a different question from the one this format asks. Every
+  // even integer up to 2^54 is exactly representable, every multiple of
+  // 4 up to 2^55.
+  it("accepts representable integers above the safe-integer range under double-int", () => {
+    for (const n of [2 ** 53, 2 ** 53 + 2, -(2 ** 53), 2 ** 54 + 4, 1e21]) {
+      expect(validateDoubleInt(n)).toBe(true);
+    }
+  });
+
+  // What the widened range costs, pinned where it bites. A literal too
+  // fine for a double is rounded by the time any validator runs, so
+  // double-int now accepts the neighbour it arrives as. The literal was
+  // not a double-int before rounding either, which is why this is not
+  // int64's situation: there the literal was itself a legal int64.
+  it("accepts a too-fine literal as the double it arrives as", () => {
+    expect(JSON.parse("9007199254740993")).toBe(2 ** 53);
+    expect(validateDoubleInt(JSON.parse("9007199254740993"))).toBe(true);
+    expect(validateInt64(JSON.parse("9223372036854775807"))).toBe(false);
+  });
+
+  // int64 draws its ceiling where it does because the format names a
+  // range wider than a double carries, so a value past 2^53 is provably
+  // not the one that was sent. double-int names the doubles themselves,
+  // so that argument does not reach it.
+  it("parts from int64 above the safe-integer range", () => {
+    expect(validateInt64(2 ** 53)).toBe(false);
+    expect(validateUint64(2 ** 53)).toBe(false);
+    expect(validateDoubleInt(2 ** 53)).toBe(true);
   });
 });
 
