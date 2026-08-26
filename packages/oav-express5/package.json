@@ -1,6 +1,6 @@
 {
   "name": "@oaverify/express5",
-  "version": "7.2.0",
+  "version": "7.2.1",
   "description": "Express 5 middleware for OpenAPI request validation (3.0/3.1/3.2). Promise-native; checks the request against your spec and returns problem+json errors. Built on @oaverify/core.",
   "keywords": [
     "api-validation",
