@@ -54,6 +54,19 @@ describe("date / time / date-time / duration", () => {
     expect(validateDate("not a date")).toBe(false);
   });
 
+  // RFC 3339's date-fullyear is 4DIGIT, so the proleptic Gregorian
+  // calendar runs back to 0000. Only the 0000 cases fail before the
+  // fix; the rest are controls.
+  it("applies the century rule across the whole four-digit range", () => {
+    expect(validateDate("0000-02-29")).toBe(true);
+    expect(validateDate("0400-02-29")).toBe(true);
+    expect(validateDate("0100-02-29")).toBe(false);
+    expect(validateDate("2100-02-29")).toBe(false);
+    expect(validateDateTime("0000-02-29T00:00:00Z")).toBe(true);
+    expect(validateDateTimeLocal("0000-02-29T00:00:00")).toBe(true);
+    expect(validateHttpDate("Sat, 29 Feb 0000 00:00:00 GMT")).toBe(true);
+  });
+
   it("accepts RFC 3339 times with offsets", () => {
     expect(validateTime("12:34:56Z")).toBe(true);
     expect(validateTime("12:34:56+02:00")).toBe(true);
