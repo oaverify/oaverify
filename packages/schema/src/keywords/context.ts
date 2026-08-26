@@ -66,6 +66,11 @@ export interface KeywordContextInputs {
    */
   depthGated?: boolean;
   /**
+   * Cap on the length of a string a `format` assertion runs against.
+   * `Infinity` (the default here) emits no guard.
+   */
+  maxFormatLength?: number;
+  /**
    * When `true`, predicate mode is active: the generated function
    * returns `boolean`, not `ValidationError | null`. Every
    * error-emission site collapses to `return false;` and the
@@ -227,6 +232,7 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
   const evaluatedItemsVar = inputs.evaluatedItemsVar ?? null;
   const gated = inputs.gated ?? false;
   const depthGated = inputs.depthGated ?? false;
+  const maxFormatLength = inputs.maxFormatLength ?? Number.POSITIVE_INFINITY;
   const predicate = inputs.predicate ?? false;
   const flat = inputs.flat ?? false;
   const unevaluatedTracking = inputs.unevaluatedTracking ?? false;
@@ -674,6 +680,7 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
     predicate,
     flat,
     unevaluatedTracking,
+    maxFormatLength,
     formatTypeOf,
     errorStatement,
     emitError,

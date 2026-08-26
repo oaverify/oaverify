@@ -671,6 +671,7 @@ export interface ValidatorStats {
  *   {@link ValidatorOptions.lint}. The first lints compiled schemas,
  *   the second the OpenAPI document itself.
  * - **Resource limits**: {@link ValidatorOptions.maxDepth},
+ *   {@link ValidatorOptions.maxFormatLength},
  *   {@link ValidatorOptions.maxTotalBytes}.
  * - **Format and regex policy**: {@link ValidatorOptions.unknownFormats},
  *   {@link ValidatorOptions.regexCompiler}.
@@ -825,6 +826,27 @@ export interface ValidatorOptions {
    * `createValidator` throws otherwise.
    */
   maxDepth?: number;
+  /**
+   * Cap on the length of a string a `format` assertion runs against,
+   * defaulting to 1 MiB. `Infinity` disables it.
+   *
+   * Above the cap a string format is not asserted and the value is
+   * accepted, which is the annotation-only behaviour JSON Schema
+   * specifies as its default. It is not an error: a value too large to
+   * check safely is not thereby known to be invalid, and `byte` exists
+   * precisely to carry multi-megabyte base64.
+   *
+   * The cap is there because several format grammars throw `RangeError`
+   * out of `validate()` on a long enough valid value, which would reach
+   * a caller as a 500 rather than a verdict (#960). `maxLength` does not
+   * substitute: both keywords run, so `format` is reached even once the
+   * length assertion has failed.
+   *
+   * Raise it if you assert a format on values larger than a megabyte and
+   * accept the cost; the measured thresholds are in
+   * {@link CompileOptions.maxFormatLength}.
+   */
+  maxFormatLength?: number;
   /**
    * Cap on the bytes read from a body by the Fetch adapter, defaulting
    * to {@link DEFAULT_MAX_TOTAL_BYTES} (1 MiB). Pass
@@ -1368,6 +1390,7 @@ export function createValidator(
       output: "tree",
       maxErrors,
       maxDepth: options.maxDepth,
+      maxFormatLength: options.maxFormatLength,
       keywords: options.keywords,
       schemaLint: options.schemaLint,
       unknownFormats: options.unknownFormats,

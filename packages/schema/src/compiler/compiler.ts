@@ -56,6 +56,21 @@ const DYN_SCOPE = "dynScope";
 const DYN_LOOKUP = "dynLookup";
 
 /**
+ * Default {@link CompileOptions.maxFormatLength}: 1 MiB of UTF-16 units.
+ *
+ * Chosen against the two things it has to sit between. Every measured
+ * `RangeError` threshold is at least 4,473,516 characters, so this clears
+ * them all with room. And it is orders of magnitude above any value the
+ * bounded formats can legally hold: a hostname caps at 253, an IPv6 address
+ * at 45, a UUID at 36.
+ *
+ * The format it does reach is `byte`, where a value above the cap stops
+ * being asserted rather than being rejected. That is the intended behaviour
+ * and the reason the cap skips rather than errors.
+ */
+const DEFAULT_MAX_FORMAT_LENGTH = 1_048_576;
+
+/**
  * Default mode for {@link CompileOptions.schemaLint}. Warns on partially-
  * implemented keywords (no built-in sets this today), on wrong-typed
  * annotation values, and on the `silent-rewrite/*` and `unsatisfiable/*`
@@ -977,6 +992,36 @@ export interface CompileOptions {
    */
   maxDepth?: number;
   /**
+   * Cap on the length of a string a `format` assertion will run against.
+   * Defaults to 1 MiB (1,048,576 UTF-16 units); `Infinity` disables it.
+   *
+   * Above the cap the assertion is skipped and the value is accepted, so
+   * `format` falls back to the annotation-only behaviour JSON Schema
+   * 2020-12 specifies as its default. It does not become an error: a
+   * value too large to check safely is not thereby known to be invalid,
+   * and rejecting it would refuse legitimate traffic on the one format
+   * where multi-megabyte values are ordinary (`byte`, which exists for
+   * base64 payloads).
+   *
+   * The cap exists because several format grammars are written as
+   * `(?:X{4})*` over an unbounded matching run. Each iteration pushes a
+   * frame onto V8's regex backtrack stack, a fixed 64 MB region separate
+   * from the JS call stack, so a long enough *valid* value throws
+   * `RangeError` out of `validate()` rather than returning a verdict.
+   * Measured on `byte`: 4,473,516 characters returns, 4,477,422 throws.
+   * Below that it is a linear native-memory amplifier at roughly 33
+   * bytes per input character (#960).
+   *
+   * `maxLength` is not a substitute. Both keywords run, so `format` is
+   * reached even when the length assertion has already failed.
+   *
+   * Applies to string formats only; a numeric format has no length.
+   * When `Infinity`, codegen is byte-identical to the uncapped path.
+   * Must be a positive integer, or `Infinity`; `compileSchema` throws
+   * otherwise.
+   */
+  maxFormatLength?: number;
+  /**
    * Compile-time schema linting. All modes collect their findings to
    * {@link CompileStats.schemaLintIssues} rather than throwing.
    *
@@ -1198,6 +1243,12 @@ export interface CompileState {
    * unset, refs compile to a plain call with no runtime overhead.
    */
   readonly depthGated: boolean;
+  /**
+   * The configured {@link CompileOptions.maxFormatLength}. `format`
+   * codegen reads it to decide whether to emit the length guard;
+   * `Infinity` emits none.
+   */
+  readonly maxFormatLength: number;
   /**
    * `true` when this compile unit both declares a `$dynamicAnchor` and
    * references one with a `$dynamicRef`, so `$dynamicRef` has to resolve
@@ -1488,6 +1539,18 @@ export function compileSchema(
         "Predicate mode short-circuits on the first failure, so there is nothing to count.",
     );
   }
+  const maxFormatLength = options.maxFormatLength ?? DEFAULT_MAX_FORMAT_LENGTH;
+  if (
+    options.maxFormatLength !== undefined &&
+    maxFormatLength !== Number.POSITIVE_INFINITY &&
+    (!Number.isInteger(maxFormatLength) || maxFormatLength < 1)
+  ) {
+    throw new Error(
+      `compileSchema: \`maxFormatLength\` must be a positive integer (got ${String(options.maxFormatLength)}). ` +
+        "Use `Infinity` to run format assertions against a string of any length.",
+    );
+  }
+
   const deps = createDeps({ maxErrors, maxDepth, regexCompiler: options.regexCompiler });
   // Two derived things, one walk: the normalized validators that
   // generated code calls, and the declared types that codegen reads.
@@ -1597,6 +1660,7 @@ export function compileSchema(
     // never appear in OpenAPI, so the HTTP fast path is unaffected.
     gated: Number.isFinite(maxErrors) && !unevaluatedTracking,
     depthGated: Number.isFinite(maxDepth),
+    maxFormatLength,
     compiling: new Set(),
     predicate,
     flat,
@@ -2213,6 +2277,7 @@ function compileSchemaKeywords(
       evaluatedItemsVar,
       gated: state.gated,
       depthGated: state.depthGated,
+      maxFormatLength: state.maxFormatLength,
       predicate: mode === "predicate",
       flat: mode === "flat",
       unevaluatedTracking: state.unevaluatedTracking,

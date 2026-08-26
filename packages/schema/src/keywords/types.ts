@@ -282,6 +282,12 @@ export interface KeywordCompileContext {
    */
   readonly depthGated: boolean;
   /**
+   * Cap on the length of a string a `format` assertion runs against, from
+   * {@link CompileOptions.maxFormatLength}. The `format` keyword reads it;
+   * other keywords do not need it. `Infinity` means no guard is emitted.
+   */
+  readonly maxFormatLength: number;
+  /**
    * `true` when predicate mode is active: the compiled validator
    * returns `boolean` and constructs no error tree. Most keywords
    * don't need to read this directly: `emitError`,
