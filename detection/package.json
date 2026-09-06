@@ -10,10 +10,10 @@
     "check": "pnpm typecheck"
   },
   "devDependencies": {
-    "@redocly/cli": "^2.46.2",
+    "@redocly/cli": "^2.51.1",
     "@stoplight/spectral-cli": "^6.16.3",
     "ajv": "^8.20.0",
-    "tsx": "^4.23.12",
+    "tsx": "^4.23.13",
     "typescript": "^5.7.3",
     "yaml": "^2.9.0"
   },
