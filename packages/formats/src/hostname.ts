@@ -39,7 +39,7 @@ function labelsOf(value: string): string[] {
  * made `<253 chars>.` and `<253 chars>` different verdicts for the same
  * name.
  *
- * @see RFC 1123 section 2.1, https://datatracker.ietf.org/doc/html/rfc1123#section-2
+ * @see RFC 1123 section 2.1, https://datatracker.ietf.org/doc/html/rfc1123#section-2.1
  * @public
  */
 export function validateHostname(value: string): boolean {
@@ -57,11 +57,17 @@ export function validateHostname(value: string): boolean {
  * whole name, because the RFC's cap is on the encoded A-label form and
  * this does not punycode (#669).
  *
+ * This is a structural check, not the IDNA validity procedure. It does
+ * not apply UTS 46 mappings, validate an `xn--` A-label, or assert the
+ * contextual and bidirectional rules from RFC 5891 and RFC 5892.
+ *
  * A caller that needs the cap anyway is a mailbox: see
  * `validateMailboxDomain`, which applies it to both alphabets so the
  * pair cannot disagree on an ASCII domain.
  *
  * @see RFC 5890 section 2.3.2.3, https://datatracker.ietf.org/doc/html/rfc5890#section-2.3.2.3
+ * @see RFC 5891 section 4.2.3.2, https://datatracker.ietf.org/doc/html/rfc5891#section-4.2.3.2
+ * @see RFC 5892 section 2, https://datatracker.ietf.org/doc/html/rfc5892#section-2
  * @public
  */
 export function validateIdnHostname(value: string): boolean {

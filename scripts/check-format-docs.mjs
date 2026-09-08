@@ -8,10 +8,10 @@
 // head instead of in the file. A citation does not make the code correct; it
 // makes the code checkable, which is the step before correct.
 //
-// Checked, for every `export function validate*` in packages/formats/src:
+// Checked, for every exported `validate*` declaration in packages/formats/src:
 //   1. Its TSDoc carries an `@see`.
-//   2. That `@see` carries an http(s) URL.
-//   3. The URL is one of the known specification hosts, so `@see the thing I
+//   2. Every `@see` carries an http(s) URL.
+//   3. Every URL is on a known specification host, so `@see the thing I
 //      was thinking of, https://example.com/my-notes` does not pass.
 //
 // Not checked: that the URL resolves, or that the cited section says what the
@@ -27,7 +27,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = "packages/formats/src";
 
 /** Hosts that publish a specification, rather than someone's summary of one. */
-const SPEC_HOSTS = [
+const SPEC_HOSTS = new Set([
   "datatracker.ietf.org",
   "www.rfc-editor.org",
   "rfc-editor.org",
@@ -37,7 +37,7 @@ const SPEC_HOSTS = [
   "unicode.org",
   "json-schema.org",
   "www.w3.org",
-];
+]);
 
 const dir = join(root, SRC);
 const problems = [];
@@ -46,24 +46,36 @@ let checked = 0;
 for (const file of readdirSync(dir).sort()) {
   if (!file.endsWith(".ts") || file === "index.ts") continue;
   const src = readFileSync(join(dir, file), "utf8");
-  const re = /\/\*\*((?:(?!\*\/)[\s\S])*?)\*\/\s*export function (validate[A-Za-z0-9]+)/g;
+  const re =
+    /\/\*\*((?:(?!\*\/)[\s\S])*?)\*\/\s*export\s+(?:(?:async\s+)?function\s+|const\s+)(validate[A-Za-z0-9]+)/g;
   for (const m of src.matchAll(re)) {
     const [, doc, name] = m;
     checked += 1;
     const where = `${SRC}/${file}: ${name}`;
-    const see = /@see\s+([^\n]*)/.exec(doc);
-    if (!see) {
+    const sees = [...doc.matchAll(/@see\s+([^\n]*)/g)];
+    if (sees.length === 0) {
       problems.push(`${where} has no @see naming the spec it implements`);
       continue;
     }
-    const url = /(https?:\/\/[^\s)]+)/.exec(see[1]);
-    if (!url) {
-      problems.push(`${where} has an @see with no URL: "${see[1].trim()}"`);
-      continue;
-    }
-    const host = new URL(url[1]).hostname;
-    if (!SPEC_HOSTS.includes(host)) {
-      problems.push(`${where} cites ${host}, which is not a known specification host`);
+    for (const see of sees) {
+      const urls = [...see[1].matchAll(/https?:\/\/[^\s)]+/g)];
+      if (urls.length === 0) {
+        problems.push(`${where} has an @see with no URL: "${see[1].trim()}"`);
+        continue;
+      }
+      for (const match of urls) {
+        const text = match[0];
+        let host;
+        try {
+          host = new URL(text).hostname;
+        } catch {
+          problems.push(`${where} has an invalid URL: "${text}"`);
+          continue;
+        }
+        if (!SPEC_HOSTS.has(host)) {
+          problems.push(`${where} cites ${host}, which is not a known specification host`);
+        }
+      }
     }
   }
 }
