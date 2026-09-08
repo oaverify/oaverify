@@ -241,14 +241,13 @@ function collectAllRefs(
   }
 
   // Operations under paths.
-  for (const [pathTemplate, pathItem] of Object.entries(document.paths ?? {})) {
+  for (const pathItem of Object.values(document.paths ?? {})) {
     if (!pathItem) continue;
     walkPathItem(pathItem, fromRoots);
     walkAnyRefs(pathItem, fromRoots);
-    void pathTemplate;
   }
   // Operations under webhooks (3.1+).
-  for (const [, webhook] of Object.entries(document.webhooks ?? {})) {
+  for (const webhook of Object.values(document.webhooks ?? {})) {
     if (!webhook || isReference(webhook)) continue;
     walkPathItem(webhook, fromRoots);
     walkAnyRefs(webhook, fromRoots);

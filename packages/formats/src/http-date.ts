@@ -1,5 +1,5 @@
 /**
- * The OpenAPI registry's `http-date`: RFC 7231 §7.1.1.1 `HTTP-date`,
+ * The OpenAPI registry's `http-date`: RFC 9110 §5.6.7 `HTTP-date`,
  * the timestamp a `Date` or `Last-Modified` field carries.
  *
  * @packageDocumentation
@@ -14,7 +14,7 @@ const DAY_NAME_L = "Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday";
 const TIME_OF_DAY = String.raw`(\d{2}):(\d{2}):(\d{2})`;
 
 /**
- * The three grammars, in the order RFC 7231 lists them. Every literal
+ * The three grammars, in the order RFC 9110 lists them. Every literal
  * is case-sensitive there (`%x47.4D.54 ; "GMT", case-sensitive`), so
  * none of these carries the `i` flag: `sun, 06 nov 1994 08:49:37 gmt`
  * is not an HTTP-date.
@@ -34,7 +34,7 @@ const ASCTIME_DATE_RE = new RegExp(
  *
  * `60` seconds passes: a `Date` field naming an instant during a leap
  * second is spelled that way, and RFC 9110 writes the bound as
- * `00-60` where RFC 7231 left it to prose.
+ * `00-60`.
  */
 function isTimeOfDay(hour: string, minute: string, second: string): boolean {
   return (
@@ -53,7 +53,7 @@ function monthNumber(name: string): number {
  * OpenAPI `http-date`: an HTTP timestamp
  * (e.g. `"Sun, 06 Nov 1994 08:49:37 GMT"`).
  *
- * All three forms of RFC 7231's `HTTP-date` are accepted, because the
+ * All three forms of RFC 9110's `HTTP-date` are accepted, because the
  * registry names that production and the production is
  * `IMF-fixdate / obs-date`. A sender must emit IMF-fixdate, so the
  * other two arriving in a request is a sign of something old on the
@@ -66,11 +66,11 @@ function monthNumber(name: string): number {
  *
  * - **The day name is not checked against the date.** `"Mon, 06 Nov
  *   1994 08:49:37 GMT"` passes even though that day was a Sunday.
- *   Nothing in RFC 7231 asks a recipient to verify it, and a
+ *   Nothing in RFC 9110 asks a recipient to verify it, and a
  *   mismatch is a producer's clerical error rather than a value the
  *   reader cannot use.
  * - **An RFC 850 date's day-of-month check treats February as having
- *   29 days.** RFC 7231 §7.1.1.1 does say how to read the two-digit
+ *   29 days.** RFC 9110 §5.6.7 does say how to read the two-digit
  *   year: a timestamp more than 50 years in the future names the most
  *   recent past year ending in those digits. Applying that here would
  *   make the verdict depend on the clock, so `"29-Feb-24"` would turn

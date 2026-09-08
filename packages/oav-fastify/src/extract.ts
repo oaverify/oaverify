@@ -8,9 +8,9 @@ import { markLowercaseKeys, type HttpRequest } from "@oaverify/internal-core";
  * assumed already-parsed by Fastify's content-type parsers
  * (which run before `preValidation`).
  *
- * Header keys are already lowercased by Fastify (per HTTP spec); we
- * pass them through. The path is extracted from `request.url` (which
- * includes the query string); query string is dropped from the
+ * Fastify normally supplies lowercase header keys; they are normalized
+ * defensively while copying. The path is extracted from `request.url`
+ * (which includes the query string); query string is dropped from the
  * `path` field and routed to `query` separately.
  *
  * Cookies are read from `request.cookies` if `@fastify/cookie` has

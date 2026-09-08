@@ -720,9 +720,9 @@ export async function checkCommand(
     return { exitCode: 2 };
   }
 
-  // A skipped finding is not produced: it leaves the array here, so it
-  // gates on nothing below and counts toward nothing in the summary.
-  // The report is what keeps that from being silent.
+  // A skipped finding is withheld here, so it gates on nothing below
+  // and counts toward nothing in the summary. The report keeps that
+  // from being silent.
   // `--findings`' exclusions go through the same function the library's
   // `applySkip` exposes; only the wording of the report differs.
   const skipResult = applySkip(findings, selection.excludeKeys);

@@ -7,7 +7,7 @@
 const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 /**
- * RFC 4122 `uuid`.
+ * RFC 9562 `uuid`.
  *
  * @see RFC 9562 section 4, https://datatracker.ietf.org/doc/html/rfc9562#section-4
  * @public

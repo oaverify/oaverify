@@ -550,7 +550,7 @@ export function renderSarif(
         properties: { "oaverify:classes": [...classes].sort() },
         // Same reason, for the other way a report can be short of what
         // the passes found. A note rather than a result, because a
-        // skipped finding was not produced.
+        // skipped finding was withheld rather than emitted as a result.
         ...(notifications.length === 0
           ? {}
           : {

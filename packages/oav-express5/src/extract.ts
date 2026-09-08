@@ -16,9 +16,9 @@ import { markLowercaseKeys, type HttpRequest } from "@oaverify/internal-core";
  * Cookies are read from `req.cookies` if `cookie-parser` populated
  * them, otherwise omitted.
  *
- * Pairs with sibling `httpRequestFromExpress` in `@oaverify/express4`,
- * `httpRequestFromFastify` in `@oaverify/fastify`, etc.: same name pattern
- * as oaverify's existing {@link httpRequestFromFetch}. The Fetch variant
+ * Pairs with sibling `httpRequestFromExpress` in `@oaverify/express4` and
+ * `httpRequestFromFastify` in `@oaverify/fastify`: same name pattern as
+ * oaverify's existing {@link httpRequestFromFetch}. The Fetch variant
  * alone is async and returns `{ httpRequest, body }` (it has to read
  * the body stream); the framework variants, this one included, are
  * sync and return a bare `HttpRequest`.
@@ -33,6 +33,8 @@ export function httpRequestFromExpress(req: Request): HttpRequest {
     if (value !== undefined) headers[key.toLowerCase()] = value;
   }
 
+  // express's Request typing widens query/body to any; carry through
+  // as-is and let the validator narrow.
   const query = req.query as Record<string, string | string[]> | undefined;
 
   const result: HttpRequest = {
@@ -44,6 +46,7 @@ export function httpRequestFromExpress(req: Request): HttpRequest {
   const contentType = req.headers["content-type"];
   if (typeof contentType === "string") result.contentType = contentType;
   if (req.body !== undefined) result.body = req.body;
+  // cookie-parser populates req.cookies; absent otherwise.
   const cookies = (req as Request & { cookies?: Record<string, string> }).cookies;
   if (cookies !== undefined) result.cookies = cookies;
   return result;

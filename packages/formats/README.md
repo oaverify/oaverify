@@ -30,11 +30,13 @@ replace them.
 - **Date / time**: `date-time`, `date`, `time`, `duration` (RFC 3339),
   `date-time-local` and `time-local` (the same grammars with the offset
   dropped, so the leap-second rule is not asserted), `http-date`
-  (RFC 7231, all three forms of the production; the day name is not
+  (RFC 9110, all three forms of the production; the day name is not
   checked against the date, and a two-digit year's century is not
   resolved, so the verdict never depends on today's date)
 - **Email**: `email` (ASCII), `idn-email` (RFC 6531)
-- **Hostname**: `hostname`, `idn-hostname`
+- **Hostname**: `hostname`, `idn-hostname` (a structural Unicode-label
+  check; it does not apply UTS 46 mappings, validate Punycode, or assert
+  IDNA contextual and bidirectional rules)
 - **IP**: `ipv4`, `ipv6`, `ipv4-cidr`, `ipv6-cidr` (host bits need not
   be zero)
 - **URI**: `uri`, `uri-reference`, `iri`, `iri-reference`, `uri-template`
