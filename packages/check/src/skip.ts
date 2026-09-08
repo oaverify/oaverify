@@ -14,10 +14,11 @@
  * and cannot. That is the stage-not-polarity distinction #673 settled;
  * this module is the exclusion half.
  *
- * A skipped finding is **not produced**: it is absent from the findings
- * array, so it gates on nothing and counts toward nothing. The report
- * below is what keeps that from being silent, which is the property a
- * severity level could not have provided.
+ * A skipped finding is **not returned**: the pass produces it, then
+ * {@link applySkip} withholds it from the findings array, so it gates on
+ * nothing and counts toward nothing. The report below keeps that from
+ * being silent, which is the property a severity level could not have
+ * provided.
  *
  * @packageDocumentation
  */

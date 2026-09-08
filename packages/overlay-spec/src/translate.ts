@@ -31,9 +31,9 @@ export type NormalizedAction =
   | { kind: "remove" };
 
 /**
- * The HTTP methods that OpenAPI Overlay path targets are expected to
- * use. Mirrors `@oaverify/core`'s `HttpMethod` but kept local so the
- * recogniser doesn't depend on a runtime constant.
+ * Set view of the shared HTTP method list for target-membership checks.
+ * Deriving it from {@link HTTP_METHODS} keeps the recogniser from
+ * carrying a second list that can drift.
  */
 const HTTP_METHOD_SET: ReadonlySet<HttpMethod> = new Set(HTTP_METHODS);
 
