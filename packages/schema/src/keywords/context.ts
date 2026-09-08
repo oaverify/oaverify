@@ -495,7 +495,7 @@ export function createKeywordContext(inputs: KeywordContextInputs): KeywordCompi
     // `compileSchemaKeywords` does for function-compiled subschemas.
     const present = new Set(validationKeys);
     const runOrder: string[] = [];
-    for (const [name] of inputs.byKeyword) {
+    for (const name of inputs.byKeyword.keys()) {
       if (present.has(name)) runOrder.push(name);
     }
 
