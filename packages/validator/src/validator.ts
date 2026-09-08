@@ -2038,7 +2038,7 @@ export function createValidator(
       if (cache === undefined) continue;
       // Request-side schemas are compiled by cacheFor. Response bodies
       // and headers are not, so drive their lazy getters here.
-      for (const [status, response] of cache.responses) {
+      for (const response of cache.responses.values()) {
         for (const mediaType of response.bodySchemas.keys()) {
           attempt(responseBodyOrigin(response, mediaType), () => {
             getResponseValidator(
@@ -2061,7 +2061,6 @@ export function createValidator(
             );
           });
         }
-        void status;
       }
     }
     return failures;

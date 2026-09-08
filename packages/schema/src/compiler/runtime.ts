@@ -290,7 +290,6 @@ export function findDuplicate(arr: readonly unknown[]): { a: number; b: number }
  */
 export function countCodePoints(s: string): number {
   let n = 0;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- iterator drives the counter
   for (const _ of s) n++;
   return n;
 }
@@ -321,7 +320,6 @@ export function exceedsMaxCodePoints(s: string, limit: number): boolean {
   if (u <= limit) return false;
   if (u > 2 * limit) return true;
   let n = 0;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- iterator drives the counter
   for (const _ of s) {
     n += 1;
     if (n > limit) return true;
@@ -350,7 +348,6 @@ export function belowMinCodePoints(s: string, limit: number): boolean {
   if (u < limit) return true;
   if (u >= 2 * limit - 1) return false;
   let n = 0;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- iterator drives the counter
   for (const _ of s) {
     n += 1;
     if (n >= limit) return false;

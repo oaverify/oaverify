@@ -347,7 +347,6 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
           checksSecurity,
           operation: op,
           pathItem,
-          document,
           resolveRef,
           resolveSchemaRef,
           refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
@@ -537,7 +536,6 @@ interface BuildEmittedOpArgs {
   checksSecurity: boolean;
   operation: OperationObject;
   pathItem: PathItem;
-  document: OpenAPIDocument;
   resolveRef: <T>(v: T | ReferenceObject | undefined) => T | undefined;
   resolveSchemaRef: SchemaRefResolver;
   /**
@@ -556,7 +554,6 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     method,
     operation,
     pathItem,
-    document,
     resolveRef,
     resolveSchemaRef,
     refSuppressesSiblings,
@@ -798,7 +795,6 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // runtime.
   const introspectionLiteral = JSON.stringify({ pathItem, operation }, null, 2);
 
-  void document; // reserved for overlay resolution
   return {
     pathPattern,
     method,
