@@ -207,6 +207,13 @@ export interface OperationCacheDeps {
    * `false` that map is left empty and nothing downstream changes.
    */
   allowBracketedQueryArrays?: boolean;
+  /**
+   * Security schemes can declare query keys outside the Parameter
+   * Object list. The validator binds this callback because it owns the
+   * full document and the security precedence rules; the cache only
+   * needs the resulting names for its strict-query lookup set.
+   */
+  querySecurityParameters?: () => Iterable<string>;
   compile: (schema: SchemaOrBoolean, origin?: SchemaOrigin) => CompiledTreeSchema;
   compileForDirection: (
     schema: SchemaOrBoolean,
@@ -501,6 +508,7 @@ export function buildOperationCache(
       requestParameterReadsRequireOwnProperties = true;
     }
   }
+  for (const name of deps.querySecurityParameters?.() ?? []) knownQueryParameters.add(name);
 
   // Second pass, so the collision check can see every declared name.
   // `knownQueryParameters` grows here too: the check answers "could this

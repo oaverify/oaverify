@@ -1,6 +1,6 @@
 import type { ErrorParamsFor, OpenAPIDocument, ValidationError } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
-import { createValidator } from "./fixtures.js";
+import { createValidator, leafCodes } from "./fixtures.js";
 
 /**
  * Shape-only security validation coverage: bearer / basic / apiKey.
@@ -176,6 +176,112 @@ describe("security validation: apiKey", () => {
     expect(
       v.validateRequest({ method: "GET", path: "/ping", query: { api_key: "abc" } }),
     ).toBeNull();
+  });
+
+  it("query: strictQueryParameters accepts the security-declared key in every security mode", () => {
+    const spec = specWith({ apiKeyAuth: { type: "apiKey", in: "query", name: "api_key" } }, [
+      { apiKeyAuth: [] },
+    ]);
+    for (const validateSecurity of [undefined, "off", "shape", "strict"] as const) {
+      const v = createValidator(spec, { strictQueryParameters: true, validateSecurity });
+      expect(
+        v.validateRequest({ method: "GET", path: "/ping", query: { api_key: "abc" } }),
+      ).toBeNull();
+    }
+  });
+
+  it("query: strictQueryParameters accepts a key inherited from document-level security", () => {
+    const spec = specWith(
+      { apiKeyAuth: { type: "apiKey", in: "query", name: "api_key" } },
+      undefined,
+      [{ apiKeyAuth: [] }],
+    );
+    const v = createValidator(spec, {
+      strictQueryParameters: true,
+      validateSecurity: "strict",
+    });
+    expect(
+      v.validateRequest({ method: "GET", path: "/ping", query: { api_key: "abc" } }),
+    ).toBeNull();
+  });
+
+  it("query: strictQueryParameters accepts a key declared through a security scheme $ref", () => {
+    const spec = specWith(
+      {
+        alias: { $ref: "#/components/securitySchemes/apiKeyAuth" },
+        apiKeyAuth: { type: "apiKey", in: "query", name: "api_key" },
+      },
+      [{ alias: [] }],
+    );
+    const v = createValidator(spec, {
+      strictQueryParameters: true,
+      validateSecurity: "strict",
+    });
+    expect(
+      v.validateRequest({ method: "GET", path: "/ping", query: { api_key: "abc" } }),
+    ).toBeNull();
+  });
+
+  it("query: strictQueryParameters still rejects undeclared query keys", () => {
+    const spec = specWith({ apiKeyAuth: { type: "apiKey", in: "query", name: "api_key" } }, [
+      { apiKeyAuth: [] },
+    ]);
+    const v = createValidator(spec, {
+      strictQueryParameters: true,
+      validateSecurity: "strict",
+    });
+    const err = v.validateRequest({
+      method: "GET",
+      path: "/ping",
+      query: { api_key: "abc", extra: "x" },
+    });
+    expect(leafCodes(err)).toEqual(["query-param"]);
+  });
+
+  it("query: operation security opt-out does not inherit a document-level key", () => {
+    const spec = specWith(
+      { apiKeyAuth: { type: "apiKey", in: "query", name: "api_key" } },
+      [],
+      [{ apiKeyAuth: [] }],
+    );
+    const v = createValidator(spec, {
+      strictQueryParameters: true,
+      validateSecurity: "strict",
+    });
+    expect(
+      leafCodes(v.validateRequest({ method: "GET", path: "/ping", query: { api_key: "abc" } })),
+    ).toEqual(["query-param"]);
+  });
+
+  it("query: a malformed security field does not crash strict query checking when security validation is off", () => {
+    const spec = specWith({ apiKeyAuth: { type: "apiKey", in: "query", name: "api_key" } }, {
+      apiKeyAuth: [],
+    } as never);
+    const v = createValidator(spec, {
+      strictQueryParameters: true,
+      validateSecurity: "off",
+    });
+    expect(() =>
+      v.validateRequest({ method: "GET", path: "/ping", query: { api_key: "abc" } }),
+    ).not.toThrow();
+    expect(
+      leafCodes(v.validateRequest({ method: "GET", path: "/ping", query: { api_key: "abc" } })),
+    ).toEqual(["query-param"]);
+  });
+
+  it("header and cookie apiKey schemes do not declare query keys", () => {
+    for (const [location, name] of [
+      ["header", "X-API-Key"],
+      ["cookie", "session"],
+    ] as const) {
+      const spec = specWith({ apiKeyAuth: { type: "apiKey", in: location, name } }, [
+        { apiKeyAuth: [] },
+      ]);
+      const v = createValidator(spec, { strictQueryParameters: true });
+      expect(
+        leafCodes(v.validateRequest({ method: "GET", path: "/ping", query: { [name]: "abc" } })),
+      ).toEqual(["query-param"]);
+    }
   });
 
   it("cookie: missing rejects; present accepts", () => {
