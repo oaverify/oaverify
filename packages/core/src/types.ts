@@ -639,7 +639,19 @@ export interface HttpResponse {
   headers?: Record<string, string | string[]>;
   /** See {@link HttpRequest.contentType}: this is not read from {@link HttpResponse.headers} either. */
   contentType?: string;
-  /** See {@link HttpRequest.body}. */
+  /**
+   * Parsed response body, when the adapter has one. `undefined` means no
+   * schema validation can run over a body value; use
+   * {@link HttpResponse.bodyPresent} to distinguish an omitted response
+   * from an opaque response body the adapter did not parse.
+   */
   body?: unknown;
+  /**
+   * Set when a response body exists but `body` is unavailable for schema
+   * validation: a stream, raw bytes, a malformed JSON string, or another
+   * framework payload the adapter deliberately passes through. Satisfies
+   * response-body presence checks without making the body schema-validatable.
+   */
+  bodyPresent?: boolean | undefined;
   rawBody?: string | undefined;
 }

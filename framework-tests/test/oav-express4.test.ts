@@ -537,7 +537,15 @@ describe("oav-express4 integration: validateResponses send variants", () => {
   let baseUrl: string;
 
   beforeAll(async () => {
-    const validator = createValidator(widgetSpec());
+    const spec = widgetSpec();
+    const widget = spec.paths!["/widgets/{id}"] as {
+      get: { responses: Record<string, unknown> };
+    };
+    widget.get.responses["206"] = {
+      description: "partial",
+      headers: { "Content-Range": { required: true, schema: { type: "string" } } },
+    };
+    const validator = createValidator(spec);
     const app = express();
     app.use(validateResponses(validator));
     app.get("/widgets/:id", (req, res) => {
@@ -551,12 +559,24 @@ describe("oav-express4 integration: validateResponses send variants", () => {
           return res.send({ id: "ok" });
         case "obj-send-bad":
           return res.send({ id: 123 });
+        case "boolean-send-bad":
+          return res.send(false);
+        case "uint8array-send-bad":
+          return res.send(new Uint8Array([1, 2]));
         case "buffer":
           return res.type("json").send(Buffer.from(JSON.stringify({ id: 123 })));
+        case "buffer-undeclared":
+          res.status(202);
+          return res.type("json").send(Buffer.from(JSON.stringify({ id: "ok" })));
+        case "buffer-missing-header":
+          res.status(206);
+          return res.type("json").send(Buffer.from(JSON.stringify({ id: "ok" })));
         case "malformed":
           return res.type("json").send("{not json");
         case "sendstatus":
           return res.sendStatus(418);
+        case "send-number-status":
+          return res.send(418);
         case "stream": {
           res.setHeader("content-type", "application/json");
           res.write('{"id":');
@@ -599,10 +619,30 @@ describe("oav-express4 integration: validateResponses send variants", () => {
     expect(r.status).toBe(500);
   });
 
+  it("a boolean through res.send is validated after Express serializes it", async () => {
+    const r = await fetch(`${baseUrl}/widgets/boolean-send-bad`);
+    expect(r.status).toBe(500);
+  });
+
+  it("a Uint8Array through Express 4 res.send is validated after Express serializes it", async () => {
+    const r = await fetch(`${baseUrl}/widgets/uint8array-send-bad`);
+    expect(r.status).toBe(500);
+  });
+
   it("a Buffer body passes through unvalidated even with a JSON content type", async () => {
     const r = await fetch(`${baseUrl}/widgets/buffer`);
     expect(r.status).toBe(200);
     expect((await r.json()) as unknown).toEqual({ id: 123 });
+  });
+
+  it("an undeclared status on a Buffer body is a finding", async () => {
+    const r = await fetch(`${baseUrl}/widgets/buffer-undeclared`);
+    expect(r.status).toBe(500);
+  });
+
+  it("a missing required header on a Buffer body is a finding", async () => {
+    const r = await fetch(`${baseUrl}/widgets/buffer-missing-header`);
+    expect(r.status).toBe(500);
   });
 
   it("a malformed JSON string passes through untouched", async () => {
@@ -617,6 +657,11 @@ describe("oav-express4 integration: validateResponses send variants", () => {
     // declared, so it surfaces as a 500. (res.redirect, by contrast, uses
     // res.end and bypasses the wrapper; see the redirect test below.)
     const r = await fetch(`${baseUrl}/widgets/sendstatus`);
+    expect(r.status).toBe(500);
+  });
+
+  it("Express 4's deprecated res.send(status) form checks the final status", async () => {
+    const r = await fetch(`${baseUrl}/widgets/send-number-status`);
     expect(r.status).toBe(500);
   });
 
@@ -868,11 +913,23 @@ describe("oav-express4 integration: validateResponses with requireResponseBody",
   let baseUrl: string;
 
   beforeAll(async () => {
-    const validator = createValidator(widgetSpec(), { requireResponseBody: true });
+    const spec = widgetSpec();
+    const widget = spec.paths!["/widgets/{id}"] as {
+      get: { responses: Record<string, { content: Record<string, unknown> }> };
+    };
+    widget.get.responses["200"]!.content["application/pdf"] = {
+      schema: { type: "string", format: "binary" },
+    };
+    const validator = createValidator(spec, { requireResponseBody: true });
     const app = express();
     app.use(validateResponses(validator));
     app.get("/widgets/:id", (req, res) => {
       if (req.params.id === "empty") return res.json(); // 200 declares content; body absent
+      if (req.params.id === "null") return res.type("application/json").send(null);
+      if (req.params.id === "empty-string") return res.type("application/json").send("");
+      if (req.params.id === "empty-buffer")
+        return res.type("application/pdf").send(Buffer.alloc(0));
+      if (req.params.id === "pdf") return res.type("application/pdf").send(Buffer.from("pdf"));
       return res.json({ id: req.params.id });
     });
     app.use(((err: Error, _req, res, next) => {
@@ -896,10 +953,26 @@ describe("oav-express4 integration: validateResponses with requireResponseBody",
     expect(body.responseInvalid).toBe(true);
   });
 
+  it("zero-byte opaque sends are findings (500)", async () => {
+    for (const id of ["null", "empty-string", "empty-buffer"]) {
+      const r = await fetch(`${baseUrl}/widgets/${id}`);
+      expect(r.status).toBe(500);
+      const body = (await r.json()) as { responseInvalid: boolean };
+      expect(body.responseInvalid).toBe(true);
+    }
+  });
+
   it("a present body still passes", async () => {
     const r = await fetch(`${baseUrl}/widgets/ok`);
     expect(r.status).toBe(200);
     expect((await r.json()) as unknown).toEqual({ id: "ok" });
+  });
+
+  it("an opaque Buffer body still satisfies the body-presence check", async () => {
+    const r = await fetch(`${baseUrl}/widgets/pdf`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toMatch(/application\/pdf/);
+    expect(await r.text()).toBe("pdf");
   });
 
   it("HEAD against the GET operation stays exempt even with an absent body", async () => {

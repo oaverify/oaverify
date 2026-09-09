@@ -1079,11 +1079,11 @@ export interface ValidatorOptions {
   /**
    * When `true`, `validateResponse` emits a `body` finding when the
    * matched response declares content but the response carries no body
-   * (`res.body === undefined`). Catches the common bug where a handler
-   * sends a 200 with `Content-Type: application/json` and an empty
-   * body (`res.json(user)` after a lookup returned `undefined`); the
-   * client then fails at parse time instead of the server failing
-   * during development.
+   * (`res.body === undefined` and `res.bodyPresent !== true`). Catches
+   * the common bug where a handler sends a 200 with
+   * `Content-Type: application/json` and an empty body (`res.json(user)`
+   * after a lookup returned `undefined`); the client then fails at parse
+   * time instead of the server failing during development.
    *
    * Opt-in because OpenAPI takes no position: request bodies have a
    * `required` flag, response content does not, so an absent-body rule
@@ -1803,7 +1803,9 @@ export function createValidator(
           }
         }
 
-        if (responseCompiled.bodyMediaTypes.length > 0 && res.body === undefined) {
+        const responseBodyPresent = res.body !== undefined || res.bodyPresent === true;
+
+        if (responseCompiled.bodyMediaTypes.length > 0 && !responseBodyPresent) {
           // Opt-in absent-body finding. HEAD answers against the GET
           // operation, whose declared content is correctly absent
           // (RFC 9110 9.3.2); 204 / 205 / 304 are bodyless by status

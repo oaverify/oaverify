@@ -83,18 +83,33 @@ function responseHeaders(res: Response): Record<string, string | string[]> {
   return headers;
 }
 
+function expressWillResendAsJson(body: unknown): boolean {
+  return (
+    typeof body === "boolean" ||
+    (body !== null && typeof body === "object" && !Buffer.isBuffer(body))
+  );
+}
+
+function expressSendsOpaqueBody(body: unknown): boolean {
+  if (body === undefined || body === null) return false;
+  if (typeof body === "string") return body.length > 0;
+  if (Buffer.isBuffer(body)) return body.length > 0;
+  return true;
+}
+
 /**
  * Build an Express 4 middleware that validates outgoing responses against
  * the spec. It wraps `res.send`, the point most responses pass through
  * (`res.json` stringifies and re-dispatches through it; `res.sendStatus`
  * sends its status text through it too). Response status and declared
- * headers are checked for every wrapped send, regardless of media type;
+ * headers are checked for single-argument sends, regardless of media type;
  * the body is parsed and validated only when it is a parseable JSON string
  * (the exact wire body, with `toJSON` methods, the app's `json replacer` /
- * `json spaces` settings, and `Date` serialization applied first). A pure
+ * `json spaces` settings, and `Date` serialization applied first). Express
+ * 4's deprecated multi-argument send forms are forwarded untouched. A pure
  * `res.end()` (and `res.redirect`, which uses it) bypasses `res.send` and
- * is not covered. On failure the configured `onError` runs (default:
- * throw, forwarded to the host error handler as a 500).
+ * is not covered. On failure the configured `onError` runs (default: throw,
+ * forwarded to the host error handler as a 500).
  *
  * Opt-in and explicit: mount it only where you want response checking
  * (typically on in development, off in production), and after
@@ -152,14 +167,20 @@ export function validateResponses(
     // re-enters this same wrapped send and must not loop.
     let handled = false;
 
-    const check = (body: unknown, contentType: string): ValidationError[] | null => {
+    const check = (
+      body: unknown,
+      contentType: string,
+      status = res.statusCode,
+      bodyPresent = body !== undefined,
+    ): ValidationError[] | null => {
       handled = true;
-      if (!shouldValidate(res.statusCode)) return null;
+      if (!shouldValidate(status)) return null;
       const httpRes: HttpResponse = {
-        status: res.statusCode,
+        status,
         contentType,
         headers: responseHeaders(res),
         body,
+        bodyPresent,
       };
       const result = validator.validateResponse(httpReq, httpRes);
       if (result.valid) return null;
@@ -197,15 +218,16 @@ export function validateResponses(
       if (args.length > 1) return originalSend(...args);
       const body = args[0];
       // Split-phase. Status and declared headers are checked for every
-      // string / empty send (a text error page, a redirect's HTML body, or
-      // res.sendStatus all flow through res.send as a string), independent
-      // of the body's media type. The body is parsed and validated only
-      // when it is a parseable JSON string; otherwise `parsed` stays
-      // undefined and the core validator skips body validation (and the
-      // response Content-Type check, gated on a present body). A pure
-      // res.end() bypasses res.send and is not covered; see the README.
-      if (!handled && (typeof body === "string" || body === undefined)) {
+      // wrapped send that Express will not serialize and send again,
+      // independent of the body's media type. The body is parsed and
+      // validated only when it is a parseable JSON string; otherwise
+      // `parsed` stays undefined and the core validator skips body
+      // validation. Body-presence checks still see that the response
+      // carried an opaque body. A pure res.end() bypasses res.send and
+      // is not covered; see the README.
+      if (!handled && !expressWillResendAsJson(body)) {
         const contentType = String(res.getHeader("content-type") ?? "");
+        const status = typeof body === "number" ? body : res.statusCode;
         let parsed: unknown;
         if (typeof body === "string" && /\bjson\b/i.test(contentType)) {
           try {
@@ -215,7 +237,7 @@ export function validateResponses(
             // still get checked, and the malformed body is sent unchanged.
           }
         }
-        const errors = check(parsed, contentType);
+        const errors = check(parsed, contentType, status, expressSendsOpaqueBody(body));
         if (errors !== null) {
           handleFailure(errors, () => originalSend(...args));
           return res;

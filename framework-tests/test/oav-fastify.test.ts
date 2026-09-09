@@ -516,12 +516,22 @@ describe("oav-fastify integration: validateResponses with requireResponseBody", 
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    const validator = createValidator(widgetSpec(), { requireResponseBody: true });
+    const spec = widgetSpec();
+    const widget = spec.paths!["/widgets/{id}"] as {
+      get: { responses: Record<string, { content: Record<string, unknown> }> };
+    };
+    widget.get.responses["200"]!.content["application/pdf"] = {
+      schema: { type: "string", format: "binary" },
+    };
+    const validator = createValidator(spec, { requireResponseBody: true });
     app = Fastify();
     app.addHook("onSend", validateResponses(validator));
     app.setErrorHandler((err: Error, _request, reply) => {
       if (err instanceof ResponseValidationError) {
-        reply.code(err.statusCode).send({ responseInvalid: true });
+        reply.code(err.statusCode).send({
+          responseInvalid: true,
+          issues: err.errors.map((issue) => issue.code),
+        });
         return;
       }
       reply.code(500).send({ error: err.message });
@@ -530,6 +540,21 @@ describe("oav-fastify integration: validateResponses with requireResponseBody", 
       const { id } = request.params as { id: string };
       if (id === "empty") {
         return reply.header("content-type", "application/json").send(); // 200 declares content; body absent
+      }
+      if (id === "empty-string") {
+        return reply.header("content-type", "application/json").send("");
+      }
+      if (id === "null") {
+        return reply.header("content-type", "text/plain").send(null);
+      }
+      if (id === "json-null") {
+        return reply.header("content-type", "application/json").send(null);
+      }
+      if (id === "empty-buffer") {
+        return reply.header("content-type", "application/pdf").send(Buffer.alloc(0));
+      }
+      if (id === "pdf") {
+        return reply.header("content-type", "application/pdf").send(Buffer.from("pdf"));
       }
       return { id };
     });
@@ -546,10 +571,31 @@ describe("oav-fastify integration: validateResponses with requireResponseBody", 
     expect((r.json() as { responseInvalid: boolean }).responseInvalid).toBe(true);
   });
 
+  it("zero-byte opaque payloads are findings (500)", async () => {
+    for (const id of ["null", "empty-string", "empty-buffer"]) {
+      const r = await app.inject({ method: "GET", url: `/widgets/${id}` });
+      expect(r.statusCode).toBe(500);
+      expect((r.json() as { responseInvalid: boolean }).responseInvalid).toBe(true);
+    }
+  });
+
+  it("a serialized JSON null is schema-validated instead of treated as absent", async () => {
+    const r = await app.inject({ method: "GET", url: "/widgets/json-null" });
+    expect(r.statusCode).toBe(500);
+    expect(r.json()).toMatchObject({ responseInvalid: true, issues: ["type"] });
+  });
+
   it("a present body still passes", async () => {
     const r = await app.inject({ method: "GET", url: "/widgets/ok" });
     expect(r.statusCode).toBe(200);
     expect(r.json()).toEqual({ id: "ok" });
+  });
+
+  it("an opaque Buffer body still satisfies the body-presence check", async () => {
+    const r = await app.inject({ method: "GET", url: "/widgets/pdf" });
+    expect(r.statusCode).toBe(200);
+    expect(r.headers["content-type"]).toMatch(/application\/pdf/);
+    expect(r.body).toBe("pdf");
   });
 
   it("HEAD against the GET operation stays exempt even with an absent body", async () => {

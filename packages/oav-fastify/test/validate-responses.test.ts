@@ -155,6 +155,37 @@ describe("validateResponses (Fastify)", () => {
     );
   });
 
+  it("does not treat an opaque Buffer payload as absent when response bodies are required", async () => {
+    const spec = widgetSpec();
+    const get = spec.paths!["/widgets/{id}"]!.get as unknown as {
+      responses: Record<string, { content?: Record<string, unknown> }>;
+    };
+    get.responses["200"]!.content = {
+      "application/pdf": { schema: { type: "string", format: "binary" } },
+    };
+    const hv = createValidator(spec, { requireResponseBody: true });
+    const payload = Buffer.from("pdf");
+    await expect(
+      run(validateResponses(hv), fakeRequest(), fakeReply(200, "application/pdf"), payload),
+    ).resolves.toBe(payload);
+  });
+
+  it("treats zero-byte opaque payloads as absent when response bodies are required", async () => {
+    const hv = createValidator(widgetSpec(), { requireResponseBody: true });
+    for (const payload of [null, "", Buffer.alloc(0), new Uint8Array()] as const) {
+      await expect(
+        run(validateResponses(hv), fakeRequest(), fakeReply(200, "application/json"), payload),
+      ).rejects.toMatchObject({ errors: [{ code: "body" }] });
+    }
+  });
+
+  it("validates a serialized JSON null as a present body", async () => {
+    const hv = createValidator(widgetSpec(), { requireResponseBody: true });
+    await expect(
+      run(validateResponses(hv), fakeRequest(), fakeReply(200, "application/json"), "null"),
+    ).rejects.toMatchObject({ errors: [{ code: "type" }] });
+  });
+
   it("does not re-validate the error handler's own response (no loop)", async () => {
     const hook = validateResponses(v);
     const request = fakeRequest();
