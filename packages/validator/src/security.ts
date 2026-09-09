@@ -102,6 +102,50 @@ export function compileOperationSecurity(
 }
 
 /**
+ * Query parameter names declared by the operation's effective
+ * apiKey-in-query security schemes.
+ *
+ * `strictQueryParameters` checks every query key against names the
+ * operation declares. A security apiKey in the query is one of those
+ * declarations even when `validateSecurity` is off: the option decides
+ * whether the credential is shape-checked, not whether the OpenAPI
+ * document names the wire key (#999).
+ *
+ * @internal
+ */
+export function queryApiKeyNamesForSecurity(
+  operation: OperationObject,
+  document: OpenAPIDocument,
+  resolveRef: <T>(v: T | ReferenceObject | undefined) => T | undefined,
+): string[] {
+  const effective = operation.security ?? document.security;
+  if (effective == null || !Array.isArray(effective) || effective.length === 0) return [];
+
+  const schemes = document.components?.securitySchemes ?? {};
+  const names = new Set<string>();
+  for (const req of effective) {
+    if (req === null || typeof req !== "object" || Array.isArray(req)) continue;
+    for (const schemeName of Object.keys(req)) {
+      let scheme: SecuritySchemeObject | undefined;
+      try {
+        scheme = resolveRef<SecuritySchemeObject>(getOwn(schemes, schemeName));
+      } catch {
+        continue;
+      }
+      if (
+        scheme?.type === "apiKey" &&
+        scheme.in === "query" &&
+        typeof scheme.name === "string" &&
+        scheme.name !== ""
+      ) {
+        names.add(scheme.name);
+      }
+    }
+  }
+  return [...names];
+}
+
+/**
  * The requirement an unreadable `security` compiles to: one that no
  * request satisfies.
  *

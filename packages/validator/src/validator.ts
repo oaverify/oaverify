@@ -87,7 +87,12 @@ import {
   type ResponseCompiled,
   type SchemaOrigin,
 } from "./operation-cache.js";
-import { checkSecurity, compileOperationSecurity, type SecurityMode } from "./security.js";
+import {
+  checkSecurity,
+  compileOperationSecurity,
+  queryApiKeyNamesForSecurity,
+  type SecurityMode,
+} from "./security.js";
 import { matchRequestBodyMediaType, validateBody, validateParameter } from "./validate-step.js";
 
 /**
@@ -1554,6 +1559,8 @@ export function createValidator(
       resolveSchemaRef,
       refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
       allowBracketedQueryArrays: options.allowBracketedQueryArrays === true,
+      querySecurityParameters: () =>
+        queryApiKeyNamesForSecurity(pathMatch.operation, spec, resolveRef),
       // The cache builder has no business choosing a ref resolver, so it
       // sees a two-argument `compile` and the default resolver is bound
       // here.
