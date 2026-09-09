@@ -604,8 +604,7 @@ still live in `packages/*` and run on a root `pnpm test`.
 Adding a root means adding a `.github/dependabot.yml` entry for it.
 Advisory scanning reads every lockfile in the repo, but dependabot only
 opens PRs for directories declared there, so an undeclared root gets
-alerts it can never fix on its own. `detection/` sat that way until
-#629.
+alerts it can never fix on its own. `detection/` sat that way until #629.
 
 The root `.npmrc` sets `auto-install-peers=false` so the adapter
 packages' peer-dep declarations (`express`, `fastify`) do not silently
