@@ -15,7 +15,8 @@
 //
 //   Against committed baselines: the required-suite row and the sentence
 //   beside it, the overlay row and all three translator buckets, and the
-//   format subtree's size, score and both failure directions.
+//   format subtree's size, score, both failure directions and reach
+//   into builtInFormats.
 //
 //   Against three independent statements of the same fact: the +optional
 //   row. Its runner writes a gitignored file, so the row is bounded by the
@@ -50,6 +51,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(root, p), "utf8");
@@ -66,6 +68,39 @@ const cells = (line) =>
     .split("|")
     .slice(1, -1)
     .map((c) => c.trim());
+
+function builtInFormatNames() {
+  const source = read("packages/formats/src/index.ts");
+  const file = ts.createSourceFile("packages/formats/src/index.ts", source, ts.ScriptTarget.Latest);
+  let initializer = null;
+  for (const statement of file.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (
+        ts.isIdentifier(declaration.name) &&
+        declaration.name.text === "builtInFormats" &&
+        declaration.initializer !== undefined
+      ) {
+        initializer = declaration.initializer;
+      }
+    }
+  }
+  if (initializer === null || !ts.isObjectLiteralExpression(initializer)) {
+    say("packages/formats/src/index.ts: cannot find builtInFormats object");
+    return new Set();
+  }
+  const names = new Set();
+  for (const property of initializer.properties) {
+    if (!ts.isPropertyAssignment(property)) {
+      say("packages/formats/src/index.ts: builtInFormats contains a non-literal property");
+      continue;
+    }
+    const name = property.name;
+    if (ts.isStringLiteral(name) || ts.isIdentifier(name)) names.add(name.text);
+    else say("packages/formats/src/index.ts: builtInFormats contains a computed property name");
+  }
+  return names;
+}
 
 /** A `## ` section of the report, up to the next `## `. */
 function section(heading) {
@@ -186,6 +221,17 @@ const requiredTotals = {
     if (!optional.includes(`**${sum(f, "pass")}/${sum(f, "cases")}**`)) {
       say(`${REPORT}: ${where} does not state "**${sum(f, "pass")}/${sum(f, "cases")}**"`);
     }
+    const builtIn = builtInFormatNames();
+    if (builtIn.size > 0) {
+      const reached = f.filter((r) => builtIn.has(r.format)).length;
+      statesCount(optional, where, reached, `of the ${builtIn.size} \`builtInFormats\` keys`);
+      statesCount(
+        optional,
+        where,
+        builtIn.size - reached,
+        "built-in formats have zero upstream cases",
+      );
+    }
     statesCount(optional, where, sum(f, "falseAccept"), "\\*\\*false accepts\\*\\*");
     statesCount(optional, where, sum(f, "falseReject"), "\\*\\*false rejects\\*\\*");
   }
@@ -219,6 +265,21 @@ const requiredTotals = {
   if (row && sentence && tableRows > 0) {
     const stated = { total: +sentence[1], mismatch: +sentence[2], error: +sentence[3] };
     const rowN = { cases: +row[1], pass: +row[2], mismatch: +row[3], error: +row[4] };
+    const widened = /Running with `--optional` widens to (\d+) cases\. The extra (\d+) cases/.exec(
+      optional,
+    );
+    if (!widened) {
+      say(`${REPORT}: no optional-suite widened-case-count sentence`);
+    } else {
+      const totalCases = +widened[1];
+      const extraCases = +widened[2];
+      if (totalCases !== rowN.cases || extraCases !== rowN.cases - requiredTotals.cases) {
+        say(
+          `${REPORT}: optional-suite widened sentence says ${totalCases} cases / ${extraCases} extra, ` +
+            `the +optional row and required baseline say ${rowN.cases} / ${rowN.cases - requiredTotals.cases}`,
+        );
+      }
+    }
 
     if (stated.mismatch !== table.mismatch || stated.error !== table.error) {
       say(

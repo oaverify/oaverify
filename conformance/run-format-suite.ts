@@ -1,13 +1,13 @@
 /**
  * Runner for the JSON Schema Test Suite's `optional/format` subtree.
  *
- * Separate from `run-json-schema-suite.ts` for one reason: `format` is
- * annotation-only under the default dialect, so that runner's
- * `--optional` pass reports every `"valid": false` format case as a
- * pass without asserting anything. Over half the subtree expects a
- * rejection, which is why a run under `jsonSchemaDialect` is not a
- * measurement. This one compiles with `openapi31Dialect`, where
- * `format` is an assertion, and reports the two directions separately:
+ * Separate from `run-json-schema-suite.ts` for two reasons. First, that
+ * runner does not enter `optional/format/`: the path is a directory, and
+ * its file walker is non-recursive. Second, a default-dialect run of the
+ * subtree would not measure assertive format behaviour anyway. `format`
+ * is annotation-only there, so every `"valid": false` case validates.
+ * This runner compiles with `openapi31Dialect`, where `format` is an
+ * assertion, and reports the two directions separately:
  *
  *   - **false accept**: we allowed a value the format forbids. A
  *     missed catch.
@@ -18,11 +18,6 @@
  * That split is the whole reason the report is worth having. A single
  * pass count hides which direction moved, and the two directions carry
  * different consequences.
- *
- * Also note this subtree does not recurse into the parent runner:
- * `optional/format/` is a directory, and `listJsonFiles` there is
- * non-recursive.
- *
  * Usage:
  *   pnpm format-suite                  # print the table, write the baseline
  *   pnpm format-suite --check-baseline # CI: fail if any format regressed
