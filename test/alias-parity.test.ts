@@ -151,16 +151,11 @@ describeSubTable("tsconfig.build.json");
 describeSubTable("framework-tests/tsconfig.json");
 describeSubTable("tsconfig.tests.json");
 
-// `examples/tsconfig.json` is not a sub-table: nothing resolves through
-// it, since every example imports by relative path. It is used here
-// only because it sets `"baseUrl": ".."`, the case no asserted table
-// exercises. #916 proposes deleting that block, which would leave this
-// needing another config that sets one.
+// The asserted tables all set `"baseUrl": "."`, so the fixture below
+// pins the path resolution rule for the case that differs.
 describe("tsconfigPathEntries resolves paths against baseUrl", () => {
   it("does not resolve against the config's own directory when baseUrl differs", () => {
-    const entries = new Map(tsconfigPathEntries("examples/tsconfig.json"));
-    expect(entries.get("@oaverify/internal-core")).toBe(
-      resolve(root, "packages/core/src/index.ts"),
-    );
+    const entries = new Map(tsconfigPathEntries("test/tsconfig-baseurl.fixture.json"));
+    expect(entries.get("@fixture/example")).toBe(resolve(root, "packages/core/src/index.ts"));
   });
 });
