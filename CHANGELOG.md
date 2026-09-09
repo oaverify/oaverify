@@ -5,7 +5,7 @@
 
 ### Bug Fixes
 
-* **adapters:** check status and headers for opaque response sends ([08a2914](https://github.com/oaverify/oaverify/commit/08a2914694f36b8d182af7a7f456e04f81cd6758))
+* **adapters:** check status and headers for opaque response sends, adding the optional `HttpResponse.bodyPresent` field ([08a2914](https://github.com/oaverify/oaverify/commit/08a2914694f36b8d182af7a7f456e04f81cd6758))
 * **detection:** score fatal tool runs distinctly ([7a1c64a](https://github.com/oaverify/oaverify/commit/7a1c64a3ecd89fa102bb1dc25a011c1df613232e))
 * **schema:** ignore discarded ref sibling subtrees ([0469a65](https://github.com/oaverify/oaverify/commit/0469a650355b088cb6d2c477cf2e62915718e76e))
 * **spec:** withhold source for rewritten overlay containers ([8e666f2](https://github.com/oaverify/oaverify/commit/8e666f27d218bff691a0572078a909b9c270b406))
