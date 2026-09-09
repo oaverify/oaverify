@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.2.2](https://github.com/oaverify/oaverify/compare/check-v7.2.1...check-v7.2.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* **schema:** ignore discarded ref sibling subtrees ([0469a65](https://github.com/oaverify/oaverify/commit/0469a650355b088cb6d2c477cf2e62915718e76e))
+
+
+### Documentation
+
+* correct four comments that describe something the code does not do ([#990](https://github.com/oaverify/oaverify/issues/990)) ([6f8f8ac](https://github.com/oaverify/oaverify/commit/6f8f8ac3b08c3ec3feed75d24aad7aed32f5db59))
+
 ## [7.2.1](https://github.com/oaverify/oaverify/compare/check-v7.2.0...check-v7.2.1) (2026-08-26)
 
 

@@ -1,5 +1,35 @@
 # Changelog
 
+## [7.2.2](https://github.com/oaverify/oaverify/compare/core-v7.2.1...core-v7.2.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* **adapters:** check status and headers for opaque response sends ([08a2914](https://github.com/oaverify/oaverify/commit/08a2914694f36b8d182af7a7f456e04f81cd6758))
+* **detection:** score fatal tool runs distinctly ([7a1c64a](https://github.com/oaverify/oaverify/commit/7a1c64a3ecd89fa102bb1dc25a011c1df613232e))
+* **schema:** ignore discarded ref sibling subtrees ([0469a65](https://github.com/oaverify/oaverify/commit/0469a650355b088cb6d2c477cf2e62915718e76e))
+* **spec:** withhold source for rewritten overlay containers ([8e666f2](https://github.com/oaverify/oaverify/commit/8e666f27d218bff691a0572078a909b9c270b406))
+* **stream:** use core JSON Pointer refs ([d5c4bd1](https://github.com/oaverify/oaverify/commit/d5c4bd1b85b3258844701a96e156db935d9f68f6))
+* **validator:** allow query apiKey under strict query ([387cdaf](https://github.com/oaverify/oaverify/commit/387cdaf0d58198157c541f46f45b724676edb481))
+* **validator:** deserialize one-value object arrays ([a441b75](https://github.com/oaverify/oaverify/commit/a441b75805243b25d013315e6907f5d435336ada))
+* **validator:** honor assembled query keys in strict mode ([421d3b3](https://github.com/oaverify/oaverify/commit/421d3b3f86768d292622ba54faffa5e94c655876))
+
+
+### Documentation
+
+* **conformance:** qualify format suite coverage ([d27e83b](https://github.com/oaverify/oaverify/commit/d27e83b0f132ce637995ddfc57b39b5a480ad383))
+* correct four comments that describe something the code does not do ([#990](https://github.com/oaverify/oaverify/issues/990)) ([6f8f8ac](https://github.com/oaverify/oaverify/commit/6f8f8ac3b08c3ec3feed75d24aad7aed32f5db59))
+* **formats:** cite the RFCs that obsolete the ones named ([#989](https://github.com/oaverify/oaverify/issues/989)) ([cd7407d](https://github.com/oaverify/oaverify/commit/cd7407d7575d544779fab207986a6337e5e7832b))
+* keep issue references in prose ([e6af420](https://github.com/oaverify/oaverify/commit/e6af42014a978370f8eeab11154ea1f9d0156fc4))
+* show source spans for resolved pointers ([119a330](https://github.com/oaverify/oaverify/commit/119a330c6a96d3aead023e5f08fcd8f3e3f0d154))
+* **stream:** document string chunk offset limits ([96e6216](https://github.com/oaverify/oaverify/commit/96e6216d29899b9b9aa91e14565fae5bb3d03e93))
+* **stream:** move hook guide out of package overview ([47f64f0](https://github.com/oaverify/oaverify/commit/47f64f04c9818ba687b4a8f4d1d9b98734806fd6))
+
+
+### Refactoring
+
+* drop parameters and bindings that exist only to be discarded ([#991](https://github.com/oaverify/oaverify/issues/991)) ([a450ae3](https://github.com/oaverify/oaverify/commit/a450ae3ccc5c35d36a7a5f1f4bae6c42ecf3c59a))
+
 ## [7.2.1](https://github.com/oaverify/oaverify/compare/core-v7.2.0...core-v7.2.1) (2026-08-26)
 
 

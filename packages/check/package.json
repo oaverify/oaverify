@@ -1,6 +1,6 @@
 {
   "name": "@oaverify/check",
-  "version": "7.2.1",
+  "version": "7.2.2",
   "description": "The composed OpenAPI document check behind `oaverify check`: hygiene, schema, conformance, example and ReDoS passes over a resolved spec, graded into one finding list.",
   "keywords": [
     "oas",
