@@ -138,14 +138,16 @@ value `JSON.parse` produces. The streaming-specific replay at every byte
 boundary lives in `packages/stream-validator/test/tokenizer.test.ts` and
 runs under the root `pnpm test`; this suite adds corpus breadth.
 
-**`format-suite`** is separate from `suite:optional` because `format` is
-annotation-only under the default dialect. Run that way, every
-`"valid": false` format case passes without asserting anything, and over
-half the subtree expects a rejection, so `suite:optional` is not a
-measurement of format behaviour at any pass rate it reports. Current
-counts are in [`REPORT.md`](./REPORT.md); they move with the corpus pin. `format-suite` compiles
-with `openapi31Dialect`, where `format` is an assertion, and splits the two
-directions because they carry different consequences:
+**`format-suite`** is separate from `suite:optional` because the parent
+runner does not enter `optional/format/`: the path is a directory, and
+the file walker is non-recursive. A default-dialect run of that subtree
+would still not measure assertive format behaviour. `format` is
+annotation-only there, so every `"valid": false` case validates, and
+over half the subtree expects a rejection. Current counts are in
+[`REPORT.md`](./REPORT.md); they move with the corpus pin.
+`format-suite` compiles with `openapi31Dialect`, where `format` is an
+assertion, and splits the two directions because they carry different
+consequences:
 
 - **false accept**: we allowed a value the format forbids. A missed catch.
 - **false reject**: we refused a value the format allows. Under the

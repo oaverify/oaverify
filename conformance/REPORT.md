@@ -7,21 +7,21 @@ are where the last two drifts happened:
 
 - **Gated against a committed baseline**: the required-suite row and the
   sentence restating it, the Overlay row and all three translator
-  buckets, the format subtree's size, score and both failure directions,
-  and the headline `README.md` quotes.
+  buckets, the format subtree's size, score, both failure directions,
+  and how many `builtInFormats` keys that subtree reaches.
 - **Gated by agreement**: the `+ optional` row, whose runner writes a
   gitignored file. It is bounded by the required baseline and checked
   against both places below that enumerate its non-passing cases, so
-  moving any one of the three alone fails.
+  moving any one of the three alone fails. The sentence stating the
+  widened case count is checked against the same row.
 - **Not gated**: the OpenAPI petstore row, for the same gitignored-runner
   reason and with nothing here stating it twice, and every figure derived
-  in prose rather than read from a baseline: the extra optional cases,
-  the cases expecting a rejection, and the concentration of the format
-  failures. This list names the kinds and not the numbers on purpose. It
-  quoted one, "58 of the 61 failures", and that string went stale in the
-  very next commit while the prose it pointed at was updated, which is
-  the drift the gate exists to stop happening in the sentence describing
-  the gate.
+  in prose rather than read from a baseline: the cases expecting a
+  rejection and the concentration of the format failures. This list names
+  the kinds and not the numbers on purpose. It quoted one, "58 of the 61
+  failures", and that string went stale in the very next commit while the
+  prose it pointed at was updated, which is the drift the gate exists to
+  stop happening in the sentence describing the gate.
 
 Run against three upstream / hand-curated test corpora:
 
@@ -94,7 +94,7 @@ which was a silent pass rather than a wrong rejection.
 
 ## Optional-suite breakdown
 
-Running with `--optional` widens to 1461 cases. The extra 162 cases
+Running with `--optional` widens to 1463 cases. The extra 162 cases
 live under `tests/draft2020-12/optional/`. The 8 non-passing optional
 cases (4 mismatch + 4 error):
 
@@ -108,26 +108,34 @@ cases (4 mismatch + 4 error):
 All other optional files pass, including `dynamicRef.json` since #663.
 
 The per-format subtree (`optional/format/*.json`) has its own runner,
-`pnpm format-suite`, because `suite:optional` cannot measure it. The
-subtree is 861 cases across 21 formats, of which 453 expect a rejection.
-By spec default and ours, `format` is annotation-only, so those 453
-vacuously fail for any implementation that follows the default. That is
-an identity rather than a measurement: an annotation-only implementation
-accepts every string, so it passes exactly the `valid: true` cases and
-fails exactly the `valid: false` ones, whatever it is. A Bowtie run
-across five implementations was cited here as agreeing, and it could not
-have done anything else. Such a run says nothing about the assertive
-score three lines below, because it cannot tell a complete format
-implementation apart from one carrying no formats whatever. The citation
-is gone rather than re-dated: a stale identity is still an identity. No published comparative format number exists for anyone,
-which is why this one is measured locally.
+`pnpm format-suite`, because `suite:optional` does not enter it: the
+parent runner's file walker is non-recursive, and `optional/format/` is a
+directory. A default-dialect run over that subtree would still fail to
+measure assertive format behaviour. By spec default and ours, `format` is
+annotation-only, so the cases expecting rejection vacuously fail for any
+implementation that follows the default. That is an identity rather than
+a measurement: an annotation-only implementation accepts every string, so
+it passes exactly the `valid: true` cases and fails exactly the
+`valid: false` ones, whatever it is. A Bowtie run across five
+implementations was cited here as agreeing, and it could not have done
+anything else. Such a run says nothing about the assertive score three
+lines below, because it cannot tell a complete format implementation
+apart from one carrying no formats whatever. The citation is gone rather
+than re-dated: a stale identity is still an identity. No published
+comparative format number exists for anyone, which is why this one is
+measured locally.
 
 `format-suite` compiles with the OpenAPI 3.1 dialect, which promotes
-`format` to an assertion, and scores **801/861**. It
-reports the two directions separately, because they carry different
-consequences: 41 **false accepts** (we allowed a value the format
-forbids, a missed catch) and 19 **false rejects** (we refused a value
-the format allows, which under the OpenAPI dialects refuses live
+`format` to an assertion. The subtree is 861 cases across 21 formats, of
+which 453 expect a rejection, and scores **801/861** on a corpus reaching
+18 of the 38 `builtInFormats` keys. The other three suite files are
+`ecmascript-regex`, `regex` and `unknown`; the first two exercise the
+compiler-provided `regex` format, and `unknown` exercises unregistered
+format behaviour. 20 built-in formats have zero upstream cases here.
+The runner reports the two failure directions separately, because they
+carry different consequences: 41 **false accepts** (we allowed a value
+the format forbids, a missed catch) and 19 **false rejects** (we refused
+a value the format allows, which under the OpenAPI dialects refuses live
 traffic).
 
 The gap is concentrated rather than spread. `hostname` and
