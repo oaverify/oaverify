@@ -278,7 +278,9 @@ how large a buffer can get, from the spec alone;
 `oaverify stream-check openapi.yaml` prints the same per-operation
 budget as a table (`--fail-on-unbounded` makes it a CI gate). See
 [`packages/stream-validator/README.md`](https://github.com/oaverify/oaverify/blob/main/packages/stream-validator/README.md)
-for the engine, the buffer model, and the edit hooks.
+for the engine and buffer model, and
+[`docs/streaming.md`](https://github.com/oaverify/oaverify/blob/main/docs/streaming.md)
+for the operation helper and edit hooks.
 
 ## Overlay quickstart
 

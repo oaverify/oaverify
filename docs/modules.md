@@ -124,7 +124,9 @@ one, so compose in `@oaverify/syntax`'s readers for a YAML entry. See
 (`createStreamValidator`, `streamValidatorForOperation`) plus the
 streamability analyzer (`analyzeStreamability`, `analyzeSpec`),
 published standalone. See
-[`packages/stream-validator/README.md`](../packages/stream-validator/README.md).
+[`packages/stream-validator/README.md`](../packages/stream-validator/README.md)
+for the package overview and [`docs/streaming.md`](./streaming.md) for
+the operation helper and hook guide.
 
 ## The CLI
 
