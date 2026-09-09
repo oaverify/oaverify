@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.2.2](https://github.com/oaverify/oaverify/compare/fastify-v7.2.1...fastify-v7.2.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* **adapters:** check status and headers for opaque response sends, adding the optional `HttpResponse.bodyPresent` field ([08a2914](https://github.com/oaverify/oaverify/commit/08a2914694f36b8d182af7a7f456e04f81cd6758))
+
+
+### Documentation
+
+* correct four comments that describe something the code does not do ([#990](https://github.com/oaverify/oaverify/issues/990)) ([6f8f8ac](https://github.com/oaverify/oaverify/commit/6f8f8ac3b08c3ec3feed75d24aad7aed32f5db59))
+
 ## [7.2.1](https://github.com/oaverify/oaverify/compare/fastify-v7.2.0...fastify-v7.2.1) (2026-08-26)
 
 

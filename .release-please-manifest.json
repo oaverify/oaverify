@@ -1,10 +1,10 @@
 {
-  ".": "7.2.1",
-  "packages/oav": "7.2.1",
-  "packages/syntax": "7.2.1",
-  "packages/check": "7.2.1",
-  "packages/oav-express4": "7.2.1",
-  "packages/oav-express5": "7.2.1",
-  "packages/oav-fastify": "7.2.1",
-  "packages/stream-validator": "7.2.1"
+  ".": "7.2.2",
+  "packages/oav": "7.2.2",
+  "packages/syntax": "7.2.2",
+  "packages/check": "7.2.2",
+  "packages/oav-express4": "7.2.2",
+  "packages/oav-express5": "7.2.2",
+  "packages/oav-fastify": "7.2.2",
+  "packages/stream-validator": "7.2.2"
 }
