@@ -14,6 +14,7 @@ Web Standards `Request` / `Response`.
 | Next.js, Hono, Bun, Deno, Fetch APIs | [`validateFetchRequest`](#nextjs-app-router-hono-bun-deno)                                    |
 | Another framework                    | [What the validator expects](#what-the-validator-expects)                                     |
 | A custom error response shape        | [Preserving an existing client error envelope](#preserving-an-existing-client-error-envelope) |
+| Resolved pointers to source lines    | [Mapping resolved pointers to source lines](#mapping-resolved-pointers-to-source-lines)       |
 | File uploads, auth, response checks  | [Cross-cutting recipes](#cross-cutting-recipes)                                               |
 
 Adapters handle request validation and default
@@ -77,6 +78,86 @@ flat `ValidationError[]`, so `result.errors` passes straight through.
 | `toProblemDetails(errors, opts?)`   | An [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) `application/problem+json` body, failing leaves in `issues`; pass `status` to match the response and `detail` to override the summary |
 | `formatSummary(err, opts?)`         | One tree as a string, for log lines and monitoring titles; `FormatSummaryOptions.select` picks which leaves (`{ select: "all" }` enumerates every one)                                           |
 | `collectIssues(errors)`             | The flat leaf list for custom envelopes, each with a raw `path: PathSegment[]` and an RFC 6901 `pointer`                                                                                         |
+
+## Mapping resolved pointers to source lines
+
+Load with `provenance: true` when you need to map a pointer in the
+resolved document back to the file an author opens. The load still works
+without it, but `sourceOf` then has no `SpecRegion` records to search
+and returns `undefined` for every pointer. `sourceOf` gives the
+`SourceAddress`; `createSourceSpanResolver` turns addresses into
+`SourceSpan` line and column ranges.
+
+```ts
+import { readFileSync } from "node:fs";
+import { isAbsolute, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  createSourceSpanResolver,
+  sourceOf,
+  STDIN_URI,
+  type SourceAddress,
+  type SourceText,
+} from "@oaverify/core/spec";
+import { createJsonSpanBackend, createYamlSpanBackend, loadSpecSync } from "@oaverify/syntax";
+
+const cwd = process.cwd();
+const resolved = loadSpecSync({ entry: "openapi.yaml", provenance: true });
+
+const pointers = ["/paths/~1pets/get", "/components/schemas/Pet/properties/name"];
+
+const addresses = pointers
+  .map((pointer) => sourceOf(resolved.regions ?? [], pointer))
+  .filter((address): address is SourceAddress => address !== undefined);
+
+const texts = new Map<string, SourceText>();
+for (const uri of new Set(addresses.map((address) => address.uri))) {
+  const path = sourcePathFor(uri);
+  if (path === undefined) continue;
+  texts.set(uri, { text: readFileSync(path, "utf8"), syntax: syntaxFor(uri) });
+}
+
+const spans = createSourceSpanResolver({
+  texts: { textFor: (uri) => texts.get(uri) },
+  backends: [createYamlSpanBackend(), createJsonSpanBackend()],
+}).spansFor(addresses);
+
+for (const [index, span] of spans.entries()) {
+  if (span === undefined) continue;
+  const address = addresses[index];
+  if (address === undefined) continue;
+  console.log(
+    `${address.uri}:${span.start.line}:${span.start.column}-${span.end.line}:${span.end.column}`,
+  );
+}
+
+function sourcePathFor(uri: string): string | undefined {
+  if (uri === STDIN_URI || /^https?:/i.test(uri)) return undefined;
+  if (uri.startsWith("file:")) return fileURLToPath(uri);
+  return isAbsolute(uri) ? uri : resolvePath(cwd, uri);
+}
+
+function syntaxFor(uri: string): SourceText["syntax"] | undefined {
+  const lower = uri.toLowerCase();
+  if (lower.endsWith(".yaml") || lower.endsWith(".yml")) return "yaml";
+  if (lower.endsWith(".json")) return "json";
+  return undefined;
+}
+```
+
+Batch the addresses through `spansFor`. The resolver groups by URI, so
+one batch costs one text lookup and at most one parse per source
+document. Calling `spanFor` in a loop reparses the document for each
+pointer. The contracts live on `SourceAddress`, `SpecRegion` and
+`SourceSpan`.
+
+Only sources whose text you can supply get a span. A file path or
+`file:` URL can be re-read; stdin can answer only if your application
+kept the consumed text; `http:` and `https:` should not be fetched again
+because the second response may differ; a custom reader can answer only
+if your application kept the text. Re-reading a file claims it has not
+changed since loading. An editor should return the open buffer text
+instead.
 
 ## Per-framework integration
 
