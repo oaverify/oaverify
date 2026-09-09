@@ -147,9 +147,9 @@
   },
   {
     "file": "enum.json",
-    "groups": 15,
-    "cases": 51,
-    "pass": 51,
+    "groups": 16,
+    "cases": 53,
+    "pass": 53,
     "fail": 0,
     "error": 0,
     "mismatches": []
