@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
+import { workspaceAliases } from "../../workspace-aliases.js";
 
 /**
  * Build config for `oaverify`, the CLI tarball.
@@ -31,6 +32,7 @@ import { defineConfig } from "tsup";
  * up the ESM build regardless of the consumer's package type.
  */
 const repoRoot = resolve(__dirname, "..", "..");
+const workspace = workspaceAliases(repoRoot);
 
 // `@oaverify/internal-*` -> `@oaverify/core[/*]`: kept external (resolved at
 // run time from the consumer's install of `@oaverify/core`).
@@ -46,33 +48,23 @@ const oavCoreRewrite: Record<string, string> = {
   "@oaverify/internal-validator/internals": "@oaverify/core/validator/internals",
 };
 
-// `@oaverify/internal-cli` + `@oaverify/internal-router`: private workspace packages bundled
-// into this tarball (no external runtime counterpart).
-const bundledWorkspace: Record<string, string> = {
-  "@oaverify/internal-core/prototype-properties": resolve(
-    repoRoot,
-    "packages",
-    "core",
-    "src",
-    "prototype-properties.ts",
-  ),
-  "@oaverify/internal-core/ref-siblings": resolve(
-    repoRoot,
-    "packages",
-    "core",
-    "src",
-    "ref-siblings.ts",
-  ),
-  "@oaverify/internal-core/subschema-positions": resolve(
-    repoRoot,
-    "packages",
-    "core",
-    "src",
-    "subschema-positions.ts",
-  ),
-  "@oaverify/internal-cli": resolve(repoRoot, "packages", "cli", "src", "index.ts"),
-  "@oaverify/internal-router": resolve(repoRoot, "packages", "router", "src", "index.ts"),
-};
+function workspaceTarget(specifier: string): string {
+  const target = workspace[specifier];
+  if (target === undefined) throw new Error(`workspace alias missing for ${specifier}`);
+  return target;
+}
+
+// Private workspace modules bundled into this tarball. The keys are this
+// package's bundle boundary; the source targets come from the root builder.
+const bundledWorkspace = Object.fromEntries(
+  [
+    "@oaverify/internal-core/prototype-properties",
+    "@oaverify/internal-core/ref-siblings",
+    "@oaverify/internal-core/subschema-positions",
+    "@oaverify/internal-cli",
+    "@oaverify/internal-router",
+  ].map((specifier) => [specifier, workspaceTarget(specifier)]),
+);
 
 // esbuild resolves aliases before external-matching, but only for
 // the originally-imported specifier. Doing the rewrite+external in a
