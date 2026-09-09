@@ -117,6 +117,23 @@ function compileRefCall(ctx: KeywordCompileContext, ref: string): void {
   ctx.gen.if(`${errVar} !== null`, () => ctx.emitError("lift", errVar));
 }
 
+function describeRefValue(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "an array";
+  return typeof value;
+}
+
+function checkRefValue(value: unknown): string | undefined {
+  if (typeof value === "string") return undefined;
+  return `requires a URI-reference string; got ${describeRefValue(value)}`;
+}
+
+function parseRefValue(value: unknown, keyword: "$ref" | "$dynamicRef"): string {
+  const reason = checkRefValue(value);
+  if (reason !== undefined) throw new Error(`keyword "${keyword}" ${reason}`);
+  return value as string;
+}
+
 /**
  * The JSON Schema 2020-12 `$ref` keyword. Resolves the reference to another
  * schema and delegates validation to its compiled function.
@@ -130,8 +147,9 @@ function compileRefCall(ctx: KeywordCompileContext, ref: string): void {
 export const refKeyword: KeywordDefinition = {
   keyword: "$ref",
   vocabulary: CORE_VOCAB,
+  validateKeywordValue: (value) => checkRefValue(value),
   compile(ctx) {
-    const ref = ctx.schema as string;
+    const ref = parseRefValue(ctx.schema, "$ref");
     compileRefCall(ctx, ref);
   },
 };
@@ -164,8 +182,9 @@ export const refKeyword: KeywordDefinition = {
 export const dynamicRefKeyword: KeywordDefinition = {
   keyword: "$dynamicRef",
   vocabulary: CORE_VOCAB,
+  validateKeywordValue: (value) => checkRefValue(value),
   compile(ctx) {
-    const ref = ctx.schema as string;
+    const ref = parseRefValue(ctx.schema, "$dynamicRef");
     const dynamic = ctx.resolveDynamicRef(ref);
     if (dynamic === null) {
       compileRefCall(ctx, ref);

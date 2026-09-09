@@ -81,6 +81,49 @@ describe("transformBodySchemaForDirection", () => {
     expect(out.properties.password).toEqual({ type: "string", writeOnly: true });
   });
 
+  it("ignores readOnly when OAS 3.0 discards it beside $ref", () => {
+    const schema: SchemaOrBoolean = {
+      type: "object",
+      required: ["id"],
+      properties: {
+        id: { $ref: "#/components/schemas/Id", readOnly: true },
+      },
+    };
+    const resolver = refResolver({ "#/components/schemas/Id": { type: "string" } });
+    const cache = new Map<SchemaOrBoolean, SchemaOrBoolean>();
+    const out = transformBodySchemaForDirection(schema, "request", resolver, cache, {
+      refSuppressesSiblings: true,
+    }) as {
+      properties: Record<string, SchemaOrBoolean>;
+      required: string[];
+    };
+    expect(out.properties.id).toEqual({ $ref: "#/components/schemas/Id", readOnly: true });
+    expect(out.required).toEqual(["id"]);
+  });
+
+  it("ignores writeOnly when OAS 3.0 discards it beside $ref", () => {
+    const schema: SchemaOrBoolean = {
+      type: "object",
+      required: ["secret"],
+      properties: {
+        secret: { $ref: "#/components/schemas/Secret", writeOnly: true },
+      },
+    };
+    const resolver = refResolver({ "#/components/schemas/Secret": { type: "string" } });
+    const cache = new Map<SchemaOrBoolean, SchemaOrBoolean>();
+    const out = transformBodySchemaForDirection(schema, "response", resolver, cache, {
+      refSuppressesSiblings: true,
+    }) as {
+      properties: Record<string, SchemaOrBoolean>;
+      required: string[];
+    };
+    expect(out.properties.secret).toEqual({
+      $ref: "#/components/schemas/Secret",
+      writeOnly: true,
+    });
+    expect(out.required).toEqual(["secret"]);
+  });
+
   it("unwraps a root-level $ref before transforming", () => {
     const target: SchemaOrBoolean = {
       type: "object",
@@ -130,6 +173,25 @@ describe("transformBodySchemaForDirection", () => {
     const cache = new Map<SchemaOrBoolean, SchemaOrBoolean>();
     expect(transformBodySchemaForDirection(schema, "request", emptyResolver, cache)).toEqual({});
     expect(transformBodySchemaForDirection(schema, "response", emptyResolver, cache)).toEqual({});
+  });
+
+  it("does not strip format: binary when OAS 3.0 discards it beside $ref", () => {
+    const schema: SchemaOrBoolean = {
+      $ref: "#/components/schemas/Text",
+      type: "string",
+      format: "binary",
+    } as never;
+    const resolver = refResolver({ "#/components/schemas/Text": { type: "string" } });
+    const cache = new Map<SchemaOrBoolean, SchemaOrBoolean>();
+    expect(
+      transformBodySchemaForDirection(schema, "request", resolver, cache, {
+        refSuppressesSiblings: true,
+      }),
+    ).toEqual({
+      $ref: "#/components/schemas/Text",
+      type: "string",
+      format: "binary",
+    });
   });
 
   it("strips `format: binary` when type is array-typed including string", () => {

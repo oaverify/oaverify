@@ -40,6 +40,7 @@ import {
   examplesKeyword,
   externalDocsKeyword,
   readOnlyKeyword,
+  summaryKeyword,
   titleKeyword,
   writeOnlyKeyword,
   xmlKeyword,
@@ -237,15 +238,15 @@ export const metaDataVocabulary: Vocabulary = {
 /**
  * OpenAPI-specific annotations layered on top of
  * {@link metaDataVocabulary}. Carries the singular `example`
- * (deprecated in 3.1 but widely used), `xml` (XML serialisation hints
- * on Schema Objects), and `externalDocs` (pointer to external docs).
- * All annotation-only.
+ * (deprecated in 3.1 but widely used), `summary`, `xml` (XML
+ * serialisation hints on Schema Objects), and `externalDocs` (pointer
+ * to external docs). All annotation-only.
  *
  * @public
  */
 export const openapiMetaDataVocabulary: Vocabulary = {
   uri: OPENAPI_META_DATA_VOCAB,
-  keywords: [exampleKeyword, xmlKeyword, externalDocsKeyword],
+  keywords: [exampleKeyword, summaryKeyword, xmlKeyword, externalDocsKeyword],
 };
 
 /**

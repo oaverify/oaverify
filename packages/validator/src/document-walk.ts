@@ -30,6 +30,8 @@ import {
   type HttpMethod,
   type OpenAPIDocument,
 } from "@oaverify/internal-core";
+import type { ResolvedGraph } from "@oaverify/internal-schema";
+import { refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
 import { subschemaEntries } from "@oaverify/internal-core/subschema-positions";
 
 /**
@@ -92,10 +94,18 @@ export const escapePointer = escapePointerSegment;
  */
 export interface DocumentWalkHooks {
   /**
-   * Every Schema Object reached, including subschemas, each with the
-   * RFC 6901 pointer to it. A schema shared by identity is visited once.
+   * Whether the active dialect discards `$ref` siblings (OAS 3.0).
+   *
+   * When set, a Schema Object with `$ref` is treated as reference-only:
+   * its sibling keywords and their subtrees are not visited.
    */
-  onSchemaNode?: (schema: Record<string, unknown>, pointer: string) => void;
+  refSuppressesSiblings?: boolean;
+  /**
+   * Every Schema Object reached, including subschemas, each with the
+   * RFC 6901 pointer to it. A schema shared by identity is visited
+   * once. Return `false` to skip that schema's own subschemas.
+   */
+  onSchemaNode?: (schema: Record<string, unknown>, pointer: string) => void | boolean;
   /**
    * A Media Type Object, whose `example` / `examples` sit beside its
    * `schema` rather than inside it.
@@ -121,12 +131,14 @@ export interface DocumentWalkHooks {
  */
 export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWalkHooks): void {
   const seenSchemas = new Set<unknown>();
+  const refSuppressesSiblings = hooks.refSuppressesSiblings ?? false;
 
   const walkSchema = (schema: unknown, pointer: string): void => {
     if (!isObj(schema) || seenSchemas.has(schema)) return;
     seenSchemas.add(schema);
+    if (refSuppressesSiblings && "$ref" in schema) return;
 
-    hooks.onSchemaNode?.(schema, pointer);
+    if (hooks.onSchemaNode?.(schema, pointer) === false) return;
 
     for (const { key, value, at } of subschemaEntries(schema)) {
       const step = at === undefined ? "" : `/${typeof at === "number" ? at : escapePointer(at)}`;
@@ -276,4 +288,33 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
       }
     }
   }
+}
+
+/**
+ * Add the ignored-edge metadata a document-root schema resolver needs
+ * under OAS 3.0 `$ref` sibling suppression.
+ *
+ * `resolve(document)` is still a JSON Schema graph walk, so it cannot
+ * discover OpenAPI's document-level schema positions on its own.
+ * Pointer resolution then needs these exact object/key edges to refuse
+ * refs into discarded sibling subtrees without confusing ordinary maps
+ * that happen to contain a literal `$ref` key.
+ *
+ * @internal
+ */
+export function recordDocumentRefSiblingSuppression(
+  document: OpenAPIDocument,
+  graph: ResolvedGraph,
+): void {
+  if (graph.refSuppressesSiblings !== true) return;
+  const ignoredRefSiblingKeys = graph.ignoredRefSiblingKeys ?? new WeakMap();
+  graph.ignoredRefSiblingKeys = ignoredRefSiblingKeys;
+
+  walkDocumentSchemas(document, {
+    onSchemaNode(schema) {
+      const ignored = Object.keys(schema).filter((key) => refSiblingIsDiscarded(schema, key, true));
+      if (ignored.length > 0) ignoredRefSiblingKeys.set(schema, new Set(ignored));
+      return "$ref" in schema ? false : undefined;
+    },
+  });
 }

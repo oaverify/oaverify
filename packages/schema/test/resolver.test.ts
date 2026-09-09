@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { openapi31Dialect } from "../src/keywords/vocabulary.js";
+import { createRefResolver } from "../src/resolve/refs.js";
 import { resolve } from "../src/resolve/resolver.js";
 
 describe("resolve", () => {
@@ -48,6 +49,46 @@ describe("resolve", () => {
     for (const name of ["a", "b", "c", "d", "e"]) {
       expect(graph.byAnchor.has(name)).toBe(true);
     }
+  });
+
+  it("does not index ids or anchors from discarded OAS 3.0 ref sibling subtrees", () => {
+    const ignored = {
+      $id: "urn:ignored",
+      $anchor: "ignored",
+      $dynamicAnchor: "dynamicIgnored",
+      type: "number",
+    };
+    const schema = {
+      allOf: [
+        {
+          $ref: "#/$defs/S",
+          properties: { ignored },
+        },
+      ],
+      $defs: { S: { type: "string" } },
+    } as unknown as SchemaOrBoolean;
+
+    const suppressed = resolve(schema, { refSuppressesSiblings: true });
+    expect(suppressed.byId.has("urn:ignored")).toBe(false);
+    expect(suppressed.byAnchor.has("ignored")).toBe(false);
+    expect(suppressed.byDynamicAnchor.has("dynamicIgnored")).toBe(false);
+
+    const unsuppressed = resolve(schema);
+    expect(unsuppressed.byId.get("urn:ignored")).toBe(ignored);
+    expect(unsuppressed.byAnchor.get("ignored")).toBe(ignored);
+    expect(unsuppressed.byDynamicAnchor.get("dynamicIgnored")).toBe(ignored);
+  });
+
+  it("does not treat ordinary maps with a $ref key as discarded sibling sets", () => {
+    const schema = {
+      properties: {
+        $ref: { type: "string" },
+        a: { type: "number" },
+      },
+    } as unknown as SchemaOrBoolean;
+
+    const refs = createRefResolver(resolve(schema, { refSuppressesSiblings: true }));
+    expect(refs.resolve("#/properties/a")).toEqual({ type: "number" });
   });
 });
 

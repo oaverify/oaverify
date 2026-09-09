@@ -21,8 +21,12 @@ import { oas30Dialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
 
 const withSibling = (sibling: Record<string, unknown>): SchemaOrBoolean =>
   ({
-    $ref: "#/$defs/S",
-    ...sibling,
+    allOf: [
+      {
+        $ref: "#/$defs/S",
+        ...sibling,
+      },
+    ],
     $defs: { S: { type: "string" } },
   }) as SchemaOrBoolean;
 
@@ -54,39 +58,32 @@ describe("a $ref sibling under OAS 3.0", () => {
     }
   });
 
-  // Two cases this deliberately does NOT fix, pinned so the limit is
-  // visible rather than discovered later. A discarded sibling whose own
-  // shape is wrong, and a bad keyword inside one, both stay fatal.
-  //
-  // The structural walk cannot be gated the way the value checks are:
-  // it is what stops `resolve` meeting a malformed node, and with
-  // `{$ref, properties: null}` skipped it dies at `Object.keys(null)`
-  // with a raw TypeError instead of a located message. Closing these
-  // means hardening the resolver first.
-  it("still rejects a discarded sibling whose own shape is wrong", () => {
+  it("does not reject a discarded sibling whose own shape is wrong", () => {
     expect(() =>
       compileSchema(withSibling({ items: [{ type: "string" }] }), { dialect: oas30Dialect }),
-    ).toThrow(/items/);
+    ).not.toThrow();
   });
 
-  it("still rejects a bad keyword inside a discarded sibling", () => {
-    expect(() =>
-      compileSchema(withSibling({ properties: { a: { type: "application/json" } } }), {
-        dialect: oas30Dialect,
-      }),
-    ).toThrow(/type/);
+  it.each([
+    ["single schema holder", { items: null }],
+    ["array schema entry", { allOf: [null] }],
+    ["map schema entry", { properties: { a: null } }],
+    ["mixed map schema entry", { dependencies: { a: null } }],
+    ["nested keyword value", { properties: { a: { type: "application/json" } } }],
+  ])("does not reject discarded %s structure", (_name, sibling) => {
+    expect(() => compileSchema(withSibling(sibling), { dialect: oas30Dialect })).not.toThrow();
   });
 
   // Codegen decides "is this ref-only" with `"$ref" in schema`, so this
   // pass has to as well. Deciding it on `typeof === "string"` left a
   // non-string `$ref` with codegen dropping the siblings while this pass
   // still judged them.
-  it("treats a non-string $ref the way codegen does", () => {
+  it("rejects a non-string $ref without judging discarded siblings first", () => {
     expect(() =>
       compileSchema({ $ref: 42, type: "application/json" } as unknown as SchemaOrBoolean, {
         dialect: oas30Dialect,
       }),
-    ).not.toThrow(/type/);
+    ).toThrow(/keyword "\$ref" requires a URI-reference string/);
   });
 
   it("still reports the sibling as silently dropped", () => {
@@ -99,6 +96,95 @@ describe("a $ref sibling under OAS 3.0", () => {
     );
   });
 
+  it("does not run schema lint inside discarded sibling content", () => {
+    const { stats } = compileSchema(
+      withSibling({
+        required: ["missing"],
+        properties: { child: { unknownKeyword: true, required: ["alsoMissing"] } },
+        pattern: "\\c",
+        enum: [1],
+        type: "string",
+      }),
+      {
+        dialect: oas30Dialect,
+        schemaLint: "strict",
+      },
+    );
+    const codes = stats.schemaLintIssues.map((issue) => issue.code);
+    expect(codes).toContain("silent-rewrite/ref-siblings-oas30");
+    expect(codes).not.toContain("unknown-keyword");
+    expect(codes).not.toContain("silent-rewrite/required-not-in-properties");
+    expect(codes).not.toContain("silent-rewrite/pattern-not-unicode-mode");
+    expect(codes).not.toContain("unsatisfiable/enum-type-mismatch");
+  });
+
+  it('does not reject an unknown format discarded by unknownFormats: "error"', () => {
+    expect(() =>
+      compileSchema(withSibling({ format: "iban" }), {
+        dialect: oas30Dialect,
+        unknownFormats: "error",
+      }),
+    ).not.toThrow();
+  });
+
+  it('does not reject an unknown format inside a discarded sibling under unknownFormats: "error"', () => {
+    expect(() =>
+      compileSchema(withSibling({ properties: { a: { type: "string", format: "iban" } } }), {
+        dialect: oas30Dialect,
+        unknownFormats: "error",
+      }),
+    ).not.toThrow();
+  });
+
+  it('still rejects an unknown format in the $ref target under unknownFormats: "error"', () => {
+    expect(() =>
+      compileSchema(
+        {
+          allOf: [{ $ref: "#/$defs/S", format: "discarded" }],
+          $defs: { S: { type: "string", format: "iban" } },
+        } as SchemaOrBoolean,
+        {
+          dialect: oas30Dialect,
+          unknownFormats: "error",
+        },
+      ),
+    ).toThrow(/format "iban"\. unknownFormats/);
+  });
+
+  it("does not resolve anchors that exist only inside discarded sibling subtrees", () => {
+    expect(() =>
+      compileSchema(
+        {
+          allOf: [
+            {
+              $ref: "#/$defs/S",
+              properties: { ignored: { $anchor: "ignored", type: "number" } },
+            },
+          ],
+          $defs: { S: { $ref: "#ignored" } },
+        } as SchemaOrBoolean,
+        { dialect: oas30Dialect },
+      ),
+    ).toThrow(/unknown anchor: #ignored/);
+  });
+
+  it("does not resolve JSON Pointers through discarded sibling subtrees", () => {
+    expect(() =>
+      compileSchema(
+        {
+          allOf: [
+            {
+              $ref: "#/$defs/S",
+              properties: { ignored: { type: "number" } },
+            },
+          ],
+          $defs: { S: { $ref: "#/allOf/0/properties/ignored" } },
+        } as SchemaOrBoolean,
+        { dialect: oas30Dialect },
+      ),
+    ).toThrow(/OAS 3\.0 \$ref sibling/);
+  });
+
   // The skip is scoped to the dialect that discards siblings. Under 3.1
   // a sibling is honoured, so its value has to be judged as before.
   it("still throws for the same schema under 3.1, where siblings apply", () => {
@@ -107,14 +193,33 @@ describe("a $ref sibling under OAS 3.0", () => {
     ).toThrow(/type/);
   });
 
+  it("still rejects malformed sibling structure under 3.1, where siblings apply", () => {
+    expect(() =>
+      compileSchema(withSibling({ items: [{ type: "string" }] }), { dialect: openapi31Dialect }),
+    ).toThrow(/items/);
+    expect(() =>
+      compileSchema(withSibling({ properties: { a: { type: "application/json" } } }), {
+        dialect: openapi31Dialect,
+      }),
+    ).toThrow(/properties\.a\.type/);
+  });
+
+  it('still rejects an unknown sibling format under 3.1 with unknownFormats: "error"', () => {
+    expect(() =>
+      compileSchema(withSibling({ format: "iban" }), {
+        dialect: openapi31Dialect,
+        unknownFormats: "error",
+      }),
+    ).toThrow(/format "iban"/);
+  });
+
   // The skip is scoped to a `$ref` being present. The same malformed
   // keyword on its own is still fatal, so this is not a general
   // weakening of the well-formedness pass.
   //
-  // Deliberately not asserted: that an *allowed* sibling is still
-  // judged. None of `$ref` / `description` / `summary` defines
-  // `validateKeywordValue`, so there is nothing to judge and a test
-  // saying otherwise would be testing a path that does not exist.
+  // Deliberately not asserted: that `description` or `summary` is still
+  // judged. Neither defines `validateKeywordValue`; `$ref` is covered
+  // above because it is the schema's reference, not a discarded sibling.
   it("still judges the same keyword when no $ref discards it", () => {
     expect(() =>
       compileSchema(withSibling({ enum: "not-an-array" }), { dialect: oas30Dialect }),

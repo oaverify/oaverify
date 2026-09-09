@@ -45,7 +45,7 @@ import {
   matchResponseKey,
   schemaRefResolverFor,
 } from "./deserialize.js";
-import { escapePointer } from "./document-walk.js";
+import { escapePointer, recordDocumentRefSiblingSuppression } from "./document-walk.js";
 import { assertServedParameterLocations } from "./parameter-locations.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast } from "./headers.js";
 import {
@@ -1357,7 +1357,10 @@ export function createValidator(
     throw new Error(`createValidator: ${reason.message}`);
   })();
 
-  const graph = resolve(spec as unknown as SchemaOrBoolean);
+  const graph = resolve(spec as unknown as SchemaOrBoolean, {
+    refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
+  });
+  recordDocumentRefSiblingSuppression(spec, graph);
   const refResolver: RefResolver = createRefResolver(graph);
 
   // One `$ref` hop for the coercion views, bound to the same resolver
@@ -1426,9 +1429,22 @@ export function createValidator(
     request: new Map<SchemaOrBoolean, SchemaOrBoolean>(),
     response: new Map<SchemaOrBoolean, SchemaOrBoolean>(),
   };
+  const directionTransformOptions = {
+    refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
+  };
   const directionResolvers = {
-    request: createDirectionResolver(refResolver, "request", directionTransformCache.request),
-    response: createDirectionResolver(refResolver, "response", directionTransformCache.response),
+    request: createDirectionResolver(
+      refResolver,
+      "request",
+      directionTransformCache.request,
+      directionTransformOptions,
+    ),
+    response: createDirectionResolver(
+      refResolver,
+      "response",
+      directionTransformCache.response,
+      directionTransformOptions,
+    ),
   };
   const compileForDirection = (
     schema: SchemaOrBoolean,
@@ -1441,6 +1457,7 @@ export function createValidator(
         direction,
         refResolver,
         directionTransformCache[direction],
+        directionTransformOptions,
       ),
       directionResolvers[direction],
       {

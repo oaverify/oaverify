@@ -5,6 +5,7 @@ import {
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
 import { forEachSubschema } from "@oaverify/internal-core/subschema-positions";
+import { refSiblingIsDiscarded } from "./ref-siblings.js";
 
 // The position constants live in `core` so the compiler, the validator
 // and the spec resolver share one definition; re-exported here because
@@ -108,6 +109,14 @@ export interface WalkSubschemasOptions {
    * belonging to one use site. Defaults to `"node"`.
    */
   anchor?: "node" | "definition";
+  /**
+   * Whether the active dialect discards `$ref` siblings (OAS 3.0).
+   *
+   * When set, the walk still follows the actual `$ref` target through
+   * `resolveRef`, but does not descend into ignored sibling schema
+   * positions.
+   */
+  refSuppressesSiblings?: boolean;
 }
 
 /**
@@ -241,6 +250,7 @@ export function walkSubschemas(
   const opts: WalkSubschemasOptions =
     typeof options === "function" ? { resolveRef: options } : (options ?? {});
   const resolve = opts.resolveRef;
+  const refSuppressesSiblings = opts.refSuppressesSiblings ?? false;
   // Only ref targets are deduped, never structural positions: the same
   // schema object appearing under two keys is two places a reader may
   // need to fix, and each deserves its own path. A ref target is one
@@ -281,6 +291,7 @@ export function walkSubschemas(
     // One loop over every position family. Only the rendered path
     // differs between them: `allOf[0]` against `properties.name`.
     forEachSubschema(n, (v, k, family, index) => {
+      if (refSiblingIsDiscarded(n, k, refSuppressesSiblings)) return;
       const rendered =
         index === undefined ? k : family === "array" ? `${k}[${index}]` : `${k}.${index}`;
       go(

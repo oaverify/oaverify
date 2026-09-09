@@ -13,7 +13,7 @@
  * @packageDocumentation
  */
 
-import type { OpenAPIDocument } from "@oaverify/internal-core";
+import { detectOpenAPIVersion, type OpenAPIDocument } from "@oaverify/internal-core";
 import { builtInFormats } from "@oaverify/internal-formats";
 import { walkDocumentSchemas } from "@oaverify/internal-validator/internals";
 
@@ -170,6 +170,7 @@ export function checkDocumentFormats(
   const firstSeen = new Map<string, { pointer: string; count: number }>();
 
   walkDocumentSchemas(document, {
+    refSuppressesSiblings: detectOpenAPIVersion(document) === "3.0",
     onSchemaNode: (schema, pointer) => {
       const format = schema["format"];
       if (typeof format !== "string" || known.has(format)) return;

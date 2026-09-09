@@ -1086,7 +1086,10 @@ export async function compileSchemaCommand(
   }
   const unknownFormatsMode = args.unknownFormats ?? "error";
   if (unknownFormatsMode === "ignore") {
-    for (const name of collectUnknownFormats(parsed as SchemaOrBoolean)) {
+    const dialect = args.dialect ?? "2020-12";
+    for (const name of collectUnknownFormats(parsed as SchemaOrBoolean, {
+      refSuppressesSiblings: dialect === "openapi-3.0",
+    })) {
       io.stderr(
         `compile-schema: warning: format "${name}" is not in the built-in set; the emitted validator does not assert it\n`,
       );

@@ -5,9 +5,9 @@ import {
   jsonSchemaDialect,
   oas30Dialect,
   openapi31Dialect,
-  walkSubschemas,
   type Dialect,
 } from "@oaverify/internal-schema";
+import { forEachSubschema, refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
 
 /**
  * Dialect the standalone emitter supports. Values match the CLI's
@@ -75,7 +75,11 @@ export function emitStandalone(schema: SchemaOrBoolean, options: EmitStandaloneO
   const importPrefix = options.importPrefix ?? "@oaverify/core";
 
   const unknownFormats =
-    (options.unknownFormats ?? "error") === "error" ? collectUnknownFormats(schema) : [];
+    (options.unknownFormats ?? "error") === "error"
+      ? collectUnknownFormats(schema, {
+          refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
+        })
+      : [];
   if (unknownFormats.length > 0) {
     throw new Error(
       `Schema references format${unknownFormats.length > 1 ? "s" : ""} ` +
@@ -152,20 +156,35 @@ export function isUnknownFormat(name: string): boolean {
 /**
  * Walk the schema looking for `format: "..."` values referenced on
  * object subschemas; return those not covered by the built-in set or
- * the schema-auto-registered set. Using {@link walkSubschemas} keeps
- * us out of `enum` / `const` / `default` literal values, which might
+ * the schema-auto-registered set. Using `forEachSubschema` keeps us out
+ * of `enum` / `const` / `default` literal values, which might
  * incidentally contain a string under a `format` key without being a
  * format assertion. Does not follow `$ref`; the document-level
  * collector in emit-spec.ts covers the spec case.
  */
-export function collectUnknownFormats(schema: SchemaOrBoolean): string[] {
+export function collectUnknownFormats(
+  schema: SchemaOrBoolean,
+  options: { refSuppressesSiblings?: boolean } = {},
+): string[] {
   const found = new Set<string>();
-  walkSubschemas(schema, (node) => {
+  const seen = new WeakSet<object>();
+  const go = (node: SchemaOrBoolean): void => {
     if (typeof node !== "object" || node === null || Array.isArray(node)) return;
+    if (seen.has(node)) return;
+    seen.add(node);
+    const obj = node as Record<string, unknown>;
+    const refSuppressesSiblings = options.refSuppressesSiblings === true;
+    const discarded = (key: string): boolean =>
+      refSiblingIsDiscarded(obj, key, refSuppressesSiblings);
     const format = (node as SchemaObject).format;
-    if (typeof format === "string" && isUnknownFormat(format)) {
+    if (!discarded("format") && typeof format === "string" && isUnknownFormat(format)) {
       found.add(format);
     }
-  });
+    forEachSubschema(obj, (value, key) => {
+      if (discarded(key)) return;
+      go(value);
+    });
+  };
+  go(schema);
   return [...found].sort();
 }

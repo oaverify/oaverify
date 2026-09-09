@@ -56,6 +56,13 @@ const bundledWorkspace: Record<string, string> = {
     "src",
     "prototype-properties.ts",
   ),
+  "@oaverify/internal-core/ref-siblings": resolve(
+    repoRoot,
+    "packages",
+    "core",
+    "src",
+    "ref-siblings.ts",
+  ),
   "@oaverify/internal-core/subschema-positions": resolve(
     repoRoot,
     "packages",

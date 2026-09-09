@@ -31,6 +31,7 @@ import {
   ProvenanceTrail,
   type ReferrerTrail,
   resolveRelative,
+  resolveSchemaJsonPointer,
   rewriteInternalRefTarget,
   setSpecKey,
   targetKey,
@@ -41,6 +42,7 @@ import {
   type UnresolvedRef,
 } from "./resolver-shared.js";
 import type { SourceHop, SpecRegion } from "./provenance.js";
+import { refSiblingIsDiscarded } from "@oaverify/internal-core/ref-siblings";
 import { subschemaFamilyOf } from "@oaverify/internal-core/subschema-positions";
 
 // Re-export the canonical implementation so @oaverify/internal-spec consumers who
@@ -312,10 +314,14 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     uri: string,
     fragment: string,
     via: readonly SourceHop[],
+    schemaTarget = false,
   ): unknown => {
     if (fragment === "") return doc;
     try {
-      return resolveJsonPointer(doc, pointerFromFragment(fragment));
+      const pointer = pointerFromFragment(fragment);
+      return schemaTarget && refSuppressesSiblings
+        ? resolveSchemaJsonPointer(doc, pointer, true)
+        : resolveJsonPointer(doc, pointer);
     } catch (err) {
       const referrer = referrers.get(uri) ?? null;
       // Both modes word this the same way. A bare pointer error names
@@ -353,6 +359,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   // the two positions 3.1 lacks (3.2's ref-able Media Type) fall back
   // to being inlined, which is what they were before.
   const version = detectOpenAPIVersion(entryDoc) ?? "3.1";
+  const refSuppressesSiblings = version === "3.0";
 
   const visiting = new Set<string>();
   // Keyed by URI, valued by the kind of node the reference sat at, so a
@@ -728,6 +735,10 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       trail?.pop();
       return node;
     }
+    if (parentPos.inSchema && refSiblingIsDiscarded(parent, key, refSuppressesSiblings)) {
+      trail?.pop();
+      return value;
+    }
 
     let childPos: Pos;
     let mapOfChildren: boolean;
@@ -813,7 +824,13 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       }
       docs.set(target.uri, targetDoc);
     }
-    const content = readFragment(targetDoc, target.uri, target.fragment, hoistVia.get(key) ?? []);
+    const content = readFragment(
+      targetDoc,
+      target.uri,
+      target.fragment,
+      hoistVia.get(key) ?? [],
+      true,
+    );
     if (content === UNREADABLE) {
       missingHoists.add(name);
       continue;

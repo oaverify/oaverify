@@ -1,5 +1,6 @@
 import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import { forEachSubschema } from "@oaverify/internal-core/subschema-positions";
+import { refSiblingIsDiscarded } from "../ref-siblings.js";
 import { SchemaRegistry } from "./registry.js";
 
 /**
@@ -43,6 +44,13 @@ export interface ResolvedGraph {
   schemaBaseUri: WeakMap<object, string>;
   /** External schemas by URI (from the registry passed to {@link resolve}). */
   registry: SchemaRegistry;
+  /** Whether OAS 3.0 `$ref` sibling suppression applies in this graph. */
+  refSuppressesSiblings?: boolean;
+  /**
+   * Exact object/key edges ignored by OAS 3.0 `$ref` sibling
+   * suppression, recorded during schema traversal.
+   */
+  ignoredRefSiblingKeys?: WeakMap<object, ReadonlySet<string>>;
 }
 
 /**
@@ -59,6 +67,13 @@ export interface ResolveOptions {
    * registry itself is never mutated.
    */
   registry?: SchemaRegistry;
+  /**
+   * Whether the active dialect discards `$ref` siblings (OAS 3.0).
+   *
+   * When set, ignored sibling subtrees do not contribute `$id`,
+   * `$anchor` or `$dynamicAnchor` entries to the resolved graph.
+   */
+  refSuppressesSiblings?: boolean;
 }
 
 /**
@@ -91,13 +106,34 @@ export function resolve(schema: SchemaOrBoolean, options: ResolveOptions = {}): 
   const anchorScopes = new Map<string, Map<string, SchemaOrBoolean>>();
   const dynamicAnchorScopes = new Map<string, Map<string, SchemaOrBoolean>>();
   const schemaBaseUri = new WeakMap<object, string>();
+  const ignoredRefSiblingKeys = new WeakMap<object, ReadonlySet<string>>();
   const rootBaseUri = options.baseUri ?? "";
 
-  walkScoped(schema, rootBaseUri, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
+  const refSuppressesSiblings = options.refSuppressesSiblings ?? false;
+
+  walkScoped(
+    schema,
+    rootBaseUri,
+    byId,
+    anchorScopes,
+    dynamicAnchorScopes,
+    schemaBaseUri,
+    ignoredRefSiblingKeys,
+    refSuppressesSiblings,
+  );
 
   for (const [uri, ext] of registry.entries()) {
     if (!byId.has(uri)) byId.set(uri, ext);
-    walkScoped(ext, uri, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
+    walkScoped(
+      ext,
+      uri,
+      byId,
+      anchorScopes,
+      dynamicAnchorScopes,
+      schemaBaseUri,
+      ignoredRefSiblingKeys,
+      refSuppressesSiblings,
+    );
   }
 
   const byAnchor = new Map<string, SchemaOrBoolean>();
@@ -119,6 +155,8 @@ export function resolve(schema: SchemaOrBoolean, options: ResolveOptions = {}): 
     dynamicAnchorScopes,
     schemaBaseUri,
     registry,
+    refSuppressesSiblings,
+    ignoredRefSiblingKeys,
   };
 }
 
@@ -157,12 +195,22 @@ function walkScoped(
   anchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
   dynamicAnchorScopes: Map<string, Map<string, SchemaOrBoolean>>,
   schemaBaseUri: WeakMap<object, string>,
+  ignoredRefSiblingKeys: WeakMap<object, ReadonlySet<string>>,
+  refSuppressesSiblings: boolean,
 ): void {
   if (typeof schema === "boolean") return;
+  if (typeof schema !== "object" || schema === null || Array.isArray(schema)) return;
   const obj = schema as SchemaObject;
+  const record = obj as Record<string, unknown>;
+  const discarded = (key: string): boolean =>
+    refSiblingIsDiscarded(record, key, refSuppressesSiblings);
+  if (refSuppressesSiblings && "$ref" in record) {
+    const ignored = Object.keys(record).filter((key) => discarded(key));
+    if (ignored.length > 0) ignoredRefSiblingKeys.set(record, new Set(ignored));
+  }
 
   let nextBase = currentBase;
-  if (typeof obj.$id === "string") {
+  if (!discarded("$id") && typeof obj.$id === "string") {
     nextBase = absolutizeUri(obj.$id, currentBase);
     byId.set(nextBase, schema);
     // Also expose the raw (possibly relative) form for refs that repeat it.
@@ -170,10 +218,10 @@ function walkScoped(
   }
   schemaBaseUri.set(schema, nextBase);
 
-  if (typeof obj.$anchor === "string") {
+  if (!discarded("$anchor") && typeof obj.$anchor === "string") {
     getOrCreateScope(anchorScopes, nextBase).set(obj.$anchor, schema);
   }
-  if (typeof obj.$dynamicAnchor === "string") {
+  if (!discarded("$dynamicAnchor") && typeof obj.$dynamicAnchor === "string") {
     getOrCreateScope(dynamicAnchorScopes, nextBase).set(obj.$dynamicAnchor, schema);
   }
 
@@ -182,7 +230,17 @@ function walkScoped(
   // constants and missing here, so an `$anchor` under it resolved to
   // "unknown anchor". Going through the shared iteration means a
   // position family cannot be omitted at all.
-  forEachSubschema(obj, (value) => {
-    walkScoped(value, nextBase, byId, anchorScopes, dynamicAnchorScopes, schemaBaseUri);
+  forEachSubschema(obj, (value, key) => {
+    if (discarded(key)) return;
+    walkScoped(
+      value,
+      nextBase,
+      byId,
+      anchorScopes,
+      dynamicAnchorScopes,
+      schemaBaseUri,
+      ignoredRefSiblingKeys,
+      refSuppressesSiblings,
+    );
   });
 }

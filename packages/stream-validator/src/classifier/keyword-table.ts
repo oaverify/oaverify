@@ -142,6 +142,7 @@ export const KEYWORD_CATEGORY: Readonly<Record<string, KeywordCategory>> = {
   writeOnly: "annotation",
   example: "annotation",
   examples: "annotation",
+  summary: "annotation",
   externalDocs: "annotation",
   xml: "annotation",
   contentEncoding: "annotation",

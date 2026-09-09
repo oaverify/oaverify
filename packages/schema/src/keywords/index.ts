@@ -102,6 +102,7 @@ export {
   examplesKeyword,
   externalDocsKeyword,
   readOnlyKeyword,
+  summaryKeyword,
   titleKeyword,
   writeOnlyKeyword,
   xmlKeyword,

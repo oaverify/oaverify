@@ -836,6 +836,111 @@ describe("unknown formats (#660)", () => {
     });
     expect(r).toMatchObject({ valid: true });
   });
+
+  it("does not reject an unknown format under an OAS 3.0 $ref sibling", async () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/x": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: {
+                    allOf: [
+                      {
+                        $ref: "#/components/schemas/M",
+                        format: "iban",
+                        properties: { nested: { type: "string", format: "swift" } },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: { schemas: { M: { type: "object" } } },
+    } as unknown as OpenAPIDocument;
+    const mem = memoryIo([["spec.json", doc]]);
+    const res = await compileSpecCommand(
+      {
+        spec: "spec.json",
+        overlays: [],
+        output: "out.mjs",
+        resolveDir: RESOLVE_DIR,
+        bundleAlias: CORE_ALIASES,
+      },
+      mem.io,
+    );
+    expect(res.exitCode).toBe(0);
+  });
+
+  it("does not index anchors that exist only under an OAS 3.0 $ref sibling", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/x": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: {
+                    allOf: [
+                      {
+                        $ref: "#/components/schemas/M",
+                        properties: { ignored: { $anchor: "ignored", type: "number" } },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: { schemas: { M: { $ref: "#ignored" } } },
+    } as unknown as OpenAPIDocument;
+
+    expect(() => emitSpec(doc)).toThrow(/unknown anchor: #ignored/);
+  });
+
+  it("does not resolve schemas through discarded OAS 3.0 sibling subtrees", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/x": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/Wrapper/properties/ignored" },
+                },
+              },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          Wrapper: {
+            $ref: "#/components/schemas/M",
+            properties: { ignored: { type: "string" } },
+          },
+          M: { type: "object" },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+
+    expect(() => emitSpec(doc)).toThrow(/OAS 3\.0 \$ref sibling/);
+  });
 });
 
 describe("compile-spec: OAS 3.0 $ref sibling coercion parity", () => {
@@ -873,6 +978,89 @@ describe("compile-spec: OAS 3.0 $ref sibling coercion parity", () => {
     const bad = { method: "GET", path: "/w", query: { n: "abc" } };
     expect(runtime.validateRequest(bad as never).valid).toBe(false);
     expect(flatErrors(aot.validateRequest(bad as never)).map((e) => e.code)).toEqual(["type"]);
+  });
+});
+
+describe("compile-spec: OAS 3.0 $ref sibling body-direction parity", () => {
+  const spec30: OpenAPIDocument = {
+    openapi: "3.0.3",
+    info: { title: "t", version: "1" },
+    components: { schemas: { Text: { type: "string" } } },
+    paths: {
+      "/body": {
+        post: {
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["id"],
+                  properties: {
+                    id: { $ref: "#/components/schemas/Text", readOnly: true },
+                    file: {
+                      $ref: "#/components/schemas/Text",
+                      type: "string",
+                      format: "binary",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "ok",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: ["secret"],
+                    properties: {
+                      secret: { $ref: "#/components/schemas/Text", writeOnly: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  } as unknown as OpenAPIDocument;
+
+  it("ignores discarded readOnly and writeOnly siblings, matching createValidator", async () => {
+    const aot = await buildAot(spec30);
+    const runtime = createValidator(spec30);
+    const request = {
+      method: "POST",
+      path: "/body",
+      contentType: "application/json",
+      body: { id: "p1", file: "blob" },
+    };
+    const response = {
+      status: 200,
+      contentType: "application/json",
+      body: { secret: "s1" },
+    };
+    expect(runtime.validateRequest(request as never).valid).toBe(true);
+    expect(aot.validateRequest(request as never)).toEqual({ valid: true });
+    expect(runtime.validateResponse(request as never, response as never).valid).toBe(true);
+    expect(aot.validateResponse(request as never, response as never)).toEqual({ valid: true });
+  });
+
+  it("does not let discarded format: binary bypass the referenced schema", async () => {
+    const aot = await buildAot(spec30);
+    const runtime = createValidator(spec30);
+    const request = {
+      method: "POST",
+      path: "/body",
+      contentType: "application/json",
+      body: { id: "p1", file: 1 },
+    };
+    expect(flatErrors(runtime.validateRequest(request as never)).map((e) => e.code)).toContain(
+      "type",
+    );
+    expect(flatErrors(aot.validateRequest(request as never)).map((e) => e.code)).toContain("type");
   });
 });
 

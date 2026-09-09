@@ -13,6 +13,7 @@
       "@oaverify/internal-core/prototype-properties": [
         "../packages/core/src/prototype-properties.ts"
       ],
+      "@oaverify/internal-core/ref-siblings": ["../packages/core/src/ref-siblings.ts"],
       "@oaverify/internal-core/subschema-positions": [
         "../packages/core/src/subschema-positions.ts"
       ],

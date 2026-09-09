@@ -884,6 +884,46 @@ describe("validateRequest", () => {
     expect(leafCodes(err)).toContain("type");
   });
 
+  it("does not resolve request schemas through discarded OAS 3.0 sibling subtrees", () => {
+    const spec: OpenAPIDocument = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      components: {
+        schemas: {
+          Wrapper: {
+            $ref: "#/components/schemas/S",
+            properties: { ignored: { type: "string" } },
+          } as never,
+          S: { type: "object" },
+        },
+      },
+      paths: {
+        "/w": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/Wrapper/properties/ignored" },
+                },
+              },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+
+    const v = createValidator(spec);
+    expect(() =>
+      v.validateRequest({
+        method: "POST",
+        path: "/w",
+        contentType: "application/json",
+        body: "ok",
+      }),
+    ).toThrow(/OAS 3\.0 \$ref sibling/);
+  });
+
   it("keeps honouring $ref siblings for coercion under 3.1", () => {
     // Same document under 2020-12 semantics: the sibling is a
     // conjunction, so the schema is integer AND string, which nothing

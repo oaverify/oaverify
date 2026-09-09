@@ -21,7 +21,11 @@
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { type RefResolver } from "@oaverify/internal-schema";
 import { pointerFromRefFragment, setSpecKey } from "@oaverify/internal-core";
-import { subschemaFamilyOf, transformSubschemaValue } from "@oaverify/internal-schema/internals";
+import {
+  refSiblingIsDiscarded,
+  subschemaFamilyOf,
+  transformSubschemaValue,
+} from "@oaverify/internal-schema/internals";
 
 /**
  * Which leg of the HTTP exchange a schema is being validated against.
@@ -29,6 +33,20 @@ import { subschemaFamilyOf, transformSubschemaValue } from "@oaverify/internal-s
  * @internal
  */
 export type BodyDirection = "request" | "response";
+
+/**
+ * Options for body-schema pre-transforms.
+ *
+ * @internal
+ */
+export interface BodySchemaTransformOptions {
+  /**
+   * Whether the active dialect discards `$ref` siblings (OAS 3.0).
+   * When set, the transform follows the `$ref` target but does not let
+   * ignored siblings influence direction or binary rewrites.
+   */
+  refSuppressesSiblings?: boolean;
+}
 
 /**
  * Produce a direction-aware copy of a body schema.
@@ -62,9 +80,10 @@ export function transformBodySchemaForDirection(
   direction: BodyDirection,
   refResolver: RefResolver,
   cache: Map<SchemaOrBoolean, SchemaOrBoolean>,
+  options: BodySchemaTransformOptions = {},
 ): SchemaOrBoolean {
   const unwrapped = unwrapRootRef(schema, refResolver).schema;
-  return transformInner(unwrapped, direction, refResolver, cache);
+  return transformInner(unwrapped, direction, refResolver, cache, options);
 }
 
 /**
@@ -114,11 +133,12 @@ export function createDirectionResolver(
   base: RefResolver,
   direction: BodyDirection,
   cache: Map<SchemaOrBoolean, SchemaOrBoolean>,
+  options: BodySchemaTransformOptions = {},
 ): RefResolver {
   return {
     resolve(ref, fromBaseUri) {
       const target = base.resolve(ref, fromBaseUri);
-      return transformInner(target, direction, base, cache);
+      return transformInner(target, direction, base, cache, options);
     },
   };
 }
@@ -199,10 +219,15 @@ function transformInner(
   direction: BodyDirection,
   refResolver: RefResolver,
   cache: Map<SchemaOrBoolean, SchemaOrBoolean>,
+  options: BodySchemaTransformOptions,
 ): SchemaOrBoolean {
   if (typeof schema !== "object" || schema === null || Array.isArray(schema)) return schema;
   const cached = cache.get(schema);
   if (cached !== undefined) return cached;
+  const obj = schema as Record<string, unknown>;
+  const refSuppressesSiblings = options.refSuppressesSiblings === true;
+  const discarded = (key: string): boolean =>
+    refSiblingIsDiscarded(obj, key, refSuppressesSiblings);
 
   // OAS `format: "binary"` marks opaque bytes: the field arrives as a
   // Buffer, Uint8Array, or framework-specific object (multer etc.), not
@@ -210,7 +235,7 @@ function transformInner(
   // whatever the HTTP layer decoded avoids false positives on every
   // multipart file upload. `format: "byte"` (base64) stays as a string
   // and follows normal validation.
-  if (isBinaryStringSchema(schema)) {
+  if (!discarded("format") && isBinaryStringSchema(schema)) {
     const empty: Record<string, unknown> = {};
     cache.set(schema, empty as unknown as SchemaOrBoolean);
     return empty as unknown as SchemaOrBoolean;
@@ -221,16 +246,20 @@ function transformInner(
 
   const rejectAttr = direction === "request" ? "readOnly" : "writeOnly";
 
-  const props = clone.properties;
+  const props = discarded("properties") ? undefined : clone.properties;
   if (typeof props === "object" && props !== null && !Array.isArray(props)) {
     const newProps: Record<string, SchemaOrBoolean> = {};
     const rejected = new Set<string>();
     for (const [name, propSchema] of Object.entries(props as Record<string, SchemaOrBoolean>)) {
-      if (hasDirectionalFlag(propSchema, rejectAttr, refResolver, new Set())) {
+      if (hasDirectionalFlag(propSchema, rejectAttr, refResolver, new Set(), options)) {
         setSpecKey(newProps, name, false);
         rejected.add(name);
       } else {
-        setSpecKey(newProps, name, transformInner(propSchema, direction, refResolver, cache));
+        setSpecKey(
+          newProps,
+          name,
+          transformInner(propSchema, direction, refResolver, cache, options),
+        );
       }
     }
     clone.properties = newProps;
@@ -244,8 +273,9 @@ function transformInner(
     if (k === "properties") continue;
     const family = subschemaFamilyOf(k);
     if (family === undefined) continue;
+    if (discarded(k)) continue;
     clone[k] = transformSubschemaValue(family, clone[k], (sub) =>
-      transformInner(sub, direction, refResolver, cache),
+      transformInner(sub, direction, refResolver, cache, options),
     );
   }
 
@@ -271,23 +301,26 @@ function hasDirectionalFlag(
   attr: "readOnly" | "writeOnly",
   refResolver: RefResolver,
   visited: Set<SchemaOrBoolean>,
+  options: BodySchemaTransformOptions,
 ): boolean {
   if (typeof schema !== "object" || schema === null || Array.isArray(schema)) return false;
   if (visited.has(schema)) return false;
   visited.add(schema);
   const s = schema as Record<string, unknown>;
-  if (s[attr] === true) return true;
+  const refSuppressesSiblings = options.refSuppressesSiblings === true;
+  const discarded = (key: string): boolean => refSiblingIsDiscarded(s, key, refSuppressesSiblings);
+  if (!discarded(attr) && s[attr] === true) return true;
   if (typeof s.$ref === "string") {
     try {
       const t = refResolver.resolve(s.$ref);
-      if (hasDirectionalFlag(t, attr, refResolver, visited)) return true;
+      if (hasDirectionalFlag(t, attr, refResolver, visited, options)) return true;
     } catch {
       // ignore unresolved refs
     }
   }
-  if (Array.isArray(s.allOf)) {
+  if (!discarded("allOf") && Array.isArray(s.allOf)) {
     for (const child of s.allOf as SchemaOrBoolean[]) {
-      if (hasDirectionalFlag(child, attr, refResolver, visited)) return true;
+      if (hasDirectionalFlag(child, attr, refResolver, visited, options)) return true;
     }
   }
   return false;
