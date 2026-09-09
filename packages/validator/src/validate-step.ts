@@ -103,9 +103,8 @@ function missingParameterError(
  * An assembled parameter skips {@link deserialize} entirely, because
  * the assembler already produced the typed object, so this is the whole
  * of its tail: absent, valid, or the schema's error. `undefined` is
- * absence, which is why an assembler returns `{ value: undefined }`
- * rather than `undefined` when it recognised the shape and found
- * nothing.
+ * absence, which is why an assembler returns a result rather than
+ * `undefined` when it recognised the shape and found nothing.
  *
  * @internal
  */
@@ -149,6 +148,7 @@ export function validateParameter(
   match: RouteMatch,
   cache: OperationCache,
   sink: MutableRequestValues | undefined,
+  consumedQueryKeys?: Set<string>,
 ): ValidationError | null {
   let raw: string | string[] | undefined;
   let validator: CompiledTreeSchema | undefined;
@@ -175,6 +175,7 @@ export function validateParameter(
       // array deserialization path.
       const assembled = assembleObjectQueryParam(p, req.query);
       if (assembled !== undefined) {
+        for (const key of assembled.keys) consumedQueryKeys?.add(key);
         return validateAssembled(assembled.value, p, validator, code, pathPrefix, sink);
       }
       raw = cache.requestParameterReadsRequireOwnProperties

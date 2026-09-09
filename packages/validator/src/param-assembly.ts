@@ -120,27 +120,49 @@ export function assembleFormExplodedObject(
  * to the standard scalar/array deserialization path.
  *
  * When the parameter IS object-typed but no matching query keys are
- * present, returns `{ value: undefined }` so the caller can treat it
- * as absent.
+ * present, returns an absent value so the caller can treat it as
+ * missing. The `keys` list names the wire keys consumed, for strict
+ * unknown-key checks that run after assembly.
  *
  * @internal
  */
 export function assembleObjectQueryParam(
   p: ParameterObject,
   query: Record<string, string | string[]> | undefined,
-): { value: unknown } | undefined {
+): { value: unknown; keys: readonly string[] } | undefined {
   if (p.in !== "query") return undefined;
   const schemaType = effectiveType(p.schema);
   if (schemaType !== "object") return undefined;
   const style = p.style ?? "form";
   const explode = p.explode ?? style === "form";
   if (style === "deepObject") {
-    return { value: assembleDeepObject(p.name, query, p.schema) };
+    const value = assembleDeepObject(p.name, query, p.schema);
+    return { value, keys: value === undefined ? [] : deepObjectKeys(p.name, query) };
   }
   if (style === "form" && explode) {
-    return { value: assembleFormExplodedObject(p.schema, query) };
+    const value = assembleFormExplodedObject(p.schema, query);
+    return { value, keys: value === undefined ? [] : formExplodedObjectKeys(p.schema, query) };
   }
   return undefined;
+}
+
+function deepObjectKeys(
+  name: string,
+  query: Record<string, string | string[]> | undefined,
+): readonly string[] {
+  if (query === undefined) return [];
+  const prefix = `${name}[`;
+  return Object.keys(query).filter((k) => k.startsWith(prefix) && k.endsWith("]"));
+}
+
+function formExplodedObjectKeys(
+  schema: SchemaOrBoolean | undefined,
+  query: Record<string, string | string[]> | undefined,
+): readonly string[] {
+  if (query === undefined) return [];
+  const props = extractObjectProperties(schema);
+  if (props === undefined) return [];
+  return Object.keys(props).filter((propName) => Object.hasOwn(query, propName));
 }
 
 /**

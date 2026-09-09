@@ -383,6 +383,39 @@ describe("validateRequest", () => {
     expect(leafCodes(missing)).toContain("query-param");
   });
 
+  it("does not report strict form/explode object keys as unknown query parameters", () => {
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/x": {
+          get: {
+            parameters: [
+              {
+                name: "filter",
+                in: "query",
+                schema: {
+                  type: "object",
+                  properties: { role: { type: "string" }, age: { type: "integer" } },
+                },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const sv = createValidator(spec, { strictQueryParameters: true, returnValues: true });
+
+    const result = sv.validateRequest({
+      method: "GET",
+      path: "/x",
+      query: { role: "admin", age: "42" },
+    });
+
+    expect(result).toBeNull();
+  });
+
   it("assembles deepObject query params (?color[r]=100&color[g]=50)", () => {
     const spec: OpenAPIDocument = {
       openapi: "3.1.0",
@@ -426,6 +459,81 @@ describe("validateRequest", () => {
         query: { "color[r]": "100", other: "ignored" },
       }),
     ).toBeNull();
+  });
+
+  it("does not report strict deepObject keys as unknown query parameters", () => {
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/paint": {
+          get: {
+            parameters: [
+              {
+                name: "color",
+                in: "query",
+                style: "deepObject",
+                schema: {
+                  type: "object",
+                  properties: { r: { type: "string" } },
+                  additionalProperties: true,
+                },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const sv = createValidator(spec, { strictQueryParameters: true, returnValues: true });
+
+    const result = sv.validateRequest({
+      method: "GET",
+      path: "/paint",
+      query: { "color[r]": "100", "color[extra]": "200" },
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it("lets a strict deepObject schema reject undeclared prefixed properties", () => {
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/paint": {
+          get: {
+            parameters: [
+              {
+                name: "color",
+                in: "query",
+                style: "deepObject",
+                schema: {
+                  type: "object",
+                  properties: { r: { type: "string" } },
+                  additionalProperties: false,
+                },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const sv = createValidator(spec, {
+      strictQueryParameters: true,
+      returnValues: true,
+      maxErrors: Number.POSITIVE_INFINITY,
+    });
+
+    const result = sv.validateRequest({
+      method: "GET",
+      path: "/paint",
+      query: { "color[r]": "100", "color[extra]": "200" },
+    });
+
+    expect(leafCodes(result)).toContain("additionalProperties");
+    expect(leafCodes(result)).not.toContain("query-param");
   });
 
   it("reads a deepObject property by the same number grammar as a scalar param", () => {

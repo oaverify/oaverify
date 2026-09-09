@@ -962,7 +962,21 @@ export interface ValidatorOptions {
    * verification.
    */
   validateSecurity?: "off" | "shape" | "strict";
-  /** When `true`, reject unknown query parameters (default: `false`). */
+  /**
+   * When `true`, reject unknown query parameters. Defaults to `false`.
+   *
+   * Object-typed query parameters can consume several wire keys:
+   * `style: "form", explode: true` consumes the declared property names,
+   * and `style: "deepObject"` consumes matching `name[key]` entries.
+   * Those consumed keys count as known for this check, so strict mode
+   * does not contradict the parameter style that accepted them.
+   *
+   * The two object styles differ in what they can safely claim.
+   * Form-exploded object properties have no parameter-name prefix, so
+   * only declared property names are consumed. A `deepObject` parameter
+   * owns its `name[...]` prefix, so every matching key is consumed; the
+   * object schema then decides whether an undeclared property is valid.
+   */
   strictQueryParameters?: boolean;
   /**
    * When `true`, an array-typed query parameter also accepts its name
@@ -1660,8 +1674,10 @@ export function createValidator(
       );
     }
 
+    const consumedQueryKeys =
+      options.strictQueryParameters && req.query ? new Set<string>() : undefined;
     for (const p of cache.parameters) {
-      const err = validateParameter(p, req, match, cache, sink);
+      const err = validateParameter(p, req, match, cache, sink, consumedQueryKeys);
       if (err !== null) children.push(err);
     }
 
@@ -1677,7 +1693,7 @@ export function createValidator(
     if (options.strictQueryParameters && req.query) {
       const known = cache.knownQueryParameters;
       for (const key of Object.keys(req.query)) {
-        if (!known.has(key)) {
+        if (!known.has(key) && !consumedQueryKeys?.has(key)) {
           children.push(
             createLeafError("query-param", ["query", key], `unknown query parameter "${key}"`, {
               name: key,

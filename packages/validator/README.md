@@ -107,7 +107,7 @@ the upstream test suites live in
 | `schemaLint`                | Schema lint mode: `"off"`, `"warn"` (default), or `"strict"`. Findings land in `stats.schemaLintIssues`; malformed schemas still throw.                |
 | `regexCompiler`             | Compiler for `pattern` and `format: "regex"`. Override for untrusted specs that need a safe-regex policy.                                              |
 | `validateSecurity`          | `"off"` (default), `"shape"` (check recognized schemes; pass on oauth2/oidc/mTLS), or `"strict"` (fail on unrecognized schemes).                       |
-| `strictQueryParameters`     | Reject undeclared query parameters. Default `false`.                                                                                                   |
+| `strictQueryParameters`     | Reject undeclared query parameters. Object-style parameter keys consumed by assembly are known; `deepObject` owns its whole `name[...]` prefix.        |
 | `allowBracketedQueryArrays` | Accept `?tags[]=a&tags[]=b` for an array-typed query parameter declared as `tags`. Default `false`.                                                    |
 | `returnValues`              | Return the deserialized parameter values on the result under `value`, grouped by HTTP location. Default `false`.                                       |
 | `requireResponseBody`       | Treat a declared response body with `res.body === undefined` as an error, except for HEAD and bodyless statuses. Default `false`.                      |
