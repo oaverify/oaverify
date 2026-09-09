@@ -145,9 +145,8 @@ grid: 19688 cases from 1381 declarations in 761ms
     x1  B|security-vs-bad-parameter|runtime=shape :: badParamNoCredential
 ```
 
-Those are #903 (twelve signatures, four locations x three payloads),
-#899, and #895 by three separate routes. The grid was not told about any
-of them.
+Those are #903 (twelve signatures, four locations x three payloads), #899,
+and #895 by three separate routes. The grid was not told about any of them.
 
 Two things that run settled:
 
