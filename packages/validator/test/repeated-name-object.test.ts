@@ -86,6 +86,11 @@ describe("a repeated name against an object schema", () => {
       expect(r.valid).toBe(true);
     });
 
+    it(`${location}: treats a one-element array as the single value this style carries`, () => {
+      const r = run(spec(location, { style: "form", explode: false }), location, ["R,100,G,200"]);
+      expect(r.valid).toBe(true);
+    });
+
     it(`${location}: leaves a repeated name against an array schema alone`, () => {
       const doc = spec(location, { style: "form" });
       const param = (doc.paths!["/t"]!.get!.parameters as { schema: unknown }[])[0]!;

@@ -68,7 +68,7 @@ export function deserialize(
       const items = itemSchema(schema);
       return raw.map((v) => coerceScalar(v, items));
     }
-    if (type === "object") return raw[0];
+    if (type === "object") return raw.length === 1 ? deserialize(raw[0], parameter) : raw[0];
     return coerceScalar(raw[0] ?? "", schema);
   }
 
