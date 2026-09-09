@@ -6,10 +6,9 @@
   // could sit in a test as a silently-ignored excess property and
   // surface only as a confusing behavioural failure (#496).
   //
-  // Modelled on `examples/tsconfig.json`: `noEmit` + `composite: false`
-  // so this never participates in `tsc -b`, and paths pointing at `src`
-  // so a check here needs no prior build and sees current source rather
-  // than the last-built `dist`.
+  // `noEmit` + `composite: false` keeps this out of `tsc -b`. The
+  // source `paths` let a check here run with no prior build and see
+  // current source rather than the last-built `dist`.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
