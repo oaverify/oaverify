@@ -1,6 +1,6 @@
-Run 2026-08-24 against:
+Run 2026-09-09 against:
 
-- oaverify 7.2.0
+- oaverify 7.2.1
 - ajv 8.20.0
 - spectral 6.16.3
 - redocly 2.46.2
@@ -49,3 +49,4 @@ Run 2026-08-24 against:
 | style (6) | 3/6 | 0/6 | 6/6 | 6/6 |
 | control false positives (4) | 0 | 0 | 0 | 0 |
 | total findings raised | 25 | 19 | 193 | 196 |
+| fatal runs | 0 | 0 | 0 | 0 |

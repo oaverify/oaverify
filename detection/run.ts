@@ -15,32 +15,24 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CASES, type DetectionCase } from "./cases.ts";
+import { CASES } from "./cases.ts";
+import { oaverifyCheckRun } from "./oaverify.ts";
+import {
+  auditLine,
+  classSummaryCell,
+  controlFalsePositiveCount,
+  mark,
+  rowForCase,
+  totalFatalRuns,
+  totalFindingsRaised,
+  type Finding,
+  type Row,
+  type ToolRun,
+} from "./reporting.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CASE_DIR = join(HERE, "cases");
 const OAV_CLI = join(HERE, "..", "packages", "oav", "dist", "cli.js");
-
-/**
- * One normalized finding, whatever tool produced it.
- *
- * `location` matters for fairness: Redocly's struct rule reports
- * "Expected type `array` but got `integer`" and names the offending
- * keyword only in the pointer. Matching on the message alone would
- * score that as a miss when the tool plainly caught the defect.
- */
-interface Finding {
-  readonly rule: string;
-  readonly message: string;
-  readonly location: string;
-  readonly severity: string;
-}
-
-interface ToolRun {
-  readonly findings: Finding[];
-  /** Set when the tool refused to process the document at all. */
-  readonly fatal?: string;
-}
 
 type Runner = (specPath: string) => ToolRun;
 
@@ -108,19 +100,7 @@ const runOaverify: Runner = (specPath) => {
   const parsed = firstJson(out) as
     | { findings?: { code?: string; message?: string; location?: string }[] }
     | undefined;
-  if (parsed?.findings === undefined) {
-    // Exit 2 is `check` rejecting a malformed document, which is a
-    // catch, not a failure to run. The message is on stderr.
-    return status === 0 ? { findings: [] } : { findings: [], fatal: err.trim().slice(0, 400) };
-  }
-  return {
-    findings: parsed.findings.map((f) => ({
-      rule: f.code ?? "",
-      message: f.message ?? "",
-      location: f.location ?? "",
-      severity: "warn",
-    })),
-  };
+  return oaverifyCheckRun(status, parsed, err);
 };
 
 // --- ajv ------------------------------------------------------------
@@ -228,53 +208,17 @@ function versionOf(tool: string): string {
   }
 }
 
-/**
- * Did this run identify *this* defect? One finding must match one
- * signal. Signals are therefore written to be discriminating -- the
- * misspelled property name, the offending keyword -- so that a generic
- * "schema is invalid" cannot score on every malformed case. Requiring
- * *all* signals instead looks stricter and is worse: it silently
- * scores real catches as misses whenever the tool's wording differs
- * from the guess, which is most of the time.
- */
-function caught(run: ToolRun, testCase: DetectionCase): string | undefined {
-  if (testCase.signals.length === 0) return undefined;
-  const texts = run.findings.map((f) => `${f.rule}: ${f.message} [${f.location}]`);
-  if (run.fatal !== undefined && run.fatal.length > 0) texts.push(`(fatal) ${run.fatal}`);
-  return texts.find((t) => testCase.signals.some((s) => t.toLowerCase().includes(s.toLowerCase())));
-}
-
 // --- report ---------------------------------------------------------
-
-interface Row {
-  readonly id: string;
-  readonly class: string;
-  readonly caught: Record<string, boolean>;
-  readonly evidence: Record<string, string>;
-  readonly counts: Record<string, number>;
-}
 
 const raw: Record<string, Record<string, ToolRun>> = {};
 const rows: Row[] = [];
 
 for (const testCase of CASES) {
   const specPath = join(CASE_DIR, `${testCase.id}.yaml`);
-  const perTool: Record<string, ToolRun> = {};
-  const caughtBy: Record<string, boolean> = {};
-  const evidence: Record<string, string> = {};
-  const counts: Record<string, number> = {};
+  const runs = TOOLS.map(([name, run]) => [name, run(specPath)] as const);
 
-  for (const [name, run] of TOOLS) {
-    const result = run(specPath);
-    perTool[name] = result;
-    const hit = caught(result, testCase);
-    caughtBy[name] = hit !== undefined;
-    if (hit !== undefined) evidence[name] = hit;
-    counts[name] = result.findings.length + (result.fatal === undefined ? 0 : 1);
-  }
-
-  raw[testCase.id] = perTool;
-  rows.push({ id: testCase.id, class: testCase.class, caught: caughtBy, evidence, counts });
+  raw[testCase.id] = Object.fromEntries(runs) as Record<string, ToolRun>;
+  rows.push(rowForCase(testCase, runs));
   process.stderr.write(`. ${testCase.id}\n`);
 }
 
@@ -282,11 +226,6 @@ mkdirSync(join(HERE, "results"), { recursive: true });
 writeFileSync(join(HERE, "results", "raw.json"), `${JSON.stringify(raw, null, 2)}\n`);
 
 const names = TOOLS.map(([n]) => n);
-const mark = (hit: boolean, cls: string): string => {
-  // In the control class nothing is wrong, so a "hit" is a false positive.
-  if (cls === "control") return hit ? "FP" : "-";
-  return hit ? "yes" : "-";
-};
 
 const lines: string[] = [];
 lines.push(`Run ${new Date().toISOString().slice(0, 10)} against:`);
@@ -298,7 +237,7 @@ lines.push(`| --- | --- | ${names.map(() => "---").join(" | ")} |`);
 for (const row of rows) {
   lines.push(
     `| \`${row.id}\` | ${row.class} | ${names
-      .map((n) => mark(row.caught[n] ?? false, row.class))
+      .map((n) => mark(row.caught[n] ?? false, row.fatal[n] ?? false, row.class))
       .join(" | ")} |`,
   );
 }
@@ -310,25 +249,27 @@ for (const cls of ["malformed", "lint", "structural", "style"]) {
   const inClass = rows.filter((r) => r.class === cls);
   lines.push(
     `| ${cls} (${inClass.length}) | ${names
-      .map((n) => `${inClass.filter((r) => r.caught[n]).length}/${inClass.length}`)
+      .map((n) => classSummaryCell(inClass, n))
       .join(" | ")} |`,
   );
 }
 const controls = rows.filter((r) => r.class === "control");
 lines.push(
   `| control false positives (${controls.length}) | ${names
-    .map((n) => String(controls.filter((r) => r.caught[n]).length))
+    .map((n) => String(controlFalsePositiveCount(controls, n)))
     .join(" | ")} |`,
 );
 
 // Noise: total findings raised across the whole corpus, including the
-// clean controls. Not a score -- a tool with more rules legitimately
+// clean controls, excluding runs where the tool did not produce
+// parseable results. Not a score -- a tool with more rules legitimately
 // says more -- but it is what a reader has to read through.
 lines.push(
   `| total findings raised | ${names
-    .map((n) => String(rows.reduce((sum, r) => sum + (r.counts[n] ?? 0), 0)))
+    .map((n) => String(totalFindingsRaised(rows, n)))
     .join(" | ")} |`,
 );
+lines.push(`| fatal runs | ${names.map((n) => String(totalFatalRuns(rows, n))).join(" | ")} |`);
 
 const table = `${lines.join("\n")}\n`;
 writeFileSync(join(HERE, "results", "matrix.md"), table);
@@ -340,11 +281,7 @@ const audit: string[] = ["# Detection audit", ""];
 for (const row of rows) {
   audit.push(`## \`${row.id}\` (${row.class})`);
   for (const name of names) {
-    audit.push(
-      row.caught[name]
-        ? `- **${name}**: ${row.evidence[name]}`
-        : `- ${name}: no matching finding (${row.counts[name] ?? 0} raised)`,
-    );
+    audit.push(auditLine(row, name, raw[row.id]?.[name]));
   }
   audit.push("");
 }

@@ -185,7 +185,7 @@ its output matches the case's declared signal, and every scored cell is
 traceable to the finding that scored it in
 [`detection/results/audit.md`](../detection/results/audit.md).
 
-Measured 2026-08-24 against oaverify 7.2.0, Ajv 8.20.0, Spectral CLI
+Measured 2026-09-09 against oaverify 7.2.1, Ajv 8.20.0, Spectral CLI
 6.16.3 and Redocly CLI 2.46.2, all on default rulesets. The versions
 and the run date are the ones
 [`detection/results/matrix.md`](../detection/results/matrix.md)
@@ -199,6 +199,7 @@ records; `pnpm check:detection-table` asserts this table against it.
 | style (6)                   | 3/6      | 0/6 | 6/6      | 6/6     |
 | control false positives (4) | 0        | 0   | 0        | 0       |
 | total findings raised       | 25       | 19  | 193      | 196     |
+| fatal runs                  | 0        | 0   | 0        | 0       |
 
 Read the rows, not a total. `style` is where oaverify loses and is meant
 to: operationId conventions and undefined security schemes are outside
@@ -207,13 +208,20 @@ that. `control` holds four clean documents where any finding is a false
 positive; every tool scores 0, which is the result you want from a
 control.
 
-The last row is the one worth dwelling on. Across 29 seeded-defect cases
-plus 4 controls, oaverify raises 25 findings and catches 25 of the 29;
-Spectral raises 193 findings to catch 23, Redocly 196 to catch 22.
+Read `total findings raised` carefully. Across 29 seeded-defect cases
+plus 4 controls. oaverify raises 25 findings and catches 25 of the 29.
+Spectral raises 193 findings to catch 23. Redocly 196 to catch 22.
 Linters with broad default rulesets report a great deal that nobody
 seeded, which is reasonable behavior for a linter and a different job
 from answering "will this spec validate traffic the way its author
 intended".
+
+`fatal runs` counts tool executions that did not produce parseable
+results. A fatal cell is marked `ERR` in the matrix and is neither a
+catch nor a miss. Class row denominators exclude `ERR` runs for that
+tool; the class label still shows the full corpus size. oaverify's
+documented exit 2 is scored as a finding from stderr, because rejecting a
+malformed document is one of the behaviours being measured.
 
 Caveats, because this table is easy to over-read:
 
