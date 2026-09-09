@@ -1,9 +1,9 @@
 import { resolve } from "node:path";
 
-// Single source of truth for the @oaverify/internal-* -> packages/*/src/index.ts alias
-// map. Imported by tsup.config.ts and vitest.config.ts. tsconfig.build.json
-// has its own copy under "paths" because JSON cannot import TS — keep it
-// in sync when adding a new workspace package.
+// Single source of truth for workspace source aliases. Imported by
+// tsup.config.ts and vitest.config.ts. tsconfig.build.json has its own
+// copy under "paths" because JSON cannot import TS; keep it in sync
+// when adding a new workspace package or published entry.
 
 const PACKAGES = [
   "core",
