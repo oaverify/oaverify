@@ -91,6 +91,38 @@ describe("streamValidatorForOperation", () => {
     expect(bad.violations[0]!.code).toBe("required");
   });
 
+  it("uses core JSON Pointer rules for a bare top-level $ref body", async () => {
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/x": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/Foo%2F$defs%2FBar" },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          Foo: { $defs: { Bar: { type: "string" } } },
+          "Foo/$defs/Bar": { type: "integer" },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+
+    const ok = await run(streamValidatorForOperation(doc, { method: "post", path: "/x" }), "id");
+    expect(ok.valid).toBe(true);
+
+    const bad = await run(streamValidatorForOperation(doc, { method: "post", path: "/x" }), 1);
+    expect(bad.valid).toBe(false);
+  });
+
   it("normalizes a 3.0 component reached by an internal $ref (nullable / exclusive*)", async () => {
     // A nested $ref into components must hit the 3.0-normalized target, not
     // the raw 3.0 shape: `nullable` folds to a null union, boolean
