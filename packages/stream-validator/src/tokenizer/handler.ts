@@ -48,7 +48,15 @@ export interface JsonEventHandler {
    * between {@link onStringStart} and {@link onStringEnd}; never empty.
    *
    * @param chunk - Decoded text (escapes resolved, UTF-8 decoded).
-   * @param offset - Byte offset of this slice's first source byte.
+   * @param offset - Byte offset used to locate this emitted slice. For
+   *   text emitted from a literal scan, this is the first byte scanned in
+   *   the current `write` call; if that scan completes a multibyte
+   *   character held from an earlier `write`, it can be later than that
+   *   character's first byte. For an escape, this is the byte that
+   *   completes the escape. If a malformed multibyte sequence is still
+   *   held when an escape or closing quote is reached, the decoder
+   *   flushes replacement text at that byte instead; where the
+   *   replacement is reported can therefore vary with `write` boundaries.
    * @param codePoints - The code points delivered so far, this slice
    *   included, counted the same way {@link onStringEnd} reports. A
    *   consumer applying an eager length bound reads this rather than
