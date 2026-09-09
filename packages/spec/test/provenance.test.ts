@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sourceOf, withSynthetic, type SpecRegion } from "../src/provenance.js";
+import { sourceOf, withOverlayChanges, withSynthetic, type SpecRegion } from "../src/provenance.js";
 
 const entry: SpecRegion = { kind: "mounted", at: "", uri: "entry.yaml", pointer: "", via: [] };
 
@@ -256,5 +256,49 @@ describe("withSynthetic", () => {
     expect(after.at(-1)).toEqual({ kind: "synthetic", at: "" });
     expect(sourceOf(after, "/info")).toBeUndefined();
     expect(sourceOf(after, "")).toBeUndefined();
+  });
+});
+
+describe("withOverlayChanges", () => {
+  it("marks a one-key rewritten object rather than its changed child", () => {
+    const before = {
+      content: {
+        schema: { type: "object" },
+        example: { items: [{ price: 111111 }, { price: "free" }] },
+      },
+    };
+    const after = {
+      content: {
+        schema: { type: "object" },
+        example: { items: [{ price: "free" }] },
+      },
+    };
+
+    const regions = withOverlayChanges([entry], before, after);
+
+    expect(sourceOf(regions, "/content/example")).toBeUndefined();
+    expect(sourceOf(regions, "/content/example/items/0/price")).toBeUndefined();
+    expect(sourceOf(regions, "/content/schema/type")?.pointer).toBe("/content/schema/type");
+  });
+
+  it("keeps unchanged surviving keys in a patched object addressable", () => {
+    const before = { info: { title: "before", version: "1" } };
+    const after = { info: { title: "after", version: "1" } };
+
+    const regions = withOverlayChanges([entry], before, after);
+
+    expect(sourceOf(regions, "/info/title")).toBeUndefined();
+    expect(sourceOf(regions, "/info/version")?.pointer).toBe("/info/version");
+    expect(sourceOf(regions, "/info")?.pointer).toBe("/info");
+  });
+
+  it("marks a same-length array whole when no element survived unchanged", () => {
+    const before = { tags: [{ name: "one" }, { name: "two" }] };
+    const after = { tags: [{ name: "three" }, { name: "four" }] };
+
+    const regions = withOverlayChanges([entry], before, after);
+
+    expect(sourceOf(regions, "/tags")).toBeUndefined();
+    expect(sourceOf(regions, "/tags/0/name")).toBeUndefined();
   });
 });

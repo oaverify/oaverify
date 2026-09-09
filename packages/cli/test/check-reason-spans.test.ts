@@ -458,11 +458,11 @@ describe("check --format sarif locates each sub-rejection", () => {
     // `111111` the overlay removed, so the item squiggled a correct
     // number and said `must be number`.
     //
-    // `withOverlayChanges` holes the array whose length changed, so
-    // asking `sourceOf` for the reason's position now answers with
-    // nothing and no item is emitted. The finding keeps its own region
-    // and its complete `oaverify:reasons`, so nothing is lost except
-    // the false claim.
+    // `withOverlayChanges` holes the rewritten example subtree, so
+    // asking `sourceOf` for either the finding or the reason's position
+    // now answers with nothing. The result keeps its logical pointer and
+    // complete `oaverify:reasons`; what drops is the false claim about
+    // stale file bytes.
     const { result, reasons } = await run("overlaid.yaml", [join(dir, "overlay.yaml")]);
 
     const causes = result?.properties["oaverify:reasons"] as { path: unknown[] }[];
@@ -471,7 +471,6 @@ describe("check --format sarif locates each sub-rejection", () => {
 
     expect(reasons).toHaveLength(0);
 
-    // Still located as a finding, at the example the author would open.
-    expect(result?.locations[0]?.physicalLocation.region).toBeDefined();
+    expect(result?.locations).toHaveLength(0);
   });
 });

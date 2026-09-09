@@ -223,17 +223,20 @@ export function withSynthetic(regions: readonly SpecRegion[], at: string): SpecR
  * the distinction is load-bearing. A scalar *is* its value, so a
  * rewritten one is a different node and loses its address. An object is
  * a container whose children are separately addressed, so adding or
- * removing a key leaves every surviving key pointing where it always
- * did; the added key gets its own hole, the removed key has no node to
- * hole, and the container keeps the address of the object it was built
- * from even though its key set now differs. Holing containers as well
- * would walk the change up the spine to the document root, and a hole
- * at the root is provenance switched off for any spec with an overlay.
+ * removing a key leaves every surviving unchanged key pointing where it
+ * always did; the added key gets its own hole, and the removed key has
+ * no node to hole.
+ *
+ * A container with no unchanged surviving child is marked whole. Its
+ * own address would otherwise point at old bytes for a subtree the
+ * overlay replaced, while each child would already be synthetic. The
+ * walk stops at the nearest ancestor that still has an unchanged child,
+ * keeping the rest of that container addressed as before.
  *
  * An array whose length changed is marked whole, because an insertion
  * or a removal shifts every index after it and index-wise attribution
  * would then be wrong rather than missing. One that kept its length is
- * compared element-wise, since the indices still line up.
+ * compared element-wise when any element survived unchanged.
  *
  * @param regions - Regions from the resolution that produced `before`.
  * @param before - The document as `resolveSpec` returned it.
@@ -253,42 +256,64 @@ export function withOverlayChanges(
   return out;
 }
 
+type CompareResult = "equal" | "partial" | "whole";
+
 /** Collect the deepest pointers at which `after` differs from `before`. */
-function compare(before: unknown, after: unknown, at: string, changed: string[]): boolean {
-  if (before === after) return true;
+function compare(before: unknown, after: unknown, at: string, changed: string[]): CompareResult {
+  if (before === after) return "equal";
   if (Array.isArray(before) && Array.isArray(after)) {
     if (before.length !== after.length) {
       changed.push(at);
-      return false;
+      return "whole";
     }
     // Same length: indices still line up, so attribute element-wise.
-    let equal = true;
+    const localChanged: string[] = [];
+    let anyChanged = false;
+    let preserved = false;
     for (let i = 0; i < after.length; i += 1) {
-      if (!compare(before[i], after[i], `${at}/${i}`, changed)) equal = false;
+      const result = compare(before[i], after[i], `${at}/${i}`, localChanged);
+      if (result === "equal" || result === "partial") preserved = true;
+      if (result !== "equal") anyChanged = true;
     }
-    return equal;
+    if (!anyChanged) return "equal";
+    if (!preserved) {
+      changed.push(at);
+      return "whole";
+    }
+    changed.push(...localChanged);
+    return "partial";
   }
   if (isObject(before) && isObject(after)) {
-    let equal = true;
+    const localChanged: string[] = [];
+    let anyChanged = false;
+    let preserved = false;
     for (const key of Object.keys(after)) {
       const to = `${at}/${escapePointerSegment(key)}`;
       if (!Object.hasOwn(before, key)) {
-        changed.push(to);
-        equal = false;
+        localChanged.push(to);
+        anyChanged = true;
         continue;
       }
-      if (!compare(before[key], after[key], to, changed)) equal = false;
+      const result = compare(before[key], after[key], to, localChanged);
+      if (result === "equal" || result === "partial") preserved = true;
+      if (result !== "equal") anyChanged = true;
     }
     for (const key of Object.keys(before)) {
       // A removed key has no node in the graded document, so there is
       // nothing to address and nothing to hole. Every surviving key
       // still points where it did.
-      if (!Object.hasOwn(after, key)) equal = false;
+      if (!Object.hasOwn(after, key)) anyChanged = true;
     }
-    return equal;
+    if (!anyChanged) return "equal";
+    if (!preserved) {
+      changed.push(at);
+      return "whole";
+    }
+    changed.push(...localChanged);
+    return "partial";
   }
   changed.push(at);
-  return false;
+  return "whole";
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
