@@ -8,22 +8,16 @@
  * @packageDocumentation
  */
 
-import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import {
+  pointerFromFragment,
+  resolveJsonPointer,
+  type SchemaObject,
+  type SchemaOrBoolean,
+} from "@oaverify/internal-core";
 import { walkSubschemas } from "@oaverify/internal-schema";
 
 function isObjectSchema(s: unknown): s is SchemaObject {
   return typeof s === "object" && s !== null && !Array.isArray(s);
-}
-
-// Percent-decode a fragment segment, tolerating a malformed `%` (leave it
-// as-is rather than throwing).
-function percentDecode(s: string): string {
-  if (!s.includes("%")) return s;
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s;
-  }
 }
 
 /**
@@ -38,20 +32,11 @@ function percentDecode(s: string): string {
 export function resolveRef(root: SchemaObject, ref: string): SchemaOrBoolean | undefined {
   if (ref === "#" || ref === "") return root;
   if (ref.startsWith("#/")) {
-    // A fragment is a URI: percent-decode each segment, then unescape the
-    // JSON Pointer `~1` / `~0` (parity with @oaverify/internal-schema, which resolves
-    // e.g. `#/$defs/Record%3Cstring%2CPerson%3E`).
-    const segments = ref
-      .slice(2)
-      .split("/")
-      .map((s) => percentDecode(s).replace(/~1/g, "/").replace(/~0/g, "~"));
-    let cur: unknown = root;
-    for (const seg of segments) {
-      if (Array.isArray(cur)) cur = cur[Number(seg)];
-      else if (isObjectSchema(cur)) cur = (cur as Record<string, unknown>)[seg];
-      else return undefined;
+    try {
+      return resolveJsonPointer(root, pointerFromFragment(ref.slice(1))) as SchemaOrBoolean;
+    } catch {
+      return undefined;
     }
-    return cur === undefined ? undefined : (cur as SchemaOrBoolean);
   }
   if (ref.startsWith("#")) {
     const anchor = ref.slice(1);

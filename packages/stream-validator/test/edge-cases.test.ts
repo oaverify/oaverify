@@ -74,6 +74,19 @@ describe("percent-encoded JSON pointer refs resolve", () => {
     // Must not fail-fast at construction, and must validate the target.
     await expectParity(schema, [{ id: "a" }, { id: 1 }, {}]);
   });
+
+  it("decodes an encoded separator before classifier and spine resolution", async () => {
+    const schema = {
+      type: "object",
+      properties: { id: { $ref: "#/$defs/Foo%2F$defs%2FBar" } },
+      $defs: {
+        Foo: { $defs: { Bar: { type: "string", pattern: "^id-" } } },
+        "Foo/$defs/Bar": { type: "integer", pattern: "^id-" },
+      },
+    } as SchemaObject;
+
+    await expectParity(schema, [{ id: "a" }, { id: 1 }, {}]);
+  });
 });
 
 describe("maxBufferedBytes is enforced on a single-chunk scalar", () => {

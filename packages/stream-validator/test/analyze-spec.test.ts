@@ -97,6 +97,39 @@ describe("analyzeSpec", () => {
     expect(budget.operations[0]!.bodies[0]!.report?.classification).toBe("streamable");
   });
 
+  it("uses core JSON Pointer rules for local response refs", () => {
+    const budget = analyzeSpec(
+      doc({
+        paths: {
+          "/pets": {
+            get: { responses: { "200": { $ref: "#/components/responses/Foo%2FBar" } } },
+          },
+        },
+        components: {
+          responses: {
+            Foo: {
+              Bar: {
+                content: {
+                  "application/json": {
+                    schema: { type: "string", pattern: "^pet-" },
+                  },
+                },
+              },
+            },
+            "Foo/Bar": {
+              content: { "application/json": { schema: { type: "object" } } },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(budget.operations[0]!.bodies[0]!.report?.classification).toBe("buffer");
+    expect(budget.operations[0]!.bodies[0]!.report?.positions).toContainEqual(
+      expect.objectContaining({ keyword: "pattern", path: "" }),
+    );
+  });
+
   it("captures a classification failure per body instead of throwing", () => {
     const budget = analyzeSpec(
       doc({
