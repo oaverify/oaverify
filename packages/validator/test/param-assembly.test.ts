@@ -162,6 +162,7 @@ describe("assembleObjectQueryParam", () => {
     // and stays a string.
     expect(assembleObjectQueryParam(p, { "filter[id]": "1", "filter[name]": "dot" })).toEqual({
       value: { id: 1, name: "dot" },
+      keys: ["filter[id]", "filter[name]"],
     });
   });
 
@@ -171,7 +172,10 @@ describe("assembleObjectQueryParam", () => {
       in: "query",
       schema: { type: "object", properties: { id: { type: "integer" } } },
     };
-    expect(assembleObjectQueryParam(p, { id: "1" })).toEqual({ value: { id: 1 } });
+    expect(assembleObjectQueryParam(p, { id: "1" })).toEqual({
+      value: { id: 1 },
+      keys: ["id"],
+    });
   });
 
   it("reports {value: undefined} when object-typed but no pieces are present", () => {
@@ -181,7 +185,7 @@ describe("assembleObjectQueryParam", () => {
       style: "deepObject",
       schema: { type: "object", properties: { id: { type: "integer" } } },
     };
-    expect(assembleObjectQueryParam(p, {})).toEqual({ value: undefined });
+    expect(assembleObjectQueryParam(p, {})).toEqual({ value: undefined, keys: [] });
   });
 });
 

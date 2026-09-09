@@ -314,6 +314,13 @@ whether your spec is well written.
 Both produce ordinary validation errors on the request, at request time.
 Neither appears in `schemaLintIssues`.
 
+Object-style query parameters count the wire keys they consume as known.
+For `style: "form", explode: true`, only declared property names are
+safe to consume because the wire keys have no parameter-name prefix. For
+`style: "deepObject"`, the `name[...]` prefix identifies the parameter,
+so every matching key belongs to that parameter. Its object schema then
+accepts or rejects undeclared properties through `additionalProperties`.
+
 ### Format assertion is not one of these
 
 If `format: "int32"` started rejecting traffic and you are looking for
