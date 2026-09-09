@@ -69,6 +69,14 @@ function responseHeaders(reply: FastifyReply): Record<string, string | string[]>
   return headers;
 }
 
+function fastifySendsOpaqueBody(payload: unknown): boolean {
+  if (payload === undefined || payload === null) return false;
+  if (typeof payload === "string") return payload.length > 0;
+  if (Buffer.isBuffer(payload)) return payload.length > 0;
+  if (ArrayBuffer.isView(payload)) return payload.byteLength > 0;
+  return true;
+}
+
 // Marks a request whose response has already been validated, so the
 // error reply Fastify renders after a throwing onError is not itself
 // re-validated into a loop.
@@ -157,8 +165,8 @@ export function validateResponses(
     // depend on the body's media type. The body is parsed and validated
     // only when it is a parseable JSON string; for non-JSON, unparseable,
     // buffer, or stream payloads `body` stays undefined and the core
-    // validator skips body validation (and the response Content-Type
-    // check, which is gated on a present body).
+    // validator skips body validation. Body-presence checks still see
+    // that the response carried an opaque body.
     let body: unknown;
     if (typeof payload === "string" && /\bjson\b/i.test(contentType)) {
       try {
@@ -175,6 +183,7 @@ export function validateResponses(
       contentType,
       headers: responseHeaders(reply),
       body,
+      bodyPresent: fastifySendsOpaqueBody(payload),
     };
     const result = validator.validateResponse(httpReq, httpRes);
     if (result.valid) return payload;

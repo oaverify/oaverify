@@ -183,6 +183,73 @@ describe("validateResponses (Express 4)", () => {
     expect(erroredWith(next)).toBeUndefined();
   });
 
+  it("flags an undeclared status on a Buffer send", () => {
+    const { res, sent } = fakeRes(418, { "content-type": "application/pdf" });
+    const next = vi.fn();
+    mount(res, next);
+    res.send(Buffer.from("pdf"));
+    expect(sent).not.toHaveBeenCalled();
+    expect(erroredWith(next)).toBeInstanceOf(ResponseValidationError);
+  });
+
+  it("flags a missing required header on a Buffer send", () => {
+    const spec = widgetSpec();
+    const get = spec.paths!["/widgets/{id}"]!.get as unknown as {
+      responses: Record<string, unknown>;
+    };
+    get.responses["206"] = {
+      description: "partial",
+      headers: { "Content-Range": { required: true, schema: { type: "string" } } },
+    };
+    const hv = createValidator(spec);
+    const { res, sent } = fakeRes(206, { "content-type": "application/pdf" });
+    const next = vi.fn();
+    validateResponses(hv)(fakeReq(), res, next as unknown as NextFunction);
+    res.send(Buffer.from("pdf"));
+    expect(sent).not.toHaveBeenCalled();
+    expect(erroredWith(next)).toBeInstanceOf(ResponseValidationError);
+  });
+
+  it("passes a Buffer send whose status is declared without validating the body", () => {
+    const { res, sent } = fakeRes(200, { "content-type": "application/json" });
+    const next = vi.fn();
+    mount(res, next);
+    const body = Buffer.from(JSON.stringify({ id: 7 }));
+    res.send(body);
+    expect(sent).toHaveBeenCalledWith(body);
+    expect(erroredWith(next)).toBeUndefined();
+  });
+
+  it("does not treat an opaque Buffer send as absent when response bodies are required", () => {
+    const spec = widgetSpec();
+    const get = spec.paths!["/widgets/{id}"]!.get as unknown as {
+      responses: Record<string, { content?: Record<string, unknown> }>;
+    };
+    get.responses["200"]!.content = {
+      "application/pdf": { schema: { type: "string", format: "binary" } },
+    };
+    const hv = createValidator(spec, { requireResponseBody: true });
+    const { res, sent } = fakeRes(200, { "content-type": "application/pdf" });
+    const next = vi.fn();
+    validateResponses(hv)(fakeReq(), res, next as unknown as NextFunction);
+    const body = Buffer.from("pdf");
+    res.send(body);
+    expect(sent).toHaveBeenCalledWith(body);
+    expect(erroredWith(next)).toBeUndefined();
+  });
+
+  it("treats zero-byte opaque sends as absent when response bodies are required", () => {
+    const hv = createValidator(widgetSpec(), { requireResponseBody: true });
+    for (const body of [null, "", Buffer.alloc(0)] as const) {
+      const { res, sent } = fakeRes(200, { "content-type": "application/json" });
+      const next = vi.fn();
+      validateResponses(hv)(fakeReq(), res, next as unknown as NextFunction);
+      res.send(body);
+      expect(sent).not.toHaveBeenCalled();
+      expect(erroredWith(next)?.errors[0]?.code).toBe("body");
+    }
+  });
+
   it("checks the status of an empty res.json() body", () => {
     const { res, sent } = fakeRes(418);
     const next = vi.fn();

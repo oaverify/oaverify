@@ -83,6 +83,21 @@ function responseHeaders(res: Response): Record<string, string | string[]> {
   return headers;
 }
 
+function expressWillResendAsJson(body: unknown): boolean {
+  return (
+    typeof body === "boolean" ||
+    typeof body === "number" ||
+    (body !== null && typeof body === "object" && !ArrayBuffer.isView(body))
+  );
+}
+
+function expressSendsOpaqueBody(body: unknown): boolean {
+  if (body === undefined || body === null) return false;
+  if (typeof body === "string") return body.length > 0;
+  if (ArrayBuffer.isView(body)) return body.byteLength > 0;
+  return true;
+}
+
 /**
  * Build an Express 5 middleware that validates outgoing responses against
  * the spec. It wraps `res.send`, the point most responses pass through
@@ -152,7 +167,11 @@ export function validateResponses(
     // re-enters this same wrapped send and must not loop.
     let handled = false;
 
-    const check = (body: unknown, contentType: string): ValidationError[] | null => {
+    const check = (
+      body: unknown,
+      contentType: string,
+      bodyPresent = body !== undefined,
+    ): ValidationError[] | null => {
       handled = true;
       if (!shouldValidate(res.statusCode)) return null;
       const httpRes: HttpResponse = {
@@ -160,6 +179,7 @@ export function validateResponses(
         contentType,
         headers: responseHeaders(res),
         body,
+        bodyPresent,
       };
       const result = validator.validateResponse(httpReq, httpRes);
       if (result.valid) return null;
@@ -196,14 +216,14 @@ export function validateResponses(
       if (args.length > 1) return originalSend(...args);
       const body = args[0];
       // Split-phase. Status and declared headers are checked for every
-      // string / empty send (a text error page, a redirect's HTML body, or
-      // res.sendStatus all flow through res.send as a string), independent
-      // of the body's media type. The body is parsed and validated only
-      // when it is a parseable JSON string; otherwise `parsed` stays
-      // undefined and the core validator skips body validation (and the
-      // response Content-Type check, gated on a present body). A pure
-      // res.end() bypasses res.send and is not covered; see the README.
-      if (!handled && (typeof body === "string" || body === undefined)) {
+      // wrapped send that Express will not serialize and send again,
+      // independent of the body's media type. The body is parsed and
+      // validated only when it is a parseable JSON string; otherwise
+      // `parsed` stays undefined and the core validator skips body
+      // validation. Body-presence checks still see that the response
+      // carried an opaque body. A pure res.end() bypasses res.send and
+      // is not covered; see the README.
+      if (!handled && !expressWillResendAsJson(body)) {
         const contentType = String(res.getHeader("content-type") ?? "");
         let parsed: unknown;
         if (typeof body === "string" && /\bjson\b/i.test(contentType)) {
@@ -214,7 +234,7 @@ export function validateResponses(
             // still get checked, and the malformed body is sent unchanged.
           }
         }
-        const errors = check(parsed, contentType);
+        const errors = check(parsed, contentType, expressSendsOpaqueBody(body));
         if (errors !== null) {
           handleFailure(errors, () => originalSend(...args));
           return res;

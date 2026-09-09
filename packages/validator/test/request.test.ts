@@ -648,6 +648,48 @@ describe("validateRequest", () => {
     expect(leaf?.params).toMatchObject({ status: 204 });
   });
 
+  it("treats an opaque present response body as present but not schema-validatable", () => {
+    const spec: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/p": {
+          get: {
+            responses: {
+              "200": {
+                description: "ok",
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      required: ["id"],
+                      properties: { id: { type: "string" } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const sv = createValidator(spec, { requireResponseBody: true });
+
+    expect(
+      sv.validateResponse(
+        { method: "GET", path: "/p" },
+        { status: 200, contentType: "application/json", bodyPresent: true },
+      ),
+    ).toBeNull();
+
+    expect(
+      sv.validateResponse(
+        { method: "GET", path: "/p" },
+        { status: 200, contentType: "text/plain", bodyPresent: true },
+      ),
+    ).toBeNull();
+  });
+
   it("optional requestBody:required=false passes when the body is omitted", () => {
     // openapi-backend #817 / #292. Distinct from the bareboss no-body
     // case; here the spec declares content but explicitly marks it
