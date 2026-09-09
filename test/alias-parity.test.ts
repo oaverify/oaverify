@@ -5,7 +5,7 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { workspaceAliases } from "../workspace-aliases.js";
 
-// Parity guard for the hand-maintained `@oaverify/internal-*` -> path
+// Parity guard for the hand-maintained package-name -> source path
 // tables. Each is edited by hand, so they drift, and a divergence means
 // two toolchains resolve the same specifier to different files: tests
 // pass while the build breaks, or the reverse. What a given table owes
@@ -13,16 +13,19 @@ import { workspaceAliases } from "../workspace-aliases.js";
 // table rather than stated once.
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const onlyOav = (k: string): boolean => k.startsWith("@oaverify/internal-");
+const STANDALONE_PUBLISHED = new Set(["@oaverify/check", "@oaverify/stream", "@oaverify/syntax"]);
+const rootBuildAlias = (k: string): boolean =>
+  k.startsWith("@oaverify/internal-") || STANDALONE_PUBLISHED.has(k);
+const onlyInternal = (k: string): boolean => k.startsWith("@oaverify/internal-");
 
 function aliasKeys(): string[] {
-  return Object.keys(workspaceAliases(root)).filter(onlyOav).sort();
+  return Object.keys(workspaceAliases(root)).filter(rootBuildAlias).sort();
 }
 
 function tsconfigPathKeys(): string[] {
   return tsconfigPathEntries("tsconfig.build.json")
     .map(([key]) => key)
-    .filter(onlyOav)
+    .filter(rootBuildAlias)
     .sort();
 }
 
@@ -60,13 +63,13 @@ const NOT_IN_OAV_BUNDLE = [
   "@oaverify/internal-metaschema/conformance",
 ].sort();
 
-describe("@oaverify/internal-* alias parity across resolution tables", () => {
-  it("workspace-aliases.ts and tsconfig.build.json cover the same @oaverify/internal-* keys", () => {
+describe("@oaverify source alias parity across resolution tables", () => {
+  it("workspace-aliases.ts and tsconfig.build.json cover the same root build keys", () => {
     expect(aliasKeys()).toEqual(tsconfigPathKeys());
   });
 
   it("the oav tsup rewrite map matches the alias set minus the bundle's non-deps", () => {
-    const aliases = new Set(aliasKeys());
+    const aliases = new Set(Object.keys(workspaceAliases(root)).filter(onlyInternal).sort());
     const tsup = new Set(tsupRewriteKeys());
     // Every tsup key must be a known alias (no typo or stale entry).
     expect([...tsup].filter((k) => !aliases.has(k))).toEqual([]);
@@ -111,11 +114,8 @@ function tsconfigPathEntries(configPath: string): Array<[string, string]> {
 // file and costs nothing. #591 is the incident the guard was written
 // for, when the vite half of `framework-tests` could still drift.
 //
-// Two known gaps rather than a claim of coverage. Only `@oaverify/internal-*`
-// reaches the subpath rule (`onlyOav`), so a published name a table
-// needs can be deleted with the suite green; that is #915, which
-// proposes widening the filter. And the tsup map is compared by key
-// alone, leaving its targets unasserted; that is #917.
+// One known gap rather than a claim of coverage. The tsup map is
+// compared by key alone, leaving its targets unasserted; that is #917.
 //
 // The `describeSubTable` calls below are the tables asserted. Adding one
 // is a judgement about whether that table is meant to track the builder,
@@ -136,7 +136,7 @@ function describeSubTable(configPath: string): void {
     it("carries every subpath of a package it already aliases", () => {
       const declared = new Set(tsconfigPathEntries(configPath).map(([key]) => key));
       const missing = Object.keys(aliases)
-        .filter(onlyOav)
+        .filter(rootBuildAlias)
         .filter((key) => {
           const slash = key.indexOf("/", "@oaverify/".length);
           if (slash === -1) return false;

@@ -25,7 +25,10 @@
       "@oaverify/internal-validator": ["./packages/validator/src/index.ts"],
       "@oaverify/internal-validator/internals": ["./packages/validator/src/internals.ts"],
       "@oaverify/internal-stream-validator": ["./packages/stream-validator/src/index.ts"],
+      "@oaverify/stream": ["./packages/stream-validator/src/index.ts"],
       "@oaverify/internal-cli": ["./packages/cli/src/index.ts"],
+      "@oaverify/syntax": ["./packages/syntax/src/index.ts"],
+      "@oaverify/check": ["./packages/check/src/index.ts"],
       "@oaverify/internal-oav-express4": ["./packages/oav-express4/src/index.ts"],
       "@oaverify/internal-oav-express5": ["./packages/oav-express5/src/index.ts"],
       "@oaverify/internal-oav-fastify": ["./packages/oav-fastify/src/index.ts"]
