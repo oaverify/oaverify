@@ -56,7 +56,7 @@ body, content type, status, and headers.
 The established OpenAPI validators for JavaScript predate OpenAPI 3.1.
 oaverify is built to be the boring, correct option for modern specs.
 
-- **3.1 and 3.2 are JSON Schema 2020-12, natively.** 1294/1299 on the
+- **3.1 and 3.2 are JSON Schema 2020-12, natively.** 1296/1301 on the
   required upstream test suite, every divergence itemized and
   cross-checked against other implementations, plus real-world specs
   (Stripe, GitHub, Twilio, and more) and Express 4 / 5 + Fastify

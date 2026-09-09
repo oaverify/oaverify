@@ -40,8 +40,8 @@ Run against three upstream / hand-curated test corpora:
 
 | Source                                | Cases | Pass | Mismatch | Error | % pass |
 | ------------------------------------- | ----- | ---- | -------- | ----- | ------ |
-| JSON Schema Test Suite (required)     | 1299  | 1294 | 1        | 4     | 99.6%  |
-| JSON Schema Test Suite (+ optional)   | 1461  | 1453 | 4        | 4     | 99.5%  |
+| JSON Schema Test Suite (required)     | 1301  | 1296 | 1        | 4     | 99.6%  |
+| JSON Schema Test Suite (+ optional)   | 1463  | 1455 | 4        | 4     | 99.5%  |
 | OpenAPI Overlay 1.0 (envelope)        | 32    | 32   | 0        | 0     | 100%   |
 | OpenAPI `petstore` via `oaverify` CLI | 32    | 32   | 0        | 0     | 100%   |
 
@@ -109,8 +109,8 @@ All other optional files pass, including `dynamicRef.json` since #663.
 
 The per-format subtree (`optional/format/*.json`) has its own runner,
 `pnpm format-suite`, because `suite:optional` cannot measure it. The
-subtree is 822 cases across 21 formats, of which 425 expect a rejection.
-By spec default and ours, `format` is annotation-only, so those 425
+subtree is 861 cases across 21 formats, of which 453 expect a rejection.
+By spec default and ours, `format` is annotation-only, so those 453
 vacuously fail for any implementation that follows the default. That is
 an identity rather than a measurement: an annotation-only implementation
 accepts every string, so it passes exactly the `valid: true` cases and
@@ -123,7 +123,7 @@ is gone rather than re-dated: a stale identity is still an identity. No publishe
 which is why this one is measured locally.
 
 `format-suite` compiles with the OpenAPI 3.1 dialect, which promotes
-`format` to an assertion, and scores **762/822**. It
+`format` to an assertion, and scores **801/861**. It
 reports the two directions separately, because they carry different
 consequences: 41 **false accepts** (we allowed a value the format
 forbids, a missed catch) and 19 **false rejects** (we refused a value

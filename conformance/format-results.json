@@ -1,8 +1,8 @@
 [
   {
     "format": "date-time",
-    "cases": 33,
-    "pass": 33,
+    "cases": 43,
+    "pass": 43,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
@@ -209,8 +209,8 @@
   },
   {
     "format": "idn-hostname",
-    "cases": 95,
-    "pass": 59,
+    "cases": 98,
+    "pass": 62,
     "falseAccept": 17,
     "falseReject": 19,
     "error": 0,
@@ -453,8 +453,8 @@
   },
   {
     "format": "iri-reference",
-    "cases": 13,
-    "pass": 13,
+    "cases": 18,
+    "pass": 18,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
@@ -462,8 +462,8 @@
   },
   {
     "format": "iri",
-    "cases": 24,
-    "pass": 24,
+    "cases": 27,
+    "pass": 27,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
@@ -498,8 +498,8 @@
   },
   {
     "format": "time",
-    "cases": 47,
-    "pass": 47,
+    "cases": 55,
+    "pass": 55,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
@@ -516,8 +516,8 @@
   },
   {
     "format": "uri-reference",
-    "cases": 28,
-    "pass": 28,
+    "cases": 30,
+    "pass": 30,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
@@ -525,8 +525,8 @@
   },
   {
     "format": "uri-template",
-    "cases": 38,
-    "pass": 38,
+    "cases": 44,
+    "pass": 44,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
@@ -534,8 +534,8 @@
   },
   {
     "format": "uri",
-    "cases": 46,
-    "pass": 46,
+    "cases": 47,
+    "pass": 47,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
@@ -543,8 +543,8 @@
   },
   {
     "format": "uuid",
-    "cases": 28,
-    "pass": 28,
+    "cases": 29,
+    "pass": 29,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
