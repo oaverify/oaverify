@@ -31,6 +31,10 @@ export function workspaceAliases(rootDir: string): Record<string, string> {
       resolve(rootDir, "packages", "core", "src", "prototype-properties.ts"),
     ],
     [
+      "@oaverify/internal-core/ref-siblings",
+      resolve(rootDir, "packages", "core", "src", "ref-siblings.ts"),
+    ],
+    [
       "@oaverify/internal-core/subschema-positions",
       resolve(rootDir, "packages", "core", "src", "subschema-positions.ts"),
     ],

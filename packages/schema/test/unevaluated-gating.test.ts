@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compile } from "./helpers.js";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import { oas30Dialect } from "../src/keywords/vocabulary.js";
 
 /**
  * The compiler short-circuits its evaluated-keys-tracking machinery
@@ -92,5 +93,27 @@ describe("unevaluated-tracking compile-time gating", () => {
       enum: [{ unevaluatedProperties: "literal" }],
     });
     expect(v.stats.unevaluatedTrackingEmitted).toBe(false);
+  });
+
+  it("ignores unevaluated* under discarded OAS 3.0 $ref sibling subtrees", () => {
+    const v = compile(
+      {
+        allOf: [
+          {
+            $ref: "#/$defs/S",
+            properties: { ignored: { unevaluatedProperties: false } },
+          },
+        ],
+        $defs: { S: { type: "object", required: ["a", "b"] } },
+      } as unknown as SchemaOrBoolean,
+      { dialect: oas30Dialect, output: "flat", maxErrors: 1 },
+    );
+
+    expect(v.stats.unevaluatedTrackingEmitted).toBe(false);
+    const result = v.validate({});
+    expect(result.valid).toBe(false);
+    if (result.valid) throw new Error("expected invalid result");
+    expect(result.errors).toHaveLength(1);
+    expect(result.truncated).toBe(true);
   });
 });

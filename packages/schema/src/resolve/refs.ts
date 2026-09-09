@@ -1,8 +1,4 @@
-import {
-  pointerFromFragment,
-  resolveJsonPointer as coreResolveJsonPointer,
-  type SchemaOrBoolean,
-} from "@oaverify/internal-core";
+import { getOwn, pointerFromFragment, type SchemaOrBoolean } from "@oaverify/internal-core";
 import { absolutizeUri, type ResolvedGraph } from "./resolver.js";
 
 /**
@@ -130,7 +126,7 @@ function resolveFragment(
   // The fragment comes off a `$ref`, so percent-decode it into a
   // pointer before evaluating; `resolveJsonPointer` does none itself.
   if (fragment.startsWith("/")) {
-    return resolveJsonPointer(rootSchema, pointerFromFragment(fragment));
+    return resolveJsonPointer(rootSchema, pointerFromFragment(fragment), graph);
   }
   const scoped =
     graph.anchorScopes.get(baseUri)?.get(fragment) ??
@@ -143,6 +139,43 @@ function resolveFragment(
   throw new Error(`unknown anchor: #${fragment}`);
 }
 
-function resolveJsonPointer(root: SchemaOrBoolean, pointer: string): SchemaOrBoolean {
-  return coreResolveJsonPointer(root, pointer) as SchemaOrBoolean;
+/** RFC 6901 §4 `array-index`: `0`, or digits with no leading zero. */
+const ARRAY_INDEX_RE = /^(?:0|[1-9]\d*)$/;
+
+function resolveJsonPointer(
+  root: SchemaOrBoolean,
+  pointer: string,
+  graph: ResolvedGraph,
+): SchemaOrBoolean {
+  if (pointer === "") return root;
+  if (!pointer.startsWith("/")) {
+    throw new Error(`invalid JSON pointer: ${pointer}`);
+  }
+  const parts = pointer
+    .slice(1)
+    .split("/")
+    .map((s) => s.replace(/~1/g, "/").replace(/~0/g, "~"));
+  let cur: unknown = root;
+  for (const part of parts) {
+    if (cur === null || typeof cur !== "object") {
+      throw new Error(`JSON pointer ${pointer} traverses a primitive at ${part}`);
+    }
+    const asArr = Array.isArray(cur);
+    if (asArr && !ARRAY_INDEX_RE.test(part)) {
+      throw new Error(`JSON pointer ${pointer} not found (at ${part}: not an array index)`);
+    }
+    const ignoredKeys = !asArr ? graph.ignoredRefSiblingKeys?.get(cur) : undefined;
+    if (graph.refSuppressesSiblings === true && ignoredKeys?.has(part) === true) {
+      throw new Error(
+        `JSON pointer ${pointer} enters "${part}", an OAS 3.0 $ref sibling that is ignored`,
+      );
+    }
+    cur = asArr
+      ? (cur as unknown[])[Number.parseInt(part, 10)]
+      : getOwn(cur as Record<string, unknown>, part);
+    if (cur === undefined) {
+      throw new Error(`JSON pointer ${pointer} not found (at ${part})`);
+    }
+  }
+  return cur as SchemaOrBoolean;
 }

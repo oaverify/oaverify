@@ -57,6 +57,34 @@ describe("checkDocumentRedos", () => {
     expect(issues[0]?.message).toContain("`aaa");
   });
 
+  it("ignores patterns under an OAS 3.0 $ref sibling subtree", () => {
+    const doc = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1.0.0" },
+      paths: {
+        "/x": {
+          post: {
+            operationId: "x",
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/S",
+                    pattern: "^(a+)+$",
+                    properties: { nested: { type: "string", pattern: "^(a+)+$" } },
+                  },
+                },
+              },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: { schemas: { S: { type: "string" } } },
+    } as unknown as OpenAPIDocument;
+    expect(checkDocumentRedos(doc)).toEqual([]);
+  });
+
   it("reports a bounded outer quantifier, where the blowup is polynomial", () => {
     // The case a hand-written analysis missed: the outer `{2,3}` looks
     // bounded, and the cost is n^3 rather than exponential. Measured at

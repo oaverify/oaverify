@@ -99,6 +99,30 @@ describe("emitStandalone", () => {
     ).toThrow(/not in the built-in set/);
   });
 
+  it("does not reject an unknown OAS 3.0 $ref sibling format", () => {
+    expect(() =>
+      emitStandalone(
+        {
+          allOf: [{ $ref: "#/$defs/S", format: "custom-thing" }],
+          $defs: { S: { type: "string" } },
+        } as unknown as SchemaOrBoolean,
+        { dialect: "openapi-3.0" },
+      ),
+    ).not.toThrow();
+  });
+
+  it("still rejects an unknown OAS 3.0 format in the $ref target", () => {
+    expect(() =>
+      emitStandalone(
+        {
+          allOf: [{ $ref: "#/$defs/S", format: "discarded" }],
+          $defs: { S: { type: "string", format: "custom-thing" } },
+        } as unknown as SchemaOrBoolean,
+        { dialect: "openapi-3.0" },
+      ),
+    ).toThrow(/"custom-thing"/);
+  });
+
   it('accepts schemas using format: "regex" (auto-registered by @oaverify/internal-schema\'s createDeps)', async () => {
     // Regression guard: the `regex` format was removed from
     // builtInFormats when @oaverify/internal-schema started auto-registering it

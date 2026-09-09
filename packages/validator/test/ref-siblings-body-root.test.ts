@@ -136,6 +136,65 @@ describe("OpenAPI 3.0: the dropped siblings are reported", () => {
     );
     expect(err.valid).toBe(true);
   });
+
+  it("ignores readOnly beside a property $ref in request bodies", () => {
+    const v = createValidator(
+      requestSpec("3.0.3", {
+        type: "object",
+        required: ["id"],
+        properties: {
+          id: { $ref: "#/components/schemas/Pet/properties/name", readOnly: true },
+        },
+      }),
+    );
+    const result = v.validateRequest({
+      method: "POST",
+      path: "/pets",
+      contentType: "application/json",
+      body: { id: "p1" },
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it("ignores writeOnly beside a property $ref in response bodies", () => {
+    const v = createValidator(
+      responseSpec("3.0.3", {
+        type: "object",
+        required: ["secret"],
+        properties: {
+          secret: { $ref: "#/components/schemas/Pet/properties/name", writeOnly: true },
+        },
+      }),
+    );
+    const result = v.validateResponse(
+      { method: "GET", path: "/pets" },
+      { status: 200, contentType: "application/json", body: { secret: "s1" } },
+    );
+    expect(result.valid).toBe(true);
+  });
+
+  it("does not let discarded format: binary bypass the referenced schema", () => {
+    const v = createValidator(
+      requestSpec("3.0.3", {
+        type: "object",
+        properties: {
+          file: {
+            $ref: "#/components/schemas/Pet/properties/name",
+            type: "string",
+            format: "binary",
+          },
+        },
+      }),
+    );
+    const result = v.validateRequest({
+      method: "POST",
+      path: "/pets",
+      contentType: "application/json",
+      body: { file: 1 },
+    });
+    expect(result.valid).toBe(false);
+    expect(JSON.stringify(result)).toContain("type");
+  });
 });
 
 describe("a bare $ref at a body root is still followed", () => {

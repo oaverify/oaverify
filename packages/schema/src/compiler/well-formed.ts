@@ -8,23 +8,7 @@ import {
   SUBSCHEMA_MIXED_MAP_POSITIONS,
   SUBSCHEMA_SINGLE_POSITIONS,
 } from "../subschema-positions.js";
-
-/**
- * Sibling keys explicitly permitted alongside `$ref` under OAS 3.0
- * (Schema Object §4.7.24.2): metadata-only, no validation effect.
- * Anything else is silently dropped under `refSuppressesSiblings: true`.
- *
- * Lives here rather than in the compiler because both places need it and
- * `compiler.ts` already imports from this module: the lint pass reports
- * a discarded sibling, and this pass must not judge the value of one.
- *
- * @internal
- */
-export const OAS30_REF_SIBLINGS_ALLOWED: ReadonlySet<string> = new Set([
-  "$ref",
-  "description",
-  "summary",
-]);
+import { refSiblingIsDiscarded } from "../ref-siblings.js";
 
 /**
  * Options for {@link assertWellFormedSchema}.
@@ -103,8 +87,8 @@ function hintFor(key: string, value: unknown): string {
 }
 
 /**
- * Reject anything in a schema-valued position that is not a schema,
- * before compilation descends into it.
+ * Reject anything in an active schema-valued position that is not a
+ * schema, before compilation descends into it.
  *
  * Without this, a malformed slot fails in one of two ways, both bad. A
  * shape the compiler can index into but not interpret is dropped
@@ -114,8 +98,11 @@ function hintFor(key: string, value: unknown): string {
  * from deep inside codegen (`Cannot read properties of null (reading
  * '$id')`), naming no schema, path, or file.
  *
- * Both are the same defect, so both get the same treatment here: throw,
- * name the offending value, and give the dotted path to it.
+ * Both are the same defect, so both get the same treatment here:
+ * throw, name the offending value, and give the dotted path to it.
+ * The exception is OAS 3.0 `$ref` siblings that the dialect discards.
+ * Those slots are not compiled, so their own shape and subtree are not
+ * active schema content.
  *
  * This runs in every mode, including `schemaLint: "off"`. Well-formedness is
  * a precondition, not a lint level: `strict` grades schemas
@@ -209,20 +196,11 @@ export function assertWellFormedSchema(
     // siblings while this pass still judged them, which is the split
     // being removed.
     //
-    // The skip covers the keyword-value checks only. The structural
-    // walks below stay, discarded sibling or not, because this pass is
-    // what stops the *resolver* meeting a malformed node: with
-    // `{$ref, properties: null}` gated out of them, `resolve` reaches
-    // `Object.keys(null)` and dies with a raw TypeError, trading a
-    // located message for exactly the kind #794 removed.
-    //
-    // So two cases stay fatal that the compiler would have discarded:
-    // a discarded sibling whose own shape is wrong (`items: [...]`, the
-    // draft-04 tuple form converted Swagger emits), and a bad keyword
-    // inside one. Closing those means hardening the resolver's walk
-    // first; filed separately rather than widened into this change.
-    const refOnly = refSuppressesSiblings && "$ref" in obj;
-    const discarded = (key: string): boolean => refOnly && !OAS30_REF_SIBLINGS_ALLOWED.has(key);
+    // The structural walks below read the same predicate. A discarded
+    // sibling is not compiled, so its own shape and subtree are not part
+    // of the schema being checked.
+    const discarded = (key: string): boolean =>
+      refSiblingIsDiscarded(obj, key, refSuppressesSiblings);
     for (const key of Object.keys(obj)) {
       if (discarded(key)) continue;
       const reason = byKeyword.get(key)?.validateKeywordValue?.(obj[key], {
@@ -244,6 +222,7 @@ export function assertWellFormedSchema(
     // crashes there. Treating it as absent here would reopen exactly the
     // gap this pass exists to close.
     for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
+      if (discarded(key)) continue;
       if (!Object.hasOwn(obj, key)) continue;
       const v = obj[key];
       if (!isSchemaNode(v)) {
@@ -255,6 +234,7 @@ export function assertWellFormedSchema(
     }
 
     for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
+      if (discarded(key)) continue;
       if (!Object.hasOwn(obj, key)) continue;
       const v = obj[key];
       if (!Array.isArray(v)) {
@@ -269,6 +249,7 @@ export function assertWellFormedSchema(
     }
 
     for (const key of SUBSCHEMA_MAP_POSITIONS) {
+      if (discarded(key)) continue;
       if (!Object.hasOwn(obj, key)) continue;
       const v = obj[key];
       if (typeof v !== "object" || v === null || Array.isArray(v)) {
@@ -282,6 +263,7 @@ export function assertWellFormedSchema(
     }
 
     for (const key of SUBSCHEMA_MIXED_MAP_POSITIONS) {
+      if (discarded(key)) continue;
       if (!Object.hasOwn(obj, key)) continue;
       const v = obj[key];
       if (typeof v !== "object" || v === null || Array.isArray(v)) {

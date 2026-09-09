@@ -12,6 +12,7 @@ import {
   oas30Dialect,
   openapi31Dialect,
   openapiMetaDataVocabulary,
+  summaryKeyword,
   xmlKeyword,
 } from "../src/keywords/index.js";
 import { compile } from "./helpers.js";
@@ -37,10 +38,11 @@ describe("meta-data vocabulary", () => {
     expect(metaDataVocabulary.uri).toBe("https://json-schema.org/draft/2020-12/vocab/meta-data");
   });
 
-  it("OpenAPI dialects extend the meta-data set with `example`, `xml`, `externalDocs`", () => {
+  it("OpenAPI dialects extend the meta-data set with their own annotations", () => {
     expect(openapiMetaDataVocabulary.keywords.map((k) => k.keyword).sort()).toEqual([
       "example",
       "externalDocs",
+      "summary",
       "xml",
     ]);
     for (const kw of openapiMetaDataVocabulary.keywords) {
@@ -52,15 +54,17 @@ describe("meta-data vocabulary", () => {
         d.vocabularies.some((v) => v.keywords.some((k) => k.keyword === name));
       expect(has("description")).toBe(true);
       expect(has("example")).toBe(true);
+      expect(has("summary")).toBe(true);
       expect(has("xml")).toBe(true);
       expect(has("externalDocs")).toBe(true);
     }
     // jsonSchemaDialect gets the Meta-Data vocab, but NOT the OpenAPI
-    // extensions (`example`, `xml`, `externalDocs`).
+    // extensions (`example`, `summary`, `xml`, `externalDocs`).
     const jsHas = (name: string) =>
       jsonSchemaDialect.vocabularies.some((v) => v.keywords.some((k) => k.keyword === name));
     expect(jsHas("description")).toBe(true);
     expect(jsHas("example")).toBe(false);
+    expect(jsHas("summary")).toBe(false);
     expect(jsHas("xml")).toBe(false);
     expect(jsHas("externalDocs")).toBe(false);
   });
@@ -88,6 +92,7 @@ describe("meta-data vocabulary", () => {
   });
 
   it("registers `xml` and `externalDocs` as OpenAPI annotations", () => {
+    expect(summaryKeyword.annotation).toBe(true);
     expect(xmlKeyword.annotation).toBe(true);
     expect(externalDocsKeyword.annotation).toBe(true);
     const v = compile({

@@ -49,7 +49,12 @@ export {
 // public: it is a tool for building checks over a document, not part of
 // the request/response validation surface, and it should not become
 // semver-covered by accident.
-export { escapePointer, walkDocumentSchemas, type DocumentWalkHooks } from "./document-walk.js";
+export {
+  escapePointer,
+  recordDocumentRefSiblingSuppression,
+  walkDocumentSchemas,
+  type DocumentWalkHooks,
+} from "./document-walk.js";
 
 // The served-location rule and its message, so the AOT emitter refuses
 // the same documents in the same words rather than carrying a second

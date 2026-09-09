@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { CodeGen } from "../src/codegen/index.js";
+import { createKeywordContext, dynamicRefKeyword, refKeyword } from "../src/keywords/index.js";
 import { compile } from "./helpers.js";
+
+const directKeywordContext = (schema: unknown) =>
+  createKeywordContext({
+    gen: new CodeGen(),
+    schema,
+    parentSchema: {},
+    data: "data",
+    path: "path",
+    errors: "errors",
+    compileSubschema: () => "subschema",
+    resolveRef: () => "refTarget",
+  });
 
 describe("$ref keyword", () => {
   it("resolves a simple reference into $defs", () => {
@@ -66,6 +80,18 @@ describe("$ref keyword", () => {
     ).toThrow(/Nope/);
   });
 
+  it("rejects a non-string ref before codegen", () => {
+    expect(() => compile({ $ref: 42 } as never)).toThrow(
+      /keyword "\$ref" requires a URI-reference string/,
+    );
+  });
+
+  it("rejects a non-string ref when the keyword is compiled directly", () => {
+    expect(() => refKeyword.compile(directKeywordContext(42))).toThrow(
+      /keyword "\$ref" requires a URI-reference string/,
+    );
+  });
+
   it("decodes percent-encoded JSON Pointer fragments before unescaping", () => {
     // ajv #2447: fragments generated from generic type names often
     // contain URI-encoded chars (e.g. "<" → %3C). The resolver must
@@ -93,5 +119,17 @@ describe("$dynamicRef fallback", () => {
     });
     expect(v.validate("ok").valid).toBe(true);
     expect(v.validate(1).valid).toBe(false);
+  });
+
+  it("rejects a non-string dynamic ref before codegen", () => {
+    expect(() => compile({ $dynamicRef: 42 } as never)).toThrow(
+      /keyword "\$dynamicRef" requires a URI-reference string/,
+    );
+  });
+
+  it("rejects a non-string dynamic ref when the keyword is compiled directly", () => {
+    expect(() => dynamicRefKeyword.compile(directKeywordContext(42))).toThrow(
+      /keyword "\$dynamicRef" requires a URI-reference string/,
+    );
   });
 });

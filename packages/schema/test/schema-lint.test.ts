@@ -240,6 +240,19 @@ describe("strict mode: silent-rewrite/ref-siblings-oas30", () => {
     expect(issues).toEqual([]);
   });
 
+  it("treats `summary` as a known OpenAPI annotation under strict schema lint", () => {
+    const schema = withTarget({
+      properties: {
+        wrapper: { $ref: "#/$defs/Pet", summary: "Pet ref" },
+      },
+    });
+    const issues = compileSchema(schema, {
+      dialect: oas30Dialect,
+      schemaLint: "strict",
+    }).stats.schemaLintIssues;
+    expect(issues).toEqual([]);
+  });
+
   it("does NOT fire under JSON Schema 2020-12 / OpenAPI 3.1 (refs allow siblings)", () => {
     const schema = withTarget({
       properties: {
@@ -560,6 +573,30 @@ describe("schema lint: required-not-in-properties (instance-position aware)", ()
         required: ["name"],
       }),
     ).toEqual([]);
+  });
+
+  it("does not treat ordinary maps with a $ref key as discarded sibling sets", () => {
+    const issues = compileSchema(
+      {
+        allOf: [{ $ref: "#/$defs/Wrapper/properties/a" }],
+        $defs: {
+          Wrapper: {
+            properties: {
+              $ref: { type: "string" },
+              a: {
+                type: "object",
+                properties: { name: { type: "string" } },
+                required: ["nam"],
+              },
+            },
+          },
+        },
+      } as unknown as SchemaOrBoolean,
+      { dialect: oas30Dialect, schemaLint: "strict" },
+    ).stats.schemaLintIssues.filter((i) => i.code === "silent-rewrite/required-not-in-properties");
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain('"nam"');
   });
 
   it("resets the chain at a child instance", () => {

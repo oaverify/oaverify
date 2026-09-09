@@ -49,6 +49,33 @@ describe("a format check cannot validate", () => {
     expect(check(doc({ type: "string", format: "uri" }))).toEqual([]);
     expect(check(doc({ type: "string", format: "uri-refrence" }))).toHaveLength(1);
   });
+
+  it("ignores formats under an OAS 3.0 $ref sibling subtree", () => {
+    const document = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/a": {
+          get: {
+            parameters: [
+              {
+                name: "q",
+                in: "query",
+                schema: {
+                  $ref: "#/components/schemas/S",
+                  format: "iban",
+                  properties: { nested: { type: "string", format: "swift" } },
+                },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: { schemas: { S: { type: "string" } } },
+    };
+    expect(check(document)).toEqual([]);
+  });
 });
 
 describe("one finding per name, not per position", () => {

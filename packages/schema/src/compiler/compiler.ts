@@ -33,11 +33,12 @@ import {
 } from "../subschema-positions.js";
 import { createDeps, type RegexCompiler, type ValidatorDeps } from "./runtime.js";
 import { computeDiscriminatorRoutes } from "../keywords/discriminator-routes.js";
+import { OAS30_REF_SIBLINGS_ALLOWED, refSiblingIsDiscarded } from "../ref-siblings.js";
 import { collectEnumTypeIssue } from "./enum-type.js";
 import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
 import { assertFormatsRegistered } from "./unknown-formats.js";
-import { assertWellFormedSchema, OAS30_REF_SIBLINGS_ALLOWED } from "./well-formed.js";
+import { assertWellFormedSchema } from "./well-formed.js";
 
 // Token scan fed into CompileStats.emittedTreeRuntime. Word-boundaried
 // so stray mentions inside string literals (e.g. an error message that
@@ -186,7 +187,15 @@ function runSchemaLint(
   // Ancestor-aware, so it walks the graph itself rather than per-node:
   // the question is what property names are reachable at an instance
   // position, which a per-node visitor cannot see.
-  issues.push(...collectRequiredIssues(schema, rules.resolveRef, rules.pointer, rules.anchor));
+  issues.push(
+    ...collectRequiredIssues(
+      schema,
+      rules.resolveRef,
+      rules.pointer,
+      rules.anchor,
+      rules.refSuppressesSiblings,
+    ),
+  );
   // Follow refs, or the rules below see one operation's inline schema
   // plus at most the component named directly as its body: on Asana,
   // 1 of 278 component schemas (#513).
@@ -195,6 +204,8 @@ function runSchemaLint(
     (node, path, at) => {
       if (typeof node !== "object" || node === null || Array.isArray(node)) return;
       const obj = node as Record<string, unknown>;
+      const discarded = (key: string): boolean =>
+        refSiblingIsDiscarded(obj, key, rules.refSuppressesSiblings);
       // Stamped once per node after the rules have run, the way
       // `context` is stamped once per compile below: every rule here
       // reports at the node being visited, and threading the position
@@ -212,6 +223,7 @@ function runSchemaLint(
       };
 
       for (const key of Object.keys(obj)) {
+        if (discarded(key)) continue;
         const def = byKeyword.get(key);
         if (def?.partial !== undefined) {
           issues.push({
@@ -268,8 +280,13 @@ function runSchemaLint(
       // from the keyword's compile: the compiler hands `oneOf` / `anyOf`
       // back and carries on (#561), so without this the author would
       // never learn their routing table is unused.
-      const branchesForDisc = obj["oneOf"] ?? obj["anyOf"];
-      if (obj["discriminator"] !== undefined && Array.isArray(branchesForDisc)) {
+      const branchesForDisc =
+        discarded("oneOf") && discarded("anyOf") ? undefined : (obj["oneOf"] ?? obj["anyOf"]);
+      if (
+        !discarded("discriminator") &&
+        obj["discriminator"] !== undefined &&
+        Array.isArray(branchesForDisc)
+      ) {
         const { deadMappingKeys, usable } = computeDiscriminatorRoutes(
           obj["discriminator"],
           branchesForDisc,
@@ -293,7 +310,10 @@ function runSchemaLint(
       // Always-on alongside silent-rewrite/*: the analysis is a parse of
       // the pattern source, bounded by its length, so it costs nothing a
       // server would notice on its first request.
-      const patternIssue = collectPatternLengthIssue(obj, path);
+      const patternIssue =
+        discarded("pattern") && discarded("patternProperties")
+          ? undefined
+          : collectPatternLengthIssue(obj, path);
       if (patternIssue !== undefined) issues.push(patternIssue);
 
       // The runtime compiles each pattern with the "u" flag and falls
@@ -303,7 +323,7 @@ function runSchemaLint(
       // differently from the u-mode pattern the author wrote. With a
       // custom regexCompiler that path never runs, so nothing is
       // reported.
-      if (!rules.customRegexCompiler) {
+      if (!rules.customRegexCompiler && !discarded("pattern") && !discarded("patternProperties")) {
         for (const issue of collectPatternUnicodeModeIssues(obj, path)) issues.push(issue);
       }
 
@@ -311,7 +331,10 @@ function runSchemaLint(
       // `type` costs one pass over a list the author wrote by hand.
       // `nullable` is honoured only where the dialect defines it, which
       // `known` answers directly rather than by inferring the version.
-      const enumIssue = collectEnumTypeIssue(obj, path, known.has("nullable"));
+      const enumIssue =
+        discarded("enum") || discarded("type")
+          ? undefined
+          : collectEnumTypeIssue(obj, path, known.has("nullable"));
       if (enumIssue !== undefined) issues.push(enumIssue);
 
       // silent-rewrite/* checks are always-on (any non-"off" mode).
@@ -350,6 +373,7 @@ function runSchemaLint(
       }
 
       for (const key of COMPOSITION_BRANCH_KEYS) {
+        if (discarded(key)) continue;
         const branches = obj[key];
         if (!Array.isArray(branches) || branches.length < 2) continue;
         // O(n^2) pairwise compare; n is small in real specs (oneOf with
@@ -382,6 +406,7 @@ function runSchemaLint(
       resolveRef: (ref) => rules.resolveRef?.(ref) as SchemaOrBoolean | undefined,
       pointer: rules.pointer,
       anchor: rules.anchor,
+      refSuppressesSiblings: rules.refSuppressesSiblings,
     },
   );
   // Stamped once here rather than at each `issues.push`: the location is
@@ -1329,6 +1354,36 @@ export interface CompileState {
   unevaluatedEmitted: boolean;
 }
 
+function schemaUsesUnevaluatedWithRules(
+  schema: SchemaOrBoolean,
+  refSuppressesSiblings: boolean,
+): boolean {
+  const seen = new WeakSet<object>();
+  const walk = (s: unknown): boolean => {
+    if (typeof s !== "object" || s === null || Array.isArray(s)) return false;
+    if (seen.has(s)) return false;
+    seen.add(s);
+    const obj = s as Record<string, unknown>;
+    if (
+      (!refSiblingIsDiscarded(obj, "unevaluatedProperties", refSuppressesSiblings) &&
+        "unevaluatedProperties" in obj) ||
+      (!refSiblingIsDiscarded(obj, "unevaluatedItems", refSuppressesSiblings) &&
+        "unevaluatedItems" in obj)
+    ) {
+      return true;
+    }
+    let found = false;
+    forEachSubschema(obj, (value, key) => {
+      if (refSiblingIsDiscarded(obj, key, refSuppressesSiblings)) return;
+      if (!walk(value)) return;
+      found = true;
+      return false; // stop at the first hit
+    });
+    return found;
+  };
+  return walk(schema);
+}
+
 /**
  * Return `true` iff `schema` (or any schema reachable from it through
  * subschema-valued positions) contains the `unevaluatedProperties` or
@@ -1345,21 +1400,7 @@ export interface CompileState {
  * @public
  */
 export function schemaUsesUnevaluated(schema: SchemaOrBoolean): boolean {
-  const seen = new WeakSet<object>();
-  const walk = (s: unknown): boolean => {
-    if (typeof s !== "object" || s === null || Array.isArray(s)) return false;
-    if (seen.has(s)) return false;
-    seen.add(s);
-    if ("unevaluatedProperties" in s || "unevaluatedItems" in s) return true;
-    let found = false;
-    forEachSubschema(s, (value) => {
-      if (!walk(value)) return;
-      found = true;
-      return false; // stop at the first hit
-    });
-    return found;
-  };
-  return walk(schema);
+  return schemaUsesUnevaluatedWithRules(schema, false);
 }
 
 /**
@@ -1381,7 +1422,10 @@ export function schemaUsesUnevaluated(schema: SchemaOrBoolean): boolean {
  *
  * @internal
  */
-export function scanDynamicScopeUsage(schema: SchemaOrBoolean): {
+export function scanDynamicScopeUsage(
+  schema: SchemaOrBoolean,
+  refSuppressesSiblings = false,
+): {
   anchor: boolean;
   ref: boolean;
 } {
@@ -1392,10 +1436,19 @@ export function scanDynamicScopeUsage(schema: SchemaOrBoolean): {
     if (typeof s !== "object" || s === null || Array.isArray(s)) return;
     if (seen.has(s)) return;
     seen.add(s);
-    if ("$dynamicAnchor" in s) anchor = true;
-    if ("$dynamicRef" in s) ref = true;
+    const obj = s as Record<string, unknown>;
+    if (
+      !refSiblingIsDiscarded(obj, "$dynamicAnchor", refSuppressesSiblings) &&
+      "$dynamicAnchor" in obj
+    ) {
+      anchor = true;
+    }
+    if (!refSiblingIsDiscarded(obj, "$dynamicRef", refSuppressesSiblings) && "$dynamicRef" in obj) {
+      ref = true;
+    }
     if (anchor && ref) return;
-    forEachSubschema(s, (value) => {
+    forEachSubschema(obj, (value, key) => {
+      if (refSiblingIsDiscarded(obj, key, refSuppressesSiblings)) return;
       walk(value);
     });
   };
@@ -1586,16 +1639,18 @@ export function compileSchema(
   if (options.external !== undefined) {
     for (const [uri, ext] of options.external) registry.add(uri, ext);
   }
-  const graph = resolve(schema, { registry });
+  const graph = resolve(schema, {
+    registry,
+    refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
+  });
   const refResolver = options.refResolver ?? createRefResolver(graph);
 
   // Second pass, now that refs can be followed. The first pass above
-  // runs without a resolver because `resolve` itself walks the schema
-  // and a malformed slot would crash it before this pass could say
-  // where the problem is. Components arrive through the resolver rather
-  // than in the schema object, so without this they compile unchecked
-  // (#512). Re-walking the root costs one linear pass over a graph that
-  // is about to be compiled.
+  // still matters because `resolve` records addresses; it is not the
+  // user-facing reporter for malformed schema slots. Components arrive
+  // through the resolver rather than in the schema object, so without
+  // this they compile unchecked (#512). Re-walking the root costs one
+  // linear pass over a graph that is about to be compiled.
   assertWellFormedSchema(schema, byKeyword, {
     ...(options.label !== undefined && { label: options.label }),
     refResolver,
@@ -1603,8 +1658,15 @@ export function compileSchema(
   });
 
   if (options.unknownFormats === "error") {
-    assertFormatsRegistered(schema, byKeyword, deps.formats, options.label, (ref) =>
-      refResolver.resolve(ref),
+    assertFormatsRegistered(
+      schema,
+      byKeyword,
+      deps.formats,
+      options.label,
+      (ref) => refResolver.resolve(ref),
+      {
+        refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
+      },
     );
   }
 
@@ -1614,10 +1676,13 @@ export function compileSchema(
   // positive costs perf but not correctness; a miss would silently
   // disable tracking for a spec that needs it, so the walker's
   // subschema positions are kept conservative.
-  let unevaluatedTracking = schemaUsesUnevaluated(schema);
+  let unevaluatedTracking = schemaUsesUnevaluatedWithRules(
+    schema,
+    options.dialect.rules.refSuppressesSiblings,
+  );
   if (!unevaluatedTracking && options.external) {
     for (const ext of options.external.values()) {
-      if (schemaUsesUnevaluated(ext)) {
+      if (schemaUsesUnevaluatedWithRules(ext, options.dialect.rules.refSuppressesSiblings)) {
         unevaluatedTracking = true;
         break;
       }
@@ -1628,11 +1693,11 @@ export function compileSchema(
   // reason: when this is off, nothing below emits anything, and the
   // generated source is identical to what a compiler without dynamic
   // scoping would produce.
-  const dynUsage = scanDynamicScopeUsage(schema);
+  const dynUsage = scanDynamicScopeUsage(schema, options.dialect.rules.refSuppressesSiblings);
   if (options.external) {
     for (const ext of options.external.values()) {
       if (dynUsage.anchor && dynUsage.ref) break;
-      const extUsage = scanDynamicScopeUsage(ext);
+      const extUsage = scanDynamicScopeUsage(ext, options.dialect.rules.refSuppressesSiblings);
       dynUsage.anchor ||= extUsage.anchor;
       dynUsage.ref ||= extUsage.ref;
     }
@@ -1670,7 +1735,12 @@ export function compileSchema(
     unevaluatedEmitted: false,
     dynamicScope,
     reachableResources: dynamicScope
-      ? collectReachableResources(schema, graph, refResolver)
+      ? collectReachableResources(
+          schema,
+          graph,
+          refResolver,
+          options.dialect.rules.refSuppressesSiblings,
+        )
       : new Set<string>(),
     rootBaseUri:
       (typeof schema === "object" && schema !== null
@@ -1983,6 +2053,7 @@ function collectReachableResources(
   root: SchemaOrBoolean,
   graph: ResolvedGraph,
   refResolver: RefResolver,
+  refSuppressesSiblings: boolean,
 ): Set<string> {
   const baseOf = (schema: SchemaOrBoolean): string =>
     (typeof schema === "object" && schema !== null ? graph.schemaBaseUri.get(schema) : undefined) ??
@@ -2001,10 +2072,12 @@ function collectReachableResources(
     if (typeof node !== "object" || node === null) return;
     if (visited.has(node)) return;
     visited.add(node);
+    const obj = node as Record<string, unknown>;
     const base = baseOf(node);
     reachable.add(base);
     for (const key of ["$ref", "$dynamicRef"] as const) {
-      const ref = (node as Record<string, unknown>)[key];
+      if (refSiblingIsDiscarded(obj, key, refSuppressesSiblings)) continue;
+      const ref = obj[key];
       if (typeof ref !== "string") continue;
       try {
         pending.push(refResolver.resolve(ref, base));
@@ -2019,9 +2092,13 @@ function collectReachableResources(
     if (typeof document !== "object" || document === null) continue;
     if (visited.has(document)) continue;
     handle(document);
-    walkSubschemas(document, (sub) => {
-      handle(sub);
-    });
+    walkSubschemas(
+      document,
+      (sub) => {
+        handle(sub);
+      },
+      { refSuppressesSiblings },
+    );
   }
   return reachable;
 }

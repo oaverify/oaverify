@@ -54,6 +54,7 @@ export {
 // barrel (they're how the validator wires the compiler up); the
 // registry is strictly internal.
 export { SchemaRegistry } from "./resolve/index.js";
+export { OAS30_REF_SIBLINGS_ALLOWED, refSiblingIsDiscarded } from "./ref-siblings.js";
 
 // The `unknownFormats: "error"` check, so an engine that compiles
 // lazily can run it at construction instead of mid-stream.

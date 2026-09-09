@@ -41,7 +41,7 @@
  * @packageDocumentation
  */
 
-import type { OpenAPIDocument } from "@oaverify/internal-core";
+import { detectOpenAPIVersion, type OpenAPIDocument } from "@oaverify/internal-core";
 import { escapePointer, walkDocumentSchemas } from "@oaverify/internal-validator/internals";
 // `isSafe` is exposed as a named export; the package is CJS, and some of
 // its other exports are not reachable that way from ESM.
@@ -154,6 +154,7 @@ export function checkDocumentRedos(document: OpenAPIDocument): RedosIssue[] {
   };
 
   walkDocumentSchemas(document, {
+    refSuppressesSiblings: detectOpenAPIVersion(document) === "3.0",
     onSchemaNode: (schema, pointer) => {
       const pattern = schema["pattern"];
       if (typeof pattern === "string") report(pattern, `${pointer}/pattern`, "value");

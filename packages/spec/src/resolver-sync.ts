@@ -32,6 +32,7 @@ import {
   ProvenanceTrail,
   type ReferrerTrail,
   resolveRelative,
+  resolveSchemaJsonPointer,
   rewriteInternalRefTarget,
   setSpecKey,
   targetKey,
@@ -41,6 +42,7 @@ import {
   UNREADABLE,
 } from "./resolver-shared.js";
 import type { SourceHop } from "./provenance.js";
+import { refSiblingIsDiscarded } from "@oaverify/internal-core/ref-siblings";
 import { subschemaFamilyOf } from "@oaverify/internal-core/subschema-positions";
 
 /**
@@ -150,10 +152,14 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     uri: string,
     fragment: string,
     via: readonly SourceHop[],
+    schemaTarget = false,
   ): unknown => {
     if (fragment === "") return doc;
     try {
-      return resolveJsonPointer(doc, pointerFromFragment(fragment));
+      const pointer = pointerFromFragment(fragment);
+      return schemaTarget && refSuppressesSiblings
+        ? resolveSchemaJsonPointer(doc, pointer, true)
+        : resolveJsonPointer(doc, pointer);
     } catch (err) {
       const referrer = referrers.get(uri) ?? null;
       // Both modes word this the same way. A bare pointer error names
@@ -189,6 +195,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   // Which positions may hold a `$ref` is version-dependent, so the
   // entry document's own version decides. Mirrors resolveSpec.
   const version = detectOpenAPIVersion(entryDoc) ?? "3.1";
+  const refSuppressesSiblings = version === "3.0";
 
   // Keyed by URI, valued by the kind of node the reference sat at, so a
   // stitched document is walked as the object it actually is.
@@ -504,6 +511,10 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       trail?.pop();
       return node;
     }
+    if (parentPos.inSchema && refSiblingIsDiscarded(parent, key, refSuppressesSiblings)) {
+      trail?.pop();
+      return value;
+    }
 
     let childPos: Pos;
     let mapOfChildren: boolean;
@@ -568,7 +579,13 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       }
       docs.set(target.uri, targetDoc);
     }
-    const content = readFragment(targetDoc, target.uri, target.fragment, hoistVia.get(key) ?? []);
+    const content = readFragment(
+      targetDoc,
+      target.uri,
+      target.fragment,
+      hoistVia.get(key) ?? [],
+      true,
+    );
     if (content === UNREADABLE) {
       missingHoists.add(name);
       continue;

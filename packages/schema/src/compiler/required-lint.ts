@@ -5,6 +5,7 @@ import {
   forEachSubschema,
   type SubschemaPosition,
 } from "../subschema-positions.js";
+import { refSiblingIsDiscarded } from "../ref-siblings.js";
 import type { SchemaLintIssue } from "./compiler.js";
 
 /**
@@ -76,7 +77,53 @@ const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !
  * about external schemas and the document the operation came from) and
  * falling back to a plain in-document pointer walk.
  */
-function resolveRef(ref: string, root: Obj, resolve: RequiredLintResolver | undefined): unknown {
+function pointerEntersDiscardedSibling(
+  root: Obj,
+  ref: string,
+  ignoredRefSiblingKeys: WeakMap<Obj, ReadonlySet<string>> | undefined,
+): boolean {
+  if (ignoredRefSiblingKeys === undefined || !ref.startsWith("#/")) return false;
+  let target: unknown = root;
+  for (const raw of ref.slice(2).split("/")) {
+    const key = raw.replace(/~1/g, "/").replace(/~0/g, "~");
+    if (!isObj(target)) return false;
+    if (ignoredRefSiblingKeys.get(target)?.has(key) === true) return true;
+    target = target[key];
+  }
+  return false;
+}
+
+function collectIgnoredRefSiblingKeys(
+  root: Obj,
+  refSuppressesSiblings: boolean,
+): WeakMap<Obj, ReadonlySet<string>> | undefined {
+  if (!refSuppressesSiblings) return undefined;
+  const ignoredRefSiblingKeys = new WeakMap<Obj, ReadonlySet<string>>();
+  const seen = new WeakSet<object>();
+
+  const go = (node: unknown): void => {
+    if (!isObj(node) || seen.has(node)) return;
+    seen.add(node);
+    const ignored = Object.keys(node).filter((key) => refSiblingIsDiscarded(node, key, true));
+    if (ignored.length > 0) ignoredRefSiblingKeys.set(node, new Set(ignored));
+
+    forEachSubschema(node, (value, key) => {
+      if (refSiblingIsDiscarded(node, key, true)) return;
+      go(value);
+    });
+  };
+
+  go(root);
+  return ignoredRefSiblingKeys;
+}
+
+function resolveRef(
+  ref: string,
+  root: Obj,
+  resolve: RequiredLintResolver | undefined,
+  refSuppressesSiblings: boolean,
+  ignoredRefSiblingKeys: WeakMap<Obj, ReadonlySet<string>> | undefined,
+): unknown {
   if (resolve !== undefined) {
     try {
       const viaResolver = resolve(ref);
@@ -87,6 +134,7 @@ function resolveRef(ref: string, root: Obj, resolve: RequiredLintResolver | unde
     }
   }
   if (!ref.startsWith("#/")) return undefined;
+  if (pointerEntersDiscardedSibling(root, ref, ignoredRefSiblingKeys)) return undefined;
   let target: unknown = root;
   for (const raw of ref.slice(2).split("/")) {
     const key = raw.replace(/~1/g, "/").replace(/~0/g, "~");
@@ -109,6 +157,8 @@ function closure(
   seeds: readonly unknown[],
   root: Obj,
   resolve: RequiredLintResolver | undefined,
+  refSuppressesSiblings: boolean,
+  ignoredRefSiblingKeys: WeakMap<Obj, ReadonlySet<string>> | undefined,
 ): { schemas: Obj[]; unresolved: boolean } {
   const schemas: Obj[] = [];
   const seen = new Set<unknown>();
@@ -125,12 +175,13 @@ function closure(
 
     const ref = node["$ref"];
     if (typeof ref === "string") {
-      const target = resolveRef(ref, root, resolve);
+      const target = resolveRef(ref, root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys);
       if (isObj(target)) add(target, depth + 1);
       else unresolved = true;
     }
 
     for (const kw of IN_PLACE) {
+      if (refSiblingIsDiscarded(node, kw, refSuppressesSiblings)) continue;
       const v = node[kw];
       if (v === undefined) continue;
       if (Array.isArray(v)) {
@@ -152,15 +203,26 @@ function closure(
 }
 
 /** The property names an instance constrained by `schemas` could carry. */
-function namesOf(schemas: readonly Obj[]): Set<string> {
+function namesOf(schemas: readonly Obj[], refSuppressesSiblings: boolean): Set<string> {
   const out = new Set<string>();
   for (const s of schemas) {
     const props = s["properties"];
-    if (isObj(props)) for (const k of Object.keys(props)) out.add(k);
-    const addl = s["additionalProperties"];
+    if (!refSiblingIsDiscarded(s, "properties", refSuppressesSiblings) && isObj(props)) {
+      for (const k of Object.keys(props)) out.add(k);
+    }
+    const addl = refSiblingIsDiscarded(s, "additionalProperties", refSuppressesSiblings)
+      ? undefined
+      : s["additionalProperties"];
     if (addl === true || isObj(addl)) out.add(ANY_PROPERTY);
-    if (isObj(s["patternProperties"])) out.add(ANY_PROPERTY);
-    const unevaluated = s["unevaluatedProperties"];
+    if (
+      !refSiblingIsDiscarded(s, "patternProperties", refSuppressesSiblings) &&
+      isObj(s["patternProperties"])
+    ) {
+      out.add(ANY_PROPERTY);
+    }
+    const unevaluated = refSiblingIsDiscarded(s, "unevaluatedProperties", refSuppressesSiblings)
+      ? undefined
+      : s["unevaluatedProperties"];
     if (unevaluated === true || isObj(unevaluated)) out.add(ANY_PROPERTY);
   }
   return out;
@@ -195,37 +257,60 @@ function stepInstance(
   step: Step,
   root: Obj,
   resolve: RequiredLintResolver | undefined,
+  refSuppressesSiblings: boolean,
+  ignoredRefSiblingKeys: WeakMap<Obj, ReadonlySet<string>> | undefined,
 ): Instance {
   if (cur.unknown || step.k === "any") return UNKNOWN_INSTANCE;
   const next: unknown[] = [];
 
   for (const s of cur.schemas) {
     if (step.k === "prop") {
-      const props = s["properties"];
+      const props = refSiblingIsDiscarded(s, "properties", refSuppressesSiblings)
+        ? undefined
+        : s["properties"];
       if (isObj(props) && Object.hasOwn(props, step.n)) next.push(props[step.n]);
       // A pattern could match this name; which one is undecidable
       // here, so stop claiming to know what the child can carry.
-      if (isObj(s["patternProperties"])) return UNKNOWN_INSTANCE;
-      const addl = s["additionalProperties"];
+      if (
+        !refSiblingIsDiscarded(s, "patternProperties", refSuppressesSiblings) &&
+        isObj(s["patternProperties"])
+      ) {
+        return UNKNOWN_INSTANCE;
+      }
+      const addl = refSiblingIsDiscarded(s, "additionalProperties", refSuppressesSiblings)
+        ? undefined
+        : s["additionalProperties"];
       if (isObj(addl)) next.push(addl);
     } else if (step.k === "items") {
       for (const key of ["items", "contains", "unevaluatedItems"]) {
+        if (refSiblingIsDiscarded(s, key, refSuppressesSiblings)) continue;
         const v = s[key];
         if (v !== undefined) next.push(v);
       }
       const prefix = s["prefixItems"];
-      if (Array.isArray(prefix)) next.push(...prefix);
+      if (
+        !refSiblingIsDiscarded(s, "prefixItems", refSuppressesSiblings) &&
+        Array.isArray(prefix)
+      ) {
+        next.push(...prefix);
+      }
     } else {
       for (const key of ["additionalProperties", "unevaluatedProperties"]) {
+        if (refSiblingIsDiscarded(s, key, refSuppressesSiblings)) continue;
         const v = s[key];
         if (v !== undefined) next.push(v);
       }
       const patterns = s["patternProperties"];
-      if (isObj(patterns)) next.push(...Object.values(patterns));
+      if (
+        !refSiblingIsDiscarded(s, "patternProperties", refSuppressesSiblings) &&
+        isObj(patterns)
+      ) {
+        next.push(...Object.values(patterns));
+      }
     }
   }
 
-  const cl = closure(next, root, resolve);
+  const cl = closure(next, root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys);
   return cl.unresolved ? UNKNOWN_INSTANCE : { schemas: cl.schemas, unknown: false };
 }
 
@@ -292,6 +377,7 @@ export function collectRequiredIssues(
   resolve?: RequiredLintResolver,
   pointer?: string,
   anchor?: "node" | "definition",
+  refSuppressesSiblings = false,
 ): SchemaLintIssue[] {
   if (!isObj(root)) return [];
   const issues: SchemaLintIssue[] = [];
@@ -300,6 +386,7 @@ export function collectRequiredIssues(
   // underlying bug would otherwise report once per site, so remember
   // which names have been reported for a given schema object.
   const reported = new Map<Obj, Set<string>>();
+  const ignoredRefSiblingKeys = collectIgnoredRefSiblingKeys(root, refSuppressesSiblings);
 
   // Identity keys for the visited set below. Per call rather than
   // module-level, so the numbering cannot grow without bound.
@@ -365,7 +452,7 @@ export function collectRequiredIssues(
     // wrong address for it. See the addressing rule on `pathForRef`.
     const ref = node["$ref"];
     if (typeof ref === "string") {
-      const target = resolveRef(ref, root, resolve);
+      const target = resolveRef(ref, root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys);
       // The physical frame does re-root here, unlike `path`. Both are
       // right: `path` answers "where does this apply", `at` answers
       // "where is the text", and after a ref those are different
@@ -386,9 +473,13 @@ export function collectRequiredIssues(
     }
 
     const required = node["required"];
-    if (!underNot && Array.isArray(required)) {
+    if (
+      !refSiblingIsDiscarded(node, "required", refSuppressesSiblings) &&
+      !underNot &&
+      Array.isArray(required)
+    ) {
       if (!cur.unknown) {
-        const available = namesOf(cur.schemas);
+        const available = namesOf(cur.schemas, refSuppressesSiblings);
         if (!available.has(ANY_PROPERTY)) {
           let seenNames = reported.get(node);
           if (seenNames === undefined) {
@@ -437,7 +528,9 @@ export function collectRequiredIssues(
       walk(
         v,
         childPath,
-        step === undefined ? cur : stepInstance(cur, step, root, resolve),
+        step === undefined
+          ? cur
+          : stepInstance(cur, step, root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys),
         underNot || key === "not",
         childAt,
       );
@@ -448,6 +541,7 @@ export function collectRequiredIssues(
     // rendered path differs per family: `allOf[0]` against
     // `properties.name`.
     forEachSubschema(node, (value, key, family, index) => {
+      if (refSiblingIsDiscarded(node, key, refSuppressesSiblings)) return;
       const rendered =
         index === undefined ? key : family === "array" ? `${key}[${index}]` : `${key}.${index}`;
       descend(
@@ -462,7 +556,7 @@ export function collectRequiredIssues(
     });
   };
 
-  const rootClosure = closure([root], root, resolve);
+  const rootClosure = closure([root], root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys);
   walk(
     root,
     "",

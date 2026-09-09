@@ -1105,6 +1105,93 @@ describe("the pattern guard (#687)", () => {
     expect(issues).toHaveLength(1);
     expect(issues[0]?.code).toBe("example-invalid");
   });
+
+  it("ignores examples under an OAS 3.0 $ref sibling subtree", () => {
+    const issues = checkDocumentExamples(
+      doc({
+        openapi: "3.0.3",
+        paths: {
+          "/things": {
+            post: {
+              requestBody: {
+                content: {
+                  "application/json": {
+                    schema: {
+                      $ref: "#/components/schemas/S",
+                      properties: { ignored: { type: "string", example: 1 } },
+                    },
+                  },
+                },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+        components: { schemas: { S: { type: "object" } } },
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("does not guard a pattern discarded beside an OAS 3.0 $ref", () => {
+    const issues = checkDocumentExamples(
+      doc({
+        openapi: "3.0.3",
+        paths: {
+          "/things": {
+            post: {
+              requestBody: {
+                content: {
+                  "application/json": {
+                    schema: { $ref: "#/components/schemas/S", pattern: AMBIGUOUS },
+                    example: "ok",
+                  },
+                },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+        components: { schemas: { S: { type: "string" } } },
+      }),
+      { patternGuard: guard },
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("does not guard examples through pointers into discarded OAS 3.0 sibling subtrees", () => {
+    const issues = checkDocumentExamples(
+      doc({
+        openapi: "3.0.3",
+        paths: {
+          "/things": {
+            post: {
+              requestBody: {
+                content: {
+                  "application/json": {
+                    schema: { $ref: "#/components/schemas/Wrapper/properties/ignored" },
+                    example: 1,
+                  },
+                },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+        components: {
+          schemas: {
+            Wrapper: {
+              $ref: "#/components/schemas/S",
+              properties: { ignored: { type: "string", pattern: AMBIGUOUS } },
+            },
+            S: { type: "string" },
+          },
+        },
+      }),
+      { patternGuard: guard },
+    );
+    expect(issues).toEqual([]);
+  });
 });
 
 describe("every method that holds an Operation Object", () => {

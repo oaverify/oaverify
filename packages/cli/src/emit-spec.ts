@@ -29,6 +29,7 @@ import {
   isServedParameterLocation,
   isValidMaxTotalBytes,
   maxTotalBytesErrorMessage,
+  recordDocumentRefSiblingSuppression,
   schemaRefResolverFor,
   unservedParameterLocationMessage,
   walkDocumentSchemas,
@@ -220,7 +221,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   // component schemas where a plain subschema walk does not; the cost
   // is that an operation dropped by `only` still counts, which errs in
   // the conservative direction (#660).
-  const unknownNames = collectDocumentUnknownFormats(document);
+  const unknownNames = collectDocumentUnknownFormats(document, dialect);
   if (unknownNames.length > 0) {
     const list = unknownNames.map((f) => `"${f}"`).join(", ");
     if ((options.unknownFormats ?? "error") === "error") {
@@ -236,7 +237,10 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     options.onUnknownFormats?.(unknownNames);
   }
 
-  const graph = resolve(document as unknown as SchemaOrBoolean);
+  const graph = resolve(document as unknown as SchemaOrBoolean, {
+    refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
+  });
+  recordDocumentRefSiblingSuppression(document, graph);
   const refResolver: RefResolver = createRefResolver(graph);
 
   // One `$ref` hop for the coercion views, bound the way createValidator
@@ -1586,9 +1590,10 @@ function renderGetOperation(): string {
  * format-not-validated pass uses, so the two commands and the finding
  * see the same positions.
  */
-function collectDocumentUnknownFormats(document: OpenAPIDocument): string[] {
+function collectDocumentUnknownFormats(document: OpenAPIDocument, dialect: Dialect): string[] {
   const found = new Set<string>();
   walkDocumentSchemas(document, {
+    refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
     onSchemaNode: (schema) => {
       const format = schema["format"];
       if (typeof format === "string" && isUnknownFormat(format)) found.add(format);

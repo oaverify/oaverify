@@ -59,7 +59,12 @@ import {
   type Dialect,
   type RefResolver,
 } from "@oaverify/internal-schema";
-import { escapePointer, walkDocumentSchemas } from "./document-walk.js";
+import { refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
+import {
+  escapePointer,
+  recordDocumentRefSiblingSuppression,
+  walkDocumentSchemas,
+} from "./document-walk.js";
 
 /**
  * One example its schema rejects, or one this pass could not check.
@@ -434,6 +439,7 @@ export function checkDocumentExamples(
   // One traversal, shared with the CLI's ReDoS check so a container
   // cannot be covered by one and missed by the other.
   walkDocumentSchemas(document, {
+    refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
     onSchemaNode: checkSchemaNodeExamples,
     onMediaType: checkExamplesBesideSchema,
     onParameterLike: checkExamplesBesideSchema,
@@ -441,7 +447,7 @@ export function checkDocumentExamples(
 
   if (jobs.length === 0) return [];
 
-  const refResolver = lazyDocumentRefResolver(document);
+  const refResolver = lazyDocumentRefResolver(document, dialect);
 
   // Identity-keyed, so a component shared by 60 operations compiles
   // once. `null` records "this one will not compile", which is asked
@@ -458,7 +464,12 @@ export function checkDocumentExamples(
     // reported as uncheckable, which is the truth: nothing is known
     // about it either way, and running the check is not safe (#687).
     if (options.patternGuard !== undefined) {
-      const guarded = findGuardedPattern(schema, refResolver, options.patternGuard);
+      const guarded = findGuardedPattern(
+        schema,
+        refResolver,
+        options.patternGuard,
+        dialect.rules.refSuppressesSiblings,
+      );
       if (guarded !== undefined) {
         const echoed =
           guarded.length <= PATTERN_ECHO_LIMIT
@@ -555,17 +566,21 @@ export function checkDocumentExamples(
   return issues;
 }
 
-function lazyDocumentRefResolver(document: OpenAPIDocument): RefResolver {
+function lazyDocumentRefResolver(document: OpenAPIDocument, dialect: Dialect): RefResolver {
   let fallback: RefResolver | undefined;
   const full = (): RefResolver => {
     if (fallback !== undefined) return fallback;
-    fallback = createRefResolver(resolve(document as unknown as SchemaOrBoolean));
+    const graph = resolve(document as unknown as SchemaOrBoolean, {
+      refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
+    });
+    recordDocumentRefSiblingSuppression(document, graph);
+    fallback = createRefResolver(graph);
     return fallback;
   };
 
   return {
     resolve(ref: string, fromBaseUri = ""): SchemaOrBoolean {
-      if (fromBaseUri === "" && ref.startsWith("#/")) {
+      if (!dialect.rules.refSuppressesSiblings && fromBaseUri === "" && ref.startsWith("#/")) {
         return resolveJsonPointer(
           document,
           pointerFromFragment(ref.slice(1)),
@@ -609,6 +624,7 @@ function findGuardedPattern(
   node: unknown,
   refResolver: RefResolver,
   guard: (pattern: string) => boolean,
+  refSuppressesSiblings: boolean,
   visited: Set<unknown> = new Set(),
 ): string | undefined {
   if (typeof node !== "object" || node === null) return undefined;
@@ -616,16 +632,18 @@ function findGuardedPattern(
   visited.add(node);
   if (Array.isArray(node)) {
     for (const entry of node) {
-      const hit = findGuardedPattern(entry, refResolver, guard, visited);
+      const hit = findGuardedPattern(entry, refResolver, guard, refSuppressesSiblings, visited);
       if (hit !== undefined) return hit;
     }
     return undefined;
   }
   const obj = node as Record<string, unknown>;
+  const discarded = (key: string): boolean =>
+    refSiblingIsDiscarded(obj, key, refSuppressesSiblings);
   const pattern = obj["pattern"];
-  if (typeof pattern === "string" && guard(pattern)) return pattern;
+  if (!discarded("pattern") && typeof pattern === "string" && guard(pattern)) return pattern;
   const patternProperties = obj["patternProperties"];
-  if (isObj(patternProperties)) {
+  if (!discarded("patternProperties") && isObj(patternProperties)) {
     for (const key of Object.keys(patternProperties)) {
       if (guard(key)) return key;
     }
@@ -640,12 +658,13 @@ function findGuardedPattern(
       // uncheckable path reports that with the real error.
       target = undefined;
     }
-    const hit = findGuardedPattern(target, refResolver, guard, visited);
+    const hit = findGuardedPattern(target, refResolver, guard, refSuppressesSiblings, visited);
     if (hit !== undefined) return hit;
   }
   for (const [key, value] of Object.entries(obj)) {
     if (LITERAL_KEYWORDS.has(key)) continue;
-    const hit = findGuardedPattern(value, refResolver, guard, visited);
+    if (discarded(key)) continue;
+    const hit = findGuardedPattern(value, refResolver, guard, refSuppressesSiblings, visited);
     if (hit !== undefined) return hit;
   }
   return undefined;

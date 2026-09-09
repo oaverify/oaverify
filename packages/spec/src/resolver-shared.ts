@@ -11,7 +11,18 @@
  * @packageDocumentation
  */
 
-import { escapePointerSegment, setSpecKey } from "@oaverify/internal-core";
+import {
+  detectOpenAPIVersion,
+  escapePointerSegment,
+  getOwn,
+  refPositionFor,
+  setSpecKey,
+  type OpenAPIVersion,
+  type RefNodeKind,
+  type RefPosition,
+} from "@oaverify/internal-core";
+import { refSiblingIsDiscarded } from "@oaverify/internal-core/ref-siblings";
+import { subschemaFamilyOf } from "@oaverify/internal-core/subschema-positions";
 import { basename, dirname, isAbsolute, posix, resolve as resolvePath } from "node:path";
 import type { SourceHop, SpecRegion } from "./provenance.js";
 
@@ -110,6 +121,207 @@ const COMPONENT_POINTER = /^\/components\/[^/]+\/[^/]+$/;
  */
 export function noteInlinedComponent(into: Set<string>, fragment: string): void {
   if (COMPONENT_POINTER.test(fragment)) into.add(fragment);
+}
+
+/** RFC 6901 §4 `array-index`: `0`, or digits with no leading zero. */
+const ARRAY_INDEX_RE = /^(?:0|[1-9]\d*)$/;
+
+type PointerContext =
+  | { kind: "schema" }
+  | { kind: "schema-root-map" }
+  | { kind: "components-root" }
+  | { kind: "schema-array" }
+  | { kind: "schema-map" }
+  | { kind: "mixed-schema-map" }
+  | { kind: "components-object" }
+  | { kind: "component-map" }
+  | { kind: "openapi"; nodeKind: RefNodeKind }
+  | { kind: "openapi-array"; nodeKind: RefNodeKind }
+  | { kind: "openapi-map"; nodeKind: RefNodeKind }
+  | { kind: "unknown" };
+
+/**
+ * Evaluate a JSON Pointer whose target is expected to be a Schema
+ * Object, refusing to enter OAS 3.0 `$ref` sibling subtrees when that
+ * dialect rule is active.
+ *
+ * Context is tracked through both OpenAPI positions and schema-valued
+ * positions. That lets `external-openapi.json#/components/schemas/T`
+ * recover schema context, while ordinary maps that happen to contain a
+ * literal `$ref` key are not treated as Schema Objects. This is the
+ * fragment-time counterpart to the resolver walk: without it,
+ * `external.json#/properties/ignored` can target content the resolver
+ * would otherwise skip if it reached that object by traversal.
+ *
+ * @internal
+ */
+export function resolveSchemaJsonPointer(
+  root: unknown,
+  pointer: string,
+  refSuppressesSiblings: boolean,
+): unknown {
+  if (pointer === "") return root;
+  if (!pointer.startsWith("/")) {
+    throw new Error(`invalid JSON pointer: ${pointer}`);
+  }
+  const parts = pointer
+    .slice(1)
+    .split("/")
+    .map((s) => s.replace(/~1/g, "/").replace(/~0/g, "~"));
+  let cur: unknown = root;
+  const version = detectOpenAPIVersion(root);
+  let contexts: PointerContext[] =
+    version === undefined
+      ? [
+          { kind: "schema" },
+          ...(schemaRootLooksLikeSchemaMap(root) ? [{ kind: "schema-root-map" } as const] : []),
+          ...(rootLooksLikeComponentsObject(root) ? [{ kind: "components-root" } as const] : []),
+        ]
+      : [{ kind: "openapi", nodeKind: "document" }];
+  for (const part of parts) {
+    if (cur === null || typeof cur !== "object") {
+      throw new Error(`JSON pointer ${pointer} traverses a primitive at ${part}`);
+    }
+    const asArr = Array.isArray(cur);
+    if (asArr && !ARRAY_INDEX_RE.test(part)) {
+      throw new Error(`JSON pointer ${pointer} not found (at ${part}: not an array index)`);
+    }
+    if (
+      !asArr &&
+      contexts.some((context) => context.kind === "schema") &&
+      !contexts.some(pointerContextIsSchemaContainer) &&
+      refSiblingIsDiscarded(cur as Record<string, unknown>, part, refSuppressesSiblings)
+    ) {
+      throw new Error(
+        `JSON pointer ${pointer} enters "${part}", an OAS 3.0 $ref sibling that is ignored`,
+      );
+    }
+
+    const next = asArr
+      ? (cur as unknown[])[Number.parseInt(part, 10)]
+      : getOwn(cur as Record<string, unknown>, part);
+    if (next === undefined) {
+      throw new Error(`JSON pointer ${pointer} not found (at ${part})`);
+    }
+
+    contexts = contexts.map((context) => stepPointerContext(context, part, next, version));
+    cur = next;
+  }
+  return cur;
+}
+
+function stepPointerContext(
+  context: PointerContext,
+  part: string,
+  next: unknown,
+  version: OpenAPIVersion | undefined,
+): PointerContext {
+  if (context.kind === "schema") {
+    return contextForSchemaEdge(part, next);
+  } else if (context.kind === "schema-root-map") {
+    return { kind: "schema" };
+  } else if (context.kind === "components-root") {
+    return part === "components" && objectHasKey(next, "schemas")
+      ? { kind: "components-object" }
+      : { kind: "unknown" };
+  } else if (context.kind === "schema-array" || context.kind === "schema-map") {
+    return { kind: "schema" };
+  } else if (context.kind === "mixed-schema-map") {
+    return Array.isArray(next) ? { kind: "unknown" } : { kind: "schema" };
+  } else if (context.kind === "components-object") {
+    return part === "schemas" ? { kind: "component-map" } : { kind: "unknown" };
+  } else if (context.kind === "component-map") {
+    return { kind: "schema" };
+  } else if (context.kind === "openapi") {
+    const at: RefPosition | undefined =
+      version === undefined ? undefined : refPositionFor(version, context.nodeKind, part);
+    return at === undefined
+      ? { kind: "unknown" }
+      : at.arity === "one"
+        ? contextForOpenAPIKind(at.kind)
+        : at.arity === "array"
+          ? { kind: "openapi-array", nodeKind: at.kind }
+          : { kind: "openapi-map", nodeKind: at.kind };
+  } else if (context.kind === "openapi-array" || context.kind === "openapi-map") {
+    return contextForOpenAPIKind(context.nodeKind);
+  } else {
+    return { kind: "unknown" };
+  }
+}
+
+function pointerContextIsSchemaContainer(context: PointerContext): boolean {
+  return (
+    context.kind === "schema-root-map" ||
+    context.kind === "components-root" ||
+    context.kind === "schema-array" ||
+    context.kind === "schema-map" ||
+    context.kind === "mixed-schema-map" ||
+    context.kind === "component-map" ||
+    context.kind === "openapi-array" ||
+    context.kind === "openapi-map"
+  );
+}
+
+function contextForSchemaEdge(key: string, value: unknown): PointerContext {
+  const family = subschemaFamilyOf(key);
+  return family === "single"
+    ? isSchemaValue(value)
+      ? { kind: "schema" }
+      : { kind: "unknown" }
+    : family === "array"
+      ? Array.isArray(value)
+        ? { kind: "schema-array" }
+        : { kind: "unknown" }
+      : family === "map"
+        ? isSchemaMapValue(value)
+          ? { kind: "schema-map" }
+          : { kind: "unknown" }
+        : family === "mixed-map"
+          ? isMixedSchemaMapValue(value)
+            ? { kind: "mixed-schema-map" }
+            : { kind: "unknown" }
+          : { kind: "unknown" };
+}
+
+function schemaRootLooksLikeSchemaMap(root: unknown): boolean {
+  return isPlainObject(root) && Object.values(root).every(isSchemaValue);
+}
+
+function rootLooksLikeComponentsObject(root: unknown): boolean {
+  if (!isPlainObject(root)) return false;
+  const components = getOwn(root, "components");
+  return (
+    isPlainObject(components) &&
+    isSchemaMapValue(getOwn(components, "schemas")) &&
+    Object.entries(root).every(([key, value]) => key === "components" || isSchemaValue(value))
+  );
+}
+
+function isSchemaValue(value: unknown): boolean {
+  return typeof value === "boolean" || isPlainObject(value);
+}
+
+function isSchemaMapValue(value: unknown): boolean {
+  return isPlainObject(value) && Object.values(value).every(isSchemaValue);
+}
+
+function isMixedSchemaMapValue(value: unknown): boolean {
+  return (
+    isPlainObject(value) &&
+    Object.values(value).every((entry) => Array.isArray(entry) || isSchemaValue(entry))
+  );
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function objectHasKey(value: unknown, key: string): boolean {
+  return isPlainObject(value) && getOwn(value, key) !== undefined;
+}
+
+function contextForOpenAPIKind(kind: RefNodeKind): PointerContext {
+  return kind === "schema" ? { kind: "schema" } : { kind: "openapi", nodeKind: kind };
 }
 
 /**

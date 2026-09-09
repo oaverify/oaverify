@@ -123,6 +123,9 @@ export const examplesKeyword = annotationKeyword("examples", META_DATA_VOCAB, "a
  */
 export const exampleKeyword = annotationKeyword("example", OPENAPI_META_DATA_VOCAB);
 
+/** OpenAPI `summary` annotation. No JSON validation effect. */
+export const summaryKeyword = annotationKeyword("summary", OPENAPI_META_DATA_VOCAB, "string");
+
 /**
  * OpenAPI Schema Object's `xml` annotation. Describes how a property
  * serialises to XML (element name, namespace, attribute placement).
