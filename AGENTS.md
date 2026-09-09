@@ -545,12 +545,13 @@ so its `typecheck` runs `checkJs` over the two servers instead of the
 usual `*.ts` include.
 
 Every one answers to `pnpm check`, which runs what CI gates for that
-directory, so the verb means the same kind of thing everywhere. Two are
-typecheck-only: `detection/`, because `pnpm detect` rewrites three
-committed files under `results/` and `check` should not dirty the tree,
-and `mem-bench`, because a benchmark is not a gate. `performance/`'s
-runs the smallest cross-library benchmark and still takes ~30s, since
-tinybench warms up every task against an ajv compile that costs
+directory, so the verb means the same kind of thing everywhere. Detection
+runs typecheck plus deterministic report tests, but not `pnpm detect`,
+because `detect` rewrites three committed files under `results/` and
+`check` should not dirty the tree. `mem-bench` is typecheck-only because
+a benchmark is not a gate. `performance/`'s runs the smallest
+cross-library benchmark and still takes ~30s, since tinybench warms up
+every task against an ajv compile that costs
 milliseconds (~2.7ms on an M3 Ultra, ~9ms on the host
 docs/comparison.md is stamped to).
 

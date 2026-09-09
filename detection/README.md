@@ -26,7 +26,13 @@ shows up as a reviewable diff:
 | `raw.json`  | every tool's complete output, unmodified          |
 
 `matrix.md` opens with the run date and the four tool versions that
-produced it, read from the installed tree.
+produced it, read from the installed tree. A cell marked `ERR` means the
+tool did not produce parseable results for that case; it is neither a
+catch nor a miss, and `audit.md` carries the fatal text. oaverify's
+documented exit 2 is the exception: it is scored as a finding from
+stderr, because rejecting a malformed document is one of the behaviours
+being measured. Class row denominators exclude `ERR` runs for that tool;
+the class label still shows the full corpus size.
 
 `audit.md` is the point. A matrix whose cells cannot be traced back to
 what the tool actually said is a marketing asset rather than a
@@ -39,10 +45,11 @@ does not lint specs at all, so the comparable operation is compiling each
 schema the document carries with `strict` and `strictRequired` on. That
 is the only reason Ajv appears in a spec-linting table.
 
-`total findings raised` counts everything each tool said across the whole
-corpus, including the four clean controls. A tool with more rules
-legitimately says more, so it is not a score. It is there because it is
-what a reader has to wade through to reach the finding they needed.
+`total findings raised` counts everything each tool reported across the
+whole corpus, including the four clean controls. Fatal runs have their
+own row. A tool with more rules legitimately says more, so the findings
+row is not a score. It is there because it is what a reader has to wade
+through to reach the finding they needed.
 
 ## Run
 
@@ -58,9 +65,9 @@ The three comparators are dev dependencies here:
 [`@redocly/cli`](https://github.com/Redocly/redocly-cli) and
 [`ajv`](https://github.com/ajv-validator/ajv).
 
-`pnpm check` runs the typecheck and stops there, because `pnpm detect`
-rewrites the three committed files and a command called `check` should
-not leave a dirty tree.
+`pnpm check` runs the typecheck and deterministic report tests. It does
+not run `pnpm detect`, because that rewrites the three committed files
+and a command called `check` should not leave a dirty tree.
 
 The corpus is not re-run in CI. The matrix would turn red whenever
 Spectral ships a rule, which is news rather than a regression.

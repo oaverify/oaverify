@@ -8,10 +8,10 @@
 // seeded-case count in the prose. The matrix had been regenerated against
 // oaverify 5.4.0 and the doc never followed.
 //
-// detection/ is typecheck-only in CI on purpose (`pnpm detect` rewrites
-// three committed files, so a `check` that ran it would dirty the tree), so
-// this does not re-run the corpus. It asserts that whoever last ran it
-// carried the numbers across.
+// detection/ deliberately keeps `pnpm detect` out of `pnpm check`: the
+// detector rewrites three committed files, so a `check` that ran it would
+// dirty the tree. This script does not re-run the corpus. It asserts that
+// whoever last ran it carried the numbers across.
 //
 // Two decisions worth knowing before editing:
 //
@@ -143,6 +143,9 @@ const seeded = caseRows.filter((r) => r[1] !== "control");
 const catches = Object.fromEntries(
   TOOLS.map((t, i) => [t, seeded.filter((r) => r[2 + i] === "yes").length]),
 );
+const scored = Object.fromEntries(
+  TOOLS.map((t, i) => [t, seeded.filter((r) => r[2 + i] !== "ERR").length]),
+);
 const raised = Object.fromEntries(
   TOOLS.map((t, i) => [t, want ? Number(want.rows.get("total findings raised")?.[i]) : NaN]),
 );
@@ -154,7 +157,7 @@ const patterns = [
     [
       ["oaverify findings raised", () => raised.oaverify],
       ["oaverify catch total", () => catches.oaverify],
-      ["seeded-case count", () => seeded.length],
+      ["oaverify scored seeded runs", () => scored.oaverify],
     ],
   ],
   [
