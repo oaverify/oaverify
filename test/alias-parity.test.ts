@@ -32,24 +32,25 @@ function tsconfigPathKeys(): string[] {
 function tsupRewriteKeys(): string[] {
   // packages/oav/tsup.config.ts can't be imported here (it reads
   // `__dirname` at module load, which is undefined under ESM), so read
-  // it as text and extract the quoted `@oaverify/internal-*` keys of its rewrite and
-  // bundle maps. Values are `@oaverify/core/...` and comments use
-  // backticks, so a quoted `@oaverify/internal-...` literal is always a map key.
+  // it as text and extract the quoted `@oaverify/internal-*` keys of its
+  // rewrite and bundle maps. Comments use backticks, so a quoted
+  // `@oaverify/internal-...` literal is always a map key.
   const src = readFileSync(resolve(root, "packages/oav/tsup.config.ts"), "utf8");
   const keys = new Set<string>();
   for (const m of src.matchAll(/["'](@oaverify\/internal-[^"']+)["']/g)) keys.add(m[1]!);
   return [...keys].sort();
 }
 
-// The oaverify tarball bundles the CLI + router and rewrites the rest of
-// `@oaverify/internal-*` to @oaverify/core subpaths; it never imports the framework
-// adapters, so those keys appear in the resolution tables but not the
-// tsup rewrite map. `@oaverify/internal-stream-validator` aliases the
-// package published as `@oaverify/stream`, which the CLI consumes as an
-// external runtime dependency (like @oaverify/core), so it is wired into
-// the resolution tables (for typecheck / tests) but deliberately not
-// bundled into any oaverify tarball. Update this list when adding or
-// removing a published package.
+// The oaverify tarball bundles the CLI, router and private core helper
+// subpaths, then rewrites the remaining bundle deps to @oaverify/core
+// subpaths. It never imports the framework adapters, so those keys
+// appear in the resolution tables but not the tsup rewrite map.
+// `@oaverify/internal-stream-validator` aliases the package published as
+// `@oaverify/stream`, which the CLI consumes as an external runtime
+// dependency (like @oaverify/core), so it is wired into the resolution
+// tables (for typecheck / tests) but deliberately not bundled into any
+// oaverify tarball. Update this list when adding or removing a published
+// package.
 const NOT_IN_OAV_BUNDLE = [
   "@oaverify/internal-oav-express4",
   "@oaverify/internal-oav-express5",
@@ -113,9 +114,6 @@ function tsconfigPathEntries(configPath: string): Array<[string, string]> {
 // root the same key falls through the workspace link to the same source
 // file and costs nothing. #591 is the incident the guard was written
 // for, when the vite half of `framework-tests` could still drift.
-//
-// One known gap rather than a claim of coverage. The tsup map is
-// compared by key alone, leaving its targets unasserted; that is #917.
 //
 // The `describeSubTable` calls below are the tables asserted. Adding one
 // is a judgement about whether that table is meant to track the builder,
