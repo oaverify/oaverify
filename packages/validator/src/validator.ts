@@ -921,6 +921,14 @@ export interface ValidatorOptions {
    * nothing has touched surfaces on that operation's first request.
    * Call {@link Validator.precompile} at boot for the failure at boot.
    *
+   * Registered is asked of the set the compiler assembles: the
+   * built-ins merged under {@link ValidatorOptions.formats}, plus
+   * `regex`, which the compiler registers itself so it routes through
+   * {@link ValidatorOptions.regexCompiler}. So `formats: {}` refuses
+   * nothing. A name that set does not carry (`password`, say) has to be
+   * registered before `"error"` will compile a document declaring it,
+   * as `false` where the name is meant to assert nothing.
+   *
    * See `@oaverify/core/schema`'s `CompileOptions.unknownFormats`.
    */
   unknownFormats?: "ignore" | "error";

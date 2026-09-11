@@ -121,6 +121,13 @@ export interface StreamValidatorOptions {
    * Only the BUFFER-island delegate asserts `format`, so this is scoped
    * to the same place {@link StreamValidatorOptions.formats} is.
    *
+   * Registered is asked of the built-ins merged under
+   * {@link StreamValidatorOptions.formats}, not of that option alone, so
+   * `formats: {}` refuses nothing. A name `builtInFormats` does not
+   * carry (`password`, say) has to be registered before `"error"` will
+   * construct on a document declaring it, as `false` where the name is
+   * meant to assert nothing.
+   *
    * See `CompileOptions.unknownFormats`.
    */
   unknownFormats?: "ignore" | "error";
