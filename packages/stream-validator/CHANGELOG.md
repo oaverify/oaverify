@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.2.3](https://github.com/oaverify/oaverify/compare/stream-v7.2.2...stream-v7.2.3) (2026-09-11)
+
+
+### Documentation
+
+* say what unknownFormats counts as registered ([#1020](https://github.com/oaverify/oaverify/issues/1020)) ([ed40c58](https://github.com/oaverify/oaverify/commit/ed40c58973308f10ad01d0c2e27eb47b4e1bbc4c))
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/stream-v7.2.1...stream-v7.2.2) (2026-09-09)
 
 

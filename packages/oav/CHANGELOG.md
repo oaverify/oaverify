@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.2.3](https://github.com/oaverify/oaverify/compare/oaverify-v7.2.2...oaverify-v7.2.3) (2026-09-11)
+
+
+### Bug Fixes
+
+* **schema:** drop the cause guess from the required-lint message ([#1022](https://github.com/oaverify/oaverify/issues/1022)) ([68e8d28](https://github.com/oaverify/oaverify/commit/68e8d28bbd72d9631dc7bd55851179fd978cc0b9))
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/oaverify-v7.2.1...oaverify-v7.2.2) (2026-09-09)
 
 
