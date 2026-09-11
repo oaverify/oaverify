@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.2.3](https://github.com/oaverify/oaverify/compare/check-v7.2.2...check-v7.2.3) (2026-09-11)
+
+
+### Chore
+
+* **check:** Synchronize oaverify versions
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/check-v7.2.1...check-v7.2.2) (2026-09-09)
 
 
