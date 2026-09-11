@@ -23,7 +23,6 @@ warning  examples     example-invalid
 
 warning  schema       silent-rewrite/required-not-in-properties
   required: "absent" at <root> is not declared in properties reachable here
-  (likely a typo)
     at GET /pets/{petId} 200 response body (application/json) -> <root>
 
 warning  schema       unsatisfiable/pattern-length

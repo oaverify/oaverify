@@ -341,7 +341,7 @@
           "ruleIndex": 4,
           "level": "warning",
           "message": {
-            "text": "required: \"absent\" at <root> is not declared in properties reachable here (likely a typo)"
+            "text": "required: \"absent\" at <root> is not declared in properties reachable here"
           },
           "locations": [
             {
