@@ -171,7 +171,7 @@ a breaking change of this package.
       "severity": "warning",
       "code": "silent-rewrite/required-not-in-properties",
       "location": "POST /orders request body (application/json) -> <root>",
-      "message": "required: \"shipped\" at <root> is not declared in properties reachable here (likely a typo)",
+      "message": "required: \"shipped\" at <root> is not declared in properties reachable here",
       "target": {
         "pointer": "/components/schemas/Order/required",
         "anchor": "scoped-definition",

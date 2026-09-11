@@ -505,8 +505,8 @@ export function collectRequiredIssues(
               ...anchorAsScoped(positionFields(stepPosition(at, "required"))),
               message:
                 path.length === 0
-                  ? `required: "${name}" at <root> is not declared in properties reachable here (likely a typo)`
-                  : `required: "${name}" at "${path}" is not declared in properties reachable here (likely a typo)`,
+                  ? `required: "${name}" at <root> is not declared in properties reachable here`
+                  : `required: "${name}" at "${path}" is not declared in properties reachable here`,
             });
           }
         }
