@@ -15,8 +15,8 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
       tinybench:
-        specifier: ^6.1.6
-        version: 6.1.6
+        specifier: ^6.2.0
+        version: 6.2.0
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
@@ -224,8 +224,8 @@ packages:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
     engines: {node: '>=0.10.0'}
 
-  tinybench@6.1.6:
-    resolution: {integrity: sha512-qEHpSqUC/KkD4rypubEZ/gSENbH6x4E8d8UM5aBndJhRjTW3sPW4jmS5C1/wHhMFMj040jgJl2XvQOYdZDgKkA==}
+  tinybench@6.2.0:
+    resolution: {integrity: sha512-78U2TlB2CnVenajOFzf3BKSm0J6oz5L0NV7g32LCPccvYc0lbWvys4d3uUUCS2B1N8PAf2+aekR8i1KbC3HO7Q==}
     engines: {node: '>=20.0.0'}
 
   tsx@4.23.13:
@@ -383,7 +383,7 @@ snapshots:
 
   require-from-string@2.0.2: {}
 
-  tinybench@6.1.6: {}
+  tinybench@6.2.0: {}
 
   tsx@4.23.13:
     dependencies:
