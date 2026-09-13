@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import { compileSchema, jsonSchemaDialect } from "@oaverify/internal-schema";
 import { ClassifierError } from "../src/classifier/index.js";
@@ -200,7 +200,13 @@ describe("engine verdict equivalence with @oaverify/internal-schema (differentia
       });
     }
   }
-  it("exercised a meaningful number of supported cases", () => {
+  // A guard on the corpus, not a test of the engine: it asserts that the
+  // cases above actually ran rather than all classifying as unsupported.
+  // It has to be `afterAll` rather than an `it`, because as an `it` it
+  // reads a counter its siblings fill in and so depends on running after
+  // them. That held under the default order and failed under
+  // `--sequence.shuffle`.
+  afterAll(() => {
     expect(supported).toBeGreaterThan(120);
     void skipped;
   });
