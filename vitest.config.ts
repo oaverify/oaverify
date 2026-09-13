@@ -3,7 +3,7 @@ import { workspaceAliases } from "./workspace-aliases.js";
 
 export default defineConfig({
   resolve: {
-    alias: workspaceAliases(__dirname),
+    alias: workspaceAliases(import.meta.dirname),
   },
   test: {
     include: ["packages/*/test/**/*.test.ts", "packages/*/src/**/*.test.ts", "test/**/*.test.ts"],
