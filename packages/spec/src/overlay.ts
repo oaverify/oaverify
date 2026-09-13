@@ -319,9 +319,20 @@ export interface SpecOverlay {
    */
   modifyParameters?: ModifyParametersEntry[];
 
-  /** Extend a component schema via `allOf` (original + extension both apply). */
+  /**
+   * Extend a component schema via `allOf` (original + extension both apply).
+   *
+   * Composition only narrows, so an extension cannot relax a constraint the
+   * original declares. Extending a schema that says
+   * `additionalProperties: false` with `{ additionalProperties: true }`
+   * still rejects an undeclared property, because both branches have to
+   * pass. Reach for {@link SpecOverlay.replaceSchemas} to widen one.
+   */
   extendSchemas?: Record<string, SchemaObject>;
-  /** Replace a component schema wholesale. */
+  /**
+   * Replace a component schema wholesale. The verb for widening, since
+   * {@link SpecOverlay.extendSchemas} composes and composition only narrows.
+   */
   replaceSchemas?: Record<string, SchemaObject>;
   /** Remove component schemas. Throws if a target schema isn't present. */
   removeSchemas?: string[];
