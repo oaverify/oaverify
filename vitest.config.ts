@@ -16,6 +16,14 @@ export default defineConfig({
     // `vitest doctor` for the current numbers; the share moves with the
     // host. Stable since vitest 5.
     fsModuleCache: true,
+    // Reuse workers across test files instead of spawning one per file.
+    // `vitest doctor` measures -24% on this suite (1.82s vs 2.40s, min of
+    // 3). The cost is that module and global state now carries between
+    // files in a worker, so this was checked by running the whole suite
+    // repeatedly under `--sequence.shuffle`, including with
+    // `--no-file-parallelism` so every file shares one worker. Revert
+    // this commit first if a test starts failing only in a full run.
+    isolate: false,
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json-summary"],
