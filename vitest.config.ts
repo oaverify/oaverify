@@ -10,6 +10,12 @@ export default defineConfig({
     environment: "node",
     globals: false,
     passWithNoTests: true,
+    // Persist transformed modules to disk so they survive between runs.
+    // Transform is the largest share of a cold run here, and `pnpm test`
+    // is part of the PR gate, so every local run was repeating it. Run
+    // `vitest doctor` for the current numbers; the share moves with the
+    // host. Stable since vitest 5.
+    fsModuleCache: true,
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json-summary"],
