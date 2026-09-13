@@ -58,6 +58,25 @@ updates:
           # See notes above.
           - "@types/express"
           - "fastify"
+          # Handled by the `vitest` group below, which spans every
+          # update-type so the trio cannot split across PRs.
+          - "vitest"
+          - "@vitest/*"
+          - "vite"
+      # vitest, its coverage provider and vite have to move as a unit.
+      # A split does not fail the install, which is the confusing part:
+      # strict-peer-dependencies is off, so pnpm exits 0 with a warning
+      # and the breakage waits for the test job. Without vite, which
+      # vitest 5 imports directly and this root does not auto-install
+      # (see .npmrc), vitest cannot start at all. A mismatched
+      # @vitest/coverage-v8 installs just as quietly, then fails coverage
+      # collection. This group declares no update-types so it catches
+      # majors, which is where a split would otherwise happen.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "vite"
 
   - package-ecosystem: npm
     directory: "/performance"
