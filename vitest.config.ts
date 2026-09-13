@@ -3,13 +3,27 @@ import { workspaceAliases } from "./workspace-aliases.js";
 
 export default defineConfig({
   resolve: {
-    alias: workspaceAliases(__dirname),
+    alias: workspaceAliases(import.meta.dirname),
   },
   test: {
     include: ["packages/*/test/**/*.test.ts", "packages/*/src/**/*.test.ts", "test/**/*.test.ts"],
     environment: "node",
     globals: false,
     passWithNoTests: true,
+    // Persist transformed modules to disk so they survive between runs.
+    // Transform is the largest share of a cold run here, and `pnpm test`
+    // is part of the PR gate, so every local run was repeating it. Run
+    // `vitest doctor` for the current numbers; the share moves with the
+    // host. Stable since vitest 5.
+    fsModuleCache: true,
+    // Reuse workers across test files instead of spawning one per file.
+    // `vitest doctor` measures -24% on this suite (1.82s vs 2.40s, min of
+    // 3). The cost is that module and global state now carries between
+    // files in a worker, so this was checked by running the whole suite
+    // repeatedly under `--sequence.shuffle`, including with
+    // `--no-file-parallelism` so every file shares one worker. Revert
+    // this commit first if a test starts failing only in a full run.
+    isolate: false,
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json-summary"],
