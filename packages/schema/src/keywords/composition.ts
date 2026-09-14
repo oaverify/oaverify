@@ -296,23 +296,36 @@ export const oneOfKeyword: KeywordDefinition = {
       ctx.gen.let(matched, "0");
       const buf = ctx.gen.scope.name("oneOfBuf");
       ctx.gen.let(buf, "null");
+      // Same buffering as the predicate and tree arms: a matching
+      // branch's keys are held and committed only at exactly one match,
+      // because a `oneOf` that matched twice failed and exports nothing.
+      const keepProps = outProps !== null ? ctx.gen.scope.name("oneOfProps") : null;
+      const keepItems = outItems !== null ? ctx.gen.scope.name("oneOfItems") : null;
+      if (keepProps !== null) ctx.gen.let(keepProps, "null");
+      if (keepItems !== null) ctx.gen.let(keepItems, "null");
       schemas.forEach((sub) => {
         ctx.compileAndCallSubschema(sub, {
           data: ctx.data,
           onPass: (g, bProps, bItems) => {
             g.line(`${matched} += 1;`);
-            if (outProps !== null && bProps !== null) {
-              g.line(`for (const k of ${bProps}) ${outProps}.add(k);`);
-            }
-            if (outItems !== null && bItems !== null) {
-              g.line(`for (const k of ${bItems}) ${outItems}.add(k);`);
-            }
+            if (keepProps !== null && bProps !== null) g.line(`${keepProps} = ${bProps};`);
+            if (keepItems !== null && bItems !== null) g.line(`${keepItems} = ${bItems};`);
           },
           onFail: (g, errVar) => {
             if (errVar !== null) g.line(ctx.appendErrorsStatement(buf, errVar));
           },
         });
       });
+      if (keepProps !== null && outProps !== null) {
+        ctx.gen.if(`${matched} === 1 && ${keepProps} !== null`, (g) =>
+          g.line(`for (const k of ${keepProps}) ${outProps}.add(k);`),
+        );
+      }
+      if (keepItems !== null && outItems !== null) {
+        ctx.gen.if(`${matched} === 1 && ${keepItems} !== null`, (g) =>
+          g.line(`for (const k of ${keepItems}) ${outItems}.add(k);`),
+        );
+      }
       ctx.gen.if(`${matched} !== 1`, () => {
         ctx.gen.line(ctx.appendErrorsStatement(ctx.errors, buf));
         ctx.emitError(
@@ -375,6 +388,15 @@ export const oneOfKeyword: KeywordDefinition = {
     const matchCount = ctx.gen.scope.name("matched");
     ctx.gen.const(errsVar, "[]");
     ctx.gen.let(matchCount, "0");
+    // Buffer a matching branch's evaluated keys and commit them only once
+    // the count is known, the way the predicate arm above already does.
+    // `oneOf` that matches more than once fails, and a failed applicator
+    // exports no annotations; merging per branch let a multiple-match
+    // `oneOf` hand its keys to the enclosing `unevaluated*`.
+    const keepProps = outProps !== null ? ctx.gen.scope.name("oneOfProps") : null;
+    const keepItems = outItems !== null ? ctx.gen.scope.name("oneOfItems") : null;
+    if (keepProps !== null) ctx.gen.let(keepProps, "null");
+    if (keepItems !== null) ctx.gen.let(keepItems, "null");
     schemas.forEach((sub) => {
       const fn = ctx.compileSubschema(sub);
       const errVar = ctx.gen.scope.name("e");
@@ -396,12 +418,22 @@ export const oneOfKeyword: KeywordDefinition = {
         `${errVar} === null`,
         (g) => {
           g.line(`${matchCount} += 1;`);
-          if (outProps !== null) g.line(`for (const k of ${propsVar}) ${outProps}.add(k);`);
-          if (outItems !== null) g.line(`for (const k of ${itemsVar}) ${outItems}.add(k);`);
+          if (keepProps !== null) g.line(`${keepProps} = ${propsVar};`);
+          if (keepItems !== null) g.line(`${keepItems} = ${itemsVar};`);
         },
         (g) => g.line(`${errsVar}.push(${errVar});`),
       );
     });
+    if (keepProps !== null && outProps !== null) {
+      ctx.gen.if(`${matchCount} === 1 && ${keepProps} !== null`, (g) =>
+        g.line(`for (const k of ${keepProps}) ${outProps}.add(k);`),
+      );
+    }
+    if (keepItems !== null && outItems !== null) {
+      ctx.gen.if(`${matchCount} === 1 && ${keepItems} !== null`, (g) =>
+        g.line(`for (const k of ${keepItems}) ${outItems}.add(k);`),
+      );
+    }
     ctx.gen.if(`${matchCount} !== 1`, () => {
       ctx.emitError(
         "lift",

@@ -2256,21 +2256,31 @@ function buildFunctionBody(
       state.unevaluatedEmitted = true;
     }
     compileSchemaKeywords(schema, gen, state, evaluatedPropertiesVar, evaluatedItemsVar, mode);
-    // Merge evaluated-key sets into the caller's out-parameters when the
-    // caller is tracking. Runs regardless of errors; a keyword that
-    // evaluated a key evaluated it, even if other keywords flagged the
-    // data invalid. In predicate mode any failure has already returned
-    // `false` by this point, so the merge only runs for passing data;
-    // that matches the 2020-12 semantics (annotations from failing
-    // branches are discarded anyway).
+    // Merge evaluated-key sets into the caller's out-parameters, and only
+    // when this schema object validated: an annotation from a failed
+    // schema is discarded (2020-12 section 7.7.1).
+    //
+    // The guard is here rather than at the call sites because only some
+    // of them can discard on their own. A caller that allocates a
+    // branch-local set discards by dropping it; a caller that hands its
+    // own set to the callee has no such opportunity, and without this
+    // guard a failing callee's keys would reach it and suppress its
+    // `unevaluated*` leaves. Which callers do which is decided by
+    // whether the call site allocates a set, so read
+    // `compileAndCallSubschema` rather than a list here.
+    //
+    // Predicate mode needs no guard: any failure has already returned
+    // `false` before this point, so the merge is only reachable on
+    // success.
+    const mergeGuard = predicate ? "" : `${NAMES.ERRORS} === null && `;
     if (evaluatedPropertiesVar !== null) {
       gen.line(
-        `if (${NAMES.OUT_EVAL_PROPS} !== undefined) { for (const k of ${evaluatedPropertiesVar}) ${NAMES.OUT_EVAL_PROPS}.add(k); }`,
+        `if (${mergeGuard}${NAMES.OUT_EVAL_PROPS} !== undefined) { for (const k of ${evaluatedPropertiesVar}) ${NAMES.OUT_EVAL_PROPS}.add(k); }`,
       );
     }
     if (evaluatedItemsVar !== null) {
       gen.line(
-        `if (${NAMES.OUT_EVAL_ITEMS} !== undefined) { for (const k of ${evaluatedItemsVar}) ${NAMES.OUT_EVAL_ITEMS}.add(k); }`,
+        `if (${mergeGuard}${NAMES.OUT_EVAL_ITEMS} !== undefined) { for (const k of ${evaluatedItemsVar}) ${NAMES.OUT_EVAL_ITEMS}.add(k); }`,
       );
     }
   }
