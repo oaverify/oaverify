@@ -21,9 +21,7 @@ construction, so adding a version adds zero per-request cost.
 
 ## What differs in the 3.0 dialect
 
-Only three things vary from 2020-12; everything else (numeric / string
-/ array / object bounds, `enum`, `required`, `allOf` / `anyOf` /
-`oneOf`, `not`, `format`, discriminator, etc.) is shared.
+The 3.0 dialect changes keyword behavior in four places.
 
 1. **`type` is string-only** (no arrays). `oas30TypeKeyword` enforces
    this at compile time and adds `"null"` to the acceptable types when
@@ -37,13 +35,21 @@ Only three things vary from 2020-12; everything else (numeric / string
    every non-`$ref` keyword in a schema that declares `$ref`.
    `oas30Dialect` sets it to `true`; every other built-in dialect sets
    it to `false`.
+4. **The unevaluated vocabulary is absent.** The 3.0 dialect reuses the
+   validation and applicator vocabularies, but does not include
+   `unevaluatedVocabulary`. `unevaluatedProperties` and
+   `unevaluatedItems` are therefore ignored and reported as
+   `unknown-keyword` under `schemaLint: "strict"`.
 
-Keywords absent from 3.0 (`const`, `if`/`then`/`else`, `contains`,
-`patternProperties`, `propertyNames`, `unevaluatedProperties` /
-`Items`, `prefixItems`, `$defs`, `$id`, anchors, `$dynamicRef`) are
-simply not in the 3.0 vocabulary stack; schemas that use them are
-treated as having an unknown field, which 2020-12 allows in every
-dialect.
+Document conformance answers whether a Schema Object is legal for the
+OpenAPI version; schema lint's `unknown-keyword` finding answers
+whether oaverify can compile a keyword. The two checks are independent.
+For example, `patternProperties` belongs to the shared applicator
+vocabulary, so oaverify honors it in a 3.0 Schema Object even though
+OpenAPI 3.0 does not permit it. Any JSON Schema keyword outside the
+OpenAPI 3.0 Schema Object subset can have that combination: honored by
+oaverify and non-conformant in an OpenAPI document. Portability across
+strict 3.0 tooling requires using only the OpenAPI 3.0 subset.
 
 ## Running tests per version
 

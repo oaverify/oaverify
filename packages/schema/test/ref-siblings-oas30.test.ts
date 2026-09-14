@@ -182,8 +182,23 @@ describe("a $ref sibling under OAS 3.0", () => {
         } as SchemaOrBoolean,
         { dialect: oas30Dialect },
       ),
-    ).toThrow(/OAS 3\.0 \$ref sibling/);
+    ).toThrow(/a schema that is a \$ref has no addressable members/);
   });
+
+  it.each(["#/$defs/S", "#/definitions/S", "#/properties/value"])(
+    "does not resolve a root $ref pointer that re-enters the root (%s)",
+    (ref) => {
+      const root = {
+        $ref: ref,
+        $defs: { S: { type: "string" } },
+        definitions: { S: { type: "string" } },
+        properties: { value: { type: "string" } },
+      } as SchemaOrBoolean;
+      expect(() => compileSchema(root, { dialect: oas30Dialect })).toThrow(
+        /a schema that is a \$ref has no addressable members/,
+      );
+    },
+  );
 
   // The skip is scoped to the dialect that discards siblings. Under 3.1
   // a sibling is honoured, so its value has to be judged as before.

@@ -167,7 +167,7 @@ function resolveJsonPointer(
     const ignoredKeys = !asArr ? graph.ignoredRefSiblingKeys?.get(cur) : undefined;
     if (graph.refSuppressesSiblings === true && ignoredKeys?.has(part) === true) {
       throw new Error(
-        `JSON pointer ${pointer} enters "${part}", an OAS 3.0 $ref sibling that is ignored`,
+        `JSON pointer ${pointer} cannot be resolved: under OAS 3.0 a schema that is a $ref has no addressable members`,
       );
     }
     cur = asArr

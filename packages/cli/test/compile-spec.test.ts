@@ -939,7 +939,7 @@ describe("unknown formats (#660)", () => {
       },
     } as unknown as OpenAPIDocument;
 
-    expect(() => emitSpec(doc)).toThrow(/OAS 3\.0 \$ref sibling/);
+    expect(() => emitSpec(doc)).toThrow(/a schema that is a \$ref has no addressable members/);
   });
 });
 

@@ -963,7 +963,7 @@ describe("validateRequest", () => {
         contentType: "application/json",
         body: "ok",
       }),
-    ).toThrow(/OAS 3\.0 \$ref sibling/);
+    ).toThrow(/a schema that is a \$ref has no addressable members/);
   });
 
   it("keeps honouring $ref siblings for coercion under 3.1", () => {
