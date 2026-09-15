@@ -47,9 +47,8 @@ import { subschemaEntries } from "@oaverify/internal-core/subschema-positions";
  * all carried it, and nothing failed anywhere: all four consumers of
  * this walk simply reported nothing for a QUERY operation.
  *
- * Not the whole story under OAS 3.2, which also puts Operation Objects
- * in `additionalOperations`, keyed by arbitrary method token. That is
- * unhandled here and everywhere else in the repo; see the issue.
+ * OAS 3.2 also puts Operation Objects in `additionalOperations`,
+ * which the document walk visits independently of runtime method support.
  */
 const METHOD_FIELDS: Record<HttpMethod, true> = {
   get: true,
@@ -233,6 +232,12 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
     walkParameterList(item["parameters"], `${pointer}/parameters`);
     for (const method of METHODS) {
       if (item[method] !== undefined) walkOperation(item[method], `${pointer}/${method}`);
+    }
+    const additional = item["additionalOperations"];
+    if (isObj(additional)) {
+      for (const [method, operation] of Object.entries(additional)) {
+        walkOperation(operation, `${pointer}/additionalOperations/${escapePointer(method)}`);
+      }
     }
   };
 

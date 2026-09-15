@@ -157,9 +157,8 @@ const COMMON: Partial<Record<RefNodeKind, Readonly<Record<string, RefPosition>>>
 /**
  * Per-version overrides, merged over {@link COMMON} by node kind.
  *
- * 3.1 gained `webhooks` and `components.pathItems`. 3.2 additionally
- * types a Media Type as `MediaType | Reference` and adds
- * `components.mediaTypes`.
+ * Each version adds its document containers and nested schema-bearing positions.
+ * Reference eligibility is declared at the position where that version permits it.
  */
 const BY_VERSION: Record<
   OpenAPIVersion,
@@ -174,6 +173,7 @@ const BY_VERSION: Record<
     content: { "*": one("mediaType") },
   },
   "3.2": {
+    pathItem: { additionalOperations: map("operation") },
     document: { webhooks: map("pathItem") },
     components: { pathItems: map("pathItem"), mediaTypes: map("mediaType", true) },
     content: { "*": one("mediaType", true) },
