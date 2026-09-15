@@ -6,7 +6,6 @@ import {
   type OpenAPIDocument,
   type OperationObject,
   type ParameterObject,
-  type PathItem,
   type ReferenceObject,
   type SecurityRequirementObject,
   type TagObject,
@@ -83,6 +82,8 @@ const COMPONENT_CATEGORIES = [
   "headers",
   "securitySchemes",
 ] as const satisfies readonly (keyof ComponentsObject)[];
+
+const REFERENCE_CONTAINERS = [...COMPONENT_CATEGORIES, "pathItems", "callbacks"] as const;
 
 const PATH_TEMPLATE_RE = /\{([^{}]+)\}/g;
 // Splitting form: the capture group keeps the placeholders in the output
@@ -248,24 +249,22 @@ function collectAllRefs(
   }
   // Operations under webhooks (3.1+).
   for (const webhook of Object.values(document.webhooks ?? {})) {
-    if (!webhook || isReference(webhook)) continue;
+    if (!webhook) continue;
     walkPathItem(webhook, fromRoots);
     walkAnyRefs(webhook, fromRoots);
   }
-  // Operations under components.pathItems would belong here too, but the
-  // type doesn't expose pathItems; the generic walkAnyRefs over the whole
-  // document below catches every $ref regardless.
-
   // Components: edges from each component to whatever it refs.
   const components = document.components;
   if (!components) return;
-  for (const category of COMPONENT_CATEGORIES) {
-    const bucket = components[category];
-    if (!bucket) continue;
+  for (const category of REFERENCE_CONTAINERS) {
+    const bucket = (components as Record<string, unknown>)[category];
+    if (!isObject(bucket)) continue;
     for (const [name, value] of Object.entries(bucket)) {
       const key = `${category}/${name}`;
       const edges = new Set<string>();
       walkAnyRefs(value, edges);
+      if (category === "pathItems") walkPathItem(value, edges);
+      if (category === "callbacks") walkCallback(value, edges);
       if (edges.size > 0) componentEdges.set(key, edges);
     }
   }
@@ -306,10 +305,26 @@ function asSecurityList(security: unknown): readonly SecurityRequirementObject[]
   );
 }
 
-function walkPathItem(pathItem: PathItem, sink: Set<string>): void {
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function walkCallback(callback: unknown, sink: Set<string>): void {
+  if (!isObject(callback)) return;
+  for (const [expression, item] of Object.entries(callback)) {
+    if (expression.startsWith("x-")) continue;
+    walkPathItem(item, sink);
+  }
+}
+
+function walkPathItem(pathItem: unknown, sink: Set<string>): void {
+  if (!isObject(pathItem)) return;
   for (const method of HTTP_METHODS) {
     const op = pathItem[method];
-    if (!op) continue;
+    if (!isObject(op)) continue;
+    if (isObject(op.callbacks)) {
+      for (const callback of Object.values(op.callbacks)) walkCallback(callback, sink);
+    }
     for (const req of asSecurityList(op.security)) {
       for (const schemeName of Object.keys(req)) {
         sink.add(`securitySchemes/${schemeName}`);
@@ -359,7 +374,7 @@ function parseComponentRef(ref: string): string | null {
   if (!m) return null;
   const category = decodePointerSegment(m[1]!);
   const name = decodePointerSegment(m[2]!);
-  if (!(COMPONENT_CATEGORIES as readonly string[]).includes(category)) return null;
+  if (!(REFERENCE_CONTAINERS as readonly string[]).includes(category)) return null;
   return `${category}/${name}`;
 }
 
