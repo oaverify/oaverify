@@ -101,7 +101,7 @@ import { spanLookupFor } from "./check-spans.js";
  * graded report does rather than growing a second, drifting format.
  */
 function formatFinding(f: CheckFinding, width: number): string[] {
-  const also = f.occurrences === undefined ? "" : `  (+${f.occurrences - 1} more operation(s))`;
+  const also = f.occurrences === undefined ? "" : `  (+${f.occurrences - 1} more occurrence(s))`;
   const out = [`${f.severity.padEnd(7)}  ${f.class.padEnd(11)}  ${f.code}${also}\n`];
   for (const line of wrapText(f.message, width, "  ", "  ")) out.push(`${line}\n`);
   for (const line of wrapText(f.location, width, "    at ", "       ")) out.push(`${line}\n`);

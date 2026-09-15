@@ -93,9 +93,9 @@ export interface CheckFinding {
    * change wording. {@link CheckFinding.target} is the machine address
    * and is the field to switch on, key off, or map to a source line.
    *
-   * Unchanged since before `target` existed, deliberately: the point of
-   * adding a machine contract was to stop a consumer needing this one,
-   * not to alter what a reader sees.
+   * Schema diagnostics prefer an operation label, including the first use
+   * of a referenced document object. Entries without an operation use their
+   * document pointer. The suffix names the position within the schema.
    */
   location: string;
   /**
@@ -114,14 +114,13 @@ export interface CheckFinding {
    */
   message: string;
   /**
-   * How many operations reported this same defect, when more than one.
+   * How many schema entries reported this same defect, when more than one.
    * Absent for a single occurrence.
    *
-   * Schemas compile per operation, so a component reached from several
-   * of them is checked several times and produces one finding each. They
-   * are one defect and one edit. `location` names the first operation
-   * that reached it; the rest are collapsed into this count rather than
-   * printed again.
+   * Each authored OpenAPI schema root is checked in its own composition
+   * context. A component reached from several roots can produce the same
+   * finding repeatedly. `location` names the first entry that reached it;
+   * repeats at the same definition are collapsed into this count.
    */
   occurrences?: number;
   /**

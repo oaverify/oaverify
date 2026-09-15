@@ -437,7 +437,8 @@
             "oaverify:location": "GET /pets/{petId} 200 response body (application/json) -> <root>",
             "oaverify:pointer": "/components/schemas/shared_Pet/required",
             "oaverify:anchor": "scoped-definition",
-            "oaverify:sourcePointer": "/Pet/required"
+            "oaverify:sourcePointer": "/Pet/required",
+            "oaverify:occurrences": 2
           }
         },
         {
@@ -484,7 +485,8 @@
             "oaverify:location": "GET /pets/{petId} 200 response body (application/json) -> properties.code",
             "oaverify:pointer": "/components/schemas/shared_Pet/properties/code",
             "oaverify:anchor": "definition",
-            "oaverify:sourcePointer": "/Pet/properties/code"
+            "oaverify:sourcePointer": "/Pet/properties/code",
+            "oaverify:occurrences": 2
           }
         }
       ]

@@ -21,11 +21,11 @@ warning  examples     example-invalid
   "EFT", allowed: ["ACH","CHECK"])
     at /paths/~1search/post/requestBody/content/application~1json/example
 
-warning  schema       silent-rewrite/required-not-in-properties
+warning  schema       silent-rewrite/required-not-in-properties  (+1 more occurrence(s))
   required: "absent" at <root> is not declared in properties reachable here
     at GET /pets/{petId} 200 response body (application/json) -> <root>
 
-warning  schema       unsatisfiable/pattern-length
+warning  schema       unsatisfiable/pattern-length  (+1 more occurrence(s))
   "pattern" "^[0-9]{5}$" at "properties.code" matches only strings of length 5,
   so "maxLength": 2 can never be satisfied; no string validates here
     at GET /pets/{petId} 200 response body (application/json) -> properties.code

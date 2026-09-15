@@ -124,8 +124,8 @@
       "class": "schema",
       "severity": "warning",
       "code": "silent-rewrite/required-not-in-properties",
-      "location": "GET /pets/{petId} 200 response body (application/json) -> <root>",
       "message": "required: \"absent\" at <root> is not declared in properties reachable here",
+      "location": "GET /pets/{petId} 200 response body (application/json) -> <root>",
       "target": {
         "pointer": "/components/schemas/shared_Pet/required",
         "anchor": "scoped-definition",
@@ -139,14 +139,15 @@
             }
           ]
         }
-      }
+      },
+      "occurrences": 2
     },
     {
       "class": "schema",
       "severity": "fatal",
       "code": "unsatisfiable/pattern-length",
-      "location": "GET /pets/{petId} 200 response body (application/json) -> properties.code",
       "message": "\"pattern\" \"^[0-9]{5}$\" at \"properties.code\" matches only strings of length 5, so \"maxLength\": 2 can never be satisfied; no string validates here",
+      "location": "GET /pets/{petId} 200 response body (application/json) -> properties.code",
       "target": {
         "pointer": "/components/schemas/shared_Pet/properties/code",
         "anchor": "definition",
@@ -160,7 +161,8 @@
             }
           ]
         }
-      }
+      },
+      "occurrences": 2
     }
   ],
   "rules": {

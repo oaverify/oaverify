@@ -93,9 +93,9 @@ export interface FindingSelection {
    * Whether the schema compile prepass runs.
    *
    * Split out of {@link classes} because the schema class holds two
-   * products with a 1600x cost difference: `format-not-validated` is a
+   * products with different costs: `format-not-validated` is a
    * document walk, and every other schema code comes from compiling the
-   * whole document (8ms against 13.1s on `stripe.json`). A selection
+   * whole document. See CheckOptions.findings for measured costs. A selection
    * naming only the walk pays only for the walk.
    *
    * This is also the switch that decides whether `malformed` findings

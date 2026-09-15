@@ -374,14 +374,15 @@ in the meantime.
   an `OpenAPIDocument`: provenance regions and `inlinedComponents` are
   byproducts of resolution that a document cannot reconstruct, and
   without them every finding loses `target.source` and SARIF loses its
-  locations. Two hazards live here. The `precompile` /
-  `stats.schemaLintIssues` pair in `check.ts` is order-sensitive:
-  compiling is what fills the stats array, so a read before the call
-  reports nothing. The two need not be adjacent: `precompile` returns a
-  materialised array. That compile is what the class costs (#624).
-  And only a failure to build the validator becomes
-  `CheckAbortedError` / exit 2; a throw from any other pass propagates
-  to exit 3, as it did before the move.
+  locations. Schema diagnostics compile authored OpenAPI roots through
+  an internal compiler context that carries the document resource graph,
+  each entry's dependency closure and physical positions. Runtime
+  `precompile()` remains scoped to served operations. A reference resolver
+  alone is insufficient: code generation and lint also need the referring
+  resource's base URI, and dynamic binding candidates belong in the closure.
+  Only a failure to build the validator becomes `CheckAbortedError` / exit 2;
+  a throw from another pass propagates to exit 3. Keep the schema compilation
+  gate separate from cheap document-walk selections.
 - **`@oaverify/express4` / `@oaverify/express5` / `@oaverify/fastify`**: thin
   framework adapters with identical export names and option shapes
   (`validateRequests`, `httpRequestFrom<Framework>`,

@@ -484,7 +484,7 @@ describe("resolveCommand", () => {
       });
     });
 
-    it("addresses a malformed schema at the same place a lint issue would be", async () => {
+    it("addresses the malformed keyword value", async () => {
       // A schema that will not compile still has an address, and it is
       // the one the successful path would have used.
       const findings = await findingsOf({
@@ -503,7 +503,7 @@ describe("resolveCommand", () => {
       });
       const malformed = findings.find((f) => f.class === "malformed");
       expect(malformed?.target).toMatchObject({
-        pointer: "/paths/~1t/post/requestBody/content/application~1json/schema",
+        pointer: "/paths/~1t/post/requestBody/content/application~1json/schema/items",
         anchor: "node",
       });
     });
@@ -526,7 +526,7 @@ describe("resolveCommand", () => {
       });
       const malformed = findings.find((f) => f.class === "malformed");
       expect(malformed?.target).toMatchObject({
-        pointer: "/components/schemas/Bad",
+        pointer: "/components/schemas/Bad/items",
         anchor: "definition",
       });
     });
@@ -916,7 +916,7 @@ describe("resolveCommand", () => {
     };
     const siblings = findings.filter((f) => f.code === "silent-rewrite/ref-siblings-oas30");
     expect(siblings).toHaveLength(1);
-    expect(siblings[0]?.occurrences).toBe(3);
+    expect(siblings[0]?.occurrences).toBe(4);
   });
 
   it("check leaves a single occurrence uncounted", async () => {

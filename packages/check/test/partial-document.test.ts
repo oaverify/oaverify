@@ -226,12 +226,8 @@ describe("findings a hole in the document cannot invent", () => {
     }
   });
 
-  it("invents nothing on a document whose findings are all local, bar the hole's own echo", async () => {
-    // `malformed-schema` is here because the hole *is* a dangling
-    // reference and the compiler says so. See the suite below: it is a
-    // true statement about the document and still not a finding to
-    // trust, because it is the failure being reported a second time.
-    expect(await artefactCodes(localOnly)).toEqual(["malformed-schema"]);
+  it("does not treat an unresolved Response Object as a malformed schema", async () => {
+    expect(await artefactCodes(localOnly)).toEqual([]);
   });
 });
 

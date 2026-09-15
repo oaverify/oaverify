@@ -85,3 +85,6 @@ export {
   type SubschemaEntry,
   type SubschemaFamily,
 } from "./subschema-positions.js";
+
+export { compileSchemaInContext, type SchemaCompileContext } from "./compiler/compiler.js";
+export { schemaErrorPointer } from "./compiler/well-formed.js";

@@ -53,6 +53,9 @@ const MAX_NAMED = 5;
  * the validator does not have.
  */
 export interface ClosedCompositionContext {
+  /** Possible dynamic bindings supplied by the document compiler. */
+  dynamicTargets?: (ref: string, from: object) => readonly unknown[];
+
   /**
    * The compiler's `$ref` resolver, told which node the `$ref` sits in
    * so it answers in that node's resource scope: a fragment under a
@@ -188,6 +191,26 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
       // hold.
       if (isObj(target)) add(target, depth + 1);
       else if (typeof target !== "boolean") unresolved = true;
+    }
+
+    if (
+      ctx.dynamicTargets !== undefined &&
+      live(node, "$dynamicRef", ctx) &&
+      typeof node["$dynamicRef"] === "string"
+    ) {
+      try {
+        const targets = ctx.dynamicTargets(node["$dynamicRef"], node);
+        if (targets.length > 1) {
+          // A declaration in one possible binding need not apply here.
+          unresolved = true;
+        } else
+          for (const target of targets) {
+            if (isObj(target)) add(target, depth + 1);
+            else if (typeof target !== "boolean") unresolved = true;
+          }
+      } catch {
+        unresolved = true;
+      }
     }
 
     for (const kw of POSITIVE_IN_PLACE) {

@@ -19,16 +19,16 @@ import {
   type ResolvedSpec,
   type SpecRegion,
 } from "@oaverify/internal-spec";
-import type { SchemaLintIssue } from "@oaverify/internal-schema";
 import { checkDocumentExamples, createValidator } from "@oaverify/internal-validator";
 import {
   listUnservedParameterLocations,
   unservedParameterLocationMessage,
 } from "@oaverify/internal-validator/internals";
 import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
+import { checkDocumentSchemas } from "./document-schemas.js";
 import { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
 import { ambiguityWitness, checkDocumentRedos } from "./redos-check.js";
-import { type CheckFinding, type FindingTarget, type ReasonSource } from "./finding.js";
+import { type CheckFinding, type ReasonSource } from "./finding.js";
 import { reasonPointersFor } from "./span-target.js";
 import {
   FORMAT_WALK_CODE,
@@ -80,7 +80,11 @@ export interface CheckOptions {
    *
    * And the schema class's compile prepass is gated separately from its
    * document walk, so a selection naming `format-not-validated` alone
-   * skips the compile, which on `stripe.json` is 13.1s and 2.4GB.
+   * skips schema compilation. A local two-run CLI comparison on Stripe
+   * measured the authored-schema pass at 18.3s / 525MB peak RSS versus
+   * 14.7s / 2.08GB for runtime precompilation. Broader checking trades
+   * about 25% more time for fourfold lower peak memory; the format-only
+   * selection stayed at 0.17s / 141MB. See docs/strictness.md for scope.
    *
    * The gradeability gate is not selectable: {@link checkSpec} builds
    * the validator whatever the selection holds, so a document that is
@@ -168,6 +172,14 @@ export class CheckAbortedError extends Error {
  * Synchronous, because every pass is. Loading is the only asynchronous
  * part of a `check` run and it belongs to the caller, which is what
  * keeps this package free of a reader and a second copy of `loadSpec`.
+ *
+ * Schema diagnostics compile authored OpenAPI schema roots, including
+ * schemas outside routed operations. Subschemas keep their enclosing
+ * composition and resource scope. Request/response transformations used
+ * by runtime validation do not apply. Examples have their own pass.
+ * A root that fails compilation contributes a malformed finding and
+ * independent roots continue. Selecting only document-walk codes skips
+ * compilation (see {@link CheckOptions.findings}).
  *
  * @param resolved - A spec from `loadSpec` / `resolveSpec`.
  * @param options - See {@link CheckOptions}.
@@ -264,7 +276,6 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   // Gating it on the schema class is what makes a selection like
   // `--findings hygiene` return an empty report with exit 0 on a
   // document nothing could grade (#674).
-  let validator: ReturnType<typeof createValidator>;
   try {
     // `unservedParameterLocations: "ignore"`: `createValidator` refuses
     // a document declaring a parameter location it cannot serve (#836),
@@ -279,7 +290,7 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     // `paths: null` and a `__proto__` path key, and could not shield a
     // dangling `$ref` from the gate anyway. Nothing is rewritten now,
     // so every pass sees the document the author wrote.
-    validator = createValidator(document, {
+    createValidator(document, {
       schemaLint: "strict",
       unservedParameterLocations: "ignore",
     });
@@ -319,54 +330,11 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   // told separately, so the two can never disagree.
 
   if (classes.has("schema")) {
-    // The class's two products cost 1600x apart on a large document,
-    // so they are gated apart. `format-not-validated` below is a
-    // document walk; everything in this block needs the whole document
-    // compiled (13.1s and 2.4GB on `stripe.json`, against 8ms for the
-    // build above).
-    //
-    // This is also the switch that decides whether a `malformed`
-    // finding can exist, since compiling is what finds one. A
-    // selection that does not ask for a compiler-owned code does not
-    // compile and so cannot report one, which is what
-    // `--findings hygiene` has always done.
+    // Compiler-owned findings require authored schema roots to be compiled.
+    // A format-only selection remains a document walk.
     if (selection.compileSchemas) {
-      // Compilation is lazy, so without this the schema class inspects
-      // nothing: no schema has been checked and schemaLintIssues is
-      // empty. `check` is exactly the caller that wants the whole
-      // document compiled.
-      //
-      // `collect` rather than the default `throw`: a tool inspecting a
-      // document wants every finding, and stopping at the first
-      // malformed schema hid the rest of the file behind it (#515). A
-      // server wants the opposite and gets it by default.
-      for (const failure of validator.precompile({ onMalformed: "collect" })) {
-        addSchemaFinding(schemaFindings, {
-          class: "malformed",
-          severity: "fatal",
-          code: "malformed-schema",
-          location: failure.location,
-          message: failure.message,
-          target:
-            failure.pointer === undefined
-              ? undefined
-              : { pointer: failure.pointer, anchor: failure.anchor ?? "node" },
-        });
-      }
-      for (const issue of validator.stats.schemaLintIssues) {
-        // The path is relative to the schema that was compiled, which
-        // on a spec with many operations does not say where to look.
-        // The validator labels each compile with its operation, so
-        // prefer that when it is present.
-        const where = issue.path === "" ? "<root>" : issue.path;
-        addSchemaFinding(schemaFindings, {
-          class: "schema",
-          severity: defaultSeverityFor("schema", issue.code),
-          code: issue.code,
-          location: issue.location === undefined ? where : `${issue.location} -> ${where}`,
-          message: issue.message,
-          target: targetForSchemaLint(issue),
-        });
+      for (const finding of checkDocumentSchemas(document)) {
+        addSchemaFinding(schemaFindings, finding);
       }
     }
 
@@ -417,19 +385,7 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   }
 
   if (classes.has("examples")) {
-    // Its own class, and its own pass over the document as written,
-    // rather than a rule inside the schema class. The schema class
-    // reads whatever the validator compiled, and body schemas are
-    // compiled per direction (`readOnly` rewritten to `false` on the
-    // request leg), so a component example that is a correct response
-    // would be reported as invalid there. An example describes the
-    // schema as authored, so it is checked against the schema as
-    // authored.
-    //
-    // Separate class also gives the cost its own switch: this is the
-    // one check that compiles schemas of its own accord, so
-    // `--findings hygiene,schema` opts out of it.
-    //
+    // Example validation has a separate selection and cost gate.
     // The guard hands the pass the same ambiguity analysis the redos
     // class runs, so an example whose schema reaches a catastrophic
     // pattern is reported as uncheckable instead of executed (#687:
@@ -563,22 +519,9 @@ function gradeFindings(
 }
 
 /**
- * A schema lint finding's target, taken from what the compile
- * recorded rather than re-derived here.
- *
- * The anchor is decided where the knowledge is: the walk knows whether
- * it crossed a `$ref`, the validator knows whether it unwrapped one
- * before the compile started, and the rule knows whether its verdict
- * depends on the route. None of those is visible from the finished
- * finding, so this copies rather than infers.
- */
-function targetForSchemaLint(issue: SchemaLintIssue): FindingTarget | undefined {
-  if (issue.pointer === undefined || issue.anchor === undefined) return undefined;
-  return { pointer: issue.pointer, anchor: issue.anchor };
-}
-
-/**
  * Add a schema finding, collapsing a repeat of one already recorded.
+ * Malformed findings identify the offending value directly, so their
+ * pointer is sufficient even when traversal changes the rendered path.
  *
  * Keyed on code plus message plus address. The message carries only the
  * path *within* a schema, so two distinct components with the same
@@ -593,7 +536,9 @@ function targetForSchemaLint(issue: SchemaLintIssue): FindingTarget | undefined 
  * of one address rather than of one message.
  */
 function addSchemaFinding(into: Map<string, CheckFinding>, finding: CheckFinding): void {
-  const key = `${finding.code}\u0000${finding.message}\u0000${finding.target?.pointer ?? ""}`;
+  const messageKey =
+    finding.class === "malformed" && finding.target !== undefined ? "" : finding.message;
+  const key = `${finding.code}\u0000${messageKey}\u0000${finding.target?.pointer ?? ""}`;
   const already = into.get(key);
   if (already === undefined) {
     into.set(key, finding);
