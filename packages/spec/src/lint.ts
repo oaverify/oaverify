@@ -324,11 +324,27 @@ function walkCallback(callback: unknown, sink: Set<string>): void {
   }
 }
 
+/** Operation Objects and their pointer suffixes, including OAS 3.2 method tokens. */
+function* operationEntries(item: unknown): Generator<[string, OperationObject]> {
+  if (!isObject(item)) return;
+  for (const method of HTTP_METHODS) {
+    if (isObject(item[method])) yield [method, item[method] as OperationObject];
+  }
+  if (isObject(item.additionalOperations)) {
+    for (const [method, operation] of Object.entries(item.additionalOperations)) {
+      if (isObject(operation)) {
+        yield [
+          `additionalOperations/${escapePointerSegment(method)}`,
+          operation as OperationObject,
+        ];
+      }
+    }
+  }
+}
+
 function walkPathItem(pathItem: unknown, sink: Set<string>): void {
   if (!isObject(pathItem)) return;
-  for (const method of HTTP_METHODS) {
-    const op = pathItem[method];
-    if (!isObject(op)) continue;
+  for (const [, op] of operationEntries(pathItem)) {
     if (isObject(op.callbacks)) {
       for (const callback of Object.values(op.callbacks)) walkCallback(callback, sink);
     }
@@ -399,11 +415,11 @@ function findUnusedTags(document: OpenAPIDocument): SpecHygieneIssue[] {
   };
   for (const pathItem of Object.values(document.paths ?? {})) {
     if (!pathItem) continue;
-    for (const method of HTTP_METHODS) collect(pathItem[method]);
+    for (const [, op] of operationEntries(pathItem)) collect(op);
   }
   for (const webhook of Object.values(document.webhooks ?? {})) {
     if (!webhook || isReference(webhook)) continue;
-    for (const method of HTTP_METHODS) collect(webhook[method]);
+    for (const [, op] of operationEntries(webhook)) collect(op);
   }
 
   const issues: SpecHygieneIssue[] = [];
@@ -538,10 +554,8 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
       });
     }
 
-    for (const method of HTTP_METHODS) {
-      const op = pathItem[method];
-      if (!op) continue;
-      const opPointer = `${pathItemPointer}/${method}`;
+    for (const [suffix, op] of operationEntries(pathItem)) {
+      const opPointer = `${pathItemPointer}/${suffix}`;
       const opLevelDeclared = collectPathParams(op.parameters ?? [], document);
       // Only the undeclared rule is blinded by an unreadable list, since
       // it asks what the document declares in total. `path-param-unused`
