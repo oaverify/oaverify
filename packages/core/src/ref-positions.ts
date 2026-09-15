@@ -177,6 +177,16 @@ const BY_VERSION: Record<
     document: { webhooks: map("pathItem") },
     components: { pathItems: map("pathItem"), mediaTypes: map("mediaType", true) },
     content: { "*": one("mediaType", true) },
+    mediaType: {
+      itemSchema: one("schema"),
+      prefixEncoding: array("encoding"),
+      itemEncoding: one("encoding"),
+    },
+    encoding: {
+      encoding: map("encoding"),
+      prefixEncoding: array("encoding"),
+      itemEncoding: one("encoding"),
+    },
   },
 };
 
