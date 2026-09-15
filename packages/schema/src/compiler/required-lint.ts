@@ -1,11 +1,18 @@
 import { pointerFromRefFragment } from "@oaverify/internal-core";
 import {
+  forEachSubschema,
   positionFields,
   stepPosition,
-  forEachSubschema,
   type SubschemaPosition,
 } from "../subschema-positions.js";
 import { refSiblingIsDiscarded } from "../ref-siblings.js";
+import {
+  collectIgnoredRefSiblingKeys,
+  isObj,
+  resolveLintRef,
+  type LintRefResolver,
+  type Obj,
+} from "./lint-refs.js";
 import type { SchemaLintIssue } from "./compiler.js";
 
 /**
@@ -49,16 +56,11 @@ const ANY_PROPERTY = " any";
 /** Bounds the in-place closure on pathological or cyclic schemas. */
 const MAX_CLOSURE_DEPTH = 25;
 
-type Obj = Record<string, unknown>;
-
 /**
- * Resolves a `$ref` to its target, or returns `undefined` when it
- * cannot. Supplied by the compiler so the walk can see through refs it
- * has no document to resolve against: in the HTTP pipeline each
- * operation's body schema is compiled on its own, with `components`
- * reachable only through the resolver.
+ * This rule's spelling of {@link LintRefResolver}, kept because the
+ * name is what the compiler's option is documented against.
  */
-export type RequiredLintResolver = (ref: string) => unknown;
+export type RequiredLintResolver = LintRefResolver;
 
 /**
  * One move from a schema's instance to a child instance. In-place
@@ -69,80 +71,6 @@ export type RequiredLintResolver = (ref: string) => unknown;
  * is treated as unknowable, which suppresses flagging.
  */
 type Step = { k: "prop"; n: string } | { k: "items" } | { k: "addl" } | { k: "any" };
-
-const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
-
-/**
- * Resolve one `$ref`, preferring the compiler's resolver (which knows
- * about external schemas and the document the operation came from) and
- * falling back to a plain in-document pointer walk.
- */
-function pointerEntersDiscardedSibling(
-  root: Obj,
-  ref: string,
-  ignoredRefSiblingKeys: WeakMap<Obj, ReadonlySet<string>> | undefined,
-): boolean {
-  if (ignoredRefSiblingKeys === undefined || !ref.startsWith("#/")) return false;
-  let target: unknown = root;
-  for (const raw of ref.slice(2).split("/")) {
-    const key = raw.replace(/~1/g, "/").replace(/~0/g, "~");
-    if (!isObj(target)) return false;
-    if (ignoredRefSiblingKeys.get(target)?.has(key) === true) return true;
-    target = target[key];
-  }
-  return false;
-}
-
-function collectIgnoredRefSiblingKeys(
-  root: Obj,
-  refSuppressesSiblings: boolean,
-): WeakMap<Obj, ReadonlySet<string>> | undefined {
-  if (!refSuppressesSiblings) return undefined;
-  const ignoredRefSiblingKeys = new WeakMap<Obj, ReadonlySet<string>>();
-  const seen = new WeakSet<object>();
-
-  const go = (node: unknown): void => {
-    if (!isObj(node) || seen.has(node)) return;
-    seen.add(node);
-    const ignored = Object.keys(node).filter((key) => refSiblingIsDiscarded(node, key, true));
-    if (ignored.length > 0) ignoredRefSiblingKeys.set(node, new Set(ignored));
-
-    forEachSubschema(node, (value, key) => {
-      if (refSiblingIsDiscarded(node, key, true)) return;
-      go(value);
-    });
-  };
-
-  go(root);
-  return ignoredRefSiblingKeys;
-}
-
-function resolveRef(
-  ref: string,
-  root: Obj,
-  resolve: RequiredLintResolver | undefined,
-  refSuppressesSiblings: boolean,
-  ignoredRefSiblingKeys: WeakMap<Obj, ReadonlySet<string>> | undefined,
-): unknown {
-  if (resolve !== undefined) {
-    try {
-      const viaResolver = resolve(ref);
-      if (viaResolver !== undefined) return viaResolver;
-    } catch {
-      // An unresolvable ref is the caller's "cannot enumerate" case,
-      // not an error to raise from a lint pass.
-    }
-  }
-  if (!ref.startsWith("#/")) return undefined;
-  if (pointerEntersDiscardedSibling(root, ref, ignoredRefSiblingKeys)) return undefined;
-  let target: unknown = root;
-  for (const raw of ref.slice(2).split("/")) {
-    const key = raw.replace(/~1/g, "/").replace(/~0/g, "~");
-    if (!isObj(target) || !(key in target)) return undefined;
-    target = target[key];
-  }
-  return target;
-}
 
 /**
  * Every schema constraining the same instance as one of `seeds`: the
@@ -175,7 +103,7 @@ function closure(
 
     const ref = node["$ref"];
     if (typeof ref === "string") {
-      const target = resolveRef(ref, root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys);
+      const target = resolveLintRef(ref, root, resolve, ignoredRefSiblingKeys);
       if (isObj(target)) add(target, depth + 1);
       else unresolved = true;
     }
@@ -452,7 +380,7 @@ export function collectRequiredIssues(
     // wrong address for it. See the addressing rule on `pathForRef`.
     const ref = node["$ref"];
     if (typeof ref === "string") {
-      const target = resolveRef(ref, root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys);
+      const target = resolveLintRef(ref, root, resolve, ignoredRefSiblingKeys);
       // The physical frame does re-root here, unlike `path`. Both are
       // right: `path` answers "where does this apply", `at` answers
       // "where is the text", and after a ref those are different
