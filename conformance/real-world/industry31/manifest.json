@@ -1,0 +1,1276 @@
+{
+  "description": "Selected industry OpenAPI 3.1 roots, with the exact resource closure read by loadSpec. Upstream bytes stay outside git.",
+  "captured": "2026-09-15",
+  "repositories": [
+    {
+      "repository": "UnionInternationalCheminsdeFer/OSDM",
+      "revision": "9e03234e7d8855ff1d146f7725cd30b84c6a8abe"
+    },
+    {
+      "repository": "openmobilityfoundation/mds-openapi",
+      "revision": "0c07bc3d294237dd41c6273f059efb11b8149c66"
+    },
+    {
+      "repository": "opengeospatial/ogcapi-connected-systems",
+      "revision": "3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f"
+    },
+    {
+      "repository": "wbcsd/data-exchange-protocol",
+      "revision": "cf4ebedb18d42f3453bcc868e01159321297c09a"
+    }
+  ],
+  "entries": [
+    {
+      "id": "uic-osdm-webhooks",
+      "entry": "https://raw.githubusercontent.com/UnionInternationalCheminsdeFer/OSDM/9e03234e7d8855ff1d146f7725cd30b84c6a8abe/specification/OSDM-online-webhook.yml",
+      "title": "UIC 90918-10 - OSDM webhooks",
+      "version": "3.8.0",
+      "openapi": "3.1.0",
+      "sector": "rail",
+      "reason": "Webhook discriminator and inherited event schemas"
+    },
+    {
+      "id": "omf-mds-agency",
+      "entry": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/reference/agency.yaml",
+      "title": "Agency",
+      "version": "2.0",
+      "openapi": "3.1.0",
+      "sector": "urban mobility",
+      "reason": "Conditional schemas, mode-specific const tags, and external schema reuse"
+    },
+    {
+      "id": "omf-mds-policy",
+      "entry": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/reference/policy.yaml",
+      "title": "Policy",
+      "version": "2.0",
+      "openapi": "3.1.0",
+      "sector": "urban mobility",
+      "reason": "Local $defs, cross-file references and policy requirements"
+    },
+    {
+      "id": "ogc-connected-systems",
+      "entry": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/openapi-connectedsystems-2.yaml",
+      "title": "OGC API - Connected Systems - Part 2: Dynamic Data",
+      "version": "0.0.1",
+      "openapi": "3.1.0",
+      "sector": "sensors and geospatial",
+      "reason": "Multi-file API, remote GeoJSON resources and mixed schema dialects"
+    },
+    {
+      "id": "wbcsd-pact",
+      "entry": "https://raw.githubusercontent.com/wbcsd/data-exchange-protocol/cf4ebedb18d42f3453bcc868e01159321297c09a/spec/v3/openapi.yaml",
+      "title": "PACT API Specification",
+      "version": "3.0.3",
+      "openapi": "3.1.0",
+      "sector": "carbon accounting",
+      "reason": "CloudEvents const tags and event property reuse, including malformed authored schemas"
+    }
+  ],
+  "resources": [
+    {
+      "url": "https://geojson.org/schema/Feature.json",
+      "sha256": "3957840b2ff19f9450ea97a12f85944d938c68a7a6bf115a2e69b98e007b9922",
+      "bytes": 13777
+    },
+    {
+      "url": "https://geojson.org/schema/FeatureCollection.json",
+      "sha256": "83e781f1513e447be9287b2180c300621f8b4c65245d7822a22fcf39431e0471",
+      "bytes": 17207
+    },
+    {
+      "url": "https://geojson.org/schema/Geometry.json",
+      "sha256": "152369d7eb6b3314ffc7deca1d66f9d498ed5b614ca38ed4e2c813fed01024fd",
+      "bytes": 4388
+    },
+    {
+      "url": "https://geojson.org/schema/Point.json",
+      "sha256": "35dd9cc5537e3a02a58ec63c22001508bd0c26036803f86004bb7cad0e9ad8b1",
+      "bytes": 552
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/parameters/cascade.yaml",
+      "sha256": "cde2e7e6ff1a521ba4703ececbd7464581304d8d097203275811906ef714f9ab",
+      "bytes": 147
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/parameters/controlPropIdList.yaml",
+      "sha256": "460d1d3ffe928881e7135b7d0076517d91b934f21c0463d0bdfd8605dd6d6103",
+      "bytes": 285
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/parameters/datetimeSchema.yaml",
+      "sha256": "b38730104e9a63d28fabe03666160d6260ffdabdff71173bb68c3fdd6ea9a5f1",
+      "bytes": 1218
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/parameters/foiIdList.yaml",
+      "sha256": "0c63ca09ddd406cfd01d9f37b98e295d6692bd5a9f4698bd16720b94ac423070",
+      "bytes": 267
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/parameters/idList.yaml",
+      "sha256": "1fc1ac7fe411b96eb3cf1b4b10af99a6488f7180fc0406c719448ba4dd94be01",
+      "bytes": 395
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/parameters/idListSchema.yaml",
+      "sha256": "5ad76eeb77743ed8ae6460adcc45746fad49689b6b80616d8ad98b2131dc0060",
+      "bytes": 281
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/parameters/keyword.yaml",
+      "sha256": "b76a46b7b2bca2bfc82345b742c353a2b90e33f08706588cf30ad820c34150ee",
+      "bytes": 579
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/parameters/limit.yaml",
+      "sha256": "4f88e7f35e14d5851cd2ccb40ff319d09474702798e554f9f57d5487e760f33a",
+      "bytes": 422
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/parameters/obsPropIdList.yaml",
+      "sha256": "91bf4a7c6ec0acb64e9820f97f9b70120b40cadfe7f3a9012c3e0329539e37da",
+      "bytes": 282
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/parameters/systemId.yaml",
+      "sha256": "b6ca144adca9d45ac50e1d7fbca386f4e009fe688a7ab614cd1da6d2060c8da8",
+      "bytes": 118
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/parameters/systemIdList.yaml",
+      "sha256": "0c5122dd17503614e6648b7a14e407b29bc3a9feeed029a9e7457f849fd021c3",
+      "bytes": 256
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/requests/system.yaml",
+      "sha256": "ae7b16b8bba98714f38dc776f7f24039708e2e3f42d93a20d3dc20f0782df69e",
+      "bytes": 788
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/responses/resourceLinks.yaml",
+      "sha256": "de9316b38d901b71ff730f0d11c8e9dbc9023f30ed15969e337c4bcd09556638",
+      "bytes": 570
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/responses/StandardResponses.yaml",
+      "sha256": "fcf7806ecd9ef6670803a52a4afbe148f49a74e5e680023460932cd27cddeef8",
+      "bytes": 1044
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/responses/system.yaml",
+      "sha256": "6d7626d5c5f8737b0f62e0a63ba22b4f07f309691d7eeb02c5203f0044af0e2a",
+      "bytes": 809
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/responses/systemCollection.yaml",
+      "sha256": "fcf02072bc5c6961c3ac8dff7df61e07ddd2cd315b075c757ee6edce28956e42",
+      "bytes": 223
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/schemas/common/commonDefs.json",
+      "sha256": "c8e7a05a9f5747f65f0be936dfc91d1f424c5961cabbba16d3bb9cf971d84dd6",
+      "bytes": 362
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/schemas/common/links.json",
+      "sha256": "b365bc0fc8325f8df468bbfc289d9775b217587849c9278ce4b522f7696da8f9",
+      "bytes": 189
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/schemas/common/uris.json",
+      "sha256": "f57f7cae0fa5a10072df900cfeed4defaf94d0fa50bcab0ad8f254c6fa4b8d77",
+      "bytes": 1430
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/schemas/geojson/feature.json",
+      "sha256": "e54c8e5f8f4e4f3a1cdf73612ddccf3080aa0db525dfdf8f36c91b3673a0be53",
+      "bytes": 1596
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/schemas/geojson/system.json",
+      "sha256": "9c5c56c8c7feb6fc697e685746178aade7e2a1ee3ed3c5e3eb6d203c26be45db",
+      "bytes": 1131
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/schemas/geojson/systemArray.json",
+      "sha256": "d9be0ad895317bd8613ce513e289d25ef7424e496dfbc974888addf79fb1d05c",
+      "bytes": 159
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/schemas/geojson/systemCollection.json",
+      "sha256": "85cbbad930cfb8e9d9369fb7465d02bfb73f37fca96bfa8a9a4c6090c32707c6",
+      "bytes": 430
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/schemas/sensorml/sensormlDefs.json",
+      "sha256": "a9e0b022cd6d326c821409c03ed780259d3181a823bc6eae860fc2cb0b217f8e",
+      "bytes": 1107
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/schemas/sensorml/system.json",
+      "sha256": "033fc020c490e43d8a2049496cbbfac69d3d037862432a4502b40b33d6a7815c",
+      "bytes": 689
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/schemas/sensorml/systemArray.json",
+      "sha256": "d9be0ad895317bd8613ce513e289d25ef7424e496dfbc974888addf79fb1d05c",
+      "bytes": 159
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part1/openapi/schemas/sensorml/systemCollection.json",
+      "sha256": "4ea9be0cac2fd9c18ce7e74b3b75252101bb7a310651af553bdaf2009d2798e3",
+      "bytes": 316
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/openapi-connectedsystems-2.yaml",
+      "sha256": "b1708f904711dc6268dcda4ccbeed70b9170ab78b32fa1325e602bdd8992f366",
+      "bytes": 3537
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/cmdFormat.yaml",
+      "sha256": "acc7958e5a21cb74bd641bd223573318d125786521e3d8ef6e92ec099c79192f",
+      "bytes": 118
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/cmdId.yaml",
+      "sha256": "b61d14d757f461a93dda4cb9fd7bc64368e0960260f174266875a86d06479f5c",
+      "bytes": 116
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/controlStreamId.yaml",
+      "sha256": "b89536d85b05a3c5bcb5a888395c8e2bb0ee92b537957711440a78ee0f839134",
+      "bytes": 133
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/controlStreamIdList.yaml",
+      "sha256": "f5cab3ce082864e06b54cb28a68dfe62984ab1d56e7eb3a096153436ce9e34b0",
+      "bytes": 313
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/dataStreamId.yaml",
+      "sha256": "f50a38bfcf897251c191b051521defa3a94465936d20b53e2d915464ee4bac63",
+      "bytes": 126
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/dataStreamIdList.yaml",
+      "sha256": "386c9bd55da2e7525bce062c07989512108bbf73a407592d161c89eb9118974b",
+      "bytes": 304
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/eventId.yaml",
+      "sha256": "6baaa06addc8f5c7c53c2fe9f3fa3b50e3945006ab4fb515ee5d46695f3b61f7",
+      "bytes": 123
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/eventTime.yaml",
+      "sha256": "71ec56713439cd66f56217007de745eab9618ea6c25abf9a713123322dbad53b",
+      "bytes": 497
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/eventTypeList.yaml",
+      "sha256": "b5c015d9307ab0ec6cc88af4c94b0a86978ffbc9b079f3efe5fcfc78b4f3fa95",
+      "bytes": 245
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/executionTime.yaml",
+      "sha256": "5770edfef87849a13038255c1cc83199300b7e912a3203f6619295bed58dda98",
+      "bytes": 516
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/issueTime.yaml",
+      "sha256": "102f5482e9b0bffa7c2d81050a18e70f5ed62eed13119e913220e7fa1e27fc7f",
+      "bytes": 504
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/obsFormat.yaml",
+      "sha256": "cefc3b97afb79e7364d1591fc5e116352199b0ba5cb6a7ded71bd6c63bd8289d",
+      "bytes": 121
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/obsId.yaml",
+      "sha256": "f430032c83807df498348f51dbcce6544404f35372ee060106c87ab19b7aec3c",
+      "bytes": 121
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/phenomenonTime.yaml",
+      "sha256": "ff485575d8af02fd2db288e6007fa4ff2b561e9cdce7d49a44f79a0bcf8f9d85",
+      "bytes": 519
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/reportTime.yaml",
+      "sha256": "c615dd698456a8686f4b4c5bbf463e0f5cc0ae8be5e7fb5f14723cc83bd6f9f8",
+      "bytes": 507
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/resultId.yaml",
+      "sha256": "dab7c80156649fe7db12870da807029a26d540bf610c94b268bc7803dabcd3f3",
+      "bytes": 126
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/resultTime.yaml",
+      "sha256": "bf476ccda8f372a25987e63326f75ecc2dba9e2e53626131f2a44cbfea0de34f",
+      "bytes": 507
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/revId.yaml",
+      "sha256": "bfac95be555d2a15883748c383a12f497147fcb29cf3a9eeb115d84b3e1a3230",
+      "bytes": 128
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/senderList.yaml",
+      "sha256": "da143b8864615fb6db60b5c7643b1c2ae6d3a89d9263c26bd47802ab24dfb651",
+      "bytes": 231
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/statusCodeList.yaml",
+      "sha256": "af6df614b9f5760073dae8a68e55978d4042113205822f9519b426e19035c600",
+      "bytes": 386
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/statusId.yaml",
+      "sha256": "c72a2240806c44da760abc0799b89f06c1a5ccbb5016a91ea175922b1a57a6d8",
+      "bytes": 125
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/parameters/validTime.yaml",
+      "sha256": "420a5d2edc3e731e1457e81431070c081a90719e09e2276d039aec142c69bccc",
+      "bytes": 504
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/commandById.yaml",
+      "sha256": "085abf20fa082334dc984f2d6e66d7e5e4e5ccaa761c41aa1a4f9797e748a5c3",
+      "bytes": 2146
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/commandResultById.yaml",
+      "sha256": "fb406aded1b78fd3a2cc446bcb65ae4ceadc2e0a7bca88c410f1f154c8894cfd",
+      "bytes": 2055
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/commandResults.yaml",
+      "sha256": "b1f8c9856eaecdd15af6fc058cacbd3041486d3cd20fb2e66d41fa7727e6576f",
+      "bytes": 1584
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/commands.yaml",
+      "sha256": "41d5275cf3555c52fa2d9a2fefe8d05ce0e82e79ba64f95a8df43f106074d05c",
+      "bytes": 1239
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/commandStatusById.yaml",
+      "sha256": "eaa943ea5625c6620ec6be031a505be2ac07ae0cad9dfbe8b256e88a2c116617",
+      "bytes": 2068
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/commandStatuses.yaml",
+      "sha256": "6398b22fb67d86dea3b042b544780737a798b31863efec7c56b8e5fba5977d63",
+      "bytes": 1680
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/controlStreamById.yaml",
+      "sha256": "8d6a3f86dd3305f2140898bb8df38a839984382458b03becf1a4316cffd77db0",
+      "bytes": 2337
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/controlStreamCommands.yaml",
+      "sha256": "16f56bae4191832ec112c64ba204b142681463fe5ec26a94f80b3cbccf7ccc65",
+      "bytes": 1976
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/controlStreams.yaml",
+      "sha256": "7c4eecc537fccc7c755433a49427385489011ecbac42ef1ca51f68823d3c36b4",
+      "bytes": 1245
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/controlStreamSchemas.yaml",
+      "sha256": "853fe1930ea06a7d18cd6dfd3ca41c63b99564ed05d064db650e0b47f2ff6247",
+      "bytes": 1868
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/dataStreamById.yaml",
+      "sha256": "a3be44a913538fa98b819cde0b6e522d3ed635821c0562a49e147d223c277dc9",
+      "bytes": 2288
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/dataStreamObservations.yaml",
+      "sha256": "0c583dbf2fa429973e0243c8062a6ff804994366e45abd3a1e21f4bad14be615",
+      "bytes": 1821
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/dataStreams.yaml",
+      "sha256": "0a7adca4bb7d0cadc2ec5040c6e7583b9e115a82a751ad7c77ccbea0ebe895f4",
+      "bytes": 1170
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/dataStreamSchemas.yaml",
+      "sha256": "6da24c28d3fa450b758ecfa59ffc3bc549789b34ca4f505ec06f641611ab6b3e",
+      "bytes": 1885
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/observationById.yaml",
+      "sha256": "c200350133eb626862ed658c0d2bd43b8957b2668bbf8372ac016d82369cd8ac",
+      "bytes": 2130
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/observations.yaml",
+      "sha256": "a113d32af5910fad8db4e14c798cde9957b82938fc00fa2bb7ae106243306668",
+      "bytes": 1162
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/systemControlStreams.yaml",
+      "sha256": "46ade6e78855c3785f8e1cc72374bb58d617534f21093a3a79b9bf993c0ed982",
+      "bytes": 1832
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/systemDataStreams.yaml",
+      "sha256": "2f9e2ed5a4eb779ce43ae1cef9354837bf77573b7e93a8df8d032f3f32973f8e",
+      "bytes": 1691
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/systemEventById.yaml",
+      "sha256": "3c69c3d7b964d528a181b9a593d8836cfa995b711815dda110e0e450848f7bb6",
+      "bytes": 2066
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/systemEvents.yaml",
+      "sha256": "3047de2625d8bf2a9b0222e732ad9f16d30c360bd005bb0d74684db423c834c3",
+      "bytes": 1752
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/systemEventsAll.yaml",
+      "sha256": "63d926a210485e178eb86a71614a2e0b4fd6376d756f0f833df59ffdf8165eae",
+      "bytes": 950
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/systemHistory.yaml",
+      "sha256": "917b5789b0fa88b9b2ada29e7f5e6e68a6067927c9ff8b384e217bb181162ec5",
+      "bytes": 875
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/paths/systemHistoryById.yaml",
+      "sha256": "926040b5cb0e150707d4e95a77f70aed722d9e864f61b07e2eb7a3618e89541a",
+      "bytes": 2765
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/requests/command.yaml",
+      "sha256": "fed698dd91555486ad6dc314d15a8893e28d705245b1fd3b5b661e223724ced6",
+      "bytes": 335
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/requests/commandResult.yaml",
+      "sha256": "3348324aa052a75df20ee94c0024132b396b2b72d0dbc666bf57eee2f03e96b6",
+      "bytes": 303
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/requests/commandSchema.yaml",
+      "sha256": "6c27b0c0fe72fcb8bce61e9d5b90b450f3b27fac8a63e4c1d7325a98e0a2d81c",
+      "bytes": 566
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/requests/commandStatus.yaml",
+      "sha256": "f1dfe3d5aa716f50bd0ce511da3cfea3faa4b5a28feb1a48f4210d3516e49777",
+      "bytes": 280
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/requests/controlStream.yaml",
+      "sha256": "8ace750fc0a5d69afb86a6df33861f77315956099e74d54b77f373723123bf22",
+      "bytes": 279
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/requests/dataStream.yaml",
+      "sha256": "7b8115a9e0b84ed36702a8300a2ac837047ec0713740b2654ec1d7f67bc26618",
+      "bytes": 298
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/requests/observation.yaml",
+      "sha256": "8b952a1f9b6f13295d9376f3570107e800275fe6143a5eddc57825df592cb618",
+      "bytes": 582
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/requests/observationSchema.yaml",
+      "sha256": "d8cca394df2246adc7fb7e14b4321ed216a37c51017750ea6d770f15c7b1c9da",
+      "bytes": 1171
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/requests/systemEvent.yaml",
+      "sha256": "5376bf89cdd55941f6012b374f651e79f7f8f8ac598115d996034e32a49cf5f2",
+      "bytes": 276
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/requests/systemEventOrArray.yaml",
+      "sha256": "be512f60eb4f1b1c2046be2756fe733be7e4d9ad9eee151677ba5938ee715e5a",
+      "bytes": 468
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/command.yaml",
+      "sha256": "54fa8d3e7c0fe7d006f216140352a7ae9b5d1468348f84197e2bef840061e4ad",
+      "bytes": 469
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/commandCollection.yaml",
+      "sha256": "c0283b38f53255e15ecbf05c197d44359830156db2463390e0dfc0fb9012cd6c",
+      "bytes": 448
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/commandResult.yaml",
+      "sha256": "623c21d6c0b2e0de1dcb5264c8e44d7f390612c418257ff65af0c4d217bc0bd1",
+      "bytes": 292
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/commandResultCollection.yaml",
+      "sha256": "26ad4329bf0d39b8fb3c2c773a13a84c5905c691203e8d9c531be90423890237",
+      "bytes": 133
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/commandSchema.yaml",
+      "sha256": "40776415caedeeb61b9e8c2a874ce582e6be8198f2988454e579c05be80627c6",
+      "bytes": 913
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/commandStatus.yaml",
+      "sha256": "ec96e07864957d4e2c83e7b1c1b24cb0b349d81da199847be352cc268a54d1d9",
+      "bytes": 269
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/commandStatusCollection.yaml",
+      "sha256": "334a4a8c609e2932eccd6835a66f7a712c06f4e43f8e4714987e49ccb3d137a1",
+      "bytes": 133
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/controlStream.yaml",
+      "sha256": "a27dfe8b5ae97021ce7d35032fe9f4bbb4a73d84146d2d0bfe5de4ee20baa0ab",
+      "bytes": 261
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/controlStreamCollection.yaml",
+      "sha256": "c0a6e69cfcf18cacd0855f57463c08bf8d183f2f758ac8fab67ccc2ae36b4050",
+      "bytes": 133
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/dataStream.yaml",
+      "sha256": "b20bd01cf96f3cd2071714cc0517a96d62b78a26f15fe787da0c0055229025f3",
+      "bytes": 283
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/dataStreamCollection.yaml",
+      "sha256": "8b6559f451c35cf455771062d1c8979721f55d609068246df2204bb435f96468",
+      "bytes": 130
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/observation.yaml",
+      "sha256": "5e6d2174bd49f06897c64549768c72428ff14f8d38c0dc5c595b10421b480f39",
+      "bytes": 1269
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/observationCollection.yaml",
+      "sha256": "e139ab28539a533e794a3a6232a724a21f63eff263c402002acfa3635555a705",
+      "bytes": 452
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/observationSchema.yaml",
+      "sha256": "415e56663bfaf4d2d6ca3f5c85a692de4e0cde21cde409864c1df33a5393e66f",
+      "bytes": 1698
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/systemEvent.yaml",
+      "sha256": "554222704b1c657e7ec62acd5cbcb9ff758e2da0f4e801b28bb116d45f8239af",
+      "bytes": 412
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/responses/systemEventCollection.yaml",
+      "sha256": "1f90a304fa6097538a92ce79af0978d6784a3f93bf39a7ed815ead3b2c6e636a",
+      "bytes": 131
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/common/commonDefs.json",
+      "sha256": "9602f238c775dd2aadb6632d3af96fca784712fcdd3502d4cc2cb997f027ca71",
+      "bytes": 410
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/common/sensormlDefs.json",
+      "sha256": "39dace78df5bbec9a3b267e0d7f77196628c76e6f8ba53157260cf6b0c8c8949",
+      "bytes": 167
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/common/sweCommonDefs.json",
+      "sha256": "87e129241b9ba71610829cfbe57823504ed95b381851e2b1b58de4e96132590c",
+      "bytes": 929
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/baseStream.json",
+      "sha256": "9d67f166630fddd703a6fad336f6e8f49af38d1c3a493883f3003d6fe67e96f6",
+      "bytes": 931
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/command.json",
+      "sha256": "d94c9af42b603e9101227184f2e32f197ee069455b5ee53e9e372402686b26ec",
+      "bytes": 1834
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/commandCollection.json",
+      "sha256": "99a915aad97cc414ff28a6484c4801e6c1c5775a2db25a3a5b06b2d6238e6b48",
+      "bytes": 380
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/commandResult.json",
+      "sha256": "24ca46eadde2ea60865744d5e3d51c433734a549d45c19c031f15d607d339fc6",
+      "bytes": 2671
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/commandResultCollection.json",
+      "sha256": "65bfb87faa3cec3a6d2439efe2a3b1d518e6d2951f534b496c25ebf3219dc634",
+      "bytes": 386
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/commandSchema.json",
+      "sha256": "e067f3dc402bdbeee673d669b31170b5c8bf62890aac7248b8e51891b593ce17",
+      "bytes": 446
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/commandSchemaAnyOther.json",
+      "sha256": "6446afccb3ee8b01a9f09fb31c860c5c0ed98548d5016d9e9bdb207c352559db",
+      "bytes": 497
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/commandSchemaJson.json",
+      "sha256": "c74644b2ef5291871b25c41d43fa67508bec6396b785c3cad3b1cc72cdedfe77",
+      "bytes": 754
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/commandSchemaProtobuf.json",
+      "sha256": "23125dc68742a0ab72a70f0b4b43772f8c41e580d00d13727ce7c35226d09473",
+      "bytes": 624
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/commandSchemaSwe.json",
+      "sha256": "93007bd885a604e5c0f39f0ccb519fc9a43a3662b93876c81fefec27d85bf590",
+      "bytes": 1663
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/commandStatus.json",
+      "sha256": "3db0fd0037989319e0c4c6068668ed0a0515704457f79c1c067b95d2132145d9",
+      "bytes": 1756
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/commandStatusCode.json",
+      "sha256": "fa37140a090b4e0711be53819a0e435a5799fec9c4a388f83b249a76afb33ff8",
+      "bytes": 2708
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/commandStatusCollection.json",
+      "sha256": "8973597b348297dd0abb728722af04d4f237c306d788853d40430835a81829fe",
+      "bytes": 386
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/controlStream.json",
+      "sha256": "99cadabae77054ce219fff921f2b30e200307aa7467d4592e21a383cc29c2653",
+      "bytes": 4076
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/controlStreamCollection.json",
+      "sha256": "d3abf4b25bf0d7523cb576c1349ccf8bb0fe00f489d2cd0f8caac59948ee9066",
+      "bytes": 386
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/dataStream.json",
+      "sha256": "925e73e017799970b5f3b9aadabc3295d1de9e8087f0e6602687e12cf35a4731",
+      "bytes": 4784
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/dataStreamCollection.json",
+      "sha256": "0f252d057e1e2ef2cf6b97d99358b84559618663f61c1aae65b0cc1adc1c776d",
+      "bytes": 383
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/observation.json",
+      "sha256": "f032030d7c77d7a1b100b171525db8b4a1cad444e8dfe61b3e1b65cc2d1e1a9d",
+      "bytes": 1968
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/observationCollection.json",
+      "sha256": "91b91ace2320c17b7b29e833ee34e24f21dda71034d4d09da9269180ef36c954",
+      "bytes": 384
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/observationSchema.json",
+      "sha256": "cca786be622a134ae48ef011d19bff2c6ba41078eccdb9714dbfa6367effc5ce",
+      "bytes": 458
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/observationSchemaAnyOther.json",
+      "sha256": "c0f677d6bd92b69e56dd7653eac95413ec78ce4aa8a7f39d484be7c72d40e2ff",
+      "bytes": 489
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/observationSchemaJson.json",
+      "sha256": "44ca83fb7fb796f4998d0006026e519d204418eeeb5d901d97f0a46a93bc3bad",
+      "bytes": 1333
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/observationSchemaProtobuf.json",
+      "sha256": "ca5449080afdce6bb84ac9b44fcc1a52791f1dc9e5c5dc0c1e8c01cd4ed020dd",
+      "bytes": 612
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/observationSchemaSwe.json",
+      "sha256": "9cebf284c3bcbae1d53bb7d047df37d4ca56ea01f5139be16ba4b0b2b26bdc00",
+      "bytes": 1639
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/systemEvent.json",
+      "sha256": "1fada67d93b2128c5755cc06f3b0d44035d2b98f5f31404c3782afd851cba39b",
+      "bytes": 463
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/api/part2/openapi/schemas/json/systemEventCollection.json",
+      "sha256": "20dadaacc652d055971d68fe14bbcf462ad000d76e33ef80ed37ae3625c83ac4",
+      "bytes": 384
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/common/link.json",
+      "sha256": "3191268fa550fde1bc8e487457ccc6d795cdeb5e447e452e1220db441fd723ce",
+      "bytes": 1976
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/common/timeInstant.json",
+      "sha256": "6ebf86e747c4aafbcd2eb05172193f5c03ad69df7e4ecd467dd3c27b0967e1ac",
+      "bytes": 135
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/common/timeInstantOrNow.json",
+      "sha256": "29111db71007bd1638993a8777704971b9d25f81173688eeb9ab538150309bf8",
+      "bytes": 201
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/common/timePeriod.json",
+      "sha256": "92715bd7e479b3fd1d0a9c4ccd743d58c39e9b5521db3c5923221090988c20e5",
+      "bytes": 196
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/AbstractPhysicalProcess.json",
+      "sha256": "797b538d2aac9d23958d6e584ee070635e893a4e2d7b2d358d29c0c91d7aeef7",
+      "bytes": 4479
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/AbstractProcess.json",
+      "sha256": "0e36b3f28b601f535130df1ccef4d51e74bd51b7f0b95d112ce8c73ea510d200",
+      "bytes": 3183
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/AggregateProcess.json",
+      "sha256": "245715c95625189a0954184ef7be883fed520421c66884b56587788a977d3f50",
+      "bytes": 1706
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/commonDefs.json",
+      "sha256": "ea589c10831b44c82666be300830762b549b697b5a8cc8ef03a2bbf925ad5b03",
+      "bytes": 2475
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/ContactLink.json",
+      "sha256": "8a5a0550d837aaa8a3a3548c4afb661db2e272c7235a4c805172b9f555fa8433",
+      "bytes": 499
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/DescribedObject.json",
+      "sha256": "82e98f218f272837f6b98258c0c94281670cb82f5693644d326247170b33202f",
+      "bytes": 5606
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/Document.json",
+      "sha256": "582293e1991b5b1a541dd7aea666baf847a152ecfe716ba455022c4dd1ae4cd9",
+      "bytes": 674
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/Event.json",
+      "sha256": "763e76bde1313c9b79fe54341af676e32684c7e4050938fe902689efd1034307",
+      "bytes": 1994
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/LegalConstraint.json",
+      "sha256": "723b0c78a182aabf75039bf50c699ee5c21343b5a3c61376bd39ddb599385839",
+      "bytes": 838
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/Mode.json",
+      "sha256": "f84c071398e3e0b4518d2e22919fe374279930f7bae8ac31a828975d573915ef",
+      "bytes": 379
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/PhysicalComponent.json",
+      "sha256": "f3a5828dd86ceb3384857e01dbdf79ae5d461c455dc557ab13f6484f40698958",
+      "bytes": 359
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/PhysicalSystem.json",
+      "sha256": "fcc2750b2744204872bdcd89b2556f0bc6975bb4b58a848764e5a9903d29f17c",
+      "bytes": 518
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/Pose.json",
+      "sha256": "9430d372c32390fa08077da454f2fef7b73f052c7d7cff2525ac68ec2f7d453d",
+      "bytes": 4447
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/ResponsibleParty.json",
+      "sha256": "0cdc7a11dc8d276ea81817e436f60337c376be8b24fc55c0526a08211bf534c2",
+      "bytes": 1861
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/Settings.json",
+      "sha256": "d673a5520f0d3cca282ae4ecaa5a17e541009f6b263b15e0967e1ac9b8e1f969",
+      "bytes": 2331
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/SimpleProcess.json",
+      "sha256": "dbce6b24b8ba837dd7bebfbb78f4da51a98b257d281b6b682dc4b384d10bba06",
+      "bytes": 713
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/sensorml/schemas/json/sweCommonDefs.json",
+      "sha256": "290cb94d81595031e9bdd08903ee4711e25d4de8c5ef8cfdd1cfdad70c8825ce",
+      "bytes": 1508
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/AbstractDataComponent.json",
+      "sha256": "468e11b9fff5a712428628a4a373f7f550ff89a59f30e5af10017fb22e58e661",
+      "bytes": 926
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/AbstractSimpleComponent.json",
+      "sha256": "ed64ba08d5912ed73f1e398433cec9dde802594dcdc870570c1d1b406dc769f6",
+      "bytes": 1144
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/AbstractSweIdentifiable.json",
+      "sha256": "22130e687acfa3efbddacc75b0107c99db0e72988acef33163457af767e284d9",
+      "bytes": 612
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/basicTypes.json",
+      "sha256": "13d915858e4f3ca4259c8c8c77a0eb4e9546f7678d0eed0584d020f102cdf2ff",
+      "bytes": 8625
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/Boolean.json",
+      "sha256": "b99cd49310470954efae79d7c9c16eed3b2016ac5d3a8cc772c4bed870a4d270",
+      "bytes": 483
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/Category.json",
+      "sha256": "a2a84571faa9f85e9dd8e807d9c6e6e7e1c3a7e6fd43abe2eb24774db4b9e285",
+      "bytes": 919
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/CategoryRange.json",
+      "sha256": "d1da1b034cca3cddfa7a93aec2aa68f83cfc9c1a626f553500bd81ece1438baa",
+      "bytes": 1078
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/Count.json",
+      "sha256": "e6a69ff929cccf0fc9116f0c45f66c3ab1c988c4531ffe16ff0a09435b742467",
+      "bytes": 685
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/CountRange.json",
+      "sha256": "30683b196454d51f416e953cc1a7286baf6e187b1f85daa2602bd658e90c133a",
+      "bytes": 766
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/DataArray.json",
+      "sha256": "2ed614d7bcfd45c7cc5b53d9f267f3667548a8193cb3ff9b066588cdc422bd0c",
+      "bytes": 2335
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/DataChoice.json",
+      "sha256": "27e3efed2a28b47e4adde2ba77ac8ac607f1800244f119187994344157013652",
+      "bytes": 1254
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/DataRecord.json",
+      "sha256": "64feeb694269cb3eedf428f57458e870003c88c7924e079f0f2bca8c8ca51917",
+      "bytes": 1112
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/encodings.json",
+      "sha256": "9d432bbec5ffebeda21d612ab1ec6b22d4e8011ac967820ba17c07b0391e73ab",
+      "bytes": 8221
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/Geometry.json",
+      "sha256": "16796a79e8d112cfab9e6f802356e362ba86f6b58702e8ab5c47983c0b2b8de7",
+      "bytes": 1439
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/Matrix.json",
+      "sha256": "adedf240f30ddfb216cff4faaee671ebd70d601a74d1c874600ce3bbc25ad6e4",
+      "bytes": 1004
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/Quantity.json",
+      "sha256": "dc23d3496ae02a6d1de756d441aa12f248e74a1ff3feafda826640af04115b52",
+      "bytes": 943
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/QuantityRange.json",
+      "sha256": "758bc4fee2a9aeb07b7fd8e4886b886633c09657b71f489c67b657bb2f54c108",
+      "bytes": 1016
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/sweCommon.json",
+      "sha256": "efc265b38f3fd540693e8a352f463f1c9a98667ddb55d6d42f6cc00e08edcc14",
+      "bytes": 1395
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/Text.json",
+      "sha256": "ead9ac23d8b7b5c0a217a775d1d445589978cdbfb398cbf07a346b68e29993d3",
+      "bytes": 682
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/Time.json",
+      "sha256": "9b3043fe48fabee3b79e4552a05a3f8afd41f46b898579923471c9249a3665b2",
+      "bytes": 1460
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/TimeRange.json",
+      "sha256": "b108d7db771965f1b049ddb0a771c7e05338db55518563c7e20a983cb46ccf80",
+      "bytes": 1502
+    },
+    {
+      "url": "https://raw.githubusercontent.com/opengeospatial/ogcapi-connected-systems/3fd86c73e744b7e2faaf7f1c17366bfb9ff4cd6f/swecommon/schemas/json/Vector.json",
+      "sha256": "1ead8c287384f6043fe35d91f7590398e6c189455a1d33b6b8f6828eaea1380f",
+      "bytes": 1569
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/currency-cost.yaml",
+      "sha256": "a8c623f85b004d8503d919800a4cea0cfa9a03bacbef00aff028fa93ad7dfd9c",
+      "bytes": 229
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/currency.yaml",
+      "sha256": "99fe760c995a885703d625c94836fa716a6e96b2496bdf5bf310fd695b03638a",
+      "bytes": 327
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/day.yaml",
+      "sha256": "9e72c6406b8b3fb69b3f9094b468d53c98ea65926ade7468433ea29baa91674c",
+      "bytes": 162
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/days.yaml",
+      "sha256": "d8aa9e38b0ba302e41dd13212350819fd752a239b013fb168a837aec0e7c8b61",
+      "bytes": 155
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/event-type-array.yaml",
+      "sha256": "3f914f0ef4f891b118682b1f347d88515acf7437ed2fe8480f19993ab7a82a6b",
+      "bytes": 214
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/event-type.yaml",
+      "sha256": "e3249f729b4232c41bbf8128f63d7406ffa20ecacae200411eed8fe33e434007",
+      "bytes": 1041
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/gps.yaml",
+      "sha256": "8392c23cb4775a7cb159768e74efbe6cb3cc6c309557ef06f6736ffedd878644",
+      "bytes": 866
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/integer-positive.yaml",
+      "sha256": "8a509a05ada92cee44e1e9a3b3268accffc84d04b040b1007e1e8c0fcbcc9d79",
+      "bytes": 145
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/iso-date.yaml",
+      "sha256": "e9f4525debfd426eb31127353d41a6c00aab40fc1ea6e453a5dadb2fa0eaa993",
+      "bytes": 275
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/iso-duration.yaml",
+      "sha256": "39ad01a62f9c8c840d3d503e47c1f534b3c465e70da83f2e8b312d43d808143b",
+      "bytes": 467
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/iso-time.yaml",
+      "sha256": "7958b932f631b6825a7fd747c897fc2f09e66230bfe96ef4f313a9dd9c8083ff",
+      "bytes": 215
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/language-tag.yaml",
+      "sha256": "799fdf9ee08c943e5021d4519af669d60874643557a184e57d1d77b89b6b65e6",
+      "bytes": 300
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/minimum-year.yaml",
+      "sha256": "647760cae4a5cf646757901794737f4c4116d8d4de0f84219046827e81f325da",
+      "bytes": 203
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/mode.yaml",
+      "sha256": "3585429d6170f5ccaaa3f17026d018b224726b8d5ecd332faf44fc5d3ff4143b",
+      "bytes": 194
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/propulsion-type-array.yaml",
+      "sha256": "1fc9fea29f955d6c2f4b34dc36bfd5377e4f99eb5bb17d625d54ac3b9775863a",
+      "bytes": 207
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/propulsion-type.yaml",
+      "sha256": "30a94e192085b680ed101ec780d71537b9d720e9e7b0fee6458a043e341aae6b",
+      "bytes": 403
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/string.yaml",
+      "sha256": "8235ccd8e55e3e0a653a9088feeedbb612711a26536dd6001d045a702c2c95de",
+      "bytes": 166
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/timestamp.yaml",
+      "sha256": "67302915d043bde9a513a5bbfdcabb2adc07e0638eca8b27508c31590ba2bae7",
+      "bytes": 209
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/timezone.yaml",
+      "sha256": "e702e458120304ea17177d4b87e65b15ceb8d7d5c6935a22ff4d5e90b2d2f6c0",
+      "bytes": 252
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/uuid-array.yaml",
+      "sha256": "7f7bf41ff7c9f0e9b0eb705653f13de411d6fce224c351dbd779010708468c72",
+      "bytes": 150
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/uuid.yaml",
+      "sha256": "8e956b2855120814e245612aa740eb677fa61c730ea1c0750223cd1a05208a97",
+      "bytes": 265
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/vehicle-state.yaml",
+      "sha256": "65b41b6c375f7eff6c40cc7cb247f405a5c7091b2511aca3f51a874024291dd4",
+      "bytes": 252
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/vehicle-type-array.yaml",
+      "sha256": "6e3600ce83c551b831eaa4e2b3f7c478c681a72879e850b807436414fd24e757",
+      "bytes": 178
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/vehicle-type-counts.yaml",
+      "sha256": "82804d18a35adb16ab336e9eb4d035568d381411a6723197b4f94ec3c806436c",
+      "bytes": 339
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/vehicle-type.yaml",
+      "sha256": "66253b5028bd8d7859040ba7a518e7934a8a95b643c65301b5b78f5e35fc4e17",
+      "bytes": 464
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/data-types/version.yaml",
+      "sha256": "dd6318957f191cdfd306bf5f44ec95e2887e73dee91e732f852c03d56f288a77",
+      "bytes": 193
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/event.yaml",
+      "sha256": "7ccda41687297316f741b84ccbb7a7ff467d8a143aa78eeeb7a2b6f4b20de519",
+      "bytes": 3081
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/car-share/accessibility-attributes.yaml",
+      "sha256": "9e4e22e3180768b0790089612726e9648c3bc049eb16218a235a344357c96c2b",
+      "bytes": 244
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/car-share/event.yaml",
+      "sha256": "b54d880d3758e866751afd8f314e52a6b357fccb94bdc378e57d9c0e7ea77f5a",
+      "bytes": 2794
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/car-share/trip.yaml",
+      "sha256": "ef0e08841fa9d45294419e5878d227beaa5c72ec5f1641a64d684721773d79ca",
+      "bytes": 3773
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/car-share/vehicle.yaml",
+      "sha256": "e6e29174f8f04e0446f0b7d3091fa3ddf4dbfbc31af2dd4a97753e0194bb51e7",
+      "bytes": 3584
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/delivery-robots/accessibility-attributes.yaml",
+      "sha256": "c5a70e1958dda08c526b1cca367d0826e50b80743e6913fe1e2299df762236cc",
+      "bytes": 549
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/delivery-robots/event.yaml",
+      "sha256": "437d369d1ba9b1702898db24501853692ff0481a37e72e1fc80eb4b27ec7c563",
+      "bytes": 3028
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/delivery-robots/trip.yaml",
+      "sha256": "35e358a831b82abcdfa4583fe5e98ebb193d25603aa221aa2a5ea14ac8ea35bb",
+      "bytes": 1827
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/delivery-robots/vehicle.yaml",
+      "sha256": "8dc44856942e2258630aa9edac5e9a23f82907e940ac56b20899320d2d7550b7",
+      "bytes": 2160
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/micromobility/accessibility-attributes.yaml",
+      "sha256": "dae6453d8fcdaef4c4f7514d161e8076bed80e89076fffa58a329e50bb859af0",
+      "bytes": 239
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/micromobility/event.yaml",
+      "sha256": "62638212580dcd79c58d03bc69a265e9a861319114012c1127de3ad39174fff2",
+      "bytes": 2829
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/micromobility/trip.yaml",
+      "sha256": "9c4ca4adf0a9834975a2ab7ee87fa6f555ea3cfd0e41f37a7ea47629891a047b",
+      "bytes": 389
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/micromobility/vehicle.yaml",
+      "sha256": "65448c55c3e227c0e2ab07061f9c826150c9885731e6ba919fdb0b65e53aed27",
+      "bytes": 582
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/passenger-services/accessibility-attributes.yaml",
+      "sha256": "c2caf5c78c212f2e9d8e59fb80992a7cdcb36a467c7771b313bae7629d4e69f4",
+      "bytes": 262
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/passenger-services/event.yaml",
+      "sha256": "df1d2e6c22f6a53d3ea35408b7ae62d4716eb41744e63951eebd4f4ac57ec6ca",
+      "bytes": 2652
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/passenger-services/trip.yaml",
+      "sha256": "cc3e74ea5ae7d71633b1a3dd6b23f4b44c78abba0b83af83209fced6e268e838",
+      "bytes": 6345
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/modes/passenger-services/vehicle.yaml",
+      "sha256": "b7bf2def39a621c50f33a938b943be242ebc5ac82c490ca78515346091136964",
+      "bytes": 1231
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/mutable-stop.yaml",
+      "sha256": "f0aeb398e6c2bee8461bfe49bbed6ff4e79e29c5b79143d053d9b78dcfe24f67",
+      "bytes": 2399
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/policy-rule.yaml",
+      "sha256": "d388db80317db1d165a1b1d8d83995aa2be165c676ee132da47745fc5e227461",
+      "bytes": 4755
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/policy.yaml",
+      "sha256": "8885f0b2dc135c4f7c3799868d374d9e95d9fa01aea0dcffcb586a9a631f0727",
+      "bytes": 1878
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/report.yaml",
+      "sha256": "e678edf4a61f7e9fe0f92d42f2579771b26cf3dc61e1b331f7ff03ff86c64730",
+      "bytes": 2109
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/requirements.yaml",
+      "sha256": "0767e52446ff0d8601e0466b23227a14fea25ca8147b75b7ac6ef94bd69d71e5",
+      "bytes": 7770
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/response/bulk.yaml",
+      "sha256": "8209f3c0b07a8ac24cd4f1c0295e465b0a4ad9f64375ea391a039fc8b40d5a9f",
+      "bytes": 511
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/response/error_already_registered.yaml",
+      "sha256": "7fc96ea760da2ed0691d1dc9141ca1f8954a649052c64bb493ed6ac52dbb848b",
+      "bytes": 489
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/response/error_bad_param.yaml",
+      "sha256": "70be1bdb9e686d54d96e0a1d083c6722554cf7484c43e4882769b98818e4dd96",
+      "bytes": 451
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/response/error_missing_param.yaml",
+      "sha256": "557ae49f3465afaba04d78b3605da49a72d797de690478d4318c6c91ec85d6c7",
+      "bytes": 464
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/response/error_unregistered.yaml",
+      "sha256": "cf6c4531be4578cbb7a6c9c03026a627c913c95185569b07880ac85d95ee0982",
+      "bytes": 435
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/response/error.yaml",
+      "sha256": "e60525e994530764008a7460c73e06ac3a9b15b20d3182f01aeedff5bf18e46e",
+      "bytes": 516
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/response/last_updated.yaml",
+      "sha256": "e2cd9b1437d15e49ccdde267fcd9a6c391f05aefbc0703a32fee5b72d43dc9bd",
+      "bytes": 259
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/response/paging.yaml",
+      "sha256": "d5c6053f6393b3862a5fc6822e380b6d776cc450ff3ca992aff23b5f3e88f0a1",
+      "bytes": 1167
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/response/version.yaml",
+      "sha256": "22aafb95c5cf310c5f1cb46bc0db1338188c568afcbbacaede49e6fb0c8567ad",
+      "bytes": 266
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/stop.yaml",
+      "sha256": "147721283006c858e41dd520ded818ebe13a7e2dc9f3b4d7dfb6581eee8d3835",
+      "bytes": 2962
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/telemetry.yaml",
+      "sha256": "824d5464ea9f7515440e1656c1ca960f6ab22f90fb887ea104960c0be73a3248",
+      "bytes": 2477
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/trip.yaml",
+      "sha256": "f0073931c9f50e422bcb5ce219612fe9a313bb6b2e933504cb080a586f413b21",
+      "bytes": 3615
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/vehicle-status.yaml",
+      "sha256": "f625c503c13ddcc7ef1fba688f4cdb84a653947de224819b374486f2de6f76d9",
+      "bytes": 884
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/models/vehicle.yaml",
+      "sha256": "70a9269f5b96d5154f4ca226ae46d2ecc8997d4a2a5c3f6c5a0554e1a3d93e79",
+      "bytes": 2131
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/reference/agency.yaml",
+      "sha256": "d7dae6562200fe61a88067041d88288b5efd3ec0a542ad9e72cac62829a9269d",
+      "bytes": 27917
+    },
+    {
+      "url": "https://raw.githubusercontent.com/openmobilityfoundation/mds-openapi/0c07bc3d294237dd41c6273f059efb11b8149c66/reference/policy.yaml",
+      "sha256": "51feabb308d0d13b90397f50d8658ef06d71d47d20c2998e9e1cd28a42461989",
+      "bytes": 8322
+    },
+    {
+      "url": "https://raw.githubusercontent.com/UnionInternationalCheminsdeFer/OSDM/9e03234e7d8855ff1d146f7725cd30b84c6a8abe/specification/OSDM-online-webhook.yml",
+      "sha256": "4e47a9a62a253a696f1f9a9760f7115cb52d690d2002fc4154fdcd037543fd77",
+      "bytes": 7499
+    },
+    {
+      "url": "https://raw.githubusercontent.com/wbcsd/data-exchange-protocol/cf4ebedb18d42f3453bcc868e01159321297c09a/spec/v3/openapi.yaml",
+      "sha256": "e5e48ab32d3d87fd634c8a4df27d81256991819196a4cdb1ef0d655bd8fb9d43",
+      "bytes": 88411
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "measuredAgainst": "b086f4922c0e2584c3ab3b11c4c0033e6673ef29",
+  "entries": [
+    {
+      "id": "uic-osdm-webhooks",
+      "paths": 1,
+      "webhooks": 1,
+      "findings": {
+        "format-not-validated": 1,
+        "silent-rewrite/required-not-in-properties": 9
+      },
+      "resources": 1
+    },
+    {
+      "id": "omf-mds-agency",
+      "paths": 10,
+      "webhooks": 0,
+      "findings": {
+        "unused-component": 1,
+        "example-invalid": 1,
+        "malformed-schema": 4,
+        "silent-rewrite/required-not-in-properties": 7
+      },
+      "resources": 51
+    },
+    {
+      "id": "omf-mds-policy",
+      "paths": 5,
+      "webhooks": 0,
+      "findings": {},
+      "resources": 27
+    },
+    {
+      "id": "ogc-connected-systems",
+      "paths": 23,
+      "webhooks": 0,
+      "findings": {
+        "unreachable-defs": 1,
+        "path-param-undeclared": 1,
+        "type": 33,
+        "not": 20,
+        "unevaluatedProperties": 74,
+        "example-invalid": 37,
+        "ambiguous-pattern": 1,
+        "unsupported-schema-dialect": 84
+      },
+      "resources": 175
+    },
+    {
+      "id": "wbcsd-pact",
+      "paths": 3,
+      "webhooks": 0,
+      "findings": {
+        "unused-component": 3,
+        "format-not-validated": 3,
+        "example-uncheckable": 3,
+        "example-invalid": 6,
+        "ambiguous-pattern": 3,
+        "unknown-keyword": 28,
+        "malformed-schema": 4
+      },
+      "resources": 1
+    }
+  ]
+}

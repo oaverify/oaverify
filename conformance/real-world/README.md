@@ -1,11 +1,15 @@
 # Real-world OpenAPI specs
 
-Two smoke-test harnesses over a set of public real-world OpenAPI 3.x
-specs. Neither is wired into CI, because the specs are gitignored; run
+Smoke-test harnesses over public real-world OpenAPI 3.x
+specs. They are not wired into CI, because the specs are gitignored; run
 them on demand before shipping changes to the resolver or validator.
 
 The specs live under `./specs/` — fetch with `./download.sh` (or the
 curl commands below).
+
+The [selected industry 3.1 corpus](industry31/README.md) adds standards-body
+documents chosen for distinct schema patterns. It has pinned resource hashes,
+an offline checker and a triage record, with separate fetch/check commands.
 
 ## `check.mjs`: load, resolve, validate
 
