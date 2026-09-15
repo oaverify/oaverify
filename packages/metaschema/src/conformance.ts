@@ -64,6 +64,7 @@ export interface ConformanceResult {
    * reporting nothing.
    */
   version: MetaschemaVersion | undefined;
+  /** Exact code, pointer and message repeats are reported once, in first-seen order. */
   issues: readonly ConformanceIssue[];
 }
 
@@ -255,5 +256,10 @@ export function checkDocumentConformance(document: unknown): ConformanceResult {
 
   const issues: ConformanceIssue[] = [];
   collectLeaves(result.error, issues);
-  return { version, issues };
+  const unique = new Map<string, ConformanceIssue>();
+  for (const issue of issues) {
+    const key = JSON.stringify([issue.code, issue.pointer, issue.message]);
+    if (!unique.has(key)) unique.set(key, issue);
+  }
+  return { version, issues: [...unique.values()] };
 }
