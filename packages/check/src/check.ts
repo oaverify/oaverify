@@ -19,15 +19,22 @@ import {
   type ResolvedSpec,
   type SpecRegion,
 } from "@oaverify/internal-spec";
-import { checkDocumentExamples, createValidator } from "@oaverify/internal-validator";
+import { createValidator } from "@oaverify/internal-validator";
 import {
   listUnservedParameterLocations,
   unservedParameterLocationMessage,
+  checkDocumentExamplesInContext,
 } from "@oaverify/internal-validator/internals";
 import { checkDocumentConformance } from "@oaverify/internal-metaschema/conformance";
-import { checkDocumentSchemas } from "./document-schemas.js";
-import { checkDocumentFormats, KNOWN_FORMATS } from "./format-check.js";
-import { ambiguityWitness, checkDocumentRedos } from "./redos-check.js";
+import {
+  checkDocumentSchemas,
+  checkMixedDialects,
+  documentSchemas,
+  type DocumentSchemas,
+} from "./document-schemas.js";
+import { schemaDialects } from "./schema-dialects.js";
+import { checkFormatsInDialects, KNOWN_FORMATS } from "./format-check.js";
+import { ambiguityWitness, checkRedosInDialects } from "./redos-check.js";
 import { type CheckFinding, type ReasonSource } from "./finding.js";
 import { reasonPointersFor } from "./span-target.js";
 import {
@@ -78,13 +85,13 @@ export interface CheckOptions {
    * both are worth dropping on a very large document that does not need
    * them.
    *
-   * And the schema class's compile prepass is gated separately from its
-   * document walk, so a selection naming `format-not-validated` alone
-   * skips schema compilation. A local two-run CLI comparison on Stripe
-   * measured the authored-schema pass at 18.3s / 525MB peak RSS versus
-   * 14.7s / 2.08GB for runtime precompilation. Broader checking trades
-   * about 25% more time for fourfold lower peak memory; the format-only
-   * selection stayed at 0.17s / 141MB. See docs/strictness.md for scope.
+   * Schema compilation is gated separately from resource discovery.
+   * A selection naming `format-not-validated` alone builds the resource
+   * inventory so referenced schema targets contribute, but skips compilation.
+   * A local five-run Stripe CLI comparison on Node 26.8.2 measured this
+   * selection at a median 0.20s / 205MB peak RSS with resource discovery,
+   * versus 0.16s / 189MB before it. See docs/strictness.md for scope and
+   * the earlier authored-schema compilation comparison.
    *
    * The gradeability gate is not selectable: {@link checkSpec} builds
    * the validator whatever the selection holds, so a document that is
@@ -181,9 +188,30 @@ export class CheckAbortedError extends Error {
  * independent roots continue. Selecting only document-walk codes skips
  * compilation (see {@link CheckOptions.findings}).
  *
+ * For OpenAPI 3.1/3.2, `jsonSchemaDialect` sets the default and `$schema`
+ * overrides it at a schema root or an embedded `$id` resource. Ordinary
+ * subschemas inherit their resource's dialect. Supported declarations are
+ * `https://spec.openapis.org/oas/3.1/dialect/base`,
+ * `https://spec.openapis.org/oas/3.2/dialect/base`, and
+ * `https://json-schema.org/draft/2020-12/schema` (an empty trailing `#` is
+ * accepted). Plain 2020-12 treats formats as annotations; the OpenAPI
+ * dialects assert supported formats.
+ *
+ * `unsupported-schema-dialect` is a selectable schema warning. Schema
+ * compilation and example validation are withheld for a unit whose
+ * structural/reference closure reaches an unsupported dialect or mixes
+ * supported dialects with different semantics. Severity remapping and
+ * suppression never enable withheld execution. Independent supported
+ * resources continue, including embedded resources discovered at recognized
+ * schema positions inside unsupported resources. Format and ReDoS observations
+ * are local to supported resources; annotation-only formats are omitted.
+ * Runtime validation and standalone `checkDocumentExamples` retain
+ * their existing dialect policy.
+ *
  * @param resolved - A spec from `loadSpec` / `resolveSpec`.
  * @param options - See {@link CheckOptions}.
- * @returns Findings, graded. Empty means clean. A `malformed` finding
+ * @returns Selected findings, graded. An empty array can reflect withheld
+ *          checks when the coverage warning was not selected. A `malformed` finding
  *          in the array means the document cannot be compiled, which is
  *          what the CLI turns into exit 4.
  * @throws CheckAbortedError when the document cannot be graded at all.
@@ -322,6 +350,12 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   // pointer: message alone collapsed two components sharing a relative
   // path into one finding.
   const schemaFindings = new Map<string, CheckFinding>();
+  const dialects =
+    classes.has("schema") || classes.has("examples") || classes.has("redos")
+      ? schemaDialects(document)
+      : undefined;
+  let inventory: DocumentSchemas | undefined;
+  const schemas = (): DocumentSchemas => (inventory ??= documentSchemas(document, dialects!));
 
   // A malformed schema does not stop the run. The document is still
   // graded and the report is still complete; the finding says that what
@@ -333,7 +367,7 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     // Compiler-owned findings require authored schema roots to be compiled.
     // A format-only selection remains a document walk.
     if (selection.compileSchemas) {
-      for (const finding of checkDocumentSchemas(document)) {
+      for (const finding of checkDocumentSchemas(document, schemas())) {
         addSchemaFinding(schemaFindings, finding);
       }
     }
@@ -343,7 +377,7 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     // its own code rather than on the class, which is what lets a
     // selection naming it alone skip the compile above.
     if (selection.base.has(FORMAT_WALK_CODE)) {
-      for (const issue of checkDocumentFormats(document, KNOWN_FORMATS)) {
+      for (const issue of checkFormatsInDialects(KNOWN_FORMATS, schemas().dialects)) {
         findings.push({
           class: "schema",
           severity: defaultSeverityFor("schema", issue.code),
@@ -403,7 +437,12 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
       }
       return verdict;
     };
-    for (const issue of checkDocumentExamples(document, { patternGuard })) {
+    for (const issue of checkDocumentExamplesInContext(
+      document,
+      { patternGuard },
+      (schema) => schemas().prepare(schema),
+      schemas().dialects.entries,
+    )) {
       findings.push({
         class: "examples",
         severity: defaultSeverityFor("examples", issue.code),
@@ -424,7 +463,7 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     // `--findings` is how a caller who has already hardened with
     // `regexCompiler`, or
     // who finds the analysis slow on a very large document, opts out.
-    for (const issue of checkDocumentRedos(document)) {
+    for (const issue of checkRedosInDialects(schemas().dialects)) {
       findings.push({
         class: "redos",
         severity: defaultSeverityFor("redos", issue.code),
@@ -436,6 +475,19 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     }
   }
 
+  if (selection.base.has("unsupported-schema-dialect")) {
+    if (
+      dialects!.entries.some(
+        ({ schema }) => typeof schema.$ref === "string" || typeof schema.$dynamicRef === "string",
+      )
+    )
+      schemas();
+    for (const finding of dialects!.unsupported.values()) addSchemaFinding(schemaFindings, finding);
+    if (dialects!.supported.size > 1) {
+      for (const finding of checkMixedDialects(schemas()))
+        addSchemaFinding(schemaFindings, finding);
+    }
+  }
   findings.push(...schemaFindings.values());
 
   gradeFindings(findings, selection, severityMap, regions);

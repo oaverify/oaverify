@@ -145,7 +145,7 @@ export const MALFORMED_CODES = ["malformed-schema"] as const;
  * Schema-class codes the CLI emits itself, so outside the union above.
  * `format-not-validated` is a document walk `check` owns (#644).
  */
-const CLI_SCHEMA_CODES = ["format-not-validated"] as const;
+const CLI_SCHEMA_CODES = ["format-not-validated", "unsupported-schema-dialect"] as const;
 
 /**
  * Hygiene codes `check` owns rather than reading off a
@@ -181,6 +181,9 @@ export const CODES_BY_CLASS = {
  *
  * Consumers meet it through {@link CheckFinding.code}, which widens it
  * with `string` on purpose; the reasoning is on that field.
+ * The registry grows as checks gain diagnostics. An exhaustive
+ * `Record<CheckCode, T>` intentionally requires an update when a code is
+ * added; finding consumers must still handle unknown codes.
  *
  * @public
  */

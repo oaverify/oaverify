@@ -87,6 +87,16 @@ Each root keeps its composition and resource scope. Runtime request and
 response transformations do not apply, and runtime `precompile()` still
 covers served operations only. See `checkSpec` for the contract.
 
+`jsonSchemaDialect` and resource-root `$schema` declarations determine
+schema and example checks. The OpenAPI 3.1/3.2 base dialects and JSON Schema
+2020-12 are supported; plain 2020-12 treats formats as annotations.
+`unsupported-schema-dialect` warns when checks are withheld because a unit
+reaches unsupported semantics or mixes supported dialects with different
+semantics. Independent supported resources still run. To require dialect
+coverage in CI, use `--severity unsupported-schema-dialect=error`.
+Suppressing the warning leaves those checks withheld. See `checkSpec` for
+resource scope and the supported declaration URIs.
+
 Findings are additionally reported under a sixth class, `malformed`, for
 a schema that will not compile at all. It cannot be selected, because it
 is found by compiling, which is what the `schema` class does.

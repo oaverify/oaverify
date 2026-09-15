@@ -49,7 +49,6 @@ import {
 } from "@oaverify/internal-core";
 import { builtInFormats } from "@oaverify/internal-formats";
 import {
-  compileSchema,
   createRefResolver,
   oas30Dialect,
   openapi31Dialect,
@@ -59,7 +58,11 @@ import {
   type Dialect,
   type RefResolver,
 } from "@oaverify/internal-schema";
-import { refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
+import {
+  compileSchemaInContext,
+  refSiblingIsDiscarded,
+  type SchemaCompileContext,
+} from "@oaverify/internal-schema/internals";
 import {
   escapePointer,
   recordDocumentRefSiblingSuppression,
@@ -331,6 +334,28 @@ export function checkDocumentExamples(
   document: OpenAPIDocument,
   options: CheckDocumentExamplesOptions = {},
 ): ExampleIssue[] {
+  return checkDocumentExamplesInContext(document, options);
+}
+
+/** Checker-owned eligibility and resource scope; undefined withholds the example unit. */
+export type PrepareExampleSchema = (schema: unknown) =>
+  | {
+      dialect: Dialect;
+      context: SchemaCompileContext;
+    }
+  | undefined;
+
+/** Validate examples with the document checker's resource context. @internal */
+export function checkDocumentExamplesInContext(
+  document: OpenAPIDocument,
+  options: CheckDocumentExamplesOptions,
+  prepare?: PrepareExampleSchema,
+  schemaNodes?: Iterable<{
+    schema: Record<string, unknown>;
+    pointer: string;
+    dialect: Dialect | undefined;
+  }>,
+): ExampleIssue[] {
   const dialect = options.dialect ?? dialectForDocument(document);
   const jobs: ExampleJob[] = [];
   const issues: ExampleIssue[] = [];
@@ -372,10 +397,18 @@ export function checkDocumentExamples(
    * names the actual defect. Two findings for one mistake would be
    * worse than one, and this would be the less useful of the two.
    */
-  const checkSchemaNodeExamples = (node: Record<string, unknown>, pointer: string): void => {
-    const hasExample = Object.prototype.hasOwnProperty.call(node, "example");
+  const checkSchemaNodeExamples = (
+    node: Record<string, unknown>,
+    pointer: string,
+    schemaDialect = dialect,
+  ): void => {
+    const hasExample =
+      !refSiblingIsDiscarded(node, "example", schemaDialect.rules.refSuppressesSiblings) &&
+      Object.prototype.hasOwnProperty.call(node, "example");
     const examples = node["examples"];
-    const hasExamples = Array.isArray(examples);
+    const hasExamples =
+      !refSiblingIsDiscarded(node, "examples", schemaDialect.rules.refSuppressesSiblings) &&
+      Array.isArray(examples);
     if (!hasExample && !hasExamples) return;
 
     if (hasExample) {
@@ -440,11 +473,17 @@ export function checkDocumentExamples(
   // cannot be covered by one and missed by the other.
   walkDocumentSchemas(document, {
     refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
-    onSchemaNode: checkSchemaNodeExamples,
+    onSchemaNode: schemaNodes === undefined ? checkSchemaNodeExamples : () => false,
     onMediaType: checkExamplesBesideSchema,
     onParameterLike: checkExamplesBesideSchema,
   });
 
+  if (schemaNodes !== undefined) {
+    for (const { schema, pointer, dialect: schemaDialect } of schemaNodes) {
+      if (schemaDialect === undefined) continue;
+      checkSchemaNodeExamples(schema, pointer, schemaDialect);
+    }
+  }
   if (jobs.length === 0) return [];
 
   const refResolver = lazyDocumentRefResolver(document, dialect);
@@ -458,18 +497,36 @@ export function checkDocumentExamples(
     const cached = compiled.get(schema);
     if (cached !== undefined) return cached;
 
+    let prepared: ReturnType<PrepareExampleSchema>;
+    if (prepare !== undefined) {
+      try {
+        prepared = prepare(schema);
+      } catch {
+        // The schema pass reports compilation failures at the authored schema.
+      }
+      if (prepared === undefined) {
+        compiled.set(schema, null);
+        return null;
+      }
+    }
+    const schemaDialect = prepared?.dialect ?? dialect;
+    const context = prepared?.context;
+
     // The ReDoS guard, ahead of the compile: executing a validator runs
     // its patterns against the example value, so a schema that reaches
     // a guarded pattern is never executed at all. The example is
     // reported as uncheckable, which is the truth: nothing is known
     // about it either way, and running the check is not safe (#687).
     if (options.patternGuard !== undefined) {
-      const guarded = findGuardedPattern(
-        schema,
-        refResolver,
-        options.patternGuard,
-        dialect.rules.refSuppressesSiblings,
-      );
+      const guarded =
+        context === undefined
+          ? findGuardedPattern(
+              schema,
+              refResolver,
+              options.patternGuard,
+              dialect.rules.refSuppressesSiblings,
+            )
+          : findGuardedContextPattern(context, options.patternGuard, schemaDialect);
       if (guarded !== undefined) {
         const echoed =
           guarded.length <= PATTERN_ECHO_LIMIT
@@ -493,14 +550,18 @@ export function checkDocumentExamples(
     let checkers: ExampleCheckers;
     try {
       checkers = {
-        predicate: compileSchema(schema as SchemaOrBoolean, {
-          dialect,
-          formats: builtInFormats,
-          refResolver,
-          schemaLint: "off",
-          output: "predicate",
-          maxDepth: EXAMPLE_MAX_DEPTH,
-        }),
+        predicate: compileSchemaInContext(
+          schema as SchemaOrBoolean,
+          {
+            dialect: schemaDialect,
+            formats: builtInFormats,
+            ...(context === undefined ? { refResolver } : {}),
+            schemaLint: "off",
+            output: "predicate",
+            maxDepth: EXAMPLE_MAX_DEPTH,
+          },
+          context,
+        ) as CompiledPredicate,
       };
     } catch {
       compiled.set(schema, null);
@@ -509,24 +570,28 @@ export function checkDocumentExamples(
 
     const detail = (): CompiledSchema => {
       if (checkers.detail !== undefined) return checkers.detail;
-      checkers.detail = compileSchema(schema as SchemaOrBoolean, {
-        dialect,
-        formats: builtInFormats,
-        refResolver,
-        // Load-bearing rather than an optimisation: this pass is the
-        // only lint over these schemas, and leaving it on would collect
-        // issues nobody reads on every compile.
-        schemaLint: "off",
-        output: "flat",
-        // Uncapped, against the zero-config default of 1. An example is
-        // usually wrong in several independent ways, and a budget of 1
-        // costs the author one fix-and-recheck round per defect with no
-        // sign of how many remain (#579). Rendering is capped instead,
-        // at REASON_LIMIT, so the finding stays readable and the count
-        // of what was dropped is exact.
-        maxErrors: Number.POSITIVE_INFINITY,
-        maxDepth: EXAMPLE_MAX_DEPTH,
-      });
+      checkers.detail = compileSchemaInContext(
+        schema as SchemaOrBoolean,
+        {
+          dialect: schemaDialect,
+          formats: builtInFormats,
+          ...(context === undefined ? { refResolver } : {}),
+          // Load-bearing rather than an optimisation: this pass is the
+          // only lint over these schemas, and leaving it on would collect
+          // issues nobody reads on every compile.
+          schemaLint: "off",
+          output: "flat",
+          // Uncapped, against the zero-config default of 1. An example is
+          // usually wrong in several independent ways, and a budget of 1
+          // costs the author one fix-and-recheck round per defect with no
+          // sign of how many remain (#579). Rendering is capped instead,
+          // at REASON_LIMIT, so the finding stays readable and the count
+          // of what was dropped is exact.
+          maxErrors: Number.POSITIVE_INFINITY,
+          maxDepth: EXAMPLE_MAX_DEPTH,
+        },
+        context,
+      ) as CompiledSchema;
       return checkers.detail;
     };
 
@@ -564,6 +629,33 @@ export function checkDocumentExamples(
   }
 
   return issues;
+}
+
+/** The closure already follows resource-scoped refs and possible dynamic bindings. */
+function findGuardedContextPattern(
+  context: SchemaCompileContext,
+  guard: (pattern: string) => boolean,
+  dialect: Dialect,
+): string | undefined {
+  for (const node of context.nodes) {
+    if (!isObj(node)) continue;
+    const pattern = node.pattern;
+    if (
+      !refSiblingIsDiscarded(node, "pattern", dialect.rules.refSuppressesSiblings) &&
+      typeof pattern === "string" &&
+      guard(pattern)
+    )
+      return pattern;
+    if (
+      refSiblingIsDiscarded(node, "patternProperties", dialect.rules.refSuppressesSiblings) ||
+      !isObj(node.patternProperties)
+    )
+      continue;
+    for (const key of Object.keys(node.patternProperties)) {
+      if (guard(key)) return key;
+    }
+  }
+  return undefined;
 }
 
 function lazyDocumentRefResolver(document: OpenAPIDocument, dialect: Dialect): RefResolver {

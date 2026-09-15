@@ -44,12 +44,12 @@ skipped: 1 finding(s) (-unused-component x1)
     confirmation that the name is documentation rather than a constraint.
 
   example-invalid: an example the schema it illustrates rejects
-    Every example in the document is validated against the schema it sits in. An
-    example reached through a $ref is checked once at the component that
-    declares it rather than at each use site, so one finding can stand for many
-    references. The message names up to five distinct reasons and then counts
-    the rest; the finding's reasons field carries every rejected leaf, uncapped
-    and unabbreviated.
+    A checkable example is validated against the schema it sits in. An example
+    reached through a $ref is checked once at the component that declares it
+    rather than at each use site, so one finding can stand for many references.
+    The message names up to five distinct reasons and then counts the rest; the
+    finding's reasons field carries every rejected leaf, uncapped and
+    unabbreviated.
 
   ambiguous-pattern: a pattern whose matching can blow up on crafted input
     A backtracking engine can be made to explore every way an ambiguous pattern

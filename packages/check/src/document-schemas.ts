@@ -1,16 +1,11 @@
 import {
-  detectOpenAPIVersion,
   pointerFromFragment,
   type OpenAPIDocument,
   type SchemaOrBoolean,
 } from "@oaverify/internal-core";
 import { builtInFormats } from "@oaverify/internal-formats";
-import {
-  createRefResolver,
-  oas30Dialect,
-  openapi31Dialect,
-  resolve,
-} from "@oaverify/internal-schema";
+import { createRefResolver, resolve } from "@oaverify/internal-schema";
+import { escapePointer } from "@oaverify/internal-validator/internals";
 import {
   compileSchemaInContext,
   refSiblingIsDiscarded,
@@ -18,96 +13,88 @@ import {
   subschemaEntries,
   type SchemaCompileContext,
 } from "@oaverify/internal-schema/internals";
-import { escapePointer, walkDocumentSchemas } from "@oaverify/internal-validator/internals";
+import {
+  dialectFinding,
+  schemaDialects,
+  type SchemaDialects,
+  type SchemaRoot,
+  type EffectiveDialect,
+} from "./schema-dialects.js";
 import { schemaLabeler } from "./schema-label.js";
 import type { CheckFinding } from "./finding.js";
 import { defaultSeverityFor } from "./severity.js";
 
-/** An OpenAPI schema slot is one compile entry; subschemas retain their composition context. */
-interface SchemaRoot {
-  schema: unknown;
-  pointer: string;
-}
-
 /** Document positions and resource scope, shared by the checker's compile units. */
-export function documentSchemas(document: OpenAPIDocument) {
-  const roots: SchemaRoot[] = [];
-  walkDocumentSchemas(document, {
-    onSchemaRoot(schema, pointer) {
-      roots.push({ schema, pointer });
-    },
-    onSchemaNode() {
-      return false;
-    },
-  });
-  const dialect = detectOpenAPIVersion(document) === "3.0" ? oas30Dialect : openapi31Dialect;
+export function documentSchemas(
+  document: OpenAPIDocument,
+  dialects: SchemaDialects = schemaDialects(document),
+) {
+  const { roots, dialect } = dialects;
   const envelope = (entries: SchemaRoot[]) =>
     ({
       $defs: Object.fromEntries(entries.map((root, i) => [String(i), root.schema])),
     }) as SchemaOrBoolean;
   const resolveOptions = { refSuppressesSiblings: dialect.rules.refSuppressesSiblings };
   const rootErrors = new Map<SchemaRoot, unknown>();
-  let graph;
-  try {
-    graph = resolve(envelope(roots), resolveOptions);
-  } catch {
-    // Programmatic inputs can contain cycles. Isolate a graph-building failure
-    // before retrying the shared inventory, so unrelated entries still report.
-    const safeRoots = roots.filter((root) => {
+  const additionalRoots = new Set<SchemaRoot>();
+  const buildGraph = () => {
+    const originalRoots = roots.filter((root) => !additionalRoots.has(root));
+    let graph;
+    try {
+      graph = resolve(envelope(originalRoots), resolveOptions);
+    } catch {
+      // Programmatic inputs can contain cycles. Isolate a graph-building failure
+      // before retrying the shared inventory, so unrelated entries still report.
+      const safeRoots = originalRoots.filter((root) => {
+        try {
+          resolve(envelope([root]), resolveOptions);
+          return true;
+        } catch (error) {
+          rootErrors.set(root, error);
+          return false;
+        }
+      });
+      graph = resolve(envelope(safeRoots), resolveOptions);
+    }
+    for (const root of [...additionalRoots].sort((a, b) => a.pointer.length - b.pointer.length)) {
       try {
-        resolve(envelope([root]), resolveOptions);
-        return true;
+        const parent = dialects.enclosing(root.pointer);
+        const baseUri =
+          typeof parent?.schema === "object" && parent.schema !== null
+            ? (graph.schemaBaseUri.get(parent.schema) ?? "")
+            : "";
+        const extra = resolve(root.schema as SchemaOrBoolean, { ...resolveOptions, baseUri });
+        for (const key of ["byId", "byAnchor", "byDynamicAnchor"] as const) {
+          for (const [name, node] of extra[key]) graph[key].set(name, node);
+        }
+        for (const key of ["anchorScopes", "dynamicAnchorScopes"] as const) {
+          for (const [base, scope] of extra[key]) {
+            let into = graph[key].get(base);
+            if (into === undefined) graph[key].set(base, (into = new Map()));
+            for (const [name, node] of scope) into.set(name, node);
+          }
+        }
+        for (const { schema } of dialects.entries) {
+          const base = extra.schemaBaseUri.get(schema);
+          if (base !== undefined) graph.schemaBaseUri.set(schema, base);
+          const ignored = extra.ignoredRefSiblingKeys?.get(schema);
+          if (ignored !== undefined) graph.ignoredRefSiblingKeys?.set(schema, ignored);
+        }
       } catch (error) {
         rootErrors.set(root, error);
-        return false;
       }
-    });
-    graph = resolve(envelope(safeRoots), resolveOptions);
-  }
-  graph.root = document as unknown as SchemaOrBoolean;
-  const refs = createRefResolver(graph);
-  const pointers = new WeakMap<object, string>();
-  const paths = new WeakMap<object, string>();
-  const pending = roots
-    .filter((root) => !rootErrors.has(root))
-    .map((root) => ({
-      node: root.schema,
-      pointer: root.pointer,
-      path: "",
-    }))
-    .reverse();
-  while (pending.length > 0) {
-    const { node, pointer, path } = pending.pop()!;
-    if (typeof node !== "object" || node === null || Array.isArray(node) || pointers.has(node))
-      continue;
-    pointers.set(node, pointer);
-    paths.set(node, path);
-    const children = [];
-    for (const { key, value, at } of subschemaEntries(node as Record<string, unknown>)) {
-      if (
-        refSiblingIsDiscarded(
-          node as Record<string, unknown>,
-          key,
-          dialect.rules.refSuppressesSiblings,
-        )
-      )
-        continue;
-      const step =
-        at === undefined ? key : typeof at === "number" ? `${key}[${at}]` : `${key}.${at}`;
-      children.push({
-        node: value,
-        pointer: `${pointer}/${key}${at === undefined ? "" : `/${escapePointer(String(at))}`}`,
-        path: path === "" ? step : `${path}.${step}`,
-      });
     }
-    for (let i = children.length - 1; i >= 0; i--) pending.push(children[i]!);
-  }
-  const pointerOf = (schema: object): string | undefined => pointers.get(schema);
+    graph.root = document as unknown as SchemaOrBoolean;
+    return graph;
+  };
+  let graph = buildGraph();
+  let refs = createRefResolver(graph);
+  const pointerOf = (schema: object): string | undefined => dialects.nodes.get(schema)?.pointer;
   const refPointer = (ref: string, from: object): string | undefined => {
     const base = graph.schemaBaseUri.get(from) ?? "";
     const target = refs.resolve(ref, base);
-    if (typeof target === "object" && target !== null && pointers.has(target))
-      return pointers.get(target);
+    if (typeof target === "object" && target !== null && pointerOf(target) !== undefined)
+      return pointerOf(target);
     let absolute = ref;
     if (base !== "") {
       try {
@@ -125,16 +112,100 @@ export function documentSchemas(document: OpenAPIDocument) {
       root === graph.root
         ? ""
         : typeof root === "object" && root !== null
-          ? pointers.get(root)
+          ? pointerOf(root)
           : undefined;
     return prefix === undefined ? undefined : `${prefix}${pointerFromFragment(fragment)}`;
   };
-  const contextFor = (schema: unknown): SchemaCompileContext => {
+  // A reference can establish a schema outside OpenAPI's structural slots.
+  // Register that root before reading its own resource-relative references.
+  let discovered = -1;
+  while (discovered !== roots.length) {
+    discovered = roots.length;
+    // Rebuild can replace entries under this index. Adding a root forces
+    // another full pass, which visits anything the current pass skipped.
+    for (let i = 0; i < dialects.entries.length; i++) {
+      const { schema } = dialects.entries[i]!;
+      for (const key of ["$ref", "$dynamicRef"]) {
+        if (refSiblingIsDiscarded(schema, key, dialect.rules.refSuppressesSiblings)) continue;
+        const ref = schema[key];
+        if (typeof ref !== "string") continue;
+        try {
+          const target = refs.resolve(ref, graph.schemaBaseUri.get(schema));
+          const pointer = refPointer(ref, schema);
+          if (pointer === undefined || pointer === "" || dialects.positions.has(pointer)) continue;
+          const root = { schema: target, pointer };
+          additionalRoots.add(root);
+          roots.push(root);
+          dialects.rebuild(
+            roots.filter((entry) => !additionalRoots.has(entry)),
+            [...additionalRoots],
+          );
+          graph = buildGraph();
+          refs = createRefResolver(graph);
+        } catch {
+          // The compiler reports unresolved references in selected compile units.
+        }
+      }
+    }
+  }
+  // A newly discovered enclosing resource can change earlier ref targets.
+  // Keep only roots reached under the settled scope before emitting findings.
+  let pruned = true;
+  while (pruned && additionalRoots.size > 0) {
+    const referenced = new Set<string>();
+    const seen = new Set<unknown>();
+    const pending = roots.filter((root) => !additionalRoots.has(root)).map((root) => root.schema);
+    while (pending.length > 0) {
+      const node = pending.pop();
+      if (typeof node !== "object" || node === null || Array.isArray(node) || seen.has(node))
+        continue;
+      seen.add(node);
+      const schema = node as Record<string, unknown>;
+      for (const key of ["$ref", "$dynamicRef"]) {
+        if (refSiblingIsDiscarded(schema, key, dialect.rules.refSuppressesSiblings)) continue;
+        const ref = schema[key];
+        if (typeof ref !== "string") continue;
+        try {
+          const pointer = refPointer(ref, schema);
+          if (pointer !== undefined) referenced.add(pointer);
+          pending.push(refs.resolve(ref, graph.schemaBaseUri.get(schema)));
+        } catch {
+          // Unresolved references do not establish another schema root.
+        }
+      }
+      for (const { key, value } of subschemaEntries(schema)) {
+        if (!refSiblingIsDiscarded(schema, key, dialect.rules.refSuppressesSiblings))
+          pending.push(value);
+      }
+    }
+    pruned = false;
+    for (const root of additionalRoots) {
+      if (referenced.has(root.pointer)) continue;
+      additionalRoots.delete(root);
+      roots.splice(roots.indexOf(root), 1);
+      rootErrors.delete(root);
+      pruned = true;
+    }
+    if (pruned) {
+      dialects.rebuild(
+        roots.filter((root) => !additionalRoots.has(root)),
+        [...additionalRoots],
+      );
+      graph = buildGraph();
+      refs = createRefResolver(graph);
+    }
+  }
+  const contextFor = (
+    schema: unknown,
+    pointer?: string,
+  ): SchemaCompileContext & { dialects: ReadonlySet<EffectiveDialect> } => {
     const nodes: SchemaOrBoolean[] = [];
     const seen = new Set<unknown>();
     const bases = new Set<string>();
     const dynamicNames = new Set<string>();
-    const visit = (node: unknown): void => {
+    const effectiveDialects = new Set<EffectiveDialect>();
+    const visit = (node: unknown, at?: string): void => {
+      effectiveDialects.add(dialects.effectiveFor(node, at));
       if (seen.has(node)) return;
       seen.add(node);
       nodes.push(node as SchemaOrBoolean);
@@ -147,7 +218,7 @@ export function documentSchemas(document: OpenAPIDocument) {
         if (typeof ref !== "string") continue;
         try {
           const target = refs.resolve(ref, graph.schemaBaseUri.get(obj));
-          visit(target);
+          visit(target, refPointer(ref, obj));
           const name = ref.includes("#") ? ref.slice(ref.indexOf("#") + 1) : "";
           if (
             key === "$dynamicRef" &&
@@ -163,11 +234,18 @@ export function documentSchemas(document: OpenAPIDocument) {
           /* Code generation reports an unresolved reference. */
         }
       }
-      for (const { key, value } of subschemaEntries(obj)) {
-        if (!refSiblingIsDiscarded(obj, key, dialect.rules.refSuppressesSiblings)) visit(value);
+      for (const { key, value, at: index } of subschemaEntries(obj)) {
+        if (refSiblingIsDiscarded(obj, key, dialect.rules.refSuppressesSiblings)) continue;
+        const parent = pointerOf(obj);
+        visit(
+          value,
+          parent === undefined
+            ? undefined
+            : `${parent}/${key}${index === undefined ? "" : `/${escapePointer(String(index))}`}`,
+        );
       }
     };
-    visit(schema);
+    visit(schema, pointer);
     let previous = -1;
     while (previous !== nodes.length) {
       previous = nodes.length;
@@ -202,18 +280,78 @@ export function documentSchemas(document: OpenAPIDocument) {
       pointerOf,
       refPointer,
       dynamicTargets,
-      pathOf: (node) => paths.get(node),
+      pathOf: (node) => dialects.nodes.get(node)?.path,
+      dialects: effectiveDialects,
     };
   };
-  return { roots, dialect, refs, contextFor, graph, refPointer, rootErrors };
+  const mixed = new Map<string, CheckFinding>();
+  const prepare = (schema: unknown, pointer?: string) => {
+    const effective = dialects.effectiveFor(schema, pointer);
+    if (effective.dialect === undefined) return undefined;
+    const context = contextFor(schema, pointer);
+    let mixedDialect = false;
+    for (const dependency of context.dialects) {
+      if (dependency.dialect === undefined) return undefined;
+      mixedDialect ||= dependency.dialect !== effective.dialect;
+    }
+    if (mixedDialect) {
+      const at =
+        pointer ??
+        (typeof schema === "object" && schema !== null ? pointerOf(schema) : undefined) ??
+        "";
+      mixed.set(
+        at,
+        dialectFinding(
+          at,
+          "This schema reaches dialects with different semantics; dependent schema and example checks are withheld.",
+        ),
+      );
+      return undefined;
+    }
+    return { dialect: effective.dialect, context };
+  };
+  return {
+    roots,
+    dialect,
+    refs,
+    contextFor,
+    graph,
+    refPointer,
+    rootErrors,
+    dialects,
+    prepare,
+    mixed,
+  };
+}
+
+export type DocumentSchemas = ReturnType<typeof documentSchemas>;
+
+/** Mixed supported closures require reference resolution, but never compilation. */
+export function checkMixedDialects(inventory: DocumentSchemas): CheckFinding[] {
+  if (inventory.dialects.supported.size < 2) return [];
+  for (const root of [...inventory.roots, ...inventory.dialects.resources]) {
+    if (inventory.rootErrors.has(root)) continue;
+    try {
+      inventory.prepare(root.schema, root.pointer);
+    } catch {
+      // Graph and compile failures belong to the schema compilation pass.
+    }
+  }
+  return [...inventory.mixed.values()];
 }
 
 /** Compile authored schema roots; release each validator after collecting its diagnostics. */
-export function* checkDocumentSchemas(document: OpenAPIDocument): Generator<CheckFinding> {
-  const inventory = documentSchemas(document);
+export function* checkDocumentSchemas(
+  document: OpenAPIDocument,
+  inventory: DocumentSchemas = documentSchemas(document),
+): Generator<CheckFinding> {
   const labelOf = schemaLabeler(document);
   const cache = new Map<unknown, CheckFinding[]>();
-  for (const root of inventory.roots) {
+  const covered = new Set<unknown>();
+  const authored = new Set(inventory.roots);
+  for (const root of [...inventory.roots, ...inventory.dialects.resources]) {
+    if (!authored.has(root) && covered.has(root.schema)) continue;
+    if (inventory.dialects.effectiveFor(root.schema, root.pointer).dialect === undefined) continue;
     let { schema } = root;
     const { pointer } = root;
     const label = labelOf(pointer);
@@ -250,6 +388,16 @@ export function* checkDocumentSchemas(document: OpenAPIDocument): Generator<Chec
         target: { pointer, anchor: "node" },
       });
       continue;
+    }
+    let prepared: ReturnType<DocumentSchemas["prepare"]>;
+    let prepareError: unknown;
+    if (inventory.dialects.unsupported.size > 0 || inventory.dialects.supported.size > 1) {
+      try {
+        prepared = inventory.prepare(schema, pointer);
+        if (prepared === undefined) continue;
+      } catch (error) {
+        prepareError = error;
+      }
     }
     let canonicalPointer = pointer;
     // A pure static ref has the target's assertions. Dynamic scopes retain
@@ -288,11 +436,17 @@ export function* checkDocumentSchemas(document: OpenAPIDocument): Generator<Chec
     const entryFindings: CheckFinding[] = [];
     const entryKeys = new Set<string>();
     try {
-      const context = inventory.contextFor(schema);
+      if (prepareError !== undefined) throw prepareError;
+      const eligible = prepared ?? inventory.prepare(schema, canonicalPointer);
+      if (eligible === undefined) continue;
+      const { context, dialect } = eligible;
+      if (inventory.dialects.resources.length > 0) {
+        for (const node of context.nodes) covered.add(node);
+      }
       const compiled = compileSchemaInContext(
         schema as SchemaOrBoolean,
         {
-          dialect: inventory.dialect,
+          dialect,
           formats: builtInFormats,
           schemaLint: "strict",
           pointer: canonicalPointer,

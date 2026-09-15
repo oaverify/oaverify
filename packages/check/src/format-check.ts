@@ -13,9 +13,12 @@
  * @packageDocumentation
  */
 
-import { detectOpenAPIVersion, type OpenAPIDocument } from "@oaverify/internal-core";
+import { type OpenAPIDocument } from "@oaverify/internal-core";
 import { builtInFormats } from "@oaverify/internal-formats";
-import { walkDocumentSchemas } from "@oaverify/internal-validator/internals";
+import { type SchemaDialects } from "./schema-dialects.js";
+import { documentSchemas } from "./document-schemas.js";
+import { refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
+import { jsonSchemaDialect } from "@oaverify/internal-schema";
 
 /**
  * What `check` validates. `createValidator` merges `builtInFormats`
@@ -157,6 +160,11 @@ export interface FormatIssue {
  * Walk a resolved document and report every `format` name `check` cannot
  * validate, once per distinct name: the remedy is per name, and a
  * document using one vendor format in forty places has one problem.
+ * Only supported effective dialects with format assertions contribute.
+ * Plain JSON Schema 2020-12 formats are annotations and are omitted.
+ * Discovers schema targets reached by references, including targets outside
+ * structural OpenAPI schema positions. Builds the resource inventory used by
+ * `checkSpec`, without compiling schemas.
  *
  * @param document - A resolved OpenAPI document.
  * @param known - Format names that do validate.
@@ -167,21 +175,33 @@ export function checkDocumentFormats(
   document: OpenAPIDocument,
   known: ReadonlySet<string>,
 ): FormatIssue[] {
+  return checkFormatsInDialects(known, documentSchemas(document).dialects);
+}
+
+/** Share the checker's resource inventory across document passes. */
+export function checkFormatsInDialects(
+  known: ReadonlySet<string>,
+  dialects: SchemaDialects,
+): FormatIssue[] {
   const firstSeen = new Map<string, { pointer: string; count: number }>();
 
-  walkDocumentSchemas(document, {
-    refSuppressesSiblings: detectOpenAPIVersion(document) === "3.0",
-    onSchemaNode: (schema, pointer) => {
-      const format = schema["format"];
-      if (typeof format !== "string" || known.has(format)) return;
-      const seen = firstSeen.get(format);
-      if (seen === undefined) {
-        firstSeen.set(format, { pointer: `${pointer}/format`, count: 1 });
-        return;
-      }
-      seen.count += 1;
-    },
-  });
+  for (const { schema, pointer } of dialects.entries) {
+    const dialect = dialects.effectiveFor(schema).dialect;
+    if (
+      dialect === undefined ||
+      dialect === jsonSchemaDialect ||
+      refSiblingIsDiscarded(schema, "format", dialect.rules.refSuppressesSiblings)
+    )
+      continue;
+    const format = schema["format"];
+    if (typeof format !== "string" || known.has(format)) continue;
+    const seen = firstSeen.get(format);
+    if (seen === undefined) {
+      firstSeen.set(format, { pointer: `${pointer}/format`, count: 1 });
+      continue;
+    }
+    seen.count += 1;
+  }
 
   return [...firstSeen].map(([format, { pointer, count }]) => {
     const where = count > 1 ? ` (${count} positions use it)` : "";

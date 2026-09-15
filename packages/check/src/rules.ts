@@ -77,6 +77,11 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
   },
 
   // schema
+  "unsupported-schema-dialect": {
+    title: "schema semantics this checker cannot evaluate",
+    explanation:
+      "Schema and example checks are withheld for units reaching an unsupported dialect or a mix of supported dialects with different semantics. Independent supported units are still checked. Promote this warning to error when complete dialect coverage is required. Suppressing the warning does not enable the withheld checks.",
+  },
   "partial-feature": { title: "a keyword this validator supports only in part" },
   "unknown-keyword": { title: "a keyword no dialect in use defines" },
   "annotation-value-type": { title: "an annotation keyword holding the wrong type" },
@@ -151,8 +156,8 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
   "example-invalid": {
     title: "an example the schema it illustrates rejects",
     explanation:
-      "Every example in the document is validated against the schema it sits " +
-      "in. An example reached through a $ref is checked once at the component " +
+      "A checkable example is validated against the schema it sits in. " +
+      "An example reached through a $ref is checked once at the component " +
       "that declares it rather than at each use site, so one finding can stand " +
       "for many references. The message names up to five distinct reasons and " +
       "then counts the rest; the finding's reasons field carries every " +

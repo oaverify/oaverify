@@ -92,11 +92,11 @@ export interface FindingSelection {
   /**
    * Whether the schema compile prepass runs.
    *
-   * Split out of {@link classes} because the schema class holds two
-   * products with different costs: `format-not-validated` is a
-   * document walk, and every other schema code comes from compiling the
-   * whole document. See CheckOptions.findings for measured costs. A selection
-   * naming only the walk pays only for the walk.
+   * Split out of {@link classes} because the schema class holds
+   * products with different costs. `format-not-validated` walks the
+   * document; `unsupported-schema-dialect` inspects resource declarations
+   * and reference closures. Neither compiles schemas. Compiler-owned codes
+   * require compilation. See CheckOptions.findings for measured costs.
    *
    * This is also the switch that decides whether `malformed` findings
    * can exist at all, since compiling is what finds them. That is the
@@ -311,7 +311,10 @@ export function resolveFindingSelection(terms: readonly FindingTerm[]): FindingS
   // reached only by a selection that asked for a code the compiler owns.
   // `format-not-validated` is a schema code and is not one of them.
   const compilerOwned = CODES_BY_CLASS.schema.filter(
-    (code) => !(MALFORMED_CODES as readonly string[]).includes(code) && code !== FORMAT_WALK_CODE,
+    (code) =>
+      !(MALFORMED_CODES as readonly string[]).includes(code) &&
+      code !== FORMAT_WALK_CODE &&
+      code !== "unsupported-schema-dialect",
   );
 
   return {

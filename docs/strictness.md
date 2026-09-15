@@ -304,6 +304,29 @@ recovering either otherwise means following the `$ref` chain to the
 schema by hand. The bounded keywords already name their bound. Long
 values and long enums are truncated with `...`.
 
+`check` respects the effective schema dialect. A root `$schema` overrides
+`jsonSchemaDialect`; ordinary nested schemas inherit their resource's
+dialect, while an embedded `$id` resource can declare its own. OpenAPI
+3.1/3.2 base dialects and JSON Schema 2020-12 are supported. Plain 2020-12
+formats are annotations, so a bad email example is accepted there.
+`format-not-validated` is also omitted in that dialect because formats do
+not assert constraints.
+
+An `unsupported-schema-dialect` schema warning discloses withheld schema
+and example checks. A compile unit is withheld if its structural and
+reference closure reaches an unsupported dialect, or mixes supported
+dialects with different semantics. Independent supported resources remain
+checkable, including embedded resources at recognized schema positions
+inside an unsupported resource. Custom dialect keywords cannot define new
+traversal positions here. Local format and ReDoS observations are limited
+to supported resources. Runtime validation and the standalone
+`checkDocumentExamples` API keep their existing dialect policy.
+
+Use `--severity unsupported-schema-dialect=error` when dialect coverage is
+required in CI. Selecting only `examples`, or suppressing the warning,
+leaves dependent checks withheld. See `checkSpec` for the contract and
+supported declaration URIs.
+
 The check runs the schema's own compiled validator over the value, which
 gets `format`, `enum`, `required` and every other keyword for free.
 Two consequences worth knowing:
@@ -315,11 +338,12 @@ Two consequences worth knowing:
   variant, so this pass never applies that rewrite. Checking examples
   against the direction variant would report a component example that is
   a perfectly good response as invalid.
-- A finding means _this validator_ rejects the example. Usually that is
+- A finding means the validator compiled under the example's effective
+  dialect rejects it. Usually that is
   a defect in the example; occasionally it is a defect in oaverify (see
   [#553](https://github.com/oaverify/oaverify/issues/553)). Either way it
-  is worth knowing, because a real request shaped like that example
-  would be rejected too.
+  is worth investigating alongside the dialect used by the runtime
+  validator.
 
 It declines rather than guesses in three places: a Schema Object
 `examples` that is not an array (the 3.0 Example Object map shape under
@@ -617,15 +641,30 @@ hide a finding that the check had to run to discover. The second matters
 for exactly one case:
 
 The authored-schema compile pass checks unused document schemas and releases
-compiled validators after collecting diagnostics. In a local two-run CLI
-comparison on Stripe, runtime precompilation took 14.7s with 2.08GB peak RSS;
+compiled validators after collecting diagnostics. In the earlier #1047
+implementation review's local two-run CLI comparison on Stripe, runtime
+precompilation took 14.7s with 2.08GB peak RSS;
 the authored-schema pass took 18.3s with 525MB. That is about 25% more wall
 time and fourfold lower peak memory while checking more schema positions.
-These are corpus-specific measurements from the implementation review,
-not a performance guarantee. The `--findings format-not-validated` selection
-remained 0.17s / 141MB in both versions. The separate compilation used by the
-examples pass still costs extra; this change addresses the checker's runtime
-compile retention discussed in #624, without sharing example validators.
+Those measurements preceded resource-dialect discovery. The separate
+compilation used by the examples pass still costs extra; #1047 addressed the
+checker's runtime compile retention discussed in #624, without sharing
+example validators.
+
+The `--findings format-not-validated` selection now builds a resource
+inventory so schema targets reached by references contribute observations.
+It still skips compilation. A local five-run comparison on Stripe with
+Node 26.8.2 measured median wall time and peak RSS at 0.20s / 205MB, versus
+0.16s / 189MB on main before dialect discovery.
+
+The standalone `checkDocumentFormats` and `checkDocumentRedos` exports also
+discover reference targets, building an inventory for each call. On GitHub,
+eleven calls after warmup measured median times of 59ms for formats and 69ms
+for ReDoS, versus 17ms and 26ms before this change. Selecting
+`format-not-validated,ambiguous-pattern` together in `checkSpec` shares the
+inventory (see `CheckOptions.findings`). These are document-checking costs;
+the request/response validation hot path is unchanged. All timings describe
+these local runs and their corpus, rather than a performance guarantee.
 
 **`malformed` is reported, and never selectable.** A schema the compiler
 cannot interpret is found by compiling. `--findings -schema` still
