@@ -410,8 +410,8 @@ function findUnusedTags(document: OpenAPIDocument): SpecHygieneIssue[] {
   if (declared.length === 0) return [];
   const used = new Set<string>();
   const collect = (op: OperationObject | undefined): void => {
-    if (!op) return;
-    for (const tag of op.tags ?? []) used.add(tag);
+    if (!op || !Array.isArray(op.tags)) return;
+    for (const tag of op.tags) used.add(tag);
   };
   for (const pathItem of Object.values(document.paths ?? {})) {
     if (!pathItem) continue;
