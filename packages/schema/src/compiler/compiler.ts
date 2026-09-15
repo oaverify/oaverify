@@ -1630,28 +1630,6 @@ export function compileSchema(
     }
   }
 
-  // Reject a malformed schema before compiling it: a bad slot either
-  // compiles to a silently-weakened validator or dies with an unlocated
-  // TypeError inside codegen. Runs after the keyword map is built,
-  // because keyword value contracts are dialect-specific. Covers
-  // `external` too, since those compile on `$ref` and a guarantee
-  // holding for only part of the graph would be worse than none.
-  assertWellFormedSchema(schema, byKeyword, {
-    ...(options.label !== undefined && { label: options.label }),
-    refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
-  });
-  if (options.external) {
-    for (const [name, sub] of options.external) {
-      assertWellFormedSchema(sub, byKeyword, {
-        label:
-          options.label === undefined
-            ? `external schema "${name}"`
-            : `${options.label}: external schema "${name}"`,
-        refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
-      });
-    }
-  }
-
   const mode = resolveOutputMode(options);
   const predicate = mode === "predicate";
   const flat = mode === "flat";
@@ -1712,6 +1690,30 @@ export function compileSchema(
   }
 
   const deps = createDeps({ maxErrors, maxDepth, regexCompiler: options.regexCompiler });
+  // Reject a malformed schema before compiling it: a bad slot either
+  // compiles to a silently-weakened validator or dies with an unlocated
+  // TypeError inside codegen. Runs after the keyword map is built,
+  // because keyword value contracts are dialect-specific. Covers
+  // `external` too, since those compile on `$ref` and a guarantee
+  // holding for only part of the graph would be worse than none.
+  assertWellFormedSchema(schema, byKeyword, {
+    compilePattern: deps.compilePattern,
+    ...(options.label !== undefined && { label: options.label }),
+    refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
+  });
+  if (options.external) {
+    for (const [name, sub] of options.external) {
+      assertWellFormedSchema(sub, byKeyword, {
+        compilePattern: deps.compilePattern,
+        label:
+          options.label === undefined
+            ? `external schema "${name}"`
+            : `${options.label}: external schema "${name}"`,
+        refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
+      });
+    }
+  }
+
   // Two derived things, one walk: the normalized validators that
   // generated code calls, and the declared types that codegen reads.
   // The types are what a keyword may specialize on, because they are
@@ -1759,6 +1761,7 @@ export function compileSchema(
   // this they compile unchecked (#512). Re-walking the root costs one
   // linear pass over a graph that is about to be compiled.
   assertWellFormedSchema(schema, byKeyword, {
+    compilePattern: deps.compilePattern,
     ...(options.label !== undefined && { label: options.label }),
     refResolver,
     refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,

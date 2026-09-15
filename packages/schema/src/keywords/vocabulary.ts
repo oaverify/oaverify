@@ -1,4 +1,10 @@
-import { maxItemsKeyword, minItemsKeyword, uniqueItemsKeyword } from "./array-validation.js";
+import {
+  maxContainsKeyword,
+  minContainsKeyword,
+  maxItemsKeyword,
+  minItemsKeyword,
+  uniqueItemsKeyword,
+} from "./array-validation.js";
 import {
   allOfKeyword,
   anyOfKeyword,
@@ -145,6 +151,8 @@ export const validationVocabulary: Vocabulary = {
     maxItemsKeyword,
     minItemsKeyword,
     uniqueItemsKeyword,
+    minContainsKeyword,
+    maxContainsKeyword,
     maxPropertiesKeyword,
     minPropertiesKeyword,
     requiredKeyword,

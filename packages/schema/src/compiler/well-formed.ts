@@ -16,6 +16,8 @@ import { refSiblingIsDiscarded } from "../ref-siblings.js";
  * @internal
  */
 export interface AssertWellFormedOptions {
+  /** Pattern policy shared with code generation; omit for shape checks only. */
+  compilePattern?: (pattern: string) => unknown;
   /**
    * Prefix for the thrown message, e.g. an external schema's name. Omit
    * for the schema being compiled.
@@ -203,11 +205,20 @@ export function assertWellFormedSchema(
       refSiblingIsDiscarded(obj, key, refSuppressesSiblings);
     for (const key of Object.keys(obj)) {
       if (discarded(key)) continue;
-      const reason = byKeyword.get(key)?.validateKeywordValue?.(obj[key], {
-        keyword: key,
-        path: path === "" ? key : `${path}.${key}`,
-        parentSchema: obj as SchemaObject,
-      });
+      let reason: string | undefined;
+      try {
+        reason = byKeyword.get(key)?.validateKeywordValue?.(obj[key], {
+          compilePattern: options.compilePattern,
+          keyword: key,
+          path: path === "" ? key : `${path}.${key}`,
+          parentSchema: obj as SchemaObject,
+        });
+      } catch (err) {
+        const message = `${prefix}keyword "${key}" at ${at(path)}: ${err instanceof Error ? err.message : String(err)}`;
+        // Native regex syntax errors keep their established error class.
+        if (err instanceof SyntaxError) throw new SyntaxError(message, { cause: err });
+        throw new Error(message, { cause: err });
+      }
       if (reason !== undefined) {
         // At the root the path *is* the keyword name, so `at "type"`
         // would just repeat what the sentence already said.

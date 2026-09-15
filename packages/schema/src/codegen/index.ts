@@ -1,6 +1,9 @@
 export {
   booleanLiteral,
   checkStringArray,
+  checkNumber,
+  checkNonNegativeInteger,
+  checkPositiveNumber,
   CodeGen,
   nonNegativeIntegerLiteral,
   numberLiteral,

@@ -548,6 +548,12 @@ export interface KeywordCompileContext {
  * @public
  */
 export interface KeywordValueContext {
+  /**
+   * Compile a schema-authored pattern under the caller's regex policy.
+   * Supplied by `compileSchema`, sharing its cache with generated code.
+   * Direct well-formedness callers may omit it to check value shapes only.
+   */
+  compilePattern?: (pattern: string) => unknown;
   /** The keyword being checked, e.g. `"type"`. */
   keyword: string;
   /**

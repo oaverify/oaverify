@@ -432,7 +432,7 @@ export interface Validator {
    */
   matchRoute(req: { method: string; path: string }): RouteMatchResult;
   /**
-   * Compile every operation's schemas now, rather than on first access.
+   * Compile every served operation's schemas now, rather than on first access.
    *
    * Compilation is lazy by default, and response bodies are lazier
    * still, so a spec with hundreds of operations pays only for the
@@ -441,9 +441,11 @@ export interface Validator {
    * has neither been checked for well-formedness nor contributed to
    * {@link ValidatorStats.schemaLintIssues}.
    *
-   * After this call, a malformed schema anywhere in the document has
-   * thrown (with its path), and `stats.schemaLintIssues` covers the
-   * whole document rather than the parts already touched.
+   * This covers the router's operations and the schemas their compiles
+   * reach, including unused `$defs` within those schemas. Schemas used
+   * only outside routed operations are not compiled by this call.
+   * After a successful call, `stats.schemaLintIssues` covers those
+   * compiles, including response bodies that traffic has not touched.
    *
    * Idempotent. Not needed on the request path: the results land in the
    * same caches lazy compilation fills, so this changes when the work

@@ -1,5 +1,6 @@
+import { checkNonNegativeInteger } from "../codegen/index.js";
 import { NAMES, nonNegativeIntegerLiteral, quoteString } from "../codegen/index.js";
-import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
+import type { KeywordCompileContext, KeywordDefinition, KeywordValueContext } from "./types.js";
 import { CORE_VALIDATION_VOCAB, FORMAT_ASSERTION_VOCAB, FORMAT_VOCAB } from "./vocabulary-uris.js";
 
 /**
@@ -10,6 +11,7 @@ import { CORE_VALIDATION_VOCAB, FORMAT_ASSERTION_VOCAB, FORMAT_VOCAB } from "./v
  */
 export const maxLengthKeyword: KeywordDefinition = {
   keyword: "maxLength",
+  validateKeywordValue: checkNonNegativeInteger,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = nonNegativeIntegerLiteral(ctx.schema, "maxLength");
@@ -39,6 +41,7 @@ export const maxLengthKeyword: KeywordDefinition = {
  */
 export const minLengthKeyword: KeywordDefinition = {
   keyword: "minLength",
+  validateKeywordValue: checkNonNegativeInteger,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = nonNegativeIntegerLiteral(ctx.schema, "minLength");
@@ -67,6 +70,7 @@ export const minLengthKeyword: KeywordDefinition = {
  */
 export const patternKeyword: KeywordDefinition = {
   keyword: "pattern",
+  validateKeywordValue: checkPattern,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const source = ctx.schema as string;
@@ -192,4 +196,11 @@ function codePointLengthExpr(dataExpr: string): string {
 
 function escapeMessage(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
+}
+
+/** Check a pattern using the same compiler and cache as its emitted validator. */
+export function checkPattern(value: unknown, context: KeywordValueContext): string | undefined {
+  if (typeof value !== "string") return `requires a string; got ${typeof value}`;
+  context.compilePattern?.(value);
+  return undefined;
 }

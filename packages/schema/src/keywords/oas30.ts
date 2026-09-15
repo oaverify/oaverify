@@ -1,3 +1,4 @@
+import { checkNumber } from "../codegen/index.js";
 /**
  * OpenAPI 3.0.x Schema Object keywords.
  *
@@ -116,6 +117,7 @@ export const oas30NullableKeyword: KeywordDefinition = {
  */
 export const oas30MaximumKeyword: KeywordDefinition = {
   keyword: "maximum",
+  validateKeywordValue: checkNumber,
   vocabulary: OAS30_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = numberLiteral(ctx.schema, "maximum");
@@ -146,6 +148,7 @@ export const oas30MaximumKeyword: KeywordDefinition = {
  */
 export const oas30MinimumKeyword: KeywordDefinition = {
   keyword: "minimum",
+  validateKeywordValue: checkNumber,
   vocabulary: OAS30_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = numberLiteral(ctx.schema, "minimum");

@@ -4,24 +4,28 @@ Three different things in oaverify wear the word "strict", and they are
 not variations of one setting. This page says which is which, so you can
 tell what a given knob will and will not catch.
 
-| Class                  | When it fires          | Controlled by                               | You get                       |
-| ---------------------- | ---------------------- | ------------------------------------------- | ----------------------------- |
-| **Malformed schema**   | Building the validator | Nothing. Always fatal.                      | A thrown error                |
-| **Schema lint**        | Building the validator | `schemaLint`                                | Entries in `schemaLintIssues` |
-| **Request strictness** | Every request          | `strictQueryParameters`, `validateSecurity` | Validation errors on traffic  |
+| Class                  | When it fires      | Controlled by                               | You get                       |
+| ---------------------- | ------------------ | ------------------------------------------- | ----------------------------- |
+| **Malformed schema**   | Compiling a schema | Nothing. Always fatal.                      | A thrown error                |
+| **Schema lint**        | Compiling a schema | `schemaLint`                                | Entries in `schemaLintIssues` |
+| **Request strictness** | Every request      | `strictQueryParameters`, `validateSecurity` | Validation errors on traffic  |
 
 ## Malformed schema: always fatal
 
 A document that is not a schema cannot be compiled into a validator,
-so oaverify refuses rather than guessing: `createValidator` throws,
+so `compileSchema` throws,
 and no option turns this off, including `schemaLint: "off"`. This
 covers a schema-valued slot holding something that is not a schema
 (`items: [ ... ]`, `if: null`) and a keyword holding a value it cannot
 use (`type: "Boolean"`, `required: "id"`, `enum: 5`, `minimum: "5"`).
-The check walks the whole document, so a typo in a `$defs` entry nothing
-`$ref`s is caught along with the rest. Catch it with a `try` around
-`createValidator`, not a check on each request; the common shapes and
-the message format are in
+The check walks the compiled schema, including unused `$defs` and schemas
+supplied through `external`. Pattern checks use the configured
+`regexCompiler`, including the default fallback for non-Unicode patterns.
+HTTP schema compilation is lazy: `createValidator` can succeed before a
+malformed schema is reached. Call `validator.precompile()` inside a `try`
+at startup to check the served operations eagerly. It does not check
+unrouted schemas elsewhere in the document. See `Validator.precompile`
+for its scope; the common shapes and message format are in
 [configuration.md](./configuration.md#malformed-schemas-fail-at-construction).
 
 ## Schema lint: advice about a valid schema
@@ -31,6 +35,7 @@ never thrown.
 
 ```ts
 const validator = createValidator(spec, { schemaLint: "strict" });
+validator.precompile();
 validator.stats.schemaLintIssues;
 // [{
 //   code: "unknown-keyword",

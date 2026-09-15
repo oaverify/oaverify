@@ -336,3 +336,79 @@ describe("well-formedness: does not reject legal schemas", () => {
     ).not.toThrow();
   });
 });
+
+describe("unused $defs codegen guards (#1048)", () => {
+  it.each([
+    { minimum: "5" },
+    { maximum: Infinity },
+    { exclusiveMinimum: "5" },
+    { exclusiveMaximum: NaN },
+    { multipleOf: 0 },
+    { minLength: -1 },
+    { maxLength: 1.5 },
+    { minItems: "2" },
+    { maxItems: -1 },
+    { minProperties: -1 },
+    { maxProperties: "3" },
+    { contains: true, minContains: -1 },
+    { contains: true, maxContains: "2" },
+    { pattern: "(?" },
+    { patternProperties: { "(?": true } },
+  ])("rejects %j without a reference or emitted code", (unused) => {
+    expect(() => compileWith({ $defs: { Unused: unused } }, { schemaLint: "off" })).toThrow(
+      /\$defs.Unused/,
+    );
+  });
+
+  it("uses the configured regex policy and compiles each source once", () => {
+    const calls: string[] = [];
+    compileWith(
+      { pattern: "(?", $defs: { Unused: { patternProperties: { "(?": true } } } },
+      {
+        regexCompiler(pattern) {
+          calls.push(pattern);
+          return { test: () => true };
+        },
+      },
+    );
+    expect(calls).toEqual(["(?"]);
+    expect(() =>
+      compileWith(
+        { $defs: { Unused: { pattern: "ok" } } },
+        {
+          regexCompiler() {
+            throw new Error("policy rejection");
+          },
+        },
+      ),
+    ).toThrow(/\$defs.Unused.*policy rejection/);
+  });
+
+  it("keeps the default non-Unicode regex fallback", () => {
+    expect(() => compileWith({ $defs: { Unused: { pattern: "\\a" } } })).not.toThrow();
+  });
+
+  it("preserves OAS 3.0 numeric semantics and discarded siblings", () => {
+    expect(() =>
+      compileWith(
+        { $defs: { Unused: { minimum: 0, exclusiveMinimum: true } } },
+        { dialect: oas30Dialect },
+      ),
+    ).not.toThrow();
+    expect(() =>
+      compileWith({ $defs: { Unused: { minimum: "5" } } }, { dialect: oas30Dialect }),
+    ).toThrow(/\$defs.Unused/);
+    expect(() =>
+      compileWith(
+        { $ref: "base", minimum: "5", pattern: "(?", $defs: { Ignored: { pattern: "(?" } } },
+        { dialect: oas30Dialect, external: new Map([["base", true]]) },
+      ),
+    ).not.toThrow();
+  });
+
+  it("checks external schemas supplied without a reference", () => {
+    expect(() => compileWith(true, { external: new Map([["unused", { pattern: "(?" }]]) })).toThrow(
+      /external schema "unused".*pattern/,
+    );
+  });
+});

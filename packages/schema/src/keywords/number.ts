@@ -1,3 +1,4 @@
+import { checkNumber, checkPositiveNumber } from "../codegen/index.js";
 import { numberLiteral, positiveNumberLiteral, quoteString } from "../codegen/index.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
@@ -59,6 +60,7 @@ function emitNumericError(
  */
 export const multipleOfKeyword: KeywordDefinition = {
   keyword: "multipleOf",
+  validateKeywordValue: checkPositiveNumber,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const divisor = positiveNumberLiteral(ctx.schema, "multipleOf");
@@ -99,6 +101,7 @@ export const multipleOfKeyword: KeywordDefinition = {
  */
 export const maximumKeyword: KeywordDefinition = {
   keyword: "maximum",
+  validateKeywordValue: checkNumber,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = numberLiteral(ctx.schema, "maximum");
@@ -120,6 +123,7 @@ export const maximumKeyword: KeywordDefinition = {
  */
 export const exclusiveMaximumKeyword: KeywordDefinition = {
   keyword: "exclusiveMaximum",
+  validateKeywordValue: checkNumber,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = numberLiteral(ctx.schema, "exclusiveMaximum");
@@ -141,6 +145,7 @@ export const exclusiveMaximumKeyword: KeywordDefinition = {
  */
 export const minimumKeyword: KeywordDefinition = {
   keyword: "minimum",
+  validateKeywordValue: checkNumber,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = numberLiteral(ctx.schema, "minimum");
@@ -162,6 +167,7 @@ export const minimumKeyword: KeywordDefinition = {
  */
 export const exclusiveMinimumKeyword: KeywordDefinition = {
   keyword: "exclusiveMinimum",
+  validateKeywordValue: checkNumber,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = numberLiteral(ctx.schema, "exclusiveMinimum");
