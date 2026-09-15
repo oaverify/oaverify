@@ -49,38 +49,27 @@ oaverify check <spec> --format sarif -o results.sarif             # SARIF 2.1.0 
 oaverify check <spec> --format json                           # { findings: [...] }, each classed
 ```
 
-Schema findings are located by the operation they were compiled for,
-then the path within that schema:
+Compiler-owned schema findings use an operation label when one is available,
+followed by the path within the schema. Unused schema roots use their document pointer.
+This excerpt comes from [`all-classes.text`](./test/golden/all-classes.text):
 
 ```
-warning schema  silent-rewrite/required-not-in-properties
-  GET /policies 200 response body (application/json) -> properties.items.allOf[0]
-  required: "signedDate" is not declared in properties reachable here
+warning  schema       silent-rewrite/required-not-in-properties  (+1 more occurrence(s))
+  required: "absent" at <root> is not declared in properties reachable here
+    at GET /pets/{petId} 200 response body (application/json) -> <root>
 ```
 
 Severity leads each line, because it is what decides whether to act now;
 the class follows, because it says which pass to look at.
 
-Most findings about a schema reached through a `$ref` are addressed by
-the component it came from (`components.schemas.Pet.properties.tags`)
-rather than by the route that reached it, because they are one edit at
-one definition however many operations reach it.
+Schema checks compile authored schema roots throughout the document.
+When several roots reach the same finding, `check` prints it once with the
+first root's display context and counts the additional occurrences after
+the code. The JSON envelope carries the total count as `occurrences`.
 
-`silent-rewrite/required-not-in-properties` is the exception, and the
-example above shows it: it keeps the path from the operation. That rule
-reports which property names are reachable at an instance position, and
-a shared component says different things at different use sites, so the
-definition would be the wrong place to send you.
-
-Schemas compile per operation, so a component several operations share
-would otherwise be reported once per operation. `check` prints it once
-against the first operation that reached it and counts the rest; the
-JSON envelope carries the count as `occurrences`.
-
-```
-schema [silent-rewrite/ref-siblings-oas30] GET /a 200 response body (application/json)
-  -> components.schemas.Wrapper.properties.inner (and 2 more operation(s)): OAS 3.0: ...
-```
+The display location provides context for reading the finding. Its
+`target.pointer` identifies the offending document node, including a
+definition reached through `$ref`; see the source-mapping contract below.
 
 ### Mapping a finding back to source
 
