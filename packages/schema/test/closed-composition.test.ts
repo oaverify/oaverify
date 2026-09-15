@@ -254,6 +254,34 @@ describe("unsatisfiable/composed-properties", () => {
     });
   });
 
+  /**
+   * `dependentSchemas` is conditional, and which side of the rule it
+   * may appear on follows from that rather than from one list.
+   */
+  describe("dependentSchemas, on each side of the rule", () => {
+    it("declares: a name under a trigger is still dead beneath an unconditional close", () => {
+      // {b: 1} is invalid against this schema: the close applies to
+      // every instance, so nothing can ever carry `b`.
+      const issues = lint31({
+        additionalProperties: false,
+        dependentSchemas: { x: { properties: { b: {} } } },
+      });
+      expect(issues).toHaveLength(1);
+      expect(issues[0]?.message).toContain('"b"');
+    });
+
+    it("does not locate a close: one under a trigger rejects nothing unconditionally", () => {
+      // {a: 1} is valid here and {a: 1, x: 1} is not, so `a` is
+      // reachable and reporting it dead would be false.
+      expect(
+        lint31({
+          properties: { a: {}, x: {} },
+          dependentSchemas: { x: { additionalProperties: false } },
+        }),
+      ).toEqual([]);
+    });
+  });
+
   describe("composed patternProperties", () => {
     it("row 20: reported with no adjacent declarations, without naming a witness", () => {
       const issues = lint31({
