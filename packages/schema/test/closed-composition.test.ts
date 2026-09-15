@@ -549,6 +549,35 @@ describe("unsatisfiable/composed-properties", () => {
     });
   });
 
+  describe("below an external $ref, where no machine address exists", () => {
+    /**
+     * An external `$ref` yields no `pointer` and no `schemaPath` even
+     * when the caller supplied a document frame, so the only identity
+     * left is the schema object and the rendered path. One object at two
+     * positions whose paths collide defeats both, and the two reports
+     * name different dead properties, so collapsing them loses one.
+     */
+    it("keeps two reports that rest on different dead names", () => {
+      const shared = { additionalProperties: false };
+      const external = {
+        properties: {
+          "a.properties.b": { allOf: [shared, { properties: { first: {} } }] },
+          a: { properties: { b: { allOf: [shared, { properties: { second: {} } }] } } },
+        },
+      };
+      const issues = compileSchema({ $ref: "https://example.com/C" } as SchemaOrBoolean, {
+        dialect: jsonSchemaDialect,
+        external: new Map([["https://example.com/C", external]]) as never,
+        pointer: "",
+      }).stats.schemaLintIssues.filter((issue) => issue.code === CODE);
+
+      expect(issues).toHaveLength(2);
+      expect(issues.every((issue) => issue.pointer === undefined)).toBe(true);
+      const named = issues.map((issue) => (issue.message.includes('"first"') ? "first" : "second"));
+      expect([...named].sort()).toEqual(["first", "second"]);
+    });
+  });
+
   describe("a resolved boolean schema is not an unresolvable ref", () => {
     it("keeps the finding beside an inert `true` branch", () => {
       const issues = lint31({

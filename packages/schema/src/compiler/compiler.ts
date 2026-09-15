@@ -201,6 +201,11 @@ function runSchemaLint(
   // information; see `positionKey`. Pre-order puts the enclosing node
   // first, which is the report that holds.
   const closedBranchesReported = new Set<string>();
+  // Keyed by position *and* by the dead names the report rests on,
+  // because below a `$ref` with no pointer the position is a guess: one
+  // object at two colliding paths is one key. Two branch reports
+  // collapse only where they say the same thing.
+  const closedBranchEvidence = new Set<string>();
   const closedNodeIds = new WeakMap<Record<string, unknown>, number>();
   let nextClosedNodeId = 0;
   const closedNodeId = (node: Record<string, unknown>): number => {
@@ -423,7 +428,13 @@ function runSchemaLint(
           let branchAt = at;
           for (const segment of found.segments) branchAt = stepPosition(branchAt, segment);
           const key = positionKey(found.node, found.issue.path, branchAt, closedNodeId);
-          if (closedBranchesReported.has(key)) continue;
+          const addressed = branchAt.pointer !== undefined || branchAt.schemaPath !== undefined;
+          const evidenceKey = addressed ? key : `${key}|${found.evidence}`;
+          if (closedBranchEvidence.has(evidenceKey)) continue;
+          closedBranchEvidence.add(evidenceKey);
+          // The per-node check is suppressed by position alone: its
+          // answer at a position a branch answer covers is the weaker
+          // one whatever it names.
           closedBranchesReported.add(key);
           issues.push({ ...found.issue, ...positionFields(branchAt) });
         }
