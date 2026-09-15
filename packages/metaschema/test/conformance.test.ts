@@ -329,3 +329,69 @@ describe("error shape", () => {
     });
   });
 });
+
+describe("exact duplicate conformance leaves (#1058)", () => {
+  it("reports a boolean 3.0 schema once and preserves the invalid result", () => {
+    expect(checkDocumentConformance(withSchema("3.0.0", true)).issues).toEqual([
+      {
+        code: "type",
+        pointer: "/paths/~1things/get/responses/200/content/application~1json/schema",
+        message: "must be object",
+      },
+    ]);
+  });
+
+  it("keeps the same diagnosis at different pointers in declaration order", () => {
+    const doc = withSchema("3.0.0", true);
+    doc.paths["/things"].get.responses["200"].content["application/json"].schema = {
+      properties: { a: true, b: false },
+    };
+    const issues = checkDocumentConformance(doc).issues;
+    expect(issues).toHaveLength(2);
+    expect(issues.map((issue) => issue.pointer)).toEqual([
+      "/paths/~1things/get/responses/200/content/application~1json/schema/properties/a",
+      "/paths/~1things/get/responses/200/content/application~1json/schema/properties/b",
+    ]);
+  });
+
+  it("preserves distinct required alternatives", () => {
+    const issues = checkDocumentConformance({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+    }).issues;
+    expect(issues.map((issue) => issue.pointer)).toEqual(["/paths", "/components", "/webhooks"]);
+    expect(issues.every((issue) => issue.code === "required")).toBe(true);
+  });
+
+  it("keeps differing messages for the same code and pointer", () => {
+    const issues = checkDocumentConformance(
+      withSchema("3.0.0", { additionalProperties: 42 }),
+    ).issues;
+    expect(issues).toEqual([
+      {
+        code: "type",
+        pointer:
+          "/paths/~1things/get/responses/200/content/application~1json/schema/additionalProperties",
+        message: "must be object",
+      },
+      {
+        code: "type",
+        pointer:
+          "/paths/~1things/get/responses/200/content/application~1json/schema/additionalProperties",
+        message: "must be boolean",
+      },
+    ]);
+  });
+
+  it("keeps distinct branch diagnoses at the same pointer", () => {
+    const doc = minimal("3.0.0");
+    (doc.paths["/things"].get as Record<string, unknown>).parameters = [
+      { name: "q", in: 42, schema: { type: "string" } },
+    ];
+    const issues = checkDocumentConformance(doc).issues.filter(
+      (issue) => issue.pointer === "/paths/~1things/get/parameters/0/in",
+    );
+    expect(issues.map((issue) => issue.code)).toEqual(["enum", "type"]);
+    expect(new Set(issues.map((issue) => issue.message)).size).toBe(issues.length);
+  });
+});
