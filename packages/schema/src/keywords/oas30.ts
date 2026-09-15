@@ -1,4 +1,3 @@
-import { checkNumber } from "../codegen/index.js";
 /**
  * OpenAPI 3.0.x Schema Object keywords.
  *
@@ -22,7 +21,7 @@ import { checkNumber } from "../codegen/index.js";
  * @packageDocumentation
  */
 
-import { NAMES, numberLiteral, quoteString } from "../codegen/index.js";
+import { checkNumber, NAMES, numberLiteral, quoteString } from "../codegen/index.js";
 import {
   buildTypeMismatchCondition,
   OAS30_TYPE_NAMES,

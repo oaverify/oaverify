@@ -1,5 +1,10 @@
-import { checkNumber, checkPositiveNumber } from "../codegen/index.js";
-import { numberLiteral, positiveNumberLiteral, quoteString } from "../codegen/index.js";
+import {
+  checkNumber,
+  checkPositiveNumber,
+  numberLiteral,
+  positiveNumberLiteral,
+  quoteString,
+} from "../codegen/index.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
 

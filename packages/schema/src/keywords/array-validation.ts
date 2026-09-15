@@ -1,5 +1,9 @@
-import { checkNonNegativeInteger } from "../codegen/index.js";
-import { NAMES, nonNegativeIntegerLiteral, quoteString } from "../codegen/index.js";
+import {
+  checkNonNegativeInteger,
+  NAMES,
+  nonNegativeIntegerLiteral,
+  quoteString,
+} from "../codegen/index.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
 
@@ -89,6 +93,7 @@ export const uniqueItemsKeyword: KeywordDefinition = {
 /** Schema-side bound; `contains` emits the corresponding assertion. */
 export const minContainsKeyword: KeywordDefinition = {
   keyword: "minContains",
+  annotation: true,
   vocabulary: CORE_VALIDATION_VOCAB,
   validateKeywordValue: checkNonNegativeInteger,
   compile(): void {},
@@ -97,6 +102,7 @@ export const minContainsKeyword: KeywordDefinition = {
 /** Schema-side bound; `contains` emits the corresponding assertion. */
 export const maxContainsKeyword: KeywordDefinition = {
   keyword: "maxContains",
+  annotation: true,
   vocabulary: CORE_VALIDATION_VOCAB,
   validateKeywordValue: checkNonNegativeInteger,
   compile(): void {},

@@ -1,5 +1,9 @@
-import { checkNonNegativeInteger } from "../codegen/index.js";
-import { NAMES, nonNegativeIntegerLiteral, quoteString } from "../codegen/index.js";
+import {
+  checkNonNegativeInteger,
+  NAMES,
+  nonNegativeIntegerLiteral,
+  quoteString,
+} from "../codegen/index.js";
 import type { KeywordCompileContext, KeywordDefinition, KeywordValueContext } from "./types.js";
 import { CORE_VALIDATION_VOCAB, FORMAT_ASSERTION_VOCAB, FORMAT_VOCAB } from "./vocabulary-uris.js";
 

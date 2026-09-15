@@ -1,7 +1,7 @@
-import { checkPattern } from "./string.js";
 import { NAMES, quoteString } from "../codegen/index.js";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { propertyPresent } from "./object-validation.js";
+import { checkPattern } from "./string.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { APPLICATOR_VOCAB } from "./vocabulary-uris.js";
 
