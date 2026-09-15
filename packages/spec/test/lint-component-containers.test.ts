@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import type { OpenAPIDocument, PathItem } from "@oaverify/internal-core";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { lintResolvedSpec } from "../src/lint.js";
 
 function document(reached: boolean): OpenAPIDocument {
   return {
     openapi: "3.1.0",
     info: { title: "T", version: "1" },
-    paths: reached ? { "/a": { $ref: "#/components/pathItems/P" } } : {},
+    // Referenced paths remain outside the runtime PathItem type (#1059).
+    paths: (reached
+      ? { "/a": { $ref: "#/components/pathItems/P" } }
+      : {}) as OpenAPIDocument["paths"],
     components: {
       pathItems: {
         P: {
@@ -42,7 +45,7 @@ function document(reached: boolean): OpenAPIDocument {
         callbackAuth: { type: "http", scheme: "bearer" },
       },
     },
-  } as OpenAPIDocument;
+  };
 }
 
 describe("component container reachability (#1049)", () => {
@@ -68,9 +71,10 @@ describe("component container reachability (#1049)", () => {
 
   it("collects security from inline callbacks without treating schema data as operations", () => {
     const doc = document(false);
-    const containers = doc.components as unknown as { pathItems: Record<string, PathItem> };
-    doc.paths = { "/a": containers.pathItems.P! };
-    doc.paths["/a"]!.get!.callbacks = { C: doc.components!.callbacks!.C! };
+    const item = doc.components!.pathItems!.P!;
+    if ("$ref" in item) throw new Error("expected an inline Path Item");
+    doc.paths = { "/a": item };
+    item.get!.callbacks = { C: doc.components!.callbacks!.C! };
     doc.components!.schemas!.S = { examples: [{ get: { security: [{ unused: [] }] } }] };
     doc.components!.securitySchemes!.unused = { type: "http", scheme: "bearer" };
     expect(lintResolvedSpec(doc).map((issue) => issue.pointer)).toEqual([
