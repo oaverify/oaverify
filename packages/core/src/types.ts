@@ -313,6 +313,12 @@ export interface ComponentsObject {
   securitySchemes?: Record<string, SecuritySchemeObject | ReferenceObject>;
   links?: Record<string, LinkObject | ReferenceObject>;
   callbacks?: Record<string, CallbackObject | ReferenceObject>;
+  /**
+   * OpenAPI 3.1+: reusable Path Items, including references to other
+   * Path Items. Referenced Path Items are resolved for document checking;
+   * the HTTP validator does not route them yet.
+   */
+  pathItems?: Record<string, PathItem | ReferenceObject>;
   examples?: Record<string, ExampleObject | ReferenceObject>;
 }
 
