@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import type { SchemaLintIssue } from "../src/compiler/compiler.js";
 import { compileSchema } from "../src/compiler/compiler.js";
-import { oas30Dialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
+import { jsonSchemaDialect, oas30Dialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
 
 /**
  * `unsatisfiable/composed-properties`, against the coverage table the
@@ -375,6 +375,64 @@ describe("unsatisfiable/composed-properties", () => {
         allOf: [{ additionalProperties: false }, { properties: { name: {} } }],
       });
       expect(onBranch[0]?.message).toContain("enclosing composition");
+    });
+  });
+
+  /**
+   * A dialect need not register every keyword the rule reasons about,
+   * and `additionalProperties` does not treat its two coverage siblings
+   * the way it treats everything else: it reads them raw
+   * (`properties.ts:122`), registered or not. So "does this declare a
+   * name" and "does this cover a name against the close" are different
+   * questions with different answers, and answering them the same way
+   * is wrong in both directions.
+   */
+  describe("a dialect missing one of the keywords", () => {
+    const without = (name: string) => ({
+      ...jsonSchemaDialect,
+      vocabularies: jsonSchemaDialect.vocabularies.map((vocabulary) => ({
+        ...vocabulary,
+        keywords: vocabulary.keywords.filter((keyword) => keyword.keyword !== name),
+      })),
+    });
+
+    it("an unregistered patternProperties still covers, so nothing is dead", () => {
+      const schema = {
+        patternProperties: { "^a": {} },
+        additionalProperties: false,
+        allOf: [{ properties: { a: {} } }],
+      };
+      const compiled = compileSchema(schema as SchemaOrBoolean, {
+        dialect: without("patternProperties"),
+      });
+      // The validator accepts it, so a finding here would describe
+      // behaviour the emitted code does not have.
+      expect(compiled.validate({ a: 1 }).valid).toBe(true);
+      expect(compiled.stats.schemaLintIssues.filter((issue) => issue.code === CODE)).toEqual([]);
+    });
+
+    it("an unregistered properties declares nothing, so nothing is reported", () => {
+      const schema = {
+        properties: { a: {} },
+        additionalProperties: false,
+        allOf: [{ properties: { a: {}, b: {} } }],
+      };
+      const compiled = compileSchema(schema as SchemaOrBoolean, {
+        dialect: without("properties"),
+      });
+      // `b` is rejected, but nothing declared it: under this dialect the
+      // key emits no code, so there is no declaration to call dead.
+      expect(compiled.validate({ b: 1 }).valid).toBe(false);
+      expect(compiled.stats.schemaLintIssues.filter((issue) => issue.code === CODE)).toEqual([]);
+    });
+
+    it("an unregistered additionalProperties closes nothing", () => {
+      const compiled = compileSchema(
+        { additionalProperties: false, allOf: [{ properties: { a: {} } }] } as SchemaOrBoolean,
+        { dialect: without("additionalProperties") },
+      );
+      expect(compiled.validate({ a: 1 }).valid).toBe(true);
+      expect(compiled.stats.schemaLintIssues.filter((issue) => issue.code === CODE)).toEqual([]);
     });
   });
 

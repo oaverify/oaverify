@@ -28,8 +28,11 @@
  */
 
 import { refSiblingIsDiscarded } from "../ref-siblings.js";
-import { isObj, resolveLintRef, type LintRefResolver, type Obj } from "./lint-refs.js";
 import type { SchemaLintIssue } from "./compiler.js";
+
+type Obj = Record<string, unknown>;
+
+const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** Bounds the walk on pathological or cyclic schemas. */
 const MAX_DEPTH = 25;
@@ -47,9 +50,14 @@ const MAX_NAMED = 5;
  * the validator does not have.
  */
 export interface ClosedCompositionContext {
-  readonly root: Obj;
-  readonly resolve: LintRefResolver | undefined;
-  readonly ignoredRefSiblingKeys: WeakMap<Obj, ReadonlySet<string>> | undefined;
+  /**
+   * The compiler's own `$ref` resolver, which is the only one this rule
+   * uses. It already answers the questions a second walk would have to
+   * re-derive, the OAS 3.0 rule that a `$ref` node has no addressable
+   * members among them, and it reports failure as `undefined` rather
+   * than by throwing. Anything it cannot follow is "cannot enumerate".
+   */
+  readonly resolve: (ref: string) => unknown;
   readonly refSuppressesSiblings: boolean;
   readonly known: (keyword: string) => boolean;
 }
@@ -78,16 +86,45 @@ function live(node: Obj, key: string, ctx: ClosedCompositionContext): boolean {
   return ctx.known(key) && !refSiblingIsDiscarded(node, key, ctx.refSuppressesSiblings);
 }
 
-/** The `properties` keys a single schema object declares. */
-function ownNames(node: Obj, ctx: ClosedCompositionContext): string[] {
+/**
+ * The `properties` keys a schema object *declares*, which needs the
+ * keyword to be one the dialect implements: under a dialect without
+ * `properties`, the key emits no code and names nothing.
+ */
+function declaredNames(node: Obj, ctx: ClosedCompositionContext): string[] {
   if (!live(node, "properties", ctx)) return [];
   const props = node["properties"];
   return isObj(props) ? Object.keys(props) : [];
 }
 
-/** Does this schema object declare a non-empty `patternProperties`? */
-function ownPatterns(node: Obj, ctx: ClosedCompositionContext): boolean {
+/** The same question for `patternProperties`. */
+function declaresPatterns(node: Obj, ctx: ClosedCompositionContext): boolean {
   if (!live(node, "patternProperties", ctx)) return false;
+  const patterns = node["patternProperties"];
+  return isObj(patterns) && Object.keys(patterns).length > 0;
+}
+
+/**
+ * The names the close on this node already permits, which is a
+ * different question and takes a different answer.
+ *
+ * `additionalProperties` reads its siblings raw (`properties.ts:122`,
+ * `Object.keys(ctx.parentSchema.properties ?? {})`), with no check that
+ * the dialect registers them. So a `properties` the dialect does not
+ * implement still covers its names against the close, and subtracting
+ * only registered ones would report a name the emitted validator
+ * accepts. Coverage describes the generated code, so it reads what the
+ * generated code reads.
+ */
+function coveredNames(node: Obj, ctx: ClosedCompositionContext): string[] {
+  if (refSiblingIsDiscarded(node, "properties", ctx.refSuppressesSiblings)) return [];
+  const props = node["properties"];
+  return isObj(props) ? Object.keys(props) : [];
+}
+
+/** The same question for `patternProperties`, and for the same reason. */
+function coversByPattern(node: Obj, ctx: ClosedCompositionContext): boolean {
+  if (refSiblingIsDiscarded(node, "patternProperties", ctx.refSuppressesSiblings)) return false;
   const patterns = node["patternProperties"];
   return isObj(patterns) && Object.keys(patterns).length > 0;
 }
@@ -115,11 +152,11 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
     if (!isObj(node) || seen.has(node)) return;
     seen.add(node);
 
-    for (const name of ownNames(node, ctx)) names.add(name);
-    if (ownPatterns(node, ctx)) patterns = true;
+    for (const name of declaredNames(node, ctx)) names.add(name);
+    if (declaresPatterns(node, ctx)) patterns = true;
 
     if (live(node, "$ref", ctx) && typeof node["$ref"] === "string") {
-      const target = resolveLintRef(node["$ref"], ctx.root, ctx.resolve, ctx.ignoredRefSiblingKeys);
+      const target = ctx.resolve(node["$ref"]);
       if (isObj(target)) add(target, depth + 1);
       else unresolved = true;
     }
@@ -221,9 +258,9 @@ function verdict(
   ctx: ClosedCompositionContext,
 ): { dead: string[]; patternsOnly: boolean } | undefined {
   if (declared.unresolved) return undefined;
-  if (ownPatterns(closed, ctx)) return undefined;
+  if (coversByPattern(closed, ctx)) return undefined;
 
-  const adjacent = new Set(ownNames(closed, ctx));
+  const adjacent = new Set(coveredNames(closed, ctx));
   const dead = [...declared.names].filter((name) => !adjacent.has(name));
   if (dead.length > 0) return { dead, patternsOnly: false };
 

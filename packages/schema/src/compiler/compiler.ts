@@ -42,7 +42,6 @@ import {
   collectClosedCompositionIssue,
   type ClosedCompositionContext,
 } from "./closed-composition.js";
-import { collectIgnoredRefSiblingKeys, isObj } from "./lint-refs.js";
 import { assertFormatsRegistered } from "./unknown-formats.js";
 import { assertWellFormedSchema } from "./well-formed.js";
 
@@ -190,17 +189,19 @@ function runSchemaLint(
   }
 
   const issues: SchemaLintIssue[] = [];
-  // Built once per compile: the ref-sibling index is a walk of the
-  // whole schema, and the closed-composition rule asks it per node.
-  const closedCtx: ClosedCompositionContext | undefined = isObj(schema)
-    ? {
-        root: schema,
-        resolve: rules.resolveRef,
-        ignoredRefSiblingKeys: collectIgnoredRefSiblingKeys(schema, rules.refSuppressesSiblings),
-        refSuppressesSiblings: rules.refSuppressesSiblings,
-        known: (keyword) => known.has(keyword),
-      }
-    : undefined;
+  // The rule follows `$ref` through the compiler's own resolver and no
+  // other route, so there is nothing to index per compile. A caller who
+  // supplied none leaves the rule unable to enumerate past a `$ref`,
+  // which it treats as "do not flag" rather than "declares nothing".
+  const resolveForLint = rules.resolveRef;
+  const closedCtx: ClosedCompositionContext | undefined =
+    resolveForLint === undefined
+      ? undefined
+      : {
+          resolve: resolveForLint,
+          refSuppressesSiblings: rules.refSuppressesSiblings,
+          known: (keyword) => known.has(keyword),
+        };
   // Branches answered from their enclosing node, so the per-node check
   // does not report the same close a second time.
   const closedBranchesReported = new WeakSet<Record<string, unknown>>();
