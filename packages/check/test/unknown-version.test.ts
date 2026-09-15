@@ -59,7 +59,9 @@ describe("unsupported OpenAPI versions", () => {
     });
     expect(findings).toHaveLength(1);
     expect(findings[0]!.severity).toBe("error");
-    expect(checkSpec(resolved, { findings: select("schema") })).toEqual([]);
+    for (const cls of ["schema", "conformance"]) {
+      expect(checkSpec(resolved, { findings: select(cls) })).toEqual([]);
+    }
     const selection = select("-unsupported-openapi-version");
     expect(
       applySkip(checkSpec(resolved, { findings: selection }), selection.excludeKeys).findings,
