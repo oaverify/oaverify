@@ -175,7 +175,13 @@ function runSchemaLint(
      * rule reports can never fire; the rule is suppressed.
      */
     customRegexCompiler: boolean;
-    resolveRef?: (ref: string) => unknown;
+    /**
+     * `from` is the schema object holding the `$ref`. A fragment
+     * resolves against the base URI of the resource it is written in,
+     * so a rule that omits it gets the root resource's answer, which is
+     * a different schema wherever a nested `$id` is in play.
+     */
+    resolveRef?: (ref: string, from?: object) => unknown;
     pointer?: string;
     anchor?: "node" | "definition";
   },
@@ -216,7 +222,6 @@ function runSchemaLint(
       ? undefined
       : {
           resolve: resolveForLint,
-          root: schema,
           refSuppressesSiblings: rules.refSuppressesSiblings,
           known: (keyword) => known.has(keyword),
         };
@@ -790,11 +795,7 @@ export interface SchemaLintIssue {
    *   dead is declared outside that component, by the composition that
    *   referenced it. That verdict belongs to the route rather than to
    *   the definition, and this rule reports in the definition frame.
-   *
-   *   A composition below a nested `$id` is not reported either. A
-   *   fragment `$ref` there names a position in that resource, and the
-   *   resolver a lint pass is given answers for the root resource, so
-   *   following one would read names out of the wrong document.
+
    */
   code:
     | "partial-feature"
@@ -1891,9 +1892,19 @@ export function compileSchema(
           // Rethrowing would fail a compile over a schema that is fine
           // (#536). Codegen resolves the same refs itself and reports a
           // genuinely broken one from there.
-          resolveRef: (ref) => {
+          resolveRef: (ref, from) => {
             try {
-              return refResolver.resolve(ref);
+              if (from === undefined) return refResolver.resolve(ref);
+              // `$id` starts a schema resource and a fragment names a
+              // position inside the one it is written in. The graph
+              // recorded every node's base when it walked the schema, so
+              // the scope is looked up rather than re-derived. A node
+              // with no recorded base did not come from this graph, and
+              // guessing the root's base there is what returns a
+              // plausible schema from the wrong resource.
+              const base = graph.schemaBaseUri.get(from);
+              if (base === undefined) return undefined;
+              return refResolver.resolve(ref, base);
             } catch {
               return undefined;
             }

@@ -83,14 +83,12 @@ describe("unsatisfiable/composed-properties", () => {
     });
 
     /**
-     * The lint resolver is called without the base URI codegen threads
-     * through scope (see the `resolveRef` comment in compiler.ts), so a
-     * relative `$ref` under an `$id` resolves for the compiler and not
-     * for the lint. The compile succeeds, `{a: 1, b: 2}` is correctly
-     * rejected, and the rule stays silent rather than guessing at a
-     * composition it cannot enumerate.
+     * A relative `$ref` under an `$id`, which resolves only against that
+     * resource's base. Told which node the ref sits in, the rule
+     * resolves it the way the compiler does and reports what is really
+     * dead; without that it saw an unresolvable ref and said nothing.
      */
-    it("suppresses where a $ref resolves for the compiler and not for the lint", () => {
+    it("follows a relative $ref against its own resource base", () => {
       const schema = {
         $defs: {
           Nested: {
@@ -103,8 +101,14 @@ describe("unsatisfiable/composed-properties", () => {
         $ref: "#/$defs/Nested",
       } as SchemaOrBoolean;
       const compiled = compileSchema(schema, { dialect: jsonSchemaDialect });
+      // Both names are rejected and only `{}` gets through, so naming
+      // them is the true verdict rather than a guess.
       expect(compiled.validate({ a: 1, b: 2 }).valid).toBe(false);
-      expect(compiled.stats.schemaLintIssues.filter((issue) => issue.code === CODE)).toEqual([]);
+      expect(compiled.validate({}).valid).toBe(true);
+      const issues = compiled.stats.schemaLintIssues.filter((issue) => issue.code === CODE);
+      expect(issues.length).toBeGreaterThan(0);
+      expect(issues[0]?.message).toContain('"a"');
+      expect(issues[0]?.message).toContain('"b"');
     });
 
     it("suppresses a composition deeper than the walk's bound", () => {
@@ -410,12 +414,11 @@ describe("unsatisfiable/composed-properties", () => {
    */
   /**
    * `$id` starts a schema resource, and a fragment `$ref` inside one
-   * names a position in that resource. The resolver this rule is handed
-   * answers for the root resource, so below a nested `$id` it does not
-   * fail; it succeeds against the wrong document.
+   * names a position in that resource. Resolving from the root instead
+   * does not fail; it returns a real schema from the wrong document.
    */
   describe("a nested schema resource", () => {
-    it("does not read a name out of the root resource's $defs", () => {
+    it("reads the composition from its own resource, not the root's", () => {
       const schema = {
         $id: "https://example.com/root",
         $defs: {
@@ -431,28 +434,33 @@ describe("unsatisfiable/composed-properties", () => {
         $ref: "#/$defs/Nested",
       } as SchemaOrBoolean;
       const compiled = compileSchema(schema, { dialect: jsonSchemaDialect });
-      // The composition resolves to the nested `T`, whose sole name the
-      // close already declares, so nothing is dead and `{right: 1}`
-      // validates. Reading the root's `T` instead reported "wrong".
+      // The nested `T` declares only `right`, which the close declares
+      // too, so nothing is dead and `{right: 1}` validates. The root's
+      // `T` would have supplied "wrong".
       expect(compiled.validate({ right: 1 }).valid).toBe(true);
       expect(compiled.stats.schemaLintIssues.filter((issue) => issue.code === CODE)).toEqual([]);
     });
 
-    it("still follows a $ref where the only $id is the compile root's", () => {
-      const compiled = compileSchema(
-        {
-          $id: "https://example.com/root",
-          $defs: { Pet: { properties: { name: {} } } },
-          additionalProperties: false,
-          allOf: [{ $ref: "#/$defs/Pet" }],
-        } as SchemaOrBoolean,
-        { dialect: jsonSchemaDialect },
-      );
-      // The root resource is the one the resolver answers for, so this
-      // is not the case above and must not be suppressed with it.
+    it("still reports a nested resource that is genuinely defective", () => {
+      const schema = {
+        $id: "https://example.com/root",
+        $defs: {
+          Nested: {
+            $id: "https://example.com/nested",
+            $defs: { T: { properties: { deep: {} } } },
+            additionalProperties: false,
+            allOf: [{ $ref: "#/$defs/T" }],
+          },
+        },
+        $ref: "#/$defs/Nested",
+      } as SchemaOrBoolean;
+      const compiled = compileSchema(schema, { dialect: jsonSchemaDialect });
+      // Resolving in scope rather than refusing to resolve: a rule that
+      // gave up at the resource boundary would miss this.
+      expect(compiled.validate({ deep: 1 }).valid).toBe(false);
       const issues = compiled.stats.schemaLintIssues.filter((issue) => issue.code === CODE);
-      expect(issues).toHaveLength(1);
-      expect(issues[0]?.message).toContain('"name"');
+      expect(issues.length).toBeGreaterThan(0);
+      expect(issues[0]?.message).toContain('"deep"');
     });
   });
 

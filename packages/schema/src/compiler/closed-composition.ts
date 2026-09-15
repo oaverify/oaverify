@@ -60,13 +60,14 @@ export interface ClosedCompositionContext {
    * members among them, and it reports failure as `undefined` rather
    * than by throwing. Anything it cannot follow is "cannot enumerate".
    */
-  readonly resolve: (ref: string) => unknown;
   /**
-   * The schema being compiled, by identity alone. It marks where the
-   * root resource is, which is the one scope {@link resolve} answers
-   * for; see the `$id` handling in {@link declarationsFrom}.
+   * The compiler's own `$ref` resolver, told which node the `$ref` is
+   * written in so it resolves in that node's resource scope rather than
+   * the root's. It reports failure as `undefined`, which covers a ref
+   * that will not resolve and a node whose scope is not known, and
+   * those are one answer here: cannot enumerate.
    */
-  readonly root: unknown;
+  readonly resolve: (ref: string, from: Obj) => unknown;
   readonly refSuppressesSiblings: boolean;
   readonly known: (keyword: string) => boolean;
 }
@@ -153,7 +154,7 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
   let patterns = false;
   let unresolved = false;
 
-  const add = (node: unknown, depth: number, inNestedResource: boolean): void => {
+  const add = (node: unknown, depth: number): void => {
     if (depth > MAX_DEPTH) {
       unresolved = true;
       return;
@@ -164,41 +165,30 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
     for (const name of declaredNames(node, ctx)) names.add(name);
     if (declaresPatterns(node, ctx)) patterns = true;
 
-    // `$id` starts a new schema resource, and a fragment `$ref` inside
-    // one names a position in *that* resource. The resolver this rule is
-    // given answers for the root resource only, so below a nested `$id`
-    // it does not fail, it succeeds against the wrong document and hands
-    // back a schema whose names have nothing to do with this
-    // composition. Stop rather than trust it: a resource boundary is
-    // "cannot enumerate", the same answer as a ref that will not
-    // resolve.
-    const nested = inNestedResource || (node !== ctx.root && typeof node["$id"] === "string");
-
     if (live(node, "$ref", ctx) && typeof node["$ref"] === "string") {
-      if (nested) {
-        unresolved = true;
-      } else {
-        const target = ctx.resolve(node["$ref"]);
-        // A boolean schema is a resolved schema that declares no names,
-        // which is a different answer from one that could not be
-        // followed. Reading `true` as unknowable suppressed findings
-        // that hold.
-        if (isObj(target)) add(target, depth + 1, nested);
-        else if (typeof target !== "boolean") unresolved = true;
-      }
+      // Resolved from this node, not from the root: a fragment names a
+      // position in the resource it is written in, and a nested `$id`
+      // makes those different documents.
+      const target = ctx.resolve(node["$ref"], node);
+      // A boolean schema is a resolved schema that declares no names,
+      // which is a different answer from one that could not be
+      // followed. Reading `true` as unknowable suppressed findings that
+      // hold.
+      if (isObj(target)) add(target, depth + 1);
+      else if (typeof target !== "boolean") unresolved = true;
     }
 
     for (const kw of POSITIVE_IN_PLACE) {
       if (!live(node, kw, ctx)) continue;
       const value = node[kw];
       if (Array.isArray(value)) {
-        for (const branch of value) add(branch, depth + 1, nested);
+        for (const branch of value) add(branch, depth + 1);
       } else if (isObj(value)) {
         // A map of schemas. `dependencies` also carries the draft-07
         // array form, whose entries name properties rather than holding
         // a schema.
         for (const branch of Object.values(value)) {
-          if (!Array.isArray(branch)) add(branch, depth + 1, nested);
+          if (!Array.isArray(branch)) add(branch, depth + 1);
         }
       }
     }
@@ -208,12 +198,12 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
     // declare nothing.
     if (live(node, "if", ctx) && node["if"] !== undefined) {
       for (const kw of ["then", "else"]) {
-        if (live(node, kw, ctx)) add(node[kw], depth + 1, nested);
+        if (live(node, kw, ctx)) add(node[kw], depth + 1);
       }
     }
   };
 
-  for (const seed of seeds) add(seed, 0, false);
+  for (const seed of seeds) add(seed, 0);
   return { names, patterns, unresolved };
 }
 

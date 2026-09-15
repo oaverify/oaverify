@@ -208,10 +208,6 @@ of the defect:
   cannot say; see the two frames above. A component whose own close and
   own composition are both inside it is reported normally, however many
   `$ref`s reach it.
-- A composition below a nested `$id` is not reported. A fragment `$ref`
-  inside a schema resource names a position in that resource, and the
-  resolver a lint pass is handed answers for the root one, so following
-  it would read names out of the wrong document.
 - The class only sees schemas that compile. A component reachable only
   through a `discriminator` `mapping` value is reached by no `$ref`, so
   nothing walks into it and no schema-class rule reports on it. This is
