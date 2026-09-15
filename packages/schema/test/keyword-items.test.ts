@@ -55,3 +55,40 @@ describe("contains keyword", () => {
     expect(v.validate([]).valid).toBe(true);
   });
 });
+
+describe("contains bounds as compiler metadata", () => {
+  it.each(["tree", "flat", "predicate"] as const)(
+    "keeps inert bounds out of generated %s validation",
+    (output) => {
+      const options = { output, retainSource: true };
+      const plain = compile({ properties: { value: { type: "number" } } }, options);
+      const bounded = compile(
+        {
+          properties: { value: { type: "number", minContains: 1, maxContains: 2 } },
+        },
+        options,
+      );
+      expect(bounded.source).toBe(plain.source);
+      for (const data of [{ value: 1 }, { value: "no" }, {}]) {
+        expect(bounded.validate(data)).toEqual(plain.validate(data));
+      }
+    },
+  );
+
+  it("enforces nested bounds through contains", () => {
+    const v = compile({
+      properties: {
+        values: {
+          type: "array",
+          contains: { type: "number" },
+          minContains: 2,
+          maxContains: 3,
+        },
+      },
+    });
+    expect(v.validate({ values: [1, 2, "x"] }).valid).toBe(true);
+    expect(failure(v.validate({ values: [1] })).error.path).toEqual(["values"]);
+    expect(failure(v.validate({ values: [1] })).error.code).toBe("contains");
+    expect(failure(v.validate({ values: [1, 2, 3, 4] })).error.code).toBe("maxContains");
+  });
+});

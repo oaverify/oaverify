@@ -1,6 +1,6 @@
-import { checkNonNegativeInteger } from "../codegen/index.js";
 import { isObjectPrototypePropertyName } from "@oaverify/internal-core/prototype-properties";
 import {
+  checkNonNegativeInteger,
   checkStringArray,
   nonNegativeIntegerLiteral,
   quoteString,
