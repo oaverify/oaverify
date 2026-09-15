@@ -45,6 +45,7 @@ describe("every code describes itself", () => {
       "example-uncheckable",
       "format-not-validated",
       "unsupported-openapi-version",
+      "unsupported-schema-dialect",
     ]);
   });
 });

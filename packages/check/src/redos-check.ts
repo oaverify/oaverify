@@ -41,8 +41,11 @@
  * @packageDocumentation
  */
 
-import { detectOpenAPIVersion, type OpenAPIDocument } from "@oaverify/internal-core";
-import { escapePointer, walkDocumentSchemas } from "@oaverify/internal-validator/internals";
+import { type OpenAPIDocument } from "@oaverify/internal-core";
+import { escapePointer } from "@oaverify/internal-validator/internals";
+import { type SchemaDialects } from "./schema-dialects.js";
+import { documentSchemas } from "./document-schemas.js";
+import { refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
 // `isSafe` is exposed as a named export; the package is CJS, and some of
 // its other exports are not reachable that way from ESM.
 import { isSafe } from "redos-detector";
@@ -111,6 +114,10 @@ export function ambiguityWitness(pattern: string): string | undefined {
 /**
  * Walk a resolved document and report every `pattern` that can be made
  * to backtrack catastrophically.
+ * Only schemas in supported effective dialects contribute observations.
+ * Discovers schema targets reached by references, including targets outside
+ * structural OpenAPI schema positions. Builds the resource inventory used by
+ * `checkSpec`, without compiling schemas.
  *
  * Reported regardless of whether the caller has configured a
  * linear-time engine through `regexCompiler`: the finding is about the
@@ -122,6 +129,11 @@ export function ambiguityWitness(pattern: string): string | undefined {
  * @public
  */
 export function checkDocumentRedos(document: OpenAPIDocument): RedosIssue[] {
+  return checkRedosInDialects(documentSchemas(document).dialects);
+}
+
+/** Share the checker's resource inventory across document passes. */
+export function checkRedosInDialects(dialects: SchemaDialects): RedosIssue[] {
   const issues: RedosIssue[] = [];
   // Identity-keyed by the walk, so a schema shared by many operations is
   // analysed once. The analysis is the expensive part of this check.
@@ -153,24 +165,31 @@ export function checkDocumentRedos(document: OpenAPIDocument): RedosIssue[] {
     });
   };
 
-  walkDocumentSchemas(document, {
-    refSuppressesSiblings: detectOpenAPIVersion(document) === "3.0",
-    onSchemaNode: (schema, pointer) => {
-      const pattern = schema["pattern"];
-      if (typeof pattern === "string") report(pattern, `${pointer}/pattern`, "value");
+  for (const { schema, pointer } of dialects.entries) {
+    const dialect = dialects.effectiveFor(schema).dialect;
+    if (dialect === undefined) continue;
+    const pattern = schema["pattern"];
+    if (
+      !refSiblingIsDiscarded(schema, "pattern", dialect.rules.refSuppressesSiblings) &&
+      typeof pattern === "string"
+    )
+      report(pattern, `${pointer}/pattern`, "value");
 
-      // `patternProperties` keys are regexes too, compiled through the
-      // same `compilePattern` and run against every property name of
-      // every object validated here. Checking only `pattern` left that
-      // surface silent, which review caught: a crafted property name
-      // reaches the engine exactly as a crafted value does.
-      const patternProperties = schema["patternProperties"];
-      if (!isPlainObject(patternProperties)) return;
-      for (const key of Object.keys(patternProperties)) {
-        report(key, `${pointer}/patternProperties/${escapePointer(key)}`, "property name");
-      }
-    },
-  });
+    // `patternProperties` keys are regexes too, compiled through the
+    // same `compilePattern` and run against every property name of
+    // every object validated here. Checking only `pattern` left that
+    // surface silent, which review caught: a crafted property name
+    // reaches the engine exactly as a crafted value does.
+    const patternProperties = schema["patternProperties"];
+    if (
+      refSiblingIsDiscarded(schema, "patternProperties", dialect.rules.refSuppressesSiblings) ||
+      !isPlainObject(patternProperties)
+    )
+      continue;
+    for (const key of Object.keys(patternProperties)) {
+      report(key, `${pointer}/patternProperties/${escapePointer(key)}`, "property name");
+    }
+  }
 
   return issues;
 }

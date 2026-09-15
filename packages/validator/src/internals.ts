@@ -87,3 +87,5 @@ export { isValidMaxTotalBytes, maxTotalBytesErrorMessage } from "./from-fetch.js
 // parameter, so the generated module can answer #889 without the
 // codegen runtime gaining a symbol.
 export { effectiveType } from "./schema-type.js";
+
+export { checkDocumentExamplesInContext } from "./example-check.js";
