@@ -204,7 +204,7 @@ function runSchemaLint(
         };
   // Branches answered from their enclosing node, so the per-node check
   // does not report the same close a second time.
-  const closedBranchesReported = new WeakSet<Record<string, unknown>>();
+  const closedBranchesReported = new Set<string>();
   // Ancestor-aware, so it walks the graph itself rather than per-node:
   // the question is what property names are reachable at an instance
   // position, which a per-node visitor cannot see.
@@ -407,7 +407,7 @@ function runSchemaLint(
           for (const segment of found.segments) branchAt = stepPosition(branchAt, segment);
           issues.push({ ...found.issue, ...positionFields(branchAt) });
         }
-        if (!closedBranchesReported.has(obj)) {
+        if (!closedBranchesReported.has(path)) {
           const issue = collectClosedCompositionIssue(obj, path, closedCtx);
           if (issue !== undefined) issues.push(issue);
         }

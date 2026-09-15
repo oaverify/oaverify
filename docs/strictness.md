@@ -181,15 +181,20 @@ included, because the close applies whichever arm the instance takes.
 `not` is followed for neither: a `properties` under it is a negative
 constraint and its names were never meant to appear.
 
-The advice differs by dialect, and under OAS 3.0 the message does not
-name `unevaluatedProperties` even to say it is missing. That dialect
-omits the unevaluated vocabulary (see [dialects](./dialects.md)), so an
-author following such advice would write a key nothing evaluates and
-believe the object closed. The 3.0 fixes are to remove the close or to
-declare the composed properties beside it. In a branch the fix is not a
-substitution either: `unevaluatedProperties` collects annotations from
-its own schema object and below, not from the branches beside it, so
-the close moves up to the enclosing composition.
+The advice follows the dialect, and where the dialect has no
+`unevaluatedProperties` the message does not name it, even to say it is
+missing: an author following such advice would write a key nothing
+evaluates and believe the object closed. It names no dialect either.
+The condition is the keyword's absence, which OAS 3.0 (see
+[dialects](./dialects.md)) is the common case of rather than the only
+one. The message states the edit: remove the close, or declare the
+composed properties beside it, which does close the object.
+
+In a branch the fix is not a substitution. `unevaluatedProperties`
+collects annotations from its own schema object and below, not from the
+branches beside it, so a branch that swaps one keyword for the other
+rejects the same properties it did before; the close moves up to the
+enclosing composition instead.
 
 Two limits are worth knowing before reading a clean run as an absence
 of the defect:

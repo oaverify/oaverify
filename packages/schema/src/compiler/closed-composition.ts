@@ -157,8 +157,11 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
 
     if (live(node, "$ref", ctx) && typeof node["$ref"] === "string") {
       const target = ctx.resolve(node["$ref"]);
+      // A boolean schema is a resolved schema that declares no names,
+      // which is a different answer from one that could not be followed.
+      // Reading `true` as unknowable suppressed findings that hold.
       if (isObj(target)) add(target, depth + 1);
-      else unresolved = true;
+      else if (typeof target !== "boolean") unresolved = true;
     }
 
     for (const kw of POSITIVE_IN_PLACE) {
@@ -205,11 +208,16 @@ function renderNames(names: readonly string[]): string {
  * The fix, which is not the same sentence in every dialect or in every
  * position.
  *
- * Under OAS 3.0 the message must not name `unevaluatedProperties` even
- * to say it is missing: the 3.0 dialect omits the unevaluated
- * vocabulary, so an author who writes the keyword on that advice gets a
- * key this validator never evaluates and an object they believe is
- * closed. The advice would manufacture the defect it is reporting.
+ * Where the dialect has no `unevaluatedProperties`, the message does not
+ * name it, even to say it is missing: an author who writes the keyword
+ * on that advice gets a key nothing evaluates and an object they
+ * believe is closed, so the advice would manufacture the defect it is
+ * reporting. It names no dialect either. The condition is the keyword's
+ * absence, which OAS 3.0 is the common case of and not the only one, so
+ * a message saying "OAS 3.0" would be wrong under a custom dialect. It
+ * states the edit instead, and it does not claim a composed object
+ * cannot be closed there: declaring the properties beside the close
+ * does close it.
  *
  * In a branch, substituting `unevaluatedProperties` where the close
  * sits does not work either: it collects annotations from its own
@@ -219,7 +227,9 @@ function renderNames(names: readonly string[]): string {
  */
 function advice(ctx: ClosedCompositionContext, inBranch: boolean): string {
   if (!ctx.known("unevaluatedProperties")) {
-    return "OAS 3.0 cannot close a composed object: remove the close, or declare these properties beside it.";
+    return inBranch
+      ? "Remove the close from this branch, or declare these properties beside it."
+      : "Remove the close, or declare these properties beside it.";
   }
   return inBranch
     ? 'Remove the close from this branch and put "unevaluatedProperties": false on the enclosing composition.'
@@ -353,15 +363,21 @@ function renderBranchPath(path: string, segments: readonly (string | number)[]):
  *
  * Reported from the enclosing node because that is the only place the
  * branch's siblings are visible, and positioned at the branch because
- * that is the text to edit. `reported` carries the branches answered
- * here, so the per-node check above does not report the same close
- * again: pre-order means the enclosing node is always visited first.
+ * that is the text to edit.
+ *
+ * `reported` carries the *paths* answered here, so the per-node check
+ * above does not report the same close again; pre-order means the
+ * enclosing node is always visited first. Paths rather than schema
+ * objects, because one object reached at two structural positions is
+ * two places a reader may have to edit and each deserves its own
+ * finding. `walkSubschemas` deduplicates ref targets and never
+ * structural positions, for that reason, and this follows it.
  */
 export function collectClosedBranchIssues(
   node: Obj,
   path: string,
   ctx: ClosedCompositionContext,
-  reported: WeakSet<Obj>,
+  reported: Set<string>,
 ): { issue: SchemaLintIssue; segments: readonly (string | number)[] }[] {
   const branches = closedBranches(node, ctx);
   if (branches.length === 0) return [];
@@ -373,15 +389,15 @@ export function collectClosedBranchIssues(
 
   const out: { issue: SchemaLintIssue; segments: readonly (string | number)[] }[] = [];
   for (const branch of branches) {
-    // Nested `allOf` puts the same branch in reach of more than one
+    // Nested `allOf` puts one branch position in reach of more than one
     // enclosing node. Pre-order means the outermost reached it first,
     // with the largest set of declarations, so its finding is the one
     // that stands.
-    if (reported.has(branch.node)) continue;
+    const full = renderBranchPath(path, branch.segments);
+    if (reported.has(full)) continue;
     const found = verdict(branch.node, declared, ctx);
     if (found === undefined) continue;
-    const full = renderBranchPath(path, branch.segments);
-    reported.add(branch.node);
+    reported.add(full);
     out.push({
       issue: {
         code: "unsatisfiable/composed-properties",

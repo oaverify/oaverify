@@ -324,7 +324,14 @@ describe("unsatisfiable/composed-properties", () => {
       expect(issues).toHaveLength(1);
       expect(issues[0]?.message).not.toContain("unevaluated");
       expect(issues[0]?.message).not.toContain("Unevaluated");
-      expect(issues[0]?.message).toContain("OAS 3.0 cannot close a composed object");
+      // Names the edit, and no dialect: the condition is the keyword's
+      // absence, which a custom dialect can meet too. It also does not
+      // claim the object cannot be closed, because declaring the
+      // properties beside the close closes it.
+      expect(issues[0]?.message).not.toContain("OAS 3.0");
+      expect(issues[0]?.message).toContain(
+        "Remove the close, or declare these properties beside it.",
+      );
     });
 
     // The closing node sits under `properties` rather than at the root:
@@ -387,6 +394,53 @@ describe("unsatisfiable/composed-properties", () => {
    * questions with different answers, and answering them the same way
    * is wrong in both directions.
    */
+  describe("one schema object at two structural positions", () => {
+    /**
+     * `walkSubschemas` deduplicates ref targets and never structural
+     * positions (subschema-positions.ts), because one object written
+     * under two keys is two places a reader may have to edit. This rule
+     * follows that: the suppression that stops a branch being reported
+     * twice is keyed by position, not by object.
+     */
+    it("reports each position, and the defect each position has", () => {
+      const shared = { additionalProperties: false, allOf: [{ properties: { a: {} } }] };
+      const issues = lint31({ allOf: [shared], properties: { child: shared } });
+      // allOf[0] is a closed branch beside a declaration of `child`;
+      // properties.child is the same object with its own composition
+      // declaring `a`. Two addresses, two edits.
+      expect(issues.map((issue) => issue.path).sort()).toEqual(["allOf[0]", "properties.child"]);
+    });
+
+    it("reports the same object at two indices of one allOf", () => {
+      const shared = { additionalProperties: false, allOf: [{ properties: { a: {} } }] };
+      const issues = lint31({ allOf: [shared, shared, { properties: { b: {} } }] });
+      expect(issues.map((issue) => issue.path).sort()).toEqual(["allOf[0]", "allOf[1]"]);
+    });
+  });
+
+  describe("a resolved boolean schema is not an unresolvable ref", () => {
+    it("keeps the finding beside an inert `true` branch", () => {
+      const issues = lint31({
+        $defs: { T: true },
+        additionalProperties: false,
+        allOf: [{ $ref: "#/$defs/T" }, { properties: { a: {} } }],
+      });
+      // `true` resolves and declares nothing. Reading it as "could not
+      // enumerate" suppressed a finding that holds.
+      expect(issues).toHaveLength(1);
+      expect(issues[0]?.message).toContain('"a"');
+    });
+
+    it("keeps the finding beside an inert `false` branch", () => {
+      const issues = lint31({
+        $defs: { F: false },
+        additionalProperties: false,
+        allOf: [{ $ref: "#/$defs/F" }, { properties: { a: {} } }],
+      });
+      expect(issues).toHaveLength(1);
+    });
+  });
+
   describe("a dialect missing one of the keywords", () => {
     const without = (name: string) => ({
       ...jsonSchemaDialect,
