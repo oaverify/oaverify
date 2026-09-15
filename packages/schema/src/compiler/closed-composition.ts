@@ -54,21 +54,31 @@ const MAX_NAMED = 5;
  */
 export interface ClosedCompositionContext {
   /**
-   * The compiler's own `$ref` resolver, which is the only one this rule
-   * uses. It already answers the questions a second walk would have to
-   * re-derive, the OAS 3.0 rule that a `$ref` node has no addressable
-   * members among them, and it reports failure as `undefined` rather
-   * than by throwing. Anything it cannot follow is "cannot enumerate".
-   */
-  /**
    * The compiler's `$ref` resolver, told which node the `$ref` sits in
-   * so it answers in that node's resource scope. `undefined` means it
-   * could not: either the ref does not resolve, or that node has no
-   * recorded scope because it reached this compile through the caller's
-   * resolver rather than through the schema.
+   * so it answers in that node's resource scope: a fragment under a
+   * nested `$id` names a position in that resource, not in the root.
+   * It resolves exactly as codegen does, so what this rule reads is
+   * what the emitted validator runs.
+   *
+   * `undefined` means the ref does not resolve, which this rule treats
+   * as "cannot enumerate" rather than "declares nothing".
    */
   readonly resolve: (ref: string, from: Obj) => unknown;
+  /**
+   * OAS 3.0 drops a `$ref`'s siblings. A keyword the dialect discards
+   * constrains nothing, so it neither closes an object nor declares a
+   * name.
+   */
   readonly refSuppressesSiblings: boolean;
+  /**
+   * Is this keyword in the active dialect? Every keyword the rule
+   * reasons about is checked, because one the dialect does not
+   * implement emits no code, and a finding resting on it would describe
+   * behaviour the validator does not have. `additionalProperties` is
+   * the exception that proves it: it reads its own coverage siblings
+   * raw, registered or not, which is why {@link coveredNames} does not
+   * consult this and {@link declaredNames} does.
+   */
   readonly known: (keyword: string) => boolean;
 }
 
