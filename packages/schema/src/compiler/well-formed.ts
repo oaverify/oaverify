@@ -205,6 +205,8 @@ export function assertWellFormedSchema(
       refSiblingIsDiscarded(obj, key, refSuppressesSiblings);
     for (const key of Object.keys(obj)) {
       if (discarded(key)) continue;
+      // At the root the keyword name already locates its value.
+      const where = path === "" ? "" : ` at ${at(`${path}.${key}`)}`;
       let reason: string | undefined;
       try {
         reason = byKeyword.get(key)?.validateKeywordValue?.(obj[key], {
@@ -214,15 +216,12 @@ export function assertWellFormedSchema(
           parentSchema: obj as SchemaObject,
         });
       } catch (err) {
-        const message = `${prefix}keyword "${key}" at ${at(path)}: ${err instanceof Error ? err.message : String(err)}`;
+        const message = `${prefix}keyword "${key}"${where}: ${err instanceof Error ? err.message : String(err)}`;
         // Native regex syntax errors keep their established error class.
         if (err instanceof SyntaxError) throw new SyntaxError(message, { cause: err });
         throw new Error(message, { cause: err });
       }
       if (reason !== undefined) {
-        // At the root the path *is* the keyword name, so `at "type"`
-        // would just repeat what the sentence already said.
-        const where = path === "" ? "" : ` at ${at(`${path}.${key}`)}`;
         fail(`keyword "${key}"${where} ${reason}`);
       }
     }

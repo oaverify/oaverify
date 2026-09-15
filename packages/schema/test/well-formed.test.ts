@@ -412,3 +412,45 @@ describe("unused $defs codegen guards (#1048)", () => {
     );
   });
 });
+
+describe("thrown keyword-value guard locations (#1068)", () => {
+  it.each(["pattern", "patternProperties"])("locates a nested %s value", (keyword) => {
+    const value = keyword === "pattern" ? "(?" : { "(?": true };
+    expect(() => compileWith({ $defs: { dead: { [keyword]: value } } })).toThrow(
+      `keyword "${keyword}" at "$defs.dead.${keyword}": Invalid regular expression`,
+    );
+  });
+
+  it("omits the redundant root location and preserves native syntax errors", () => {
+    try {
+      compileWith({ pattern: "(?" });
+      expect.unreachable("expected an invalid pattern to throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(SyntaxError);
+      expect((err as Error).message).toMatch(/^keyword "pattern": Invalid regular expression/);
+      expect((err as Error).cause).toBeInstanceOf(SyntaxError);
+    }
+  });
+
+  it("locates a custom regex failure without changing its cause", () => {
+    const cause = new Error("policy rejection");
+    try {
+      compileWith(
+        { $defs: { dead: { pattern: "ok" } } },
+        {
+          label: "Widget",
+          regexCompiler() {
+            throw cause;
+          },
+        },
+      );
+      expect.unreachable("expected the regex policy to reject");
+    } catch (err) {
+      expect((err as Error).message).toBe(
+        'Widget: keyword "pattern" at "$defs.dead.pattern": policy rejection',
+      );
+      expect((err as Error).cause).toBe(cause);
+      expect(cause.message).toBe("policy rejection");
+    }
+  });
+});
