@@ -1,5 +1,41 @@
 # Changelog
 
+## [7.3.0](https://github.com/oaverify/oaverify/compare/core-v7.2.2...core-v7.3.0) (2026-09-15)
+
+
+### Features
+
+* **schema:** report a close that rejects what its composition declares ([#1046](https://github.com/oaverify/oaverify/issues/1046)) ([a06b4d2](https://github.com/oaverify/oaverify/commit/a06b4d2b9f0bc8370a5739d3dd7164baa56e25e1))
+
+
+### Bug Fixes
+
+* **check:** classify unknown versions explicitly ([#1070](https://github.com/oaverify/oaverify/issues/1070)) ([c7495fb](https://github.com/oaverify/oaverify/commit/c7495fbffdb4d40efc46ced1cdc164df293694df))
+* **check:** compile document schemas ([#1073](https://github.com/oaverify/oaverify/issues/1073)) ([f79adda](https://github.com/oaverify/oaverify/commit/f79addadfa25c26e3af58a41ae6da191282858dc))
+* **check:** deduplicate conformance leaves ([#1058](https://github.com/oaverify/oaverify/issues/1058)) ([568b3a4](https://github.com/oaverify/oaverify/commit/568b3a404f4fdb61a09aa145dec7c35956529361))
+* **check:** deduplicate conformance leaves ([#1061](https://github.com/oaverify/oaverify/issues/1061)) ([568b3a4](https://github.com/oaverify/oaverify/commit/568b3a404f4fdb61a09aa145dec7c35956529361))
+* **check:** disclose unsupported OpenAPI versions ([#1064](https://github.com/oaverify/oaverify/issues/1064)) ([79a7e46](https://github.com/oaverify/oaverify/commit/79a7e46212c0b7f59b8e0371108bcffd86d964fa))
+* **check:** disclose unsupported schema dialects ([#1077](https://github.com/oaverify/oaverify/issues/1077)) ([5289dd7](https://github.com/oaverify/oaverify/commit/5289dd7dfa8b0223ed2617fce7e7f9088014b765)), closes [#1050](https://github.com/oaverify/oaverify/issues/1050)
+* **check:** tolerate malformed operation tags ([#1076](https://github.com/oaverify/oaverify/issues/1076)) ([4b22313](https://github.com/oaverify/oaverify/commit/4b22313244f027dfb11f157afd38669368244c92))
+* **check:** walk 3.2 media schemas ([#1075](https://github.com/oaverify/oaverify/issues/1075)) ([fe171f5](https://github.com/oaverify/oaverify/commit/fe171f50b5fb22dc667b6ea3904ed580f11eee89))
+* **check:** walk additional operations ([#1074](https://github.com/oaverify/oaverify/issues/1074)) ([6518c5c](https://github.com/oaverify/oaverify/commit/6518c5c4e2ef19e395757ab3947a2f512445177e))
+* **core:** type reusable path items ([#1066](https://github.com/oaverify/oaverify/issues/1066)) ([94e8826](https://github.com/oaverify/oaverify/commit/94e8826e3441d6ee80fae6496ff562fe53c80e1b))
+* **schema:** align keyword error paths ([#1071](https://github.com/oaverify/oaverify/issues/1071)) ([2d57ca3](https://github.com/oaverify/oaverify/commit/2d57ca3c8b97749757e54107e27ff1889652f134))
+* **schema:** annotate for the parent from a nested unevaluated keyword ([#1045](https://github.com/oaverify/oaverify/issues/1045)) ([a12bb27](https://github.com/oaverify/oaverify/commit/a12bb27a08c49b8452c8a705086048081f5f73f9)), closes [#1038](https://github.com/oaverify/oaverify/issues/1038)
+* **schema:** check unused definition values ([#1065](https://github.com/oaverify/oaverify/issues/1065)) ([533a5c6](https://github.com/oaverify/oaverify/commit/533a5c6201297957b75b041b85ba031e995d120d))
+* **schema:** discard annotations at every schema-object boundary ([#1042](https://github.com/oaverify/oaverify/issues/1042)) ([a3d3b79](https://github.com/oaverify/oaverify/commit/a3d3b791c959c31cb0068df1c6d12991dcd7c801))
+* **schema:** drop the cause guess from the required-lint message ([#1022](https://github.com/oaverify/oaverify/issues/1022)) ([68e8d28](https://github.com/oaverify/oaverify/commit/68e8d28bbd72d9631dc7bd55851179fd978cc0b9))
+* **schema:** mark contains bounds as metadata ([#1072](https://github.com/oaverify/oaverify/issues/1072)) ([fe764ff](https://github.com/oaverify/oaverify/commit/fe764ffc3765b4e59a730aa44ccc0869e83aa3fe))
+* **spec:** follow component containers ([#1060](https://github.com/oaverify/oaverify/issues/1060)) ([ef7b0b3](https://github.com/oaverify/oaverify/commit/ef7b0b3e44877053eb7f8d9ebc83a9c93cf5d471))
+
+
+### Documentation
+
+* **cli:** refresh sample report ([#1078](https://github.com/oaverify/oaverify/issues/1078)) ([df1b824](https://github.com/oaverify/oaverify/commit/df1b824cee80630f3140bc4691c807490a21178e)), closes [#1024](https://github.com/oaverify/oaverify/issues/1024)
+* say what unknownFormats counts as registered ([#1020](https://github.com/oaverify/oaverify/issues/1020)) ([ed40c58](https://github.com/oaverify/oaverify/commit/ed40c58973308f10ad01d0c2e27eb47b4e1bbc4c))
+* **schema:** clarify OAS 3.0 keyword leniency ([#1044](https://github.com/oaverify/oaverify/issues/1044)) ([a34d53e](https://github.com/oaverify/oaverify/commit/a34d53e0d0258b0a1b730a2e8d345e21fe1cfeb4))
+* **spec:** say that extendSchemas can only narrow ([#1037](https://github.com/oaverify/oaverify/issues/1037)) ([8ae9892](https://github.com/oaverify/oaverify/commit/8ae9892802deb56469c1592cfe86a124da1cf5fa))
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/core-v7.2.1...core-v7.2.2) (2026-09-09)
 
 
