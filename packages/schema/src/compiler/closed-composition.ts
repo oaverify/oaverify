@@ -329,9 +329,18 @@ export function collectClosedBranchIssues(
   const branches = closedBranches(node, ctx);
   if (branches.length === 0) return [];
 
+  // One walk for every branch: the set each close is measured against is
+  // the whole composition, and the branch's own names are subtracted
+  // from it rather than kept out of it.
+  const declared = declarationsFrom([node], ctx);
+
   const out: { issue: SchemaLintIssue; segments: readonly (string | number)[] }[] = [];
   for (const branch of branches) {
-    const declared = declarationsFrom([node], ctx);
+    // Nested `allOf` puts the same branch in reach of more than one
+    // enclosing node. Pre-order means the outermost reached it first,
+    // with the largest set of declarations, so its finding is the one
+    // that stands.
+    if (reported.has(branch.node)) continue;
     const found = verdict(branch.node, declared, ctx);
     if (found === undefined) continue;
     const full = renderBranchPath(path, branch.segments);

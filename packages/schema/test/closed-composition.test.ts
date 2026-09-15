@@ -231,6 +231,15 @@ describe("unsatisfiable/composed-properties", () => {
       expect(issues[0]?.message).toContain('"a"');
     });
 
+    it("reports a branch reachable from two enclosing nodes once", () => {
+      // Nested inline `allOf` puts the close in reach of the root and of
+      // the branch between them, and both see a declaration.
+      const issues = lint31({
+        allOf: [{ properties: { b: {} }, allOf: [{ additionalProperties: false }] }],
+      });
+      expect(issues.map((issue) => issue.path)).toEqual(["allOf[0].allOf[0]"]);
+    });
+
     it("reports a branch once, not twice, when its own subtree also declares", () => {
       const issues = lint31({
         allOf: [
