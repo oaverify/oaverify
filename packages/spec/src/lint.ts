@@ -83,7 +83,12 @@ const COMPONENT_CATEGORIES = [
   "securitySchemes",
 ] as const satisfies readonly (keyof ComponentsObject)[];
 
-const REFERENCE_CONTAINERS = [...COMPONENT_CATEGORIES, "pathItems", "callbacks"] as const;
+const REFERENCE_CONTAINERS = [
+  ...COMPONENT_CATEGORIES,
+  "pathItems",
+  "callbacks",
+  "mediaTypes",
+] as const;
 
 const PATH_TEMPLATE_RE = /\{([^{}]+)\}/g;
 // Splitting form: the capture group keeps the placeholders in the output
@@ -257,6 +262,7 @@ function collectAllRefs(
   const components = document.components;
   if (!components) return;
   for (const category of REFERENCE_CONTAINERS) {
+    // Document checks read newer containers before ComponentsObject exposes them.
     const bucket = (components as Record<string, unknown>)[category];
     if (!isObject(bucket)) continue;
     for (const [name, value] of Object.entries(bucket)) {
@@ -305,6 +311,7 @@ function asSecurityList(security: unknown): readonly SecurityRequirementObject[]
   );
 }
 
+// Unreadable containers contribute no edges; conformance reports their shape.
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }

@@ -78,3 +78,40 @@ describe("component container reachability (#1049)", () => {
     ]);
   });
 });
+
+describe("OpenAPI 3.2 media type component reachability", () => {
+  function mediaTypeDocument(reached: boolean): OpenAPIDocument {
+    return {
+      openapi: "3.2.0",
+      info: { title: "T", version: "1" },
+      paths: reached
+        ? {
+            "/a": {
+              get: {
+                responses: {
+                  "200": {
+                    description: "ok",
+                    content: { "application/json": { $ref: "#/components/mediaTypes/M" } },
+                  },
+                },
+              },
+            },
+          }
+        : {},
+      components: {
+        mediaTypes: { M: { schema: { $ref: "#/components/schemas/S" } } },
+        schemas: { S: { type: "string" } },
+      },
+    } as OpenAPIDocument;
+  }
+
+  it("follows a referenced media type to its schema", () => {
+    expect(lintResolvedSpec(mediaTypeDocument(true))).toEqual([]);
+  });
+
+  it("keeps an unreferenced media type from rooting its schema", () => {
+    expect(lintResolvedSpec(mediaTypeDocument(false))).toMatchObject([
+      { code: "unused-component", pointer: "/components/schemas/S" },
+    ]);
+  });
+});
