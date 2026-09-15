@@ -259,10 +259,16 @@ export function quoteString(value: string): string {
  * @public
  */
 export function numberLiteral(value: unknown, keyword: string): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`keyword "${keyword}" requires a finite number; got ${describeValue(value)}`);
-  }
+  const reason = checkNumber(value);
+  if (reason !== undefined) throw new Error(`keyword "${keyword}" ${reason}`);
   return String(value);
+}
+
+/** Schema-side value contract shared with the well-formedness pass. */
+export function checkNumber(value: unknown): string | undefined {
+  return typeof value !== "number" || !Number.isFinite(value)
+    ? `requires a finite number; got ${describeValue(value)}`
+    : undefined;
 }
 
 /**
@@ -277,12 +283,16 @@ export function numberLiteral(value: unknown, keyword: string): string {
  * @public
  */
 export function nonNegativeIntegerLiteral(value: unknown, keyword: string): string {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
-    throw new Error(
-      `keyword "${keyword}" requires a non-negative integer; got ${describeValue(value)}`,
-    );
-  }
+  const reason = checkNonNegativeInteger(value);
+  if (reason !== undefined) throw new Error(`keyword "${keyword}" ${reason}`);
   return String(value);
+}
+
+/** Schema-side value contract shared with the well-formedness pass. */
+export function checkNonNegativeInteger(value: unknown): string | undefined {
+  return typeof value !== "number" || !Number.isInteger(value) || value < 0
+    ? `requires a non-negative integer; got ${describeValue(value)}`
+    : undefined;
 }
 
 /**
@@ -299,12 +309,16 @@ export function nonNegativeIntegerLiteral(value: unknown, keyword: string): stri
  * @public
  */
 export function positiveNumberLiteral(value: unknown, keyword: string): string {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-    throw new Error(
-      `keyword "${keyword}" requires a finite positive number; got ${describeValue(value)}`,
-    );
-  }
+  const reason = checkPositiveNumber(value);
+  if (reason !== undefined) throw new Error(`keyword "${keyword}" ${reason}`);
   return String(value);
+}
+
+/** Schema-side value contract shared with the well-formedness pass. */
+export function checkPositiveNumber(value: unknown): string | undefined {
+  return typeof value !== "number" || !Number.isFinite(value) || value <= 0
+    ? `requires a finite positive number; got ${describeValue(value)}`
+    : undefined;
 }
 
 /**

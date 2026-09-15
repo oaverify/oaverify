@@ -240,8 +240,10 @@ the three classes of check relate.
 A schema-valued slot (`items`, `not`, `if`, each entry of `allOf` /
 `oneOf` / `prefixItems`, each value of `properties` / `$defs`, and so
 on) has to hold an object or a boolean. Anything else throws from
-`createValidator` / `compileSchema` with the path to the offending
-value:
+`compileSchema` with the path to the offending value. HTTP validators
+compile schemas lazily, so call `validator.precompile()` at startup to
+catch failures in served operations before requests reach them (see
+`Validator.precompile`):
 
 ```
 "items" at "properties.events" must be an object or boolean; got an array.
@@ -275,9 +277,10 @@ Under OpenAPI 3.0 the legal type set is the same six minus `null`, and
 than a spelling suggestion.
 
 These are spec bugs that no runtime option papers over, which is why
-the failure is a throw at construction rather than an entry in
-`schemaLintIssues`. Catching one needs a `try` around
-`createValidator`, not a check on each request.
+the failure is a throw during schema compilation. Catch one with a `try`
+around `compileSchema`, or around `validator.precompile()` when starting
+an HTTP server. Constructing the HTTP validator alone does not force its
+lazy schema compiles.
 
 ## Hardening against untrusted regex patterns
 

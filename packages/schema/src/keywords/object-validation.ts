@@ -1,3 +1,4 @@
+import { checkNonNegativeInteger } from "../codegen/index.js";
 import { isObjectPrototypePropertyName } from "@oaverify/internal-core/prototype-properties";
 import {
   checkStringArray,
@@ -65,6 +66,7 @@ function keyCountExpr(dataExpr: string): string {
  */
 export const maxPropertiesKeyword: KeywordDefinition = {
   keyword: "maxProperties",
+  validateKeywordValue: checkNonNegativeInteger,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = nonNegativeIntegerLiteral(ctx.schema, "maxProperties");
@@ -92,6 +94,7 @@ export const maxPropertiesKeyword: KeywordDefinition = {
  */
 export const minPropertiesKeyword: KeywordDefinition = {
   keyword: "minProperties",
+  validateKeywordValue: checkNonNegativeInteger,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = nonNegativeIntegerLiteral(ctx.schema, "minProperties");

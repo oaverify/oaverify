@@ -1,3 +1,4 @@
+import { checkNonNegativeInteger } from "../codegen/index.js";
 import { NAMES, nonNegativeIntegerLiteral, quoteString } from "../codegen/index.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
@@ -9,6 +10,7 @@ import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
  */
 export const maxItemsKeyword: KeywordDefinition = {
   keyword: "maxItems",
+  validateKeywordValue: checkNonNegativeInteger,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = nonNegativeIntegerLiteral(ctx.schema, "maxItems");
@@ -32,6 +34,7 @@ export const maxItemsKeyword: KeywordDefinition = {
  */
 export const minItemsKeyword: KeywordDefinition = {
   keyword: "minItems",
+  validateKeywordValue: checkNonNegativeInteger,
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const limit = nonNegativeIntegerLiteral(ctx.schema, "minItems");
@@ -81,4 +84,20 @@ export const uniqueItemsKeyword: KeywordDefinition = {
       });
     });
   },
+};
+
+/** Schema-side bound; `contains` emits the corresponding assertion. */
+export const minContainsKeyword: KeywordDefinition = {
+  keyword: "minContains",
+  vocabulary: CORE_VALIDATION_VOCAB,
+  validateKeywordValue: checkNonNegativeInteger,
+  compile(): void {},
+};
+
+/** Schema-side bound; `contains` emits the corresponding assertion. */
+export const maxContainsKeyword: KeywordDefinition = {
+  keyword: "maxContains",
+  vocabulary: CORE_VALIDATION_VOCAB,
+  validateKeywordValue: checkNonNegativeInteger,
+  compile(): void {},
 };

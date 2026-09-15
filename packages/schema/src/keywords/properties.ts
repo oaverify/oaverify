@@ -1,3 +1,4 @@
+import { checkPattern } from "./string.js";
 import { NAMES, quoteString } from "../codegen/index.js";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { propertyPresent } from "./object-validation.js";
@@ -74,6 +75,14 @@ export const propertiesKeyword: KeywordDefinition = {
  */
 export const patternPropertiesKeyword: KeywordDefinition = {
   keyword: "patternProperties",
+  validateKeywordValue(value, context) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+    for (const pattern of Object.keys(value)) {
+      const reason = checkPattern(pattern, context);
+      if (reason !== undefined) return reason;
+    }
+    return undefined;
+  },
   vocabulary: APPLICATOR_VOCAB,
   applicator: true,
   compile(ctx: KeywordCompileContext): void {

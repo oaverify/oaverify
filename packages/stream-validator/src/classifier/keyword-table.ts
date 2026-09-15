@@ -61,11 +61,9 @@ export type KeywordCategory =
 
 /**
  * Built-in keyword name -> {@link KeywordCategory}. Covers the JSON
- * Schema 2020-12, OpenAPI 3.1/3.2, and OpenAPI 3.0 keyword sets. Keywords
- * folded into another by `implements` (`minContains` / `maxContains` into
- * `contains`; `then` / `else` into `if`) are not listed: they never
- * dispatch on their own, so `@oaverify/internal-schema` does not register them
- * independently.
+ * Schema 2020-12, OpenAPI 3.1/3.2, and OpenAPI 3.0 keyword sets.
+ * Folded keywords may be omitted when the compiler does not register
+ * them independently, as with `then` and `else`.
  *
  * @public
  */
@@ -128,6 +126,9 @@ export const KEYWORD_CATEGORY: Readonly<Record<string, KeywordCategory>> = {
   $dynamicRef: "ref",
 
   // Annotations / metadata / structural-only (no runtime assertion).
+  // `contains` consumes these bounds; they assert nothing independently.
+  minContains: "annotation",
+  maxContains: "annotation",
   $anchor: "annotation",
   $dynamicAnchor: "annotation",
   $comment: "annotation",
