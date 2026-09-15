@@ -408,6 +408,54 @@ describe("unsatisfiable/composed-properties", () => {
    * questions with different answers, and answering them the same way
    * is wrong in both directions.
    */
+  /**
+   * `$id` starts a schema resource, and a fragment `$ref` inside one
+   * names a position in that resource. The resolver this rule is handed
+   * answers for the root resource, so below a nested `$id` it does not
+   * fail; it succeeds against the wrong document.
+   */
+  describe("a nested schema resource", () => {
+    it("does not read a name out of the root resource's $defs", () => {
+      const schema = {
+        $id: "https://example.com/root",
+        $defs: {
+          T: { properties: { wrong: {} } },
+          Nested: {
+            $id: "https://example.com/nested",
+            $defs: { T: { properties: { right: {} } } },
+            properties: { right: {} },
+            additionalProperties: false,
+            allOf: [{ $ref: "#/$defs/T" }],
+          },
+        },
+        $ref: "#/$defs/Nested",
+      } as SchemaOrBoolean;
+      const compiled = compileSchema(schema, { dialect: jsonSchemaDialect });
+      // The composition resolves to the nested `T`, whose sole name the
+      // close already declares, so nothing is dead and `{right: 1}`
+      // validates. Reading the root's `T` instead reported "wrong".
+      expect(compiled.validate({ right: 1 }).valid).toBe(true);
+      expect(compiled.stats.schemaLintIssues.filter((issue) => issue.code === CODE)).toEqual([]);
+    });
+
+    it("still follows a $ref where the only $id is the compile root's", () => {
+      const compiled = compileSchema(
+        {
+          $id: "https://example.com/root",
+          $defs: { Pet: { properties: { name: {} } } },
+          additionalProperties: false,
+          allOf: [{ $ref: "#/$defs/Pet" }],
+        } as SchemaOrBoolean,
+        { dialect: jsonSchemaDialect },
+      );
+      // The root resource is the one the resolver answers for, so this
+      // is not the case above and must not be suppressed with it.
+      const issues = compiled.stats.schemaLintIssues.filter((issue) => issue.code === CODE);
+      expect(issues).toHaveLength(1);
+      expect(issues[0]?.message).toContain('"name"');
+    });
+  });
+
   describe("one schema object at two structural positions", () => {
     /**
      * `walkSubschemas` deduplicates ref targets and never structural

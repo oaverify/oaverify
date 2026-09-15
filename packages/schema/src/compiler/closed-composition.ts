@@ -61,6 +61,12 @@ export interface ClosedCompositionContext {
    * than by throwing. Anything it cannot follow is "cannot enumerate".
    */
   readonly resolve: (ref: string) => unknown;
+  /**
+   * The schema being compiled, by identity alone. It marks where the
+   * root resource is, which is the one scope {@link resolve} answers
+   * for; see the `$id` handling in {@link declarationsFrom}.
+   */
+  readonly root: unknown;
   readonly refSuppressesSiblings: boolean;
   readonly known: (keyword: string) => boolean;
 }
@@ -147,7 +153,7 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
   let patterns = false;
   let unresolved = false;
 
-  const add = (node: unknown, depth: number): void => {
+  const add = (node: unknown, depth: number, inNestedResource: boolean): void => {
     if (depth > MAX_DEPTH) {
       unresolved = true;
       return;
@@ -158,26 +164,42 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
     for (const name of declaredNames(node, ctx)) names.add(name);
     if (declaresPatterns(node, ctx)) patterns = true;
 
+    // `$id` starts a new schema resource, and a fragment `$ref` inside
+    // one names a position in *that* resource. The resolver this rule is
+    // given answers for the root resource only, so below a nested `$id`
+    // it does not fail, it succeeds against the wrong document and hands
+    // back a schema whose names have nothing to do with this
+    // composition. Stop rather than trust it: a resource boundary is
+    // "cannot enumerate", the same answer as a ref that will not
+    // resolve.
+    const nested = inNestedResource || (node !== ctx.root && typeof node["$id"] === "string");
+
     if (live(node, "$ref", ctx) && typeof node["$ref"] === "string") {
-      const target = ctx.resolve(node["$ref"]);
-      // A boolean schema is a resolved schema that declares no names,
-      // which is a different answer from one that could not be followed.
-      // Reading `true` as unknowable suppressed findings that hold.
-      if (isObj(target)) add(target, depth + 1);
-      else if (typeof target !== "boolean") unresolved = true;
+      if (nested) {
+        unresolved = true;
+      } else {
+        const target = ctx.resolve(node["$ref"]);
+        // A boolean schema is a resolved schema that declares no names,
+        // which is a different answer from one that could not be
+        // followed. Reading `true` as unknowable suppressed findings
+        // that hold.
+        if (isObj(target)) add(target, depth + 1, nested);
+        else if (typeof target !== "boolean") unresolved = true;
+      }
     }
 
     for (const kw of POSITIVE_IN_PLACE) {
       if (!live(node, kw, ctx)) continue;
       const value = node[kw];
       if (Array.isArray(value)) {
-        for (const branch of value) add(branch, depth + 1);
+        for (const branch of value) add(branch, depth + 1, nested);
       } else if (isObj(value)) {
         // A map of schemas. `dependencies` also carries the draft-07
         // array form, whose entries name properties rather than holding
         // a schema.
-        for (const branch of Object.values(value))
-          if (!Array.isArray(branch)) add(branch, depth + 1);
+        for (const branch of Object.values(value)) {
+          if (!Array.isArray(branch)) add(branch, depth + 1, nested);
+        }
       }
     }
 
@@ -186,12 +208,12 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
     // declare nothing.
     if (live(node, "if", ctx) && node["if"] !== undefined) {
       for (const kw of ["then", "else"]) {
-        if (live(node, kw, ctx)) add(node[kw], depth + 1);
+        if (live(node, kw, ctx)) add(node[kw], depth + 1, nested);
       }
     }
   };
 
-  for (const seed of seeds) add(seed, 0);
+  for (const seed of seeds) add(seed, 0, false);
   return { names, patterns, unresolved };
 }
 

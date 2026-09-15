@@ -200,6 +200,7 @@ function runSchemaLint(
       ? undefined
       : {
           resolve: resolveForLint,
+          root: schema,
           refSuppressesSiblings: rules.refSuppressesSiblings,
           known: (keyword) => known.has(keyword),
         };
@@ -774,6 +775,11 @@ export interface SchemaLintIssue {
    *   dead is declared outside that component, by the composition that
    *   referenced it. That verdict belongs to the route rather than to
    *   the definition, and this rule reports in the definition frame.
+   *
+   *   A composition below a nested `$id` is not reported either. A
+   *   fragment `$ref` there names a position in that resource, and the
+   *   resolver a lint pass is given answers for the root resource, so
+   *   following one would read names out of the wrong document.
    */
   code:
     | "partial-feature"
