@@ -8,7 +8,11 @@
  * @packageDocumentation
  */
 
-import { detectOpenAPIVersion, type OpenAPIDocument } from "@oaverify/internal-core";
+import {
+  classifyUnknownVersion,
+  detectOpenAPIVersion,
+  type OpenAPIDocument,
+} from "@oaverify/internal-core";
 import {
   lintResolvedSpec,
   sourceOf,
@@ -285,8 +289,11 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   }
   if (lintError !== undefined) throw lintError;
 
-  // The gate accepted an unknown 3.x minor using its forward-compatible fallback.
-  if (classes.has("hygiene") && detectOpenAPIVersion(document) === undefined) {
+  if (
+    classes.has("hygiene") &&
+    detectOpenAPIVersion(document) === undefined &&
+    classifyUnknownVersion(document.openapi).kind === "ok-unknown-minor"
+  ) {
     findings.push({
       class: "hygiene",
       severity: defaultSeverityFor("hygiene", "unsupported-openapi-version"),
