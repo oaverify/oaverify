@@ -149,27 +149,46 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
     }
   };
 
+  const walkEncoding = (entry: unknown, pointer: string): void => {
+    if (!isObj(entry)) return;
+    const headers = entry["headers"];
+    if (isObj(headers)) {
+      for (const [name, header] of Object.entries(headers)) {
+        walkParameterLike(header, `${pointer}/headers/${escapePointer(name)}`);
+      }
+    }
+    walkEncodings(entry, pointer);
+  };
+
+  const walkEncodings = (host: Record<string, unknown>, pointer: string): void => {
+    const encoding = host["encoding"];
+    if (isObj(encoding)) {
+      for (const [name, entry] of Object.entries(encoding)) {
+        walkEncoding(entry, `${pointer}/encoding/${escapePointer(name)}`);
+      }
+    }
+    const prefix = host["prefixEncoding"];
+    if (Array.isArray(prefix)) {
+      for (const [i, entry] of prefix.entries())
+        walkEncoding(entry, `${pointer}/prefixEncoding/${i}`);
+    }
+    if (host["itemEncoding"] !== undefined)
+      walkEncoding(host["itemEncoding"], `${pointer}/itemEncoding`);
+  };
+
+  const walkMediaType = (mediaType: unknown, pointer: string): void => {
+    if (!isObj(mediaType)) return;
+    if (mediaType["schema"] !== undefined) walkSchema(mediaType["schema"], `${pointer}/schema`);
+    if (mediaType["itemSchema"] !== undefined)
+      walkSchema(mediaType["itemSchema"], `${pointer}/itemSchema`);
+    hooks.onMediaType?.(mediaType, pointer);
+    walkEncodings(mediaType, pointer);
+  };
+
   const walkContent = (content: unknown, pointer: string): void => {
     if (!isObj(content)) return;
-    for (const [mediaTypeName, mediaType] of Object.entries(content)) {
-      if (!isObj(mediaType)) continue;
-      const at = `${pointer}/${escapePointer(mediaTypeName)}`;
-      if (mediaType["schema"] !== undefined) walkSchema(mediaType["schema"], `${at}/schema`);
-      hooks.onMediaType?.(mediaType, at);
-      // A Header Object is legal at `encoding.<property>.headers.<name>`.
-      const encoding = mediaType["encoding"];
-      if (!isObj(encoding)) continue;
-      for (const [property, entry] of Object.entries(encoding)) {
-        if (!isObj(entry)) continue;
-        const headers = entry["headers"];
-        if (!isObj(headers)) continue;
-        for (const [headerName, header] of Object.entries(headers)) {
-          walkParameterLike(
-            header,
-            `${at}/encoding/${escapePointer(property)}/headers/${escapePointer(headerName)}`,
-          );
-        }
-      }
+    for (const [name, mediaType] of Object.entries(content)) {
+      walkMediaType(mediaType, `${pointer}/${escapePointer(name)}`);
     }
   };
 
@@ -277,6 +296,12 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
   if (isObj(responses)) {
     for (const [name, entry] of Object.entries(responses)) {
       walkResponse(entry, `/components/responses/${escapePointer(name)}`);
+    }
+  }
+  const mediaTypes = components["mediaTypes"];
+  if (isObj(mediaTypes)) {
+    for (const [name, entry] of Object.entries(mediaTypes)) {
+      walkMediaType(entry, `/components/mediaTypes/${escapePointer(name)}`);
     }
   }
   const pathItems = components["pathItems"];
