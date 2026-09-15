@@ -221,7 +221,9 @@ function runSchemaLint(
     resolveForLint === undefined
       ? undefined
       : {
-          resolve: resolveForLint,
+          resolve: (ref, from) => resolveForLint(ref, from),
+          resolveUnscoped: (ref) => resolveForLint(ref),
+          root: schema,
           refSuppressesSiblings: rules.refSuppressesSiblings,
           known: (keyword) => known.has(keyword),
         };

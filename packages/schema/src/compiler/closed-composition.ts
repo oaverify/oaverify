@@ -61,13 +61,24 @@ export interface ClosedCompositionContext {
    * than by throwing. Anything it cannot follow is "cannot enumerate".
    */
   /**
-   * The compiler's own `$ref` resolver, told which node the `$ref` is
-   * written in so it resolves in that node's resource scope rather than
-   * the root's. It reports failure as `undefined`, which covers a ref
-   * that will not resolve and a node whose scope is not known, and
-   * those are one answer here: cannot enumerate.
+   * The compiler's `$ref` resolver, told which node the `$ref` sits in
+   * so it answers in that node's resource scope. `undefined` means it
+   * could not: either the ref does not resolve, or that node has no
+   * recorded scope because it reached this compile through the caller's
+   * resolver rather than through the schema.
    */
   readonly resolve: (ref: string, from: Obj) => unknown;
+  /**
+   * The same resolver with no scope, which is the root resource's
+   * answer. Correct only while no `$id` has been crossed, and used only
+   * then; see the `$ref` handling in {@link declarationsFrom}.
+   */
+  readonly resolveUnscoped: (ref: string) => unknown;
+  /**
+   * The schema being compiled, by identity. It marks the root resource,
+   * the one {@link resolveUnscoped} answers for.
+   */
+  readonly root: unknown;
   readonly refSuppressesSiblings: boolean;
   readonly known: (keyword: string) => boolean;
 }
@@ -154,7 +165,7 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
   let patterns = false;
   let unresolved = false;
 
-  const add = (node: unknown, depth: number): void => {
+  const add = (node: unknown, depth: number, inNestedResource: boolean): void => {
     if (depth > MAX_DEPTH) {
       unresolved = true;
       return;
@@ -165,16 +176,23 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
     for (const name of declaredNames(node, ctx)) names.add(name);
     if (declaresPatterns(node, ctx)) patterns = true;
 
+    // `$id` starts a schema resource, and a fragment `$ref` names a
+    // position in the one it is written in.
+    const nested = inNestedResource || (node !== ctx.root && typeof node["$id"] === "string");
+
     if (live(node, "$ref", ctx) && typeof node["$ref"] === "string") {
-      // Resolved from this node, not from the root: a fragment names a
-      // position in the resource it is written in, and a nested `$id`
-      // makes those different documents.
-      const target = ctx.resolve(node["$ref"], node);
+      // Ask in this node's scope first. Where the node came through the
+      // caller's resolver its scope is not recorded, and the root's
+      // answer is right exactly while no `$id` has been crossed: below
+      // one it would not fail, it would return a real schema from the
+      // wrong resource.
+      let target = ctx.resolve(node["$ref"], node);
+      if (target === undefined && !nested) target = ctx.resolveUnscoped(node["$ref"]);
       // A boolean schema is a resolved schema that declares no names,
       // which is a different answer from one that could not be
       // followed. Reading `true` as unknowable suppressed findings that
       // hold.
-      if (isObj(target)) add(target, depth + 1);
+      if (isObj(target)) add(target, depth + 1, nested);
       else if (typeof target !== "boolean") unresolved = true;
     }
 
@@ -182,13 +200,13 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
       if (!live(node, kw, ctx)) continue;
       const value = node[kw];
       if (Array.isArray(value)) {
-        for (const branch of value) add(branch, depth + 1);
+        for (const branch of value) add(branch, depth + 1, nested);
       } else if (isObj(value)) {
         // A map of schemas. `dependencies` also carries the draft-07
         // array form, whose entries name properties rather than holding
         // a schema.
         for (const branch of Object.values(value)) {
-          if (!Array.isArray(branch)) add(branch, depth + 1);
+          if (!Array.isArray(branch)) add(branch, depth + 1, nested);
         }
       }
     }
@@ -198,12 +216,12 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
     // declare nothing.
     if (live(node, "if", ctx) && node["if"] !== undefined) {
       for (const kw of ["then", "else"]) {
-        if (live(node, kw, ctx)) add(node[kw], depth + 1);
+        if (live(node, kw, ctx)) add(node[kw], depth + 1, nested);
       }
     }
   };
 
-  for (const seed of seeds) add(seed, 0);
+  for (const seed of seeds) add(seed, 0, false);
   return { names, patterns, unresolved };
 }
 
