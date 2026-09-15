@@ -426,7 +426,10 @@ export function collectClosedBranchIssues(
       },
       segments: branch.segments,
       node: branch.node,
-      evidence: found.patternsOnly ? "patterns" : [...found.dead].sort().join("\u0000"),
+      // Serialised rather than joined on a separator: a property name
+      // may contain any character, so any separator makes two different
+      // sets collide, which is the mistake this key exists to avoid.
+      evidence: found.patternsOnly ? "patterns" : JSON.stringify([...found.dead].sort()),
     });
   }
   return out;

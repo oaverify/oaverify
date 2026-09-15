@@ -111,6 +111,28 @@ describe("unsatisfiable/composed-properties", () => {
       expect(issues[0]?.message).toContain('"b"');
     });
 
+    /**
+     * The scope is known here and the ref simply does not resolve in it:
+     * the nested resource has no `$defs/T`. That must stay unresolved
+     * rather than be retried against the root, which does have one and
+     * would supply a name from the wrong document. The compile succeeds
+     * because the definition is never used.
+     */
+    it("does not retry a known scope's failed ref against the root", () => {
+      expect(
+        lint31({
+          $id: "https://example.com/root",
+          $defs: {
+            T: { properties: { wrong: {} } },
+            Resource: {
+              $id: "https://example.com/nested",
+              $defs: { Unused: { additionalProperties: false, allOf: [{ $ref: "#/$defs/T" }] } },
+            },
+          },
+        }),
+      ).toEqual([]);
+    });
+
     it("suppresses a composition deeper than the walk's bound", () => {
       let chain: Record<string, unknown> = { properties: { deep: {} } };
       for (let i = 0; i < 30; i += 1) chain = { allOf: [chain] };
