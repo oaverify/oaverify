@@ -15,6 +15,10 @@ function isObjectGuard(dataExpr: string): string {
  * enclosing scope, against the given subschema. Annotations from failing
  * subschemas are discarded per the 2020-12 spec.
  *
+ * The keyword is one of its own four inputs: the keys it validates are an
+ * annotation in their own right, so a nested `unevaluatedProperties` feeds
+ * the one enclosing it whatever its subschema is, boolean or object.
+ *
  * @public
  */
 export const unevaluatedPropertiesKeyword: KeywordDefinition = {
@@ -50,6 +54,13 @@ export const unevaluatedPropertiesKeyword: KeywordDefinition = {
           return;
         }
         ctx.validateSubschema(sub, `${ctx.data}[${key}]`, { segment: key });
+        // The annotation result is the set of keys this subschema
+        // validated, so it is recorded here exactly as
+        // `additionalProperties` records its own. A key whose subschema
+        // rejected it is still added, and the schema object it belongs
+        // to has failed by then, so the compiler's merge drops the whole
+        // set on the way out.
+        gi.line(`${evaluatedVar}.add(${key});`);
         ctx.emitBudgetBreak();
       });
     });
@@ -95,6 +106,7 @@ export const unevaluatedItemsKeyword: KeywordDefinition = {
           return;
         }
         ctx.validateSubschema(sub, `${ctx.data}[${i}]`, { segment: i });
+        gi.line(`${evaluatedVar}.add(${i});`);
         ctx.emitBudgetBreak();
       });
     });
