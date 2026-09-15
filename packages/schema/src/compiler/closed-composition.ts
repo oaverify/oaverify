@@ -68,17 +68,6 @@ export interface ClosedCompositionContext {
    * resolver rather than through the schema.
    */
   readonly resolve: (ref: string, from: Obj) => unknown;
-  /**
-   * The same resolver with no scope, which is the root resource's
-   * answer. Correct only while no `$id` has been crossed, and used only
-   * then; see the `$ref` handling in {@link declarationsFrom}.
-   */
-  readonly resolveUnscoped: (ref: string) => unknown;
-  /**
-   * The schema being compiled, by identity. It marks the root resource,
-   * the one {@link resolveUnscoped} answers for.
-   */
-  readonly root: unknown;
   readonly refSuppressesSiblings: boolean;
   readonly known: (keyword: string) => boolean;
 }
@@ -165,7 +154,7 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
   let patterns = false;
   let unresolved = false;
 
-  const add = (node: unknown, depth: number, inNestedResource: boolean): void => {
+  const add = (node: unknown, depth: number): void => {
     if (depth > MAX_DEPTH) {
       unresolved = true;
       return;
@@ -176,23 +165,18 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
     for (const name of declaredNames(node, ctx)) names.add(name);
     if (declaresPatterns(node, ctx)) patterns = true;
 
-    // `$id` starts a schema resource, and a fragment `$ref` names a
-    // position in the one it is written in.
-    const nested = inNestedResource || (node !== ctx.root && typeof node["$id"] === "string");
-
     if (live(node, "$ref", ctx) && typeof node["$ref"] === "string") {
-      // Ask in this node's scope first. Where the node came through the
-      // caller's resolver its scope is not recorded, and the root's
-      // answer is right exactly while no `$id` has been crossed: below
-      // one it would not fail, it would return a real schema from the
-      // wrong resource.
-      let target = ctx.resolve(node["$ref"], node);
-      if (target === undefined && !nested) target = ctx.resolveUnscoped(node["$ref"]);
+      // Resolved from this node, so a fragment under a nested `$id`
+      // names a position in that resource rather than in the root. The
+      // resolver answers exactly as codegen does, including where a
+      // node has no recorded scope, so what this reads is what the
+      // emitted validator runs.
+      const target = ctx.resolve(node["$ref"], node);
       // A boolean schema is a resolved schema that declares no names,
       // which is a different answer from one that could not be
       // followed. Reading `true` as unknowable suppressed findings that
       // hold.
-      if (isObj(target)) add(target, depth + 1, nested);
+      if (isObj(target)) add(target, depth + 1);
       else if (typeof target !== "boolean") unresolved = true;
     }
 
@@ -200,13 +184,13 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
       if (!live(node, kw, ctx)) continue;
       const value = node[kw];
       if (Array.isArray(value)) {
-        for (const branch of value) add(branch, depth + 1, nested);
+        for (const branch of value) add(branch, depth + 1);
       } else if (isObj(value)) {
         // A map of schemas. `dependencies` also carries the draft-07
         // array form, whose entries name properties rather than holding
         // a schema.
         for (const branch of Object.values(value)) {
-          if (!Array.isArray(branch)) add(branch, depth + 1, nested);
+          if (!Array.isArray(branch)) add(branch, depth + 1);
         }
       }
     }
@@ -216,12 +200,12 @@ function declarationsFrom(seeds: readonly unknown[], ctx: ClosedCompositionConte
     // declare nothing.
     if (live(node, "if", ctx) && node["if"] !== undefined) {
       for (const kw of ["then", "else"]) {
-        if (live(node, kw, ctx)) add(node[kw], depth + 1, nested);
+        if (live(node, kw, ctx)) add(node[kw], depth + 1);
       }
     }
   };
 
-  for (const seed of seeds) add(seed, 0, false);
+  for (const seed of seeds) add(seed, 0);
   return { names, patterns, unresolved };
 }
 

@@ -227,8 +227,6 @@ function runSchemaLint(
       ? undefined
       : {
           resolve: (ref, from) => resolveForLint(ref, from),
-          resolveUnscoped: (ref) => resolveForLint(ref),
-          root: schema,
           refSuppressesSiblings: rules.refSuppressesSiblings,
           known: (keyword) => known.has(keyword),
         };
@@ -1909,15 +1907,18 @@ export function compileSchema(
             try {
               if (from === undefined) return refResolver.resolve(ref);
               // `$id` starts a schema resource and a fragment names a
-              // position inside the one it is written in. The graph
-              // recorded every node's base when it walked the schema, so
-              // the scope is looked up rather than re-derived. A node
-              // with no recorded base did not come from this graph, and
-              // guessing the root's base there is what returns a
-              // plausible schema from the wrong resource.
-              const base = graph.schemaBaseUri.get(from);
-              if (base === undefined) return undefined;
-              return refResolver.resolve(ref, base);
+              // position inside the one it is written in, so the scope
+              // is the referring node's rather than the root's.
+              //
+              // The same lookup and the same fallback codegen uses
+              // (`compileSchemaKeywords`), deliberately. A node a
+              // caller-supplied resolver produced is in no local graph
+              // and falls back to the root base *in the emitted
+              // validator too*, so matching that is what keeps a
+              // finding a statement about the code that runs. Choosing
+              // a different answer here would report against a schema
+              // the validator never consults.
+              return refResolver.resolve(ref, graph.schemaBaseUri.get(from) ?? graph.baseUri);
             } catch {
               return undefined;
             }

@@ -549,6 +549,34 @@ describe("unsatisfiable/composed-properties", () => {
     });
   });
 
+  describe("a caller-supplied resolver", () => {
+    /**
+     * The HTTP pipeline compiles each operation on its own and hands in
+     * a resolver for the document, so the composition sits in a
+     * component node that is in no local graph and has no recorded base.
+     * Codegen falls back to the root base there, and the lint has to
+     * make the same choice or it reports on a schema the validator never
+     * consults. Getting this wrong cost 16 of the 18 findings on the
+     * published-spec corpus and every unit test still passed.
+     */
+    it("follows a ref the caller's resolver answers", () => {
+      const defs: Record<string, unknown> = {
+        Closed: { additionalProperties: false, allOf: [{ $ref: "#/D" }] },
+        D: { properties: { a: {} } },
+      };
+      const compiled = compileSchema({ $ref: "#/Closed" } as SchemaOrBoolean, {
+        dialect: jsonSchemaDialect,
+        refResolver: {
+          resolve: (ref: string) => defs[ref.slice(2)] as never,
+        },
+      });
+      expect(compiled.validate({ a: 1 }).valid).toBe(false);
+      const issues = compiled.stats.schemaLintIssues.filter((issue) => issue.code === CODE);
+      expect(issues.length).toBeGreaterThan(0);
+      expect(issues[0]?.message).toContain('"a"');
+    });
+  });
+
   describe("below an external $ref, where no machine address exists", () => {
     /**
      * An external `$ref` yields no `pointer` and no `schemaPath` even
