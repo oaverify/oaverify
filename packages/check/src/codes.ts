@@ -158,7 +158,7 @@ const CLI_SCHEMA_CODES = ["format-not-validated"] as const;
  * for. `@oaverify/internal-spec` has no business knowing that, so the
  * code is emitted here from the rule the validator publishes.
  */
-const CHECK_HYGIENE_CODES = ["unserved-parameter-location"] as const;
+const CHECK_HYGIENE_CODES = ["unserved-parameter-location", "unsupported-openapi-version"] as const;
 
 /** Every code, by the class that emits it. */
 export const CODES_BY_CLASS = {
