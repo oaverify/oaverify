@@ -1,5 +1,24 @@
 # Changelog
 
+## [7.3.0](https://github.com/oaverify/oaverify/compare/check-v7.2.2...check-v7.3.0) (2026-09-15)
+
+
+### Features
+
+* **schema:** report a close that rejects what its composition declares ([#1046](https://github.com/oaverify/oaverify/issues/1046)) ([a06b4d2](https://github.com/oaverify/oaverify/commit/a06b4d2b9f0bc8370a5739d3dd7164baa56e25e1))
+
+
+### Bug Fixes
+
+* **check:** classify unknown versions explicitly ([#1070](https://github.com/oaverify/oaverify/issues/1070)) ([c7495fb](https://github.com/oaverify/oaverify/commit/c7495fbffdb4d40efc46ced1cdc164df293694df))
+* **check:** compile document schemas ([#1073](https://github.com/oaverify/oaverify/issues/1073)) ([f79adda](https://github.com/oaverify/oaverify/commit/f79addadfa25c26e3af58a41ae6da191282858dc))
+* **check:** disclose unsupported OpenAPI versions ([#1064](https://github.com/oaverify/oaverify/issues/1064)) ([79a7e46](https://github.com/oaverify/oaverify/commit/79a7e46212c0b7f59b8e0371108bcffd86d964fa))
+* **check:** disclose unsupported schema dialects ([#1077](https://github.com/oaverify/oaverify/issues/1077)) ([5289dd7](https://github.com/oaverify/oaverify/commit/5289dd7dfa8b0223ed2617fce7e7f9088014b765)), closes [#1050](https://github.com/oaverify/oaverify/issues/1050)
+* **check:** tolerate malformed operation tags ([#1076](https://github.com/oaverify/oaverify/issues/1076)) ([4b22313](https://github.com/oaverify/oaverify/commit/4b22313244f027dfb11f157afd38669368244c92))
+* **check:** walk 3.2 media schemas ([#1075](https://github.com/oaverify/oaverify/issues/1075)) ([fe171f5](https://github.com/oaverify/oaverify/commit/fe171f50b5fb22dc667b6ea3904ed580f11eee89))
+* **check:** walk additional operations ([#1074](https://github.com/oaverify/oaverify/issues/1074)) ([6518c5c](https://github.com/oaverify/oaverify/commit/6518c5c4e2ef19e395757ab3947a2f512445177e))
+* **schema:** discard annotations at every schema-object boundary ([#1042](https://github.com/oaverify/oaverify/issues/1042)) ([a3d3b79](https://github.com/oaverify/oaverify/commit/a3d3b791c959c31cb0068df1c6d12991dcd7c801))
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/check-v7.2.1...check-v7.2.2) (2026-09-09)
 
 

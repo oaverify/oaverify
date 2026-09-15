@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.3.0](https://github.com/oaverify/oaverify/compare/fastify-v7.2.2...fastify-v7.3.0) (2026-09-15)
+
+
+### Chore
+
+* **fastify:** Synchronize oaverify versions
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/fastify-v7.2.1...fastify-v7.2.2) (2026-09-09)
 
 

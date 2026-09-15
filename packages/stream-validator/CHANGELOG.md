@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.3.0](https://github.com/oaverify/oaverify/compare/stream-v7.2.2...stream-v7.3.0) (2026-09-15)
+
+
+### Bug Fixes
+
+* **schema:** check unused definition values ([#1065](https://github.com/oaverify/oaverify/issues/1065)) ([533a5c6](https://github.com/oaverify/oaverify/commit/533a5c6201297957b75b041b85ba031e995d120d))
+
+
+### Documentation
+
+* say what unknownFormats counts as registered ([#1020](https://github.com/oaverify/oaverify/issues/1020)) ([ed40c58](https://github.com/oaverify/oaverify/commit/ed40c58973308f10ad01d0c2e27eb47b4e1bbc4c))
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/stream-v7.2.1...stream-v7.2.2) (2026-09-09)
 
 
