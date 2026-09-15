@@ -30,6 +30,8 @@ export const SCHEMA_CODES = [
   "unsatisfiable/pattern-length",
   "unsatisfiable/enum-member-type",
   "unsatisfiable/composed-properties",
+  "unsatisfiable/composed-enum-empty",
+  "unsatisfiable/composed-enum-members",
 ] as const satisfies readonly SchemaLintIssue["code"][];
 // Reads as: no SchemaLintIssue code is missing from the array above.
 const _schemaComplete: Missing<SchemaLintIssue["code"], (typeof SCHEMA_CODES)[number]> extends never

@@ -480,14 +480,18 @@ describe("the two frames `path` renders in (#594)", () => {
     "unsatisfiable/pattern-length": "definition",
     "unsatisfiable/enum-member-type": "definition",
     "unsatisfiable/composed-properties": "definition",
+    "unsatisfiable/composed-enum-empty": "use-site",
+    "unsatisfiable/composed-enum-members": "use-site",
     // The one rule whose verdict depends on the route that reached the
     // text, so the definition can name a position where it does not
     // hold. Reports `anchor: "scoped-definition"`.
     "silent-rewrite/required-not-in-properties": "use-site",
   };
 
-  it("declares a frame for every code, and only the required lint uses the use site", () => {
+  it("declares a frame for every code", () => {
     expect(Object.entries(FRAME).filter(([, frame]) => frame === "use-site")).toEqual([
+      ["unsatisfiable/composed-enum-empty", "use-site"],
+      ["unsatisfiable/composed-enum-members", "use-site"],
       ["silent-rewrite/required-not-in-properties", "use-site"],
     ]);
   });

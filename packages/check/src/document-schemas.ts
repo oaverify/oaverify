@@ -464,6 +464,15 @@ export function* checkDocumentSchemas(
           severity: defaultSeverityFor("schema", issue.code),
           code: issue.code,
           message: issue.message,
+          ...(issue.contributors !== undefined &&
+          issue.contributors.every((c) => c.pointer !== undefined)
+            ? {
+                contributors: issue.contributors.map((c) => ({
+                  pointer: c.pointer!,
+                  anchor: c.anchor ?? "node",
+                })),
+              }
+            : {}),
           location: issue.path === "" ? "<root>" : issue.path,
           target:
             issue.pointer === undefined

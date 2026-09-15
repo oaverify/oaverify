@@ -185,21 +185,21 @@ its output matches the case's declared signal, and every scored cell is
 traceable to the finding that scored it in
 [`detection/results/audit.md`](../detection/results/audit.md).
 
-Measured 2026-09-09 against oaverify 7.2.1, Ajv 8.20.0, Spectral CLI
-6.16.3 and Redocly CLI 2.46.2, all on default rulesets. The versions
+Measured 2026-09-15 against oaverify 7.2.2, Ajv 8.20.0, Spectral CLI
+6.16.3 and Redocly CLI 2.52.0, all on default rulesets. The versions
 and the run date are the ones
 [`detection/results/matrix.md`](../detection/results/matrix.md)
 records; `pnpm check:detection-table` asserts this table against it.
 
-| class                       | oaverify | ajv | spectral | redocly |
-| --------------------------- | -------- | --- | -------- | ------- |
-| malformed (6)               | 6/6      | 4/6 | 6/6      | 5/6     |
-| lint (9)                    | 9/9      | 5/9 | 4/9      | 6/9     |
-| structural (8)              | 7/8      | 2/8 | 7/8      | 5/8     |
-| style (6)                   | 3/6      | 0/6 | 6/6      | 6/6     |
-| control false positives (4) | 0        | 0   | 0        | 0       |
-| total findings raised       | 25       | 19  | 193      | 196     |
-| fatal runs                  | 0        | 0   | 0        | 0       |
+| class                       | oaverify | ajv  | spectral | redocly |
+| --------------------------- | -------- | ---- | -------- | ------- |
+| malformed (6)               | 6/6      | 4/6  | 6/6      | 5/6     |
+| lint (11)                   | 11/11    | 5/11 | 4/11     | 7/11    |
+| structural (8)              | 7/8      | 2/8  | 7/8      | 5/8     |
+| style (6)                   | 3/6      | 0/6  | 6/6      | 6/6     |
+| control false positives (4) | 0        | 0    | 0        | 0       |
+| total findings raised       | 28       | 20   | 205      | 209     |
+| fatal runs                  | 0        | 0    | 0        | 0       |
 
 Read the rows, not a total. `style` is where oaverify loses and is meant
 to: operationId conventions and undefined security schemes are outside
@@ -208,9 +208,9 @@ that. `control` holds four clean documents where any finding is a false
 positive; every tool scores 0, which is the result you want from a
 control.
 
-Read `total findings raised` carefully. Across 29 seeded-defect cases
-plus 4 controls. oaverify raises 25 findings and catches 25 of the 29.
-Spectral raises 193 findings to catch 23. Redocly 196 to catch 22.
+Read `total findings raised` carefully. Across 31 seeded-defect cases
+plus 4 controls. oaverify raises 28 findings and catches 27 of the 31.
+Spectral raises 205 findings to catch 23. Redocly 209 to catch 23.
 Linters with broad default rulesets report a great deal that nobody
 seeded, which is reasonable behavior for a linter and a different job
 from answering "will this spec validate traffic the way its author

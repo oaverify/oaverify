@@ -1,0 +1,18 @@
+openapi: 3.1.0
+info:
+  title: Empty finite intersection
+  version: "1"
+paths:
+  /value:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - enum: [A, B]
+                - enum: [B, C]
+                - enum: [A, C]
+      responses:
+        "204":
+          description: Accepted

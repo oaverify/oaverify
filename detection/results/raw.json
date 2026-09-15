@@ -5,7 +5,7 @@
         {
           "rule": "malformed-schema",
           "message": "GET /things 200 response body (application/json): \"items\" at <root> must be an object or boolean; got an array. In JSON Schema 2020-12 the tuple form is \"prefixItems\"; an array-valued \"items\" is the draft-04 / Swagger 2.0 spelling.",
-          "location": "GET /things 200 response",
+          "location": "GET /things 200 response body (application/json)",
           "severity": "warn"
         }
       ]
@@ -107,7 +107,7 @@
         {
           "rule": "malformed-schema",
           "message": "GET /things 200 response body (application/json): keyword \"type\" at \"properties.flag.type\" has unknown type name \"Boolean\"; expected one of \"null\", \"boolean\", \"object\", \"array\", \"string\", \"number\", \"integer\". Did you mean \"boolean\"?",
-          "location": "GET /things 200 response",
+          "location": "GET /things 200 response body (application/json)",
           "severity": "warn"
         }
       ]
@@ -209,7 +209,7 @@
         {
           "rule": "malformed-schema",
           "message": "GET /things 200 response body (application/json): \"if\" at <root> must be an object or boolean; got null.",
-          "location": "GET /things 200 response",
+          "location": "GET /things 200 response body (application/json)",
           "severity": "warn"
         }
       ]
@@ -317,7 +317,7 @@
         {
           "rule": "malformed-schema",
           "message": "GET /things 200 response body (application/json): keyword \"enum\" at \"properties.status.enum\" requires an array of values; got number",
-          "location": "GET /things 200 response",
+          "location": "GET /things 200 response body (application/json)",
           "severity": "warn"
         }
       ]
@@ -419,7 +419,7 @@
         {
           "rule": "malformed-schema",
           "message": "GET /things 200 response body (application/json): keyword \"required\" requires an array of strings; got string \"id\"",
-          "location": "GET /things 200 response",
+          "location": "GET /things 200 response body (application/json)",
           "severity": "warn"
         }
       ]
@@ -521,7 +521,7 @@
         {
           "rule": "malformed-schema",
           "message": "GET /things 200 response body (application/json): \"properties\" at <root> must be an object mapping names to schemas; got an array.",
-          "location": "GET /things 200 response",
+          "location": "GET /things 200 response body (application/json)",
           "severity": "warn"
         }
       ]
@@ -617,12 +617,209 @@
       ]
     }
   },
+  "lint/composed-enum-members": {
+    "oaverify": {
+      "findings": [
+        {
+          "rule": "unsatisfiable/composed-enum-members",
+          "message": "At instance path [\"status\"], composed finite constraints exclude [\"complete\",\"awaitingReview\",\"completed\"]; finite intersection: [\"inProgress\"].",
+          "location": "POST /notification request body (application/json) -> <root>",
+          "severity": "warn"
+        }
+      ]
+    },
+    "ajv": {
+      "findings": [
+        {
+          "rule": "ajv/compile",
+          "message": "strict mode: missing type \"object\" for keyword \"properties\" at \"#\" (strictTypes)",
+          "location": "paths./notification.post.requestBody.application/json",
+          "severity": "error"
+        }
+      ]
+    },
+    "spectral": {
+      "findings": [
+        {
+          "rule": "oas3-api-servers",
+          "message": "OpenAPI \"servers\" must be present and non-empty array.",
+          "location": "",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-contact",
+          "message": "Info object must have \"contact\" object.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-description",
+          "message": "Info \"description\" must be present and non-empty string.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-description",
+          "message": "Operation \"description\" must be present and non-empty string.",
+          "location": "paths//notification/post",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-operationId",
+          "message": "Operation must have \"operationId\".",
+          "location": "paths//notification/post",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-tags",
+          "message": "Operation must have non-empty \"tags\" array.",
+          "location": "paths//notification/post",
+          "severity": "warn"
+        }
+      ]
+    },
+    "redocly": {
+      "findings": [
+        {
+          "rule": "no-empty-servers",
+          "message": "Servers must be present.",
+          "location": "#/openapi",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-summary",
+          "message": "Operation object should contain `summary` field.",
+          "location": "#/paths/~1notification/post/summary",
+          "severity": "error"
+        },
+        {
+          "rule": "security-defined",
+          "message": "Every operation should have security defined on it or on the root level.",
+          "location": "#/paths/~1notification/post",
+          "severity": "error"
+        },
+        {
+          "rule": "info-license",
+          "message": "Info object should contain `license` field.",
+          "location": "#/info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-operationId",
+          "message": "Operation object should contain `operationId` field.",
+          "location": "#/paths/~1notification/post/operationId",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-4xx-response",
+          "message": "Operation must have at least one `4XX` response.",
+          "location": "#/paths/~1notification/post/responses",
+          "severity": "warn"
+        }
+      ]
+    }
+  },
+  "lint/composed-enum-empty": {
+    "oaverify": {
+      "findings": [
+        {
+          "rule": "unsatisfiable/composed-enum-empty",
+          "message": "No value at this instance position satisfies the collected finite constraints; finite intersection: []. Excluded values: [\"A\",\"B\",\"C\"].",
+          "location": "POST /value request body (application/json) -> <root>",
+          "severity": "warn"
+        }
+      ]
+    },
+    "ajv": {
+      "findings": []
+    },
+    "spectral": {
+      "findings": [
+        {
+          "rule": "oas3-api-servers",
+          "message": "OpenAPI \"servers\" must be present and non-empty array.",
+          "location": "",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-contact",
+          "message": "Info object must have \"contact\" object.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "info-description",
+          "message": "Info \"description\" must be present and non-empty string.",
+          "location": "info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-description",
+          "message": "Operation \"description\" must be present and non-empty string.",
+          "location": "paths//value/post",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-operationId",
+          "message": "Operation must have \"operationId\".",
+          "location": "paths//value/post",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-tags",
+          "message": "Operation must have non-empty \"tags\" array.",
+          "location": "paths//value/post",
+          "severity": "warn"
+        }
+      ]
+    },
+    "redocly": {
+      "findings": [
+        {
+          "rule": "no-empty-servers",
+          "message": "Servers must be present.",
+          "location": "#/openapi",
+          "severity": "error"
+        },
+        {
+          "rule": "operation-summary",
+          "message": "Operation object should contain `summary` field.",
+          "location": "#/paths/~1value/post/summary",
+          "severity": "error"
+        },
+        {
+          "rule": "security-defined",
+          "message": "Every operation should have security defined on it or on the root level.",
+          "location": "#/paths/~1value/post",
+          "severity": "error"
+        },
+        {
+          "rule": "info-license",
+          "message": "Info object should contain `license` field.",
+          "location": "#/info",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-operationId",
+          "message": "Operation object should contain `operationId` field.",
+          "location": "#/paths/~1value/post/operationId",
+          "severity": "warn"
+        },
+        {
+          "rule": "operation-4xx-response",
+          "message": "Operation must have at least one `4XX` response.",
+          "location": "#/paths/~1value/post/responses",
+          "severity": "warn"
+        }
+      ]
+    }
+  },
   "lint/required-typo": {
     "oaverify": {
       "findings": [
         {
           "rule": "silent-rewrite/required-not-in-properties",
-          "message": "required: \"nam\" at <root> is not declared in properties reachable here (likely a typo)",
+          "message": "required: \"nam\" at <root> is not declared in properties reachable here",
           "location": "GET /things 200 response body (application/json) -> <root>",
           "severity": "warn"
         }
@@ -718,8 +915,14 @@
       "findings": [
         {
           "rule": "silent-rewrite/required-not-in-properties",
-          "message": "required: \"total\" at \"items\" is not declared in properties reachable here (likely a typo)",
+          "message": "required: \"total\" at \"items\" is not declared in properties reachable here",
           "location": "GET /things 200 response body (application/json) -> items",
+          "severity": "warn"
+        },
+        {
+          "rule": "silent-rewrite/required-not-in-properties",
+          "message": "required: \"total\" at <root> is not declared in properties reachable here",
+          "location": "/components/schemas/Item -> <root>",
           "severity": "warn"
         }
       ]
@@ -1114,6 +1317,12 @@
           "rule": "operation-4xx-response",
           "message": "Operation must have at least one `4XX` response.",
           "location": "#/paths/~1things/get/responses",
+          "severity": "warn"
+        },
+        {
+          "rule": "no-illogical-composition-keywords",
+          "message": "Schema in `oneOf` duplicates the schema at position 1.",
+          "location": "#/paths/~1things/get/responses/200/content/application~1json/schema/oneOf/1",
           "severity": "warn"
         }
       ]
@@ -2727,8 +2936,8 @@
       "findings": [
         {
           "rule": "malformed-schema",
-          "message": "JSON pointer /components/schemas/DoesNotExist not found (at components)",
-          "location": "GET /things 200 response",
+          "message": "GET /things 200 response body (application/json): JSON pointer /components/schemas/DoesNotExist not found (at components)",
+          "location": "GET /things 200 response body (application/json)",
           "severity": "warn"
         }
       ]

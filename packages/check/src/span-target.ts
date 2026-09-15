@@ -124,31 +124,11 @@ const SEP = "\u0000";
  * batch itself would have to reproduce the rules below, and would drift
  * from them.
  *
- * **This is the whole batch, and each reader takes its part of it.**
- * Resolving a smaller one leaves the reader that wanted the missing
- * request unable to tell "no position for this" from "you did not ask",
- * and both of them answer by omitting something. Three kinds are
- * emitted:
- *
- * - **The finding's own address**, read back by {@link spanFor}. Two
- *   requests for a code that recommends a key, the key and the value,
- *   because the fallback needs both resolved before it can choose.
- * - **Each hop**, as a value. A hop addresses the `$ref` node that
- *   pulled a document in, so a recommendation about the finding's own
- *   code has nothing to say about it.
- * - **Each reason that has an address**, read back by
- *   {@link locatedReasonsFor}, at the address `checkSpec` resolved for
- *   it and recorded in {@link CheckFinding.reasonSources}. One request
- *   rather than a pair: there is no fallback, so nothing needs a second
- *   answer. A reason whose node an overlay rewrote has no address and
- *   so gets no request (#776).
- *
- * A request emitted here may still resolve to nothing, and for a reason
- * that is an ordinary outcome rather than a failure; see
- * {@link locatedReasonsFor}.
- *
- * The extra requests cost lookups and no extra parse, since a resolver
- * groups a batch by document and parses each once.
+ * Requests follow the findings' source addresses, including evidence such
+ * as contributor targets. Each address is resolved independently by checkSpec;
+ * appending a child pointer to a parent's source would misattribute nodes
+ * rewritten by an overlay. The batch is deduplicated by URI, pointer and
+ * target kind so each parser handles a document once.
  *
  * @public
  */
@@ -168,6 +148,10 @@ export function spanRequestsFor(findings: readonly CheckFinding[]): SpanRequest[
     add(source.uri, source.pointer, want);
     if (want !== "value") add(source.uri, source.pointer, "value");
     for (const hop of source.via) add(hop.uri, hop.pointer, "value");
+    for (const contributor of finding.contributors ?? []) {
+      if (contributor.source !== undefined)
+        add(contributor.source.uri, contributor.source.pointer, "value");
+    }
     // One request per reason that has an address, at that address. One,
     // not a pair: there is no fallback to resolve against, per the
     // invariant on `reasonTargetFor`.

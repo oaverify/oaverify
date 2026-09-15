@@ -550,6 +550,12 @@ function gradeFindings(
   // or one covered by something the resolver invented, keeps no
   // `source`, which is what absence means here.
   for (const finding of findings) {
+    if (finding.contributors !== undefined) {
+      finding.contributors = finding.contributors.map((target) => {
+        const source = sourceOf(regions, target.pointer);
+        return source === undefined ? target : { ...target, source };
+      });
+    }
     if (finding.target === undefined) continue;
     const source = sourceOf(regions, finding.target.pointer);
     if (source !== undefined) finding.target = { ...finding.target, source };
