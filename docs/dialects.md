@@ -51,8 +51,12 @@ OpenAPI 3.0 Schema Object subset can have that combination: honored by
 oaverify and non-conformant in an OpenAPI document. Portability across
 strict 3.0 tooling requires using only the OpenAPI 3.0 subset.
 
-The vocabulary omission and keyword override groups are pinned by
-`packages/schema/test/oas30-vocabulary.test.ts`. Review this description
+Relative to the default JSON Schema stack, OAS 3.0 adds `oas30Vocabulary`,
+`formatAssertionVocabulary` and `openapiMetaDataVocabulary`, and omits
+`unevaluatedVocabulary`.
+
+The vocabulary composition, keyword dispatch and sibling-suppression rule are pinned by
+`packages/schema/test/keyword-introspection.test.ts`. Review this description
 when that test reports a composition change.
 
 ## Running tests per version

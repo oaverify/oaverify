@@ -4,13 +4,23 @@ import {
   jsonSchemaDialect,
   keywordDefinitions,
   oas30Dialect,
-  oas30MaximumKeyword,
-  oas30TypeKeyword,
   openapi31Dialect,
   schemaUsesUnevaluated,
   typeKeyword,
   unevaluatedPropertiesKeyword,
 } from "../src/index.js";
+
+import * as oas30Keywords from "../src/keywords/oas30.js";
+import {
+  defaultVocabularies,
+  formatAssertionVocabulary,
+  oas30Vocabulary,
+  openapiMetaDataVocabulary,
+  unevaluatedVocabulary,
+} from "../src/keywords/vocabulary.js";
+
+const updateDocs =
+  "dialect composition changed; review docs/dialects.md and packages/schema/test/keyword-introspection.test.ts";
 
 describe("keywordDefinitions", () => {
   it("defaults to the JSON Schema 2020-12 dialect", () => {
@@ -39,20 +49,52 @@ describe("keywordDefinitions", () => {
     expect(kw.get("title")?.annotation).toBe(true);
   });
 
-  it("includes the unevaluated vocabulary in 2020-12 but not in 3.0", () => {
+  it("includes the unevaluated vocabulary in the 2020-12 dialects", () => {
     expect(keywordDefinitions(jsonSchemaDialect).has("unevaluatedProperties")).toBe(true);
     expect(keywordDefinitions(openapi31Dialect).has("unevaluatedProperties")).toBe(true);
-    expect(keywordDefinitions(oas30Dialect).has("unevaluatedProperties")).toBe(false);
   });
 
-  it("mirrors the compiler's first-wins precedence: 3.0 overrides win", () => {
-    // oas30Vocabulary sits ahead of the standard validation vocabulary
-    // in the 3.0 stack, so its `type` / `maximum` flavours win dispatch.
-    const kw = keywordDefinitions(oas30Dialect);
-    expect(kw.get("type")).toBe(oas30TypeKeyword);
-    expect(kw.get("maximum")).toBe(oas30MaximumKeyword);
-    // The default dialect keeps the 2020-12 `type`.
+  it("dispatches exactly the documented OAS 3.0 overrides", () => {
+    const names = oas30Vocabulary.keywords.map((definition) => definition.keyword).sort();
+    expect(names, updateDocs).toEqual([
+      "exclusiveMaximum",
+      "exclusiveMinimum",
+      "maximum",
+      "minimum",
+      "nullable",
+      "type",
+    ]);
+    const exported = Object.values(oas30Keywords).filter(
+      (value) => value !== null && typeof value === "object" && "keyword" in value,
+    );
+    expect(names, updateDocs).toEqual(exported.map((definition) => definition.keyword).sort());
+    const definitions = keywordDefinitions(oas30Dialect);
+    for (const definition of exported) {
+      expect(definitions.get(definition.keyword), updateDocs).toBe(definition);
+    }
     expect(keywordDefinitions(jsonSchemaDialect).get("type")).toBe(typeKeyword);
+  });
+
+  it("keeps the documented OAS 3.0 vocabulary additions and omission", () => {
+    const active = new Set(oas30Dialect.vocabularies.map((vocabulary) => vocabulary.uri));
+    const defaults = new Set(defaultVocabularies.map((vocabulary) => vocabulary.uri));
+    expect(
+      defaultVocabularies.filter((vocabulary) => !active.has(vocabulary.uri)),
+      updateDocs,
+    ).toEqual([unevaluatedVocabulary]);
+    expect(
+      oas30Dialect.vocabularies.filter((vocabulary) => !defaults.has(vocabulary.uri)),
+      updateDocs,
+    ).toEqual([oas30Vocabulary, formatAssertionVocabulary, openapiMetaDataVocabulary]);
+    for (const definition of unevaluatedVocabulary.keywords) {
+      expect(keywordDefinitions(oas30Dialect).has(definition.keyword), updateDocs).toBe(false);
+    }
+  });
+
+  it("suppresses ref siblings only in the OAS 3.0 dialect", () => {
+    expect(oas30Dialect.rules.refSuppressesSiblings, updateDocs).toBe(true);
+    expect(jsonSchemaDialect.rules.refSuppressesSiblings, updateDocs).toBe(false);
+    expect(openapi31Dialect.rules.refSuppressesSiblings, updateDocs).toBe(false);
   });
 
   it("agrees with the dialect's own vocabulary stack (no keyword dropped)", () => {
