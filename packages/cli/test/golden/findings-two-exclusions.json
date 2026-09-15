@@ -108,8 +108,8 @@
       "class": "schema",
       "severity": "warning",
       "code": "silent-rewrite/required-not-in-properties",
-      "location": "GET /pets/{petId} 200 response body (application/json) -> <root>",
       "message": "required: \"absent\" at <root> is not declared in properties reachable here",
+      "location": "GET /pets/{petId} 200 response body (application/json) -> <root>",
       "target": {
         "pointer": "/components/schemas/shared_Pet/required",
         "anchor": "scoped-definition",
@@ -123,7 +123,8 @@
             }
           ]
         }
-      }
+      },
+      "occurrences": 2
     }
   ],
   "rules": {

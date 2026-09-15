@@ -58,7 +58,51 @@ type Obj = Record<string, unknown>;
  * operation's body schema is compiled on its own, with `components`
  * reachable only through the resolver.
  */
-export type RequiredLintResolver = (ref: string) => unknown;
+export type RequiredLintResolver = (ref: string, from?: object) => unknown;
+
+type DynamicTargets = (ref: string, from: object) => readonly unknown[];
+
+/** Resolution policy and physical positions for the required-property analysis. */
+interface RequiredLintOptions {
+  resolve?: RequiredLintResolver;
+  pointer?: string;
+  anchor?: "node" | "definition";
+  refSuppressesSiblings?: boolean;
+  pointerOf?: (schema: object) => string | undefined;
+  dynamicTargets?: DynamicTargets;
+}
+
+interface WalkContext {
+  root: Obj;
+  resolve?: RequiredLintResolver;
+  refSuppressesSiblings: boolean;
+  ignoredRefSiblingKeys?: WeakMap<Obj, ReadonlySet<string>>;
+  dynamicTargets?: DynamicTargets;
+}
+
+function* referenceTargets(
+  node: Obj,
+  context: WalkContext,
+): Generator<{ ref: string; target: unknown }> {
+  const { refSuppressesSiblings, dynamicTargets } = context;
+  const ref = node["$ref"];
+  if (typeof ref === "string") yield { ref, target: resolveRef(ref, context, node) };
+  const dynamicRef = node["$dynamicRef"];
+  if (
+    dynamicTargets !== undefined &&
+    typeof dynamicRef === "string" &&
+    !refSiblingIsDiscarded(node, "$dynamicRef", refSuppressesSiblings)
+  ) {
+    try {
+      // Union possible declarations to avoid claiming a required name is absent.
+      // Closed-composition instead withholds ambiguous conclusions: a union there
+      // could invent a property that the active binding never declares.
+      for (const target of dynamicTargets(dynamicRef, node)) yield { ref: dynamicRef, target };
+    } catch {
+      yield { ref: dynamicRef, target: undefined };
+    }
+  }
+}
 
 /**
  * One move from a schema's instance to a child instance. In-place
@@ -117,16 +161,11 @@ function collectIgnoredRefSiblingKeys(
   return ignoredRefSiblingKeys;
 }
 
-function resolveRef(
-  ref: string,
-  root: Obj,
-  resolve: RequiredLintResolver | undefined,
-  refSuppressesSiblings: boolean,
-  ignoredRefSiblingKeys: WeakMap<Obj, ReadonlySet<string>> | undefined,
-): unknown {
+function resolveRef(ref: string, context: WalkContext, from?: object): unknown {
+  const { root, resolve, ignoredRefSiblingKeys } = context;
   if (resolve !== undefined) {
     try {
-      const viaResolver = resolve(ref);
+      const viaResolver = resolve(ref, from);
       if (viaResolver !== undefined) return viaResolver;
     } catch {
       // An unresolvable ref is the caller's "cannot enumerate" case,
@@ -155,11 +194,9 @@ function resolveRef(
  */
 function closure(
   seeds: readonly unknown[],
-  root: Obj,
-  resolve: RequiredLintResolver | undefined,
-  refSuppressesSiblings: boolean,
-  ignoredRefSiblingKeys: WeakMap<Obj, ReadonlySet<string>> | undefined,
+  context: WalkContext,
 ): { schemas: Obj[]; unresolved: boolean } {
+  const { refSuppressesSiblings } = context;
   const schemas: Obj[] = [];
   const seen = new Set<unknown>();
   let unresolved = false;
@@ -173,9 +210,7 @@ function closure(
     seen.add(node);
     schemas.push(node);
 
-    const ref = node["$ref"];
-    if (typeof ref === "string") {
-      const target = resolveRef(ref, root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys);
+    for (const { target } of referenceTargets(node, context)) {
       if (isObj(target)) add(target, depth + 1);
       else unresolved = true;
     }
@@ -252,14 +287,8 @@ const UNKNOWN_INSTANCE: Instance = { schemas: [], unknown: true };
  * resolving a path is exactly these steps applied in order, and the
  * re-resolving version made every node pay for its own depth (#511).
  */
-function stepInstance(
-  cur: Instance,
-  step: Step,
-  root: Obj,
-  resolve: RequiredLintResolver | undefined,
-  refSuppressesSiblings: boolean,
-  ignoredRefSiblingKeys: WeakMap<Obj, ReadonlySet<string>> | undefined,
-): Instance {
+function stepInstance(cur: Instance, step: Step, context: WalkContext): Instance {
+  const { refSuppressesSiblings } = context;
   if (cur.unknown || step.k === "any") return UNKNOWN_INSTANCE;
   const next: unknown[] = [];
 
@@ -310,7 +339,7 @@ function stepInstance(
     }
   }
 
-  const cl = closure(next, root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys);
+  const cl = closure(next, context);
   return cl.unresolved ? UNKNOWN_INSTANCE : { schemas: cl.schemas, unknown: false };
 }
 
@@ -374,11 +403,16 @@ function stepFor(key: string, name?: string): Step | undefined {
  */
 export function collectRequiredIssues(
   root: unknown,
-  resolve?: RequiredLintResolver,
-  pointer?: string,
-  anchor?: "node" | "definition",
-  refSuppressesSiblings = false,
+  options: RequiredLintOptions = {},
 ): SchemaLintIssue[] {
+  const {
+    resolve,
+    pointer,
+    anchor,
+    refSuppressesSiblings = false,
+    pointerOf,
+    dynamicTargets,
+  } = options;
   if (!isObj(root)) return [];
   const issues: SchemaLintIssue[] = [];
 
@@ -386,7 +420,13 @@ export function collectRequiredIssues(
   // underlying bug would otherwise report once per site, so remember
   // which names have been reported for a given schema object.
   const reported = new Map<Obj, Set<string>>();
-  const ignoredRefSiblingKeys = collectIgnoredRefSiblingKeys(root, refSuppressesSiblings);
+  const context: WalkContext = {
+    root,
+    resolve,
+    refSuppressesSiblings,
+    dynamicTargets,
+    ignoredRefSiblingKeys: collectIgnoredRefSiblingKeys(root, refSuppressesSiblings),
+  };
 
   // Identity keys for the visited set below. Per call rather than
   // module-level, so the numbering cannot grow without bound.
@@ -450,9 +490,7 @@ export function collectRequiredIssues(
     // reports where a `required` *applies*, and a component says
     // different things at different use sites, so the definition is the
     // wrong address for it. See the addressing rule on `pathForRef`.
-    const ref = node["$ref"];
-    if (typeof ref === "string") {
-      const target = resolveRef(ref, root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys);
+    for (const { ref, target } of referenceTargets(node, context)) {
       // The physical frame does re-root here, unlike `path`. Both are
       // right: `path` answers "where does this apply", `at` answers
       // "where is the text", and after a ref those are different
@@ -464,7 +502,12 @@ export function collectRequiredIssues(
       // supplied, and a caller who supplied none gets none.
       if (isObj(target)) {
         walk(target, path, cur, underNot, {
-          pointer: at.pointer === undefined ? undefined : pointerFromRefFragment(ref),
+          pointer:
+            at.pointer === undefined
+              ? undefined
+              : pointerOf === undefined
+                ? pointerFromRefFragment(ref)
+                : pointerOf(target),
           // Shared text from here down, which for this rule means
           // `scoped-definition` on the way out.
           anchor: "definition",
@@ -528,9 +571,7 @@ export function collectRequiredIssues(
       walk(
         v,
         childPath,
-        step === undefined
-          ? cur
-          : stepInstance(cur, step, root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys),
+        step === undefined ? cur : stepInstance(cur, step, context),
         underNot || key === "not",
         childAt,
       );
@@ -556,7 +597,7 @@ export function collectRequiredIssues(
     });
   };
 
-  const rootClosure = closure([root], root, resolve, refSuppressesSiblings, ignoredRefSiblingKeys);
+  const rootClosure = closure([root], context);
   walk(
     root,
     "",

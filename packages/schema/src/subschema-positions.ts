@@ -247,6 +247,20 @@ export function walkSubschemas(
   // existed, and stays accepted in that form: every existing caller
   // passes a function there. A caller wanting a pointer passes the
   // options object instead.
+  walkSubschemasInContext(root, visit, options);
+}
+
+/** Resource-aware traversal for the document compiler. @internal */
+export function walkSubschemasInContext(
+  root: SchemaOrBoolean,
+  visit: SubschemaVisitor,
+  options?: ((ref: string) => SchemaOrBoolean | undefined) | WalkSubschemasOptions,
+  context?: {
+    resolveRef: (ref: string, from: object) => SchemaOrBoolean | undefined;
+    pointerOf?: (schema: object) => string | undefined;
+    dynamicTargets?: (ref: string, from: object) => readonly SchemaOrBoolean[];
+  },
+): void {
   const opts: WalkSubschemasOptions =
     typeof options === "function" ? { resolveRef: options } : (options ?? {});
   const resolve = opts.resolveRef;
@@ -264,28 +278,51 @@ export function walkSubschemas(
     if (typeof node !== "object" || node === null || Array.isArray(node)) return;
     const n = node as Record<string, unknown>;
 
-    if (resolve !== undefined && typeof n["$ref"] === "string") {
-      const ref = n["$ref"];
-      const target = resolve(ref);
-      if (target !== undefined && !(typeof target === "object" && walkedRefTargets.has(target))) {
-        if (typeof target === "object" && target !== null) walkedRefTargets.add(target);
-        // Both frames re-root here, and they do it differently. The
-        // pointer becomes the target's own address, so it keeps
-        // resolving. `schemaPath` has no way across the hop and so
-        // ends; see SubschemaPosition.schemaPath.
-        //
-        // Re-rooting only while a frame is already in scope. A `$ref`
-        // fragment names a position relative to the *ref resolution
-        // root*, which is not the same thing as the document frame the
-        // caller supplied, and may be a bare schema with no document at
-        // all. Deriving a pointer from the ref alone would answer a
-        // question the caller never established an answer to, under a
-        // field documented as addressing their document: the exact
-        // frame confusion this contract exists to remove.
-        go(target, pathForRef(ref), {
-          pointer: at.pointer === undefined ? undefined : pointerFromRefFragment(ref),
-          anchor: "definition",
-        });
+    for (const key of context?.dynamicTargets === undefined ? ["$ref"] : ["$ref", "$dynamicRef"]) {
+      const ref = n[key];
+      if (
+        resolve === undefined ||
+        typeof ref !== "string" ||
+        refSiblingIsDiscarded(n, key, refSuppressesSiblings)
+      )
+        continue;
+      let targets: readonly (SchemaOrBoolean | undefined)[];
+      try {
+        targets =
+          key === "$dynamicRef"
+            ? context!.dynamicTargets!(ref, node)
+            : [context === undefined ? resolve(ref) : context.resolveRef(ref, node)];
+      } catch (err) {
+        if (key !== "$dynamicRef") throw err;
+        // Unresolved advisory edges have no target to inspect.
+        continue;
+      }
+      for (const target of targets) {
+        if (target !== undefined && !(typeof target === "object" && walkedRefTargets.has(target))) {
+          if (typeof target === "object" && target !== null) walkedRefTargets.add(target);
+          // Both frames re-root here, and they do it differently. The
+          // pointer becomes the target's own address, so it keeps
+          // resolving. `schemaPath` has no way across the hop and so
+          // ends; see SubschemaPosition.schemaPath.
+          //
+          // Re-rooting only while a frame is already in scope. A `$ref`
+          // fragment names a position relative to the *ref resolution
+          // root*, which is not the same thing as the document frame the
+          // caller supplied, and may be a bare schema with no document at
+          // all. Deriving a pointer from the ref alone would answer a
+          // question the caller never established an answer to, under a
+          // field documented as addressing their document: the exact
+          // frame confusion this contract exists to remove.
+          go(target, pathForRef(ref), {
+            pointer:
+              at.pointer === undefined
+                ? undefined
+                : context?.pointerOf !== undefined && typeof target === "object"
+                  ? context.pointerOf(target)
+                  : pointerFromRefFragment(ref),
+            anchor: "definition",
+          });
+        }
       }
     }
     // One loop over every position family. Only the rendered path

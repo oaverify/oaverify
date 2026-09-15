@@ -741,13 +741,10 @@ describe("a parameter location the validator cannot serve (#836)", () => {
       ],
     ]);
     const findings = checkSpec(spec);
-    // `minimumx` on the second parameter's schema. The schema class
-    // labels a finding by operation and parameter name rather than by
-    // pointer, so what this pins is that the pass ran at all and still
-    // reached the parameter beside the unserved one.
-    expect(findings.map((f) => `${f.class}/${f.code} ${f.location ?? ""}`).join("\n")).toContain(
-      'parameter "b"',
-    );
+    // The schema beside the unserved parameter is still checked.
+    expect(
+      findings.map((f) => `${f.class}/${f.code} ${f.target?.pointer ?? ""}`).join("\n"),
+    ).toContain("/parameters/1/schema");
   });
 });
 

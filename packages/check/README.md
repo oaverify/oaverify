@@ -81,6 +81,12 @@ An unknown OpenAPI 3.x minor produces `unsupported-openapi-version` at
 fallback. This hygiene warning follows the usual selection and severity
 controls (see `CheckFinding.code`).
 
+Schema diagnostics compile the authored schema roots throughout the
+resolved document, including webhooks, callbacks and unused components.
+Each root keeps its composition and resource scope. Runtime request and
+response transformations do not apply, and runtime `precompile()` still
+covers served operations only. See `checkSpec` for the contract.
+
 Findings are additionally reported under a sixth class, `malformed`, for
 a schema that will not compile at all. It cannot be selected, because it
 is found by compiling, which is what the `schema` class does.

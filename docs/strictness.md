@@ -213,11 +213,9 @@ of the defect:
   cannot say; see the two frames above. A component whose own close and
   own composition are both inside it is reported normally, however many
   `$ref`s reach it.
-- The class only sees schemas that compile. A component reachable only
-  through a `discriminator` `mapping` value is reached by no `$ref`, so
-  nothing walks into it and no schema-class rule reports on it. This is
-  not specific to this code, and it is how a document can hold the
-  shape and report nothing.
+- A schema root that fails compilation yields a `malformed-schema`
+  finding instead of schema lint. Other authored roots, including unused
+  components, are still checked. See `checkSpec` for document coverage.
 
 The `silent-rewrite/*` family reports a constraint the validator does
 not enforce as written. `silent-rewrite/pattern-not-unicode-mode` is
@@ -330,7 +328,7 @@ instead, which names the real defect); an Example Object carrying
 `externalValue`, which oaverify does not fetch; and a schema that will
 not compile.
 
-This is the one class that compiles schemas of its own accord, so it is
+This class compiles separately from the schema diagnostics, so it is
 also the one with a cost worth naming: on a 278-component document it
 adds roughly 60ms. `--findings -examples` opts out and still runs everything else;
 `--findings hygiene,schema,conformance` also opts out and skips the
@@ -617,6 +615,17 @@ The asymmetry buys two things. An exclusion can report exactly how many
 findings it dropped, because the check ran; and an exclusion can never
 hide a finding that the check had to run to discover. The second matters
 for exactly one case:
+
+The authored-schema compile pass checks unused document schemas and releases
+compiled validators after collecting diagnostics. In a local two-run CLI
+comparison on Stripe, runtime precompilation took 14.7s with 2.08GB peak RSS;
+the authored-schema pass took 18.3s with 525MB. That is about 25% more wall
+time and fourfold lower peak memory while checking more schema positions.
+These are corpus-specific measurements from the implementation review,
+not a performance guarantee. The `--findings format-not-validated` selection
+remained 0.17s / 141MB in both versions. The separate compilation used by the
+examples pass still costs extra; this change addresses the checker's runtime
+compile retention discussed in #624, without sharing example validators.
 
 **`malformed` is reported, and never selectable.** A schema the compiler
 cannot interpret is found by compiling. `--findings -schema` still

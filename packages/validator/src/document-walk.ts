@@ -93,6 +93,9 @@ export const escapePointer = escapePointerSegment;
  * no-op that still costs the traversal.
  */
 export interface DocumentWalkHooks {
+  /** Each OpenAPI schema slot, before shape filtering or subschema traversal. */
+  onSchemaRoot?: (schema: unknown, pointer: string) => void;
+
   /**
    * Whether the active dialect discards `$ref` siblings (OAS 3.0).
    *
@@ -133,7 +136,8 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
   const seenSchemas = new Set<unknown>();
   const refSuppressesSiblings = hooks.refSuppressesSiblings ?? false;
 
-  const walkSchema = (schema: unknown, pointer: string): void => {
+  const walkSchema = (schema: unknown, pointer: string, isRoot = true): void => {
+    if (isRoot) hooks.onSchemaRoot?.(schema, pointer);
     if (!isObj(schema) || seenSchemas.has(schema)) return;
     seenSchemas.add(schema);
     if (refSuppressesSiblings && "$ref" in schema) return;
@@ -142,7 +146,7 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
 
     for (const { key, value, at } of subschemaEntries(schema)) {
       const step = at === undefined ? "" : `/${typeof at === "number" ? at : escapePointer(at)}`;
-      walkSchema(value, `${pointer}/${key}${step}`);
+      walkSchema(value, `${pointer}/${key}${step}`, false);
     }
   };
 

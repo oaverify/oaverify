@@ -1,4 +1,8 @@
-import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
+import {
+  escapePointerSegment,
+  type SchemaObject,
+  type SchemaOrBoolean,
+} from "@oaverify/internal-core";
 import type { KeywordDefinition } from "../keywords/types.js";
 import type { RefResolver } from "../resolve/index.js";
 import {
@@ -16,6 +20,13 @@ import { refSiblingIsDiscarded } from "../ref-siblings.js";
  * @internal
  */
 export interface AssertWellFormedOptions {
+  /** Document positions and resource bases, when supplied by document tooling. */
+  pointer?: string;
+  pointerOf?: (schema: object) => string | undefined;
+  baseUriOf?: (schema: object) => string | undefined;
+  refPointer?: (ref: string, from: object) => string | undefined;
+  additionalRoots?: readonly SchemaOrBoolean[];
+
   /** Pattern policy shared with code generation; omit for shape checks only. */
   compilePattern?: (pattern: string) => unknown;
   /**
@@ -37,6 +48,16 @@ export interface AssertWellFormedOptions {
    * Same slot, same discard, two verdicts.
    */
   refSuppressesSiblings?: boolean;
+}
+
+const errorPointers = new WeakMap<object, string>();
+
+/**
+ * Structured location of a document compiler failure. The weak side table preserves
+ * native error classes (including SyntaxError), identity and causes for callers.
+ */
+export function schemaErrorPointer(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null ? errorPointers.get(error) : undefined;
 }
 
 /**
@@ -147,148 +168,183 @@ export function assertWellFormedSchema(
     throw new Error(prefix + message);
   };
 
-  const go = (node: unknown, path: string): void => {
-    if (!isSchemaNode(node)) {
-      fail(`schema at ${at(path)} must be an object or boolean; got ${describe(node)}`);
-    }
-    if (typeof node === "boolean") return; // `true` / `false` are complete schemas
-    const obj = node as Record<string, unknown>;
-    if (seen.has(obj)) return;
-    seen.add(obj);
+  const go = (node: unknown, path: string, pointer?: string): void => {
+    let atPointer =
+      typeof node === "object" && node !== null ? (options.pointerOf?.(node) ?? pointer) : pointer;
+    try {
+      if (!isSchemaNode(node)) {
+        fail(`schema at ${at(path)} must be an object or boolean; got ${describe(node)}`);
+      }
+      if (typeof node === "boolean") return; // `true` / `false` are complete schemas
+      const obj = node as Record<string, unknown>;
+      if (seen.has(obj)) return;
+      seen.add(obj);
 
-    // Follow `$ref`. Without this the guard covers only the schema
-    // literally handed to `compileSchema`, and in the HTTP pipeline that
-    // is one operation's inline schema: components arrive through the
-    // resolver, so every `$ref` below the root compiled unchecked. The
-    // structural checks below exist nowhere else, so a bad `items`
-    // inside a component was not merely unlocated, it was accepted, and
-    // the constraint was dropped at runtime (#512).
-    //
-    // `seen` makes this linear: well-formedness does not depend on where
-    // a schema is used, so each object is checked once however many
-    // references reach it.
-    const ref = obj["$ref"];
-    if (typeof ref === "string" && refResolver !== undefined) {
-      let target: SchemaOrBoolean | undefined;
-      try {
-        target = refResolver.resolve(ref);
-      } catch {
-        // An unresolvable `$ref` is its own error, raised by the
-        // compiler with its own message. Not this pass's business.
+      // Follow `$ref`. Without this the guard covers only the schema
+      // literally handed to `compileSchema`, and in the HTTP pipeline that
+      // is one operation's inline schema: components arrive through the
+      // resolver, so every `$ref` below the root compiled unchecked. The
+      // structural checks below exist nowhere else, so a bad `items`
+      // inside a component was not merely unlocated, it was accepted, and
+      // the constraint was dropped at runtime (#512).
+      //
+      // `seen` makes this linear: well-formedness does not depend on where
+      // a schema is used, so each object is checked once however many
+      // references reach it.
+      for (const key of options.baseUriOf === undefined ? ["$ref"] : ["$ref", "$dynamicRef"]) {
+        if (refSiblingIsDiscarded(obj, key, refSuppressesSiblings)) continue;
+        const ref = obj[key];
+        if (typeof ref !== "string" || refResolver === undefined) continue;
+        let target: SchemaOrBoolean | undefined;
+        try {
+          target = refResolver.resolve(ref, options.baseUriOf?.(obj));
+        } catch {
+          // Code generation reports unresolved references.
+        }
+        if (target !== undefined) go(target, pathForRef(ref), options.refPointer?.(ref, obj));
       }
-      // Reset to the target's document path: well-formedness is a
-      // property of the schema itself, so it is one edit at one
-      // definition however many references reach it. See the addressing
-      // rule on `pathForRef` for why the required lint does the
-      // opposite.
-      if (target !== undefined) go(target, pathForRef(ref));
-    }
 
-    // Keyword values, before descending. `Object.keys` matches what
-    // keyword dispatch itself iterates, so a key present with an
-    // undefined value is checked rather than skipped.
-    //
-    // Under OAS 3.0 a sibling of `$ref` is skipped, because the compiler
-    // will not emit it. Checking a value nothing reads turned a
-    // discarded keyword into a fatal, and only for some values of it.
-    //
-    // `"$ref" in obj`, not `typeof obj.$ref === "string"`, because that
-    // is how `compileSchemaInto` decides the same thing. A present but
-    // non-string `$ref` would otherwise have codegen dropping the
-    // siblings while this pass still judged them, which is the split
-    // being removed.
-    //
-    // The structural walks below read the same predicate. A discarded
-    // sibling is not compiled, so its own shape and subtree are not part
-    // of the schema being checked.
-    const discarded = (key: string): boolean =>
-      refSiblingIsDiscarded(obj, key, refSuppressesSiblings);
-    for (const key of Object.keys(obj)) {
-      if (discarded(key)) continue;
-      // At the root the keyword name already locates its value.
-      const where = path === "" ? "" : ` at ${at(`${path}.${key}`)}`;
-      let reason: string | undefined;
-      try {
-        reason = byKeyword.get(key)?.validateKeywordValue?.(obj[key], {
-          compilePattern: options.compilePattern,
-          keyword: key,
-          path: path === "" ? key : `${path}.${key}`,
-          parentSchema: obj as SchemaObject,
-        });
-      } catch (err) {
-        const message = `${prefix}keyword "${key}"${where}: ${err instanceof Error ? err.message : String(err)}`;
-        // Native regex syntax errors keep their established error class.
-        if (err instanceof SyntaxError) throw new SyntaxError(message, { cause: err });
-        throw new Error(message, { cause: err });
+      // Keyword values, before descending. `Object.keys` matches what
+      // keyword dispatch itself iterates, so a key present with an
+      // undefined value is checked rather than skipped.
+      //
+      // Under OAS 3.0 a sibling of `$ref` is skipped, because the compiler
+      // will not emit it. Checking a value nothing reads turned a
+      // discarded keyword into a fatal, and only for some values of it.
+      //
+      // `"$ref" in obj`, not `typeof obj.$ref === "string"`, because that
+      // is how `compileSchemaInto` decides the same thing. A present but
+      // non-string `$ref` would otherwise have codegen dropping the
+      // siblings while this pass still judged them, which is the split
+      // being removed.
+      //
+      // The structural walks below read the same predicate. A discarded
+      // sibling is not compiled, so its own shape and subtree are not part
+      // of the schema being checked.
+      const discarded = (key: string): boolean =>
+        refSiblingIsDiscarded(obj, key, refSuppressesSiblings);
+      const nodePointer = atPointer;
+      const childPointer = (key: string): string | undefined =>
+        nodePointer === undefined ? undefined : `${nodePointer}/${escapePointerSegment(key)}`;
+      for (const key of Object.keys(obj)) {
+        if (discarded(key)) continue;
+        atPointer = childPointer(key);
+        // At the root the keyword name already locates its value.
+        const where = path === "" ? "" : ` at ${at(`${path}.${key}`)}`;
+        let reason: string | undefined;
+        try {
+          reason = byKeyword.get(key)?.validateKeywordValue?.(obj[key], {
+            compilePattern: options.compilePattern,
+            keyword: key,
+            path: path === "" ? key : `${path}.${key}`,
+            parentSchema: obj as SchemaObject,
+          });
+        } catch (err) {
+          const message = `${prefix}keyword "${key}"${where}: ${err instanceof Error ? err.message : String(err)}`;
+          // Native regex syntax errors keep their established error class.
+          if (err instanceof SyntaxError) throw new SyntaxError(message, { cause: err });
+          throw new Error(message, { cause: err });
+        }
+        if (reason !== undefined) {
+          fail(`keyword "${key}"${where} ${reason}`);
+        }
       }
-      if (reason !== undefined) {
-        fail(`keyword "${key}"${where} ${reason}`);
-      }
-    }
 
-    // Presence is `hasOwn`, not `!== undefined`. Keyword dispatch walks
-    // `Object.keys`, which reports a key whose value is `undefined`, so
-    // `{ items: undefined }` reaches codegen as a declared `items` and
-    // crashes there. Treating it as absent here would reopen exactly the
-    // gap this pass exists to close.
-    for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
-      if (discarded(key)) continue;
-      if (!Object.hasOwn(obj, key)) continue;
-      const v = obj[key];
-      if (!isSchemaNode(v)) {
-        fail(
-          `"${key}" at ${at(path)} must be an object or boolean; got ${describe(v)}.${hintFor(key, v)}`,
-        );
+      // Presence is `hasOwn`, not `!== undefined`. Keyword dispatch walks
+      // `Object.keys`, which reports a key whose value is `undefined`, so
+      // `{ items: undefined }` reaches codegen as a declared `items` and
+      // crashes there. Treating it as absent here would reopen exactly the
+      // gap this pass exists to close.
+      for (const key of SUBSCHEMA_SINGLE_POSITIONS) {
+        if (discarded(key)) continue;
+        atPointer = childPointer(key);
+        if (!Object.hasOwn(obj, key)) continue;
+        const v = obj[key];
+        if (!isSchemaNode(v)) {
+          fail(
+            `"${key}" at ${at(path)} must be an object or boolean; got ${describe(v)}.${hintFor(key, v)}`,
+          );
+        }
+        go(v, path === "" ? key : `${path}.${key}`, childPointer(key));
       }
-      go(v, path === "" ? key : `${path}.${key}`);
-    }
 
-    for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
-      if (discarded(key)) continue;
-      if (!Object.hasOwn(obj, key)) continue;
-      const v = obj[key];
-      if (!Array.isArray(v)) {
-        fail(
-          `"${key}" at ${at(path)} must be an array of schemas; got ${describe(v)}.${hintFor(key, v)}`,
-        );
+      for (const key of SUBSCHEMA_ARRAY_POSITIONS) {
+        if (discarded(key)) continue;
+        atPointer = childPointer(key);
+        if (!Object.hasOwn(obj, key)) continue;
+        const v = obj[key];
+        if (!Array.isArray(v)) {
+          fail(
+            `"${key}" at ${at(path)} must be an array of schemas; got ${describe(v)}.${hintFor(key, v)}`,
+          );
+        }
+        const arr = v as unknown[];
+        for (let i = 0; i < arr.length; i += 1) {
+          go(
+            arr[i],
+            path === "" ? `${key}[${i}]` : `${path}.${key}[${i}]`,
+            atPointer === undefined ? undefined : `${atPointer}/${i}`,
+          );
+        }
       }
-      const arr = v as unknown[];
-      for (let i = 0; i < arr.length; i += 1) {
-        go(arr[i], path === "" ? `${key}[${i}]` : `${path}.${key}[${i}]`);
-      }
-    }
 
-    for (const key of SUBSCHEMA_MAP_POSITIONS) {
-      if (discarded(key)) continue;
-      if (!Object.hasOwn(obj, key)) continue;
-      const v = obj[key];
-      if (typeof v !== "object" || v === null || Array.isArray(v)) {
-        fail(
-          `"${key}" at ${at(path)} must be an object mapping names to schemas; got ${describe(v)}.${hintFor(key, v)}`,
-        );
+      for (const key of SUBSCHEMA_MAP_POSITIONS) {
+        if (discarded(key)) continue;
+        atPointer = childPointer(key);
+        if (!Object.hasOwn(obj, key)) continue;
+        const v = obj[key];
+        if (typeof v !== "object" || v === null || Array.isArray(v)) {
+          fail(
+            `"${key}" at ${at(path)} must be an object mapping names to schemas; got ${describe(v)}.${hintFor(key, v)}`,
+          );
+        }
+        for (const [name, sub] of Object.entries(v as Record<string, unknown>)) {
+          go(
+            sub,
+            path === "" ? `${key}.${name}` : `${path}.${key}.${name}`,
+            atPointer === undefined ? undefined : `${atPointer}/${escapePointerSegment(name)}`,
+          );
+        }
       }
-      for (const [name, sub] of Object.entries(v as Record<string, unknown>)) {
-        go(sub, path === "" ? `${key}.${name}` : `${path}.${key}.${name}`);
-      }
-    }
 
-    for (const key of SUBSCHEMA_MIXED_MAP_POSITIONS) {
-      if (discarded(key)) continue;
-      if (!Object.hasOwn(obj, key)) continue;
-      const v = obj[key];
-      if (typeof v !== "object" || v === null || Array.isArray(v)) {
-        fail(
-          `"${key}" at ${at(path)} must be an object mapping names to schemas or to arrays of property names; got ${describe(v)}.`,
-        );
+      for (const key of SUBSCHEMA_MIXED_MAP_POSITIONS) {
+        if (discarded(key)) continue;
+        atPointer = childPointer(key);
+        if (!Object.hasOwn(obj, key)) continue;
+        const v = obj[key];
+        if (typeof v !== "object" || v === null || Array.isArray(v)) {
+          fail(
+            `"${key}" at ${at(path)} must be an object mapping names to schemas or to arrays of property names; got ${describe(v)}.`,
+          );
+        }
+        for (const [name, sub] of Object.entries(v as Record<string, unknown>)) {
+          // An array entry names required properties rather than holding a
+          // schema, so there is nothing here to check as one.
+          if (Array.isArray(sub)) continue;
+          go(
+            sub,
+            path === "" ? `${key}.${name}` : `${path}.${key}.${name}`,
+            atPointer === undefined ? undefined : `${atPointer}/${escapePointerSegment(name)}`,
+          );
+        }
       }
-      for (const [name, sub] of Object.entries(v as Record<string, unknown>)) {
-        // An array entry names required properties rather than holding a
-        // schema, so there is nothing here to check as one.
-        if (Array.isArray(sub)) continue;
-        go(sub, path === "" ? `${key}.${name}` : `${path}.${key}.${name}`);
+    } catch (err) {
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        atPointer !== undefined &&
+        !errorPointers.has(err)
+      ) {
+        errorPointers.set(err, atPointer);
       }
+      throw err;
     }
   };
 
-  go(root, "");
+  go(root, "", options.pointer);
+  for (const node of options.additionalRoots ?? []) {
+    const pointer =
+      typeof node === "object" && node !== null ? options.pointerOf?.(node) : undefined;
+    go(node, pointer === undefined ? "<dynamic candidate>" : pathForRef(`#${pointer}`), pointer);
+  }
 }

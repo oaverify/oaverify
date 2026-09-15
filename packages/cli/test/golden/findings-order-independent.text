@@ -3,7 +3,7 @@ warning  schema       format-not-validated
   "type" alone.
     at /components/schemas/shared_Pet/properties/ref/format
 
-warning  schema       silent-rewrite/required-not-in-properties
+warning  schema       silent-rewrite/required-not-in-properties  (+1 more occurrence(s))
   required: "absent" at <root> is not declared in properties reachable here
     at GET /pets/{petId} 200 response body (application/json) -> <root>
 

@@ -30,6 +30,7 @@ import {
   stepPosition,
   forEachSubschema,
   walkSubschemas,
+  walkSubschemasInContext,
 } from "../subschema-positions.js";
 import { createDeps, type RegexCompiler, type ValidatorDeps } from "./runtime.js";
 import { computeDiscriminatorRoutes } from "../keywords/discriminator-routes.js";
@@ -184,6 +185,9 @@ function runSchemaLint(
     resolveRef?: (ref: string, from?: object) => unknown;
     pointer?: string;
     anchor?: "node" | "definition";
+    pointerOf?: (schema: object) => string | undefined;
+    pathOf?: (schema: object) => string | undefined;
+    dynamicTargets?: (ref: string, from: object) => readonly SchemaOrBoolean[];
   },
 ): SchemaLintIssue[] {
   // The full set of names the active dialect recognizes, including
@@ -229,27 +233,30 @@ function runSchemaLint(
           resolve: (ref, from) => resolveForLint(ref, from),
           refSuppressesSiblings: rules.refSuppressesSiblings,
           known: (keyword) => known.has(keyword),
+          dynamicTargets: rules.dynamicTargets,
         };
   // Ancestor-aware, so it walks the graph itself rather than per-node:
   // the question is what property names are reachable at an instance
   // position, which a per-node visitor cannot see.
   issues.push(
-    ...collectRequiredIssues(
-      schema,
-      rules.resolveRef,
-      rules.pointer,
-      rules.anchor,
-      rules.refSuppressesSiblings,
-    ),
+    ...collectRequiredIssues(schema, {
+      resolve: rules.resolveRef,
+      pointer: rules.pointer,
+      anchor: rules.anchor,
+      refSuppressesSiblings: rules.refSuppressesSiblings,
+      pointerOf: rules.pointerOf,
+      dynamicTargets: rules.dynamicTargets,
+    }),
   );
   // Follow refs, or the rules below see one operation's inline schema
   // plus at most the component named directly as its body: on Asana,
   // 1 of 278 component schemas (#513).
-  walkSubschemas(
+  walkSubschemasInContext(
     schema,
     (node, path, at) => {
       if (typeof node !== "object" || node === null || Array.isArray(node)) return;
       const obj = node as Record<string, unknown>;
+      path = rules.pathOf?.(obj) ?? path;
       const discarded = (key: string): boolean =>
         refSiblingIsDiscarded(obj, key, rules.refSuppressesSiblings);
       // Stamped once per node after the rules have run, the way
@@ -477,6 +484,11 @@ function runSchemaLint(
       pointer: rules.pointer,
       anchor: rules.anchor,
       refSuppressesSiblings: rules.refSuppressesSiblings,
+    },
+    {
+      resolveRef: (ref, from) => rules.resolveRef?.(ref, from) as SchemaOrBoolean | undefined,
+      pointerOf: rules.pointerOf,
+      dynamicTargets: rules.dynamicTargets,
     },
   );
   // Stamped once here rather than at each `issues.push`: the location is
@@ -1611,6 +1623,26 @@ export function compileSchema(
   schema: SchemaOrBoolean,
   options: CompileOptions,
 ): CompiledSchema | CompiledTreeSchema | CompiledPredicate {
+  return compileSchemaInContext(schema, options);
+}
+
+/** Resource metadata supplied by document tooling; it does not change runtime options. */
+export interface SchemaCompileContext {
+  graph: ResolvedGraph;
+  refPointer?: (ref: string, from: object) => string | undefined;
+  /** Structural and reference closure of this entry, excluding unrelated schemas. */
+  nodes: readonly SchemaOrBoolean[];
+  pointerOf: (schema: object) => string | undefined;
+  pathOf?: (schema: object) => string | undefined;
+  dynamicTargets?: (ref: string, from: object) => readonly SchemaOrBoolean[];
+}
+
+/** Compile an authored document schema with its enclosing resource graph. @internal */
+export function compileSchemaInContext(
+  schema: SchemaOrBoolean,
+  options: CompileOptions,
+  context?: SchemaCompileContext,
+): CompiledSchema | CompiledTreeSchema | CompiledPredicate {
   // Before anything else, so a bad option is reported as a bad option
   // rather than as a TypeError from inside codegen, once per schema.
   if (options.refResolver !== undefined) assertRefResolver(options.refResolver);
@@ -1698,6 +1730,14 @@ export function compileSchema(
   // holding for only part of the graph would be worse than none.
   assertWellFormedSchema(schema, byKeyword, {
     compilePattern: deps.compilePattern,
+    ...(context !== undefined && {
+      refResolver: createRefResolver(context.graph),
+      baseUriOf: (node: object) => context.graph.schemaBaseUri.get(node),
+      pointerOf: context.pointerOf,
+      refPointer: context.refPointer,
+      additionalRoots: context.nodes,
+      pointer: options.pointer,
+    }),
     ...(options.label !== undefined && { label: options.label }),
     refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
   });
@@ -1748,10 +1788,12 @@ export function compileSchema(
   if (options.external !== undefined) {
     for (const [uri, ext] of options.external) registry.add(uri, ext);
   }
-  const graph = resolve(schema, {
-    registry,
-    refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
-  });
+  const graph =
+    context?.graph ??
+    resolve(schema, {
+      registry,
+      refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
+    });
   const refResolver = options.refResolver ?? createRefResolver(graph);
 
   // Second pass, now that refs can be followed. The first pass above
@@ -1760,12 +1802,15 @@ export function compileSchema(
   // through the resolver rather than in the schema object, so without
   // this they compile unchecked (#512). Re-walking the root costs one
   // linear pass over a graph that is about to be compiled.
-  assertWellFormedSchema(schema, byKeyword, {
-    compilePattern: deps.compilePattern,
-    ...(options.label !== undefined && { label: options.label }),
-    refResolver,
-    refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
-  });
+  // Document contexts supply the resolver on the first guard pass.
+  if (context === undefined) {
+    assertWellFormedSchema(schema, byKeyword, {
+      compilePattern: deps.compilePattern,
+      ...(options.label !== undefined && { label: options.label }),
+      refResolver,
+      refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
+    });
+  }
 
   if (options.unknownFormats === "error") {
     assertFormatsRegistered(
@@ -1812,6 +1857,19 @@ export function compileSchema(
       dynUsage.ref ||= extUsage.ref;
     }
   }
+  if (context !== undefined) {
+    for (const node of context.nodes) {
+      if (typeof node !== "object" || node === null) continue;
+      const obj = node as Record<string, unknown>;
+      const active = (key: string): boolean =>
+        !refSiblingIsDiscarded(obj, key, options.dialect.rules.refSuppressesSiblings);
+      unevaluatedTracking ||=
+        (active("unevaluatedProperties") && "unevaluatedProperties" in obj) ||
+        (active("unevaluatedItems") && "unevaluatedItems" in obj);
+      dynUsage.anchor ||= active("$dynamicAnchor") && "$dynamicAnchor" in obj;
+      dynUsage.ref ||= active("$dynamicRef") && "$dynamicRef" in obj;
+    }
+  }
   const dynamicScope = dynUsage.anchor && dynUsage.ref;
 
   const state: CompileState = {
@@ -1844,14 +1902,21 @@ export function compileSchema(
     formatTypes,
     unevaluatedEmitted: false,
     dynamicScope,
-    reachableResources: dynamicScope
-      ? collectReachableResources(
-          schema,
-          graph,
-          refResolver,
-          options.dialect.rules.refSuppressesSiblings,
-        )
-      : new Set<string>(),
+    reachableResources:
+      context !== undefined && dynamicScope
+        ? new Set(
+            context.nodes
+              .filter((node) => typeof node === "object" && node !== null)
+              .map((node) => graph.schemaBaseUri.get(node as object) ?? graph.baseUri),
+          )
+        : dynamicScope
+          ? collectReachableResources(
+              schema,
+              graph,
+              refResolver,
+              options.dialect.rules.refSuppressesSiblings,
+            )
+          : new Set<string>(),
     rootBaseUri:
       (typeof schema === "object" && schema !== null
         ? graph.schemaBaseUri.get(schema)
@@ -1893,6 +1958,9 @@ export function compileSchema(
           customRegexCompiler: options.regexCompiler !== undefined,
           pointer: options.pointer,
           anchor: options.anchor,
+          pointerOf: context?.pointerOf,
+          pathOf: context?.pathOf,
+          dynamicTargets: context?.dynamicTargets,
           // Lets the `required` rule see through `$ref` into component
           // schemas, which an operation-scoped compile cannot reach by
           // walking its own schema object.
