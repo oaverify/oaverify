@@ -479,6 +479,7 @@ describe("the two frames `path` renders in (#594)", () => {
     "silent-rewrite/pattern-not-unicode-mode": "definition",
     "unsatisfiable/pattern-length": "definition",
     "unsatisfiable/enum-member-type": "definition",
+    "unsatisfiable/composed-properties": "definition",
     // The one rule whose verdict depends on the route that reached the
     // text, so the definition can name a position where it does not
     // hold. Reports `anchor: "scoped-definition"`.

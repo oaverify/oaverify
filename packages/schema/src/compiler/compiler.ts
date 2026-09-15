@@ -37,6 +37,12 @@ import { OAS30_REF_SIBLINGS_ALLOWED, refSiblingIsDiscarded } from "../ref-siblin
 import { collectEnumTypeIssue } from "./enum-type.js";
 import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
+import {
+  collectClosedBranchIssues,
+  collectClosedCompositionIssue,
+  type ClosedCompositionContext,
+} from "./closed-composition.js";
+import { collectIgnoredRefSiblingKeys, isObj } from "./lint-refs.js";
 import { assertFormatsRegistered } from "./unknown-formats.js";
 import { assertWellFormedSchema } from "./well-formed.js";
 
@@ -184,6 +190,20 @@ function runSchemaLint(
   }
 
   const issues: SchemaLintIssue[] = [];
+  // Built once per compile: the ref-sibling index is a walk of the
+  // whole schema, and the closed-composition rule asks it per node.
+  const closedCtx: ClosedCompositionContext | undefined = isObj(schema)
+    ? {
+        root: schema,
+        resolve: rules.resolveRef,
+        ignoredRefSiblingKeys: collectIgnoredRefSiblingKeys(schema, rules.refSuppressesSiblings),
+        refSuppressesSiblings: rules.refSuppressesSiblings,
+        known: (keyword) => known.has(keyword),
+      }
+    : undefined;
+  // Branches answered from their enclosing node, so the per-node check
+  // does not report the same close a second time.
+  const closedBranchesReported = new WeakSet<Record<string, unknown>>();
   // Ancestor-aware, so it walks the graph itself rather than per-node:
   // the question is what property names are reachable at an instance
   // position, which a per-node visitor cannot see.
@@ -369,6 +389,26 @@ function runSchemaLint(
                 ? `OAS 3.0: "${key}" sibling of $ref at <root> is silently dropped (only description/summary survive)`
                 : `OAS 3.0: "${key}" sibling of $ref at "${path}" is silently dropped (only description/summary survive)`,
           });
+        }
+      }
+
+      if (closedCtx !== undefined) {
+        // Positioned at the branch, not at this node, so it sets its own
+        // position and is skipped by `stamp()` the way
+        // redundant-composition-branches is.
+        for (const found of collectClosedBranchIssues(
+          obj,
+          path,
+          closedCtx,
+          closedBranchesReported,
+        )) {
+          let branchAt = at;
+          for (const segment of found.segments) branchAt = stepPosition(branchAt, segment);
+          issues.push({ ...found.issue, ...positionFields(branchAt) });
+        }
+        if (!closedBranchesReported.has(obj)) {
+          const issue = collectClosedCompositionIssue(obj, path, closedCtx);
+          if (issue !== undefined) issues.push(issue);
         }
       }
 
@@ -701,6 +741,32 @@ export interface SchemaLintIssue {
    *   JSON Schema's seven names, and silent for a `null` member beside
    *   `nullable: true` under OAS 3.0, where that is valid. Under 3.1
    *   `nullable` is inert, so the same input is reported there.
+   * - `"unsatisfiable/composed-properties"`: an
+   *   `additionalProperties: false` that rejects property names the
+   *   composition around it declares, so those names can never appear
+   *   at that position. `additionalProperties` is adjacency-scoped: it
+   *   sees the `properties` / `patternProperties` written beside it and
+   *   nothing else, so a name declared by an `allOf` branch, a `$ref`
+   *   target or a `oneOf` arm is additional to the node holding the
+   *   close. The author meant `unevaluatedProperties: false`, or a
+   *   different structure under OAS 3.0, which has no such keyword.
+   *
+   *   The close is reported wherever it is reached on every instance
+   *   that reaches the declarations: on the node the composition hangs
+   *   off, or on an `allOf` branch beside one that declares. A close
+   *   inside a `oneOf` / `anyOf` arm is not reported, that being the
+   *   ordinary "one of these shapes" idiom. Declarations are collected
+   *   along any positive path, `oneOf` and `anyOf` included, since the
+   *   close applies whichever arm the instance takes; `not` is followed
+   *   for neither purpose.
+   *
+   *   The claim is about the names rather than the position, which may
+   *   still admit an instance carrying none of them. Silent where the
+   *   set cannot be established: an unresolvable `$ref` in the
+   *   composition, or a `patternProperties` beside the close, whose
+   *   matches may be exactly the composed names. A composed
+   *   `patternProperties` is reported only where the close declares no
+   *   names of its own, there being no witness to name otherwise.
    */
   code:
     | "partial-feature"
@@ -712,7 +778,8 @@ export interface SchemaLintIssue {
     | "silent-rewrite/discriminator-unroutable"
     | "silent-rewrite/pattern-not-unicode-mode"
     | "unsatisfiable/pattern-length"
-    | "unsatisfiable/enum-member-type";
+    | "unsatisfiable/enum-member-type"
+    | "unsatisfiable/composed-properties";
   /** The offending keyword / key name as written in the schema. */
   keyword: string;
   /**
