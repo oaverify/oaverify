@@ -400,7 +400,7 @@ export function collectClosedBranchIssues(
   node: Obj,
   path: string,
   ctx: ClosedCompositionContext,
-): { issue: SchemaLintIssue; segments: readonly (string | number)[] }[] {
+): { issue: SchemaLintIssue; segments: readonly (string | number)[]; node: Obj }[] {
   const branches = closedBranches(node, ctx);
   if (branches.length === 0) return [];
 
@@ -409,7 +409,7 @@ export function collectClosedBranchIssues(
   // from it rather than kept out of it.
   const declared = declarationsFrom([node], ctx);
 
-  const out: { issue: SchemaLintIssue; segments: readonly (string | number)[] }[] = [];
+  const out: { issue: SchemaLintIssue; segments: readonly (string | number)[]; node: Obj }[] = [];
   for (const branch of branches) {
     const full = renderBranchPath(path, branch.segments);
     const found = verdict(branch.node, declared, ctx);
@@ -422,57 +422,46 @@ export function collectClosedBranchIssues(
         message: message(full, found.dead, found.patternsOnly, ctx, true),
       },
       segments: branch.segments,
+      node: branch.node,
     });
   }
   return out;
 }
 
 /**
- * Collapse two reports of one close at one address into one.
+ * Identifies one visited position, for the suppression that keeps a
+ * close from being reported twice.
  *
  * A closed `allOf` branch is answered from the node above it, which is
- * the only place its siblings are visible, and again by its own
- * per-node check; nested `allOf` puts it in reach of several enclosing
- * nodes. Every one of those describes the same keyword in the same
- * text.
+ * the only place its siblings are visible. Its own per-node check would
+ * answer it again from less information, and the two disagree on the
+ * repair: the branch report says move the close up to the composition,
+ * the node report says swap the keyword here, and swapping it here
+ * still rejects the sibling's properties. Only the first is right, so
+ * the second must not be emitted.
  *
- * Keyed on the machine address, because that is the field whose job is
- * to identify a position. {@link SchemaLintIssue.path} cannot do it: it
- * is a locator for a reader, and a property name may contain its
- * separators, so `properties: {"a.properties.b": x, a: {properties: {b:
- * y}}}` renders one string for two positions. Schema identity cannot do
- * it either, in the opposite direction: one object written under two
- * keys is two places to edit, which is why `walkSubschemas`
- * deduplicates ref targets and never structural positions.
+ * The most precise identity available is used, because no single one
+ * covers every compile:
  *
- * `anchor` is part of the key, so the definition and the node a
- * component is visited as stay two findings, matching every other rule.
- * Where neither address exists (a bare schema below a `$ref`) nothing
- * is collapsed: a visible duplicate beats a silent loss.
+ * - `pointer`, when the caller established a document frame.
+ * - `schemaPath`, for a bare-schema caller, until a `$ref` ends it.
+ * - the schema object paired with the rendered path, below a `$ref`
+ *   with no pointer, where the contract has no address to offer. Each
+ *   alone is wrong: one object may sit at two positions, and two
+ *   positions may render one string.
  *
- * The first report of an address survives. The walk is pre-order, so
- * that is the outermost enclosing node, holding the largest set of
- * declarations and naming the most dead names.
+ * `anchor` is always part of it, so a component visited structurally
+ * and again through a `$ref` stays two findings, as it does for every
+ * other rule.
  */
-export function dedupeByAddress(issues: readonly SchemaLintIssue[]): SchemaLintIssue[] {
-  const seen = new Set<string>();
-  const out: SchemaLintIssue[] = [];
-  for (const issue of issues) {
-    if (issue.code !== CODE) {
-      out.push(issue);
-      continue;
-    }
-    const address =
-      issue.pointer ??
-      (issue.schemaPath === undefined ? undefined : JSON.stringify(issue.schemaPath));
-    if (address === undefined) {
-      out.push(issue);
-      continue;
-    }
-    const key = `${issue.anchor ?? ""}|${address}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(issue);
-  }
-  return out;
+export function positionKey(
+  node: Obj,
+  path: string,
+  at: { pointer?: string; schemaPath?: readonly (string | number)[]; anchor?: string },
+  idOf: (node: Obj) => number,
+): string {
+  const address =
+    at.pointer ??
+    (at.schemaPath === undefined ? `o${idOf(node)}:${path}` : JSON.stringify(at.schemaPath));
+  return `${at.anchor ?? ""}|${address}`;
 }

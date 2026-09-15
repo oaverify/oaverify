@@ -40,7 +40,7 @@ import { collectRequiredIssues } from "./required-lint.js";
 import {
   collectClosedBranchIssues,
   collectClosedCompositionIssue,
-  dedupeByAddress,
+  positionKey,
   type ClosedCompositionContext,
 } from "./closed-composition.js";
 import { assertFormatsRegistered } from "./unknown-formats.js";
@@ -190,6 +190,22 @@ function runSchemaLint(
   }
 
   const issues: SchemaLintIssue[] = [];
+  // Positions this rule has already answered as a closed `allOf` branch,
+  // so its per-node check does not answer them again from less
+  // information; see `positionKey`. Pre-order puts the enclosing node
+  // first, which is the report that holds.
+  const closedBranchesReported = new Set<string>();
+  const closedNodeIds = new WeakMap<Record<string, unknown>, number>();
+  let nextClosedNodeId = 0;
+  const closedNodeId = (node: Record<string, unknown>): number => {
+    let id = closedNodeIds.get(node);
+    if (id === undefined) {
+      id = nextClosedNodeId;
+      nextClosedNodeId += 1;
+      closedNodeIds.set(node, id);
+    }
+    return id;
+  };
   // The rule follows `$ref` through the compiler's own resolver and no
   // other route, so there is nothing to index per compile. A caller who
   // supplied none leaves the rule unable to enumerate past a `$ref`,
@@ -399,10 +415,15 @@ function runSchemaLint(
         for (const found of collectClosedBranchIssues(obj, path, closedCtx)) {
           let branchAt = at;
           for (const segment of found.segments) branchAt = stepPosition(branchAt, segment);
+          const key = positionKey(found.node, found.issue.path, branchAt, closedNodeId);
+          if (closedBranchesReported.has(key)) continue;
+          closedBranchesReported.add(key);
           issues.push({ ...found.issue, ...positionFields(branchAt) });
         }
-        const closedIssue = collectClosedCompositionIssue(obj, path, closedCtx);
-        if (closedIssue !== undefined) issues.push(closedIssue);
+        if (!closedBranchesReported.has(positionKey(obj, path, at, closedNodeId))) {
+          const closedIssue = collectClosedCompositionIssue(obj, path, closedCtx);
+          if (closedIssue !== undefined) issues.push(closedIssue);
+        }
       }
 
       for (const key of COMPOSITION_BRANCH_KEYS) {
@@ -445,13 +466,7 @@ function runSchemaLint(
   // Stamped once here rather than at each `issues.push`: the location is
   // the same for every issue this compile produces, and threading it
   // through each construction site invites one of them to forget.
-  // After the walk, so it sees the positions the visitor stamped: one
-  // close can be answered by its own node and by every enclosing node
-  // that reaches it, and those are one finding.
-  const deduped = dedupeByAddress(issues);
-  return context === undefined
-    ? deduped
-    : deduped.map((issue) => ({ ...issue, location: context }));
+  return context === undefined ? issues : issues.map((issue) => ({ ...issue, location: context }));
 }
 
 /**

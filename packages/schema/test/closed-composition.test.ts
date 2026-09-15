@@ -502,6 +502,45 @@ describe("unsatisfiable/composed-properties", () => {
     });
   });
 
+  describe("one reference traversal, one report", () => {
+    /**
+     * A closed branch is answered from the node above it, which can see
+     * its siblings, and its own per-node check would answer it again
+     * from less: the first says move the close up to the composition,
+     * the second says swap the keyword where it stands, which still
+     * rejects the sibling's properties. Two findings that disagree on
+     * the repair are worse than one.
+     *
+     * A bare-schema caller has no pointer, and `schemaPath` ends at the
+     * `$ref`, so this is the shape where the contract offers no address
+     * to tell the two apart.
+     */
+    it("does not answer a branch twice with conflicting advice", () => {
+      const issues = lint31({
+        $defs: {
+          C: {
+            allOf: [
+              { additionalProperties: false, allOf: [{ properties: { a: {} } }] },
+              { properties: { b: {} } },
+            ],
+          },
+        },
+        $ref: "#/$defs/C",
+      });
+      // The structural visit of `$defs.C` and the visit through the
+      // `$ref` stay separate, as they do for every rule. What must not
+      // appear is a second report of one of them naming only "a" and
+      // advising a replacement in place.
+      expect(issues).toHaveLength(2);
+      for (const issue of issues) {
+        expect(issue.path).toBe("$defs.C.allOf[0]");
+        expect(issue.message).toContain('"a"');
+        expect(issue.message).toContain('"b"');
+        expect(issue.message).toContain("enclosing composition");
+      }
+    });
+  });
+
   describe("a resolved boolean schema is not an unresolvable ref", () => {
     it("keeps the finding beside an inert `true` branch", () => {
       const issues = lint31({
