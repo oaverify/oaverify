@@ -658,8 +658,17 @@ describe("a parameter style the document's version does not define", () => {
 
     // 3.2 is where the style was added; before it, the meta-schema
     // pins a cookie parameter's style to `form`.
+    //
+    // 3.1 reports the `const` the style violates and, because the
+    // Parameter Object closes with `unevaluatedProperties`, a second
+    // finding for `style` itself: the subschema that would have
+    // evaluated the field failed, so its annotation is discarded and the
+    // field is unevaluated. Both findings are true of the document.
     expect(await conformance("3.2.0")).toEqual([]);
-    expect((await conformance("3.1.0")).map((f) => f.code)).toEqual(["const"]);
+    expect((await conformance("3.1.0")).map((f) => f.code)).toEqual([
+      "const",
+      "unevaluatedProperties",
+    ]);
     expect((await conformance("3.0.3")).length).toBeGreaterThan(0);
   });
 });
