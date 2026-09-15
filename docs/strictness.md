@@ -452,8 +452,13 @@ is reported as a finding with the code `malformed-schema`, and `check`
 carries on with the rest of the document, so one bad `items` does not
 hide every other finding in the file.
 
-One hygiene code says something about oaverify rather than about the
-document. `unserved-parameter-location` reports a parameter whose `in`
+The hygiene warning `unsupported-openapi-version` locates an unknown 3.x
+minor at `/openapi` and discloses skipped conformance and the OpenAPI 3.1
+schema fallback. It follows ordinary selection and regrading (see
+`CheckFinding.code`). At the default `--fail-on error` it keeps exit 0;
+`--severity unsupported-openapi-version=error` makes it fail the gate.
+
+`unserved-parameter-location` reports a parameter whose `in`
 this validator cannot read a value for, which `createValidator` refuses
 to build for and `compile-spec` refuses to emit for. It is graded
 `warning`, because the location can be entirely legal: OpenAPI 3.2's

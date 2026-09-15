@@ -44,6 +44,7 @@ describe("every code describes itself", () => {
       "example-invalid",
       "example-uncheckable",
       "format-not-validated",
+      "unsupported-openapi-version",
     ]);
   });
 });

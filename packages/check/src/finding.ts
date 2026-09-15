@@ -72,6 +72,12 @@ export interface CheckFinding {
    * before this package existed. A bare `string` would throw away the
    * registry #641 built. This keeps both.
    *
+   * `unsupported-openapi-version` is a hygiene warning at `/openapi`
+   * for an unknown 3.x minor accepted by the validator's fallback. It
+   * discloses skipped conformance and OpenAPI 3.1 schema semantics.
+   * It follows ordinary code/class selection, exclusion and severity
+   * remapping; selecting another class alone does not produce it.
+   *
    * The consequence to know about: a `switch` over this cannot be
    * exhaustive, so write a `default`. That is the honest shape, because
    * a consumer pinned at one version will meet codes from a later one.

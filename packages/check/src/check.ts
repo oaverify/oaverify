@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-import type { OpenAPIDocument } from "@oaverify/internal-core";
+import { detectOpenAPIVersion, type OpenAPIDocument } from "@oaverify/internal-core";
 import {
   lintResolvedSpec,
   sourceOf,
@@ -284,6 +284,18 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     throw new CheckAbortedError((err as Error).message, { cause: err, findings });
   }
   if (lintError !== undefined) throw lintError;
+
+  // The gate accepted an unknown 3.x minor using its forward-compatible fallback.
+  if (classes.has("hygiene") && detectOpenAPIVersion(document) === undefined) {
+    findings.push({
+      class: "hygiene",
+      severity: defaultSeverityFor("hygiene", "unsupported-openapi-version"),
+      code: "unsupported-openapi-version",
+      location: "/openapi",
+      message: `OpenAPI "${document.openapi}" is unsupported; conformance is skipped and schema checks use OpenAPI 3.1 semantics.`,
+      target: { pointer: "/openapi", anchor: "node" },
+    });
+  }
 
   // One defect reached from several operations is one thing to fix, and
   // printing it once per operation buries the rest of the report: on

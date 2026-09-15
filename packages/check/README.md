@@ -76,6 +76,11 @@ Five classes, selected through `findings`:
 | `examples`    | Does each `example` validate against the schema it sits beside?                                    |
 | `redos`       | Can a `pattern` be made to backtrack catastrophically?                                             |
 
+An unknown OpenAPI 3.x minor produces `unsupported-openapi-version` at
+`/openapi`: conformance is skipped and schema checks use the OpenAPI 3.1
+fallback. This hygiene warning follows the usual selection and severity
+controls (see `CheckFinding.code`).
+
 Findings are additionally reported under a sixth class, `malformed`, for
 a schema that will not compile at all. It cannot be selected, because it
 is found by compiling, which is what the `schema` class does.

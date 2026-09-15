@@ -70,6 +70,12 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
     title: "a parameter location this validator cannot read a value for",
   },
 
+  "unsupported-openapi-version": {
+    title: "an OpenAPI version this checker does not support",
+    explanation:
+      "Conformance is skipped for an unknown OpenAPI minor version. Schema checks use the OpenAPI 3.1 fallback. Check with a tool supporting the declared version before relying on these results.",
+  },
+
   // schema
   "partial-feature": { title: "a keyword this validator supports only in part" },
   "unknown-keyword": { title: "a keyword no dialect in use defines" },
