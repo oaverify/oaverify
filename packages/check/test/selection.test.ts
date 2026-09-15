@@ -182,6 +182,7 @@ describe("resolveFindingSelection", () => {
   it("expands a family to its members and a class to its codes", () => {
     const family = select("unsatisfiable/*");
     expect([...family.base].sort()).toEqual([
+      "unsatisfiable/composed-properties",
       "unsatisfiable/enum-member-type",
       "unsatisfiable/pattern-length",
     ]);

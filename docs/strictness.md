@@ -142,6 +142,78 @@ tools report it anyway. Under 3.1 `nullable` is an inert extension, so
 the same document is reported there, and the difference is the dialect
 rather than an inconsistency.
 
+`unsatisfiable/composed-properties` kills a set of names: an
+`additionalProperties: false` placed on a schema that composes others.
+`additionalProperties` is adjacency-scoped, seeing the `properties` and
+`patternProperties` written beside it in the same schema object and
+nothing else, so a name an `allOf` branch, a `$ref` target or a `oneOf`
+arm declares and the closing node does not is additional to that node
+and is rejected. Names the closing node declares too are covered, and
+the finding names only the rest. The
+document says exactly that and the validator does exactly that; the
+keyword that closes a _composed_ object is `unevaluatedProperties`.
+Where composed branches carry `required`, the position goes with the
+names.
+
+It reports in the two places the close occurs. On the node the
+composition hangs off:
+
+```yaml
+Cat:
+  allOf: [{ $ref: "#/components/schemas/Pet" }]
+  additionalProperties: false # rejects every property Pet declares
+```
+
+and on an `allOf` branch beside one that declares:
+
+```yaml
+Audio:
+  allOf:
+    - { additionalProperties: false, properties: { src: {} } }
+    - { $ref: "#/components/schemas/BaseElement" } # its names are rejected
+```
+
+The two questions take different applicator sets, which is why a
+`oneOf` appears in one and not the other. Locating a close needs a
+_conjunctive_ path, since the close has to be reached on every instance
+that reaches the declarations: a close inside a `oneOf` arm is the
+ordinary "one of these shapes" idiom and is left alone. Collecting the
+declarations opposite it takes any _positive_ path, `oneOf` and `anyOf`
+included, because the close applies whichever arm the instance takes.
+`not` is followed for neither: a `properties` under it is a negative
+constraint and its names were never meant to appear.
+
+The advice follows the dialect, and where the dialect has no
+`unevaluatedProperties` the message does not name it, even to say it is
+missing: an author following such advice would write a key nothing
+evaluates and believe the object closed. It names no dialect either.
+The condition is the keyword's absence, which OAS 3.0 (see
+[dialects](./dialects.md)) is the common case of rather than the only
+one. The message states the edit: remove the close, or declare the
+composed properties beside it, which does close the object.
+
+In a branch the fix is not a substitution. `unevaluatedProperties`
+collects annotations from its own schema object and below, not from the
+branches beside it, so a branch that swaps one keyword for the other
+rejects the same properties it did before; the close moves up to the
+enclosing composition instead.
+
+Two limits are worth knowing before reading a clean run as an absence
+of the defect:
+
+- A close is not reported when it sits inside a referenced component and
+  the declarations that make it dead sit outside that component, in the
+  composition that referenced it. Whether such a component is wrong
+  depends on which composition reached it, which the definition frame
+  cannot say; see the two frames above. A component whose own close and
+  own composition are both inside it is reported normally, however many
+  `$ref`s reach it.
+- The class only sees schemas that compile. A component reachable only
+  through a `discriminator` `mapping` value is reached by no `$ref`, so
+  nothing walks into it and no schema-class rule reports on it. This is
+  not specific to this code, and it is how a document can hold the
+  shape and report nothing.
+
 The `silent-rewrite/*` family reports a constraint the validator does
 not enforce as written. `silent-rewrite/pattern-not-unicode-mode` is
 the quiet one: a `pattern` (or `patternProperties` key) that only

@@ -93,6 +93,9 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
     title: "a pattern and a length bound no string satisfies together",
   },
   "unsatisfiable/enum-member-type": { title: "an enum member the declared type can never admit" },
+  "unsatisfiable/composed-properties": {
+    title: "a closed object that rejects what its composition declares",
+  },
   "format-not-validated": {
     title: "a format name with no validator behind it",
     explanation:

@@ -37,6 +37,12 @@ import { OAS30_REF_SIBLINGS_ALLOWED, refSiblingIsDiscarded } from "../ref-siblin
 import { collectEnumTypeIssue } from "./enum-type.js";
 import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
+import {
+  collectClosedBranchIssues,
+  collectClosedCompositionIssue,
+  positionKey,
+  type ClosedCompositionContext,
+} from "./closed-composition.js";
 import { assertFormatsRegistered } from "./unknown-formats.js";
 import { assertWellFormedSchema } from "./well-formed.js";
 
@@ -169,7 +175,13 @@ function runSchemaLint(
      * rule reports can never fire; the rule is suppressed.
      */
     customRegexCompiler: boolean;
-    resolveRef?: (ref: string) => unknown;
+    /**
+     * `from` is the schema object holding the `$ref`. A fragment
+     * resolves against the base URI of the resource it is written in,
+     * so a rule that omits it gets the root resource's answer, which is
+     * a different schema wherever a nested `$id` is in play.
+     */
+    resolveRef?: (ref: string, from?: object) => unknown;
     pointer?: string;
     anchor?: "node" | "definition";
   },
@@ -184,6 +196,40 @@ function runSchemaLint(
   }
 
   const issues: SchemaLintIssue[] = [];
+  // Positions this rule has already answered as a closed `allOf` branch,
+  // so its per-node check does not answer them again from less
+  // information; see `positionKey`. Pre-order puts the enclosing node
+  // first, which is the report that holds.
+  const closedBranchesReported = new Set<string>();
+  // Keyed by position *and* by the dead names the report rests on,
+  // because below a `$ref` with no pointer the position is a guess: one
+  // object at two colliding paths is one key. Two branch reports
+  // collapse only where they say the same thing.
+  const closedBranchEvidence = new Set<string>();
+  const closedNodeIds = new WeakMap<Record<string, unknown>, number>();
+  let nextClosedNodeId = 0;
+  const closedNodeId = (node: Record<string, unknown>): number => {
+    let id = closedNodeIds.get(node);
+    if (id === undefined) {
+      id = nextClosedNodeId;
+      nextClosedNodeId += 1;
+      closedNodeIds.set(node, id);
+    }
+    return id;
+  };
+  // The rule follows `$ref` through the compiler's own resolver and no
+  // other route, so there is nothing to index per compile. A caller who
+  // supplied none leaves the rule unable to enumerate past a `$ref`,
+  // which it treats as "do not flag" rather than "declares nothing".
+  const resolveForLint = rules.resolveRef;
+  const closedCtx: ClosedCompositionContext | undefined =
+    resolveForLint === undefined
+      ? undefined
+      : {
+          resolve: (ref, from) => resolveForLint(ref, from),
+          refSuppressesSiblings: rules.refSuppressesSiblings,
+          known: (keyword) => known.has(keyword),
+        };
   // Ancestor-aware, so it walks the graph itself rather than per-node:
   // the question is what property names are reachable at an instance
   // position, which a per-node visitor cannot see.
@@ -369,6 +415,30 @@ function runSchemaLint(
                 ? `OAS 3.0: "${key}" sibling of $ref at <root> is silently dropped (only description/summary survive)`
                 : `OAS 3.0: "${key}" sibling of $ref at "${path}" is silently dropped (only description/summary survive)`,
           });
+        }
+      }
+
+      if (closedCtx !== undefined) {
+        // Positioned at the branch, not at this node, so it sets its own
+        // position and is skipped by `stamp()` the way
+        // redundant-composition-branches is.
+        for (const found of collectClosedBranchIssues(obj, path, closedCtx)) {
+          let branchAt = at;
+          for (const segment of found.segments) branchAt = stepPosition(branchAt, segment);
+          const key = positionKey(found.node, found.issue.path, branchAt, closedNodeId);
+          const addressed = branchAt.pointer !== undefined || branchAt.schemaPath !== undefined;
+          const evidenceKey = addressed ? key : `${key}|${found.evidence}`;
+          if (closedBranchEvidence.has(evidenceKey)) continue;
+          closedBranchEvidence.add(evidenceKey);
+          // The per-node check is suppressed by position alone: its
+          // answer at a position a branch answer covers is the weaker
+          // one whatever it names.
+          closedBranchesReported.add(key);
+          issues.push({ ...found.issue, ...positionFields(branchAt) });
+        }
+        if (!closedBranchesReported.has(positionKey(obj, path, at, closedNodeId))) {
+          const closedIssue = collectClosedCompositionIssue(obj, path, closedCtx);
+          if (closedIssue !== undefined) issues.push(closedIssue);
         }
       }
 
@@ -701,6 +771,42 @@ export interface SchemaLintIssue {
    *   JSON Schema's seven names, and silent for a `null` member beside
    *   `nullable: true` under OAS 3.0, where that is valid. Under 3.1
    *   `nullable` is inert, so the same input is reported there.
+   * - `"unsatisfiable/composed-properties"`: an
+   *   `additionalProperties: false` that rejects property names the
+   *   composition around it declares, so those names can never appear
+   *   at that position. `additionalProperties` is adjacency-scoped: it
+   *   sees the `properties` / `patternProperties` written beside it and
+   *   nothing else, so a name declared by an `allOf` branch, a `$ref`
+   *   target or a `oneOf` arm, and not declared beside the close, is
+   *   additional to the node holding it. A name the closing node also
+   *   declares is covered, and the finding names only the rest. The
+   *   author meant `unevaluatedProperties: false`, or a different
+   *   structure under a dialect that has no such keyword.
+   *
+   *   The close is reported wherever it is reached on every instance
+   *   that reaches the declarations: on the node the composition hangs
+   *   off, or on an `allOf` branch beside one that declares. A close
+   *   inside a `oneOf` / `anyOf` arm is not reported, that being the
+   *   ordinary "one of these shapes" idiom. Declarations are collected
+   *   along any positive path, `oneOf` and `anyOf` included, since the
+   *   close applies whichever arm the instance takes; `not` is followed
+   *   for neither purpose.
+   *
+   *   The claim is about the names rather than the position, which may
+   *   still admit an instance carrying none of them. Silent where the
+   *   set cannot be established: an unresolvable `$ref` in the
+   *   composition, or a `patternProperties` beside the close, whose
+   *   matches may be exactly the composed names. A composed
+   *   `patternProperties` is reported only where the close declares no
+   *   names of its own, there being no witness to name otherwise.
+   *
+   *   One coverage bound is worth stating, since a clean run does not
+   *   otherwise distinguish it from an absence of the defect: a close
+   *   inside a referenced component is not reported when what makes it
+   *   dead is declared outside that component, by the composition that
+   *   referenced it. That verdict belongs to the route rather than to
+   *   the definition, and this rule reports in the definition frame.
+
    */
   code:
     | "partial-feature"
@@ -712,7 +818,8 @@ export interface SchemaLintIssue {
     | "silent-rewrite/discriminator-unroutable"
     | "silent-rewrite/pattern-not-unicode-mode"
     | "unsatisfiable/pattern-length"
-    | "unsatisfiable/enum-member-type";
+    | "unsatisfiable/enum-member-type"
+    | "unsatisfiable/composed-properties";
   /** The offending keyword / key name as written in the schema. */
   keyword: string;
   /**
@@ -1796,9 +1903,22 @@ export function compileSchema(
           // Rethrowing would fail a compile over a schema that is fine
           // (#536). Codegen resolves the same refs itself and reports a
           // genuinely broken one from there.
-          resolveRef: (ref) => {
+          resolveRef: (ref, from) => {
             try {
-              return refResolver.resolve(ref);
+              if (from === undefined) return refResolver.resolve(ref);
+              // `$id` starts a schema resource and a fragment names a
+              // position inside the one it is written in, so the scope
+              // is the referring node's rather than the root's.
+              //
+              // The same lookup and the same fallback codegen uses
+              // (`compileSchemaKeywords`), deliberately. A node a
+              // caller-supplied resolver produced is in no local graph
+              // and falls back to the root base *in the emitted
+              // validator too*, so matching that is what keeps a
+              // finding a statement about the code that runs. Choosing
+              // a different answer here would report against a schema
+              // the validator never consults.
+              return refResolver.resolve(ref, graph.schemaBaseUri.get(from) ?? graph.baseUri);
             } catch {
               return undefined;
             }

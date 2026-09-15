@@ -114,7 +114,7 @@ describe("input the flag refuses rather than half-applies", () => {
       /is not a code oaverify emits/,
     );
     expect(() => parse("unsatisfiable/patern-length=error")).toThrow(
-      /"unsatisfiable\/" holds unsatisfiable\/enum-member-type, unsatisfiable\/pattern-length/,
+      /"unsatisfiable\/" holds unsatisfiable\/composed-properties, unsatisfiable\/enum-member-type, unsatisfiable\/pattern-length/,
     );
   });
 
