@@ -146,8 +146,10 @@ rather than an inconsistency.
 `additionalProperties: false` placed on a schema that composes others.
 `additionalProperties` is adjacency-scoped, seeing the `properties` and
 `patternProperties` written beside it in the same schema object and
-nothing else, so every name an `allOf` branch, a `$ref` target or a
-`oneOf` arm declares is additional to that node and is rejected. The
+nothing else, so a name an `allOf` branch, a `$ref` target or a `oneOf`
+arm declares and the closing node does not is additional to that node
+and is rejected. Names the closing node declares too are covered, and
+the finding names only the rest. The
 document says exactly that and the validator does exactly that; the
 keyword that closes a _composed_ object is `unevaluatedProperties`.
 Where composed branches carry `required`, the position goes with the
@@ -199,10 +201,13 @@ enclosing composition instead.
 Two limits are worth knowing before reading a clean run as an absence
 of the defect:
 
-- A close written inside a shared component and reached through a
-  `$ref` is not reported. Whether it is wrong depends on which
-  composition reached it, and the definition frame cannot say that; see
-  the two frames above.
+- A close is not reported when it sits inside a referenced component and
+  the declarations that make it dead sit outside that component, in the
+  composition that referenced it. Whether such a component is wrong
+  depends on which composition reached it, which the definition frame
+  cannot say; see the two frames above. A component whose own close and
+  own composition are both inside it is reported normally, however many
+  `$ref`s reach it.
 - The class only sees schemas that compile. A component reachable only
   through a `discriminator` `mapping` value is reached by no `$ref`, so
   nothing walks into it and no schema-class rule reports on it. This is

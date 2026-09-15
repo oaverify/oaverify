@@ -34,6 +34,9 @@ type Obj = Record<string, unknown>;
 
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 
+/** This rule's code, named once so the dedup below cannot drift from it. */
+const CODE = "unsatisfiable/composed-properties";
+
 /** Bounds the walk on pathological or cyclic schemas. */
 const MAX_DEPTH = 25;
 
@@ -303,7 +306,7 @@ export function collectClosedCompositionIssue(
   const found = verdict(node, declared, ctx);
   if (found === undefined) return undefined;
   return {
-    code: "unsatisfiable/composed-properties",
+    code: CODE,
     keyword: "additionalProperties",
     path,
     message: message(path, found.dead, found.patternsOnly, ctx, false),
@@ -365,19 +368,16 @@ function renderBranchPath(path: string, segments: readonly (string | number)[]):
  * branch's siblings are visible, and positioned at the branch because
  * that is the text to edit.
  *
- * `reported` carries the *paths* answered here, so the per-node check
- * above does not report the same close again; pre-order means the
- * enclosing node is always visited first. Paths rather than schema
- * objects, because one object reached at two structural positions is
- * two places a reader may have to edit and each deserves its own
- * finding. `walkSubschemas` deduplicates ref targets and never
- * structural positions, for that reason, and this follows it.
+ * One close can be answered twice: by the node above it, and again by
+ * its own per-node check, and a nested `allOf` puts it in reach of more
+ * than one enclosing node. {@link dedupeByAddress} collapses those,
+ * after the walk and on the machine address, rather than here on
+ * anything this function could key.
  */
 export function collectClosedBranchIssues(
   node: Obj,
   path: string,
   ctx: ClosedCompositionContext,
-  reported: Set<string>,
 ): { issue: SchemaLintIssue; segments: readonly (string | number)[] }[] {
   const branches = closedBranches(node, ctx);
   if (branches.length === 0) return [];
@@ -389,24 +389,68 @@ export function collectClosedBranchIssues(
 
   const out: { issue: SchemaLintIssue; segments: readonly (string | number)[] }[] = [];
   for (const branch of branches) {
-    // Nested `allOf` puts one branch position in reach of more than one
-    // enclosing node. Pre-order means the outermost reached it first,
-    // with the largest set of declarations, so its finding is the one
-    // that stands.
     const full = renderBranchPath(path, branch.segments);
-    if (reported.has(full)) continue;
     const found = verdict(branch.node, declared, ctx);
     if (found === undefined) continue;
-    reported.add(full);
     out.push({
       issue: {
-        code: "unsatisfiable/composed-properties",
+        code: CODE,
         keyword: "additionalProperties",
         path: full,
         message: message(full, found.dead, found.patternsOnly, ctx, true),
       },
       segments: branch.segments,
     });
+  }
+  return out;
+}
+
+/**
+ * Collapse two reports of one close at one address into one.
+ *
+ * A closed `allOf` branch is answered from the node above it, which is
+ * the only place its siblings are visible, and again by its own
+ * per-node check; nested `allOf` puts it in reach of several enclosing
+ * nodes. Every one of those describes the same keyword in the same
+ * text.
+ *
+ * Keyed on the machine address, because that is the field whose job is
+ * to identify a position. {@link SchemaLintIssue.path} cannot do it: it
+ * is a locator for a reader, and a property name may contain its
+ * separators, so `properties: {"a.properties.b": x, a: {properties: {b:
+ * y}}}` renders one string for two positions. Schema identity cannot do
+ * it either, in the opposite direction: one object written under two
+ * keys is two places to edit, which is why `walkSubschemas`
+ * deduplicates ref targets and never structural positions.
+ *
+ * `anchor` is part of the key, so the definition and the node a
+ * component is visited as stay two findings, matching every other rule.
+ * Where neither address exists (a bare schema below a `$ref`) nothing
+ * is collapsed: a visible duplicate beats a silent loss.
+ *
+ * The first report of an address survives. The walk is pre-order, so
+ * that is the outermost enclosing node, holding the largest set of
+ * declarations and naming the most dead names.
+ */
+export function dedupeByAddress(issues: readonly SchemaLintIssue[]): SchemaLintIssue[] {
+  const seen = new Set<string>();
+  const out: SchemaLintIssue[] = [];
+  for (const issue of issues) {
+    if (issue.code !== CODE) {
+      out.push(issue);
+      continue;
+    }
+    const address =
+      issue.pointer ??
+      (issue.schemaPath === undefined ? undefined : JSON.stringify(issue.schemaPath));
+    if (address === undefined) {
+      out.push(issue);
+      continue;
+    }
+    const key = `${issue.anchor ?? ""}|${address}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(issue);
   }
   return out;
 }

@@ -5,11 +5,7 @@ import type { SchemaLintIssue } from "../src/compiler/compiler.js";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { jsonSchemaDialect, oas30Dialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
 
-/**
- * `unsatisfiable/composed-properties`, against the coverage table the
- * engagement agreed. Row numbers are the table's, so a case can be
- * traced back to the decision that put it there.
- */
+/** `unsatisfiable/composed-properties`. */
 describe("unsatisfiable/composed-properties", () => {
   const CODE = "unsatisfiable/composed-properties";
 
@@ -33,7 +29,7 @@ describe("unsatisfiable/composed-properties", () => {
   };
 
   describe("the close on the node the composition hangs off", () => {
-    it("row 1: allOf with no adjacent declarations", () => {
+    it("allOf with no adjacent declarations", () => {
       const issues = lint31({
         $defs: { Pet },
         allOf: [{ $ref: "#/$defs/Pet" }],
@@ -45,19 +41,19 @@ describe("unsatisfiable/composed-properties", () => {
       expect(issues[0]?.message).toContain('"petType"');
     });
 
-    it("row 2: $ref plus an adjacent close", () => {
+    it("$ref plus an adjacent close", () => {
       expect(
         lint31({ $defs: { Pet }, $ref: "#/$defs/Pet", additionalProperties: false }),
       ).toHaveLength(1);
     });
 
-    it("row 3: oneOf plus an adjacent close", () => {
+    it("oneOf plus an adjacent close", () => {
       expect(
         lint31({ $defs: { Pet }, oneOf: [{ $ref: "#/$defs/Pet" }], additionalProperties: false }),
       ).toHaveLength(1);
     });
 
-    it("row 4: anyOf of $ref branches beside a discriminator", () => {
+    it("anyOf of $ref branches beside a discriminator", () => {
       const issues = lint31({
         $defs: { Pet },
         anyOf: [{ $ref: "#/$defs/Pet" }, { properties: { other: {} } }],
@@ -68,48 +64,66 @@ describe("unsatisfiable/composed-properties", () => {
       expect(issues[0]?.message).toContain('"other"');
     });
 
-    it("row 10: a close with no composition at all is silent", () => {
+    it("a close with no composition at all is silent", () => {
       expect(
         lint31({ type: "object", properties: { a: {} }, additionalProperties: false }),
       ).toEqual([]);
     });
 
-    it("row 7: unevaluatedProperties in the same shape is silent", () => {
+    it("unevaluatedProperties in the same shape is silent", () => {
       expect(
         lint31({ $defs: { Pet }, allOf: [{ $ref: "#/$defs/Pet" }], unevaluatedProperties: false }),
       ).toEqual([]);
     });
 
-    it("row 9: a composition declaring no properties is silent", () => {
+    it("a composition declaring no properties is silent", () => {
       expect(
         lint31({ allOf: [{ type: "object" }, { maxProperties: 0 }], additionalProperties: false }),
       ).toEqual([]);
     });
 
     /**
-     * Row 11's stated case, a composition reachable only through an
-     * unresolvable `$ref`, cannot be built through `compileSchema`: the
-     * compiler rejects such a document before any verdict is readable.
-     * What is reachable is the other half of the same guard, the depth
-     * bound, so that is what is pinned here.
+     * The lint resolver is called without the base URI codegen threads
+     * through scope (see the `resolveRef` comment in compiler.ts), so a
+     * relative `$ref` under an `$id` resolves for the compiler and not
+     * for the lint. The compile succeeds, `{a: 1, b: 2}` is correctly
+     * rejected, and the rule stays silent rather than guessing at a
+     * composition it cannot enumerate.
      */
-    it("row 11: a composition deeper than the walk's bound suppresses", () => {
+    it("suppresses where a $ref resolves for the compiler and not for the lint", () => {
+      const schema = {
+        $defs: {
+          Nested: {
+            $id: "https://example.com/nested/",
+            additionalProperties: false,
+            allOf: [{ $ref: "T" }, { properties: { a: {} } }],
+          },
+          Target: { $id: "https://example.com/nested/T", properties: { b: {} } },
+        },
+        $ref: "#/$defs/Nested",
+      } as SchemaOrBoolean;
+      const compiled = compileSchema(schema, { dialect: jsonSchemaDialect });
+      expect(compiled.validate({ a: 1, b: 2 }).valid).toBe(false);
+      expect(compiled.stats.schemaLintIssues.filter((issue) => issue.code === CODE)).toEqual([]);
+    });
+
+    it("suppresses a composition deeper than the walk's bound", () => {
       let chain: Record<string, unknown> = { properties: { deep: {} } };
       for (let i = 0; i < 30; i += 1) chain = { allOf: [chain] };
       expect(lint31({ ...chain, additionalProperties: false })).toEqual([]);
     });
 
-    it("row 12: properties reachable only through `not` are not declarations", () => {
+    it("properties reachable only through `not` are not declarations", () => {
       expect(lint31({ not: { properties: { secret: {} } }, additionalProperties: false })).toEqual(
         [],
       );
     });
 
-    it("row 23: then without if is inert and declares nothing", () => {
+    it("then without if is inert and declares nothing", () => {
       expect(lint31({ then: { properties: { a: {} } }, additionalProperties: false })).toEqual([]);
     });
 
-    it("row 23: then beside an if does declare", () => {
+    it("then beside an if does declare", () => {
       const issues = lint31({
         if: { type: "object" },
         then: { properties: { a: {} } },
@@ -119,7 +133,7 @@ describe("unsatisfiable/composed-properties", () => {
       expect(issues[0]?.message).toContain('"a"');
     });
 
-    it("row 17: schemaLint off reports nothing", () => {
+    it("schemaLint off reports nothing", () => {
       expect(
         lint31(
           { $defs: { Pet }, allOf: [{ $ref: "#/$defs/Pet" }], additionalProperties: false },
@@ -128,7 +142,7 @@ describe("unsatisfiable/composed-properties", () => {
       ).toEqual([]);
     });
 
-    it("row 18: a self-referential composition terminates and invents nothing", () => {
+    it("a self-referential composition terminates and invents nothing", () => {
       const issues = lint31({
         $defs: { Node: { allOf: [{ $ref: "#/$defs/Node" }] } },
         allOf: [{ $ref: "#/$defs/Node" }],
@@ -145,7 +159,7 @@ describe("unsatisfiable/composed-properties", () => {
      * Its `user` arm requires `accountId`, which the close rejects, so
      * that arm admits no instance at all.
      */
-    it("row 8: reports the names the adjacent declarations miss", () => {
+    it("reports the names the adjacent declarations miss", () => {
       const issues = lint30({
         type: "object",
         additionalProperties: false,
@@ -165,7 +179,7 @@ describe("unsatisfiable/composed-properties", () => {
       expect(message).not.toContain('"type"');
     });
 
-    it("row 8: adjacent declarations covering the composition are silent", () => {
+    it("adjacent declarations covering the composition are silent", () => {
       expect(
         lint31({
           properties: { a: {}, b: {} },
@@ -177,7 +191,7 @@ describe("unsatisfiable/composed-properties", () => {
   });
 
   describe("the close on an allOf branch", () => {
-    it("row 5: a closed branch beside one declaring properties", () => {
+    it("a closed branch beside one declaring properties", () => {
       const issues = lint31({
         allOf: [{ additionalProperties: false }, { properties: { name: {} } }],
       });
@@ -186,7 +200,7 @@ describe("unsatisfiable/composed-properties", () => {
       expect(issues[0]?.message).toContain('"name"');
     });
 
-    it("row 6: properties two hops out through a $ref branch", () => {
+    it("properties two hops out through a $ref branch", () => {
       const issues = lint31({
         $defs: { Pet, Wrapper: { allOf: [{ $ref: "#/$defs/Pet" }] } },
         allOf: [
@@ -201,7 +215,7 @@ describe("unsatisfiable/composed-properties", () => {
       expect(issues[0]?.message).not.toContain('"src"');
     });
 
-    it("row 22: an anyOf sibling's arms are still declarations", () => {
+    it("an anyOf sibling's arms are still declarations", () => {
       const issues = lint31({
         allOf: [
           { additionalProperties: false },
@@ -283,7 +297,7 @@ describe("unsatisfiable/composed-properties", () => {
   });
 
   describe("composed patternProperties", () => {
-    it("row 20: reported with no adjacent declarations, without naming a witness", () => {
+    it("reported with no adjacent declarations, without naming a witness", () => {
       const issues = lint31({
         allOf: [{ patternProperties: { "^x-": { type: "string" } } }],
         additionalProperties: false,
@@ -292,7 +306,7 @@ describe("unsatisfiable/composed-properties", () => {
       expect(issues[0]?.message).toContain('composed "patternProperties" can match');
     });
 
-    it("row 21: suppressed where the close declares names of its own", () => {
+    it("suppressed where the close declares names of its own", () => {
       expect(
         lint31({
           properties: { a: {} },
@@ -315,7 +329,7 @@ describe("unsatisfiable/composed-properties", () => {
   });
 
   describe("OAS 3.0", () => {
-    it("row 13: reports the allOf form and never names unevaluatedProperties", () => {
+    it("reports the allOf form and never names unevaluatedProperties", () => {
       const issues = lint30({
         $defs: { Pet },
         allOf: [{ $ref: "#/$defs/Pet" }],
@@ -337,7 +351,7 @@ describe("unsatisfiable/composed-properties", () => {
     // The closing node sits under `properties` rather than at the root:
     // under 3.0 a root that is a `$ref` has no addressable members, so
     // `$defs` beside one is unreachable and the compile fails first.
-    it("row 14: a $ref sibling close is discarded, so this rule stays out of it", () => {
+    it("a $ref sibling close is discarded, so this rule stays out of it", () => {
       expect(
         lint30({
           $defs: { Pet },
@@ -346,7 +360,7 @@ describe("unsatisfiable/composed-properties", () => {
       ).toEqual([]);
     });
 
-    it("row 15: $ref plus allOf plus a close, siblings discarded", () => {
+    it("$ref plus allOf plus a close, siblings discarded", () => {
       expect(
         lint30({
           $defs: { Pet },
@@ -361,7 +375,7 @@ describe("unsatisfiable/composed-properties", () => {
       ).toEqual([]);
     });
 
-    it("row 16: the closed-branch form, which 3.0 documents carry most of", () => {
+    it("the closed-branch form, which 3.0 documents carry most of", () => {
       const issues = lint30({
         $defs: { Pet },
         allOf: [{ $ref: "#/$defs/Pet" }, { type: "object", additionalProperties: false }],
@@ -415,6 +429,28 @@ describe("unsatisfiable/composed-properties", () => {
       const shared = { additionalProperties: false, allOf: [{ properties: { a: {} } }] };
       const issues = lint31({ allOf: [shared, shared, { properties: { b: {} } }] });
       expect(issues.map((issue) => issue.path).sort()).toEqual(["allOf[0]", "allOf[1]"]);
+    });
+
+    it("keeps two positions whose rendered paths collide", () => {
+      // `path` is a locator, not an address: a property name may contain
+      // its separators, so these two positions render one string. The
+      // suppression that stops a close being reported twice has to key
+      // on something that tells them apart.
+      const closed = { allOf: [{ additionalProperties: false }, { properties: { a: {} } }] };
+      const issues = compileSchema(
+        {
+          properties: { "a.properties.b": closed, a: { properties: { b: closed } } },
+        } as SchemaOrBoolean,
+        { dialect: openapi31Dialect, pointer: "" },
+      ).stats.schemaLintIssues.filter((issue) => issue.code === CODE);
+
+      expect(issues.map((issue) => issue.path)).toEqual([
+        "properties.a.properties.b.allOf[0]",
+        "properties.a.properties.b.allOf[0]",
+      ]);
+      expect(issues.map((issue) => issue.pointer ?? "").sort((a, b) => a.localeCompare(b))).toEqual(
+        ["/properties/a.properties.b/allOf/0", "/properties/a/properties/b/allOf/0"],
+      );
     });
   });
 
@@ -490,7 +526,7 @@ describe("unsatisfiable/composed-properties", () => {
     });
   });
 
-  describe("row 19: addressing", () => {
+  describe("addressing", () => {
     it("addresses the node holding the close, in the definition frame", () => {
       const issues = compileSchema(
         {

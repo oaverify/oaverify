@@ -40,6 +40,7 @@ import { collectRequiredIssues } from "./required-lint.js";
 import {
   collectClosedBranchIssues,
   collectClosedCompositionIssue,
+  dedupeByAddress,
   type ClosedCompositionContext,
 } from "./closed-composition.js";
 import { assertFormatsRegistered } from "./unknown-formats.js";
@@ -202,9 +203,6 @@ function runSchemaLint(
           refSuppressesSiblings: rules.refSuppressesSiblings,
           known: (keyword) => known.has(keyword),
         };
-  // Branches answered from their enclosing node, so the per-node check
-  // does not report the same close a second time.
-  const closedBranchesReported = new Set<string>();
   // Ancestor-aware, so it walks the graph itself rather than per-node:
   // the question is what property names are reachable at an instance
   // position, which a per-node visitor cannot see.
@@ -397,20 +395,13 @@ function runSchemaLint(
         // Positioned at the branch, not at this node, so it sets its own
         // position and is skipped by `stamp()` the way
         // redundant-composition-branches is.
-        for (const found of collectClosedBranchIssues(
-          obj,
-          path,
-          closedCtx,
-          closedBranchesReported,
-        )) {
+        for (const found of collectClosedBranchIssues(obj, path, closedCtx)) {
           let branchAt = at;
           for (const segment of found.segments) branchAt = stepPosition(branchAt, segment);
           issues.push({ ...found.issue, ...positionFields(branchAt) });
         }
-        if (!closedBranchesReported.has(path)) {
-          const issue = collectClosedCompositionIssue(obj, path, closedCtx);
-          if (issue !== undefined) issues.push(issue);
-        }
+        const closedIssue = collectClosedCompositionIssue(obj, path, closedCtx);
+        if (closedIssue !== undefined) issues.push(closedIssue);
       }
 
       for (const key of COMPOSITION_BRANCH_KEYS) {
@@ -453,7 +444,13 @@ function runSchemaLint(
   // Stamped once here rather than at each `issues.push`: the location is
   // the same for every issue this compile produces, and threading it
   // through each construction site invites one of them to forget.
-  return context === undefined ? issues : issues.map((issue) => ({ ...issue, location: context }));
+  // After the walk, so it sees the positions the visitor stamped: one
+  // close can be answered by its own node and by every enclosing node
+  // that reaches it, and those are one finding.
+  const deduped = dedupeByAddress(issues);
+  return context === undefined
+    ? deduped
+    : deduped.map((issue) => ({ ...issue, location: context }));
 }
 
 /**
@@ -748,9 +745,11 @@ export interface SchemaLintIssue {
    *   at that position. `additionalProperties` is adjacency-scoped: it
    *   sees the `properties` / `patternProperties` written beside it and
    *   nothing else, so a name declared by an `allOf` branch, a `$ref`
-   *   target or a `oneOf` arm is additional to the node holding the
-   *   close. The author meant `unevaluatedProperties: false`, or a
-   *   different structure under OAS 3.0, which has no such keyword.
+   *   target or a `oneOf` arm, and not declared beside the close, is
+   *   additional to the node holding it. A name the closing node also
+   *   declares is covered, and the finding names only the rest. The
+   *   author meant `unevaluatedProperties: false`, or a different
+   *   structure under a dialect that has no such keyword.
    *
    *   The close is reported wherever it is reached on every instance
    *   that reaches the declarations: on the node the composition hangs
@@ -768,6 +767,13 @@ export interface SchemaLintIssue {
    *   matches may be exactly the composed names. A composed
    *   `patternProperties` is reported only where the close declares no
    *   names of its own, there being no witness to name otherwise.
+   *
+   *   One coverage bound is worth stating, since a clean run does not
+   *   otherwise distinguish it from an absence of the defect: a close
+   *   inside a referenced component is not reported when what makes it
+   *   dead is declared outside that component, by the composition that
+   *   referenced it. That verdict belongs to the route rather than to
+   *   the definition, and this rule reports in the definition frame.
    */
   code:
     | "partial-feature"
