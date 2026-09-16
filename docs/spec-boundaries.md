@@ -21,7 +21,7 @@ differ from the cited text?
 | ---- | ------- | ----- |
 | [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 24 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
-| [`transforms`](#transforms) | accepts the same set, but the value handed on differs | 3 |
+| [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 6 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 3 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 7 |
@@ -198,7 +198,7 @@ variant. A version-and-variant regex would reject two UUIDs the RFC
 names, which is the false reject the permissive lean exists to
 avoid.
 
-**`validateUnixtime`** ([packages/formats/src/numeric.ts:205](../packages/formats/src/numeric.ts#L205))
+**`validateUnixtime`** ([packages/formats/src/numeric.ts:198](../packages/formats/src/numeric.ts#L198))
 
 Against the OpenAPI Format Registry (<https://spec.openapis.org/registry/format/>).
 
@@ -359,13 +359,12 @@ at emit time is the conservative half of a build step, and
 
 Against the OpenAPI Format Registry (<https://spec.openapis.org/registry/format/>).
 
-A legal int64 between `2^53` and `2^63` is rejected. The registry's
-`int64` is the full signed 64-bit range, and this accepts the safe
-integers. The paragraphs above have the reasoning: such a value has
-already lost precision in `JSON.parse`, so accepting it would vouch
-for a number that is provably not the one on the wire.
+A legal int64 outside `-(2^53 - 1)` through `2^53 - 1` is rejected.
+The registry defines the full signed 64-bit range; this accepts safe
+integers. Beyond that range, distinct integers can parse to the same
+number, so the original wire value cannot always be recovered.
 
-**`validateUint64`** ([packages/formats/src/numeric.ts:154](../packages/formats/src/numeric.ts#L154))
+**`validateUint64`** ([packages/formats/src/numeric.ts:147](../packages/formats/src/numeric.ts#L147))
 
 Against the OpenAPI Format Registry (<https://spec.openapis.org/registry/format/>).
 
@@ -373,14 +372,14 @@ A legal uint64 above `2^53 - 1` is rejected, where the registry's
 `uint64` is the full unsigned 64-bit range, for the reason
 `validateInt64` gives.
 
-**`validateUnixtime`** ([packages/formats/src/numeric.ts:205](../packages/formats/src/numeric.ts#L205))
+**`validateUnixtime`** ([packages/formats/src/numeric.ts:198](../packages/formats/src/numeric.ts#L198))
 
 Against the OpenAPI Format Registry (<https://spec.openapis.org/registry/format/>).
 
 A legal unixtime above `2^53 - 1` is rejected, where POSIX puts no
 upper bound on the epoch count. Same argument as `validateInt64`:
-past that point the value has already lost precision and is provably
-not the count that was sent.
+beyond the safe-integer range, distinct epoch counts can parse to the
+same number, so their original values cannot always be recovered.
 
 ### packages/overlay-spec
 
@@ -471,7 +470,7 @@ compiler; this is the HTTP-facing half of it.
 
 ## transforms
 
-Accepts the same set, but the value handed on differs.
+Changes the value handed on, which can affect subsequent validation.
 
 ### packages/core
 
@@ -480,8 +479,10 @@ Accepts the same set, but the value handed on differs.
 Against OpenAPI 3.2 style values (<https://spec.openapis.org/oas/v3.2.0#style-values>).
 
 A `style: cookie` value carrying a valid percent-escape reaches the
-handler decoded, where the style says no escaping is applied. The
-set of accepted requests is unchanged; the value handed on is not.
+validator decoded, where the style says no escaping is applied.
+`session=%41` becomes `A`, so a schema with `const: "%41"` rejects
+a value it should accept; `const: "A"` accepts one it should reject.
+A returned parameter value also reflects the decoding.
 The adapter runs before any spec is read, so it cannot see the
 style to tell `form` and `cookie` apart, and decoding is right for
 the default of the two.
@@ -587,10 +588,10 @@ one to use." Its own example of that case is `/{entity}/me` against
 Against JSON Schema 2020-12 validation section 7 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7>).
 
 Under `jsonSchemaDialect`, an unrecognised format asserts
-nothing by default and this option exists so a caller can make it a
-compile error instead. Format-Annotation is the default vocabulary
-and supporting Format-Assertion is OPTIONAL, so both settings are
-conformant there and the default is the one the spec picks.
+nothing, even with `unknownFormats: "error"`: this option is inert
+under its Format-Annotation vocabulary. Supporting Format-Assertion
+is OPTIONAL; selecting a dialect with that vocabulary enables
+assertions and this option's unknown-name policy.
 
 ### packages/validator
 

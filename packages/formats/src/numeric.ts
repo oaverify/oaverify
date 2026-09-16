@@ -121,30 +121,23 @@ export function validateUint32(value: number): boolean {
 }
 
 /**
- * OpenAPI `int64`: a signed 64-bit integer, asserted over the range a
- * JSON number can carry.
+ * OpenAPI `int64`: a signed 64-bit integer, restricted to JavaScript's
+ * safe-integer range.
  *
- * **This is a partial assertion, and the range is smaller than int64.**
- * Accepted values are the safe integers, `-(2^53 - 1)` through
- * `2^53 - 1`. A JSON number outside that range has already lost
- * precision by the time any JavaScript validator sees it:
- * `JSON.parse("9223372036854775807")` yields `9223372036854775808`, a
- * different number, and nothing downstream can recover the original.
- *
- * A value between `2^53` and `2^63` is therefore rejected rather than
- * accepted. It is a legal int64 and an illegal JSON number, and
- * accepting it would mean vouching for a value that is provably not
- * the one on the wire. Producers of large int64s should send them as
- * strings, which is what the range exists to surface. Callers who
- * disagree register `int64: false` and keep the name as an annotation.
+ * Accepted values are `-(2^53 - 1)` through `2^53 - 1`. Some larger
+ * integers remain exact, but distinct wire values can parse to the same
+ * number: `9007199254740992` and `9007199254740993` both become `2^53`.
+ * A validator receiving that number cannot recover which value was sent.
+ * Producers should declare a string schema and send large integers as
+ * strings. Callers who accept the precision risk can register
+ * `int64: false` and keep the name as an annotation.
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @specBoundary narrows
- * A legal int64 between `2^53` and `2^63` is rejected. The registry's
- * `int64` is the full signed 64-bit range, and this accepts the safe
- * integers. The paragraphs above have the reasoning: such a value has
- * already lost precision in `JSON.parse`, so accepting it would vouch
- * for a number that is provably not the one on the wire.
+ * A legal int64 outside `-(2^53 - 1)` through `2^53 - 1` is rejected.
+ * The registry defines the full signed 64-bit range; this accepts safe
+ * integers. Beyond that range, distinct integers can parse to the same
+ * number, so the original wire value cannot always be recovered.
  * @public
  */
 export function validateInt64(value: number): boolean {
@@ -152,13 +145,13 @@ export function validateInt64(value: number): boolean {
 }
 
 /**
- * OpenAPI `uint64`: an unsigned 64-bit integer, asserted over the range
- * a JSON number can carry.
+ * OpenAPI `uint64`: an unsigned 64-bit integer, restricted to nonnegative
+ * JavaScript safe integers.
  *
  * **Partial in the same way {@link validateInt64} is**, and for the
  * same reason: the ceiling is `2^53 - 1` rather than `2^64 - 1`,
- * because a JSON number above the safe range is provably not the value
- * on the wire. The floor is 0, which is the whole difference from
+ * because distinct wire integers above that range can parse to the same
+ * number. The floor is 0, which is the whole difference from
  * `int64`.
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
@@ -182,8 +175,8 @@ export function validateUint64(value: number): boolean {
  *
  * That is why the bound is not the safe-integer range, which asks
  * whether *n and n + 1* are both representable. `2^53` is a double and
- * is a `double-int`; refusing it refused a value that provably was the
- * one on the wire.
+ * is a `double-int`; it passes even though the original wire value
+ * cannot always be recovered after parsing.
  *
  * {@link validateInt64}'s ceiling does not carry over, and the reason
  * is worth stating because the arithmetic looks identical. A literal
@@ -206,11 +199,9 @@ export function validateDoubleInt(value: number): boolean {
  * OpenAPI `unixtime`: seconds since 1970-01-01T00:00:00Z, per
  * POSIX.1-2024.
  *
- * Integral, and within the range a JSON number carries exactly, which
- * is {@link validateInt64}'s bound and the same argument for it: past
- * 2^53 the value has already lost precision, and the count of seconds
- * it names is provably not the one that was sent. Negative values pass,
- * naming an instant before the epoch.
+ * Integral and within JavaScript's safe-integer range, using the same
+ * bound and precision policy as {@link validateInt64}. Negative values
+ * pass, naming an instant before the epoch.
  *
  * **This asserts less than most formats do.** POSIX puts no upper bound
  * on the epoch count, so beyond integrality there is nothing left to
@@ -229,8 +220,8 @@ export function validateDoubleInt(value: number): boolean {
  * @specBoundary narrows
  * A legal unixtime above `2^53 - 1` is rejected, where POSIX puts no
  * upper bound on the epoch count. Same argument as `validateInt64`:
- * past that point the value has already lost precision and is provably
- * not the count that was sent.
+ * beyond the safe-integer range, distinct epoch counts can parse to the
+ * same number, so their original values cannot always be recovered.
  * @specBoundary under-asserts
  * A string-valued `unixtime` is not asserted at all. The registry gives
  * the format two base types, `number` and `string`; a format constrains

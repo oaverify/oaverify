@@ -1280,10 +1280,10 @@ export interface CompileOptions {
    * @specCites JSON Schema 2020-12 validation section 7, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7
    * @specBoundary chooses
    * Under {@link jsonSchemaDialect}, an unrecognised format asserts
-   * nothing by default and this option exists so a caller can make it a
-   * compile error instead. Format-Annotation is the default vocabulary
-   * and supporting Format-Assertion is OPTIONAL, so both settings are
-   * conformant there and the default is the one the spec picks.
+   * nothing, even with `unknownFormats: "error"`: this option is inert
+   * under its Format-Annotation vocabulary. Supporting Format-Assertion
+   * is OPTIONAL; selecting a dialect with that vocabulary enables
+   * assertions and this option's unknown-name policy.
    * @specBoundary under-asserts https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.3
    * Under {@link openapi31Dialect} or {@link oas30Dialect}, a schema
    * carrying an unregistered format compiles by default and that format

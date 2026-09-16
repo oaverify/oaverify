@@ -607,8 +607,10 @@ export interface HttpRequest {
    * @specCites OpenAPI 3.2 style values, https://spec.openapis.org/oas/v3.2.0#style-values
    * @specBoundary transforms
    * A `style: cookie` value carrying a valid percent-escape reaches the
-   * handler decoded, where the style says no escaping is applied. The
-   * set of accepted requests is unchanged; the value handed on is not.
+   * validator decoded, where the style says no escaping is applied.
+   * `session=%41` becomes `A`, so a schema with `const: "%41"` rejects
+   * a value it should accept; `const: "A"` accepts one it should reject.
+   * A returned parameter value also reflects the decoding.
    * The adapter runs before any spec is read, so it cannot see the
    * style to tell `form` and `cookie` apart, and decoding is right for
    * the default of the two.

@@ -108,12 +108,12 @@ cited text?":
 | --------------- | ------------------------------------------------------------------- |
 | `under-asserts` | accepts what the cited spec forbids                                 |
 | `narrows`       | rejects what the cited spec allows                                  |
-| `transforms`    | accepts the same set, but the value handed on differs               |
+| `transforms`    | changes the value handed on, which can affect subsequent validation |
 | `chooses`       | the spec grants latitude, and this picked one option                |
 | `resolves`      | the spec is silent or self-contradictory, and this picked a reading |
 | `defers`        | the cited spec requires it and this does not implement it yet       |
 
-Four rules, all asserted by `pnpm check:spec-boundaries`:
+Authoring rules:
 
 - **A boundary is measured against the spec the declaration cites**,
   not against every spec in the neighbourhood. `duration` implements
@@ -123,7 +123,9 @@ Four rules, all asserted by `pnpm check:spec-boundaries`:
   boundary against a spec we never claimed, and a reviewer read that
   as a defect.
 - **`@specBoundary` requires a `@specCites`**, and must carry its own
-  section URL where the declaration cites several specs.
+  section URL where the declaration cites several specs. Each `@specCites`
+  carries exactly one URL; each `@specBoundary` carries at most one.
+  Repeat the tag for another citation or boundary.
 - **`chooses` requires latitude you can quote.** Point at the MAY,
   SHOULD or OPTIONAL that grants it, or at an explicit grant in the
   spec's own words: OpenAPI's "In case of ambiguous matching, it's up to
@@ -133,6 +135,11 @@ Four rules, all asserted by `pnpm check:spec-boundaries`:
   decision, the kind is `resolves`.
 - **`defers` carries an issue reference.**
 
+`pnpm check:spec-boundaries` checks tag structure, specification hosts,
+unambiguous anchors, nonempty prose and issue references. Review must
+establish that the cited text supports the claim and grants any stated
+latitude. The gate cannot establish those facts or find omitted boundaries.
+
 **Put the tags last in the block**, after every other paragraph and
 beside `@public`. A block tag runs until the next one, so a
 `@specBoundary` followed by ordinary prose swallows it, and the
@@ -140,7 +147,7 @@ generated page prints that prose as part of the departure. Six of the
 first pass's tags did this; `checkSpec`'s absorbed the whole dialect
 section.
 
-One rule the gate cannot check: **lead the prose with the departure**,
+**Lead the prose with the departure**,
 stated as something an input does. "A UUID carrying an undefined version
 passes" is the first line; "this checks shape only" is the second. The
 generated inventory quotes the opening sentence of each boundary, so a

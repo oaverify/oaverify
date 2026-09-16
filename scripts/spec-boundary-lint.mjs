@@ -49,7 +49,7 @@ export const SPEC_HOSTS = new Set([
 export const KINDS = new Map([
   ["under-asserts", "accepts what the cited spec forbids"],
   ["narrows", "rejects what the cited spec allows"],
-  ["transforms", "accepts the same set, but the value handed on differs"],
+  ["transforms", "changes the value handed on, which can affect subsequent validation"],
   ["chooses", "the spec grants latitude, and this picked one option"],
   ["resolves", "the spec is silent or self-contradictory, and this picked a reading"],
   ["defers", "the cited spec requires it and this does not implement it yet"],
@@ -135,6 +135,11 @@ export function lintDocBlock(doc, where) {
         problems.push(`${where}: @specCites carries no URL: "${tag.header}"`);
         continue;
       }
+      if (urls.length > 1) {
+        problems.push(
+          `${where}: @specCites must carry exactly one URL; use a separate tag for each citation`,
+        );
+      }
       for (const url of urls) {
         const problem = urlProblem(url);
         if (problem) problems.push(`${where}: @specCites ${problem}`);
@@ -154,6 +159,11 @@ export function lintDocBlock(doc, where) {
     }
 
     const urls = urlsIn(rest.join(" "));
+    if (urls.length > 1) {
+      problems.push(
+        `${where}: @specBoundary must carry at most one URL; use a separate tag for each boundary`,
+      );
+    }
     for (const url of urls) {
       const problem = urlProblem(url);
       if (problem) problems.push(`${where}: @specBoundary ${problem}`);

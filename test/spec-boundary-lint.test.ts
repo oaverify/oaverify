@@ -147,6 +147,22 @@ describe("boundaries", () => {
 });
 
 describe("an ambiguous anchor", () => {
+  it("rejects several URLs on one citation tag", () => {
+    expect(
+      problems(doc("@specCites " + RFC + " " + RFC2, "@specBoundary narrows", "Why.")),
+    ).toContain(
+      "where: @specCites must carry exactly one URL; use a separate tag for each citation",
+    );
+  });
+
+  it("rejects several URLs on a boundary tag", () => {
+    expect(
+      problems(doc("@specCites " + RFC, "@specBoundary narrows " + RFC + " " + RFC2, "Why.")),
+    ).toContain(
+      "where: @specBoundary must carry at most one URL; use a separate tag for each boundary",
+    );
+  });
+
   it("requires its own URL when the declaration cites several specs", () => {
     const found = problems(
       doc("@specCites " + RFC, "@specCites " + RFC2, "@specBoundary narrows", "Why."),
