@@ -455,6 +455,28 @@ export function routeSignature(pathPattern: string): string {
  * case of ambiguous matching, it's up to the tooling to decide which
  * one to use." Its own example of that case is `/{entity}/me` against
  * `/books/{id}`. The rule here is the one `path-to-regexp` applies.
+ * @specBoundary defers https://spec.openapis.org/oas/v3.2.0#path-item-object
+ * A request using a method declared under 3.2's `additionalOperations`
+ * answers 405, with that method absent from `allowed`, rather than
+ * routing to the operation the document declares for it. The method
+ * table is the `HttpMethod` union and the lookup lowercases, so a
+ * camelCase map key cannot be reached (#396). A 405 is a claim, and it
+ * contradicts the document.
+ * @specBoundary under-asserts https://spec.openapis.org/oas/v3.1.0#paths-object
+ * A document declaring `/items/{id}` for GET and `/items/{slug}` for
+ * POST builds a router, though the Paths Object says templated paths
+ * "with the same hierarchy but different templated names MUST NOT exist
+ * as they are identical". The ambiguity check refuses them only where
+ * they overlap on a method, so no request can reach both; refusing the
+ * pair outright would reject documents that are published and served
+ * today.
+ * @specBoundary narrows https://spec.openapis.org/oas/v3.1.0#paths-object
+ * A document declaring both `/a` and `/a/` fails to build, and a
+ * request for `/pets/` routes to the `/pets` template. OpenAPI
+ * constrains a path key only to begin with `/`, and RFC 3986 makes a
+ * trailing empty segment a real segment, so the two are distinct keys
+ * there. The router folds a trailing slash away on both sides, because
+ * a server answering one answers the other.
  *
  * @example
  * ```ts

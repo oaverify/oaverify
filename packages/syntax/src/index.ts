@@ -118,6 +118,24 @@ export function createYamlFileReader(
  * is not always an object. Whether the entry document is an OpenAPI
  * document is `assertEntryDocument`'s question, one layer up, where the
  * caller's intent is known.
+ *
+ * Two YAML behaviours worth knowing before they surprise you, neither
+ * of them a departure. A duplicate mapping key is a parse error here
+ * where `JSON.parse` keeps the last one, which is YAML 1.2 section 3.3
+ * listing non-unique keys among its loading failures. And a merge key
+ * (`<<: *defaults`) is not merged: it becomes a literal `"<<"`
+ * property, because merge was a separately-published optional type and
+ * YAML 1.2 does not define it. The second is the one that reads as a
+ * bug, since it surfaces downstream as a conformance finding about a
+ * field nobody wrote.
+ *
+ * @specCites YAML 1.2.2, https://yaml.org/spec/1.2.2/
+ * @specBoundary narrows
+ * A document whose aliases expand past the parser's alias budget is
+ * refused, though YAML 1.2 places no limit on alias reuse and says a
+ * node "could even contain itself". The cap is the billion-laughs guard
+ * the `yaml` package applies by default, and a spec that permits a
+ * cyclic representation graph cannot be implemented without one.
  */
 function parseYamlDocument(source: string, uri: string): unknown {
   const parsed = parseYaml(source) as unknown;
