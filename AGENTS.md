@@ -81,6 +81,64 @@ what a caller may pass belongs in the TSDoc. Header-name casing lived
 only as a `// lowercased keys` comment in a recipe while the type said
 nothing, and the lookup code drifted into three strategies underneath.
 
+### Marking a spec boundary
+
+A corollary of the above, for the specific contract this repo exists to
+keep. `@specCites <url>` names the specification a declaration
+implements. `@specBoundary <kind> [<url>]` names a place its behaviour
+departs from that specification's text, followed by prose saying what
+the departure is and why it is the right stopping point.
+
+```ts
+/**
+ * RFC 9562 `uuid`.
+ *
+ * @specCites RFC 9562 section 4, https://www.rfc-editor.org/rfc/rfc9562#section-4
+ * @specBoundary under-asserts https://www.rfc-editor.org/rfc/rfc9562#section-4.1
+ * Shape only: 8-4-4-4-12 hex, dashes in place. The version and variant
+ * nibbles are not asserted, so a well-formed string carrying an
+ * undefined version passes.
+ */
+```
+
+The six kinds, each answering "how does our behaviour differ from the
+cited text?":
+
+| kind            | meaning                                                             |
+| --------------- | ------------------------------------------------------------------- |
+| `under-asserts` | accepts what the cited spec forbids                                 |
+| `narrows`       | rejects what the cited spec allows                                  |
+| `transforms`    | accepts the same set, but the value handed on differs               |
+| `chooses`       | the spec grants latitude, and this picked one option                |
+| `resolves`      | the spec is silent or self-contradictory, and this picked a reading |
+| `defers`        | the cited spec requires it and this does not implement it yet       |
+
+Four rules, all asserted by `pnpm check:spec-boundaries`:
+
+- **A boundary is measured against the spec the declaration cites**,
+  not against every spec in the neighbourhood. `duration` implements
+  RFC 3339 Appendix A, which is what JSON Schema 2020-12 section 7.3.1
+  defines the format against, so it is conformant and carries no
+  boundary. Describing it as "stricter than ISO 8601" invented a
+  boundary against a spec we never claimed, and a reviewer read that
+  as a defect.
+- **`@specBoundary` requires a `@specCites`**, and must carry its own
+  section URL where the declaration cites several specs.
+- **`chooses` requires latitude you can quote.** If you cannot point at
+  the MAY, SHOULD or OPTIONAL that grants it, the kind is `resolves`.
+- **`defers` carries an issue reference.**
+
+The tags are for behaviour relative to a cited specification. A design
+decision that is not spec-relative (a linear route scan, a frozen empty
+array) is ordinary prose, and tagging it dilutes the set.
+
+What this buys, and why the tag rather than prose: **absence becomes
+contractual.** A declaration with a `@specCites` and no `@specBoundary`
+claims it implements the cited spec as written. Before the tags, the
+same 30-odd boundaries were free prose in nine phrasings, and absence
+covered three states a reader could not tell apart: conformant,
+boundary nobody wrote down, and defect.
+
 ### Prose style
 
 LLM-like writing breaks reader flow: a reader who knows the patterns
@@ -165,6 +223,7 @@ pnpm check:http-methods           # assert only core spells out the HTTP method 
 pnpm check:detection-table        # assert docs/comparison.md against detection/results/matrix.md
 pnpm check:conformance-report     # assert conformance/REPORT.md against the committed baselines
 pnpm check:format-docs            # assert every format validator cites its spec, with a link
+pnpm check:spec-boundaries        # assert the @specCites / @specBoundary TSDoc contract
 pnpm check:release                # assert release.yml's package lists against release-please-config.json
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)
