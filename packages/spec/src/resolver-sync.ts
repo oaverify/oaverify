@@ -1,3 +1,4 @@
+import { collectHoistedSchemaCopies, type HoistedSchemaTarget } from "./schema-copies.js";
 import {
   detectOpenAPIVersion,
   escapePointerSegment,
@@ -26,10 +27,9 @@ import {
   noteInlinedComponent,
   removeComponentSchema,
   mergeStitchedExternals,
-  type MountState,
   type Mutable,
   noteReferrer,
-  ProvenanceTrail,
+  ResolutionTrail,
   type ReferrerTrail,
   resolveRelative,
   resolveSchemaJsonPointer,
@@ -106,11 +106,12 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   const docs = new Map<string, unknown>();
 
   // Mirrors resolveSpec; the commentary lives there.
-  const trail = options.provenance === true ? new ProvenanceTrail(options.entry) : null;
+  const trail = new ResolutionTrail(options.entry, options.provenance === true);
+  const hoistedTargets: HoistedSchemaTarget[] = [];
   const hoistVia = new Map<string, readonly SourceHop[]>();
   const stitchVia = new Map<string, readonly SourceHop[]>();
   const noteVia = (map: Map<string, readonly SourceHop[]>, key: string): void => {
-    if (trail !== null && !map.has(key)) map.set(key, trail.chain());
+    if (options.provenance === true && !map.has(key)) map.set(key, trail.chain());
   };
 
   // Populated as the walk derives each target URI; read back only on
@@ -328,9 +329,9 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     if (Array.isArray(value)) {
       const out: unknown[] = [];
       for (const item of value) {
-        trail?.push(String(out.length));
+        trail.push(String(out.length));
         out.push(walk(item, currentBase, stitchingUri, externalSourceUri, pos));
-        trail?.pop();
+        trail.pop();
       }
       return out;
     }
@@ -400,7 +401,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       sources.add(targetUri);
       let targetDoc = docs.get(targetUri);
       if (targetDoc === undefined) {
-        targetDoc = readDoc(targetUri, trail?.chain() ?? []);
+        targetDoc = readDoc(targetUri, trail.chain());
         if (targetDoc === UNREADABLE) {
           // Mirrors resolveSpec; the commentary lives there.
           visiting.delete(cycleKey(targetUri, fragment));
@@ -419,7 +420,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
         }
         docs.set(targetUri, targetDoc);
       }
-      const resolved = readFragment(targetDoc, targetUri, fragment, trail?.chain() ?? []);
+      const resolved = readFragment(targetDoc, targetUri, fragment, trail.chain());
       if (resolved === UNREADABLE) {
         visiting.delete(cycleKey(targetUri, fragment));
         const unfollowed: Mutable = {
@@ -435,16 +436,14 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
         }
         return unfollowed;
       }
-      let mounted: MountState | undefined;
-      if (trail !== null) {
-        mounted = trail.enter(targetUri, pointerFromFragment(fragment), trail.chain());
-      }
+      const mounted = trail.enter(targetUri, pointerFromFragment(fragment), trail.chain());
       const inlined = walk(resolved, baseDirOf(targetUri), stitchingUri, targetUri, pos);
-      if (trail !== null && mounted !== undefined) trail.leave(mounted);
+      trail.leave(mounted);
       visiting.delete(cycleKey(targetUri, fragment));
       const siblings: Mutable = {};
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
+        if (isPlainObject(inlined)) trail.shadow(key, mounted);
         setSpecKey(
           siblings,
           key,
@@ -453,7 +452,6 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       }
       if (Object.keys(siblings).length === 0) return inlined;
       if (inlined === null || typeof inlined !== "object" || Array.isArray(inlined)) return inlined;
-      for (const key of Object.keys(siblings)) trail?.shadow(key);
       return { ...(inlined as Mutable), ...siblings };
     }
     // Inside content inlined from the entry, an internal ref already
@@ -500,19 +498,19 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
     parentPos: Pos,
   ): unknown => {
     const value = parent[key];
-    trail?.push(key);
+    trail.push(key);
     if (parentPos.inSchema && key === "discriminator") {
       if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        trail?.pop();
+        trail.pop();
         return value;
       }
       const node: Mutable = { ...(value as Mutable) };
       mappingSites.push({ node, base: currentBase, source: externalSourceUri });
-      trail?.pop();
+      trail.pop();
       return node;
     }
     if (parentPos.inSchema && refSiblingIsDiscarded(parent, key, refSuppressesSiblings)) {
-      trail?.pop();
+      trail.pop();
       return value;
     }
 
@@ -537,19 +535,19 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
         mixedMap && Array.isArray(sub) ? UNKNOWN_POS : childPos;
       const out: Mutable = {};
       for (const [name, sub] of Object.entries(value as Mutable)) {
-        trail?.push(name);
+        trail.push(name);
         setSpecKey(
           out,
           name,
           walk(sub, currentBase, stitchingUri, externalSourceUri, entryPos(sub)),
         );
-        trail?.pop();
+        trail.pop();
       }
-      trail?.pop();
+      trail.pop();
       return out;
     }
     const walked = walk(value, currentBase, stitchingUri, externalSourceUri, childPos);
-    trail?.pop();
+    trail.pop();
     return walked;
   };
 
@@ -590,23 +588,25 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       missingHoists.add(name);
       continue;
     }
-    let mounted: MountState | undefined;
-    if (trail !== null) {
-      mounted = trail.enterAt(
-        ["components", "schemas", name],
-        target.uri,
-        pointerFromFragment(target.fragment),
-        hoistVia.get(key) ?? [],
-      );
-    }
+    const mounted = trail.enterAt(
+      ["components", "schemas", name],
+      target.uri,
+      pointerFromFragment(target.fragment),
+      hoistVia.get(key) ?? [],
+    );
     setSpecKey(hoisted, name, walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS));
-    if (trail !== null && mounted !== undefined) trail.leave(mounted, true);
+    trail.leave(mounted, true);
+    hoistedTargets.push({
+      uri: target.uri,
+      pointer: pointerFromFragment(target.fragment),
+      target: `/components/schemas/${escapePointerSegment(name)}`,
+    });
   }
   for (const name of missingHoists) {
     delete hoisted[name];
     if (boundSlots.has(name)) removeComponentSchema(resolved, name);
   }
-  if (trail !== null && Object.keys(hoisted).length > 0) {
+  if (Object.keys(hoisted).length > 0) {
     const components = (resolved as unknown as Mutable).components;
     if (!isPlainObject(components)) trail.synthetic("/components");
     else if (!isPlainObject(components.schemas)) trail.synthetic("/components/schemas");
@@ -615,7 +615,7 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   mergeHoistedSchemas(resolved, hoisted);
 
   if (stitchQueue.size > 0) {
-    trail?.synthetic(`/${escapePointerSegment(EXTERNALS_FIELD)}`);
+    trail.synthetic(`/${escapePointerSegment(EXTERNALS_FIELD)}`);
     const stitched: Mutable = {};
     while (stitchQueue.size > 0) {
       const [uri, kind] = stitchQueue.entries().next().value as [string, RefNodeKind];
@@ -630,12 +630,9 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
       }
       const savedVisiting = new Set(visiting);
       visiting.clear();
-      let mounted: MountState | undefined;
-      if (trail !== null) {
-        mounted = trail.enterAt([EXTERNALS_FIELD, uri], uri, "", stitchVia.get(uri) ?? []);
-      }
+      const mounted = trail.enterAt([EXTERNALS_FIELD, uri], uri, "", stitchVia.get(uri) ?? []);
       const inlined = walk(targetDoc, baseDirOf(uri), uri, uri, posOf(kind, true));
-      if (trail !== null && mounted !== undefined) trail.leave(mounted, true);
+      trail.leave(mounted, true);
       visiting.clear();
       for (const v of savedVisiting) visiting.add(v);
       setSpecKey(stitched, uri, inlined);
@@ -644,15 +641,17 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   }
 
   const inlined = [...inlinedComponents];
+  const hoistedSchemaCopies = collectHoistedSchemaCopies(resolved, trail.regions, hoistedTargets);
   const specHygieneIssues = options.lint
-    ? lintResolvedSpec(resolved, { inlinedComponents: inlined })
+    ? lintResolvedSpec(resolved, { inlinedComponents: inlined, hoistedSchemaCopies })
     : [];
   return {
     document: resolved,
     sources: [...sources],
     specHygieneIssues,
     inlinedComponents: inlined,
-    ...(trail !== null && { regions: trail.regions }),
+    hoistedSchemaCopies,
+    ...(options.provenance === true && { regions: trail.regions }),
     ...(holes !== null && { unresolved: holes.entries() }),
   };
 }

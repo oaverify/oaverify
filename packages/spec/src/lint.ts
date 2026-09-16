@@ -1,3 +1,4 @@
+import type { HoistedSchemaCopies } from "./schema-copies.js";
 import {
   escapePointerSegment,
   pointerFromFragment,
@@ -57,10 +58,9 @@ export interface SpecHygieneIssue {
 /**
  * What {@link lintResolvedSpec} cannot see in the document it is given.
  *
- * Resolution is lossy in one direction that matters to hygiene: a
- * non-schema component referenced across documents is inlined at the
- * use site, so its content survives and the component itself becomes
- * unreachable. Everything else the rules need is in the document.
+ * Resolution can inline a component or redirect a reference to a
+ * hoisted schema, leaving the original declaration apparently unused.
+ * These fields preserve the connections needed to grade those declarations.
  *
  * @public
  */
@@ -68,10 +68,16 @@ export interface LintOptions {
   /**
    * Components the resolver inlined at a use site, as pointers
    * (`/components/parameters/PageSize`). `unused-component` stays quiet
-   * about these. Comes from {@link ResolvedSpec.inlinedComponents};
+   * about these. Pass `inlinedComponents` returned by the resolver;
    * omit it and they are reported like any other unreached component.
    */
   inlinedComponents?: readonly string[];
+  /**
+   * Pass `hoistedSchemaCopies` returned by the resolver. See
+   * {@link HoistedSchemaCopies} for the source identity contract.
+   * Omit it to grade only references visible in the document.
+   */
+  hoistedSchemaCopies?: readonly HoistedSchemaCopies[];
 }
 
 const COMPONENT_CATEGORIES = [
@@ -144,7 +150,7 @@ export function lintResolvedSpec(
   const issues: SpecHygieneIssue[] = [];
   issues.push(...findUnusedComponents(document, options.inlinedComponents ?? []));
   issues.push(...findUnusedTags(document));
-  issues.push(...findUnreachableDefs(document));
+  issues.push(...findUnreachableDefs(document, options.hoistedSchemaCopies ?? []));
   issues.push(...findPathParamMismatches(document));
   issues.push(...findMalformedPathTemplates(document));
   return issues;
@@ -439,7 +445,10 @@ function findUnusedTags(document: OpenAPIDocument): SpecHygieneIssue[] {
 // unreachable-defs
 // ---------------------------------------------------------------------------
 
-function findUnreachableDefs(document: OpenAPIDocument): SpecHygieneIssue[] {
+function findUnreachableDefs(
+  document: OpenAPIDocument,
+  hoistedSchemaCopies: readonly HoistedSchemaCopies[],
+): SpecHygieneIssue[] {
   // Find every $defs container with its location, then for each entry
   // see whether any $ref in the document points at that location.
   // Conservative: a ref from outside the containing schema also counts as
@@ -447,6 +456,23 @@ function findUnreachableDefs(document: OpenAPIDocument): SpecHygieneIssue[] {
   // shared across schemas via absolute pointers.
   const allRefs = new Set<string>();
   collectEveryRefValue(document, allRefs);
+  const reachedTargets = new Set<string>();
+  if (hoistedSchemaCopies.length > 0) {
+    for (const ref of allRefs) {
+      let pointer = pointerFromFragment(ref.slice(1));
+      while (pointer.startsWith("/")) {
+        reachedTargets.add(pointer);
+        pointer = pointer.slice(0, pointer.lastIndexOf("/"));
+      }
+    }
+  }
+  const copyRefs = new Set<string>();
+  for (const { target, copies } of hoistedSchemaCopies) {
+    if (!reachedTargets.has(target)) continue;
+    // Source identity applies to the copied node. Descendants may have
+    // been replaced by a sibling override during non-schema inlining.
+    for (const copy of copies) copyRefs.add(`#${copy}`);
+  }
 
   const issues: SpecHygieneIssue[] = [];
   walkForDefs(document, "", (defsPointer, name) => {
@@ -459,7 +485,7 @@ function findUnreachableDefs(document: OpenAPIDocument): SpecHygieneIssue[] {
     // there is reported like any other.
     if (name.startsWith("__ext__/")) return;
     const target = `${defsPointer}/${escapePointerSegment(name)}`;
-    if (refsHit(allRefs, target)) return;
+    if (refsHit(copyRefs, target) || refsHit(allRefs, target)) return;
     issues.push({
       code: "unreachable-defs",
       pointer: target,

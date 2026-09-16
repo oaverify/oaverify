@@ -1,3 +1,4 @@
+import { retainHoistedSchemaCopies } from "./schema-copies.js";
 import { createFileReaderSync, type DocumentReader, type SyncDocumentReader } from "./reader.js";
 import { applyOverlays, type SpecOverlay } from "./overlay.js";
 import { resolveSpec, type ResolvedSpec } from "./resolver.js";
@@ -91,6 +92,9 @@ export async function loadSpec(options: LoadSpecOptions): Promise<ResolvedSpec> 
     sources: resolved.sources,
     specHygieneIssues,
     ...(lint.inlinedComponents !== undefined && { inlinedComponents: lint.inlinedComponents }),
+    ...(lint.hoistedSchemaCopies !== undefined && {
+      hoistedSchemaCopies: lint.hoistedSchemaCopies,
+    }),
     ...(resolved.regions !== undefined && {
       regions: afterOverlays(resolved.regions, resolved.document, overlaid),
     }),
@@ -108,10 +112,25 @@ export async function loadSpec(options: LoadSpecOptions): Promise<ResolvedSpec> 
  * dropped, here and from the returned {@link ResolvedSpec}. The cost is
  * a false positive under overlays, which is the cheaper failure: keeping
  * the list risks staying quiet about a component an overlay orphaned.
+ * Exact schema-copy connections can be checked independently against both
+ * documents, so unrelated overlay edits preserve them.
  */
 function lintOptionsFor(resolved: ResolvedSpec, overlaid: unknown): LintOptions {
-  if (resolved.document !== overlaid) return {};
-  return { inlinedComponents: resolved.inlinedComponents ?? [] };
+  if (resolved.document !== overlaid) {
+    return {
+      ...(resolved.hoistedSchemaCopies !== undefined && {
+        hoistedSchemaCopies: retainHoistedSchemaCopies(
+          resolved.hoistedSchemaCopies,
+          resolved.document,
+          overlaid,
+        ),
+      }),
+    };
+  }
+  return {
+    inlinedComponents: resolved.inlinedComponents ?? [],
+    hoistedSchemaCopies: resolved.hoistedSchemaCopies ?? [],
+  };
 }
 
 /**
@@ -230,6 +249,9 @@ export function loadSpecSync(options: LoadSpecSyncOptions): ResolvedSpec {
     sources: resolved.sources,
     specHygieneIssues,
     ...(lint.inlinedComponents !== undefined && { inlinedComponents: lint.inlinedComponents }),
+    ...(lint.hoistedSchemaCopies !== undefined && {
+      hoistedSchemaCopies: lint.hoistedSchemaCopies,
+    }),
     ...(resolved.regions !== undefined && {
       regions: afterOverlays(resolved.regions, resolved.document, overlaid),
     }),

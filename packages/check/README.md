@@ -52,11 +52,10 @@ const findings = checkSpec(resolved);
 
 ### Load with `provenance: true`
 
-`checkSpec` takes a `ResolvedSpec` rather than a bare document, because
-two of its inputs are byproducts of resolution and cannot be recovered
-from the document alone: the regions each finding's `target.source` is
-derived from, and the `inlinedComponents` list that stops the hygiene
-pass reporting a component an external `$ref` inlined.
+`checkSpec` takes a `ResolvedSpec` rather than a bare document because
+source attribution and declaration reachability depend on information
+retained during resolution. The document alone cannot reconstruct which
+declarations an external reference reached before the resolver redirected it.
 
 Without `provenance: true` the check still runs and finds exactly the
 same defects, but every finding's `target.source` is absent and SARIF

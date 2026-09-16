@@ -56,3 +56,4 @@ export {
   type SourceHop,
   type SpecRegion,
 } from "./provenance.js";
+export type { HoistedSchemaCopies } from "./schema-copies.js";
