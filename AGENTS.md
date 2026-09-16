@@ -84,10 +84,14 @@ nothing, and the lookup code drifted into three strategies underneath.
 ### Marking a spec boundary
 
 A corollary of the above, for the specific contract this repo exists to
-keep. `@specCites <url>` names the specification a declaration
-implements. `@specBoundary <kind> [<url>]` names a place its behaviour
-departs from that specification's text, followed by prose saying what
-the departure is and why it is the right stopping point.
+keep. `@specCites <url>` identifies a declaration's intended specification
+contract. `@specBoundary <kind> [<url>]` records a specification-related
+choice or departure.
+
+State the observable behavior, the relevant specification requirement,
+and the reason for the current behavior if known. Distinguish an
+intentional policy from a defect awaiting repair. An explanation of
+existing behavior does not establish that it should be retained.
 
 ```ts
 /**
@@ -95,9 +99,9 @@ the departure is and why it is the right stopping point.
  *
  * @specCites RFC 9562 section 4, https://www.rfc-editor.org/rfc/rfc9562#section-4
  * @specBoundary under-asserts https://www.rfc-editor.org/rfc/rfc9562#section-4.1
- * Shape only: 8-4-4-4-12 hex, dashes in place. The version and variant
- * nibbles are not asserted, so a well-formed string carrying an
- * undefined version passes.
+ * A UUID carrying an undefined version passes. This checks shape only:
+ * 8-4-4-4-12 hex digits with the dashes in place. The version and
+ * variant nibbles are not asserted.
  */
 ```
 
@@ -112,6 +116,12 @@ cited text?":
 | `chooses`       | the spec grants latitude, and this picked one option                |
 | `resolves`      | the spec is silent or self-contradictory, and this picked a reading |
 | `defers`        | the cited spec requires it and this does not implement it yet       |
+
+Kinds describe behavior, not disposition or severity. An `under-asserts`
+entry can be an intentional compromise or a false acceptance awaiting
+repair. A `chooses` entry can describe conforming behavior. Pending
+repairs need issue links regardless of kind; priority and release
+scheduling belong in issues and the backlog.
 
 Authoring rules:
 
@@ -167,17 +177,24 @@ only, where every exported `validate*` must cite; elsewhere a
 declaration is free to carry neither tag.
 
 The tags generate [docs/spec-boundaries.md](./docs/spec-boundaries.md),
-which is the user-facing half of this: every place oaverify knowingly
-differs from a spec, in one page. Edit the tag and run
+which collects the documented choices and departures for users. Edit the tag and run
 `pnpm docs:boundaries`; the page is never edited by hand and
 `pnpm lint` fails if the two disagree.
 
-What this buys, and why the tag rather than prose: **absence becomes
-contractual.** A declaration with a `@specCites` and no `@specBoundary`
-claims it implements the cited spec as written. Before the tags, the
-same 30-odd boundaries were free prose in nine phrasings, and absence
-covered three states a reader could not tell apart: conformant,
-boundary nobody wrote down, and defect.
+A citation establishes the intended contract. A missing boundary does
+not establish that the implementation meets it. Document known departures;
+tests and review provide evidence of conformance.
+
+When maintaining specification-dependent behavior:
+
+- Check the applicable citation when changing behavior, and update or
+  remove affected boundaries.
+- Verify a newly discovered departure against the cited text and a
+  reproducer before classifying it.
+- Distinguish accepted policies from pending repairs and link the latter
+  to their issues.
+- When a defect is fixed, remove the obsolete limitation and regenerate
+  the page. Keep any remaining boundary accurate.
 
 ### Prose style
 

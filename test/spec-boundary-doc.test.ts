@@ -186,12 +186,15 @@ describe("renderDoc", () => {
       ]),
     ) as string;
 
-  it("states what absence means, which is the page's whole claim", () => {
-    expect(page()).toContain("carries\nno boundary is claiming it implements the cited text");
+  it("identifies the intended contract without promising complete conformance", () => {
+    expect(page()).toContain("A citation identifies the\nintended specification contract");
+    expect(page()).toContain(
+      "absence of a recorded boundary does not\nestablish complete conformance",
+    );
   });
 
-  it("does not claim the set is complete", () => {
-    expect(page()).toContain("not a proof that none is missing");
+  it("explains the limits of entry counts", () => {
+    expect(page()).toContain("they do not measure defect\nseverity or conformance");
   });
 
   it("carries a count per kind and a total", () => {
@@ -199,7 +202,7 @@ describe("renderDoc", () => {
     expect(out).toContain(
       "| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 1 |",
     );
-    expect(out).toContain("1 boundaries across 1 files.");
+    expect(out).toContain("1 documented entries across 1 files.");
   });
 
   it("omits a kind with no entries rather than printing an empty section", () => {

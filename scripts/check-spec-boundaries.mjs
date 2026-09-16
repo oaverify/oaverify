@@ -1,39 +1,11 @@
-// Assert the `@specCites` / `@specBoundary` TSDoc contract across the workspace.
+// Assert the structural `@specCites` / `@specBoundary` contract.
 //
-// Two things a reader of this repo could not do before these tags existed.
-// They could not find the places where oaverify knowingly stops matching a
-// specification, because those were free prose in at least nine phrasings
-// ("does not assert", "asserts nothing", "deviates from", "stricter than",
-// "more lenient", "under-asserts", "partial assertion", "does not sanction",
-// "does not check"). And they could not read anything from the absence of such
-// prose, because absence covered three different states: conformant,
-// deliberate boundary nobody wrote down, and defect.
+// Citations identify intended specification contracts; boundaries record known
+// choices and departures. Review and tests must establish whether the claims
+// are accurate and whether other boundaries are missing.
 //
-// The tags make both answerable. `@specCites` names the specification a
-// declaration implements; `@specBoundary` names a place its behaviour departs
-// from that specification's text, classified. A declaration carrying a
-// `@specCites` and no `@specBoundary` is claiming it implements the cited spec
-// as written, which is a contract a reviewer can check.
-//
-// Checked here:
-//   1. Every `@specCites` carries a URL on a known specification host.
-//   2. Every `@specBoundary` names one of the six kinds.
-//   3. Every `@specBoundary` carries prose saying what the departure is.
-//   4. Every `@specBoundary` has a `@specCites` on the same declaration, and
-//      carries its own section URL where the declaration cites several specs.
-//   5. A `defers` boundary references an issue.
-//   6. Every exported `validate*` under packages/formats/src carries a
-//      `@specCites`. This was `check-format-docs.mjs`, folded in so that one
-//      script owns one notion of "cites a specification".
-//
-// Rule 6 is the only coverage rule. Everywhere else, a declaration is free to
-// carry neither tag; what the tags mean is fixed, and where they are required
-// is a separate question answered package by package.
-//
-// Not checked, and no version of this script can check them: that the cited
-// section says what the prose claims, that the chosen kind is the right one,
-// or that the set of boundaries is complete. The gate makes the convention
-// enforceable going forward. It cannot prove a boundary is not missing.
+// `lintDocBlock` owns the tag rules. Citation coverage is required for exported
+// format validators; declarations elsewhere may carry neither tag.
 //
 // Exit 0 clean; exit 1 with every problem listed.
 
@@ -130,7 +102,7 @@ if (problems.length > 0) {
   console.error(
     "\n@specCites <url> names the spec a declaration implements.\n" +
       "@specBoundary <kind> [<url>] names where its behaviour departs from that\n" +
-      "spec, followed by prose saying what the departure is and why it is right.\n" +
+      "spec, followed by the observed behavior and its reason if known.\n" +
       "Kinds: " +
       [...KINDS.keys()].join(", ") +
       '\nSee AGENTS.md, "Marking a spec boundary".\n' +

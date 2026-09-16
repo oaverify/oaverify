@@ -1,23 +1,37 @@
 # Spec boundaries
 
-Every place oaverify knowingly behaves differently from a specification it
-implements, what the difference is, and why it stops there.
+This inventory records known specification-related behavior in oaverify:
+implementation choices, deliberate restrictions, and defects awaiting repair.
+Each entry describes the affected behavior and links to its source and
+specification.
 
-This page is generated from the `@specBoundary` tags in the source. Each
-entry links the declaration that carries it, so the reasoning is one click
-from the code rather than a copy of it.
+Use it to identify constraints relevant to your application. Entries differ
+in impact, and the same behavior can appear at several API surfaces. The
+counts reflect how the behavior is documented; they do not measure defect
+severity or conformance.
 
-**What absence means.** A declaration that cites a specification and carries
-no boundary is claiming it implements the cited text as written. That is the
-point of the tags, and it is what makes this page worth reading: the gaps are
-enumerated, so the rest is a claim somebody can check. What the gate behind it
-cannot check is completeness, so this is every boundary that has been written
-down, not a proof that none is missing.
+We collect these details in one place so users can evaluate them before
+adoption. Comparing validators requires equivalent inputs, dialects, and
+options. The length of a published limitations list does not establish
+relative correctness. See [the comparison methodology](comparison.md) for
+the comparisons we have measured.
+
+The inventory grows as behavior is examined. Tests and the
+[conformance report](../conformance/REPORT.md) provide additional evidence of
+coverage; issue links describe pending repairs. A citation identifies the
+intended specification contract. The absence of a recorded boundary does not
+establish complete conformance.
+
+This page is generated from the `@specBoundary` tags in the source. The gate
+checks tag structure and keeps the page current; verifying the claims and
+finding omitted boundaries requires review and testing.
 
 **How to read a kind.** Each answers one question: how does our behaviour
-differ from the cited text?
+relate to the cited text? A kind describes the behavior, not its severity or
+whether it is scheduled for repair. A `chooses` entry can describe a
+conforming implementation choice.
 
-| kind | meaning | count |
+| kind | meaning | entries |
 | ---- | ------- | ----- |
 | [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 24 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
@@ -26,7 +40,7 @@ differ from the cited text?
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 3 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 7 |
 
-54 boundaries across 30 files.
+54 documented entries across 30 files.
 
 ## under-asserts
 

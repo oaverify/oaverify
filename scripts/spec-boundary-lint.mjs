@@ -4,10 +4,8 @@
 // live here so they can be tested without a filesystem walk. The authoring
 // procedure and the reasoning are in AGENTS.md, "Marking a spec boundary".
 //
-// The contract, in one sentence: `@specCites` says which specification a
-// declaration implements, `@specBoundary` says where its behaviour stops
-// matching that specification's text, and a declaration carrying neither is
-// claiming nothing about any specification.
+// `@specCites` identifies the intended specification contract. `@specBoundary`
+// records a known choice or departure. Neither establishes complete conformance.
 
 /**
  * Hosts that publish a specification, rather than someone's summary of one.
@@ -175,7 +173,7 @@ export function lintDocBlock(doc, where) {
     if (tag.body.length === 0) {
       problems.push(
         `${where}: @specBoundary ${kind} has no prose. Say what this does, what the` +
-          ` spec says, and why this is the right stopping point.`,
+          ` spec says, and the reason for the current behavior if known.`,
       );
     }
 
