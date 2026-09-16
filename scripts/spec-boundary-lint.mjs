@@ -2,7 +2,7 @@
 //
 // `check-spec-boundaries.mjs` is the CLI over this; the parsing and the rules
 // live here so they can be tested without a filesystem walk. The authoring
-// procedure and the reasoning are in AGENTS.md, "Marking a spec boundary".
+// procedure and reasoning are in docs/extending.md, "Document specification boundaries".
 //
 // `@specCites` identifies the intended specification contract. `@specBoundary`
 // records a known choice or departure. Neither establishes complete conformance.
