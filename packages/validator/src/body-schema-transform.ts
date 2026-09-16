@@ -51,17 +51,24 @@ export interface BodySchemaTransformOptions {
 /**
  * Produce a direction-aware copy of a body schema.
  *
- * OpenAPI `readOnly` / `writeOnly` constrain the direction of travel for
- * a property:
- * - `readOnly: true`: server-generated; clients MUST NOT include it in
- *   request bodies, and it's exempt from `required` on the request side.
- * - `writeOnly: true`: client-only; servers MUST NOT include it in
- *   response bodies, and it's exempt from `required` on the response side.
+ * `readOnly` / `writeOnly` mark the direction of travel for a property:
+ * `readOnly` is server-generated, `writeOnly` client-only.
  *
  * The JSON Schema compiler is direction-agnostic, so we pre-transform
  * the body schema per direction: properties the direction forbids are
  * replaced with `false` (rejecting their presence) and stripped from
  * `required` (exempting their absence).
+ *
+ * @specCites JSON Schema 2020-12 validation section 9.4, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-9.4
+ * @specBoundary chooses
+ * A request body carrying a `readOnly` property is rejected, where the
+ * spec leaves the owning authority free to ignore the field instead:
+ * such an instance "MAY be ignored if sent to the owning authority, or
+ * MAY result in an error, at the authority's discretion". Rejecting is
+ * the half that tells a client its payload was not what it thought.
+ * Stripping the property from `required` is the same choice read the
+ * other way, and the only one that lets a round-tripped GET body be
+ * PUT back.
  *
  * The transform is a local rewrite only; `$ref` nodes are preserved as
  * they are. To make composition-via-ref work (e.g.

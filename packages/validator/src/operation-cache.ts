@@ -39,6 +39,16 @@ import type { CompiledSecurity } from "./security.js";
 export interface OperationCache {
   pathParamValidators: Map<string, CompiledTreeSchema>;
   queryParamValidators: Map<string, CompiledTreeSchema>;
+  /**
+   * @specCites OpenAPI 3.1 Parameter Object, https://spec.openapis.org/oas/v3.1.0#parameter-object
+   * @specBoundary defers
+   * A request omitting a `required` header parameter named `Accept`,
+   * `Content-Type` or `Authorization` is rejected, where the spec says
+   * such a parameter definition "SHALL be ignored". Every declared
+   * header parameter is compiled and enforced here, so a document
+   * declaring one gets a 400 for a definition that does not exist
+   * (#1084).
+   */
   headerParamValidators: Map<string, CompiledTreeSchema>;
   cookieParamValidators: Map<string, CompiledTreeSchema>;
   parameters: ParameterObject[];
