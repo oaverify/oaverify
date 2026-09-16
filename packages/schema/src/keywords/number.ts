@@ -61,6 +61,17 @@ function emitNumericError(
  *   and is a genuine multiple, which the optional `float-overflow.json`
  *   case asserts.
  *
+ * @specCites JSON Schema 2020-12 validation section 6.2.1, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-6.2.1
+ * @specBoundary under-asserts
+ * A number whose quotient lands within a relative epsilon of an integer
+ * passes, so a value that is not exactly a multiple can validate. The
+ * spec says an instance "is valid only if division by this keyword's
+ * value results in an integer", and binary floating point cannot decide
+ * that for the decimal values schemas actually carry: `0.1` divided by
+ * `0.01` is not an integer in IEEE 754. The tolerance is what makes
+ * `multipleOf: 0.01` mean what its author meant; the paragraphs above
+ * carry the measurements it was set from.
+ *
  * @public
  */
 export const multipleOfKeyword: KeywordDefinition = {

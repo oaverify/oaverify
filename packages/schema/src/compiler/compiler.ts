@@ -1271,11 +1271,21 @@ export interface CompileOptions {
    *
    * @specCites JSON Schema 2020-12 validation section 7, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7
    * @specBoundary chooses
-   * An unrecognised format asserts nothing by default, and this option
-   * exists so a caller can make it a compile error instead. JSON Schema
-   * makes Format-Annotation the default vocabulary and says supporting
-   * Format-Assertion is OPTIONAL, so both settings are conformant and
-   * the default is the one the spec picks.
+   * Under {@link jsonSchemaDialect}, an unrecognised format asserts
+   * nothing by default and this option exists so a caller can make it a
+   * compile error instead. Format-Annotation is the default vocabulary
+   * and supporting Format-Assertion is OPTIONAL, so both settings are
+   * conformant there and the default is the one the spec picks.
+   * @specBoundary under-asserts https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.3
+   * Under {@link openapi31Dialect} or {@link oas30Dialect}, a schema
+   * carrying an unregistered format compiles by default and that format
+   * asserts nothing. Both declare the Format-Assertion vocabulary, and
+   * the spec says "When the Format-Assertion vocabulary is specified,
+   * implementations MUST fail upon encountering unknown formats", so
+   * `"error"` is the conformant setting under those two and is not the
+   * default. The default is permissive because a real document names
+   * formats no validator has, and refusing to compile it is a worse
+   * first experience than not asserting them.
    *
    * Keep a format as an annotation by registering the identity for it:
    *
