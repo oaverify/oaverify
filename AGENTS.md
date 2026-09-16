@@ -124,8 +124,13 @@ Four rules, all asserted by `pnpm check:spec-boundaries`:
   as a defect.
 - **`@specBoundary` requires a `@specCites`**, and must carry its own
   section URL where the declaration cites several specs.
-- **`chooses` requires latitude you can quote.** If you cannot point at
-  the MAY, SHOULD or OPTIONAL that grants it, the kind is `resolves`.
+- **`chooses` requires latitude you can quote.** Point at the MAY,
+  SHOULD or OPTIONAL that grants it, or at an explicit grant in the
+  spec's own words: OpenAPI's "In case of ambiguous matching, it's up to
+  the tooling to decide which one to use" is latitude, though it carries
+  no RFC 2119 keyword. What the rule rejects is an unquotable claim that
+  the spec probably allows it. If nothing in the text grants the
+  decision, the kind is `resolves`.
 - **`defers` carries an issue reference.**
 
 One rule the gate cannot check: **lead the prose with the departure**,
