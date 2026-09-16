@@ -845,6 +845,25 @@ export class StreamValidator extends Transform {
  * and will arrive as a sibling factory, not a mode of this one. This
  * factory's contract stays single-document.
  *
+ * @specCites JSON Schema 2020-12 core, https://json-schema.org/draft/2020-12/json-schema-core.html
+ * @specBoundary defers https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3.2
+ * A schema this engine accepts can reach a different verdict here than
+ * through `@oaverify/core`, and construction does not warn. A
+ * `$dynamicRef` binds to the first matching anchor in the document
+ * rather than to the outermost one in the dynamic scope, so an
+ * extension schema the in-memory engine applies is never reached; a
+ * plain-name `#name` resolves by the same first-match walk, ignoring
+ * `$id` resource boundaries and conflating `$anchor` with
+ * `$dynamicAnchor` (#1090). A malformed keyword value that
+ * `compileSchema` refuses is loaded here and asserts nothing (#919).
+ * @specBoundary resolves https://www.rfc-editor.org/rfc/rfc8259#section-4
+ * An object repeating a member name has every occurrence validated, and
+ * each counted toward `minProperties` / `maxProperties`, where the
+ * in-memory engine and a buffered island see only the last. RFC 8259
+ * says names "SHOULD be unique" and calls the behaviour on duplicates
+ * unpredictable, so neither reading is wrong; which one a value gets
+ * here depends on the schema's shape rather than on any option.
+ *
  * @public
  */
 export function createStreamValidator(
