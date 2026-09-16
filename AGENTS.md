@@ -99,9 +99,10 @@ existing behavior does not establish that it should be retained.
  *
  * @specCites RFC 9562 section 4, https://www.rfc-editor.org/rfc/rfc9562#section-4
  * @specBoundary under-asserts https://www.rfc-editor.org/rfc/rfc9562#section-4.1
- * A UUID carrying an undefined version passes. This checks shape only:
- * 8-4-4-4-12 hex digits with the dashes in place. The version and
- * variant nibbles are not asserted.
+ * A UUID with an undefined version is accepted if it has the expected
+ * shape: hexadecimal digits in groups of 8-4-4-4-12, separated by
+ * hyphens. The validator does not restrict the bits identifying its
+ * version or variant.
  */
 ```
 
@@ -157,13 +158,20 @@ generated page prints that prose as part of the departure. Six of the
 first pass's tags did this; `checkSpec`'s absorbed the whole dialect
 section.
 
-**Lead the prose with the departure**,
-stated as something an input does. "A UUID carrying an undefined version
-passes" is the first line; "this checks shape only" is the second. The
-generated inventory quotes the opening sentence of each boundary, so a
-first line describing what the code does leaves the row saying nothing
-about where it stops. Half the first pass over `packages/formats` got
-this wrong and had to be rewritten.
+**Write boundaries for an average developer.** The generated inventory is
+linked from the README, so readers need no deep knowledge of the specs or
+this implementation. Lead with the affected input and observable result;
+use a short example when it makes the consequence clearer. Then explain
+the relevant spec rule and any available option or workaround. Keep terms
+of art where they add precision, and explain unfamiliar ones on first use.
+
+Each entry must stand alone in the generated page: avoid "the paragraphs
+above", unexplained internal names, or reasoning available only in another
+entry. Distinguish skipping one check from accepting the whole input.
+Include implementation details only when they help the reader understand
+the effect or make a decision. Explain an intentional policy concisely;
+avoid defending every limitation or making unsupported claims about other
+validators. Read the regenerated page as well as the source comment.
 
 The tags are for behaviour relative to a cited specification. A design
 decision that is not spec-relative (a linear route scan, a frozen empty

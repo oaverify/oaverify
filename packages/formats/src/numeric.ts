@@ -134,10 +134,10 @@ export function validateUint32(value: number): boolean {
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @specBoundary narrows
- * A legal int64 outside `-(2^53 - 1)` through `2^53 - 1` is rejected.
- * The registry defines the full signed 64-bit range; this accepts safe
- * integers. Beyond that range, distinct integers can parse to the same
- * number, so the original wire value cannot always be recovered.
+ * Valid signed 64-bit integers outside `-(2^53 - 1)` through `2^53 - 1` are
+ * rejected. This validator uses JavaScript's safe-integer range. Beyond it,
+ * different integers in JSON can be rounded to the same JavaScript number,
+ * so the original value cannot always be recovered.
  * @public
  */
 export function validateInt64(value: number): boolean {
@@ -156,9 +156,10 @@ export function validateInt64(value: number): boolean {
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @specBoundary narrows
- * A legal uint64 above `2^53 - 1` is rejected, where the registry's
- * `uint64` is the full unsigned 64-bit range, for the reason
- * `validateInt64` gives.
+ * Valid unsigned 64-bit integers above `2^53 - 1` are rejected. This
+ * validator accepts only nonnegative JavaScript safe integers. Beyond that
+ * range, different integers in JSON can be rounded to the same JavaScript
+ * number, so the original value cannot always be recovered.
  * @public
  */
 export function validateUint64(value: number): boolean {
@@ -218,15 +219,15 @@ export function validateDoubleInt(value: number): boolean {
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @specBoundary narrows
- * A legal unixtime above `2^53 - 1` is rejected, where POSIX puts no
- * upper bound on the epoch count. Same argument as `validateInt64`:
- * beyond the safe-integer range, distinct epoch counts can parse to the
- * same number, so their original values cannot always be recovered.
+ * An integer timestamp outside `-(2^53 - 1)` through `2^53 - 1` is
+ * rejected, even though POSIX does not impose this range on seconds since
+ * the Unix epoch. This validator uses JavaScript's safe-integer range
+ * because different timestamps beyond it can be rounded to the same number.
  * @specBoundary under-asserts
- * A string-valued `unixtime` is not asserted at all. The registry gives
- * the format two base types, `number` and `string`; a format constrains
- * one JSON type here (see `FormatDefinition`), and this is the number
- * one.
+ * The `unixtime` format checks numeric timestamps only. A string is not
+ * checked as a timestamp, even though the OpenAPI registry also allows a
+ * string representation. Other schema constraints still apply: for example,
+ * `type: number` rejects a string.
  * @public
  */
 export function validateUnixtime(value: number): boolean {

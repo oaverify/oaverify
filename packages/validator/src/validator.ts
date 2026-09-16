@@ -834,10 +834,11 @@ export interface ValidatorOptions {
    *
    * @specCites JSON Schema 2020-12 core section 8.2.3, https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3
    * @specBoundary narrows
-   * Once set, a body nested deeper than the cap is a 400, and JSON
-   * Schema puts no depth limit on an instance a recursive `$ref`
-   * accepts. `CompileOptions.maxDepth` carries the same boundary at the
-   * compiler; this is the HTTP-facing half of it.
+   * Setting `maxDepth` can reject an otherwise valid request body with a
+   * `depth` error (HTTP 400) when validation follows a recursive `$ref`
+   * beyond the limit. JSON Schema imposes no such limit. This optional
+   * safeguard helps prevent stack overflows with self-referencing schemas;
+   * it does not limit all JSON nesting. The default is uncapped.
    */
   maxDepth?: number;
   /**
@@ -859,10 +860,12 @@ export interface ValidatorOptions {
    * {@link CompileOptions.maxFormatLength}.
    * @specCites JSON Schema 2020-12 validation section 7, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7
    * @specBoundary under-asserts
-   * A string longer than the cap is accepted whatever its `format`
-   * says, so an invalid value above 1 MiB passes where a shorter one
-   * would fail. This falls back to the annotation-only behaviour JSON
-   * Schema specifies as its default rather than inventing a verdict.
+   * Strings longer than `maxFormatLength` skip their `format` check, so an
+   * invalid email address or date can pass that check when it is long
+   * enough. Other schema constraints still apply. The default cap is
+   * 1,048,576 JavaScript string units (UTF-16 code units). It limits the
+   * risk of format checks exhausting the stack; raise it or set `Infinity`
+   * to check longer strings.
    *
    */
   maxFormatLength?: number;

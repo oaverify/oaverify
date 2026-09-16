@@ -406,12 +406,11 @@ function rulesOf(findings: readonly CheckFinding[]): {
  *
  * @specCites SARIF 2.1.0, https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
  * @specBoundary defers https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
- * A log carrying regions omits `columnKind`, which section 3.14.27
- * makes a SHALL once a run's results are non-empty, so a consumer
- * measuring columns in code points reads every column after an astral
- * character one too low per surrogate pair. The columns emitted are
- * UTF-16 code units, which is what the span resolver produces, so the
- * value to declare is `"utf16CodeUnits"` (#1091).
+ * Tools reading the generated SARIF report can highlight the wrong text
+ * after a character such as an emoji. The report measures columns in UTF-16
+ * code units but omits `columnKind`, which tells readers how to count them.
+ * SARIF requires that field when a run has results. Adding `columnKind:
+ * "utf16CodeUnits"` is tracked in #1091.
  *
  * @public
  */

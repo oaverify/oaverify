@@ -447,36 +447,28 @@ export function routeSignature(pathPattern: string): string {
  *
  * @specCites OpenAPI 3.1 Paths Object, https://spec.openapis.org/oas/v3.1.0#paths-object
  * @specBoundary chooses
- * A request matching both `/a/{x}/c` and `/{y}/b/c` routes to
- * `/a/{x}/c`. Two templates that both match are ordered by the first
- * position where they differ in kind, a literal beating a compound
- * beating a bare `{name}`. OpenAPI fixes only that a concrete path
- * beats its templated counterpart and then hands the rest over: "In
- * case of ambiguous matching, it's up to the tooling to decide which
- * one to use." Its own example of that case is `/{entity}/me` against
- * `/books/{id}`. The rule here is the one `path-to-regexp` applies.
+ * When two path templates match a request, their segment types are compared
+ * from left to right. At the first difference, fixed text takes priority
+ * over a mix such as `file-{id}`, which takes priority over a bare
+ * parameter such as `{id}`. For example, `/a/b/c` matches both
+ * `/a/{x}/c` and `/{y}/b/c`; oaverify chooses `/a/{x}/c`. OpenAPI
+ * explicitly lets tooling decide how to resolve ambiguous matches.
  * @specBoundary defers https://spec.openapis.org/oas/v3.2.0#path-item-object
- * A request using a method declared under 3.2's `additionalOperations`
- * answers 405, with that method absent from `allowed`, rather than
- * routing to the operation the document declares for it. The method
- * table is the `HttpMethod` union and the lookup lowercases, so a
- * camelCase map key cannot be reached (#396). A 405 is a claim, and it
- * contradicts the document.
+ * Custom HTTP methods declared through OpenAPI 3.2's `additionalOperations`
+ * are not routed. For a matching path, a request using one receives a 405
+ * (Method Not Allowed) result, and the method is missing from the reported
+ * allowed methods.
+ * Support is tracked in #396.
  * @specBoundary under-asserts https://spec.openapis.org/oas/v3.1.0#paths-object
- * A document declaring `/items/{id}` for GET and `/items/{slug}` for
- * POST builds a router, though the Paths Object says templated paths
- * "with the same hierarchy but different templated names MUST NOT exist
- * as they are identical". The ambiguity check refuses them only where
- * they overlap on a method, so no request can reach both; refusing the
- * pair outright would reject documents that are published and served
- * today.
+ * A document can declare `GET /items/{id}` and `POST /items/{slug}` without
+ * a router conflict. OpenAPI forbids path templates that differ only in
+ * parameter names, even when their methods differ. oaverify rejects them
+ * only when they share a method.
  * @specBoundary narrows https://spec.openapis.org/oas/v3.1.0#paths-object
- * A document declaring both `/a` and `/a/` fails to build, and a
- * request for `/pets/` routes to the `/pets` template. OpenAPI
- * constrains a path key only to begin with `/`, and RFC 3986 makes a
- * trailing empty segment a real segment, so the two are distinct keys
- * there. The router folds a trailing slash away on both sides, because
- * a server answering one answers the other.
+ * The router treats `/pets/` and `/pets` as the same path, including when
+ * matching requests. Declaring both for the same HTTP method causes a
+ * conflict. OpenAPI allows them as distinct paths; this router removes
+ * trailing slashes.
  *
  * @example
  * ```ts

@@ -120,14 +120,11 @@ function isExtensionBody(subtag: string | undefined): boolean {
  *
  * @specCites RFC 5646 (BCP 47) section 2.1, https://datatracker.ietf.org/doc/html/rfc5646#section-2.1
  * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc5646#section-2.2.9
- * A tag whose subtags are not registered with IANA passes, so `"qq-ZZ"`
- * is accepted with a language and a region that do not exist. Section
- * 2.2.9 makes registration one of three validity conditions beyond
- * well-formedness; the other two, no repeated variant and no repeated
- * extension singleton, are asserted here because they are properties of
- * the tag itself. The paragraphs above have the reasoning: the registry is a
- * ~1MB file on IANA's release schedule, and a validator that silently
- * goes stale is worse than one that states where it stops.
+ * A language tag with an unregistered language or region, such as
+ * `"qq-ZZ"`, is accepted. The validator checks the tag's syntax, including
+ * restrictions on repeated components, but does not look up those
+ * components in IANA's official language-subtag registry. RFC 5646 requires
+ * registration as well as valid syntax.
  * @public
  */
 export function validateLanguage(value: string): boolean {

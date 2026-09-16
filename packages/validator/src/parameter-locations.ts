@@ -91,13 +91,11 @@ const SERVED_LOCATIONS: ReadonlySet<string> = new Set(["path", "query", "header"
  *
  * @specCites OpenAPI 3.2 Parameter Object, https://spec.openapis.org/oas/v3.2.0#parameter-object
  * @specBoundary defers
- * A document declaring `in: querystring` is refused at construction, so
- * a legal 3.2 document this validator cannot serve fails to build
- * rather than validating. Reading the location needs the raw query
- * string, which the `HttpRequest` contract does not carry (#397). The
- * module doc above has the reasoning for refusing rather than ignoring:
- * the alternative reports a request valid on an operation nothing
- * checked (#836).
+ * Creating a validator fails if the document declares an OpenAPI 3.2 `in:
+ * querystring` parameter. That location validates the entire query string
+ * as one value, which the current `HttpRequest` interface does not provide
+ * (#397). The validator refuses the unsupported declaration so the
+ * operation cannot silently run without the required checks (#836).
  *
  * @internal
  */

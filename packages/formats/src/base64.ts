@@ -51,17 +51,16 @@ const BASE64URL_RE = /^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-]{2}(?:==)?|[A-Za-z0-
  *
  * @specCites RFC 4648 section 4, https://datatracker.ietf.org/doc/html/rfc4648#section-4
  * @specBoundary under-asserts
- * A MIME-wrapped value passes, where RFC 4648 admits whitespace only
- * if the referring specification says so and the registry cites RFC
- * 4648 plainly. Whitespace is stripped before the check. The paragraphs
- * above have the reasoning, and `validateByteRfc4648` is the literal
- * reading for callers who want it.
+ * Base64 strings containing ASCII whitespace, such as line breaks used in
+ * MIME messages, are accepted. The validator removes that whitespace before
+ * checking the encoding. RFC 4648 requires explicit permission to allow
+ * whitespace, which the OpenAPI format definition does not give. To reject
+ * whitespace, register `formats: { byte: validateByteRfc4648 }`.
  * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc4648#section-3.5
- * A value whose final group has non-zero unused bits passes, so `"cE6="`
- * is accepted and does not survive a decode and re-encode. Section 3.5
- * requires those bits to be zero. Rejecting it would mean decoding
- * every value on the hot path to catch a case no encoder produces,
- * which is what Ajv and the rest of the ecosystem also decline to do.
+ * Some base64 strings are accepted even though decoding and re-encoding
+ * changes their spelling. For example, `"cE6="` becomes `"cE4="`. RFC 4648
+ * requires the unused bits in the final encoded group to be zero; this
+ * validator checks the alphabet and padding without checking those bits.
  * @public
  */
 export function validateByte(value: string): boolean {

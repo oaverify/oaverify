@@ -17,15 +17,13 @@ import { APPLICATOR_VOCAB } from "./vocabulary-uris.js";
  *
  * @specCites OpenAPI 3.1 Discriminator Object, https://spec.openapis.org/oas/v3.1.0#discriminator-object
  * @specBoundary resolves
- * A discriminator whose values cannot be matched to the sibling
- * branches is ignored, and the composition beside it validates every
- * branch as though the discriminator were absent. The spec says what a
- * working discriminator does and does not say what a broken one does.
- * Rejecting every payload because the routing aid could not be read is
- * the one outcome it rules out, and pre-bundled documents routinely
- * keep `mapping` values naming files the bundle absorbed (#561). The
- * dead mapping is reported as `silent-rewrite/discriminator-unroutable`
- * so the author still learns the table is unused.
+ * If a `discriminator` cannot match its values to the schemas in `oneOf` or
+ * `anyOf`, it is ignored and normal branch validation applies. A
+ * discriminator uses a payload field to select a schema; OpenAPI does not
+ * specify how to handle an unusable mapping. oaverify reports
+ * `silent-rewrite/discriminator-unroutable` so the author can find the
+ * unused mapping. This can happen when a bundled document retains mappings
+ * to the original files (#561).
  *
  * @public
  */

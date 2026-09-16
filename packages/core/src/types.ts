@@ -471,14 +471,11 @@ export interface ParameterObject {
    *
    * @specCites OpenAPI 3.1 Parameter Object, https://spec.openapis.org/oas/v3.1.0#parameter-object
    * @specBoundary resolves
-   * A `?flag=` on a parameter declaring this is accepted without its
-   * schema running, so a `minLength: 1` or `type: integer` beside it
-   * does not reject it. The spec allows sending the empty value and
-   * calls the interaction between this field and the Schema Object
-   * implementation-defined, so skipping the schema is a reading rather
-   * than a requirement. The alternative reading, running the schema
-   * anyway, makes the field do nothing on most parameters that declare
-   * it.
+   * With `allowEmptyValue: true`, an empty query value such as `?flag=` is
+   * accepted without checking its parameter schema. Even `minLength: 1` or
+   * `type: integer` does not reject it. OpenAPI allows implementations to
+   * choose how this option interacts with the schema; oaverify treats it as
+   * permission to bypass schema checks for an empty value.
    */
   allowEmptyValue?: boolean;
   style?: ParameterStyle;
@@ -553,13 +550,9 @@ export interface HttpRequest {
    *
    * @specCites RFC 9110 section 9.1, https://www.rfc-editor.org/rfc/rfc9110#section-9.1
    * @specBoundary under-asserts
-   * A request whose method token is `Get` reaches the `get` operation
-   * and is validated against it, where HTTP defines the method token as
-   * case-sensitive and standardized methods as all-uppercase. The
-   * lowercasing is unconditional, so a token HTTP treats as a distinct
-   * method is folded into a documented one rather than being refused.
-   * An adapter reading from a real HTTP parser never sees a mixed-case
-   * token; `httpRequestFromFetch` and direct API callers can pass one.
+   * A request with method `Get` is matched to the OpenAPI `get` operation,
+   * just like `GET`. oaverify lowercases method names before routing,
+   * although HTTP defines method names as case-sensitive.
    */
   method: string;
   /**
@@ -606,14 +599,12 @@ export interface HttpRequest {
    *
    * @specCites OpenAPI 3.2 style values, https://spec.openapis.org/oas/v3.2.0#style-values
    * @specBoundary transforms
-   * A `style: cookie` value carrying a valid percent-escape reaches the
-   * validator decoded, where the style says no escaping is applied.
-   * `session=%41` becomes `A`, so a schema with `const: "%41"` rejects
-   * a value it should accept; `const: "A"` accepts one it should reject.
-   * A returned parameter value also reflects the decoding.
-   * The adapter runs before any spec is read, so it cannot see the
-   * style to tell `form` and `cookie` apart, and decoding is right for
-   * the default of the two.
+   * For OpenAPI 3.2's `style: cookie`, percent-encoded values are decoded
+   * even though the style requires them to stay unchanged. For example,
+   * `session=%41` becomes `A`: a schema with `const: "%41"` then rejects
+   * it, while `const: "A"` accepts it. The returned parameter value is also
+   * `A`. Adapters decode cookies before reading the spec, using the
+   * behavior appropriate for the default `form` style.
    */
   cookies?: Record<string, string | string[]>;
   /**

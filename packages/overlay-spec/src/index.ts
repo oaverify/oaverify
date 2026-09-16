@@ -89,11 +89,10 @@ export function isOverlayDocument(value: unknown): value is OverlayDocument {
  *
  * @specCites OpenAPI Overlay 1.0, https://spec.openapis.org/overlay/v1.0.0.html
  * @specBoundary narrows
- * An overlay that removes a node and later re-creates it is refused as
- * a self-conflict, though Overlay 1.0 applies actions "in sequential
- * order", each to the result of the last, which makes that legal. Every
- * action here accumulates into one typed `SpecOverlay` applied once,
- * and its verbs have no ordering between them.
+ * An overlay that removes part of a document and later re-creates it is
+ * rejected as conflicting. OpenAPI Overlay defines actions as sequential
+ * edits, so this sequence is legal. oaverify combines the actions into one
+ * `SpecOverlay` edit and cannot preserve that ordering.
  *
  * @public
  */

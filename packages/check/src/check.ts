@@ -218,21 +218,18 @@ export class CheckAbortedError extends Error {
  *
  * @specCites OpenAPI 3.1 Schema Object, https://spec.openapis.org/oas/v3.1.0#schema-object
  * @specBoundary under-asserts
- * A Schema Object in a 3.1 or 3.2 document passes conformance whatever
- * it holds: `xml: 5`, an `externalDocs` with no `url`, a non-object
- * `discriminator`. The published 3.1 and 3.2 meta-schemas stub the slot
- * while 3.0 spells its fixed fields out, so the conformance pass checks
- * Schema Objects on 3.0 only. The verdict "this document conforms" is
- * this function's, so the gap is too, even though the stub is
- * upstream's.
+ * In OpenAPI 3.1 and 3.2, the conformance pass misses malformed fields
+ * inside Schema Objects, such as `xml: 5` or `externalDocs` without a
+ * `url`. It uses the published meta-schemas (schemas describing valid
+ * OpenAPI documents), which leave these fields unchecked. The pass checks
+ * them in OpenAPI 3.0 documents. Other passes still check schema validation
+ * rules.
  * @specBoundary under-asserts https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.1.1
- * A `$schema` written in an ordinary subschema is ignored and produces
- * no finding, though JSON Schema says it "MUST NOT appear in
- * non-resource root schema objects". Only a schema root or an
- * `$id`-bearing resource changes dialect, which the paragraph above
- * states as a capability; this says what a document declaring one
- * elsewhere gets back, which is silence from a tool whose job is to
- * report what is wrong with it.
+ * A `$schema` declaration in a nested schema is ignored without a finding
+ * unless that schema also declares `$id`. JSON Schema allows `$schema` only
+ * at a schema resource's root: the top-level schema, or a nested schema
+ * with its own `$id`. Elsewhere, the nested schema inherits its parent's
+ * dialect (the set of schema rules to apply).
  * @public
  */
 export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): CheckFinding[] {

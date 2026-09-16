@@ -131,11 +131,11 @@ export function createYamlFileReader(
  *
  * @specCites YAML 1.2.2, https://yaml.org/spec/1.2.2/
  * @specBoundary narrows
- * A document whose aliases expand past the parser's alias budget is
- * refused, though YAML 1.2 places no limit on alias reuse and says a
- * node "could even contain itself". The cap is the billion-laughs guard
- * the `yaml` package applies by default, and a spec that permits a
- * cyclic representation graph cannot be implemented without one.
+ * A YAML document is rejected if expanding its aliases exceeds the parser's
+ * budget. Aliases reuse an earlier value; repeated reuse can make a small
+ * file expand into a very large structure. YAML does not set a limit, but
+ * oaverify keeps the `yaml` package's default safeguard against excessive
+ * resource use.
  */
 function parseYamlDocument(source: string, uri: string): unknown {
   const parsed = parseYaml(source) as unknown;

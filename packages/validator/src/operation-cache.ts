@@ -42,12 +42,11 @@ export interface OperationCache {
   /**
    * @specCites OpenAPI 3.1 Parameter Object, https://spec.openapis.org/oas/v3.1.0#parameter-object
    * @specBoundary defers
-   * A request omitting a `required` header parameter named `Accept`,
-   * `Content-Type` or `Authorization` is rejected, where the spec says
-   * such a parameter definition "SHALL be ignored". Every declared
-   * header parameter is compiled and enforced here, so a document
-   * declaring one gets a 400 for a definition that does not exist
-   * (#1084).
+   * A request can be rejected for omitting a required header parameter
+   * named `Accept`, `Content-Type`, or `Authorization`. OpenAPI says to
+   * ignore Parameter Object definitions with these names, but oaverify
+   * currently enforces them like other header parameters. Correcting this
+   * is tracked in #1084.
    */
   headerParamValidators: Map<string, CompiledTreeSchema>;
   cookieParamValidators: Map<string, CompiledTreeSchema>;

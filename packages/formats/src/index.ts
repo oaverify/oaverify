@@ -109,21 +109,18 @@ import {
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @specBoundary defers
- * A value declaring a registry format this map does not carry is
- * accepted whatever it holds, because the name asserts nothing. The
- * assertable names still outstanding are tracked in #696.
- * `@oaverify/check`'s format pass reports them, so an author is told
- * which of their formats constrain nothing rather than assuming all of
- * them do.
+ * Some formats in the OpenAPI Format Registry have no built-in validator
+ * yet (#696). With the default unknown-format policy, those names add no
+ * validation; other schema constraints still apply. The format pass in
+ * `@oaverify/check` reports missing format checks. Applications can
+ * register their own validators.
  * @specBoundary under-asserts
- * A `float` value outside the float32 set is accepted, and that one is
- * declined rather than pending. `Math.fround(n) === n` decides
- * membership exactly, so it could be asserted; asserting it would
- * reject values a producer legitimately sent, since the float32 nearest
- * 3.14 serializes as `3.14`, the shortest string that round-trips, and
- * that fails the test. `double` is outside both boundaries: every JSON
- * number is already an IEEE 754 double, so the name has nothing left to
- * assert.
+ * The `float` format does not check whether a number fits in a 32-bit
+ * floating-point value. This is intentional: a producer can serialize a
+ * float32 as a decimal such as `3.14`, which JavaScript reads as a
+ * different, 64-bit approximation. Requiring exact float32 representation
+ * would reject such values. Applications that need a range limit can set
+ * `minimum` and `maximum`.
  * @public
  */
 export const builtInFormats: Record<string, FormatDefinition> = {

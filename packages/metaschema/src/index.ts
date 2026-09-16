@@ -125,20 +125,18 @@ const BY_VERSION: Readonly<Record<MetaschemaVersion, unknown>> = {
  *
  * @specCites the OpenAPI 3.0 schema, https://spec.openapis.org/oas/3.0/schema/2024-10-18
  * @specBoundary transforms
- * A 3.0 document is validated against this repo's draft-04-to-2020-12
- * conversion of OpenAPI's published schema rather than the published
- * bytes; 3.1 and 3.2 are vendored verbatim. The conversion is three
- * mechanical edits (`id` to `$id`, the `$schema` URI, and the boolean
- * `exclusiveMinimum` / `exclusiveMaximum` pairs rewritten to numeric
- * bounds) and it refuses any draft-04 construct it does not handle, so
- * a divergence here would be ours rather than upstream's. See
- * `scripts/convert-oas30.mjs`.
+ * OpenAPI 3.0 documents are checked against a converted copy of the
+ * published meta-schema (the schema describing valid OpenAPI documents).
+ * The conversion translates it from JSON Schema draft-04 to 2020-12 so it
+ * can use the same compiler as newer versions. See
+ * `packages/metaschema/scripts/convert-oas30.mjs`. The OpenAPI 3.1 and 3.2
+ * meta-schemas are used unchanged.
  * @specBoundary under-asserts https://spec.openapis.org/oas/v3.1.0#schema-object
- * A Schema Object in a 3.1 or 3.2 document is checked only for being an
- * object or a boolean, because those meta-schemas stub the slot
- * (`$dynamicAnchor: "meta"`). The 3.0 document spells the object out,
- * so a malformed `xml` or `externalDocs` inside a schema is a finding
- * on 3.0 and silence on 3.1.
+ * For OpenAPI 3.1 and 3.2, the meta-schema only checks that a Schema Object
+ * is an object or a boolean. It leaves fields inside it unchecked, so
+ * malformed `xml` or `externalDocs` fields can pass. The meta-schema is the
+ * schema used to check an OpenAPI document's structure; the published 3.0
+ * version describes these fields and catches those errors.
  *
  * @public
  */

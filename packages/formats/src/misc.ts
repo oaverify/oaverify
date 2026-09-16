@@ -11,18 +11,11 @@ const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0
  *
  * @specCites RFC 9562 section 4, https://datatracker.ietf.org/doc/html/rfc9562#section-4
  * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc9562#section-4.1
- * A UUID carrying an undefined version passes. This checks shape only,
- * 8-4-4-4-12 hex digits with the dashes in place, so neither the
- * version (section 4.2) nor the variant (section 4.1) nibble is
- * asserted.
- *
- * Asserting them is the wrong fix rather than the unwritten one. The
- * section 4.1 variant table assigns all sixteen nibble values, and the
- * Nil UUID (section 5.9) and Max UUID (section 5.10) are both defined
- * as valid while explicitly falling outside this document's own
- * variant. A version-and-variant regex would reject two UUIDs the RFC
- * names, which is the false reject the permissive lean exists to
- * avoid.
+ * A UUID with an undefined version is accepted if it has the expected
+ * shape: hexadecimal digits in groups of 8-4-4-4-12, separated by hyphens.
+ * The validator does not restrict the bits identifying its version or
+ * variant. It also accepts the RFC's special all-zero (Nil) and all-one
+ * (Max) UUIDs.
  * @public
  */
 export function validateUuid(value: string): boolean {

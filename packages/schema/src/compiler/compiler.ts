@@ -1197,12 +1197,11 @@ export interface CompileOptions {
    *
    * @specCites JSON Schema 2020-12 core section 8.2.3, https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3
    * @specBoundary narrows
-   * Once set, an instance nested deeper than the cap is invalid, and
-   * JSON Schema puts no depth limit on an instance a recursive `$ref`
-   * accepts. The alternative at that depth is not acceptance: recursion
-   * runs on the native call stack, so an uncapped validator throws
-   * `RangeError` somewhere past a few thousand frames. This trades a
-   * crash for a verdict, and the cap is the caller's to choose.
+   * Setting `maxDepth` can reject otherwise valid data when validation
+   * follows a recursive `$ref` beyond the configured limit. JSON Schema
+   * imposes no such limit. This optional safeguard bounds recursion through
+   * self-referencing schemas to help prevent a JavaScript stack overflow;
+   * it does not limit all JSON nesting. The default is uncapped.
    */
   maxDepth?: number;
   /**
@@ -1279,21 +1278,17 @@ export interface CompileOptions {
    * ```
    * @specCites JSON Schema 2020-12 validation section 7, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7
    * @specBoundary chooses
-   * Under {@link jsonSchemaDialect}, an unrecognised format asserts
-   * nothing, even with `unknownFormats: "error"`: this option is inert
-   * under its Format-Annotation vocabulary. Supporting Format-Assertion
-   * is OPTIONAL; selecting a dialect with that vocabulary enables
-   * assertions and this option's unknown-name policy.
+   * With `jsonSchemaDialect`, `format` values are metadata and do not
+   * trigger format checks. Even `unknownFormats: "error"` has no effect.
+   * JSON Schema permits this behavior. Select a dialect that enables format
+   * validation, such as `openapi31Dialect`, to check formats and apply the
+   * unknown-name policy.
    * @specBoundary under-asserts https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.3
-   * Under {@link openapi31Dialect} or {@link oas30Dialect}, a schema
-   * carrying an unregistered format compiles by default and that format
-   * asserts nothing. Both declare the Format-Assertion vocabulary, and
-   * the spec says "When the Format-Assertion vocabulary is specified,
-   * implementations MUST fail upon encountering unknown formats", so
-   * `"error"` is the conformant setting under those two and is not the
-   * default. The default is permissive because a real document names
-   * formats no validator has, and refusing to compile it is a worse
-   * first experience than not asserting them.
+   * With `openapi31Dialect` or `oas30Dialect`, an unknown format is skipped
+   * by default while other schema constraints still apply. These dialects
+   * enable Format-Assertion, the JSON Schema rules for checking formats,
+   * which require unknown names to cause an error. Set `unknownFormats:
+   * "error"` to reject schemas containing them.
    *
    */
   unknownFormats?: "ignore" | "error";

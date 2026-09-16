@@ -65,16 +65,17 @@ export function validateHostname(value: string): boolean {
  * @specCites RFC 5891 section 4.2.3.2, https://datatracker.ietf.org/doc/html/rfc5891#section-4.2.3.2
  * @specCites RFC 5892 section 2, https://datatracker.ietf.org/doc/html/rfc5892#section-2
  * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc5890#section-2.3.2.1
- * A name of any total length passes, however many labels it carries.
- * The RFC's cap is on the encoded A-label form and this does not
- * punycode, so there is no encoded length to measure (#669).
+ * An internationalized hostname can exceed DNS's total length limit and
+ * still pass validation. That limit applies to the ASCII encoding of the
+ * name, including any Punycode-encoded Unicode labels. This validator
+ * checks each dot-separated part but does not encode and measure the whole
+ * name (#669).
  * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc5891#section-4.2
- * A label that IDNA registration would refuse passes. This is a
- * structural check rather than the section 4.2 validity procedure: no
- * UTS 46 mappings, no `xn--` A-label validation, and neither the
- * contextual rules (section 4.2.3.3) nor the bidi rule (section
- * 4.2.3.4). The one section 4.2.3 rule it does apply is leading
- * combining marks, which is what the declaration cites.
+ * Some internationalized hostnames pass even though IDNA, the standard for
+ * internationalized domain names, would reject them. The validator checks
+ * basic character and label structure. It does not fully validate encoded
+ * `xn--` labels or apply rules for characters whose validity depends on
+ * neighboring characters or on mixing right-to-left and left-to-right text.
  * @public
  */
 export function validateIdnHostname(value: string): boolean {

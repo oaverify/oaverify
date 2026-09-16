@@ -261,27 +261,25 @@ export interface ResolvedSpec {
  *
  * @specCites OpenAPI 3.1 section 4.6, https://spec.openapis.org/oas/v3.1.0#relative-references-in-uris
  * @specBoundary transforms
- * A schema-position reference to `pet.yaml#/components/schemas/Pet`
- * comes back as `#/components/schemas/Pet`, with the target mounted in
- * the entry document under a derived name that nobody authored. The
- * spec says what a reference resolves to and not what a resolved
- * document has to look like. Keeping an address rather than copying the
- * target per use site is what `discriminator.mapping` matches branches
- * by (#553) and what gives a recursive external schema a legal home
- * (#556).
+ * A schema reference to another file is rewritten as a local reference
+ * under `components.schemas`, and the target schema is stored there once.
+ * The generated component name can differ from the original. OpenAPI
+ * specifies which schema a reference identifies but leaves the resolved
+ * document's layout to tooling. Keeping shared references preserves
+ * discriminator matching (#553) and recursive schemas (#556).
  * @specBoundary defers https://spec.openapis.org/oas/v3.1.0#relative-references-in-uris
- * A relative `$ref` written under a subschema that declares `$id`
- * resolves against the containing file's directory, so it reads a
- * different document than the one the spec names. Section 4.6 makes the
- * nearest parent `$id` the base URI; nothing here reads `$id` at all
- * (#1088).
+ * A relative `$ref` can load the wrong file when a surrounding schema
+ * declares `$id`. OpenAPI requires that identifier to set the base URL for
+ * relative references; the resolver instead uses the containing file's
+ * location. For example, `$id: "nested/base.json"` should make `$ref:
+ * "pet.json"` load `nested/pet.json`, but it loads `pet.json` beside the
+ * containing file (#1088).
  * @specBoundary narrows https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.2
- * A `$ref` whose fragment is a plain-name `$anchor` (`pet.json#Pet`) is
- * rejected with an invalid-pointer error rather than resolved. The
- * hoisting path reads every fragment as a JSON Pointer. Deliberate: an
- * anchor was an error before hoisting existed and stays one, rather
- * than quietly becoming an internal ref to an address that does not
- * exist.
+ * An external reference using a named anchor, such as `pet.json#Pet`, fails
+ * with an invalid-pointer error. JSON Schema allows `$anchor: "Pet"` to
+ * name a target. The resolver supports external fragments that give a JSON
+ * Pointer path, such as `pet.json#/components/schemas/Pet`, but does not
+ * look up named anchors.
  *
  * @example
  * ```ts

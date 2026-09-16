@@ -72,14 +72,11 @@ export interface BodySchemaTransformOptions {
  * @internal
  * @specCites JSON Schema 2020-12 validation section 9.4, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-9.4
  * @specBoundary chooses
- * A request body carrying a `readOnly` property is rejected, where the
- * spec leaves the owning authority free to ignore the field instead:
- * such an instance "MAY be ignored if sent to the owning authority, or
- * MAY result in an error, at the authority's discretion". Rejecting is
- * the half that tells a client its payload was not what it thought.
- * Stripping the property from `required` is the same choice read the
- * other way, and the only one that lets a round-tripped GET body be
- * PUT back.
+ * A request body containing a `readOnly` property is rejected. JSON Schema
+ * allows the receiving application to ignore that property or return an
+ * error; oaverify chooses an error. The property is also removed from the
+ * request's `required` list, so clients can omit it even when it is
+ * required in a response.
  */
 export function transformBodySchemaForDirection(
   schema: SchemaOrBoolean,

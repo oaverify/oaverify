@@ -53,14 +53,11 @@ export interface EmitStandaloneOptions {
    *
    * @specCites JSON Schema 2020-12 validation section 7.2.3, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.3
    * @specBoundary narrows
-   * A schema whose `format` is outside the built-in set is refused
-   * whatever the dialect's format vocabulary says, so `2020-12` with
-   * `{"type":"string","format":"phone"}` fails to emit. Under the
-   * Format-Annotation vocabulary, which is the default, the spec says
-   * an implementation "MUST NOT fail to collect unknown formats as
-   * annotations"; failing on one belongs to Format-Assertion. Refusing
-   * at emit time is the conservative half of a build step, and
-   * `"ignore"` is the conformant setting.
+   * By default, standalone code generation rejects schemas with unknown
+   * formats, such as `{"type":"string","format":"phone"}`. This also
+   * applies to plain JSON Schema 2020-12, where formats are metadata by
+   * default and unknown names should be allowed. Set `unknownFormats:
+   * "ignore"` to generate code without a check for those names.
    */
   unknownFormats?: "ignore" | "error";
 }
