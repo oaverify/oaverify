@@ -85,9 +85,23 @@ import {
  *
  * Covers every format JSON Schema 2020-12 names, and every format in
  * the OpenAPI Format Registry that is assertable and cheap to assert.
- * `@oaverify/check`'s format pass reports the registry names left over
- * so a document using one is told the name is an annotation rather
- * than a constraint; docs/strictness.md carries the boundary.
+ *
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specBoundary under-asserts
+ * A document using a registry format this map does not carry gets no
+ * assertion for it, so `decimal`, `decimal128` and `float` are
+ * annotations here (#696). `@oaverify/check`'s format pass reports the
+ * leftovers, so an author is told which of their formats constrain
+ * nothing rather than being left to assume all of them do.
+ *
+ * `float` is the one of those three that is decidable and still
+ * declined. `Math.fround(n) === n` settles membership exactly, and
+ * asserting it would reject values a producer legitimately sent: the
+ * float32 nearest 3.14 serializes as `3.14`, the shortest string that
+ * round-trips, and that fails the test. `double` is absent for a
+ * different reason and is not part of this boundary, since every JSON
+ * number is already an IEEE 754 double and the name has nothing left to
+ * assert.
  *
  * String formats are bare functions, per {@link FormatDefinition}'s
  * shorthand. The numeric formats declare `type: "number"`, because a
