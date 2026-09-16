@@ -323,6 +323,7 @@ component-bucket fan-out, predicate iterators) is documented in
 | Check spec quality in CI                   | [packages/cli/README.md](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md#two-verbs)                 |
 | Emit standalone validators                 | [packages/cli/README.md](https://github.com/oaverify/oaverify/blob/main/packages/cli/README.md#compile-spec-output)       |
 | Compare against Ajv and other tools        | [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md)                                   |
+| See where we knowingly differ from a spec  | [docs/spec-boundaries.md](https://github.com/oaverify/oaverify/blob/main/docs/spec-boundaries.md)                         |
 | Migrate from express-openapi-validator     | [docs/migration-from-eov.md](https://github.com/oaverify/oaverify/blob/main/docs/migration-from-eov.md)                   |
 | Use custom formats, keywords, or limits    | [docs/configuration.md](https://github.com/oaverify/oaverify/blob/main/docs/configuration.md)                             |
 

@@ -152,6 +152,12 @@ validator's `@see` moved. Coverage is required in `packages/formats`
 only, where every exported `validate*` must cite; elsewhere a
 declaration is free to carry neither tag.
 
+The tags generate [docs/spec-boundaries.md](./docs/spec-boundaries.md),
+which is the user-facing half of this: every place oaverify knowingly
+differs from a spec, in one page. Edit the tag and run
+`pnpm docs:boundaries`; the page is never edited by hand and
+`pnpm lint` fails if the two disagree.
+
 What this buys, and why the tag rather than prose: **absence becomes
 contractual.** A declaration with a `@specCites` and no `@specBoundary`
 claims it implements the cited spec as written. Before the tags, the
@@ -243,6 +249,8 @@ pnpm check:http-methods           # assert only core spells out the HTTP method 
 pnpm check:detection-table        # assert docs/comparison.md against detection/results/matrix.md
 pnpm check:conformance-report     # assert conformance/REPORT.md against the committed baselines
 pnpm check:spec-boundaries        # assert the @specCites / @specBoundary TSDoc contract, and that every format validator cites its spec
+pnpm check:boundaries-doc         # assert docs/spec-boundaries.md against the tags it is generated from
+pnpm docs:boundaries              # regenerate docs/spec-boundaries.md from the tags
 pnpm check:release                # assert release.yml's package lists against release-please-config.json
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)
