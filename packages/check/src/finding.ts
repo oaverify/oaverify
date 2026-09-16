@@ -124,6 +124,17 @@ export interface CheckFinding {
    */
   occurrences?: number;
   /**
+   * Enum and const declarations supporting a composed finite-value finding.
+   * Each target addresses the keyword value in the resolved document and
+   * follows FindingTarget's source-attribution contract. Present only when
+   * every collected declaration has a document address; otherwise absent
+   * as a unit. Other findings leave this absent.
+   *
+   * When occurrences exceeds one, these describe the first occurrence,
+   * just as target does; they do not union evidence from repeated uses.
+   */
+  contributors?: readonly FindingTarget[];
+  /**
    * Structured cause data: every leaf the underlying check rejected the
    * value on. The machine half of `message`, so a consumer never
    * recovers `allowed` / `actual` by parsing prose (#580).
@@ -247,8 +258,8 @@ export type FindingAnchor =
    *
    * The one anchor that is not a property of the walk alone: it also
    * depends on whether a rule's verdict varies by the route taken to
-   * reach a node. Today that is `silent-rewrite/required-not-in-properties`
-   * alone, which asks which property names are reachable at an
+   * reach a node. For example, `silent-rewrite/required-not-in-properties`
+   * asks which property names are reachable at an
    * *instance* position, and a component says different things at
    * different use sites.
    */

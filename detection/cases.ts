@@ -73,6 +73,20 @@ export const CASES: readonly DetectionCase[] = [
     oaverify: "catches",
   },
 
+  {
+    id: "lint/composed-enum-members",
+    class: "lint",
+    defect: "Composed status enums exclude values from both declarations",
+    signals: ["unsatisfiable/composed-enum-members"],
+    oaverify: "catches",
+  },
+  {
+    id: "lint/composed-enum-empty",
+    class: "lint",
+    defect: "Three finite constraints have an empty total intersection",
+    signals: ["unsatisfiable/composed-enum-empty"],
+    oaverify: "catches",
+  },
   // ---- lint: valid schema, behaviour that will surprise the author ----
   {
     id: "lint/required-typo",

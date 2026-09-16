@@ -1,9 +1,9 @@
-Run 2026-09-09 against:
+Run 2026-09-15 against:
 
-- oaverify 7.2.1
+- oaverify 7.2.2
 - ajv 8.20.0
 - spectral 6.16.3
-- redocly 2.46.2
+- redocly 2.52.0
 
 | case | class | oaverify | ajv | spectral | redocly |
 | --- | --- | --- | --- | --- | --- |
@@ -13,11 +13,13 @@ Run 2026-09-09 against:
 | `malformed/enum-scalar` | malformed | yes | yes | yes | yes |
 | `malformed/required-string` | malformed | yes | yes | yes | yes |
 | `malformed/properties-array` | malformed | yes | yes | yes | yes |
+| `lint/composed-enum-members` | lint | yes | - | - | - |
+| `lint/composed-enum-empty` | lint | yes | - | - | - |
 | `lint/required-typo` | lint | yes | yes | - | - |
 | `lint/required-typo-behind-ref` | lint | yes | yes | - | yes |
 | `lint/enum-type-mismatch` | lint | yes | - | yes | yes |
 | `lint/ref-siblings-oas30` | lint | yes | - | yes | yes |
-| `lint/redundant-oneof` | lint | yes | - | - | - |
+| `lint/redundant-oneof` | lint | yes | - | - | yes |
 | `lint/unknown-keyword` | lint | yes | yes | - | yes |
 | `lint/annotation-null-description` | lint | yes | yes | yes | yes |
 | `lint/prefixitems-in-30` | lint | yes | yes | yes | yes |
@@ -44,9 +46,9 @@ Run 2026-09-09 against:
 | class | oaverify | ajv | spectral | redocly |
 | --- | --- | --- | --- | --- |
 | malformed (6) | 6/6 | 4/6 | 6/6 | 5/6 |
-| lint (9) | 9/9 | 5/9 | 4/9 | 6/9 |
+| lint (11) | 11/11 | 5/11 | 4/11 | 7/11 |
 | structural (8) | 7/8 | 2/8 | 7/8 | 5/8 |
 | style (6) | 3/6 | 0/6 | 6/6 | 6/6 |
 | control false positives (4) | 0 | 0 | 0 | 0 |
-| total findings raised | 25 | 19 | 193 | 196 |
+| total findings raised | 28 | 20 | 205 | 209 |
 | fatal runs | 0 | 0 | 0 | 0 |

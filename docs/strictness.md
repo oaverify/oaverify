@@ -114,8 +114,7 @@ malformed-schema error because annotations emit no validation code, so
 the compiled validator is unaffected. What is lost is the text the
 author meant to write, which no other check would notice.
 
-The `unsatisfiable/*` family reports something provably dead, which is
-almost always a typo. The code names what is dead, since that is not
+The `unsatisfiable/*` family reports something provably dead. The code names what is dead, since that is not
 always the whole position.
 
 `unsatisfiable/pattern-length` kills the position: a `pattern` whose match length cannot overlap the
@@ -146,6 +145,30 @@ under OAS 3.0 it honours `nullable: true`, so `type: string` with
 tools report it anyway. Under 3.1 `nullable` is an inert extension, so
 the same document is reported there, and the difference is the dialect
 rather than an inconsistency.
+
+`unsatisfiable/composed-enum-members` reports excluded finite values at a
+composition use site. For example, composing `enum: [A, B]` with
+`enum: [B, C]` leaves a finite intersection of `[B]` and excludes `A` and `C`.
+This can be intentional policy composition. Equal sets and explicit narrowing
+stay silent: adding `const: B` to that composition selects the intersection
+explicitly. Other assertions may still reject values in the finite intersection.
+
+`unsatisfiable/composed-enum-empty` reports that the collected finite assertions
+have no common value. An optional property can still be omitted. A required
+property makes objects at its parent position impossible, while an enclosing
+alternative or a non-object instance may remain valid. Both codes default to
+warning and can be configured independently:
+
+```sh
+oaverify check spec.yaml --severity 'unsatisfiable/composed-enum-empty=error' --fail-on error
+```
+
+Contributor targets locate each enum or const declaration, including its source
+file when provenance is available. Collection follows conjunctions with resource
+and dialect context. Uncertain references or applicability withhold crossing
+warnings; a sound empty subset still proves an empty intersection. See
+`SchemaLintIssue` for the collection and addressing contract, and
+`CheckFinding.contributors` for document evidence.
 
 `unsatisfiable/composed-properties` kills a set of names: an
 `additionalProperties: false` placed on a schema that composes others.

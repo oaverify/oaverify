@@ -34,16 +34,12 @@
  * took to it. `codeFlows` asserts a path taken, so using it here would
  * state something untrue.
  *
- * **`relatedLocations` carries two kinds, and says which.** A finding
- * with `reasons` was rejected in several places inside one value, and
- * each of those gets an item of its own (#773). They sit in the same
- * array as the `via` hops above and answer a different question: `via`
- * is how the resolver reached this document, and a reason is where
- * inside this example a ruling applies. Every item declares which it is
- * in `properties["oaverify:kind"]`, so a consumer separates them by
- * reading a field rather than by parsing message text or by trusting the
- * order. The order is `via` first and reasons after, and that is
- * presentation; the properties are the contract.
+ * **Related locations declare their meaning.** Each item carries
+ * `properties["oaverify:kind"]`, such as `via` for a resolver hop,
+ * `reason` for a rejection inside an example, or `contributor` for a
+ * finite constraint supporting a composition finding. Contributor indices
+ * refer to CheckFinding.contributors. Evidence locations require their own
+ * source address and span, and a source address on the finding they support.
  *
  * @packageDocumentation
  */
@@ -225,14 +221,7 @@ function pathText(path: readonly (string | number)[]): string {
   return path.join(".");
 }
 
-/**
- * A finding's related locations: the resolver's route, then the places
- * inside the value that were rejected.
- *
- * The two kinds are built here together because their `id`s have to be
- * unique within one result, which is a fact about the pair rather than
- * about either.
- */
+/** Related locations share one ID sequence within their supporting result. */
 function relatedLocationsOf(
   finding: CheckFinding,
   base: string,
@@ -283,7 +272,25 @@ function relatedLocationsOf(
       "oaverify:at": located.at,
     },
   }));
-  return [...hops, ...reasons];
+  const contributors: SarifLocation[] = [];
+  if (finding.target?.source !== undefined) {
+    for (const [index, contributor] of (finding.contributors ?? []).entries()) {
+      const source = contributor.source;
+      if (source === undefined) continue;
+      const span = spanOf({ uri: source.uri, pointer: source.pointer, want: "value" });
+      if (span === undefined) continue;
+      contributors.push({
+        id: hops.length + reasons.length + contributors.length + 1,
+        physicalLocation: {
+          artifactLocation: artifactLocation(source.uri, base),
+          ...regionOf(span),
+        },
+        message: { text: `finite constraint contributing to this intersection: ${source.pointer}` },
+        properties: { "oaverify:kind": "contributor", "oaverify:contributorIndex": index },
+      });
+    }
+  }
+  return [...hops, ...reasons, ...contributors];
 }
 
 /**

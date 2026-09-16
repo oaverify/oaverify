@@ -107,6 +107,16 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
   "unsatisfiable/composed-properties": {
     title: "a closed object that rejects what its composition declares",
   },
+  "unsatisfiable/composed-enum-empty": {
+    title: "composed finite constraints with no common value",
+    explanation:
+      "No value satisfies the collected enum and const assertions at this instance position. An optional property can still be omitted, and other instance positions or alternatives can remain valid.",
+  },
+  "unsatisfiable/composed-enum-members": {
+    title: "finite values excluded by composition",
+    explanation:
+      "The finite intersection is smaller than every contributing enum or const set. This can be intentional policy composition. An intersection explicitly selected by one contributor is silent. Other assertions can reject values in the finite intersection.",
+  },
   "format-not-validated": {
     title: "a format name with no validator behind it",
     explanation:

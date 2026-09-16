@@ -1,0 +1,21 @@
+openapi: 3.1.0
+info:
+  title: Composed finite values
+  version: "1"
+paths:
+  /notification:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - properties:
+                    status:
+                      enum: [awaitingReview, inProgress, completed]
+              properties:
+                status:
+                  enum: [inProgress, complete]
+      responses:
+        "204":
+          description: Accepted

@@ -1,5 +1,6 @@
 import {
   normalizeFormat,
+  pointerFromRefFragment,
   type FormatDefinition,
   type PathSegment,
   type SchemaObject,
@@ -35,6 +36,7 @@ import {
 import { createDeps, type RegexCompiler, type ValidatorDeps } from "./runtime.js";
 import { computeDiscriminatorRoutes } from "../keywords/discriminator-routes.js";
 import { OAS30_REF_SIBLINGS_ALLOWED, refSiblingIsDiscarded } from "../ref-siblings.js";
+import { collectComposedEnumIssues } from "./composed-enum.js";
 import { collectEnumTypeIssue } from "./enum-type.js";
 import { collectPatternLengthIssue } from "./pattern-length.js";
 import { collectRequiredIssues } from "./required-lint.js";
@@ -186,6 +188,7 @@ function runSchemaLint(
     pointer?: string;
     anchor?: "node" | "definition";
     pointerOf?: (schema: object) => string | undefined;
+    finiteRefPointer?: (ref: string, from: object) => string | undefined;
     pathOf?: (schema: object) => string | undefined;
     dynamicTargets?: (ref: string, from: object) => readonly SchemaOrBoolean[];
   },
@@ -244,6 +247,18 @@ function runSchemaLint(
       pointer: rules.pointer,
       anchor: rules.anchor,
       refSuppressesSiblings: rules.refSuppressesSiblings,
+      pointerOf: rules.pointerOf,
+      dynamicTargets: rules.dynamicTargets,
+    }),
+  );
+  issues.push(
+    ...collectComposedEnumIssues(schema, {
+      known: (keyword) => known.has(keyword),
+      refPointer: rules.finiteRefPointer,
+      refSuppressesSiblings: rules.refSuppressesSiblings,
+      resolve: rules.resolveRef,
+      pointer: rules.pointer,
+      anchor: rules.anchor,
       pointerOf: rules.pointerOf,
       dynamicTargets: rules.dynamicTargets,
     }),
@@ -819,6 +834,44 @@ export interface SchemaLintIssue {
    *   referenced it. That verdict belongs to the route rather than to
    *   the definition, and this rule reports in the definition frame.
 
+   * - `unsatisfiable/composed-enum-members`: active enum and const assertions
+   *   at one instance position have a nonempty intersection smaller than
+   *   every contributor. Equal sets and a nonempty intersection equal to any
+   *   contributor are silent. This can be intentional policy composition;
+   *   the warning identifies excluded members without inferring intent.
+   * - `unsatisfiable/composed-enum-empty`: no value satisfies the collected
+   *   finite assertions at this position. An optional property can be omitted.
+   *   Requiredness rules out objects at its parent position, without ruling
+   *   out non-objects or enclosing alternatives. Both codes are warnings in
+   *   the check package and can be selected or graded independently.
+   *
+   * Finite contributors follow active sibling assertions, allOf and resolved
+   * references. Property declarations from the whole conjunction constrain
+   * one child position; array indices and the tail remain separate. Conditional
+   * and negative predicates supply no unconditional contributors. JSON values
+   * compare structurally, with unordered object keys and ordered array items.
+   * Crossing requires complete supported evidence. Uncertain reference bindings,
+   * cycles, depth/work limits and uncertain property or item applicability
+   * withhold it; a sound empty subset still proves the empty finding.
+   * Collection is bounded to 40 levels, 20,000 traversal/join steps and
+   * 200,000 value-inspection/comparison units per compile. Unnamed property
+   * positions (such as a standalone additionalProperties schema) are not
+   * analyzed independently. AdditionalProperties contributes only to concrete
+   * property names collected from the conjunction. Alternative arms inherit
+   * unconditional assertions, but inherited-only evidence is not repeated;
+   * another unexpanded alternative group makes crossing evidence incomplete.
+   * Values with an own __proto__ key are withheld because runtime literal
+   * serialization does not preserve that authored value.
+   *
+   * Pattern matching is not executed by this analysis. Other assertions,
+   * including composed type and range constraints, may reject values surviving
+   * the finite intersection. Silence is not proof of satisfiability.
+   *
+   * The composition use site anchors both finite findings. A property assembled
+   * from several physical declarations retains the enclosing composition's
+   * address, with its logical instance path in the message. Contributors
+   * separately address the enum and const keyword values. This prevents a
+   * reusable declaration from being presented as invalid at all its uses.
    */
   code:
     | "partial-feature"
@@ -831,16 +884,25 @@ export interface SchemaLintIssue {
     | "silent-rewrite/pattern-not-unicode-mode"
     | "unsatisfiable/pattern-length"
     | "unsatisfiable/enum-member-type"
-    | "unsatisfiable/composed-properties";
+    | "unsatisfiable/composed-properties"
+    | "unsatisfiable/composed-enum-empty"
+    | "unsatisfiable/composed-enum-members";
+  /**
+   * Finite declarations supporting a composed-enum finding, each addressing
+   * its enum or const keyword value. Positions use the same frames as this
+   * issue; path is always present, while pointer and schemaPath retain their
+   * ordinary absence semantics. Other rules leave this absent.
+   */
+  contributors?: readonly Pick<SchemaLintIssue, "path" | "pointer" | "schemaPath" | "anchor">[];
   /** The offending keyword / key name as written in the schema. */
   keyword: string;
   /**
    * Dotted rendering of the position this finding is actionable at:
    * where a reader has to go to act on it.
    *
-   * A locator to read, and not an address to parse. It is what `check`
-   * prints and what every `message` interpolates, so its rendering is
-   * user-visible output and changes only deliberately. For a machine
+   * A locator to read, and not an address to parse. Its rendering is
+   * user-visible output and changes only deliberately. Messages may also
+   * describe the instance position whose values are constrained. For a machine
    * address use {@link SchemaLintIssue.pointer} (the document) or
    * {@link SchemaLintIssue.schemaPath} (inside the compiled schema),
    * each of which is absent rather than re-framed where it cannot
@@ -857,7 +919,7 @@ export interface SchemaLintIssue {
    *   path it names (`components.schemas.Email`); an anchor or an
    *   external URI renders as written, there being no document path to
    *   give.
-   * - **The use site**, for
+   * - **The use site**, for the composed-enum findings and
    *   `silent-rewrite/required-not-in-properties`. That rule asks which
    *   property names are reachable at an instance position, and a
    *   component answers differently at different use sites, so the
@@ -911,8 +973,7 @@ export interface SchemaLintIssue {
    * - `"scoped-definition"`: shared text, but this finding is scoped to
    *   the route that reached it and the text may be correct for the
    *   definition's other users. Emitted only by rules whose verdict
-   *   depends on the route, which today is
-   *   `silent-rewrite/required-not-in-properties` alone.
+   *   depends on the route, including composed finite-value findings.
    */
   anchor?: "node" | "definition" | "scoped-definition";
   /** Human-readable explanation. */
@@ -1959,6 +2020,16 @@ export function compileSchemaInContext(
           pointer: options.pointer,
           anchor: options.anchor,
           pointerOf: context?.pointerOf,
+          finiteRefPointer:
+            context?.refPointer ??
+            ((ref, from) => {
+              // A bare schema has no document index for nested resources or an
+              // enclosing document frame. Withhold an address rather than using
+              // a resource-relative fragment as a document pointer.
+              if (options.pointer !== "" || graph.schemaBaseUri.get(from) !== graph.baseUri)
+                return undefined;
+              return pointerFromRefFragment(ref);
+            }),
           pathOf: context?.pathOf,
           dynamicTargets: context?.dynamicTargets,
           // Lets the `required` rule see through `$ref` into component
