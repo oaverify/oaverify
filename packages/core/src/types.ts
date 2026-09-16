@@ -573,10 +573,16 @@ export interface HttpRequest {
    * Values arrive decoded. `httpRequestFromFetch` percent-decodes and
    * unwraps a DQUOTE-wrapped value, matching the query values in the
    * same request. That is right for the default `style: form`, which
-   * percent-encodes, and it deviates from OpenAPI 3.2's `style: cookie`,
-   * which says no escaping is applied: a `style: cookie` value carrying
-   * a valid escape sequence is decoded anyway. The adapter runs before
-   * any spec is read, so it cannot see the style to tell the two apart.
+   * percent-encodes.
+   *
+   * @specCites OpenAPI 3.2 style values, https://spec.openapis.org/oas/v3.2.0#style-values
+   * @specBoundary transforms
+   * A `style: cookie` value carrying a valid percent-escape reaches the
+   * handler decoded, where the style says no escaping is applied. The
+   * set of accepted requests is unchanged; the value handed on is not.
+   * The adapter runs before any spec is read, so it cannot see the
+   * style to tell `form` and `cookie` apart, and decoding is right for
+   * the default of the two.
    *
    * How much of that reaches here depends on where the adapter gets its
    * cookies. `httpRequestFromFetch` parses the header itself and keeps
