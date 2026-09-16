@@ -831,17 +831,29 @@ export interface ValidatorOptions {
    * instrumented and pay nothing; unset, codegen is identical to the
    * un-instrumented path. Must be a positive integer (>= 1);
    * `createValidator` throws otherwise.
+   *
+   * @specCites JSON Schema 2020-12 core section 8.2.3, https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3
+   * @specBoundary narrows
+   * Once set, a body nested deeper than the cap is a 400, and JSON
+   * Schema puts no depth limit on an instance a recursive `$ref`
+   * accepts. `CompileOptions.maxDepth` carries the same boundary at the
+   * compiler; this is the HTTP-facing half of it.
    */
   maxDepth?: number;
   /**
    * Cap on the length of a string a `format` assertion runs against,
    * defaulting to 1 MiB. `Infinity` disables it.
    *
-   * Above the cap a string format is not asserted and the value is
-   * accepted, which is the annotation-only behaviour JSON Schema
-   * specifies as its default. It is not an error: a value too large to
-   * check safely is not thereby known to be invalid, and `byte` exists
-   * precisely to carry multi-megabyte base64.
+   * It is not an error: a value too large to check safely is not
+   * thereby known to be invalid, and `byte` exists precisely to carry
+   * multi-megabyte base64.
+   *
+   * @specCites JSON Schema 2020-12 validation section 7, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7
+   * @specBoundary under-asserts
+   * A string longer than the cap is accepted whatever its `format`
+   * says, so an invalid value above 1 MiB passes where a shorter one
+   * would fail. This falls back to the annotation-only behaviour JSON
+   * Schema specifies as its default rather than inventing a verdict.
    *
    * The cap is there because several format grammars throw `RangeError`
    * out of `validate()` on a long enough valid value, which would reach

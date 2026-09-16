@@ -89,6 +89,16 @@ const SERVED_LOCATIONS: ReadonlySet<string> = new Set(["path", "query", "header"
  * needs to be told it is legal and unimplemented rather than that they
  * mistyped something.
  *
+ * @specCites OpenAPI 3.2 Parameter Object, https://spec.openapis.org/oas/v3.2.0#parameter-object
+ * @specBoundary defers
+ * A document declaring `in: querystring` is refused at construction, so
+ * a legal 3.2 document this validator cannot serve fails to build
+ * rather than validating. Reading the location needs the raw query
+ * string, which the `HttpRequest` contract does not carry (#397). The
+ * module doc above has the reasoning for refusing rather than ignoring:
+ * the alternative reports a request valid on an operation nothing
+ * checked (#836).
+ *
  * @internal
  */
 const UNIMPLEMENTED_LOCATIONS: ReadonlyMap<string, string> = new Map([
