@@ -22,11 +22,13 @@
 //   4. Every `@specBoundary` has a `@specCites` on the same declaration, and
 //      carries its own section URL where the declaration cites several specs.
 //   5. A `defers` boundary references an issue.
+//   6. Every exported `validate*` under packages/formats/src carries a
+//      `@specCites`. This was `check-format-docs.mjs`, folded in so that one
+//      script owns one notion of "cites a specification".
 //
-// Coverage is a separate question from well-formedness, and this script does
-// not yet answer it: nothing here requires a given declaration to carry either
-// tag. `check-format-docs.mjs` requires the formats package to cite its specs,
-// and folding that rule in here is the next commit.
+// Rule 6 is the only coverage rule. Everywhere else, a declaration is free to
+// carry neither tag; what the tags mean is fixed, and where they are required
+// is a separate question answered package by package.
 //
 // Not checked, and no version of this script can check them: that the cited
 // section says what the prose claims, that the chosen kind is the right one,
@@ -38,7 +40,12 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { KINDS, docBlocksOf, lintDocBlock } from "./spec-boundary-lint.mjs";
+import {
+  KINDS,
+  docBlocksOf,
+  formatValidatorCitations,
+  lintDocBlock,
+} from "./spec-boundary-lint.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PACKAGES = join(root, "packages");
@@ -89,6 +96,34 @@ for (const file of sourceFiles()) {
   }
 }
 
+// Rule 6, the citation-coverage rule this script inherited.
+//
+// The formats package is where this repo has played whack-a-mole hardest: a
+// fix lands on `email` and its sibling `idn-email` keeps the defect, or a
+// U-label class is written from memory rather than from RFC 5892. Both are
+// what happens when the grammar being implemented is in someone's head
+// instead of in the file. A citation does not make the code correct; it makes
+// the code checkable, which is the step before correct.
+const formatsDir = join(PACKAGES, "formats", "src");
+let validators = 0;
+for (const file of readdirSync(formatsDir).sort()) {
+  if (!file.endsWith(".ts") || file === "index.ts") continue;
+  const { cited, uncited } = formatValidatorCitations(readFileSync(join(formatsDir, file), "utf8"));
+  validators += cited.length + uncited.length;
+  for (const name of uncited) {
+    problems.push(
+      `packages/formats/src/${file}: ${name} has no @specCites naming the spec it implements`,
+    );
+  }
+}
+
+if (validators === 0) {
+  console.error(
+    "check-spec-boundaries: found no exported validators under packages/formats/src; the matcher is wrong",
+  );
+  process.exit(1);
+}
+
 if (problems.length > 0) {
   console.error("check-spec-boundaries: the spec-citation contract is not met\n");
   for (const problem of problems) console.error(`  ${problem}`);
@@ -109,5 +144,5 @@ const summary = [...byKind.entries()]
   .join(", ");
 console.log(
   `check-spec-boundaries: ${cited} citations, ${bounded} boundaries` +
-    `${summary ? ` (${summary})` : ""}, all well formed.`,
+    `${summary ? ` (${summary})` : ""}; ${validators} format validators cite a spec.`,
 );

@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 import {
   KINDS,
   docBlocksOf,
+  formatValidatorCitations,
   lintDocBlock,
   parseBlockTags,
   // @ts-expect-error -- plain ESM module, no declarations emitted for scripts/
@@ -174,6 +175,52 @@ describe("defers", () => {
     expect(
       problems(doc("@specCites " + RFC, "@specBoundary defers", "Not yet; see #396.")),
     ).toEqual([]);
+  });
+});
+
+describe("formatValidatorCitations", () => {
+  const citations = (source: string) =>
+    formatValidatorCitations(source) as { cited: string[]; uncited: string[] };
+
+  it("separates cited validators from uncited ones", () => {
+    const source = [
+      `/** Good.\n * @specCites ${RFC}\n */`,
+      "export function validateUuid(v: string): boolean {}",
+      "/** Bad. */",
+      "export function validateRegex(v: string): boolean {}",
+    ].join("\n");
+    expect(citations(source)).toEqual({ cited: ["validateUuid"], uncited: ["validateRegex"] });
+  });
+
+  it("catches a validator carrying no TSDoc at all", () => {
+    // The gate this replaces matched doc-block-then-declaration, so an
+    // undocumented validator was invisible to it rather than reported.
+    const source = "export function validateChar(v: string): boolean {}";
+    expect(citations(source)).toEqual({ cited: [], uncited: ["validateChar"] });
+  });
+
+  it("does not count a validator twice when it is documented", () => {
+    const source = [
+      `/** D.\n * @specCites ${RFC}\n */`,
+      "export const validateIri = () => true;",
+    ].join("\n");
+    expect(citations(source)).toEqual({ cited: ["validateIri"], uncited: [] });
+  });
+
+  it("ignores helpers that are not exported validators", () => {
+    const source = [
+      "function validateInternal(v: string): boolean {}",
+      "export function parseThing(v: string): boolean {}",
+    ].join("\n");
+    expect(citations(source)).toEqual({ cited: [], uncited: [] });
+  });
+
+  it("treats an @see citation as absent, so the migration is enforced", () => {
+    const source = [
+      `/** D.\n * @see ${RFC}\n */`,
+      "export function validateDate(v: string) {}",
+    ].join("\n");
+    expect(citations(source).uncited).toEqual(["validateDate"]);
   });
 });
 

@@ -46,7 +46,7 @@ function inRange(value: number, min: number, max: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateInt8(value: number): boolean {
@@ -58,7 +58,7 @@ export function validateInt8(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateInt16(value: number): boolean {
@@ -77,7 +77,7 @@ export function validateInt16(value: number): boolean {
  * not this function's business; the compiler applies it to numbers
  * only, the way a string format applies to strings only.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateInt32(value: number): boolean {
@@ -89,7 +89,7 @@ export function validateInt32(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUint8(value: number): boolean {
@@ -101,7 +101,7 @@ export function validateUint8(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUint16(value: number): boolean {
@@ -113,7 +113,7 @@ export function validateUint16(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUint32(value: number): boolean {
@@ -138,7 +138,7 @@ export function validateUint32(value: number): boolean {
  * strings, which is what the range exists to surface. Callers who
  * disagree register `int64: false` and keep the name as an annotation.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateInt64(value: number): boolean {
@@ -155,7 +155,7 @@ export function validateInt64(value: number): boolean {
  * on the wire. The floor is 0, which is the whole difference from
  * `int64`.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUint64(value: number): boolean {
@@ -185,7 +185,7 @@ export function validateUint64(value: number): boolean {
  * valid and silently altered: `9007199254740993` is accepted, as
  * `2^53`. `packages/formats/test/formats.test.ts` pins that.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateDoubleInt(value: number): boolean {
@@ -215,7 +215,7 @@ export function validateDoubleInt(value: number): boolean {
  * The string spelling exists for producers escaping the 2^53 ceiling,
  * which is exactly the range this cannot vouch for either way.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUnixtime(value: number): boolean {

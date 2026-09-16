@@ -132,6 +132,13 @@ The tags are for behaviour relative to a cited specification. A design
 decision that is not spec-relative (a linear route scan, a frozen empty
 array) is ordinary prose, and tagging it dilutes the set.
 
+`@specCites` is the only way to say "this is the spec I implement";
+`@see` keeps every other kind of pointer. That split is what lets the
+gate check citations without guessing, and it is why every format
+validator's `@see` moved. Coverage is required in `packages/formats`
+only, where every exported `validate*` must cite; elsewhere a
+declaration is free to carry neither tag.
+
 What this buys, and why the tag rather than prose: **absence becomes
 contractual.** A declaration with a `@specCites` and no `@specBoundary`
 claims it implements the cited spec as written. Before the tags, the
@@ -222,8 +229,7 @@ pnpm check:walkers                # assert no walker hand-rolls the subschema-po
 pnpm check:http-methods           # assert only core spells out the HTTP method list
 pnpm check:detection-table        # assert docs/comparison.md against detection/results/matrix.md
 pnpm check:conformance-report     # assert conformance/REPORT.md against the committed baselines
-pnpm check:format-docs            # assert every format validator cites its spec, with a link
-pnpm check:spec-boundaries        # assert the @specCites / @specBoundary TSDoc contract
+pnpm check:spec-boundaries        # assert the @specCites / @specBoundary TSDoc contract, and that every format validator cites its spec
 pnpm check:release                # assert release.yml's package lists against release-please-config.json
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)

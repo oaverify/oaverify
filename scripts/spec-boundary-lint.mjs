@@ -189,6 +189,35 @@ export function lintDocBlock(doc, where) {
  * number, so a block over an unusual declaration still reports somewhere a
  * reader can go.
  */
+/**
+ * Exported `validate*` declarations in one formats source file, split by
+ * whether their TSDoc carries a `@specCites`.
+ *
+ * This is the coverage rule inherited from `check-format-docs.mjs`. It matches
+ * the declaration form directly rather than going through `docBlocksOf`,
+ * because "every exported validator" is the population it has to enumerate:
+ * a block-first walk can only report the blocks that exist, and a validator
+ * carrying no TSDoc at all is exactly what this must catch.
+ */
+export function formatValidatorCitations(source) {
+  const cited = [];
+  const uncited = [];
+  const re =
+    /\/\*\*((?:(?!\*\/)[\s\S])*?)\*\/\s*export\s+(?:(?:async\s+)?function\s+|const\s+)(validate[A-Za-z0-9]+)/g;
+  const documented = new Set();
+  for (const match of source.matchAll(re)) {
+    const [, doc, name] = match;
+    documented.add(name);
+    if (/^\s*\*?\s*@specCites\b/m.test(doc)) cited.push(name);
+    else uncited.push(name);
+  }
+  const bare = /export\s+(?:(?:async\s+)?function\s+|const\s+)(validate[A-Za-z0-9]+)/g;
+  for (const match of source.matchAll(bare)) {
+    if (!documented.has(match[1])) uncited.push(match[1]);
+  }
+  return { cited, uncited };
+}
+
 export function docBlocksOf(source) {
   const blocks = [];
   const re = /\/\*\*((?:(?!\*\/)[\s\S])*?)\*\//g;
