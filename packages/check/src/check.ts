@@ -164,10 +164,10 @@ export class CheckAbortedError extends Error {
  * find.
  *
  * Takes a {@link ResolvedSpec} rather than a bare `OpenAPIDocument`,
- * because two of the inputs are byproducts of resolution that the
- * document alone cannot reconstruct: the regions that give each finding
- * its `target.source`, and the `inlinedComponents` list that keeps the
- * hygiene pass from reporting a component an external `$ref` inlined.
+ * because source attribution and declaration reachability depend on
+ * information retained during resolution. The document alone cannot
+ * reconstruct which declarations an external reference reached before
+ * the resolver redirected it.
  *
  * **Load with `provenance: true` for source attribution.** Without it
  * `ResolvedSpec.regions` is absent, every finding's `target.source` is
@@ -241,6 +241,7 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
     try {
       specHygieneIssues = lintResolvedSpec(document, {
         inlinedComponents: resolved.inlinedComponents ?? [],
+        hoistedSchemaCopies: resolved.hoistedSchemaCopies ?? [],
       });
     } catch (err) {
       // Held rather than swallowed. If the gate below rejects the

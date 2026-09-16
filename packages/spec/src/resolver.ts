@@ -1,4 +1,9 @@
 import {
+  collectHoistedSchemaCopies,
+  type HoistedSchemaTarget,
+  type HoistedSchemaCopies,
+} from "./schema-copies.js";
+import {
   detectOpenAPIVersion,
   escapePointerSegment,
   followsRef,
@@ -25,10 +30,9 @@ import {
   noteInlinedComponent,
   removeComponentSchema,
   mergeStitchedExternals,
-  type MountState,
   type Mutable,
   noteReferrer,
-  ProvenanceTrail,
+  ResolutionTrail,
   type ReferrerTrail,
   resolveRelative,
   resolveSchemaJsonPointer,
@@ -72,11 +76,11 @@ export interface ResolveSpecOptions {
    * Record where each part of the resolved document came from. Regions
    * land in {@link ResolvedSpec.regions}. Defaults to `false`.
    *
-   * Off by default because the callers that resolve a spec to build a
-   * validator never look at the answer, and they are every server
-   * process at startup. On, the walk carries a reused path stack and
-   * records one region per external reference; off, it carries a null
-   * check. See {@link sourceOf} for what the regions answer.
+   * Off by default because runtime validators do not need source
+   * attribution. Source-address bookkeeping still runs to populate
+   * {@link ResolvedSpec.hoistedSchemaCopies}; enabling provenance also
+   * records reference history and exposes the regions. See {@link sourceOf}
+   * for what the regions answer.
    */
   provenance?: boolean;
   /**
@@ -182,6 +186,18 @@ export interface ResolvedSpec {
    */
   inlinedComponents?: readonly string[];
   /**
+   * Exact retained copies of successfully hoisted schema targets, grouped
+   * by target. See {@link HoistedSchemaCopies} for the source identity
+   * contract. Available independently of `lint` and `provenance`.
+   *
+   * An empty array means no retained copies were found; absence means the
+   * information is unavailable. Loaders preserve connections through
+   * overlays only while both endpoints remain unchanged at their recorded
+   * addresses. Callers editing the document must likewise invalidate
+   * affected connections or discard this metadata.
+   */
+  hoistedSchemaCopies?: readonly HoistedSchemaCopies[];
+  /**
    * Where each part of the resolved document came from. Present only
    * when {@link ResolveSpecOptions.provenance} was set, which is the
    * one way to tell "provenance was never tracked" apart from "tracked,
@@ -259,9 +275,9 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   const inlinedComponents = new Set<string>();
   const docs = new Map<string, unknown>();
 
-  // Null unless asked for. Every call site below reaches it through
-  // `?.`, so the untracked walk pays a null check and nothing else.
-  const trail = options.provenance === true ? new ProvenanceTrail(options.entry) : null;
+  // Source mounts identify schema copies; reference history stays optional.
+  const trail = new ResolutionTrail(options.entry, options.provenance === true);
+  const hoistedTargets: HoistedSchemaTarget[] = [];
   // The chain that first reached each deferred mount, recorded where
   // the reference was found and read back when the target is finally
   // walked. First writer wins, matching `noteReferrer` and `claim`:
@@ -269,7 +285,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   const hoistVia = new Map<string, readonly SourceHop[]>();
   const stitchVia = new Map<string, readonly SourceHop[]>();
   const noteVia = (map: Map<string, readonly SourceHop[]>, key: string): void => {
-    if (trail !== null && !map.has(key)) map.set(key, trail.chain());
+    if (options.provenance === true && !map.has(key)) map.set(key, trail.chain());
   };
 
   // Populated as the walk derives each target URI; read back only on
@@ -498,9 +514,9 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     if (Array.isArray(value)) {
       const out: unknown[] = [];
       for (const item of value) {
-        trail?.push(String(out.length));
+        trail.push(String(out.length));
         out.push(await walk(item, currentBase, stitchingUri, externalSourceUri, pos));
-        trail?.pop();
+        trail.pop();
       }
       return out;
     }
@@ -585,7 +601,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       sources.add(targetUri);
       let targetDoc = docs.get(targetUri);
       if (targetDoc === undefined) {
-        targetDoc = await readDoc(targetUri, trail?.chain() ?? []);
+        targetDoc = await readDoc(targetUri, trail.chain());
         if (targetDoc === UNREADABLE) {
           // Nothing to inline, so the reference survives into the
           // resolved document and the walk carries on past it. Siblings
@@ -616,7 +632,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
         }
         docs.set(targetUri, targetDoc);
       }
-      const resolved = readFragment(targetDoc, targetUri, fragment, trail?.chain() ?? []);
+      const resolved = readFragment(targetDoc, targetUri, fragment, trail.chain());
       if (resolved === UNREADABLE) {
         visiting.delete(cycleKey(targetUri, fragment));
         const unfollowed: Mutable = {
@@ -634,16 +650,14 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       }
       // The target's content replaces the reference in place, so it is
       // mounted at the position the walk is standing on.
-      let mounted: MountState | undefined;
-      if (trail !== null) {
-        mounted = trail.enter(targetUri, pointerFromFragment(fragment), trail.chain());
-      }
+      const mounted = trail.enter(targetUri, pointerFromFragment(fragment), trail.chain());
       const inlined = await walk(resolved, baseDirOf(targetUri), stitchingUri, targetUri, pos);
-      if (trail !== null && mounted !== undefined) trail.leave(mounted);
+      trail.leave(mounted);
       visiting.delete(cycleKey(targetUri, fragment));
       const siblings: Mutable = {};
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
+        if (isPlainObject(inlined)) trail.shadow(key, mounted);
         setSpecKey(
           siblings,
           key,
@@ -652,9 +666,6 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       }
       if (Object.keys(siblings).length === 0) return inlined;
       if (inlined === null || typeof inlined !== "object" || Array.isArray(inlined)) return inlined;
-      // Key-wise merge, so key-wise provenance: the node keeps the
-      // target's address and each sibling shadows it with this one's.
-      for (const key of Object.keys(siblings)) trail?.shadow(key);
       return { ...(inlined as Mutable), ...siblings };
     }
     // An internal ref inside content inlined from another document
@@ -720,10 +731,10 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     // Pushed here and popped before every return below, so the trail's
     // path always names the node being walked. An imbalance would
     // produce addresses that resolve to the wrong node.
-    trail?.push(key);
+    trail.push(key);
     if (parentPos.inSchema && key === "discriminator") {
       if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        trail?.pop();
+        trail.pop();
         return value;
       }
       const node: Mutable = { ...(value as Mutable) };
@@ -732,11 +743,11 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       // rewrites mapping values afterwards, which changes what is at
       // these addresses and not where they came from, so the enclosing
       // region keeps answering for them.
-      trail?.pop();
+      trail.pop();
       return node;
     }
     if (parentPos.inSchema && refSiblingIsDiscarded(parent, key, refSuppressesSiblings)) {
-      trail?.pop();
+      trail.pop();
       return value;
     }
 
@@ -774,19 +785,19 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
         mixedMap && Array.isArray(sub) ? UNKNOWN_POS : childPos;
       const out: Mutable = {};
       for (const [name, sub] of Object.entries(value as Mutable)) {
-        trail?.push(name);
+        trail.push(name);
         setSpecKey(
           out,
           name,
           await walk(sub, currentBase, stitchingUri, externalSourceUri, entryPos(sub)),
         );
-        trail?.pop();
+        trail.pop();
       }
-      trail?.pop();
+      trail.pop();
       return out;
     }
     const walked = await walk(value, currentBase, stitchingUri, externalSourceUri, childPos);
-    trail?.pop();
+    trail.pop();
     return walked;
   };
 
@@ -839,21 +850,23 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
     // name rather than where it was referenced, so the mount names
     // where it ends up and the chain that found it is read back from
     // where the reference was.
-    let mounted: MountState | undefined;
-    if (trail !== null) {
-      mounted = trail.enterAt(
-        ["components", "schemas", name],
-        target.uri,
-        pointerFromFragment(target.fragment),
-        hoistVia.get(key) ?? [],
-      );
-    }
+    const mounted = trail.enterAt(
+      ["components", "schemas", name],
+      target.uri,
+      pointerFromFragment(target.fragment),
+      hoistVia.get(key) ?? [],
+    );
     setSpecKey(
       hoisted,
       name,
       await walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS),
     );
-    if (trail !== null && mounted !== undefined) trail.leave(mounted, true);
+    trail.leave(mounted, true);
+    hoistedTargets.push({
+      uri: target.uri,
+      pointer: pointerFromFragment(target.fragment),
+      target: `/components/schemas/${escapePointerSegment(name)}`,
+    });
   }
   for (const name of missingHoists) {
     delete hoisted[name];
@@ -862,7 +875,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   // `components` / `components.schemas` may be containers the resolver
   // invented to hold the hoisted schemas. The document is not merged
   // yet, so what the entry document declared is still visible here.
-  if (trail !== null && Object.keys(hoisted).length > 0) {
+  if (Object.keys(hoisted).length > 0) {
     const components = (resolved as unknown as Mutable).components;
     if (!isPlainObject(components)) trail.synthetic("/components");
     else if (!isPlainObject(components.schemas)) trail.synthetic("/components/schemas");
@@ -873,7 +886,7 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   if (stitchQueue.size > 0) {
     // The root extension itself is the resolver's own invention; the
     // documents mounted underneath it are not.
-    trail?.synthetic(`/${escapePointerSegment(EXTERNALS_FIELD)}`);
+    trail.synthetic(`/${escapePointerSegment(EXTERNALS_FIELD)}`);
     const stitched: Mutable = {};
     while (stitchQueue.size > 0) {
       const [uri, kind] = stitchQueue.entries().next().value as [string, RefNodeKind];
@@ -894,12 +907,9 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
       // The stitched document is whatever object the reference that
       // reached it expected, so it is walked as that kind rather than
       // as a fresh document root.
-      let mounted: MountState | undefined;
-      if (trail !== null) {
-        mounted = trail.enterAt([EXTERNALS_FIELD, uri], uri, "", stitchVia.get(uri) ?? []);
-      }
+      const mounted = trail.enterAt([EXTERNALS_FIELD, uri], uri, "", stitchVia.get(uri) ?? []);
       const inlined = await walk(targetDoc, baseDirOf(uri), uri, uri, posOf(kind, true));
-      if (trail !== null && mounted !== undefined) trail.leave(mounted, true);
+      trail.leave(mounted, true);
       visiting.clear();
       for (const v of savedVisiting) visiting.add(v);
       setSpecKey(stitched, uri, inlined);
@@ -908,15 +918,17 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   }
 
   const inlined = [...inlinedComponents];
+  const hoistedSchemaCopies = collectHoistedSchemaCopies(resolved, trail.regions, hoistedTargets);
   const specHygieneIssues = options.lint
-    ? lintResolvedSpec(resolved, { inlinedComponents: inlined })
+    ? lintResolvedSpec(resolved, { inlinedComponents: inlined, hoistedSchemaCopies })
     : [];
   return {
     document: resolved,
     sources: [...sources],
     specHygieneIssues,
     inlinedComponents: inlined,
-    ...(trail !== null && { regions: trail.regions }),
+    hoistedSchemaCopies,
+    ...(options.provenance === true && { regions: trail.regions }),
     ...(holes !== null && { unresolved: holes.entries() }),
   };
 }

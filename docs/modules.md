@@ -96,11 +96,11 @@ sentence. Which reasons get one, and why a `required` reason is located
 at the value containing the member rather than at the member it names,
 is on `reasonTargetFor`.
 
-`checkSpec` takes a resolved spec rather than a document, because two of
-its inputs are byproducts of resolution: the regions each finding's
-`target.source` comes from, and the `inlinedComponents` list the hygiene
-pass needs. Load with `provenance: true` for source attribution and
+`checkSpec` takes a resolved spec rather than a document because source
+attribution and declaration reachability depend on information retained
+during resolution. Load with `provenance: true` for source attribution and
 SARIF locations; without it, `target.source` is absent on every finding.
+See `ResolvedSpec` for the metadata contract.
 
 ```ts
 import { loadSpecSync } from "@oaverify/core/spec";

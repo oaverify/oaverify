@@ -196,27 +196,31 @@ for (const w of specHygieneIssues) {
 
 The same engine is reachable directly via `lintResolvedSpec(document)`
 for callers that already have a resolved document and just want the
-findings. One thing the document cannot say for itself: a non-schema
-component referenced from another file is inlined at the use site, so
-nothing in the resolved document reaches the component and
-`unused-component` would report it. `resolveSpec` returns those in
-`inlinedComponents`; pass them on to keep the rule quiet about them:
+findings. Resolution can leave declarations apparently unused: a
+non-schema component may have been inlined elsewhere, or a reference to
+an external definition may now point at a hoisted copy. Pass the resolver's
+metadata when linting its document directly:
 
 ```ts
-const { document, inlinedComponents } = await resolveSpec({ reader, entry });
-const issues = lintResolvedSpec(document, { inlinedComponents });
+const { document, inlinedComponents, hoistedSchemaCopies } = await resolveSpec({ reader, entry });
+const issues = lintResolvedSpec(document, { inlinedComponents, hoistedSchemaCopies });
 ```
 
-`loadSpec` and `resolveSpec` do this for you under `lint: true`. See
-`LintOptions`.
+`loadSpec` and `resolveSpec` do this for you under `lint: true`, and
+`checkSpec` consumes the metadata even when loading did not request lint.
+See `LintOptions` and `HoistedSchemaCopies` for the contracts. Copy records
+identify exact locations built from the same source address; they do not
+promise equivalent validation under different schema scopes. Loaders retain
+these connections through overlays while both endpoints remain unchanged
+at their recorded addresses. Moved or edited endpoints lose their connection,
+so lint can report a retained definition as unused afterward.
 
 The validator surfaces the findings too: `createValidator(spec,
-{ lint: true })` exposes `validator.specHygieneIssues`. It is handed a
-document and nothing else, so it has no `inlinedComponents` to go on
-and still reports a component that was inlined across documents. Lint
-at the load layer for a multi-file spec; the validator layer is the
-natural one when the spec arrives as a single document. Running
-`lint: true` in two places lints twice.
+{ lint: true })` exposes `validator.specHygieneIssues`. It receives only a
+document, so resolution metadata is unavailable and these false positives
+remain possible there. Lint at the load layer for a multi-file spec; the
+validator layer is the natural one when the spec arrives as a single
+document. Running `lint: true` in two places lints twice.
 
 `oaverify check` exposes the same checks at the CLI; pair with
 `--fail-on warning` for a CI gate.
