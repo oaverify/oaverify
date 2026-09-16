@@ -41,11 +41,23 @@ export interface EmitStandaloneOptions {
    * Policy for `format` names outside the built-in set. `"error"`
    * (the default) refuses the schema, naming the formats; `"ignore"`
    * emits a validator that does not assert them, matching the
-   * runtime's behavior for an unregistered name. Mirrors
-   * `CompileOptions.unknownFormats`. This is policy, not capability:
-   * an unknown name has no validator function to serialise either
-   * way, so both modes produce the same (correct) module when they
+   * runtime's behavior for an unregistered name. This is policy, not
+   * capability: an unknown name has no validator function to serialise
+   * either way, so both modes produce the same module when they
    * produce one.
+   *
+   * It is **not** the same rule as `CompileOptions.unknownFormats`,
+   * which is inert unless the dialect asserts `format`. The collector
+   * here checks no vocabulary, so the default refuses a schema the
+   * compiler compiles.
+   *
+   * @specCites JSON Schema 2020-12 validation section 7.2.3, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.3
+   * @specBoundary narrows
+   * By default, standalone code generation rejects schemas with unknown
+   * formats, such as `{"type":"string","format":"phone"}`. This also
+   * applies to plain JSON Schema 2020-12, where formats are metadata by
+   * default and unknown names should be allowed. Set `unknownFormats:
+   * "ignore"` to generate code without a check for those names.
    */
   unknownFormats?: "ignore" | "error";
 }
@@ -53,20 +65,24 @@ export interface EmitStandaloneOptions {
 /**
  * Compile a JSON Schema and emit a standalone ES module source string.
  *
- * The module exports a `validate(data)` function whose behavior
- * matches `compileSchema(schema, { dialect }).validate(data)`, but
- * which requires no `new Function()` at load time. Useful for edge
- * runtimes (Cloudflare Workers, Vercel Edge) and build-time-prepared
- * validator bundles.
+ * The module exports a `validate(data)` function that reaches the same
+ * verdict as `compileSchema(schema, { dialect }).validate(data)` while
+ * requiring no `new Function()` at load time. Useful for edge runtimes
+ * (Cloudflare Workers, Vercel Edge) and build-time-prepared validator
+ * bundles.
+ *
+ * **The verdict crosses the boundary; the result object does not.** The
+ * emitted module builds its runtime with a bare `createDeps()`, which
+ * leaves the error budget uncapped, so it reports every error and
+ * `truncated: false` where the in-process default reports one and
+ * `truncated: true` (#1089). Nothing that reaches the validator as a
+ * JavaScript value survives emission either: a custom format function
+ * is the obvious case, and `regexCompiler` is the same rule.
  *
  * By default, rejects schemas that use `format: "..."` values outside
  * {@link @oaverify/core/formats!builtInFormats}; `unknownFormats:
- * "ignore"` emits anyway, without asserting them (#660). That is
- * policy. The hard constraint is different and unconditional: a custom
- * format *function* or custom keyword registered at runtime is not
- * serialisable to standalone source, and no option changes that.
- * `int32` and `int64` are built-ins, so they emit rather than being
- * refused.
+ * "ignore"` emits anyway, without asserting them (#660). `int32` and
+ * `int64` are built-ins, so they emit rather than being refused.
  *
  * @internal
  */

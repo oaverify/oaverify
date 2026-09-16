@@ -46,7 +46,7 @@ function inRange(value: number, min: number, max: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateInt8(value: number): boolean {
@@ -58,7 +58,7 @@ export function validateInt8(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateInt16(value: number): boolean {
@@ -77,7 +77,7 @@ export function validateInt16(value: number): boolean {
  * not this function's business; the compiler applies it to numbers
  * only, the way a string format applies to strings only.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateInt32(value: number): boolean {
@@ -89,7 +89,7 @@ export function validateInt32(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUint8(value: number): boolean {
@@ -101,7 +101,7 @@ export function validateUint8(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUint16(value: number): boolean {
@@ -113,7 +113,7 @@ export function validateUint16(value: number): boolean {
  *
  * Exact; see the module note on the exact widths.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateUint32(value: number): boolean {
@@ -121,24 +121,23 @@ export function validateUint32(value: number): boolean {
 }
 
 /**
- * OpenAPI `int64`: a signed 64-bit integer, asserted over the range a
- * JSON number can carry.
+ * OpenAPI `int64`: a signed 64-bit integer, restricted to JavaScript's
+ * safe-integer range.
  *
- * **This is a partial assertion, and the range is smaller than int64.**
- * Accepted values are the safe integers, `-(2^53 - 1)` through
- * `2^53 - 1`. A JSON number outside that range has already lost
- * precision by the time any JavaScript validator sees it:
- * `JSON.parse("9223372036854775807")` yields `9223372036854775808`, a
- * different number, and nothing downstream can recover the original.
+ * Accepted values are `-(2^53 - 1)` through `2^53 - 1`. Some larger
+ * integers remain exact, but distinct wire values can parse to the same
+ * number: `9007199254740992` and `9007199254740993` both become `2^53`.
+ * A validator receiving that number cannot recover which value was sent.
+ * Producers should declare a string schema and send large integers as
+ * strings. Callers who accept the precision risk can register
+ * `int64: false` and keep the name as an annotation.
  *
- * A value between `2^53` and `2^63` is therefore rejected rather than
- * accepted. It is a legal int64 and an illegal JSON number, and
- * accepting it would mean vouching for a value that is provably not
- * the one on the wire. Producers of large int64s should send them as
- * strings, which is what the range exists to surface. Callers who
- * disagree register `int64: false` and keep the name as an annotation.
- *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specBoundary narrows
+ * Valid signed 64-bit integers outside `-(2^53 - 1)` through `2^53 - 1` are
+ * rejected. This validator uses JavaScript's safe-integer range. Beyond it,
+ * different integers in JSON can be rounded to the same JavaScript number,
+ * so the original value cannot always be recovered.
  * @public
  */
 export function validateInt64(value: number): boolean {
@@ -146,16 +145,21 @@ export function validateInt64(value: number): boolean {
 }
 
 /**
- * OpenAPI `uint64`: an unsigned 64-bit integer, asserted over the range
- * a JSON number can carry.
+ * OpenAPI `uint64`: an unsigned 64-bit integer, restricted to nonnegative
+ * JavaScript safe integers.
  *
  * **Partial in the same way {@link validateInt64} is**, and for the
  * same reason: the ceiling is `2^53 - 1` rather than `2^64 - 1`,
- * because a JSON number above the safe range is provably not the value
- * on the wire. The floor is 0, which is the whole difference from
+ * because distinct wire integers above that range can parse to the same
+ * number. The floor is 0, which is the whole difference from
  * `int64`.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specBoundary narrows
+ * Valid unsigned 64-bit integers above `2^53 - 1` are rejected. This
+ * validator accepts only nonnegative JavaScript safe integers. Beyond that
+ * range, different integers in JSON can be rounded to the same JavaScript
+ * number, so the original value cannot always be recovered.
  * @public
  */
 export function validateUint64(value: number): boolean {
@@ -172,8 +176,8 @@ export function validateUint64(value: number): boolean {
  *
  * That is why the bound is not the safe-integer range, which asks
  * whether *n and n + 1* are both representable. `2^53` is a double and
- * is a `double-int`; refusing it refused a value that provably was the
- * one on the wire.
+ * is a `double-int`; it passes even though the original wire value
+ * cannot always be recovered after parsing.
  *
  * {@link validateInt64}'s ceiling does not carry over, and the reason
  * is worth stating because the arithmetic looks identical. A literal
@@ -185,7 +189,7 @@ export function validateUint64(value: number): boolean {
  * valid and silently altered: `9007199254740993` is accepted, as
  * `2^53`. `packages/formats/test/formats.test.ts` pins that.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateDoubleInt(value: number): boolean {
@@ -196,11 +200,9 @@ export function validateDoubleInt(value: number): boolean {
  * OpenAPI `unixtime`: seconds since 1970-01-01T00:00:00Z, per
  * POSIX.1-2024.
  *
- * Integral, and within the range a JSON number carries exactly, which
- * is {@link validateInt64}'s bound and the same argument for it: past
- * 2^53 the value has already lost precision, and the count of seconds
- * it names is provably not the one that was sent. Negative values pass,
- * naming an instant before the epoch.
+ * Integral and within JavaScript's safe-integer range, using the same
+ * bound and precision policy as {@link validateInt64}. Negative values
+ * pass, naming an instant before the epoch.
  *
  * **This asserts less than most formats do.** POSIX puts no upper bound
  * on the epoch count, so beyond integrality there is nothing left to
@@ -215,7 +217,17 @@ export function validateDoubleInt(value: number): boolean {
  * The string spelling exists for producers escaping the 2^53 ceiling,
  * which is exactly the range this cannot vouch for either way.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specBoundary narrows
+ * An integer timestamp outside `-(2^53 - 1)` through `2^53 - 1` is
+ * rejected, even though POSIX does not impose this range on seconds since
+ * the Unix epoch. This validator uses JavaScript's safe-integer range
+ * because different timestamps beyond it can be rounded to the same number.
+ * @specBoundary under-asserts
+ * The `unixtime` format checks numeric timestamps only. A string is not
+ * checked as a timestamp, even though the OpenAPI registry also allows a
+ * string representation. Other schema constraints still apply: for example,
+ * `type: number` rejects a string.
  * @public
  */
 export function validateUnixtime(value: number): boolean {

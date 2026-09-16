@@ -9,7 +9,13 @@ const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0
 /**
  * RFC 9562 `uuid`.
  *
- * @see RFC 9562 section 4, https://datatracker.ietf.org/doc/html/rfc9562#section-4
+ * @specCites RFC 9562 section 4, https://datatracker.ietf.org/doc/html/rfc9562#section-4
+ * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc9562#section-4.1
+ * A UUID with an undefined version is accepted if it has the expected
+ * shape: hexadecimal digits in groups of 8-4-4-4-12, separated by hyphens.
+ * The validator does not restrict the bits identifying its version or
+ * variant. It also accepts the RFC's special all-zero (Nil) and all-one
+ * (Max) UUIDs.
  * @public
  */
 export function validateUuid(value: string): boolean {
@@ -28,7 +34,7 @@ export function validateUuid(value: string): boolean {
  * compiler with a different policy. Reach for this one to get u-mode
  * strictness regardless of what any compiler is configured to do.
  *
- * @see ECMA-262, the Patterns grammar, https://tc39.es/ecma262/multipage/text-processing.html#sec-patterns
+ * @specCites ECMA-262, the Patterns grammar, https://tc39.es/ecma262/multipage/text-processing.html#sec-patterns
  * @public
  */
 export function validateRegex(value: string): boolean {
@@ -53,7 +59,7 @@ export function validateRegex(value: string): boolean {
  * not ask for, and drawing the line at code points keeps the rule
  * something a caller can predict.
  *
- * @see the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @public
  */
 export function validateChar(value: string): boolean {

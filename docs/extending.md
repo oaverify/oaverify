@@ -276,3 +276,128 @@ without forking the switch.
 3. Add a branch to `formatError()` in
    `packages/core/src/format-output.ts`.
 4. Add a test in `packages/core/test/format-output.test.ts`.
+
+## Document specification boundaries
+
+Read this guide when changing specification-dependent behavior or its TSDoc
+tags. The tags generate the [user-facing inventory](spec-boundaries.md).
+
+`@specCites <url>` identifies a declaration's intended specification
+contract. `@specBoundary <kind> [<url>]` records a specification-related
+choice or departure.
+
+State the observable behavior, the relevant specification requirement,
+and the reason for the current behavior if known. Distinguish an
+intentional policy from a defect awaiting repair. An explanation of
+existing behavior does not establish that it should be retained.
+
+```ts
+/**
+ * RFC 9562 `uuid`.
+ *
+ * @specCites RFC 9562 section 4, https://www.rfc-editor.org/rfc/rfc9562#section-4
+ * @specBoundary under-asserts https://www.rfc-editor.org/rfc/rfc9562#section-4.1
+ * A UUID with an undefined version is accepted if it has the expected
+ * shape: hexadecimal digits in groups of 8-4-4-4-12, separated by
+ * hyphens. The validator does not restrict the bits identifying its
+ * version or variant.
+ */
+```
+
+The six kinds, each answering "how does our behaviour differ from the
+cited text?":
+
+| kind            | meaning                                                             |
+| --------------- | ------------------------------------------------------------------- |
+| `under-asserts` | accepts what the cited spec forbids                                 |
+| `narrows`       | rejects what the cited spec allows                                  |
+| `transforms`    | changes the value handed on, which can affect subsequent validation |
+| `chooses`       | the spec grants latitude, and this picked one option                |
+| `resolves`      | the spec is silent or self-contradictory, and this picked a reading |
+| `defers`        | the cited spec requires it and this does not implement it yet       |
+
+Kinds describe behavior, not disposition or severity. An `under-asserts`
+entry can be an intentional compromise or a false acceptance awaiting
+repair. A `chooses` entry can describe conforming behavior. Pending
+repairs need issue links regardless of kind; priority and release
+scheduling belong in issues and the backlog.
+
+Authoring rules:
+
+- **A boundary is measured against the spec the declaration cites**,
+  not against every spec in the neighbourhood. `duration` implements
+  RFC 3339 Appendix A, which is what JSON Schema 2020-12 section 7.3.1
+  defines the format against, so it is conformant and carries no
+  boundary. Describing it as "stricter than ISO 8601" invented a
+  boundary against a spec we never claimed, and a reviewer read that
+  as a defect.
+- **`@specBoundary` requires a `@specCites`**, and must carry its own
+  section URL where the declaration cites several specs. Each `@specCites`
+  carries exactly one URL; each `@specBoundary` carries at most one.
+  Repeat the tag for another citation or boundary.
+- **`chooses` requires latitude you can quote.** Point at the MAY,
+  SHOULD or OPTIONAL that grants it, or at an explicit grant in the
+  spec's own words: OpenAPI's "In case of ambiguous matching, it's up to
+  the tooling to decide which one to use" is latitude, though it carries
+  no RFC 2119 keyword. What the rule rejects is an unquotable claim that
+  the spec probably allows it. If nothing in the text grants the
+  decision, the kind is `resolves`.
+- **`defers` carries an issue reference.**
+
+`pnpm check:spec-boundaries` checks tag structure, specification hosts,
+unambiguous anchors, nonempty prose and issue references. Review must
+establish that the cited text supports the claim and grants any stated
+latitude. The gate cannot establish those facts or find omitted boundaries.
+
+**Put the tags last in the block**, after every other paragraph and
+beside `@public`. A block tag runs until the next one, so a
+`@specBoundary` followed by ordinary prose swallows it, and the
+generated page prints that prose as part of the departure. Six of the
+first pass's tags did this; `checkSpec`'s absorbed the whole dialect
+section.
+
+**Write boundaries for an average developer.** The generated inventory is
+linked from the README, so readers need no deep knowledge of the specs or
+this implementation. Lead with the affected input and observable result;
+use a short example when it makes the consequence clearer. Then explain
+the relevant spec rule and any available option or workaround. Keep terms
+of art where they add precision, and explain unfamiliar ones on first use.
+
+Each entry must stand alone in the generated page: avoid "the paragraphs
+above", unexplained internal names, or reasoning available only in another
+entry. Distinguish skipping one check from accepting the whole input.
+Include implementation details only when they help the reader understand
+the effect or make a decision. Explain an intentional policy concisely;
+avoid defending every limitation or making unsupported claims about other
+validators. Read the regenerated page as well as the source comment.
+
+The tags are for behaviour relative to a cited specification. A design
+decision that is not spec-relative (a linear route scan, a frozen empty
+array) is ordinary prose, and tagging it dilutes the set.
+
+`@specCites` is the only way to say "this is the spec I implement";
+`@see` keeps every other kind of pointer. That split is what lets the
+gate check citations without guessing, and it is why every format
+validator's `@see` moved. Coverage is required in `packages/formats`
+only, where every exported `validate*` must cite; elsewhere a
+declaration is free to carry neither tag.
+
+The tags generate [spec-boundaries.md](spec-boundaries.md),
+which collects the documented choices and departures for users. Edit the tag and run
+`pnpm docs:boundaries`; the page is never edited by hand and
+`pnpm lint` fails if the two disagree.
+
+A citation establishes the intended contract. A missing boundary does
+not establish that the implementation meets it. Document known departures;
+tests and review provide evidence of conformance.
+
+When maintaining specification-dependent behavior:
+
+- Check the applicable citation when changing behavior, and update or
+  remove affected boundaries.
+- Verify a newly discovered departure against the cited text and a
+  reproducer before classifying it.
+- Distinguish accepted policies from pending repairs and link the latter
+  to their issues.
+- When a defect is fixed, remove the obsolete limitation and regenerate
+  the page. Keep any remaining boundary accurate.

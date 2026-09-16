@@ -26,6 +26,21 @@ import type { FastifyContext } from "./types.js";
  * Pairs with sibling `renderProblemDetails` in `@oaverify/express4` /
  * `@oaverify/express5`. Same logic, framework-native API.
  *
+ *
+ * @specCites RFC 9457, https://www.rfc-editor.org/rfc/rfc9457
+ * @specBoundary under-asserts https://www.rfc-editor.org/rfc/rfc9110#section-15.5.2
+ * A request rejected for missing or malformed credentials receives HTTP 401
+ * without the required `WWW-Authenticate` header. That header tells the
+ * client how to authenticate. The adapter knows the security scheme names
+ * but lacks the details needed to build a challenge. Applications must
+ * supply the header in their `onError` handler (#1087).
+ * @specBoundary chooses https://www.rfc-editor.org/rfc/rfc9457#section-4.2.1
+ * Every error response uses `title: "Validation failed"`, regardless of its
+ * HTTP status. The response's `about:blank` problem type means a generic
+ * HTTP error; RFC 9457 recommends using the status phrase, such as `Bad
+ * Request`, as its title. oaverify uses one validation-specific title and
+ * lists individual errors in the `issues` field.
+ *
  * @public
  */
 export function renderProblemDetails(errors: ValidationError[], ctx: FastifyContext): void {

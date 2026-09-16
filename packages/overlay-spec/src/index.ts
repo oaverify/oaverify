@@ -87,6 +87,13 @@ export function isOverlayDocument(value: unknown): value is OverlayDocument {
  *         match the target (e.g. non-object where an object is
  *         expected).
  *
+ * @specCites OpenAPI Overlay 1.0, https://spec.openapis.org/overlay/v1.0.0.html
+ * @specBoundary narrows
+ * An overlay that removes part of a document and later re-creates it is
+ * rejected as conflicting. OpenAPI Overlay defines actions as sequential
+ * edits, so this sequence is legal. oaverify combines the actions into one
+ * `SpecOverlay` edit and cannot preserve that ordering.
+ *
  * @public
  */
 export function translateOverlay(doc: OverlayDocument): SpecOverlay {

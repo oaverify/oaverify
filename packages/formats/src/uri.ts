@@ -117,7 +117,7 @@ const IRI = buildUriGrammar(UCSCHAR, IPRIVATE);
 /**
  * RFC 3986 absolute `uri`.
  *
- * @see RFC 3986 appendix A, https://datatracker.ietf.org/doc/html/rfc3986#appendix-A
+ * @specCites RFC 3986 appendix A, https://datatracker.ietf.org/doc/html/rfc3986#appendix-A
  * @public
  */
 export function validateUri(value: string): boolean {
@@ -127,7 +127,7 @@ export function validateUri(value: string): boolean {
 /**
  * RFC 3986 `uri-reference` (absolute or relative).
  *
- * @see RFC 3986 section 4.1, https://datatracker.ietf.org/doc/html/rfc3986#section-4.1
+ * @specCites RFC 3986 section 4.1, https://datatracker.ietf.org/doc/html/rfc3986#section-4.1
  * @public
  */
 export function validateUriReference(value: string): boolean {
@@ -138,7 +138,7 @@ export function validateUriReference(value: string): boolean {
  * RFC 3987 `iri`: an absolute `uri` widened to allow `ucschar` wherever
  * RFC 3986 allows `unreserved`, plus `iprivate` in the query.
  *
- * @see RFC 3987 section 2.2, https://datatracker.ietf.org/doc/html/rfc3987#section-2.2
+ * @specCites RFC 3987 section 2.2, https://datatracker.ietf.org/doc/html/rfc3987#section-2.2
  * @public
  */
 export function validateIri(value: string): boolean {
@@ -148,7 +148,7 @@ export function validateIri(value: string): boolean {
 /**
  * RFC 3987 `iri-reference` (absolute or relative IRI).
  *
- * @see RFC 3987 section 2.2, https://datatracker.ietf.org/doc/html/rfc3987#section-2.2
+ * @specCites RFC 3987 section 2.2, https://datatracker.ietf.org/doc/html/rfc3987#section-2.2
  * @public
  */
 export function validateIriReference(value: string): boolean {
@@ -194,7 +194,13 @@ const URI_TEMPLATE_RE = new RegExp(
 /**
  * RFC 6570 `uri-template` (e.g. `"/pets/{id}"`, `"/search{?q,page}"`).
  *
- * @see RFC 6570 section 2, https://datatracker.ietf.org/doc/html/rfc6570#section-2
+ * @specCites RFC 6570 section 2, https://datatracker.ietf.org/doc/html/rfc6570#section-2
+ * @specBoundary under-asserts
+ * URI templates containing an apostrophe, such as `/a'b`, are accepted even
+ * though RFC 6570 forbids that literal character. The same gap allows C1
+ * control characters (U+0080 through U+009F) and Unicode noncharacters,
+ * which are code points reserved for internal use. Tightening these checks
+ * is tracked in #965.
  * @public
  */
 export function validateUriTemplate(value: string): boolean {
@@ -207,7 +213,7 @@ const REL_JSON_POINTER_RE = /^(?:0|[1-9]\d*)(?:#|(?:\/(?:[^/~]|~0|~1)*)*)$/;
 /**
  * RFC 6901 `json-pointer`.
  *
- * @see RFC 6901 section 3, https://datatracker.ietf.org/doc/html/rfc6901#section-3
+ * @specCites RFC 6901 section 3, https://datatracker.ietf.org/doc/html/rfc6901#section-3
  * @public
  */
 export function validateJsonPointer(value: string): boolean {
@@ -217,7 +223,7 @@ export function validateJsonPointer(value: string): boolean {
 /**
  * draft `relative-json-pointer`.
  *
- * @see the relative JSON pointer draft, section 3, https://datatracker.ietf.org/doc/html/draft-handrews-relative-json-pointer-01#section-3
+ * @specCites the relative JSON pointer draft, section 3, https://datatracker.ietf.org/doc/html/draft-handrews-relative-json-pointer-01#section-3
  * @public
  */
 export function validateRelativeJsonPointer(value: string): boolean {

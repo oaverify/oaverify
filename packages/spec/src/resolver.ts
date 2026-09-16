@@ -259,6 +259,28 @@ export interface ResolvedSpec {
  * @param options - Reader + entry URI.
  * @returns Resolved document + the list of files loaded.
  *
+ * @specCites OpenAPI 3.1 section 4.6, https://spec.openapis.org/oas/v3.1.0#relative-references-in-uris
+ * @specBoundary transforms
+ * A schema reference to another file is rewritten as a local reference
+ * under `components.schemas`, and the target schema is stored there once.
+ * The generated component name can differ from the original. OpenAPI
+ * specifies which schema a reference identifies but leaves the resolved
+ * document's layout to tooling. Keeping shared references preserves
+ * discriminator matching (#553) and recursive schemas (#556).
+ * @specBoundary defers https://spec.openapis.org/oas/v3.1.0#relative-references-in-uris
+ * A relative `$ref` can load the wrong file when a surrounding schema
+ * declares `$id`. OpenAPI requires that identifier to set the base URL for
+ * relative references; the resolver instead uses the containing file's
+ * location. For example, `$id: "nested/base.json"` should make `$ref:
+ * "pet.json"` load `nested/pet.json`, but it loads `pet.json` beside the
+ * containing file (#1088).
+ * @specBoundary narrows https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.2
+ * An external reference using a named anchor, such as `pet.json#Pet`, fails
+ * with an invalid-pointer error. JSON Schema allows `$anchor: "Pet"` to
+ * name a target. The resolver supports external fragments that give a JSON
+ * Pointer path, such as `pet.json#/components/schemas/Pet`, but does not
+ * look up named anchors.
+ *
  * @example
  * ```ts
  * const reader = composeReaders([createFileReader()]);

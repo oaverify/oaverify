@@ -39,6 +39,15 @@ import type { CompiledSecurity } from "./security.js";
 export interface OperationCache {
   pathParamValidators: Map<string, CompiledTreeSchema>;
   queryParamValidators: Map<string, CompiledTreeSchema>;
+  /**
+   * @specCites OpenAPI 3.1 Parameter Object, https://spec.openapis.org/oas/v3.1.0#parameter-object
+   * @specBoundary defers
+   * A request can be rejected for omitting a required header parameter
+   * named `Accept`, `Content-Type`, or `Authorization`. OpenAPI says to
+   * ignore Parameter Object definitions with these names, but oaverify
+   * currently enforces them like other header parameters. Correcting this
+   * is tracked in #1084.
+   */
   headerParamValidators: Map<string, CompiledTreeSchema>;
   cookieParamValidators: Map<string, CompiledTreeSchema>;
   parameters: ParameterObject[];

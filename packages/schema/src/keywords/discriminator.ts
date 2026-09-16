@@ -15,6 +15,16 @@ import { APPLICATOR_VOCAB } from "./vocabulary-uris.js";
  * When `discriminator` is present the normal `oneOf` / `anyOf` pathway
  * is suppressed via the `implements` field.
  *
+ * @specCites OpenAPI 3.1 Discriminator Object, https://spec.openapis.org/oas/v3.1.0#discriminator-object
+ * @specBoundary resolves
+ * If a `discriminator` cannot match its values to the schemas in `oneOf` or
+ * `anyOf`, it is ignored and normal branch validation applies. A
+ * discriminator uses a payload field to select a schema; OpenAPI does not
+ * specify how to handle an unusable mapping. oaverify reports
+ * `silent-rewrite/discriminator-unroutable` so the author can find the
+ * unused mapping. This can happen when a bundled document retains mappings
+ * to the original files (#561).
+ *
  * @public
  */
 export const discriminatorKeyword: KeywordDefinition = {

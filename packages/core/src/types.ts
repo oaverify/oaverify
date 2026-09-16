@@ -467,7 +467,15 @@ export interface ParameterObject {
   deprecated?: boolean;
   /**
    * Query-only. When `true`, an empty value (`?flag=`) is legitimate and
-   * exempted from schema validation. OpenAPI 3.1 §4.8.12.1.
+   * exempted from schema validation.
+   *
+   * @specCites OpenAPI 3.1 Parameter Object, https://spec.openapis.org/oas/v3.1.0#parameter-object
+   * @specBoundary resolves
+   * With `allowEmptyValue: true`, an empty query value such as `?flag=` is
+   * accepted without checking its parameter schema. Even `minLength: 1` or
+   * `type: integer` does not reject it. OpenAPI allows implementations to
+   * choose how this option interacts with the schema; oaverify treats it as
+   * permission to bypass schema checks for an empty value.
    */
   allowEmptyValue?: boolean;
   style?: ParameterStyle;
@@ -539,6 +547,12 @@ export interface HttpRequest {
    * HTTP method. Any casing: the router lowercases before matching, so
    * `"get"`, `"GET"` and `"Get"` all reach the same operation, and an
    * adapter can pass its framework's value through unchanged.
+   *
+   * @specCites RFC 9110 section 9.1, https://www.rfc-editor.org/rfc/rfc9110#section-9.1
+   * @specBoundary under-asserts
+   * A request with method `Get` is matched to the OpenAPI `get` operation,
+   * just like `GET`. oaverify lowercases method names before routing,
+   * although HTTP defines method names as case-sensitive.
    */
   method: string;
   /**
@@ -573,10 +587,7 @@ export interface HttpRequest {
    * Values arrive decoded. `httpRequestFromFetch` percent-decodes and
    * unwraps a DQUOTE-wrapped value, matching the query values in the
    * same request. That is right for the default `style: form`, which
-   * percent-encodes, and it deviates from OpenAPI 3.2's `style: cookie`,
-   * which says no escaping is applied: a `style: cookie` value carrying
-   * a valid escape sequence is decoded anyway. The adapter runs before
-   * any spec is read, so it cannot see the style to tell the two apart.
+   * percent-encodes.
    *
    * How much of that reaches here depends on where the adapter gets its
    * cookies. `httpRequestFromFetch` parses the header itself and keeps
@@ -585,6 +596,15 @@ export interface HttpRequest {
    * so their fidelity is that parser's. A parser keeping one value per
    * name delivers a repeated name as one crumb. That is a property of
    * the parser the application chose rather than of this field.
+   *
+   * @specCites OpenAPI 3.2 style values, https://spec.openapis.org/oas/v3.2.0#style-values
+   * @specBoundary transforms
+   * For OpenAPI 3.2's `style: cookie`, percent-encoded values are decoded
+   * even though the style requires them to stay unchanged. For example,
+   * `session=%41` becomes `A`: a schema with `const: "%41"` then rejects
+   * it, while `const: "A"` accepts it. The returned parameter value is also
+   * `A`. Adapters decode cookies before reading the spec, using the
+   * behavior appropriate for the default `form` style.
    */
   cookies?: Record<string, string | string[]>;
   /**

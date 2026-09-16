@@ -404,6 +404,14 @@ function rulesOf(findings: readonly CheckFinding[]): {
  *   tell a partial run from a clean document; a default of all five
  *   would label a partial run complete.
  *
+ * @specCites SARIF 2.1.0, https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
+ * @specBoundary defers https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
+ * Tools reading the generated SARIF report can highlight the wrong text
+ * after a character such as an emoji. The report measures columns in UTF-16
+ * code units but omits `columnKind`, which tells readers how to count them.
+ * SARIF requires that field when a run has results. Adding `columnKind:
+ * "utf16CodeUnits"` is tracked in #1091.
+ *
  * @public
  */
 export function renderSarif(

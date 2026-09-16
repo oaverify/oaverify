@@ -81,6 +81,21 @@ what a caller may pass belongs in the TSDoc. Header-name casing lived
 only as a `// lowercased keys` comment in a recipe while the type said
 nothing, and the lookup code drifted into three strategies underneath.
 
+### Marking a spec boundary
+
+`@specCites` names the intended spec contract; `@specBoundary` records a
+known choice or departure. When changing specification-dependent behavior
+or these tags, read the [authoring guide](docs/extending.md#document-specification-boundaries)
+for syntax, classification, examples and review requirements.
+
+Keep affected entries accurate; remove fixed limitations and link pending
+repairs to issues. Write for an average developer: concrete inputs and
+outcomes, explained terminology, and prose that stands alone. A citation
+or missing boundary does not establish conformance.
+
+Edit source TSDoc and run `pnpm docs:boundaries` to update the
+[generated inventory](docs/spec-boundaries.md); never edit it by hand.
+
 ### Prose style
 
 LLM-like writing breaks reader flow: a reader who knows the patterns
@@ -164,7 +179,9 @@ pnpm check:walkers                # assert no walker hand-rolls the subschema-po
 pnpm check:http-methods           # assert only core spells out the HTTP method list
 pnpm check:detection-table        # assert docs/comparison.md against detection/results/matrix.md
 pnpm check:conformance-report     # assert conformance/REPORT.md against the committed baselines
-pnpm check:format-docs            # assert every format validator cites its spec, with a link
+pnpm check:spec-boundaries        # assert the @specCites / @specBoundary TSDoc contract, and that every format validator cites its spec
+pnpm check:boundaries-doc         # assert docs/spec-boundaries.md against the tags it is generated from
+pnpm docs:boundaries              # regenerate docs/spec-boundaries.md from the tags
 pnpm check:release                # assert release.yml's package lists against release-please-config.json
 pnpm fmt                          # oxfmt --write .
 pnpm typecheck                    # tsc -b (composite project references)

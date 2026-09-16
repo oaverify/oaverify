@@ -110,6 +110,11 @@ export interface StreamValidatorOptions {
    * Schema, and reports nothing. Enumerating the formats a spec uses
    * today therefore leaves a later addition silently unchecked, which is
    * why the built-ins are the base rather than the whole set.
+   *
+   * Under a dialect that asserts `format`, a node carrying the keyword
+   * is routed to a BUFFER island and asserted there; the forward path
+   * never sees one. So these reach every `format` the engine asserts,
+   * and under a non-asserting dialect neither engine asserts at all.
    */
   formats?: Record<string, FormatDefinition>;
 

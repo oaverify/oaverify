@@ -89,6 +89,14 @@ const SERVED_LOCATIONS: ReadonlySet<string> = new Set(["path", "query", "header"
  * needs to be told it is legal and unimplemented rather than that they
  * mistyped something.
  *
+ * @specCites OpenAPI 3.2 Parameter Object, https://spec.openapis.org/oas/v3.2.0#parameter-object
+ * @specBoundary defers
+ * Creating a validator fails if the document declares an OpenAPI 3.2 `in:
+ * querystring` parameter. That location validates the entire query string
+ * as one value, which the current `HttpRequest` interface does not provide
+ * (#397). The validator refuses the unsupported declaration so the
+ * operation cannot silently run without the required checks (#836).
+ *
  * @internal
  */
 const UNIMPLEMENTED_LOCATIONS: ReadonlyMap<string, string> = new Map([

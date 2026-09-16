@@ -813,9 +813,12 @@ export class SpineValidator implements JsonEventHandler {
     }
     if (!isObjectSchema(s)) return;
     out.schemas.push(s);
-    // `$dynamicRef` is resolved statically against the anchor map, the
-    // same limitation @oaverify/internal-schema documents. Refs resolve against the
-    // document root (may differ from the validation root in a sub-spine).
+    // `$dynamicRef` is resolved statically against the anchor map.
+    // `@oaverify/internal-schema` binds it dynamically since #663, so this is a
+    // divergence between the two engines rather than a shared limitation;
+    // see the boundary on `createStreamValidator` and #1090. Refs resolve
+    // against the document root (may differ from the validation root in a
+    // sub-spine).
     const ref = (s as Record<string, unknown>).$ref ?? (s as Record<string, unknown>).$dynamicRef;
     if (typeof ref !== "string") return;
     let target: SchemaOrBoolean | undefined;

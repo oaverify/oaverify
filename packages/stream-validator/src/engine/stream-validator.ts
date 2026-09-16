@@ -845,6 +845,24 @@ export class StreamValidator extends Transform {
  * and will arrive as a sibling factory, not a mode of this one. This
  * factory's contract stays single-document.
  *
+ * @specCites JSON Schema 2020-12 core, https://json-schema.org/draft/2020-12/json-schema-core.html
+ * @specBoundary defers https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3.2
+ * Streaming validation can disagree with `@oaverify/core` for the same
+ * schema and data, without warning when the validator is created. Named
+ * references such as `#Pet` can select the wrong target when multiple
+ * schemas define that name. `$dynamicRef`, which allows a reference's
+ * target to depend on the schema being applied, also ignores that context
+ * (#1090). Separately, some malformed schema keyword values are silently
+ * ignored instead of rejected (#919).
+ * @specBoundary resolves https://www.rfc-editor.org/rfc/rfc8259#section-4
+ * When a JSON object repeats a property name, streaming validation can
+ * check and count every occurrence toward `minProperties` and
+ * `maxProperties`. The in-memory validator keeps only the last occurrence,
+ * as `JSON.parse` does. The streaming validator also keeps only the last
+ * when the schema requires it to collect an object in memory before
+ * checking it. JSON recommends unique names and leaves duplicate handling
+ * unspecified, so the result here depends on the schema.
+ *
  * @public
  */
 export function createStreamValidator(

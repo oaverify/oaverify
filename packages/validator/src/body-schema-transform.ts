@@ -51,12 +51,8 @@ export interface BodySchemaTransformOptions {
 /**
  * Produce a direction-aware copy of a body schema.
  *
- * OpenAPI `readOnly` / `writeOnly` constrain the direction of travel for
- * a property:
- * - `readOnly: true`: server-generated; clients MUST NOT include it in
- *   request bodies, and it's exempt from `required` on the request side.
- * - `writeOnly: true`: client-only; servers MUST NOT include it in
- *   response bodies, and it's exempt from `required` on the response side.
+ * `readOnly` / `writeOnly` mark the direction of travel for a property:
+ * `readOnly` is server-generated, `writeOnly` client-only.
  *
  * The JSON Schema compiler is direction-agnostic, so we pre-transform
  * the body schema per direction: properties the direction forbids are
@@ -74,6 +70,13 @@ export interface BodySchemaTransformOptions {
  * (both of which read `$ref` at compile time) working as before.
  *
  * @internal
+ * @specCites JSON Schema 2020-12 validation section 9.4, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-9.4
+ * @specBoundary chooses
+ * A request body containing a `readOnly` property is rejected. JSON Schema
+ * allows the receiving application to ignore that property or return an
+ * error; oaverify chooses an error. The property is also removed from the
+ * request's `required` list, so clients can omit it even when it is
+ * required in a response.
  */
 export function transformBodySchemaForDirection(
   schema: SchemaOrBoolean,

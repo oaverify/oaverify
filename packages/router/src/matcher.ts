@@ -445,6 +445,31 @@ export function routeSignature(pathPattern: string): string {
  * @param paths - Record of path templates to PathItems.
  * @returns A {@link Router}.
  *
+ * @specCites OpenAPI 3.1 Paths Object, https://spec.openapis.org/oas/v3.1.0#paths-object
+ * @specBoundary chooses
+ * When two path templates match a request, their segment types are compared
+ * from left to right. At the first difference, fixed text takes priority
+ * over a mix such as `file-{id}`, which takes priority over a bare
+ * parameter such as `{id}`. For example, `/a/b/c` matches both
+ * `/a/{x}/c` and `/{y}/b/c`; oaverify chooses `/a/{x}/c`. OpenAPI
+ * explicitly lets tooling decide how to resolve ambiguous matches.
+ * @specBoundary defers https://spec.openapis.org/oas/v3.2.0#path-item-object
+ * Custom HTTP methods declared through OpenAPI 3.2's `additionalOperations`
+ * are not routed. For a matching path, a request using one receives a 405
+ * (Method Not Allowed) result, and the method is missing from the reported
+ * allowed methods.
+ * Support is tracked in #396.
+ * @specBoundary under-asserts https://spec.openapis.org/oas/v3.1.0#paths-object
+ * A document can declare `GET /items/{id}` and `POST /items/{slug}` without
+ * a router conflict. OpenAPI forbids path templates that differ only in
+ * parameter names, even when their methods differ. oaverify rejects them
+ * only when they share a method.
+ * @specBoundary narrows https://spec.openapis.org/oas/v3.1.0#paths-object
+ * The router treats `/pets/` and `/pets` as the same path, including when
+ * matching requests. Declaring both for the same HTTP method causes a
+ * conflict. OpenAPI allows them as distinct paths; this router removes
+ * trailing slashes.
+ *
  * @example
  * ```ts
  * const router = createRouter({

@@ -1194,6 +1194,14 @@ export interface CompileOptions {
    * When unset, codegen is identical to the un-instrumented path (zero
    * overhead). Must be a positive integer (>= 1), or `Infinity` for
    * explicitly uncapped; `compileSchema` throws otherwise.
+   *
+   * @specCites JSON Schema 2020-12 core section 8.2.3, https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3
+   * @specBoundary narrows
+   * Setting `maxDepth` can reject otherwise valid data when validation
+   * follows a recursive `$ref` beyond the configured limit. JSON Schema
+   * imposes no such limit. This optional safeguard bounds recursion through
+   * self-referencing schemas to help prevent a JavaScript stack overflow;
+   * it does not limit all JSON nesting. The default is uncapped.
    */
   maxDepth?: number;
   /**
@@ -1253,7 +1261,7 @@ export interface CompileOptions {
    * What to do about a `format` with no validator registered under its
    * name.
    *
-   * - `"ignore"` (default): the format asserts nothing, per JSON Schema.
+   * - `"ignore"` (default): the format asserts nothing.
    * - `"error"`: refuse to compile, naming the formats.
    *
    * Inert where the dialect does not assert `format`, and independent of
@@ -1268,6 +1276,20 @@ export interface CompileOptions {
    *   formats: { "x-internal-id": () => true },
    * })
    * ```
+   * @specCites JSON Schema 2020-12 validation section 7, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7
+   * @specBoundary chooses
+   * With `jsonSchemaDialect`, `format` values are metadata and do not
+   * trigger format checks. Even `unknownFormats: "error"` has no effect.
+   * JSON Schema permits this behavior. Select a dialect that enables format
+   * validation, such as `openapi31Dialect`, to check formats and apply the
+   * unknown-name policy.
+   * @specBoundary under-asserts https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.3
+   * With `openapi31Dialect` or `oas30Dialect`, an unknown format is skipped
+   * by default while other schema constraints still apply. These dialects
+   * enable Format-Assertion, the JSON Schema rules for checking formats,
+   * which require unknown names to cause an error. Set `unknownFormats:
+   * "error"` to reject schemas containing them.
+   *
    */
   unknownFormats?: "ignore" | "error";
 

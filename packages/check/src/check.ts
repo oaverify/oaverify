@@ -216,6 +216,20 @@ export class CheckAbortedError extends Error {
  *          what the CLI turns into exit 4.
  * @throws CheckAbortedError when the document cannot be graded at all.
  *
+ * @specCites OpenAPI 3.1 Schema Object, https://spec.openapis.org/oas/v3.1.0#schema-object
+ * @specBoundary under-asserts
+ * In OpenAPI 3.1 and 3.2, the conformance pass misses malformed fields
+ * inside Schema Objects, such as `xml: 5` or `externalDocs` without a
+ * `url`. It uses the published meta-schemas (schemas describing valid
+ * OpenAPI documents), which leave these fields unchecked. The pass checks
+ * them in OpenAPI 3.0 documents. Other passes still check schema validation
+ * rules.
+ * @specBoundary under-asserts https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.1.1
+ * A `$schema` declaration in a nested schema is ignored without a finding
+ * unless that schema also declares `$id`. JSON Schema allows `$schema` only
+ * at a schema resource's root: the top-level schema, or a nested schema
+ * with its own `$id`. Elsewhere, the nested schema inherits its parent's
+ * dialect (the set of schema rules to apply).
  * @public
  */
 export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): CheckFinding[] {

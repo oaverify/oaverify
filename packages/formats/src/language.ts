@@ -118,7 +118,13 @@ function isExtensionBody(subtag: string | undefined): boolean {
  * are accepted from a table, since they predate the grammar. The nine
  * regular ones parse as ordinary tags and need no table.
  *
- * @see RFC 5646 (BCP 47) section 2.1, https://datatracker.ietf.org/doc/html/rfc5646#section-2.1
+ * @specCites RFC 5646 (BCP 47) section 2.1, https://datatracker.ietf.org/doc/html/rfc5646#section-2.1
+ * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc5646#section-2.2.9
+ * A language tag with an unregistered language or region, such as
+ * `"qq-ZZ"`, is accepted. The validator checks the tag's syntax, including
+ * restrictions on repeated components, but does not look up those
+ * components in IANA's official language-subtag registry. RFC 5646 requires
+ * registration as well as valid syntax.
  * @public
  */
 export function validateLanguage(value: string): boolean {

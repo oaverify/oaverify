@@ -61,6 +61,13 @@ function emitNumericError(
  *   and is a genuine multiple, which the optional `float-overflow.json`
  *   case asserts.
  *
+ * @specCites JSON Schema 2020-12 validation section 6.2.1, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-6.2.1
+ * @specBoundary under-asserts
+ * A number very close to an exact multiple can pass `multipleOf`. JSON
+ * Schema requires exact divisibility, but the validator allows a small
+ * rounding tolerance. This avoids rejecting ordinary decimal multiples:
+ * JavaScript calculates `0.3 / 0.1` as `2.9999999999999996` instead of `3`.
+ *
  * @public
  */
 export const multipleOfKeyword: KeywordDefinition = {

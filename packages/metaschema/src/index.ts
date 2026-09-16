@@ -123,6 +123,21 @@ const BY_VERSION: Readonly<Record<MetaschemaVersion, unknown>> = {
 /**
  * The pinned meta-schema for an OpenAPI minor version.
  *
+ * @specCites the OpenAPI 3.0 schema, https://spec.openapis.org/oas/3.0/schema/2024-10-18
+ * @specBoundary transforms
+ * OpenAPI 3.0 documents are checked against a converted copy of the
+ * published meta-schema (the schema describing valid OpenAPI documents).
+ * The conversion translates it from JSON Schema draft-04 to 2020-12 so it
+ * can use the same compiler as newer versions. See
+ * `packages/metaschema/scripts/convert-oas30.mjs`. The OpenAPI 3.1 and 3.2
+ * meta-schemas are used unchanged.
+ * @specBoundary under-asserts https://spec.openapis.org/oas/v3.1.0#schema-object
+ * For OpenAPI 3.1 and 3.2, the meta-schema only checks that a Schema Object
+ * is an object or a boolean. It leaves fields inside it unchecked, so
+ * malformed `xml` or `externalDocs` fields can pass. The meta-schema is the
+ * schema used to check an OpenAPI document's structure; the published 3.0
+ * version describes these fields and catches those errors.
+ *
  * @public
  */
 export function metaschemaFor(version: MetaschemaVersion): unknown {

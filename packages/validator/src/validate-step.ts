@@ -250,10 +250,13 @@ export function validateParameter(
   }
 
   if (raw === undefined) return missingParameterError(p, code, pathPrefix);
-  // Empty-string is a legitimate value; `minLength`/`pattern` on the
-  // parameter schema handles rejection where needed. OpenAPI 3.1 §4.8.12.1
-  // explicitly permits `?flag=` on query parameters declaring
-  // `allowEmptyValue: true`; exempt those from validation.
+  // `?flag=` on a query parameter declaring `allowEmptyValue: true` is
+  // accepted without its schema running, so a `minLength: 1` beside it
+  // does not reject it. OpenAPI permits sending the empty value and
+  // calls the interaction with the Schema Object implementation-defined;
+  // the boundary is stated on `ParameterObject.allowEmptyValue`, which
+  // is the surface a caller reads.
+  //
   // No value is recorded for `returnValues` here or on the next line:
   // both paths skip the schema, and the accumulator only holds values a
   // schema accepted. An `allowEmptyValue` parameter that arrived empty

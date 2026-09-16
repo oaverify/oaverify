@@ -85,9 +85,6 @@ import {
  *
  * Covers every format JSON Schema 2020-12 names, and every format in
  * the OpenAPI Format Registry that is assertable and cheap to assert.
- * `@oaverify/check`'s format pass reports the registry names left over
- * so a document using one is told the name is an annotation rather
- * than a constraint; docs/strictness.md carries the boundary.
  *
  * String formats are bare functions, per {@link FormatDefinition}'s
  * shorthand. The numeric formats declare `type: "number"`, because a
@@ -110,9 +107,20 @@ import {
  * the `regexCompiler` option. Override by setting
  * `formats: { regex: yourFn, ... }` if you want a different policy.
  *
- * `float` and `double` are absent too, and that is a decision rather
- * than a gap; the reasoning is in `numeric.ts`.
- *
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specBoundary defers
+ * Some formats in the OpenAPI Format Registry have no built-in validator
+ * yet (#696). With the default unknown-format policy, those names add no
+ * validation; other schema constraints still apply. The format pass in
+ * `@oaverify/check` reports missing format checks. Applications can
+ * register their own validators.
+ * @specBoundary under-asserts
+ * The `float` format does not check whether a number fits in a 32-bit
+ * floating-point value. This is intentional: a producer can serialize a
+ * float32 as a decimal such as `3.14`, which JavaScript reads as a
+ * different, 64-bit approximation. Requiring exact float32 representation
+ * would reject such values. Applications that need a range limit can set
+ * `minimum` and `maximum`.
  * @public
  */
 export const builtInFormats: Record<string, FormatDefinition> = {

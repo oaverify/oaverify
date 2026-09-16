@@ -66,6 +66,14 @@ export class UnrecognisedTargetError extends Error {
  * @throws {@link UnrecognisedTargetError} on syntactically malformed
  *         input or on filter shapes that fall outside the recognised
  *         set.
+ *
+ * @specCites OpenAPI Overlay 1.0, https://spec.openapis.org/overlay/v1.0.0.html
+ * @specBoundary narrows
+ * Some valid overlay targets are rejected with `UnrecognisedTargetError`.
+ * Overlay 1.0 uses JSONPath to select parts of a document; oaverify
+ * supports only a subset of that query language. For example, searching at
+ * every depth with `$..description` or selecting an array slice with
+ * `[0:2]` is unsupported.
  */
 export function parseTarget(target: string): PathToken[] {
   const lex = new Lexer(target);

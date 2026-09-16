@@ -47,15 +47,20 @@ const BASE64URL_RE = /^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-]{2}(?:==)?|[A-Za-z0-
  * place: `formats: { byte: validateByteRfc4648 }`.
  *
  * The string is not decoded, so this says the alphabet and the padding
- * are well-formed and nothing about the bytes inside it. RFC 4648
- * section 3.5 additionally requires the unused bits of a partial final
- * group to be zero, and this does not check that: `"cE6="` passes and
- * does not survive a decode and re-encode. Rejecting it would mean
- * decoding every value on the hot path to catch a case no encoder
- * produces, so the leniency is deliberate, and it is what Ajv and the
- * rest of the ecosystem do.
+ * are well-formed and nothing about the bytes inside it.
  *
- * @see RFC 4648 section 4, https://datatracker.ietf.org/doc/html/rfc4648#section-4
+ * @specCites RFC 4648 section 4, https://datatracker.ietf.org/doc/html/rfc4648#section-4
+ * @specBoundary under-asserts
+ * Base64 strings containing ASCII whitespace, such as line breaks used in
+ * MIME messages, are accepted. The validator removes that whitespace before
+ * checking the encoding. RFC 4648 requires explicit permission to allow
+ * whitespace, which the OpenAPI format definition does not give. To reject
+ * whitespace, register `formats: { byte: validateByteRfc4648 }`.
+ * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc4648#section-3.5
+ * Some base64 strings are accepted even though decoding and re-encoding
+ * changes their spelling. For example, `"cE6="` becomes `"cE4="`. RFC 4648
+ * requires the unused bits in the final encoded group to be zero; this
+ * validator checks the alphabet and padding without checking those bits.
  * @public
  */
 export function validateByte(value: string): boolean {
@@ -82,7 +87,7 @@ export function validateByte(value: string): boolean {
  * createValidator(doc, { formats: { byte: validateByteRfc4648 } });
  * ```
  *
- * @see RFC 4648 section 4, https://datatracker.ietf.org/doc/html/rfc4648#section-4
+ * @specCites RFC 4648 section 4, https://datatracker.ietf.org/doc/html/rfc4648#section-4
  * @public
  */
 export function validateByteRfc4648(value: string): boolean {
@@ -99,7 +104,7 @@ export function validateByteRfc4648(value: string): boolean {
  * correct input. A value mixing the two alphabets fails, which is the
  * mistake this format is most useful for catching.
  *
- * @see RFC 4648 section 5, https://datatracker.ietf.org/doc/html/rfc4648#section-5
+ * @specCites RFC 4648 section 5, https://datatracker.ietf.org/doc/html/rfc4648#section-5
  * @public
  */
 export function validateBase64Url(value: string): boolean {
