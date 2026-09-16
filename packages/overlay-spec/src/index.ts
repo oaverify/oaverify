@@ -87,6 +87,14 @@ export function isOverlayDocument(value: unknown): value is OverlayDocument {
  *         match the target (e.g. non-object where an object is
  *         expected).
  *
+ * @specCites OpenAPI Overlay 1.0, https://spec.openapis.org/overlay/v1.0.0.html
+ * @specBoundary narrows
+ * An overlay that removes a node and later re-creates it is refused as
+ * a self-conflict, though Overlay 1.0 applies actions "in sequential
+ * order", each to the result of the last, which makes that legal. Every
+ * action here accumulates into one typed `SpecOverlay` applied once,
+ * and its verbs have no ordering between them.
+ *
  * @public
  */
 export function translateOverlay(doc: OverlayDocument): SpecOverlay {

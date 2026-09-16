@@ -66,6 +66,17 @@ export class UnrecognisedTargetError extends Error {
  * @throws {@link UnrecognisedTargetError} on syntactically malformed
  *         input or on filter shapes that fall outside the recognised
  *         set.
+ *
+ * @specCites OpenAPI Overlay 1.0, https://spec.openapis.org/overlay/v1.0.0.html
+ * @specBoundary narrows
+ * An overlay whose `target` uses recursive descent, a slice, a function
+ * extension or a member name outside `[A-Za-z0-9_-]` is refused with
+ * `UnrecognisedTargetError`, though Overlay 1.0 defines `target` as any
+ * RFC 9535 JSONPath query and names no conformance subset. The
+ * recognised set is the OAS axes the typed `SpecOverlay` verbs can
+ * express: a general engine would return matches with no verb to apply
+ * them through, so the refusal is where the translation stops rather
+ * than where the parser does.
  */
 export function parseTarget(target: string): PathToken[] {
   const lex = new Lexer(target);

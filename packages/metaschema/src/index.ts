@@ -123,6 +123,23 @@ const BY_VERSION: Readonly<Record<MetaschemaVersion, unknown>> = {
 /**
  * The pinned meta-schema for an OpenAPI minor version.
  *
+ * @specCites the OpenAPI 3.0 schema, https://spec.openapis.org/oas/3.0/schema/2024-10-18
+ * @specBoundary transforms
+ * A 3.0 document is validated against this repo's draft-04-to-2020-12
+ * conversion of OpenAPI's published schema rather than the published
+ * bytes; 3.1 and 3.2 are vendored verbatim. The conversion is three
+ * mechanical edits (`id` to `$id`, the `$schema` URI, and the boolean
+ * `exclusiveMinimum` / `exclusiveMaximum` pairs rewritten to numeric
+ * bounds) and it refuses any draft-04 construct it does not handle, so
+ * a divergence here would be ours rather than upstream's. See
+ * `scripts/convert-oas30.mjs`.
+ * @specBoundary under-asserts https://spec.openapis.org/oas/v3.1.0#schema-object
+ * A Schema Object in a 3.1 or 3.2 document is checked only for being an
+ * object or a boolean, because those meta-schemas stub the slot
+ * (`$dynamicAnchor: "meta"`). The 3.0 document spells the object out,
+ * so a malformed `xml` or `externalDocs` inside a schema is a finding
+ * on 3.0 and silence on 3.1.
+ *
  * @public
  */
 export function metaschemaFor(version: MetaschemaVersion): unknown {
