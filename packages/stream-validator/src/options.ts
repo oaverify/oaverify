@@ -111,15 +111,10 @@ export interface StreamValidatorOptions {
    * today therefore leaves a later addition silently unchecked, which is
    * why the built-ins are the base rather than the whole set.
    *
-   * @specCites JSON Schema 2020-12 validation section 7.2.2, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.2
-   * @specBoundary under-asserts
-   * A value validated on the forward STREAM path has its `format` read
-   * as an annotation, so an OpenAPI dialect that asserts `format`, or
-   * the 2020-12 format-assertion vocabulary, is not honoured there. The
-   * same value routed through a BUFFER island is asserted. Which path a
-   * schema takes is a property of the schema's shape rather than of the
-   * caller's configuration, so the two halves of one document can
-   * differ.
+   * Under a dialect that asserts `format`, a node carrying the keyword
+   * is routed to a BUFFER island and asserted there; the forward path
+   * never sees one. So these reach every `format` the engine asserts,
+   * and under a non-asserting dialect neither engine asserts at all.
    */
   formats?: Record<string, FormatDefinition>;
 

@@ -446,15 +446,15 @@ export function routeSignature(pathPattern: string): string {
  * @returns A {@link Router}.
  *
  * @specCites OpenAPI 3.1 Paths Object, https://spec.openapis.org/oas/v3.1.0#paths-object
- * @specBoundary resolves
- * Two templates that both match a request are ordered by the first
+ * @specBoundary chooses
+ * A request matching both `/a/{x}/c` and `/{y}/b/c` routes to
+ * `/a/{x}/c`. Two templates that both match are ordered by the first
  * position where they differ in kind, a literal beating a compound
- * beating a bare `{name}`. OpenAPI says only that concrete paths are
- * matched before their templated counterparts, which decides
- * `/pets/mine` against `/pets/{id}` and says nothing about `/a/{x}/c`
- * against `/{y}/b/c`. The rule chosen here is the one find-my-way,
- * path-to-regexp and gorilla/mux apply, so a spec moved between them
- * routes the same way.
+ * beating a bare `{name}`. OpenAPI fixes only that a concrete path
+ * beats its templated counterpart and then hands the rest over: "In
+ * case of ambiguous matching, it's up to the tooling to decide which
+ * one to use." Its own example of that case is `/{entity}/me` against
+ * `/books/{id}`. The rule here is the one `path-to-regexp` applies.
  *
  * @example
  * ```ts
