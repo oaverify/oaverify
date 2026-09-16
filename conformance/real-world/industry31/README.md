@@ -69,10 +69,12 @@ and 22 from OGC. All other findings were unchanged; none were added.
 Re-evaluate differences after checker changes. The existing flat-directory real-world runners do not discover these
 nested inputs; use this dedicated runner to preserve their resource closures.
 
-`triage.mjs` executes the source checks and minimal probes below. It asserts
-that equivalent inline and external schemas both avoid the repaired hygiene
-false positive while enforcing the referenced constraint. Run the
-hash-verifying check first.
+`triage.mjs` asserts the source shapes behind the findings below against the
+pinned bytes, which is all it can do from outside the unit suite. The minimal
+schemas that reproduce each rejection are pinned in
+`packages/schema/test/well-formed.test.ts`, and the reachability case in
+`packages/check/test/external-defs.test.ts`, so they run in CI without the
+corpus. Run the hash-verifying fetch first.
 
 ## Findings worth carrying forward
 
@@ -82,16 +84,17 @@ hash-verifying check first.
 `if.properties.event_types.contains`. `contains` requires a Schema Object or
 boolean, so the published shape cannot compile. The checker reports the
 original external-file pointer. A minimal `{type: "array", contains:
-["trip_start"]}` reproduces the rejection. The snapshot has four
+["trip_start"]}` reproduces the rejection, pinned in the unit suite. The snapshot has four
 `malformed-schema` findings; these are reported findings with occurrence
 aggregation, not four independently classified defects.
 
 **PACT:** the event schemas put `$ref` directly inside the `properties` map,
 with the string `#/components/schemas/BaseEvent/properties` as its value.
 That makes `$ref` a property name whose schema is a string, which is invalid.
-It does not import the base property map. The exact
-`RequestCreatedEvent.properties.$ref` value is checked by the probe; a minimal
-`{type: "object", properties: {$ref: "..."}}` reproduces the rejection.
+It does not import the base property map. `triage.mjs` checks the exact
+`RequestCreatedEvent.properties.$ref` value; a minimal
+`{type: "object", properties: {$ref: "..."}}` reproduces the rejection, pinned
+in the unit suite.
 The snapshot has four malformed event-schema findings. This is why the selected
 source is `wbcsd/data-exchange-protocol`, not its obsolete `pact-openapi` sibling.
 
@@ -105,23 +108,17 @@ component. Hygiene then saw the retained original definition without a
 reference and reported it as unused.
 
 The repair merged in [#1082](https://github.com/oaverify/oaverify/pull/1082).
-The refreshed MDS Policy snapshot has no findings. The minimized probe now
-checks equivalent inline and external schemas:
-
-- Inline, with a document-relative reference: zero `unreachable-defs` findings.
-- External, with a resource-local `#/$defs/Code` reference: zero findings.
-- Both validators accept a string `code` and reject a numeric `code`, proving
-  that the constraint is used in both forms.
-
-This corpus change preserves the probe and contains no checker implementation.
-The repair also fixed the pre-existing attribution defect recorded in
+The refreshed MDS Policy snapshot has no findings. #1082 carries the
+regression test, covering the inline and external forms across the sync,
+async and provenance combinations, so this corpus keeps no probe of its own
+and contains no checker implementation. The repair also fixed the pre-existing attribution defect recorded in
 [#1081](https://github.com/oaverify/oaverify/issues/1081). No upstream defect
 report was filed as part of this corpus pass.
 
 ### Other inspected signals
 
 **UIC:** `AbstractEvent.required` includes `revision`, but its properties do
-not declare it. The probe confirms that omission fails while `revision: {}`
+not declare it. `triage.mjs` confirms that omission fails while `revision: {}`
 validates. This is legal JSON Schema with an unconstrained required field,
 not an unsatisfiable schema. The other undeclared event identifiers are similar
 warning leads. The snapshot contains nine such findings and one format warning.

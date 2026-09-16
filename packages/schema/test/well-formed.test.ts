@@ -164,6 +164,30 @@ describe("well-formedness: every schema-valued position", () => {
   });
 });
 
+describe("well-formedness: shapes found in published documents", () => {
+  // Both spellings come from the industry 3.1 corpus
+  // (conformance/real-world/industry31). The mechanism is the table
+  // above; these pin what a publisher actually shipped, so a later
+  // relaxation has to confront the real shapes.
+  it("rejects an array-valued contains", () => {
+    expect(() => compileWith({ type: "array", contains: ["trip_start"] })).toThrow(
+      /"contains" at <root> must be an object or boolean; got an array/,
+    );
+  });
+
+  it("rejects $ref as a property name holding a string", () => {
+    // This declares a property called `$ref` whose schema is a string.
+    // It does not import the referenced property map, and reading it as
+    // a reference would invent a meaning the document does not have.
+    expect(() =>
+      compileWith({
+        type: "object",
+        properties: { $ref: "#/components/schemas/BaseEvent/properties" },
+      }),
+    ).toThrow(/schema at "properties\.\$ref" must be an object or boolean; got a string/);
+  });
+});
+
 describe("well-formedness: precondition, not a lint level", () => {
   it("throws in every schemaLint mode including off", () => {
     for (const schemaLint of ["off", "warn", "strict"] as const) {
