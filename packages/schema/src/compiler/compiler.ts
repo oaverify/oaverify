@@ -1194,6 +1194,15 @@ export interface CompileOptions {
    * When unset, codegen is identical to the un-instrumented path (zero
    * overhead). Must be a positive integer (>= 1), or `Infinity` for
    * explicitly uncapped; `compileSchema` throws otherwise.
+   *
+   * @specCites JSON Schema 2020-12 core section 8.2.3, https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3
+   * @specBoundary narrows
+   * Once set, an instance nested deeper than the cap is invalid, and
+   * JSON Schema puts no depth limit on an instance a recursive `$ref`
+   * accepts. The alternative at that depth is not acceptance: recursion
+   * runs on the native call stack, so an uncapped validator throws
+   * `RangeError` somewhere past a few thousand frames. This trades a
+   * crash for a verdict, and the cap is the caller's to choose.
    */
   maxDepth?: number;
   /**
@@ -1253,12 +1262,20 @@ export interface CompileOptions {
    * What to do about a `format` with no validator registered under its
    * name.
    *
-   * - `"ignore"` (default): the format asserts nothing, per JSON Schema.
+   * - `"ignore"` (default): the format asserts nothing.
    * - `"error"`: refuse to compile, naming the formats.
    *
    * Inert where the dialect does not assert `format`, and independent of
    * {@link CompileOptions.schemaLint}, which reports advice rather than
    * refusing to build.
+   *
+   * @specCites JSON Schema 2020-12 validation section 7, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7
+   * @specBoundary chooses
+   * An unrecognised format asserts nothing by default, and this option
+   * exists so a caller can make it a compile error instead. JSON Schema
+   * makes Format-Annotation the default vocabulary and says supporting
+   * Format-Assertion is OPTIONAL, so both settings are conformant and
+   * the default is the one the spec picks.
    *
    * Keep a format as an annotation by registering the identity for it:
    *
