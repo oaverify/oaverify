@@ -61,4 +61,38 @@ assert.equal(
 );
 assert.equal(validator.validateRequest({ method: "GET", path: "/ping" }).valid, true);
 
-console.log("Confirmed MDS and PACT malformed shapes and the UIC unconstrained required field.");
+const appStatus = await source("/docs/specs/appstatusv1.yaml");
+const cusip = appStatus.components.parameters.cusip.schema;
+// `(9)` is a group matching the literal digit, where `{9}` was meant, so the
+// pattern matches length 2 and minLength 9 can never hold.
+assert.equal(cusip.pattern, "(^[a-zA-Z0-9](9)$)");
+assert.equal(cusip.minLength, 9);
+assert.equal(
+  compileSchema(cusip, { dialect: openapi31Dialect }).validate("037833100").valid,
+  false,
+);
+
+const notifications = await source("/docs/specs/appstatuspushNotifications_1.1.1.yaml");
+const funding = notifications.components.schemas.FundingReceivedNotification.allOf[1];
+const notification = funding.properties.notification;
+assert.equal(notification.allOf[0].$ref, "#/components/schemas/TransferNotificationBase");
+// The two spellings of the same state are what leave one legal value.
+assert.deepEqual(notification.properties.status.enum, ["inProgress", "complete"]);
+assert.deepEqual(notifications.components.schemas.TransferNotificationBase.properties.status.enum, [
+  "awaitingReview",
+  "inProgress",
+  "completed",
+]);
+
+const withdrawal = await source("/docs/specs/onetimewithdrawal_1.0.1.yaml");
+const branch = withdrawal.components.schemas.TransactionAmounts.allOf[2];
+// `properties` sits at the same indentation as `if`, so `if` parses as null
+// and its intended condition becomes a sibling keyword.
+assert.ok(Object.hasOwn(branch, "if"));
+assert.equal(branch.if, null);
+assert.ok(Object.hasOwn(branch, "properties"));
+
+console.log(
+  "Confirmed MDS, PACT and IRI malformed shapes, the IRI unsatisfiable pattern and enum\n" +
+    "composition, and the UIC unconstrained required field.",
+);

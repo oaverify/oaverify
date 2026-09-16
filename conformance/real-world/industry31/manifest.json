@@ -17,6 +17,10 @@
     {
       "repository": "wbcsd/data-exchange-protocol",
       "revision": "cf4ebedb18d42f3453bcc868e01159321297c09a"
+    },
+    {
+      "repository": "Insured-Retirement-Institute/Digital-First-Specifications",
+      "revision": "257e6dc98ecb65c10f87a89124cecc2642675591"
     }
   ],
   "entries": [
@@ -64,6 +68,33 @@
       "openapi": "3.1.0",
       "sector": "carbon accounting",
       "reason": "CloudEvents const tags and event property reuse, including malformed authored schemas"
+    },
+    {
+      "id": "iri-app-status",
+      "entry": "https://raw.githubusercontent.com/Insured-Retirement-Institute/Digital-First-Specifications/257e6dc98ecb65c10f87a89124cecc2642675591/docs/specs/appstatusv1.yaml",
+      "title": "IRI Digital First - Annuity Application Status",
+      "version": "1.0.0",
+      "openapi": "3.1.0",
+      "sector": "insurance",
+      "reason": "Quantifier typo making a pattern unsatisfiable, and non-unicode pattern fallbacks"
+    },
+    {
+      "id": "iri-app-status-notifications",
+      "entry": "https://raw.githubusercontent.com/Insured-Retirement-Institute/Digital-First-Specifications/257e6dc98ecb65c10f87a89124cecc2642675591/docs/specs/appstatuspushNotifications_1.1.1.yaml",
+      "title": "IRI Digital First - Application Status Push Notifications",
+      "version": "1.1.1",
+      "openapi": "3.1.0",
+      "sector": "insurance",
+      "reason": "Composed enum narrowing that excludes the status values the document lists"
+    },
+    {
+      "id": "iri-one-time-withdrawal",
+      "entry": "https://raw.githubusercontent.com/Insured-Retirement-Institute/Digital-First-Specifications/257e6dc98ecb65c10f87a89124cecc2642675591/docs/specs/onetimewithdrawal_1.0.1.yaml",
+      "title": "IRI Digital First - One-Time Withdrawal",
+      "version": "1.0.1",
+      "openapi": "3.1.0",
+      "sector": "insurance",
+      "reason": "A null if branch inside an allOf, rejected at compile"
     }
   ],
   "resources": [
@@ -1271,6 +1302,21 @@
       "url": "https://raw.githubusercontent.com/wbcsd/data-exchange-protocol/cf4ebedb18d42f3453bcc868e01159321297c09a/spec/v3/openapi.yaml",
       "sha256": "e5e48ab32d3d87fd634c8a4df27d81256991819196a4cdb1ef0d655bd8fb9d43",
       "bytes": 88411
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Insured-Retirement-Institute/Digital-First-Specifications/257e6dc98ecb65c10f87a89124cecc2642675591/docs/specs/appstatusv1.yaml",
+      "sha256": "ee12a364dde846147d02b52d83b02e000441f6d2289be0204b9c1ed235ff3145",
+      "bytes": 36676
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Insured-Retirement-Institute/Digital-First-Specifications/257e6dc98ecb65c10f87a89124cecc2642675591/docs/specs/appstatuspushNotifications_1.1.1.yaml",
+      "sha256": "f39c6a9dee43e00228008cc06535a76cc23f89c53fc2c647bf28f43a2e9c7912",
+      "bytes": 65917
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Insured-Retirement-Institute/Digital-First-Specifications/257e6dc98ecb65c10f87a89124cecc2642675591/docs/specs/onetimewithdrawal_1.0.1.yaml",
+      "sha256": "f8ff5253787db35c5d5310ee5e820d9d2ddcf540fb618838563db017b1c364ba",
+      "bytes": 53062
     }
   ]
 }

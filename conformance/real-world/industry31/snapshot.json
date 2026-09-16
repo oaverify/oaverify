@@ -60,6 +60,40 @@
         "malformed-schema": 4
       },
       "resources": 1
+    },
+    {
+      "id": "iri-app-status",
+      "paths": 9,
+      "webhooks": 0,
+      "findings": {
+        "format-not-validated": 1,
+        "unsatisfiable/pattern-length": 3,
+        "silent-rewrite/required-not-in-properties": 10,
+        "silent-rewrite/pattern-not-unicode-mode": 7
+      },
+      "resources": 1
+    },
+    {
+      "id": "iri-app-status-notifications",
+      "paths": 2,
+      "webhooks": 12,
+      "findings": {
+        "format-not-validated": 1,
+        "example-invalid": 5,
+        "silent-rewrite/required-not-in-properties": 6,
+        "unsatisfiable/composed-enum-members": 2
+      },
+      "resources": 1
+    },
+    {
+      "id": "iri-one-time-withdrawal",
+      "paths": 3,
+      "webhooks": 0,
+      "findings": {
+        "example-invalid": 1,
+        "malformed-schema": 1
+      },
+      "resources": 1
     }
   ]
 }
