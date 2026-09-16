@@ -133,7 +133,10 @@ if (problems.length > 0) {
       "spec, followed by prose saying what the departure is and why it is right.\n" +
       "Kinds: " +
       [...KINDS.keys()].join(", ") +
-      '\nSee AGENTS.md, "Marking a spec boundary".',
+      '\nSee AGENTS.md, "Marking a spec boundary".\n' +
+      "A citation to a standards body not yet listed is rejected by host:\n" +
+      "add it to SPEC_HOSTS in scripts/spec-boundary-lint.mjs rather than\n" +
+      "dropping the citation.",
   );
   process.exit(1);
 }

@@ -9,17 +9,34 @@
 // matching that specification's text, and a declaration carrying neither is
 // claiming nothing about any specification.
 
-/** Hosts that publish a specification, rather than someone's summary of one. */
+/**
+ * Hosts that publish a specification, rather than someone's summary of one.
+ *
+ * The list is closed so that `@specCites the thing I was thinking of,
+ * https://example.com/my-notes` cannot pass. The cost is that a correct
+ * citation to a standards body nobody has met yet is rejected, and the
+ * tempting response to that is to drop the citation rather than argue with
+ * a linter. `yaml.org` was the first: `@oaverify/syntax` implements YAML 1.2
+ * and could not say so. Add the host.
+ */
 export const SPEC_HOSTS = new Set([
   "datatracker.ietf.org",
   "www.rfc-editor.org",
   "rfc-editor.org",
+  "www.ietf.org",
   "spec.openapis.org",
   "tc39.es",
   "www.unicode.org",
   "unicode.org",
   "json-schema.org",
   "www.w3.org",
+  "yaml.org",
+  "docs.oasis-open.org",
+  "www.oasis-open.org",
+  "www.ecma-international.org",
+  "ecma-international.org",
+  "www.iso.org",
+  "pubs.opengroup.org",
 ]);
 
 /**
