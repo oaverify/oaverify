@@ -64,15 +64,17 @@ export function validateHostname(value: string): boolean {
  * @specCites RFC 5890 section 2.3.2.3, https://datatracker.ietf.org/doc/html/rfc5890#section-2.3.2.3
  * @specCites RFC 5891 section 4.2.3.2, https://datatracker.ietf.org/doc/html/rfc5891#section-4.2.3.2
  * @specCites RFC 5892 section 2, https://datatracker.ietf.org/doc/html/rfc5892#section-2
- * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc5890#section-2.3.2.3
- * No cap on the whole name. The RFC's cap is on the encoded A-label
- * form and this does not punycode, so there is no encoded length to
- * measure (#669).
- * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc5891#section-4.2.3.2
- * A structural check rather than the IDNA validity procedure: no UTS 46
- * mappings, no `xn--` A-label validation, and none of the contextual or
- * bidirectional rules RFC 5891 and RFC 5892 lay down. A label passing
- * this can still fail IDNA registration.
+ * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc5890#section-2.3.2.1
+ * A name of any total length passes, however many labels it carries.
+ * The RFC's cap is on the encoded A-label form and this does not
+ * punycode, so there is no encoded length to measure (#669).
+ * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc5891#section-4.2
+ * A label that IDNA registration would refuse passes. This is a
+ * structural check rather than the section 4.2 validity procedure: no
+ * UTS 46 mappings, no `xn--` A-label validation, and neither the
+ * contextual rules (section 4.2.3.3) nor the bidi rule (section
+ * 4.2.3.4). The one section 4.2.3 rule it does apply is leading
+ * combining marks, which is what the declaration cites.
  * @public
  */
 export function validateIdnHostname(value: string): boolean {

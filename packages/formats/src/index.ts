@@ -87,20 +87,21 @@ import {
  * the OpenAPI Format Registry that is assertable and cheap to assert.
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specBoundary defers
+ * A value declaring a registry format this map does not carry is
+ * accepted whatever it holds, because the name asserts nothing. The
+ * assertable names still outstanding are tracked in #696.
+ * `@oaverify/check`'s format pass reports them, so an author is told
+ * which of their formats constrain nothing rather than assuming all of
+ * them do.
  * @specBoundary under-asserts
- * A document using a registry format this map does not carry gets no
- * assertion for it, so `decimal`, `decimal128` and `float` are
- * annotations here (#696). `@oaverify/check`'s format pass reports the
- * leftovers, so an author is told which of their formats constrain
- * nothing rather than being left to assume all of them do.
- *
- * `float` is the one of those three that is decidable and still
- * declined. `Math.fround(n) === n` settles membership exactly, and
- * asserting it would reject values a producer legitimately sent: the
- * float32 nearest 3.14 serializes as `3.14`, the shortest string that
- * round-trips, and that fails the test. `double` is absent for a
- * different reason and is not part of this boundary, since every JSON
- * number is already an IEEE 754 double and the name has nothing left to
+ * A `float` value outside the float32 set is accepted, and that one is
+ * declined rather than pending. `Math.fround(n) === n` decides
+ * membership exactly, so it could be asserted; asserting it would
+ * reject values a producer legitimately sent, since the float32 nearest
+ * 3.14 serializes as `3.14`, the shortest string that round-trips, and
+ * that fails the test. `double` is outside both boundaries: every JSON
+ * number is already an IEEE 754 double, so the name has nothing left to
  * assert.
  *
  * String formats are bare functions, per {@link FormatDefinition}'s

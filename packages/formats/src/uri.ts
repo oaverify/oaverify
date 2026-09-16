@@ -196,14 +196,17 @@ const URI_TEMPLATE_RE = new RegExp(
  *
  * @specCites RFC 6570 section 2, https://datatracker.ietf.org/doc/html/rfc6570#section-2
  * @specBoundary under-asserts
- * A template carrying a C1 control or a Unicode noncharacter passes,
- * where the `literals` rule does not admit one. The literal set here
- * excludes the C0 controls, space, DEL and the seven gen-delims the
- * grammar names, and admits everything else above U+007F. Narrowing the class to the ranges
- * the rule actually lists is tracked as #965; the current class was
- * widened to stop rejecting an ideographic space (#854), and the
- * remaining gap accepts a little more than it should rather than
- * rejecting real templates.
+ * A template carrying an apostrophe (`/a'b`), a C1 control or a Unicode
+ * noncharacter passes, and the `literals` rule admits none of the
+ * three. Its comment excludes CTL, SP, DQUOTE, the apostrophe, a `%`
+ * outside a pct-encoded triplet, and the eight punctuation marks from
+ * less-than to right brace; the class here omits the apostrophe and
+ * stops excluding at U+007F, so everything above that passes.
+ *
+ * Narrowing it to the ranges the rule lists is tracked as #965. The
+ * class was last widened to stop rejecting an ideographic space (#854),
+ * which is the direction the error has to fall: over-accepting a
+ * template is recoverable, and rejecting a real one is not.
  * @public
  */
 export function validateUriTemplate(value: string): boolean {

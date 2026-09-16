@@ -69,8 +69,10 @@ function monthNumber(name: string): number {
  * RFC 9110 asks a recipient to verify it, and a mismatch is a
  * producer's clerical error rather than a value the reader cannot use.
  * @specBoundary under-asserts
- * An RFC 850 date's day-of-month check treats February as having 29
- * days. Section 5.6.7 says how to read the two-digit year: a timestamp
+ * `"Sunday, 29-Feb-94 08:49:37 GMT"` passes, though 1994 had no
+ * February 29th: an RFC 850 date's day-of-month check treats February
+ * as having 29 days. Section 5.6.7 says how to read the two-digit year:
+ * a timestamp
  * more than 50 years in the future names the most recent past year
  * ending in those digits. Applying that here would make the verdict
  * depend on the clock, so `"29-Feb-24"` would turn invalid some time
