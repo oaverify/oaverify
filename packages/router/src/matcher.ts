@@ -445,6 +445,17 @@ export function routeSignature(pathPattern: string): string {
  * @param paths - Record of path templates to PathItems.
  * @returns A {@link Router}.
  *
+ * @specCites OpenAPI 3.1 Paths Object, https://spec.openapis.org/oas/v3.1.0#paths-object
+ * @specBoundary resolves
+ * Two templates that both match a request are ordered by the first
+ * position where they differ in kind, a literal beating a compound
+ * beating a bare `{name}`. OpenAPI says only that concrete paths are
+ * matched before their templated counterparts, which decides
+ * `/pets/mine` against `/pets/{id}` and says nothing about `/a/{x}/c`
+ * against `/{y}/b/c`. The rule chosen here is the one find-my-way,
+ * path-to-regexp and gorilla/mux apply, so a spec moved between them
+ * routes the same way.
+ *
  * @example
  * ```ts
  * const router = createRouter({
