@@ -42,3 +42,40 @@ for (const entry of manifest.entries) {
 }
 // Findings are research output. Read/hash/load/check failures still fail the run.
 console.log(JSON.stringify({ entries }, null, 2));
+
+// Upstream bytes are pinned, so a difference against the recorded snapshot is
+// ours. Reported and never fatal: findings move whenever the checker improves.
+function differences(before, after) {
+  const lines = [];
+  const recorded = new Map(before.entries.map((entry) => [entry.id, entry]));
+  for (const entry of after.entries) {
+    const was = recorded.get(entry.id);
+    recorded.delete(entry.id);
+    if (was === undefined) {
+      lines.push(`${entry.id}  not in the snapshot`);
+      continue;
+    }
+    for (const field of ["paths", "webhooks", "resources"])
+      if (was[field] !== entry[field])
+        lines.push(`${entry.id}  ${field}  ${was[field]} -> ${entry[field]}`);
+    const codes = [...new Set([...Object.keys(was.findings), ...Object.keys(entry.findings)])];
+    for (const code of codes.sort()) {
+      const from = was.findings[code] ?? 0;
+      const to = entry.findings[code] ?? 0;
+      if (from !== to) lines.push(`${entry.id}  ${code}  ${from} -> ${to}`);
+    }
+  }
+  for (const id of recorded.keys()) lines.push(`${id}  in the snapshot, not in this run`);
+  return lines;
+}
+
+if (process.argv.includes("--diff-snapshot")) {
+  const snapshot = JSON.parse(await readFile(new URL("snapshot.json", import.meta.url), "utf8"));
+  const lines = differences(snapshot, { entries });
+  const against = `snapshot.json (${snapshot.measuredAgainst})`;
+  console.log(
+    lines.length === 0
+      ? `No change against ${against}.`
+      : [`Changes against ${against}:`, ...lines].join("\n"),
+  );
+}

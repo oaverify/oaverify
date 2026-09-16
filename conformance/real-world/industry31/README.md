@@ -66,7 +66,13 @@ finite-value diagnostic and hoisted-definition reachability fixes. It is an
 observation, not a conformance baseline. Compared with the original snapshot
 on `df1b824c`, 30 `unreachable-defs` findings disappeared: eight from MDS Policy
 and 22 from OGC. All other findings were unchanged; none were added.
-Re-evaluate differences after checker changes. The existing flat-directory real-world runners do not discover these
+
+`check.mjs --diff-snapshot` reports the delta against that record and still
+exits 0. Because the upstream bytes are pinned, a delta is attributable to a
+checker change rather than to upstream editing a document. It is not a gate:
+findings move whenever the checker improves, and a runner that goes red on an
+improvement stops being read. Update `snapshot.json` and its `measuredAgainst`
+revision deliberately, in the commit whose delta explains it. The existing flat-directory real-world runners do not discover these
 nested inputs; use this dedicated runner to preserve their resource closures.
 
 `triage.mjs` asserts the source shapes behind the findings below against the
