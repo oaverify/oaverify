@@ -467,7 +467,18 @@ export interface ParameterObject {
   deprecated?: boolean;
   /**
    * Query-only. When `true`, an empty value (`?flag=`) is legitimate and
-   * exempted from schema validation. OpenAPI 3.1 §4.8.12.1.
+   * exempted from schema validation.
+   *
+   * @specCites OpenAPI 3.1 Parameter Object, https://spec.openapis.org/oas/v3.1.0#parameter-object
+   * @specBoundary resolves
+   * A `?flag=` on a parameter declaring this is accepted without its
+   * schema running, so a `minLength: 1` or `type: integer` beside it
+   * does not reject it. The spec allows sending the empty value and
+   * calls the interaction between this field and the Schema Object
+   * implementation-defined, so skipping the schema is a reading rather
+   * than a requirement. The alternative reading, running the schema
+   * anyway, makes the field do nothing on most parameters that declare
+   * it.
    */
   allowEmptyValue?: boolean;
   style?: ParameterStyle;
@@ -539,6 +550,16 @@ export interface HttpRequest {
    * HTTP method. Any casing: the router lowercases before matching, so
    * `"get"`, `"GET"` and `"Get"` all reach the same operation, and an
    * adapter can pass its framework's value through unchanged.
+   *
+   * @specCites RFC 9110 section 9.1, https://www.rfc-editor.org/rfc/rfc9110#section-9.1
+   * @specBoundary under-asserts
+   * A request whose method token is `Get` reaches the `get` operation
+   * and is validated against it, where HTTP defines the method token as
+   * case-sensitive and standardized methods as all-uppercase. The
+   * lowercasing is unconditional, so a token HTTP treats as a distinct
+   * method is folded into a documented one rather than being refused.
+   * An adapter reading from a real HTTP parser never sees a mixed-case
+   * token; `httpRequestFromFetch` and direct API callers can pass one.
    */
   method: string;
   /**

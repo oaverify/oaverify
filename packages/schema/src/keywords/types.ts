@@ -731,9 +731,11 @@ export interface Vocabulary {
  */
 export interface DialectRules {
   /**
-   * OpenAPI 3.0 semantics: when a schema has `$ref`, every sibling
-   * keyword is ignored. Required; each built-in dialect sets it
-   * explicitly: `true` in {@link oas30Dialect}, `false` in
+   * OpenAPI 3.0 semantics: when a schema has `$ref`, its sibling
+   * keywords are ignored, bar the metadata keys listed in
+   * `OAS30_REF_SIBLINGS_ALLOWED` (`description`, `summary`), which
+   * assert nothing and are kept. Required; each built-in dialect sets
+   * it explicitly: `true` in {@link oas30Dialect}, `false` in
    * {@link jsonSchemaDialect} and {@link openapi31Dialect} (JSON Schema
    * 2020-12 and OpenAPI 3.1+ semantics, where siblings are honored).
    */
