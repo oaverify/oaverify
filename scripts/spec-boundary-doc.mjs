@@ -49,18 +49,39 @@ function citeLabel(header) {
  * does not name, which is what the ambiguous-anchor rule produces.
  */
 export function labelFromUrl(url) {
-  const rfc = /\/rfc(\d+)(?:#(?:section|appendix)-([\w.]+))?/i.exec(url);
-  if (rfc) {
-    const part = /appendix/i.test(url) ? "appendix" : "section";
-    return `RFC ${rfc[1]}${rfc[2] ? ` ${part} ${rfc[2]}` : ""}`;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
   }
-  if (url.includes("spec.openapis.org/registry/format")) return "the OpenAPI Format Registry";
-  if (url.includes("spec.openapis.org/overlay")) return "OpenAPI Overlay 1.0";
-  const oas = /spec\.openapis\.org\/oas\/v?([\d.]+)/i.exec(url);
-  if (oas) return `OpenAPI ${oas[1].replace(/\.$/, "")}`;
-  if (url.includes("json-schema.org")) return "JSON Schema 2020-12";
-  if (url.includes("yaml.org")) return "YAML 1.2";
-  if (url.includes("oasis-open.org/sarif")) return "SARIF 2.1.0";
+  const { hostname, pathname, hash } = parsed;
+  if (
+    hostname === "www.rfc-editor.org" ||
+    hostname === "rfc-editor.org" ||
+    hostname === "datatracker.ietf.org" ||
+    hostname === "www.ietf.org"
+  ) {
+    const rfc = /\/rfc(\d+)(?:\.(?:html|txt))?\/?$/i.exec(pathname);
+    if (rfc) {
+      const part = /^#(section|appendix)-([\w.]+)$/i.exec(hash);
+      return `RFC ${rfc[1]}${part ? ` ${part[1].toLowerCase()} ${part[2]}` : ""}`;
+    }
+  }
+  if (hostname === "spec.openapis.org") {
+    if (/^\/registry\/format(?:\/|$)/.test(pathname)) return "the OpenAPI Format Registry";
+    if (/^\/overlay(?:\/|$)/.test(pathname)) return "OpenAPI Overlay 1.0";
+    const oas = /^\/oas\/v?(\d+(?:\.\d+)*)(?:\.html|\/)?$/i.exec(pathname);
+    if (oas) return `OpenAPI ${oas[1]}`;
+  }
+  if (hostname === "json-schema.org") return "JSON Schema 2020-12";
+  if (hostname === "yaml.org") return "YAML 1.2";
+  if (
+    (hostname === "docs.oasis-open.org" || hostname === "www.oasis-open.org") &&
+    pathname.startsWith("/sarif/")
+  ) {
+    return "SARIF 2.1.0";
+  }
   return url;
 }
 

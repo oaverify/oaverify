@@ -54,6 +54,23 @@ describe("unlink", () => {
 });
 
 describe("labelFromUrl", () => {
+  it.each([
+    "https://json-schema.org.example.test/draft/2020-12/",
+    "https://example.test/json-schema.org",
+    "https://yaml.org.example.test/spec/1.2.2/",
+    "https://example.test/?spec=yaml.org",
+    "https://yaml.org@example.test/spec/1.2.2/",
+    "https://example.test/spec.openapis.org/registry/format/",
+    "https://example.test/spec.openapis.org/overlay/v1.0.0.html",
+    "https://example.test/spec.openapis.org/oas/v3.1.0",
+    "https://example.test/oasis-open.org/sarif/v2.1.0/",
+    "https://example.test/rfc/rfc9562#section-4",
+    "https://spec.openapis.org/?next=/oas/v3.1.0",
+    "not a URL: json-schema.org",
+  ])("does not infer a specification label from %s", (url) => {
+    expect(labelFromUrl(url)).toBe(url);
+  });
+
   it("names an RFC section", () => {
     expect(labelFromUrl(SUB)).toBe("RFC 4648 section 3.5");
   });
