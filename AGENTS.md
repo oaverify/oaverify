@@ -133,6 +133,13 @@ Four rules, all asserted by `pnpm check:spec-boundaries`:
   decision, the kind is `resolves`.
 - **`defers` carries an issue reference.**
 
+**Put the tags last in the block**, after every other paragraph and
+beside `@public`. A block tag runs until the next one, so a
+`@specBoundary` followed by ordinary prose swallows it, and the
+generated page prints that prose as part of the departure. Six of the
+first pass's tags did this; `checkSpec`'s absorbed the whole dialect
+section.
+
 One rule the gate cannot check: **lead the prose with the departure**,
 stated as something an input does. "A UUID carrying an undefined version
 passes" is the first line; "this checks shape only" is the second. The

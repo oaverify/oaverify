@@ -59,17 +59,6 @@ export interface BodySchemaTransformOptions {
  * replaced with `false` (rejecting their presence) and stripped from
  * `required` (exempting their absence).
  *
- * @specCites JSON Schema 2020-12 validation section 9.4, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-9.4
- * @specBoundary chooses
- * A request body carrying a `readOnly` property is rejected, where the
- * spec leaves the owning authority free to ignore the field instead:
- * such an instance "MAY be ignored if sent to the owning authority, or
- * MAY result in an error, at the authority's discretion". Rejecting is
- * the half that tells a client its payload was not what it thought.
- * Stripping the property from `required` is the same choice read the
- * other way, and the only one that lets a round-tripped GET body be
- * PUT back.
- *
  * The transform is a local rewrite only; `$ref` nodes are preserved as
  * they are. To make composition-via-ref work (e.g.
  * `allOf: [{ $ref: "#/Timestamps" }, ...]` where `Timestamps` owns the
@@ -81,6 +70,16 @@ export interface BodySchemaTransformOptions {
  * (both of which read `$ref` at compile time) working as before.
  *
  * @internal
+ * @specCites JSON Schema 2020-12 validation section 9.4, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-9.4
+ * @specBoundary chooses
+ * A request body carrying a `readOnly` property is rejected, where the
+ * spec leaves the owning authority free to ignore the field instead:
+ * such an instance "MAY be ignored if sent to the owning authority, or
+ * MAY result in an error, at the authority's discretion". Rejecting is
+ * the half that tells a client its payload was not what it thought.
+ * Stripping the property from `required` is the same choice read the
+ * other way, and the only one that lets a round-tripped GET body be
+ * PUT back.
  */
 export function transformBodySchemaForDirection(
   schema: SchemaOrBoolean,

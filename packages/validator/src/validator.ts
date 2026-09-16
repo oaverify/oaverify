@@ -848,13 +848,6 @@ export interface ValidatorOptions {
    * thereby known to be invalid, and `byte` exists precisely to carry
    * multi-megabyte base64.
    *
-   * @specCites JSON Schema 2020-12 validation section 7, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7
-   * @specBoundary under-asserts
-   * A string longer than the cap is accepted whatever its `format`
-   * says, so an invalid value above 1 MiB passes where a shorter one
-   * would fail. This falls back to the annotation-only behaviour JSON
-   * Schema specifies as its default rather than inventing a verdict.
-   *
    * The cap is there because several format grammars throw `RangeError`
    * out of `validate()` on a long enough valid value, which would reach
    * a caller as a 500 rather than a verdict (#960). `maxLength` does not
@@ -864,6 +857,13 @@ export interface ValidatorOptions {
    * Raise it if you assert a format on values larger than a megabyte and
    * accept the cost; the measured thresholds are in
    * {@link CompileOptions.maxFormatLength}.
+   * @specCites JSON Schema 2020-12 validation section 7, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7
+   * @specBoundary under-asserts
+   * A string longer than the cap is accepted whatever its `format`
+   * says, so an invalid value above 1 MiB passes where a shorter one
+   * would fail. This falls back to the annotation-only behaviour JSON
+   * Schema specifies as its default rather than inventing a verdict.
+   *
    */
   maxFormatLength?: number;
   /**

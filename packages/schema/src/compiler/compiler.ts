@@ -1269,6 +1269,14 @@ export interface CompileOptions {
    * {@link CompileOptions.schemaLint}, which reports advice rather than
    * refusing to build.
    *
+   * Keep a format as an annotation by registering the identity for it:
+   *
+   * ```ts
+   * compileSchema(schema, {
+   *   unknownFormats: "error",
+   *   formats: { "x-internal-id": () => true },
+   * })
+   * ```
    * @specCites JSON Schema 2020-12 validation section 7, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7
    * @specBoundary chooses
    * Under {@link jsonSchemaDialect}, an unrecognised format asserts
@@ -1287,14 +1295,6 @@ export interface CompileOptions {
    * formats no validator has, and refusing to compile it is a worse
    * first experience than not asserting them.
    *
-   * Keep a format as an annotation by registering the identity for it:
-   *
-   * ```ts
-   * compileSchema(schema, {
-   *   unknownFormats: "error",
-   *   formats: { "x-internal-id": () => true },
-   * })
-   * ```
    */
   unknownFormats?: "ignore" | "error";
 

@@ -53,30 +53,10 @@ Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-
 A `$schema` written in an ordinary subschema is ignored and produces
 no finding, though JSON Schema says it "MUST NOT appear in
 non-resource root schema objects". Only a schema root or an
-`$id`-bearing resource changes dialect, which the paragraph below
+`$id`-bearing resource changes dialect, which the paragraph above
 states as a capability; this says what a document declaring one
 elsewhere gets back, which is silence from a tool whose job is to
 report what is wrong with it.
-
-For OpenAPI 3.1/3.2, `jsonSchemaDialect` sets the default and `$schema`
-overrides it at a schema root or an embedded `$id` resource. Ordinary
-subschemas inherit their resource's dialect. Supported declarations are
-`https://spec.openapis.org/oas/3.1/dialect/base`,
-`https://spec.openapis.org/oas/3.2/dialect/base`, and
-`https://json-schema.org/draft/2020-12/schema` (an empty trailing `#` is
-accepted). Plain 2020-12 treats formats as annotations; the OpenAPI
-dialects assert supported formats.
-
-`unsupported-schema-dialect` is a selectable schema warning. Schema
-compilation and example validation are withheld for a unit whose
-structural/reference closure reaches an unsupported dialect or mixes
-supported dialects with different semantics. Severity remapping and
-suppression never enable withheld execution. Independent supported
-resources continue, including embedded resources discovered at recognized
-schema positions inside unsupported resources. Format and ReDoS observations
-are local to supported resources; annotation-only formats are omitted.
-Runtime validation and standalone `checkDocumentExamples` retain
-their existing dialect policy.
 
 ### packages/core
 
@@ -187,30 +167,6 @@ reject values a producer legitimately sent, since the float32 nearest
 that fails the test. `double` is outside both boundaries: every JSON
 number is already an IEEE 754 double, so the name has nothing left to
 assert.
-
-String formats are bare functions, per `FormatDefinition`'s
-shorthand. The numeric formats declare `type: "number"`, because a
-format's JSON type is a property of the format.
-
-`createValidator` registers all of these for an OpenAPI document.
-Direct `compileSchema` callers pass them through the `formats`
-option, which is also how a caller replaces one:
-
-```ts
-compileSchema(schema, {
-  dialect: oas30Dialect,
-  formats: { ...builtInFormats, int64: false },
-});
-```
-
-`regex` is intentionally absent: `@oaverify/core/schema` registers
-its own `regex` validator inside the compiler dependencies so it
-routes through the same compiler as the `pattern` keyword and honors
-the `regexCompiler` option. Override by setting
-`formats: { regex: yourFn, ... }` if you want a different policy.
-
-`float` and `double` are absent too, and that is a decision rather
-than a gap; the reasoning is in `numeric.ts`.
 
 **`validateLanguage`** ([packages/formats/src/language.ts:93](../packages/formats/src/language.ts#L93))
 
@@ -354,15 +310,6 @@ default. The default is permissive because a real document names
 formats no validator has, and refusing to compile it is a worse
 first experience than not asserting them.
 
-Keep a format as an annotation by registering the identity for it:
-
-```ts
-compileSchema(schema, {
-  unknownFormats: "error",
-  formats: { "x-internal-id": () => true },
-})
-```
-
 **`multipleOfKeyword`** ([packages/schema/src/keywords/number.ts:32](../packages/schema/src/keywords/number.ts#L32))
 
 Against JSON Schema 2020-12 validation section 6.2.1 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-6.2.1>).
@@ -386,16 +333,6 @@ A string longer than the cap is accepted whatever its `format`
 says, so an invalid value above 1 MiB passes where a shorter one
 would fail. This falls back to the annotation-only behaviour JSON
 Schema specifies as its default rather than inventing a verdict.
-
-The cap is there because several format grammars throw `RangeError`
-out of `validate()` on a long enough valid value, which would reach
-a caller as a 500 rather than a verdict (#960). `maxLength` does not
-substitute: both keywords run, so `format` is reached even once the
-length assertion has failed.
-
-Raise it if you assert a format on values larger than a megabyte and
-accept the cost; the measured thresholds are in
-`maxFormatLength`.
 
 ## narrows
 
@@ -549,14 +486,6 @@ The adapter runs before any spec is read, so it cannot see the
 style to tell `form` and `cookie` apart, and decoding is right for
 the default of the two.
 
-How much of that reaches here depends on where the adapter gets its
-cookies. `httpRequestFromFetch` parses the header itself and keeps
-every crumb. The Express and Fastify adapters parse nothing: they
-pass through the record `cookie-parser` or `@fastify/cookie` built,
-so their fidelity is that parser's. A parser keeping one value per
-name delivers a repeated name as one crumb. That is a property of
-the parser the application chose rather than of this field.
-
 ### packages/metaschema
 
 **`metaschemaFor`** ([packages/metaschema/src/index.ts:123](../packages/metaschema/src/index.ts#L123))
@@ -677,16 +606,6 @@ the half that tells a client its payload was not what it thought.
 Stripping the property from `required` is the same choice read the
 other way, and the only one that lets a round-tripped GET body be
 PUT back.
-
-The transform is a local rewrite only; `$ref` nodes are preserved as
-they are. To make composition-via-ref work (e.g.
-`allOf: [{ $ref: "#/Timestamps" }, ...]` where `Timestamps` owns the
-readOnly field), pair this with `createDirectionResolver`:
-every `$ref` the compiler follows at validate-time goes through the
-same local transform on its target, so the inherited `properties`
-and `required` get projected as well. Leaving `$ref` intact keeps
-OAS 3.0 sibling suppression and the discriminator's branch lookup
-(both of which read `$ref` at compile time) working as before.
 
 ## resolves
 

@@ -596,6 +596,14 @@ export interface HttpRequest {
    * same request. That is right for the default `style: form`, which
    * percent-encodes.
    *
+   * How much of that reaches here depends on where the adapter gets its
+   * cookies. `httpRequestFromFetch` parses the header itself and keeps
+   * every crumb. The Express and Fastify adapters parse nothing: they
+   * pass through the record `cookie-parser` or `@fastify/cookie` built,
+   * so their fidelity is that parser's. A parser keeping one value per
+   * name delivers a repeated name as one crumb. That is a property of
+   * the parser the application chose rather than of this field.
+   *
    * @specCites OpenAPI 3.2 style values, https://spec.openapis.org/oas/v3.2.0#style-values
    * @specBoundary transforms
    * A `style: cookie` value carrying a valid percent-escape reaches the
@@ -604,14 +612,6 @@ export interface HttpRequest {
    * The adapter runs before any spec is read, so it cannot see the
    * style to tell `form` and `cookie` apart, and decoding is right for
    * the default of the two.
-   *
-   * How much of that reaches here depends on where the adapter gets its
-   * cookies. `httpRequestFromFetch` parses the header itself and keeps
-   * every crumb. The Express and Fastify adapters parse nothing: they
-   * pass through the record `cookie-parser` or `@fastify/cookie` built,
-   * so their fidelity is that parser's. A parser keeping one value per
-   * name delivers a repeated name as one crumb. That is a property of
-   * the parser the application chose rather than of this field.
    */
   cookies?: Record<string, string | string[]>;
   /**

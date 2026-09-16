@@ -86,24 +86,6 @@ import {
  * Covers every format JSON Schema 2020-12 names, and every format in
  * the OpenAPI Format Registry that is assertable and cheap to assert.
  *
- * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
- * @specBoundary defers
- * A value declaring a registry format this map does not carry is
- * accepted whatever it holds, because the name asserts nothing. The
- * assertable names still outstanding are tracked in #696.
- * `@oaverify/check`'s format pass reports them, so an author is told
- * which of their formats constrain nothing rather than assuming all of
- * them do.
- * @specBoundary under-asserts
- * A `float` value outside the float32 set is accepted, and that one is
- * declined rather than pending. `Math.fround(n) === n` decides
- * membership exactly, so it could be asserted; asserting it would
- * reject values a producer legitimately sent, since the float32 nearest
- * 3.14 serializes as `3.14`, the shortest string that round-trips, and
- * that fails the test. `double` is outside both boundaries: every JSON
- * number is already an IEEE 754 double, so the name has nothing left to
- * assert.
- *
  * String formats are bare functions, per {@link FormatDefinition}'s
  * shorthand. The numeric formats declare `type: "number"`, because a
  * format's JSON type is a property of the format.
@@ -125,9 +107,23 @@ import {
  * the `regexCompiler` option. Override by setting
  * `formats: { regex: yourFn, ... }` if you want a different policy.
  *
- * `float` and `double` are absent too, and that is a decision rather
- * than a gap; the reasoning is in `numeric.ts`.
- *
+ * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specBoundary defers
+ * A value declaring a registry format this map does not carry is
+ * accepted whatever it holds, because the name asserts nothing. The
+ * assertable names still outstanding are tracked in #696.
+ * `@oaverify/check`'s format pass reports them, so an author is told
+ * which of their formats constrain nothing rather than assuming all of
+ * them do.
+ * @specBoundary under-asserts
+ * A `float` value outside the float32 set is accepted, and that one is
+ * declined rather than pending. `Math.fround(n) === n` decides
+ * membership exactly, so it could be asserted; asserting it would
+ * reject values a producer legitimately sent, since the float32 nearest
+ * 3.14 serializes as `3.14`, the shortest string that round-trips, and
+ * that fails the test. `double` is outside both boundaries: every JSON
+ * number is already an IEEE 754 double, so the name has nothing left to
+ * assert.
  * @public
  */
 export const builtInFormats: Record<string, FormatDefinition> = {
