@@ -11,10 +11,10 @@ const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0
  *
  * @specCites RFC 9562 section 4, https://datatracker.ietf.org/doc/html/rfc9562#section-4
  * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc9562#section-4.1
- * Shape only: 8-4-4-4-12 hex digits with the dashes in place. The
- * version (section 4.2) and variant (section 4.1) nibbles are not
- * asserted, so a well-formed string carrying an undefined version
- * passes.
+ * A UUID carrying an undefined version passes. This checks shape only,
+ * 8-4-4-4-12 hex digits with the dashes in place, so neither the
+ * version (section 4.2) nor the variant (section 4.1) nibble is
+ * asserted.
  *
  * Asserting them is the wrong fix rather than the unwritten one. The
  * section 4.1 variant table assigns all sixteen nibble values, and the

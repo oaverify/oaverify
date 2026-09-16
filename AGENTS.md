@@ -128,6 +128,14 @@ Four rules, all asserted by `pnpm check:spec-boundaries`:
   the MAY, SHOULD or OPTIONAL that grants it, the kind is `resolves`.
 - **`defers` carries an issue reference.**
 
+One rule the gate cannot check: **lead the prose with the departure**,
+stated as something an input does. "A UUID carrying an undefined version
+passes" is the first line; "this checks shape only" is the second. The
+generated inventory quotes the opening sentence of each boundary, so a
+first line describing what the code does leaves the row saying nothing
+about where it stops. Half the first pass over `packages/formats` got
+this wrong and had to be rewritten.
+
 The tags are for behaviour relative to a cited specification. A design
 decision that is not spec-relative (a linear route scan, a frozen empty
 array) is ordinary prose, and tagging it dilutes the set.

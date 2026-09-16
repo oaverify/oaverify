@@ -140,9 +140,9 @@ export function validateUint32(value: number): boolean {
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @specBoundary narrows
- * The registry's `int64` is the full signed 64-bit range. This accepts
- * the safe integers, so a legal int64 between `2^53` and `2^63` is
- * rejected. The paragraphs above have the reasoning: such a value has
+ * A legal int64 between `2^53` and `2^63` is rejected. The registry's
+ * `int64` is the full signed 64-bit range, and this accepts the safe
+ * integers. The paragraphs above have the reasoning: such a value has
  * already lost precision in `JSON.parse`, so accepting it would vouch
  * for a number that is provably not the one on the wire.
  * @public
@@ -163,9 +163,9 @@ export function validateInt64(value: number): boolean {
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @specBoundary narrows
- * The registry's `uint64` is the full unsigned 64-bit range. This
- * ceiling is `2^53 - 1`, so a legal uint64 above it is rejected, for
- * the reason {@link validateInt64} gives.
+ * A legal uint64 above `2^53 - 1` is rejected, where the registry's
+ * `uint64` is the full unsigned 64-bit range, for the reason
+ * `validateInt64` gives.
  * @public
  */
 export function validateUint64(value: number): boolean {
@@ -227,15 +227,15 @@ export function validateDoubleInt(value: number): boolean {
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @specBoundary narrows
- * POSIX puts no upper bound on the epoch count, and this caps at
- * `2^53 - 1`, so a legal unixtime above it is rejected. Same argument
- * as {@link validateInt64}: past that point the value has already lost
- * precision and is provably not the count that was sent.
+ * A legal unixtime above `2^53 - 1` is rejected, where POSIX puts no
+ * upper bound on the epoch count. Same argument as `validateInt64`:
+ * past that point the value has already lost precision and is provably
+ * not the count that was sent.
  * @specBoundary under-asserts
- * The registry gives `unixtime` two base types, `number` and `string`.
- * A format constrains one JSON type here (see `FormatDefinition`), and
- * this is the number one, so a string-valued `unixtime` is not
- * asserted at all.
+ * A string-valued `unixtime` is not asserted at all. The registry gives
+ * the format two base types, `number` and `string`; a format constrains
+ * one JSON type here (see `FormatDefinition`), and this is the number
+ * one.
  * @public
  */
 export function validateUnixtime(value: number): boolean {

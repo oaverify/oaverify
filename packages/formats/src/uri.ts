@@ -196,10 +196,10 @@ const URI_TEMPLATE_RE = new RegExp(
  *
  * @specCites RFC 6570 section 2, https://datatracker.ietf.org/doc/html/rfc6570#section-2
  * @specBoundary under-asserts
- * The literal set excludes the C0 controls, space, DEL and the seven
- * gen-delims the grammar names, and admits everything else above
- * U+007F. So a C1 control or a Unicode noncharacter passes where the
- * `literals` rule does not admit it. Narrowing the class to the ranges
+ * A template carrying a C1 control or a Unicode noncharacter passes,
+ * where the `literals` rule does not admit one. The literal set here
+ * excludes the C0 controls, space, DEL and the seven gen-delims the
+ * grammar names, and admits everything else above U+007F. Narrowing the class to the ranges
  * the rule actually lists is tracked as #965; the current class was
  * widened to stop rejecting an ideographic space (#854), and the
  * remaining gap accepts a little more than it should rather than

@@ -51,16 +51,15 @@ const BASE64URL_RE = /^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-]{2}(?:==)?|[A-Za-z0-
  *
  * @specCites RFC 4648 section 4, https://datatracker.ietf.org/doc/html/rfc4648#section-4
  * @specBoundary under-asserts
- * Whitespace is stripped before the check, and RFC 4648 admits it only
- * where the referring specification says so. The registry cites RFC
- * 4648 plainly, so the literal reading rejects a MIME-wrapped value.
- * The paragraphs above have the reasoning, and
- * {@link validateByteRfc4648} is the literal reading for callers who
- * want it.
+ * A MIME-wrapped value passes, where RFC 4648 admits whitespace only
+ * if the referring specification says so and the registry cites RFC
+ * 4648 plainly. Whitespace is stripped before the check. The paragraphs
+ * above have the reasoning, and `validateByteRfc4648` is the literal
+ * reading for callers who want it.
  * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc4648#section-3.5
- * Section 3.5 requires the unused bits of a partial final group to be
- * zero, and this does not check that: `"cE6="` passes and does not
- * survive a decode and re-encode. Rejecting it would mean decoding
+ * A value whose final group has non-zero unused bits passes, so `"cE6="`
+ * is accepted and does not survive a decode and re-encode. Section 3.5
+ * requires those bits to be zero. Rejecting it would mean decoding
  * every value on the hot path to catch a case no encoder produces,
  * which is what Ajv and the rest of the ecosystem also decline to do.
  * @public

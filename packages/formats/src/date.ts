@@ -188,11 +188,11 @@ function isLocalTimeOfDay(hour: number, minute: number, second: number): boolean
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @specBoundary under-asserts
- * The registry defines this as RFC 3339 `partial-time`, whose
- * `time-second` admits `:60` only where the leap-second rules put one.
- * This accepts `:60` at any minute, because with no offset there is no
- * instant to check a leap second against. {@link validateTime}, which
- * has one, does apply the rule.
+ * A `:60` second passes at any minute. The registry defines this as RFC
+ * 3339 `partial-time`, whose `time-second` admits `:60` only where the
+ * leap-second rules put one, and with no offset there is no instant to
+ * check a leap second against. `validateTime`, which has one, does
+ * apply the rule.
  * @public
  */
 export function validateTimeLocal(value: string): boolean {
@@ -214,9 +214,9 @@ export function validateTimeLocal(value: string): boolean {
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
  * @specBoundary under-asserts
- * The time half accepts `:60` at any minute, for the reason
- * {@link validateTimeLocal} gives: with no offset there is no instant
- * to check a leap second against.
+ * A `:60` second passes at any minute, for the reason
+ * `validateTimeLocal` gives: with no offset there is no instant to
+ * check a leap second against.
  * @public
  */
 export function validateDateTimeLocal(value: string): boolean {
