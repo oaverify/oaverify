@@ -62,24 +62,21 @@ function monthNumber(name: string): number {
  * forms are the RFC 850 one (`"Sunday, 06-Nov-94 08:49:37 GMT"`) and
  * ANSI C's `asctime` (`"Sun Nov  6 08:49:37 1994"`).
  *
- * Two things this does not assert:
- *
- * - **The day name is not checked against the date.** `"Mon, 06 Nov
- *   1994 08:49:37 GMT"` passes even though that day was a Sunday.
- *   Nothing in RFC 9110 asks a recipient to verify it, and a
- *   mismatch is a producer's clerical error rather than a value the
- *   reader cannot use.
- * - **An RFC 850 date's day-of-month check treats February as having
- *   29 days.** RFC 9110 §5.6.7 does say how to read the two-digit
- *   year: a timestamp more than 50 years in the future names the most
- *   recent past year ending in those digits. Applying that here would
- *   make the verdict depend on the clock, so `"29-Feb-24"` would turn
- *   invalid some time after 2074. A validator that changes its mind
- *   about a fixed input is worse than one that accepts a February 29th
- *   in a year that had no February 29th. A four-digit year gets the
- *   exact check, leap years included.
- *
  * @specCites RFC 9110 section 5.6.7, https://datatracker.ietf.org/doc/html/rfc9110#section-5.6.7
+ * @specBoundary under-asserts
+ * The day name is not checked against the date, so `"Mon, 06 Nov 1994
+ * 08:49:37 GMT"` passes even though that day was a Sunday. Nothing in
+ * RFC 9110 asks a recipient to verify it, and a mismatch is a
+ * producer's clerical error rather than a value the reader cannot use.
+ * @specBoundary under-asserts
+ * An RFC 850 date's day-of-month check treats February as having 29
+ * days. Section 5.6.7 says how to read the two-digit year: a timestamp
+ * more than 50 years in the future names the most recent past year
+ * ending in those digits. Applying that here would make the verdict
+ * depend on the clock, so `"29-Feb-24"` would turn invalid some time
+ * after 2074. A validator that changes its mind about a fixed input is
+ * worse than one that accepts a February 29th in a year that had none.
+ * A four-digit year gets the exact check, leap years included.
  * @public
  */
 export function validateHttpDate(value: string): boolean {

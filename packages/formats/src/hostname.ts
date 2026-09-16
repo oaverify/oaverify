@@ -57,10 +57,6 @@ export function validateHostname(value: string): boolean {
  * whole name, because the RFC's cap is on the encoded A-label form and
  * this does not punycode (#669).
  *
- * This is a structural check, not the IDNA validity procedure. It does
- * not apply UTS 46 mappings, validate an `xn--` A-label, or assert the
- * contextual and bidirectional rules from RFC 5891 and RFC 5892.
- *
  * A caller that needs the cap anyway is a mailbox: see
  * `validateMailboxDomain`, which applies it to both alphabets so the
  * pair cannot disagree on an ASCII domain.
@@ -68,6 +64,15 @@ export function validateHostname(value: string): boolean {
  * @specCites RFC 5890 section 2.3.2.3, https://datatracker.ietf.org/doc/html/rfc5890#section-2.3.2.3
  * @specCites RFC 5891 section 4.2.3.2, https://datatracker.ietf.org/doc/html/rfc5891#section-4.2.3.2
  * @specCites RFC 5892 section 2, https://datatracker.ietf.org/doc/html/rfc5892#section-2
+ * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc5890#section-2.3.2.3
+ * No cap on the whole name. The RFC's cap is on the encoded A-label
+ * form and this does not punycode, so there is no encoded length to
+ * measure (#669).
+ * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc5891#section-4.2.3.2
+ * A structural check rather than the IDNA validity procedure: no UTS 46
+ * mappings, no `xn--` A-label validation, and none of the contextual or
+ * bidirectional rules RFC 5891 and RFC 5892 lay down. A label passing
+ * this can still fail IDNA registration.
  * @public
  */
 export function validateIdnHostname(value: string): boolean {

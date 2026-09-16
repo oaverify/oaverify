@@ -119,6 +119,13 @@ function isExtensionBody(subtag: string | undefined): boolean {
  * regular ones parse as ordinary tags and need no table.
  *
  * @specCites RFC 5646 (BCP 47) section 2.1, https://datatracker.ietf.org/doc/html/rfc5646#section-2.1
+ * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc5646#section-2.2.9
+ * Well-formed, plus the two validity conditions that are properties of
+ * the tag. The third, that every subtag is registered with IANA, is not
+ * asserted, so `"qq-ZZ"` passes with a language and a region that do
+ * not exist. The paragraphs above have the reasoning: the registry is a
+ * ~1MB file on IANA's release schedule, and a validator that silently
+ * goes stale is worse than one that states where it stops.
  * @public
  */
 export function validateLanguage(value: string): boolean {

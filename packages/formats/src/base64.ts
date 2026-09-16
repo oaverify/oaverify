@@ -47,15 +47,22 @@ const BASE64URL_RE = /^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-]{2}(?:==)?|[A-Za-z0-
  * place: `formats: { byte: validateByteRfc4648 }`.
  *
  * The string is not decoded, so this says the alphabet and the padding
- * are well-formed and nothing about the bytes inside it. RFC 4648
- * section 3.5 additionally requires the unused bits of a partial final
- * group to be zero, and this does not check that: `"cE6="` passes and
- * does not survive a decode and re-encode. Rejecting it would mean
- * decoding every value on the hot path to catch a case no encoder
- * produces, so the leniency is deliberate, and it is what Ajv and the
- * rest of the ecosystem do.
+ * are well-formed and nothing about the bytes inside it.
  *
  * @specCites RFC 4648 section 4, https://datatracker.ietf.org/doc/html/rfc4648#section-4
+ * @specBoundary under-asserts
+ * Whitespace is stripped before the check, and RFC 4648 admits it only
+ * where the referring specification says so. The registry cites RFC
+ * 4648 plainly, so the literal reading rejects a MIME-wrapped value.
+ * The paragraphs above have the reasoning, and
+ * {@link validateByteRfc4648} is the literal reading for callers who
+ * want it.
+ * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc4648#section-3.5
+ * Section 3.5 requires the unused bits of a partial final group to be
+ * zero, and this does not check that: `"cE6="` passes and does not
+ * survive a decode and re-encode. Rejecting it would mean decoding
+ * every value on the hot path to catch a case no encoder produces,
+ * which is what Ajv and the rest of the ecosystem also decline to do.
  * @public
  */
 export function validateByte(value: string): boolean {

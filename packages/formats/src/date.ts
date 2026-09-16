@@ -186,11 +186,13 @@ function isLocalTimeOfDay(hour: number, minute: number, second: number): boolean
  * OpenAPI `time-local`: RFC 3339 `partial-time`, an offsetless
  * wall-clock time (e.g. `"12:34:56"` or `"12:34:56.789"`).
  *
- * Does not assert the leap-second rule that {@link validateTime}
- * does: `:60` seconds pass at any minute, because with no offset
- * there is no instant to check a leap second against.
- *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specBoundary under-asserts
+ * The registry defines this as RFC 3339 `partial-time`, whose
+ * `time-second` admits `:60` only where the leap-second rules put one.
+ * This accepts `:60` at any minute, because with no offset there is no
+ * instant to check a leap second against. {@link validateTime}, which
+ * has one, does apply the rule.
  * @public
  */
 export function validateTimeLocal(value: string): boolean {
@@ -208,11 +210,13 @@ export function validateTimeLocal(value: string): boolean {
  * dropped (e.g. `"2024-01-31T12:34:56"`).
  *
  * The date half is checked exactly as {@link validateDateTime} checks
- * it, February included. The time half does not assert the
- * leap-second rule: `:60` seconds pass at any minute, because with no
- * offset there is no instant to check a leap second against.
+ * it, February included.
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
+ * @specBoundary under-asserts
+ * The time half accepts `:60` at any minute, for the reason
+ * {@link validateTimeLocal} gives: with no offset there is no instant
+ * to check a leap second against.
  * @public
  */
 export function validateDateTimeLocal(value: string): boolean {
@@ -232,11 +236,19 @@ export function validateDateTimeLocal(value: string): boolean {
 /**
  * RFC 3339 `duration` (e.g. `"P1Y2M10DT2H30M"`).
  *
- * Stricter than ISO 8601, which JSON Schema's `duration` is defined
- * against: unit ordering is enforced and a missing middle unit is a
- * syntax error rather than an implied zero (`P1Y2D` is invalid), weeks
- * stand alone, and no component may carry a fraction (`PT0.5S` is ISO
- * 8601 but not RFC 3339).
+ * Implements the Appendix A ABNF as written, which is what JSON Schema
+ * 2020-12 section 7.3.1 defines the `duration` format against. So unit
+ * ordering is enforced and a missing middle unit is a syntax error
+ * rather than an implied zero (`P1Y2D` is invalid, because `dur-year`
+ * reaches days only through `dur-month`), weeks stand alone, and no
+ * component carries a fraction (`PT0.5S` is ISO 8601 and not this
+ * grammar).
+ *
+ * `dur-time` attaches to `dur-date`, after the whole
+ * `(dur-day / dur-month / dur-year)` alternation, so `P1YT2H` is legal
+ * and this accepts it. Reading the nesting as though `dur-time` were
+ * reachable only through `dur-day` makes that look like a defect, and
+ * it is the ABNF.
  *
  * @specCites RFC 3339 appendix A, https://datatracker.ietf.org/doc/html/rfc3339#appendix-A
  * @public
