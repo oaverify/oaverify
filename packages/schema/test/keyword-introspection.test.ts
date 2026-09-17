@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import {
+  compileSchema,
+  containsKeyword,
+  CORE_VALIDATION_VOCAB,
   jsonSchemaDialect,
   keywordDefinitions,
+  maxContainsKeyword,
+  minContainsKeyword,
   oas30Dialect,
   openapi31Dialect,
   schemaUsesUnevaluated,
@@ -10,6 +15,7 @@ import {
   unevaluatedPropertiesKeyword,
 } from "../src/index.js";
 
+import * as keywords from "../src/keywords/index.js";
 import * as oas30Keywords from "../src/keywords/oas30.js";
 import {
   defaultVocabularies,
@@ -21,6 +27,48 @@ import {
 
 const updateDocs =
   "dialect composition changed; review docs/dialects.md and packages/schema/test/keyword-introspection.test.ts";
+
+describe("contains-bound exports", () => {
+  const dialect = {
+    id: "test-contains-bounds",
+    vocabularies: [
+      {
+        uri: CORE_VALIDATION_VOCAB,
+        keywords: [typeKeyword, containsKeyword, minContainsKeyword, maxContainsKeyword],
+      },
+    ],
+    rules: { refSuppressesSiblings: false },
+  };
+
+  it("exports the existing vocabulary definitions through both barrels", () => {
+    expect(minContainsKeyword).toBe(keywordDefinitions().get("minContains"));
+    expect(maxContainsKeyword).toBe(keywordDefinitions().get("maxContains"));
+    expect(keywords.minContainsKeyword).toBe(minContainsKeyword);
+    expect(keywords.maxContainsKeyword).toBe(maxContainsKeyword);
+  });
+
+  it.each(["minContains", "maxContains"] as const)(
+    "rejects malformed %s in a custom dialect",
+    (keyword) => {
+      for (const value of [-1, 1.5, "2"]) {
+        expect(() =>
+          compileSchema({ contains: true, [keyword]: value } as SchemaOrBoolean, { dialect }),
+        ).toThrow(`keyword "${keyword}" requires a non-negative integer`);
+      }
+    },
+  );
+
+  it("enforces the selected contains bounds in a custom dialect", () => {
+    const compiled = compileSchema(
+      { contains: { type: "integer" }, minContains: 1, maxContains: 2 },
+      { dialect },
+    );
+    expect(compiled.validate(["x"]).valid).toBe(false);
+    expect(compiled.validate([1, "x"]).valid).toBe(true);
+    expect(compiled.validate([1, 2, "x"]).valid).toBe(true);
+    expect(compiled.validate([1, 2, 3, "x"]).valid).toBe(false);
+  });
+});
 
 describe("keywordDefinitions", () => {
   it("defaults to the JSON Schema 2020-12 dialect", () => {

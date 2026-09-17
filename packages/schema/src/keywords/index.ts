@@ -16,7 +16,13 @@ export type {
   Vocabulary,
 } from "./types.js";
 
-export { maxItemsKeyword, minItemsKeyword, uniqueItemsKeyword } from "./array-validation.js";
+export {
+  maxContainsKeyword,
+  maxItemsKeyword,
+  minContainsKeyword,
+  minItemsKeyword,
+  uniqueItemsKeyword,
+} from "./array-validation.js";
 export {
   allOfKeyword,
   anyOfKeyword,

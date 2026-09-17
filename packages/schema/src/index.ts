@@ -84,7 +84,9 @@ export {
 
 // Built-in keyword constants: reusable when composing a custom dialect.
 export {
+  maxContainsKeyword,
   maxItemsKeyword,
+  minContainsKeyword,
   minItemsKeyword,
   uniqueItemsKeyword,
 } from "./keywords/array-validation.js";
