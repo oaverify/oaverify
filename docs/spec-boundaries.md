@@ -33,14 +33,14 @@ conforming implementation choice.
 
 | kind | meaning | entries |
 | ---- | ------- | ----- |
-| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 24 |
+| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 25 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 6 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 3 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 7 |
 
-54 documented entries across 30 files.
+55 documented entries across 31 files.
 
 ## under-asserts
 
@@ -71,7 +71,7 @@ dialect (the set of schema rules to apply).
 
 ### packages/core
 
-**`method`** ([packages/core/src/types.ts:546](../packages/core/src/types.ts#L546))
+**`method`** ([packages/core/src/types.ts:551](../packages/core/src/types.ts#L551))
 
 Against RFC 9110 section 9.1 (<https://www.rfc-editor.org/rfc/rfc9110#section-9.1>).
 
@@ -258,7 +258,7 @@ supply the header in their `onError` handler (#1087).
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:435](../packages/router/src/matcher.ts#L435))
+**`createRouter`** ([packages/router/src/matcher.ts:471](../packages/router/src/matcher.ts#L471))
 
 Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
 
@@ -289,6 +289,13 @@ rounding tolerance. This avoids rejecting ordinary decimal multiples:
 JavaScript calculates `0.3 / 0.1` as `2.9999999999999996` instead of `3`.
 
 ### packages/validator
+
+**`deserializePath`** ([packages/validator/src/deserialize.ts:65](../packages/validator/src/deserialize.ts#L65))
+
+Against RFC 3986 section 2.1 (<https://www.rfc-editor.org/rfc/rfc3986#section-2.1>).
+
+Malformed percent escapes such as `%ZZ` are passed through to schema
+validation unchanged. RFC 3986 requires two hexadecimal digits after `%`.
 
 **`maxFormatLength`** ([packages/validator/src/validator.ts:844](../packages/validator/src/validator.ts#L844))
 
@@ -369,7 +376,7 @@ every depth with `$..description` or selecting an array slice with
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:435](../packages/router/src/matcher.ts#L435))
+**`createRouter`** ([packages/router/src/matcher.ts:471](../packages/router/src/matcher.ts#L471))
 
 Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
 
@@ -432,7 +439,7 @@ Changes the value handed on, which can affect subsequent validation.
 
 ### packages/core
 
-**`cookies`** ([packages/core/src/types.ts:574](../packages/core/src/types.ts#L574))
+**`cookies`** ([packages/core/src/types.ts:579](../packages/core/src/types.ts#L579))
 
 Against OpenAPI 3.2 style values (<https://spec.openapis.org/oas/v3.2.0#style-values>).
 
@@ -511,7 +518,7 @@ lists individual errors in the `issues` field.
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:435](../packages/router/src/matcher.ts#L435))
+**`createRouter`** ([packages/router/src/matcher.ts:471](../packages/router/src/matcher.ts#L471))
 
 Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
 
@@ -620,7 +627,7 @@ register their own validators.
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:435](../packages/router/src/matcher.ts#L435))
+**`createRouter`** ([packages/router/src/matcher.ts:471](../packages/router/src/matcher.ts#L471))
 
 Against OpenAPI 3.2.0 (<https://spec.openapis.org/oas/v3.2.0#path-item-object>).
 

@@ -20,7 +20,9 @@ import {
  * - header: `simple` (default)
  * - cookie: `form` (default), `cookie` (OpenAPI 3.2 and later)
  *
- * @param raw - The raw value(s) provided for this parameter (string, array, or undefined).
+ * @param raw - The value(s) provided for this parameter, already URL-decoded
+ * where required by the location. This function does no percent-decoding.
+ * Path captures that retain wire encoding use {@link deserializePath}.
  * @param parameter - The parameter definition.
  * @returns The deserialized value, ready for schema validation, or
  * `undefined` when the parameter has no value. That covers `raw` being
@@ -57,6 +59,52 @@ export function deserialize(
   raw: string | string[] | undefined,
   parameter: ParameterObject,
 ): unknown {
+  return deserializeValue(raw, parameter, (value) => value);
+}
+
+/**
+ * Deserialize a path capture that retains its original percent-encoding.
+ * Literal style delimiters are split before each key or value is decoded
+ * once, then coerced to its schema type. For example, a simple array
+ * capture `a%2Cb,c` becomes `["a,b", "c"]`. A plus sign stays a plus sign.
+ * Label and matrix framing must be literal `.` and `;` respectively.
+ *
+ * Use only for schema/style path parameters. Content parameters consume
+ * the router's decoded capture before parsing their media type. Callers
+ * with an already decoded capture must use {@link deserialize} instead.
+ *
+ * A malformed escape or invalid UTF-8 leaves the affected key or value
+ * unchanged; other pieces are decoded independently.
+ *
+ * @param raw - The path capture before percent-decoding, or undefined.
+ * @param parameter - The path parameter definition, including its style and schema.
+ * @returns The deserialized value, with the same absence rules as {@link deserialize}.
+ * @public
+ * @specCites RFC 3986 section 2.4, https://www.rfc-editor.org/rfc/rfc3986#section-2.4
+ * @specCites RFC 6570 section 3.2.2, https://www.rfc-editor.org/rfc/rfc6570#section-3.2.2
+ * @specCites RFC 3986 section 2.1, https://www.rfc-editor.org/rfc/rfc3986#section-2.1
+ * @specBoundary under-asserts https://www.rfc-editor.org/rfc/rfc3986#section-2.1
+ * Malformed percent escapes such as `%ZZ` are passed through to schema
+ * validation unchanged. RFC 3986 requires two hexadecimal digits after `%`.
+ */
+export function deserializePath(raw: string | undefined, parameter: ParameterObject): unknown {
+  return deserializeValue(raw, parameter, decodePathValue);
+}
+
+function decodePathValue(value: string): string {
+  if (!value.includes("%")) return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function deserializeValue(
+  raw: string | string[] | undefined,
+  parameter: ParameterObject,
+  decode: (value: string) => string,
+): unknown {
   if (raw === undefined) return undefined;
   const style = parameter.style ?? defaultStyle(parameter.in);
   const explode = parameter.explode ?? defaultExplode(style);
@@ -66,10 +114,11 @@ export function deserialize(
   if (Array.isArray(raw)) {
     if (type === "array") {
       const items = itemSchema(schema);
-      return raw.map((v) => coerceScalar(v, items));
+      return raw.map((v) => coerceScalar(decode(v), items));
     }
-    if (type === "object") return raw.length === 1 ? deserialize(raw[0], parameter) : raw[0];
-    return coerceScalar(raw[0] ?? "", schema);
+    if (type === "object")
+      return raw.length === 1 ? deserializeValue(raw[0], parameter, decode) : raw[0];
+    return coerceScalar(decode(raw[0] ?? ""), schema);
   }
 
   // Every `label` expansion opens with "." and every `matrix` segment
@@ -101,20 +150,20 @@ export function deserialize(
     if (style === "label") {
       const body = raw.startsWith(".") ? raw.slice(1) : raw;
       if (body === "") return [];
-      return body.split(explode ? "." : ",").map((v) => coerceScalar(v, items));
+      return body.split(explode ? "." : ",").map((v) => coerceScalar(decode(v), items));
     }
     if (style === "matrix") {
-      const groups = matrixGroupValues(raw, parameter.name);
+      const groups = matrixGroupValues(raw, parameter.name, decode);
       if (groups === undefined) return undefined;
       // {;list*} is one group per element; {;list} is one group whose
       // value is the comma-joined list. A second group in the
       // non-explode form is not a shape RFC 6570 emits, so the first
       // one supplies the parameter and the rest are ignored, matching
       // how a repeated scalar resolves below.
-      if (explode) return groups.map((v) => coerceScalar(v, items));
+      if (explode) return groups.map((v) => coerceScalar(decode(v), items));
       const body = groups[0] ?? "";
       if (body === "") return [];
-      return body.split(",").map((v) => coerceScalar(v, items));
+      return body.split(",").map((v) => coerceScalar(decode(v), items));
     }
     if (style === "cookie" && explode) {
       // One crumb is one element. The style escapes nothing, so a comma
@@ -123,10 +172,10 @@ export function deserialize(
       // sees one crumb; a repeat arrives as an array and is handled
       // before here (#826). Reading the crumb as a comma-joined list
       // would invent elements the wire never separated.
-      return [coerceScalar(raw, items)];
+      return [coerceScalar(decode(raw), items)];
     }
     const separator = arraySeparator(style, explode);
-    return raw.split(separator).map((v) => coerceScalar(stripStyle(v, style), items));
+    return raw.split(separator).map((v) => coerceScalar(decode(stripStyle(v, style)), items));
   }
 
   if (type === "object") {
@@ -147,7 +196,7 @@ export function deserialize(
         // {;keys} is ";p=R,100,G,200": one group, named for the
         // parameter, carrying the flat list. Same reader as the scalar
         // and array shapes, absence included.
-        const groups = matrixGroupValues(raw, parameter.name);
+        const groups = matrixGroupValues(raw, parameter.name, decode);
         if (groups === undefined) return undefined;
         body = groups[0] ?? "";
       }
@@ -163,8 +212,8 @@ export function deserialize(
         // (base64 padding, a nested pair), and `kv.split("=")[1]` was
         // silently truncating "token=a=b" to "a".
         const eq = kv.indexOf("=");
-        const key = eq === -1 ? kv : kv.slice(0, eq);
-        setSpecKey(out, key, coerceProperty(eq === -1 ? "" : kv.slice(eq + 1), key, props));
+        const key = decode(eq === -1 ? kv : kv.slice(0, eq));
+        setSpecKey(out, key, coerceProperty(decode(eq === -1 ? "" : kv.slice(eq + 1)), key, props));
       }
       return out;
     }
@@ -173,21 +222,21 @@ export function deserialize(
       // An odd part count is malformed serialization; giving the
       // trailing key an empty value keeps the defect visible to schema
       // validation, where dropping the key hid it entirely.
-      const key = parts[i] ?? "";
-      setSpecKey(out, key, coerceProperty(parts[i + 1] ?? "", key, props));
+      const key = decode(parts[i] ?? "");
+      setSpecKey(out, key, coerceProperty(decode(parts[i + 1] ?? ""), key, props));
     }
     return out;
   }
 
   if (style === "matrix") {
-    const groups = matrixGroupValues(raw, parameter.name);
+    const groups = matrixGroupValues(raw, parameter.name, decode);
     if (groups === undefined) return undefined;
     // First wins, as it does for a repeated query parameter above
     // (`raw[0]`). `;p=1;p=2` against a scalar is not a shape RFC 6570
     // emits; reading it as the whole tail gave the handler "1;p=2".
-    return coerceScalar(groups[0] ?? "", schema);
+    return coerceScalar(decode(groups[0] ?? ""), schema);
   }
-  return coerceScalar(stripStyle(raw, style), schema);
+  return coerceScalar(decode(stripStyle(raw, style)), schema);
 }
 
 /**
@@ -510,16 +559,14 @@ function stripStyle(value: string, style: ParameterStyle): string {
  * `{;p}` against "" expands to `;p`. Reading its name as the value was
  * how `;p` reached a handler as "p".
  *
- * A ";" inside a value cannot survive this, and nothing here can fix
- * it: RFC 6570 requires the client to percent-encode one, the router
- * decodes the path token before any of this runs, and a decoded ";" is
- * then indistinguishable from a group delimiter. `;p=a%3Bb` reads as
- * "a". The explode arm has always split on ";" and behaved this way;
- * the other arms kept everything after the first "=" and now agree
- * with it. Splitting before decoding is the only real fix and belongs
- * in the router, not here.
+ * Group values retain their encoding until the caller splits any inner
+ * delimiters. Only the group name is decoded here for comparison.
  */
-function matrixGroupValues(raw: string, name: string): string[] | undefined {
+function matrixGroupValues(
+  raw: string,
+  name: string,
+  decode: (value: string) => string,
+): string[] | undefined {
   // Unreachable: `deserialize` rejects an unframed segment before any
   // of the three call sites is taken. Kept so the reader is total on
   // its own terms rather than only in the context of its callers.
@@ -530,7 +577,7 @@ function matrixGroupValues(raw: string, name: string): string[] | undefined {
     const eq = group.indexOf("=");
     // A group naming some other parameter is not one of ours; RFC 6570
     // never emits one here, so it contributes nothing.
-    if ((eq === -1 ? group : group.slice(0, eq)) !== name) continue;
+    if (decode(eq === -1 ? group : group.slice(0, eq)) !== name) continue;
     // Split at the first "=" only: the value may carry more of them,
     // and taking the text after the last one truncated ";v=a=b" to "b".
     values.push(eq === -1 ? "" : group.slice(eq + 1));

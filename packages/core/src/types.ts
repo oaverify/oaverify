@@ -478,6 +478,11 @@ export interface ParameterObject {
    * permission to bypass schema checks for an empty value.
    */
   allowEmptyValue?: boolean;
+  /**
+   * Serialization style. Schema-based path parameters split literal wire
+   * delimiters before percent-decoding each key or value once. For example,
+   * a simple array sent as `a%2Cb,c` becomes `["a,b", "c"]`.
+   */
   style?: ParameterStyle;
   explode?: boolean;
   allowReserved?: boolean;

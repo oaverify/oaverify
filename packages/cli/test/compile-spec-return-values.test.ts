@@ -16,6 +16,7 @@
  * unsupplied, schema-rejected, never reached), and each has a case here.
  */
 
+import { pathEncodingCases, pathEncodingDocument } from "../../../test/fixtures/path-encoding.js";
 import { describe, expect, it } from "vitest";
 import { buildProgram } from "../src/cli.js";
 import { resolve as resolvePath } from "node:path";
@@ -511,4 +512,48 @@ describe("compile-spec --return-values (argv)", () => {
       emitSpec(SPEC as OpenAPIDocument, { returnValues: false }),
     );
   });
+});
+
+describe.each(["3.0.4", "3.1.0", "3.2.0"])("encoded path parity (%s)", (openapi) => {
+  it.each(["tree", "flat", "predicate"] as const)(
+    "preserves wire data in %s output",
+    async (outputMode) => {
+      const doc = pathEncodingDocument({}, openapi);
+      doc.paths = {};
+      for (const [i, [name, parameter]] of pathEncodingCases.entries()) {
+        const single = pathEncodingDocument(parameter, openapi, name === "compound capture");
+        const [path, item] = Object.entries(single.paths!)[0]!;
+        doc.paths[path.replace("/t/", `/t${i}/`)] = item;
+      }
+      doc.paths["/invalid/{p}"] = pathEncodingDocument(
+        { schema: { type: "array", items: { type: "integer" } } },
+        openapi,
+      ).paths!["/t/{p}"]!;
+      for (const style of ["label", "matrix"] as const) {
+        doc.paths[`/${style}/{p}`] = pathEncodingDocument(
+          { style, schema: { type: "string" } },
+          openapi,
+        ).paths!["/t/{p}"]!;
+      }
+      for (const returnValues of outputMode === "predicate" ? [false] : [true, false]) {
+        const options = { outputMode, returnValues };
+        const aot = await buildAot(doc, options);
+        const runtime = createValidator(doc, { output: outputMode, returnValues });
+        for (const [i, [name, , wire, expected]] of pathEncodingCases.entries()) {
+          const token = name === "compound capture" ? `pre-${wire}.json` : wire;
+          const req = { method: "get", path: `/t${i}/${token}` };
+          const result = runtime.validateRequest(req);
+          expect(typeof result === "boolean" ? result : result.valid).toBe(true);
+          if (returnValues) expect(result).toMatchObject({ value: { path: { p: expected } } });
+          expect(aot.validateRequest(req)).toEqual(result);
+        }
+        for (const path of ["/invalid/%31%2C%32", "/label/%2Ea", "/matrix/%3Bp=a"]) {
+          const invalid = { method: "GET", path };
+          const rejected = runtime.validateRequest(invalid);
+          expect(typeof rejected === "boolean" ? rejected : rejected.valid).toBe(false);
+          expect(aot.validateRequest(invalid)).toEqual(rejected);
+        }
+      }
+    },
+  );
 });

@@ -782,3 +782,44 @@ describe("a request method that is not an HTTP method (#855)", () => {
     expect(router.match("GET", "/nope")).toBeUndefined();
   });
 });
+
+describe("raw path captures", () => {
+  const capture = (pattern: string, path: string): RouteMatch =>
+    matched(createRouter({ [pattern]: { get: op("raw") } }).match("get", path));
+
+  it("preserves decoded captures alongside separate wire values", () => {
+    const result = capture("/t/{p}", "/t/a%2Cb%2Fc%25?ignored#ignored");
+    expect(result.pathParams).toEqual({ p: "a,b/c%" });
+    expect(result.rawPathParams).toEqual({ p: "a%2Cb%2Fc%25" });
+    result.pathParams.p = "changed";
+    expect(result.rawPathParams?.p).toBe("a%2Cb%2Fc%25");
+  });
+
+  it.each([
+    [
+      "/caf%C3%A9-{a}.{b}",
+      "/caf%C3%A9-%F0%9F%98%80%2Cx%2Ey%252C",
+      { a: "😀,x", b: "y%2C" },
+      { a: "%F0%9F%98%80%2Cx", b: "y%252C" },
+    ],
+    ["/é-{a}.{b}", "/é-%C3%A9%2Cx.y", { a: "é,x", b: "y" }, { a: "%C3%A9%2Cx", b: "y" }],
+    ["/{a}/{b}", "/%ZZ%61/%25", { a: "%ZZ%61", b: "%" }, { a: "%ZZ%61", b: "%25" }],
+    ["/pre-{a}.{b}", "/pre-%ZZ.%61", { a: "%ZZ", b: "%61" }, { a: "%ZZ", b: "%61" }],
+    ["/{a}{b}", "/%F0%9F%98%80", { a: "\ud83d", b: "\ude00" }, {}],
+    ["/{a}{b}", "/😀", { a: "\ud83d", b: "\ude00" }, { a: "\ud83d", b: "\ude00" }],
+    ["/{a}{b}", "/%C3%A9%61", { a: "é", b: "a" }, { a: "%C3%A9", b: "%61" }],
+    ["/{a}.{b}", "/%25.%2525", { a: "%", b: "%25" }, { a: "%25", b: "%2525" }],
+  ])("maps compound boundaries for %s against %s", (pattern, path, decoded, raw) => {
+    const result = capture(pattern, path);
+    expect(result.pathParams).toEqual(decoded);
+    expect(result.rawPathParams).toEqual(raw);
+  });
+
+  it("retains prototype-named captures as own properties", () => {
+    const result = capture("/{__proto__}.{constructor}", "/a%2Cb.c%2Cd");
+    expect(Object.hasOwn(result.rawPathParams!, "__proto__")).toBe(true);
+    expect(result.rawPathParams?.["__proto__"]).toBe("a%2Cb");
+    expect(result.rawPathParams?.["constructor"]).toBe("c%2Cd");
+    expect(Object.getPrototypeOf(result.rawPathParams)).toBe(Object.prototype);
+  });
+});

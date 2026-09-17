@@ -105,7 +105,16 @@ export interface RouteMatch {
   operation: OperationObject;
   pathItem: PathItem;
   pathPattern: string;
+  /** Percent-decoded captures. A malformed token is retained unchanged. */
   pathParams: Record<string, string>;
+  /**
+   * Original wire captures, for splitting style delimiters before decoding.
+   * Matching still uses decoded tokens, including compound-template literals.
+   * A compound capture that bisects a percent-encoded UTF-16 surrogate pair
+   * has no corresponding wire substring and is omitted. Consumers fall back
+   * to `pathParams` when this map or the named capture is absent.
+   */
+  rawPathParams?: Partial<Record<string, string>>;
 }
 
 /**
@@ -356,12 +365,15 @@ function parseSegment(seg: string): Segment {
  * No backtracking, so a token that fails to match costs one pass rather
  * than an exponent in the parameter count.
  */
-function matchCompound(seg: Extract<Segment, { kind: "compound" }>, tok: string): string[] | null {
+function matchCompound(
+  seg: Extract<Segment, { kind: "compound" }>,
+  tok: string,
+): [number, number][] | null {
   const { names, literals } = seg;
   const prefix = literals[0]!;
   if (!tok.startsWith(prefix)) return null;
   let pos = prefix.length;
-  const out: string[] = [];
+  const out: [number, number][] = [];
   const last = names.length - 1;
   for (let i = 0; i < names.length; i += 1) {
     const sep = literals[i + 1]!;
@@ -370,7 +382,7 @@ function matchCompound(seg: Extract<Segment, { kind: "compound" }>, tok: string)
       // The capture has to hold at least one character, as `+?` did.
       if (end <= pos) return null;
       if (sep !== "" && tok.slice(end) !== sep) return null;
-      out.push(tok.slice(pos, end));
+      out.push([pos, end]);
       return out;
     }
     const idx = tok.indexOf(sep, pos + 1);
@@ -380,10 +392,34 @@ function matchCompound(seg: Extract<Segment, { kind: "compound" }>, tok: string)
     // parameter rejects it a step later either way; saying so here makes
     // it a rule rather than a consequence.
     if (idx < pos + 1) return null;
-    out.push(tok.slice(pos, idx));
+    out.push([pos, idx]);
     pos = idx + sep.length;
   }
   return out;
+}
+
+/**
+ * Map decoded UTF-16 boundaries back to wire offsets in one pass. The
+ * caller has already decoded the complete token successfully. A boundary
+ * inside an escaped astral character stays absent because its surrogate
+ * halves share one UTF-8 sequence on the wire.
+ */
+function wireOffsets(raw: string): (number | undefined)[] {
+  const offsets: (number | undefined)[] = [0];
+  let decoded = 0;
+  for (let i = 0; i < raw.length;) {
+    if (raw[i] === "%") {
+      const byte = Number.parseInt(raw.slice(i + 1, i + 3), 16);
+      const bytes = byte < 0x80 ? 1 : byte < 0xe0 ? 2 : byte < 0xf0 ? 3 : 4;
+      i += bytes * 3;
+      decoded += bytes === 4 ? 2 : 1;
+    } else {
+      i += 1;
+      decoded += 1;
+    }
+    offsets[decoded] = i;
+  }
+  return offsets;
 }
 
 /**
@@ -593,12 +629,9 @@ export function createRouter(paths: Record<string, PathItem>): Router {
       const cut = qIdx === -1 ? hIdx : hIdx === -1 ? qIdx : Math.min(qIdx, hIdx);
       const stripped = cut === -1 ? path : path.slice(0, cut);
       const trimmed = trimSlashes(stripped);
-      // Decode in place instead of mapping: split already allocated the
-      // array, and most tokens carry no escapes to decode.
-      const tokens = trimmed === "" ? [] : trimmed.split("/");
-      for (let i = 0; i < tokens.length; i += 1) {
-        tokens[i] = decodePathToken(tokens[i]!);
-      }
+      const rawTokens = trimmed === "" ? [] : trimmed.split("/");
+      const tokens = rawTokens.map(decodePathToken);
+      const offsets = new Map<number, (number | undefined)[]>();
 
       // If we scan every matching path without finding the method, we
       // still want to report a 405 (not 404) and carry the union of
@@ -616,6 +649,7 @@ export function createRouter(paths: Record<string, PathItem>): Router {
         // preceding literals matched; a candidate rejected on a literal
         // (the common miss) costs no allocation.
         let params: Record<string, string> | undefined;
+        let rawParams: Partial<Record<string, string>> | undefined;
         let matched = true;
         for (let i = 0; i < tokens.length; i += 1) {
           const seg = route.segments[i];
@@ -632,6 +666,8 @@ export function createRouter(paths: Record<string, PathItem>): Router {
           } else if (seg.kind === "template") {
             params ??= {};
             setSpecKey(params, seg.name, tok);
+            rawParams ??= {};
+            setSpecKey(rawParams, seg.name, rawTokens[i]!);
           } else {
             const captures = matchCompound(seg, tok);
             if (captures === null) {
@@ -639,8 +675,27 @@ export function createRouter(paths: Record<string, PathItem>): Router {
               break;
             }
             params ??= {};
+            rawParams ??= {};
+            const rawToken = rawTokens[i]!;
+            let boundaries: (number | undefined)[] | undefined;
+            if (rawToken !== tok) {
+              boundaries = offsets.get(i);
+              if (boundaries === undefined) {
+                boundaries = wireOffsets(rawToken);
+                offsets.set(i, boundaries);
+              }
+            }
             for (let j = 0; j < seg.names.length; j += 1) {
-              setSpecKey(params, seg.names[j]!, captures[j]!);
+              const [start, end] = captures[j]!;
+              const name = seg.names[j]!;
+              setSpecKey(params, name, tok.slice(start, end));
+              const rawStart = boundaries === undefined ? start : boundaries[start];
+              const rawEnd = boundaries === undefined ? end : boundaries[end];
+              if (rawStart !== undefined && rawEnd !== undefined) {
+                setSpecKey(rawParams, name, rawToken.slice(rawStart, rawEnd));
+              } else {
+                delete rawParams[name];
+              }
             }
           }
         }
@@ -659,6 +714,7 @@ export function createRouter(paths: Record<string, PathItem>): Router {
             pathItem: route.pathItem,
             pathPattern: route.pathPattern,
             pathParams: params ?? {},
+            rawPathParams: rawParams ?? {},
           };
         }
 
