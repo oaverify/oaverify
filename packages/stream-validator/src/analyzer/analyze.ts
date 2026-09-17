@@ -517,7 +517,7 @@ function walk(
   // The node's own (non-composition) forward obligation: a forced-buffer
   // scalar (`pattern`, which accumulates the whole string for the regex even
   // on the STREAM path) plus its per-member islands, which buffer one at a
-  // time (max). Mirrors the spine's `stripComposition` sub-spine. Asserting
+  // time (max). Mirrors the spine's `ownSchemaForTee` sub-spine. Asserting
   // `format` / `uniqueItems` / complex `enum`|`const` are BUFFER above;
   // bounded scalar `enum`/`const` buffer a negligible amount and are dropped.
   const ownParts: Contribution[] = [];

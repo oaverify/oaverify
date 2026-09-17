@@ -819,24 +819,27 @@ export class SpineValidator implements JsonEventHandler {
     // see the boundary on `createStreamValidator` and #1090. Refs resolve
     // against the document root (may differ from the validation root in a
     // sub-spine).
-    const ref = (s as Record<string, unknown>).$ref ?? (s as Record<string, unknown>).$dynamicRef;
-    if (typeof ref !== "string") return;
-    let target: SchemaOrBoolean | undefined;
-    if (this.refCache.has(ref)) {
-      target = this.refCache.get(ref);
-    } else {
-      target = resolveRef(this.refRoot, ref);
-      this.refCache.set(ref, target);
+    if (typeof s.$ref !== "string" && typeof s.$dynamicRef !== "string") return;
+    let guard = seen;
+    for (const ref of [s.$ref, s.$dynamicRef]) {
+      if (typeof ref !== "string") continue;
+      let target: SchemaOrBoolean | undefined;
+      if (this.refCache.has(ref)) {
+        target = this.refCache.get(ref);
+      } else {
+        target = resolveRef(this.refRoot, ref);
+        this.refCache.set(ref, target);
+      }
+      if (target === undefined) continue;
+      if (!isObjectSchema(target)) {
+        this.expand(target, out, guard);
+        continue;
+      }
+      if (guard?.has(target)) continue;
+      guard ??= new Set<object>();
+      guard.add(target);
+      this.expand(target, out, guard);
     }
-    if (target === undefined) return;
-    if (!isObjectSchema(target)) {
-      this.expand(target, out, seen); // boolean target
-      return;
-    }
-    if (seen?.has(target)) return; // cycle
-    const guard = seen ?? new Set<object>();
-    guard.add(target);
-    this.expand(target, out, guard);
   }
 
   // The AND-list of schemas the value about to be parsed must satisfy.
@@ -1058,7 +1061,7 @@ export class SpineValidator implements JsonEventHandler {
       hasFalse: app.hasFalse,
     };
     for (const s of app.schemas) {
-      obligations.required.push(this.makeSub(stripComposition(s)));
+      obligations.required.push(this.makeSub(ownSchemaForTee(s)));
       if (Array.isArray(s.allOf))
         for (const b of s.allOf) obligations.required.push(this.makeSub(b));
       if (Array.isArray(s.anyOf)) obligations.anyOf.push(s.anyOf.map((b) => this.makeSub(b)));
@@ -1753,13 +1756,14 @@ export class SpineValidator implements JsonEventHandler {
   }
 }
 
-// A shallow copy of a schema with its composition keywords removed: the
-// schema's own (non-composition) obligation for a TEE.
-function stripComposition(s: SchemaObject): SchemaObject {
+// The schema's own obligation after references and composition have expanded
+// into separate TEE obligations. Retaining a ref would expand its target again.
+function ownSchemaForTee(s: SchemaObject): SchemaObject {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(s)) {
     if (k === "allOf" || k === "anyOf" || k === "oneOf" || k === "not" || k === "if") continue;
     if (k === "then" || k === "else") continue; // partners of `if`
+    if (k === "$ref" || k === "$dynamicRef") continue;
     setSpecKey(out, k, v);
   }
   return out as SchemaObject;

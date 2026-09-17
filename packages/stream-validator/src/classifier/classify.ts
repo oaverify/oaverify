@@ -129,6 +129,9 @@ function hasComplexCandidate(node: SchemaObject, key: string): boolean {
 /**
  * Classify a resolved schema. Throws {@link ClassifierError} on an
  * unstreamable keyword, an unknown keyword, or an unresolvable `$ref`.
+ * When `$ref` and `$dynamicRef` occur together, both targets contribute
+ * to the node's strategy. Dynamic references use static resolution;
+ * resource-scope rebinding remains a separate streaming limitation (#1090).
  *
  * @public
  */
@@ -174,8 +177,9 @@ export function classify(root: SchemaOrBoolean, options: ClassifyOptions = {}): 
       pathOf.set(s, p);
       // Follow both `$ref` and `$dynamicRef` so a target reachable only
       // through a non-walked container (e.g. `components`) is classified.
-      const ref = s.$ref ?? s.$dynamicRef;
-      if (typeof ref === "string") refTargets.push({ ref, from: p });
+      for (const ref of [s.$ref, s.$dynamicRef]) {
+        if (typeof ref === "string") refTargets.push({ ref, from: p });
+      }
       return undefined;
     });
   };

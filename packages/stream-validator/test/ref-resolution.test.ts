@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
-import { compileSchema, jsonSchemaDialect } from "@oaverify/internal-schema";
-import { createStreamValidator } from "../src/index.js";
+import { compileSchema, jsonSchemaDialect, oas30Dialect } from "@oaverify/internal-schema";
+import { classify } from "../src/classifier/index.js";
+import { createStreamValidator, type StreamValidatorOptions } from "../src/index.js";
 
 const enc = new TextEncoder();
 
-async function streamVerdict(schema: SchemaOrBoolean, value: unknown): Promise<boolean> {
+async function streamVerdict(
+  schema: SchemaOrBoolean,
+  value: unknown,
+  options: StreamValidatorOptions = {},
+): Promise<boolean> {
   const v = createStreamValidator(schema, {
     policy: "detach",
     maxErrors: Number.POSITIVE_INFINITY,
+    ...options,
   });
   v.on("error", () => {});
   v.resume();
@@ -100,5 +106,104 @@ describe("island ref-container graft: root #/$defs wins over a node-local $defs"
       $defs: { Strict: { type: "string" } }, // the real target
     };
     await expectParity(schema, [{ p: "hello" }, { p: 5 }, { p: { tag: 1 } }, { p: {} }]);
+  });
+});
+
+describe("co-located reference keywords", () => {
+  it("evaluates composition targets without re-expanding their reference wrappers", async () => {
+    for (const keyword of ["anyOf", "oneOf", "allOf"] as const) {
+      const schema: SchemaObject = {
+        $ref: "#/$defs/A",
+        $dynamicRef: "#/$defs/B",
+        $defs: { A: { type: "string" }, B: { [keyword]: [{ minLength: 5 }, { const: "hi" }] } },
+      };
+      await expectParity(schema, ["hi", "abc", "abcde", 42]);
+    }
+  });
+
+  it("preserves recursive object constraints from both targets", async () => {
+    const schema: SchemaObject = {
+      $ref: "#/$defs/Node",
+      $dynamicRef: "#/$defs/Required",
+      $defs: {
+        Node: {
+          type: "object",
+          properties: { next: { $ref: "#/$defs/Node", $dynamicRef: "#/$defs/Required" } },
+        },
+        Required: { required: ["id"] },
+      },
+    };
+    await expectParity(schema, [{ id: 1 }, { id: 1, next: { id: 2 } }, { id: 1, next: {} }, {}]);
+  });
+
+  it("retains OpenAPI 3.0 reference sibling suppression", async () => {
+    const schema: SchemaObject = {
+      type: "object",
+      properties: { value: { $ref: "#/$defs/A", $dynamicRef: "#/$defs/B" } },
+      $defs: { A: { type: "string" }, B: { minLength: 5 } },
+    };
+    const core = compileSchema(schema, { dialect: oas30Dialect });
+    for (const value of [{ value: "abc" }, { value: "abcde" }, { value: 42 }]) {
+      expect(await streamVerdict(schema, value, { openApiVersion: "3.0" })).toBe(
+        core.validate(value).valid,
+      );
+    }
+  });
+
+  it("applies both scalar targets", async () => {
+    const schema: SchemaObject = {
+      $ref: "#/$defs/A",
+      $dynamicRef: "#/$defs/B",
+      $defs: { A: { type: "string" }, B: { minLength: 5 } },
+    };
+    await expectParity(schema, ["abc", "abcde", 42]);
+  });
+
+  it("collects a second target outside subschema containers", async () => {
+    const schema = {
+      $ref: "#/components/schemas/A",
+      $dynamicRef: "#/components/schemas/B",
+      components: { schemas: { A: { type: "object" }, B: { enum: [{ a: 1 }] } } },
+    };
+    const classification = classify(schema);
+    expect(classification.root).toBe("buffer");
+    expect(classification.strategyOf(schema.components.schemas.B)).toBe("buffer");
+    expect(classification.fullyStreamable).toBe(false);
+    await expectParity(schema, [{ a: 1 }, { a: 2 }, {}, 42]);
+  });
+
+  it.each([true, false])(
+    "applies a boolean first target (%s) before the second target",
+    async (target) => {
+      const schema: SchemaObject = {
+        $ref: "#/$defs/A",
+        $dynamicRef: "#/$defs/B",
+        $defs: { A: target, B: { type: "string", minLength: 5 } },
+      };
+      await expectParity(schema, ["abc", "abcde", 42]);
+    },
+  );
+
+  it("handles shared targets", async () => {
+    const schema: SchemaObject = {
+      $ref: "#/$defs/A",
+      $dynamicRef: "#/$defs/A",
+      $defs: { A: { type: "string", minLength: 5 } },
+    };
+    await expectParity(schema, ["abc", "abcde", 42]);
+  });
+
+  it("classifies cyclic targets without losing the second dependency", () => {
+    const schema = {
+      $ref: "#/components/schemas/A",
+      $dynamicRef: "#/components/schemas/B",
+      components: {
+        schemas: {
+          A: { $ref: "#" },
+          B: { enum: [{ a: 1 }] },
+        },
+      },
+    };
+    expect(classify(schema).root).toBe("buffer");
   });
 });
