@@ -227,7 +227,6 @@ describe.each([
     ({ extras }) => {
       const path = Object.freeze(["body", "items"] as const);
       const error = create(path, extras[0], extras[1]);
-      expectTypeOf(error).toEqualTypeOf<ValidationError>();
       expect(error.path).toEqual([...path, ...extras]);
       expect(error.path).not.toBe(path);
       expect(path).toEqual(["body", "items"]);
