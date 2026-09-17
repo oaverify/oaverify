@@ -420,7 +420,7 @@ look up named anchors.
 
 ### packages/syntax
 
-**`parseYamlDocument`** ([packages/syntax/src/index.ts:102](../packages/syntax/src/index.ts#L102))
+**`parseYamlDocument`** ([packages/syntax/src/index.ts:100](../packages/syntax/src/index.ts#L100))
 
 Against YAML 1.2.2 (<https://yaml.org/spec/1.2.2/>).
 
