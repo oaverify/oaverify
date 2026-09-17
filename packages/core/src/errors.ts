@@ -468,7 +468,8 @@ export function createError(params: CreateErrorParams): ValidationError {
  * `children` array; exists to make intent explicit at call sites.
  *
  * @param code - Stable identifier (e.g. `"type"`, `"required"`).
- * @param path - Path segments to the offending data.
+ * @param path - Readonly or mutable path segments to the offending data.
+ *   Copied into the returned error; the input is never modified.
  * @param message - Human-readable description.
  * @param params - Optional machine-readable details.
  * @param extraSegment - Optional trailing segment appended to `path`,
@@ -490,7 +491,7 @@ export function createError(params: CreateErrorParams): ValidationError {
  */
 export function createLeafError(
   code: string,
-  path: PathSegment[],
+  path: readonly PathSegment[],
   message: string,
   params: Record<string, unknown> = EMPTY_PARAMS,
   extraSegment?: PathSegment,
@@ -539,7 +540,8 @@ const EMPTY_PARAMS: Readonly<Record<string, unknown>> = Object.freeze({});
  * per-branch failures of an `oneOf` keyword).
  *
  * @param code - Stable identifier (e.g. `"oneOf"`, `"allOf"`, `"body"`).
- * @param path - Path segments to the offending data.
+ * @param path - Readonly or mutable path segments to the offending data.
+ *   Copied into the returned error; the input is never modified.
  * @param message - Human-readable description.
  * @param children - Child errors.
  * @param params - Optional machine-readable details.
@@ -565,7 +567,7 @@ const EMPTY_PARAMS: Readonly<Record<string, unknown>> = Object.freeze({});
  */
 export function createBranchError(
   code: string,
-  path: PathSegment[],
+  path: readonly PathSegment[],
   message: string,
   children: ValidationError[],
   params: Record<string, unknown> = EMPTY_PARAMS,
