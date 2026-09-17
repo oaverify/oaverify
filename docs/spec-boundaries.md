@@ -36,11 +36,11 @@ conforming implementation choice.
 | [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 27 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
-| [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 6 |
+| [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 7 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 3 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 6 |
 
-56 documented entries across 30 files.
+57 documented entries across 31 files.
 
 ## under-asserts
 
@@ -500,6 +500,21 @@ discriminator matching (#553) and recursive schemas (#556).
 ## chooses
 
 The spec grants latitude, and this picked one option.
+
+### packages/metaschema
+
+**`checkDocumentConformance`** ([packages/metaschema/src/conformance.ts:220](../packages/metaschema/src/conformance.ts#L220))
+
+Against JSON Schema 2020-12 validation section 7.2.1 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.1>).
+
+Meta-schema `format` annotations are not asserted. For example, an
+invalid `info.termsOfService` URI or `info.contact.email` string produces
+no format finding; other structural constraints still apply. This pass
+uses `jsonSchemaDialect`. JSON Schema says implementations *MAY still
+treat "format" as an assertion* and requires that evaluation to be
+disabled by default; this pass leaves it disabled. A conformance
+`format` severity setting only grades findings that exist; it does not
+enable these checks.
 
 ### packages/oav-express4
 

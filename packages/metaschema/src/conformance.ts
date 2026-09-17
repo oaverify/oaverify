@@ -245,6 +245,17 @@ function collectLeaves(error: ValidationError, into: ConformanceIssue[]): void {
  * // ] }
  * ```
  *
+ * @specCites JSON Schema 2020-12 validation section 7.2.1, https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.1
+ * @specBoundary chooses
+ * Meta-schema `format` annotations are not asserted. For example, an
+ * invalid `info.termsOfService` URI or `info.contact.email` string produces
+ * no format finding; other structural constraints still apply. This pass
+ * uses `jsonSchemaDialect`. JSON Schema says implementations *MAY still
+ * treat "format" as an assertion* and requires that evaluation to be
+ * disabled by default; this pass leaves it disabled. A conformance
+ * `format` severity setting only grades findings that exist; it does not
+ * enable these checks.
+ *
  * @public
  */
 export function checkDocumentConformance(document: unknown): ConformanceResult {
