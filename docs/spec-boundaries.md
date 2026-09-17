@@ -36,11 +36,11 @@ conforming implementation choice.
 | [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 27 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
-| [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 6 |
+| [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 7 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 3 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 6 |
 
-56 documented entries across 30 files.
+57 documented entries across 31 files.
 
 ## under-asserts
 
@@ -279,7 +279,7 @@ only when they share a method.
 
 ### packages/schema
 
-**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1260](../packages/schema/src/compiler/compiler.ts#L1260))
+**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1271](../packages/schema/src/compiler/compiler.ts#L1271))
 
 Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.3>).
 
@@ -316,7 +316,7 @@ Against RFC 3986 section 2.1 (<https://www.rfc-editor.org/rfc/rfc3986#section-2.
 Malformed percent escapes such as `%ZZ` are passed through to schema
 validation unchanged. RFC 3986 requires two hexadecimal digits after `%`.
 
-**`maxFormatLength`** ([packages/validator/src/validator.ts:844](../packages/validator/src/validator.ts#L844))
+**`maxFormatLength`** ([packages/validator/src/validator.ts:847](../packages/validator/src/validator.ts#L847))
 
 Against JSON Schema 2020-12 validation section 7 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7>).
 
@@ -408,7 +408,7 @@ trailing slashes.
 
 ### packages/schema
 
-**`maxDepth`** ([packages/schema/src/compiler/compiler.ts:1175](../packages/schema/src/compiler/compiler.ts#L1175))
+**`maxDepth`** ([packages/schema/src/compiler/compiler.ts:1181](../packages/schema/src/compiler/compiler.ts#L1181))
 
 Against JSON Schema 2020-12 core section 8.2.3 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3>).
 
@@ -444,7 +444,7 @@ resource use.
 
 ### packages/validator
 
-**`maxDepth`** ([packages/validator/src/validator.ts:818](../packages/validator/src/validator.ts#L818))
+**`maxDepth`** ([packages/validator/src/validator.ts:821](../packages/validator/src/validator.ts#L821))
 
 Against JSON Schema 2020-12 core section 8.2.3 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3>).
 
@@ -501,6 +501,21 @@ discriminator matching (#553) and recursive schemas (#556).
 
 The spec grants latitude, and this picked one option.
 
+### packages/metaschema
+
+**`checkDocumentConformance`** ([packages/metaschema/src/conformance.ts:220](../packages/metaschema/src/conformance.ts#L220))
+
+Against JSON Schema 2020-12 validation section 7.2.1 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.1>).
+
+Meta-schema `format` annotations are not asserted. For example, an
+invalid `info.termsOfService` URI or `info.contact.email` string produces
+no format finding; other structural constraints still apply. This pass
+uses `jsonSchemaDialect`. JSON Schema says implementations *MAY still
+treat "format" as an assertion* and requires that evaluation to be
+disabled by default; this pass leaves it disabled. A conformance
+`format` severity setting only grades findings that exist; it does not
+enable these checks.
+
 ### packages/oav-express4
 
 **`renderProblemDetails`** ([packages/oav-express4/src/render.ts:9](../packages/oav-express4/src/render.ts#L9))
@@ -552,7 +567,7 @@ explicitly lets tooling decide how to resolve ambiguous matches.
 
 ### packages/schema
 
-**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1260](../packages/schema/src/compiler/compiler.ts#L1260))
+**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1271](../packages/schema/src/compiler/compiler.ts#L1271))
 
 Against JSON Schema 2020-12 validation section 7 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7>).
 

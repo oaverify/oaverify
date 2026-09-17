@@ -742,8 +742,12 @@ way a hand-maintained rule set does. This is what catches a null
 `description` on a Response Object, a typo'd field name, or an invalid
 parameter location: defects that are neither schemas nor inconsistencies.
 
-Two limits worth knowing:
+Conformance has these limits (see
+[`checkDocumentConformance`](../packages/metaschema/src/conformance.ts)):
 
+- **Formats are annotations.** An invalid `info.termsOfService` URI or
+  `info.contact.email` string produces no format finding. The conformance
+  `format` severity setting does not enable format assertions.
 - **It cannot follow references.** A schema validates a node against a
   subschema and cannot ask whether a name resolves, so a dangling `$ref`,
   a duplicate `operationId`, a discriminator mapping pointing at nothing,

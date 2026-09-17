@@ -215,7 +215,7 @@ override; setting both throws at apply time.
   and
   [`examples/overlay-petstore-endpoint.ts`](../examples/overlay-petstore-endpoint.ts):
   runnable end-to-end demos.
-- For a standard [OpenAPI Overlay 1.0](https://spec.openapis.org/overlay/1.0.0)
+- For a standard [OpenAPI Overlay 1.0](https://spec.openapis.org/overlay/v1.0.0.html)
   document (JSONPath-targeted actions) rather than a typed
   `SpecOverlay`, `@oaverify/core/overlay-spec` translates it onto
   the verbs in this doc; see

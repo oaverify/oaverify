@@ -701,15 +701,15 @@ export interface ValidatorStats {
  *   1. Compile essentials: `dialect`.
  *   2. Shared extension points: `formats`, `keywords`.
  *   3. Error-collection policy: `output`, `maxErrors`.
- *   4. Surface-specific extras last: here, `strictQueryParameters`,
- *      `allowBracketedQueryArrays`, `returnValues`, `onUnknownVersion`,
- *      `warn`.
+ *   4. Resource limits: `maxDepth`, `maxFormatLength`, `maxTotalBytes`.
+ *   5. Schema lint: `schemaLint`.
+ *   6. Format and regex policy: `unknownFormats`, `regexCompiler`.
+ *   7. HTTP-specific settings follow, such as `validateSecurity` and
+ *      `strictQueryParameters`.
  *
- * Options common to both surfaces share names and positions so a
- * reader of one declaration can predict the other. When adding a new
- * option, put it in the section that matches its role and use the
- * same name on the compile-schema side if the concept applies there
- * too.
+ * Common option groups follow the same order; each surface can add its
+ * own fields within them. Use the same name for a shared concept and
+ * keep related settings together when adding an option.
  *
  * @public
  */
@@ -815,6 +815,9 @@ export interface ValidatorOptions {
    * non-integer or zero/negative values.
    */
   maxErrors?: number;
+
+  // --- 4. Resource limits ---
+
   /**
    * Cap on recursion depth through `$ref` cycles per
    * `validateRequest` / `validateResponse` call. Defaults to uncapped.
@@ -891,6 +894,9 @@ export interface ValidatorOptions {
    * otherwise.
    */
   maxTotalBytes?: number;
+
+  // --- 5. Schema lint ---
+
   /**
    * Compile-time schema linting applied to every schema the validator
    * compiles (request parameters / body; response headers; response
@@ -908,27 +914,9 @@ export interface ValidatorOptions {
    *   `$`-prefixed metadata). Catches typos like `minimumx: 5`.
    */
   schemaLint?: "off" | "warn" | "strict";
-  /**
-   * Whether to refuse, at construction, a document declaring a
-   * parameter location this validator cannot read a value for (#836).
-   * Defaults to `"refuse"`.
-   *
-   * `"ignore"` skips **only** that construction check. It does not make
-   * such a parameter servable: a request reaching an operation that
-   * carries one throws from `validateParameter`, because answering it
-   * would mean reporting a request valid on a parameter nothing
-   * checked. So this is for a caller that compiles a document without
-   * serving requests against it, and `@oaverify/check` is the caller it
-   * exists for: grading a document is not serving it, and aborting cost
-   * a legal 3.2 document its whole report.
-   *
-   * Not a supported way to keep serving traffic on such a document. The
-   * remedy there is to fix the parameter, and the refusal message says
-   * how.
-   *
-   * @internal
-   */
-  unservedParameterLocations?: "refuse" | "ignore";
+
+  // --- 6. Format and regex policy ---
+
   /**
    * What to do about a `format` with no validator registered under its
    * name: `"ignore"` (default) leaves it asserting nothing, `"error"`
@@ -959,7 +947,29 @@ export interface ValidatorOptions {
    */
   regexCompiler?: RegexCompiler;
 
-  // --- 4. HTTP-validator-specific extras ---
+  // --- 7. HTTP-validator-specific extras ---
+
+  /**
+   * Whether to refuse, at construction, a document declaring a
+   * parameter location this validator cannot read a value for (#836).
+   * Defaults to `"refuse"`.
+   *
+   * `"ignore"` skips **only** that construction check. It does not make
+   * such a parameter servable: a request reaching an operation that
+   * carries one throws from `validateParameter`, because answering it
+   * would mean reporting a request valid on a parameter nothing
+   * checked. So this is for a caller that compiles a document without
+   * serving requests against it, and `@oaverify/check` is the caller it
+   * exists for: grading a document is not serving it, and aborting cost
+   * a legal 3.2 document its whole report.
+   *
+   * Not a supported way to keep serving traffic on such a document. The
+   * remedy there is to fix the parameter, and the refusal message says
+   * how.
+   *
+   * @internal
+   */
+  unservedParameterLocations?: "refuse" | "ignore";
 
   /**
    * Reject requests that don't satisfy the declared
@@ -1346,11 +1356,9 @@ export function createValidator(
   //   (3) valid 3.x major but unknown minor (e.g. "3.7.0"): forward
   //       compat, governed by `onUnknownVersion`
   //
-  // `dialect` outranks all three, on every branch. Consulted only where
-  // detection fails, it is read and discarded on any spec that declares
-  // a version, which leaves a custom Dialect no way in at all (#534).
-  // Detection runs regardless and fills `detectedVersion`: the option
-  // decides what compiles, and the document decides what it says it is.
+  // An explicit `dialect` takes precedence whether detection succeeds or
+  // fails. Detection still fills `detectedVersion` from the document;
+  // the override selects the compiler dialect.
   const detectedVersion = detectOpenAPIVersion(spec);
   const dialect: Dialect = (() => {
     if (detectedVersion !== undefined) return options.dialect ?? dialectFor(detectedVersion);

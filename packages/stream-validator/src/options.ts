@@ -223,10 +223,21 @@ export interface StreamValidatorOptions {
   maxBufferedBytes?: number;
 
   /**
-   * Maximum nesting depth. Bounds spine-stack growth and guards the
-   * native-stack `RangeError` an in-memory island delegate would throw
-   * on a deeply nested island. Default off. Same option as
-   * `@oaverify/internal-schema`'s `CompileOptions.maxDepth`.
+   * Depth limit whose measurement depends on the validation path.
+   * Defaults to uncapped. Use it to reject excessively nested input on
+   * the forward path and guard recursive delegates against native-stack
+   * overflow.
+   *
+   * Forward validation limits the number of open container frames on the
+   * streaming stack. With `maxDepth: 1`, `[1]` fits the depth limit but
+   * `[[1]]` reports a `depth` violation on this path.
+   *
+   * In-memory delegates receive the same number as
+   * `@oaverify/internal-schema`'s `CompileOptions.maxDepth`: a limit on
+   * recursive, cycle-closing `$ref` calls. They do not count all JSON
+   * containers, and non-recursive schemas are not instrumented. A value
+   * can therefore pass that limit in a delegate but exceed the forward
+   * container limit. Leaving this option unset disables both limits.
    */
   maxDepth?: number;
 

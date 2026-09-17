@@ -500,7 +500,7 @@ CLI's `--overlay` flag apply them at load time.
 
 ### Consuming spec-format overlays
 
-OpenAPI's own [Overlay 1.0](https://spec.openapis.org/overlay/1.0.0)
+OpenAPI's own [Overlay 1.0](https://spec.openapis.org/overlay/v1.0.0.html)
 spec describes overlays as a list of JSONPath-targeted actions
 (`{ target, update? | remove? }`). When a third-party tool hands you
 an overlay in that format, `@oaverify/core/overlay-spec` translates
