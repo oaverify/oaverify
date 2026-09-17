@@ -151,6 +151,13 @@ export interface StreamValidatorOptions {
    * (ReDoS hardening). Hardens the spine's own regex use and is threaded
    * into the BUFFER-island delegate. Same option as
    * `@oaverify/internal-schema`'s `CompileOptions.regexCompiler`.
+   *
+   * By default, schema patterns compile in Unicode mode, retrying without
+   * flags if that fails. Patterns invalid in both modes fail through the
+   * stream's fatal error channel when first used. The `regex` format checks
+   * data strings in Unicode mode only. A supplied compiler overrides both
+   * policies, with no native retry. Its schema-pattern exceptions are fatal;
+   * for `format: regex`, an exception means the data string fails validation.
    */
   regexCompiler?: RegexCompiler;
 
