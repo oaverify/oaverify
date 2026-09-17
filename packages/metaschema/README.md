@@ -154,8 +154,10 @@ files. Probing a hand-written list of candidate dates only finds dates
 you already guessed, which is how the 3.1 pin was originally set two
 revisions behind. Staying current is a manual check.
 
-Not wired into CI: a job that turns red because a third party published
-something is noise, the same reasoning that keeps `detection/` out.
+The scheduled [pins workflow](../../.github/workflows/pins.yml) runs this
+check through `pnpm metaschema:stale` in its `metaschemas` job. The root
+README's pins badge reports the workflow status. This is outside the PR
+gate; a mismatch calls for reviewing the pinned bytes.
 
 ## Upstream stability
 
