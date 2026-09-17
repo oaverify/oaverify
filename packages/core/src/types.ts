@@ -686,7 +686,8 @@ export interface HttpResponse {
   /**
    * HTTP response headers. Header names are matched case-insensitively;
    * adapter helpers normalize keys to lowercase at the framework boundary
-   * for the fastest lookup path.
+   * for the fastest lookup path. Omitting this map is equivalent to an
+   * empty map: declared required response headers are still checked.
    */
   headers?: Record<string, string | string[]>;
   /** See {@link HttpRequest.contentType}: this is not read from {@link HttpResponse.headers} either. */
