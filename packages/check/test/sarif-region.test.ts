@@ -148,13 +148,14 @@ describe("renderSarif emits a region only when a caller supplies one", () => {
 });
 
 describe("renderSarif declares UTF-16 column units", () => {
-  it.each([undefined, () => undefined, () => span(13, 220)])(
-    "declares units with span lookup %s",
-    (spanOf) => {
-      const log = render({ base: BASE, classes: ["hygiene"], spanOf });
-      expect(log.runs[0]?.columnKind).toBe("utf16CodeUnits");
-    },
-  );
+  it.each([
+    { name: "unwired", spanOf: undefined },
+    { name: "empty", spanOf: () => undefined },
+    { name: "wired", spanOf: () => span(13, 220) },
+  ])("declares units with $name span lookup", ({ spanOf }) => {
+    const log = render({ base: BASE, classes: ["hygiene"], spanOf });
+    expect(log.runs[0]?.columnKind).toBe("utf16CodeUnits");
+  });
 
   it("declares units for findings without source addresses", () => {
     const log = JSON.parse(

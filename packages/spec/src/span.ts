@@ -35,8 +35,8 @@
  *
  * `line` and `column` are 1-based; `offset` is 0-based. Columns and offsets
  * count **UTF-16 code units**, matching JavaScript string indices and
- * LSP's default position encoding. SARIF producers must declare
- * `columnKind: "utf16CodeUnits"` when using these columns. A consumer
+ * LSP's default position encoding. A SARIF producer using these columns
+ * therefore declares `columnKind: "utf16CodeUnits"`. A consumer
  * that wants code points (a terminal drawing a caret, say) converts at
  * its own edge.
  *
