@@ -72,7 +72,8 @@ export class UnrecognisedTargetError extends Error {
  *         set.
  *
  * @specCites OpenAPI Overlay 1.0, https://spec.openapis.org/overlay/v1.0.0.html
- * @specBoundary narrows
+ * @specCites RFC 9535 section 2.3.1.1, https://www.rfc-editor.org/rfc/rfc9535#section-2.3.1.1
+ * @specBoundary narrows https://spec.openapis.org/overlay/v1.0.0.html
  * Some valid overlay targets are rejected with `UnrecognisedTargetError`.
  * Overlay 1.0 uses JSONPath to select parts of a document; oaverify
  * supports only a subset of that query language. For example, searching at
@@ -80,6 +81,10 @@ export class UnrecognisedTargetError extends Error {
  * `[0:2]` is unsupported. Quoted strings support only escaped backslashes
  * and quote characters; valid JSONPath escapes such as `\n` and `\u0061`
  * are rejected.
+ * @specBoundary under-asserts https://www.rfc-editor.org/rfc/rfc9535#section-2.3.1.1
+ * Quoted targets accept an escape for either quote character, so
+ * `$['a\"b']` selects the key `a"b`. JSONPath permits escaping only the
+ * enclosing quote; the other quote character appears literally.
  */
 export function parseTarget(target: string): PathToken[] {
   const lex = new Lexer(target);

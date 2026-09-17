@@ -587,6 +587,18 @@ describe("a path key that names an inherited member", () => {
 });
 
 describe("escaped target names survive translation and application", () => {
+  it("requires both JSON and target escaping for a literal backslash", () => {
+    const action = JSON.parse(
+      String.raw`{ "target": "$.webhooks['a\\\\b']", "remove": true }`,
+    ) as OverlayDocument["actions"][number];
+    expect(translateOverlay(doc([action])).removeWebhooks).toEqual([String.raw`a\b`]);
+
+    const unsupported = JSON.parse(
+      String.raw`{ "target": "$.webhooks['a\\b']", "remove": true }`,
+    ) as OverlayDocument["actions"][number];
+    expect(() => translateOverlay(doc([unsupported]))).toThrow(/unsupported escape/);
+  });
+
   it.each([
     [String.raw`$.webhooks['a\\b']`, String.raw`a\b`],
     [String.raw`$.webhooks["a\\\"b"]`, 'a\\"b'],

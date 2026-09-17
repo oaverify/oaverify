@@ -33,14 +33,14 @@ conforming implementation choice.
 
 | kind | meaning | entries |
 | ---- | ------- | ----- |
-| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 26 |
+| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 27 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 6 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 3 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 6 |
 
-55 documented entries across 30 files.
+56 documented entries across 30 files.
 
 ## under-asserts
 
@@ -255,6 +255,16 @@ without the required `WWW-Authenticate` header. That header tells the
 client how to authenticate. The adapter knows the security scheme names
 but lacks the details needed to build a challenge. Applications must
 supply the header in their `onError` handler (#1087).
+
+### packages/overlay-spec
+
+**`parseTarget`** ([packages/overlay-spec/src/parse-target.ts:63](../packages/overlay-spec/src/parse-target.ts#L63))
+
+Against RFC 9535 section 2.3.1.1 (<https://www.rfc-editor.org/rfc/rfc9535#section-2.3.1.1>).
+
+Quoted targets accept an escape for either quote character, so
+`$['a\"b']` selects the key `a"b`. JSONPath permits escaping only the
+enclosing quote; the other quote character appears literally.
 
 ### packages/router
 
