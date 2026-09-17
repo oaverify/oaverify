@@ -176,9 +176,9 @@ type SpanLookup = (of: SpanRequest) => SourceSpan | undefined;
 /**
  * A SARIF `region` from a source span, or nothing.
  *
- * SARIF counts `startLine` and `startColumn` from 1 in UTF-16 code
+ * Lines and columns are 1-based. The run declares columns in UTF-16 code
  * units, `endColumn` is exclusive, and `charOffset` / `charLength`
- * count the same units from 0. A {@link @oaverify/core/spec!SourceSpan}
+ * count UTF-16 code units from 0. A {@link @oaverify/core/spec!SourceSpan}
  * is already all of those, which is why this is a rename rather than a
  * conversion.
  *
@@ -378,7 +378,9 @@ function rulesOf(findings: readonly CheckFinding[]): {
 
 /**
  * Render a `check` report as a SARIF 2.1.0 log. The `$schema` URI
- * identifies the versioned OASIS Errata 01 schema.
+ * identifies the versioned OASIS Errata 01 schema. Every run declares
+ * `columnKind: "utf16CodeUnits"`, matching the supplied source spans,
+ * including empty runs and results without regions.
  *
  * A data transformation rather than a rendering choice, which is why it
  * lives here and the text report does not: uploading findings to code
@@ -411,13 +413,6 @@ function rulesOf(findings: readonly CheckFinding[]): {
  *   would label a partial run complete.
  *
  * @specCites SARIF 2.1.0 Errata 01 section 3.14.27, https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html#_Toc141790761
- * @specBoundary defers https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html#_Toc141790761
- * Tools reading the generated SARIF report can highlight the wrong text
- * after a character such as an emoji. The report measures columns in UTF-16
- * code units but omits `columnKind`, which tells readers how to count them.
- * SARIF requires that field when a run has results. Adding `columnKind:
- * "utf16CodeUnits"` is tracked in #1091.
- *
  * @public
  */
 export function renderSarif(
@@ -556,6 +551,7 @@ export function renderSarif(
     version: SARIF_VERSION,
     runs: [
       {
+        columnKind: "utf16CodeUnits",
         tool: {
           driver: {
             name: "oaverify",
