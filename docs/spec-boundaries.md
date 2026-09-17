@@ -71,7 +71,7 @@ dialect (the set of schema rules to apply).
 
 ### packages/core
 
-**`method`** ([packages/core/src/types.ts:551](../packages/core/src/types.ts#L551))
+**`method`** ([packages/core/src/types.ts:563](../packages/core/src/types.ts#L563))
 
 Against RFC 9110 section 9.1 (<https://www.rfc-editor.org/rfc/rfc9110#section-9.1>).
 
@@ -460,7 +460,7 @@ Changes the value handed on, which can affect subsequent validation.
 
 ### packages/core
 
-**`cookies`** ([packages/core/src/types.ts:579](../packages/core/src/types.ts#L579))
+**`cookies`** ([packages/core/src/types.ts:591](../packages/core/src/types.ts#L591))
 
 Against OpenAPI 3.2 style values (<https://spec.openapis.org/oas/v3.2.0#style-values>).
 

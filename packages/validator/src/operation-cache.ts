@@ -618,7 +618,7 @@ export function buildOperationCache(
   if (requestBody?.content) {
     for (const [mt, mto] of Object.entries(requestBody.content)) {
       declaredRequestMediaTypes.push(mt);
-      if (mto.schema) {
+      if (mto.schema !== undefined) {
         const context = `${operation} request body (${mt})`;
         const pointer =
           requestBodyOrigin.pointer === undefined
@@ -662,7 +662,7 @@ export function buildOperationCache(
     const declaredResponseMediaTypes: string[] = [];
     for (const [mt, mto] of Object.entries(response.content ?? {})) {
       declaredResponseMediaTypes.push(mt);
-      if (mto.schema) bodySchemas.set(mt, mto.schema);
+      if (mto.schema !== undefined) bodySchemas.set(mt, mto.schema);
     }
     for (const [name, rawHdr] of Object.entries(response.headers ?? {})) {
       const hdr = deps.resolveRef<HeaderObject>(rawHdr);
@@ -682,7 +682,7 @@ export function buildOperationCache(
           anchor: responseOrigin.anchor,
         }),
       });
-      if (hdr.schema) headerSchemas.set(lower, hdr.schema);
+      if (hdr.schema !== undefined) headerSchemas.set(lower, hdr.schema);
     }
     responses.set(status, {
       object: response,

@@ -520,6 +520,12 @@ export interface ResponseObject {
  * @public
  */
 export interface MediaTypeObject {
+  /**
+   * Schema for a supplied body value. In OpenAPI 3.1/3.2, `false` rejects
+   * every supplied value (including `null`), while `true` accepts any value.
+   * Omitting the schema leaves the body unconstrained. Body presence is
+   * checked separately, for example by {@link RequestBodyObject.required}.
+   */
   schema?: SchemaOrBoolean;
   example?: JsonValue;
   examples?: Record<string, JsonValue>;
@@ -536,6 +542,12 @@ export interface HeaderObject {
   deprecated?: boolean;
   style?: ParameterStyle;
   explode?: boolean;
+  /**
+   * Schema for a supplied header value. In OpenAPI 3.1/3.2, `false` rejects
+   * every supplied value and `true` accepts any value. Omitting the schema
+   * leaves the value unconstrained; {@link HeaderObject.required} controls
+   * whether the header must be present.
+   */
   schema?: SchemaOrBoolean;
   content?: Record<string, MediaTypeObject>;
 }

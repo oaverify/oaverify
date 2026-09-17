@@ -282,3 +282,41 @@ describe("requireResponseBody", () => {
     expect(v.validateResponse(req, { status: 304 })).toBeNull();
   });
 });
+
+describe("boolean response schemas (#1144)", () => {
+  it.each(["3.1.0", "3.2.0"])("keeps required separate from schema validation in %s", (openapi) => {
+    for (const schema of [false, true, undefined]) {
+      const schemaField = schema === undefined ? {} : { schema };
+      const document: OpenAPIDocument = {
+        openapi,
+        info: { title: "Required response", version: "1" },
+        paths: {
+          "/x": {
+            post: {
+              responses: {
+                "200": {
+                  description: "ok",
+                  content: { "application/json": schemaField },
+                  headers: { "X-Test": { required: true, ...schemaField } },
+                },
+              },
+            },
+          },
+        },
+      };
+      const validator = createValidator(document, { requireResponseBody: true });
+      const request = { method: "POST", path: "/x" } as const;
+      expect(leafCodes(validator.validateResponse(request, { status: 200 }))).toEqual([
+        "header-param",
+        "body",
+      ]);
+      const supplied = validator.validateResponse(request, {
+        status: 200,
+        contentType: "application/json",
+        body: null,
+        headers: { "x-test": "value" },
+      });
+      expect(leafCodes(supplied)).toEqual(schema === false ? ["false", "false"] : []);
+    }
+  });
+});
