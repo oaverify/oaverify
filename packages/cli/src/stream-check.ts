@@ -1,7 +1,7 @@
 /**
  * Human-readable rendering for `oaverify stream-check`: a per-operation
  * streamability table over a {@link SpecBudget}, surfacing where each
- * request / response body buffers and the unbounded positions that drive
+ * request / response body buffers and the positions that drive
  * the cost. The machine-readable form is the `SpecBudget` JSON itself
  * (`--format json`).
  *
@@ -28,11 +28,12 @@ function classLabel(report: StreamabilityReport): string {
   return report.classification;
 }
 
-// A body line carrying its class + peak + buffering-island counts. Under
-// `verbose`, each unbounded island is also listed with its path and the
-// keyword that would bound it (the actionable punch list); bounded islands
-// stay a count, since they need no action.
-function renderBody(body: BodyBudget, pad: number, verbose: boolean): string[] {
+function renderBody(
+  body: BodyBudget,
+  pad: number,
+  verbose: boolean,
+  maxBufferedBytes: number | undefined,
+): string[] {
   const role = roleLabel(body).padEnd(pad);
   const media = body.mediaType.padEnd(24);
   if (body.report === undefined) {
@@ -54,9 +55,17 @@ function renderBody(body: BodyBudget, pad: number, verbose: boolean): string[] {
   if (!verbose) return [head];
 
   const lines = [head];
-  for (const p of unbounded) {
+  for (const p of buffers) {
     const at = p.path === "" ? "(root)" : p.path;
-    lines.push(`         - ${at}  ${p.keyword}  unbounded (needs ${p.unboundedBy})`);
+    if (p.maxBytes === "unbounded") {
+      lines.push(`         - ${at}  ${p.keyword}  unbounded (needs ${p.unboundedBy})`);
+    } else {
+      const cap =
+        maxBufferedBytes !== undefined && p.maxBytes > maxBufferedBytes
+          ? `; exceeds cap ${maxBufferedBytes} B`
+          : "";
+      lines.push(`         - ${at}  ${p.keyword}  estimate ${p.maxBytes} B${cap}`);
+    }
   }
   return lines;
 }
@@ -96,16 +105,25 @@ export function hasUnbounded(budget: SpecBudget): boolean {
 
 /**
  * Render a {@link SpecBudget} as a per-operation text table. With
- * `verbose`, each unbounded buffering position is listed under its body
- * (path + the keyword that would bound it); otherwise bodies show only
- * island counts.
+ * `verbose`, each buffering position is listed under its body with its path
+ * and buffering keyword. Bounded positions show estimated wire bytes;
+ * unbounded positions name the missing bound. Otherwise bodies show only
+ * island counts. See {@link StreamabilityReport} for the budget contract.
  *
  * @public
  */
 export function renderStreamBudget(
   doc: OpenAPIDocument,
   budget: SpecBudget,
-  options: { verbose?: boolean } = {},
+  options: {
+    /** List buffering positions under each body. */
+    verbose?: boolean;
+    /**
+     * Per-buffer cap used to analyze this budget. Verbose output marks bounded
+     * estimates above this cap. Omit when the budget was analyzed without a cap.
+     */
+    maxBufferedBytes?: number;
+  } = {},
 ): string {
   const verbose = options.verbose ?? false;
   const title = doc.info?.title ?? "(untitled)";
@@ -119,7 +137,8 @@ export function renderStreamBudget(
 
   for (const op of budget.operations) {
     lines.push(`${op.method} ${JSON.stringify(op.path)}`);
-    for (const body of op.bodies) lines.push(...renderBody(body, pad, verbose));
+    for (const body of op.bodies)
+      lines.push(...renderBody(body, pad, verbose, options.maxBufferedBytes));
   }
 
   const c = tally(budget);

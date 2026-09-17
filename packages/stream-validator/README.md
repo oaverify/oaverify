@@ -164,7 +164,9 @@ OpenAPI document: one budget per operation, for the request body and each
 response body. A body whose schema cannot be classified is reported with
 an `error` field rather than throwing, so a sweep surveys the whole spec.
 The `oaverify` CLI surfaces it as `oaverify stream-check <spec>` (a per-operation
-table; `--verbose` lists each unbounded position, `--format json` emits
+table; `--verbose` lists each buffering position with its byte estimate or
+missing bound and marks bounded estimates above `--max-buffered-bytes`,
+`--format json` emits
 the `SpecBudget`, `--fail-on-unbounded` exits non-zero for CI):
 
 ```ts

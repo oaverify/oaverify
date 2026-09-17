@@ -884,7 +884,12 @@ export async function streamCheckCommand(
   if (args.format === "json") {
     await sink(JSON.stringify(budget, null, 2) + "\n");
   } else {
-    await sink(renderStreamBudget(document, budget, { verbose: args.verbose }));
+    await sink(
+      renderStreamBudget(document, budget, {
+        verbose: args.verbose,
+        ...(args.maxBufferedBytes === undefined ? {} : { maxBufferedBytes: args.maxBufferedBytes }),
+      }),
+    );
   }
 
   if (args.failOnUnbounded && hasUnbounded(budget)) return { exitCode: 1 };

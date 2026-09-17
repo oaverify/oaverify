@@ -123,7 +123,7 @@ oaverify compile-spec <openapi.yaml> --requests-only -o v.mjs
 oaverify compile-spec <openapi.yaml> --only "POST /pets" -o v.mjs
 
 oaverify stream-check <openapi.yaml>                          # per-operation streaming-buffer budget
-oaverify stream-check <openapi.yaml> --verbose                # list each unbounded buffering position
+oaverify stream-check <openapi.yaml> --verbose                # list each buffering position and its estimate or missing bound
 oaverify stream-check <openapi.yaml> --fail-on-unbounded      # CI gate: exit 1 if any body is unbounded
 ```
 
@@ -191,7 +191,7 @@ below for the expected shape.
 | `--remote-refs <mode>`                        | resolve / check / validate / compile-spec / stream-check | How far `http(s)` reads may go, **the entry document included**: `same-origin` (default), `allow`, `deny`. See [docs/configuration.md](../../docs/configuration.md#resolving-untrusted-specs).                                                                                                                                              |
 | `--untrusted`                                 | resolve / check / validate / compile-spec / stream-check | Treat the document as hostile: confine file reads to the entry's directory, tighten the size and time caps, and imply `--remote-refs same-origin`. An explicit `--remote-refs` overrides that half.                                                                                                                                         |
 | `--fail-on-unbounded`                         | stream-check                                             | Exit non-zero if any request/response body has an unbounded peak buffer. CI gate.                                                                                                                                                                                                                                                           |
-| `--verbose`                                   | stream-check                                             | List each unbounded buffering position with its path under its body.                                                                                                                                                                                                                                                                        |
+| `--verbose`                                   | stream-check                                             | List each buffering position with its path, buffering keyword, and byte estimate or missing bound. Mark bounded estimates above `--max-buffered-bytes`.                                                                                                                                                                                     |
 | `--max-buffered-bytes <n>`                    | stream-check                                             | Buffer cap the effective peak is computed against (clamps over-cap positions to the cap).                                                                                                                                                                                                                                                   |
 | `-o <file>`                                   | all                                                      | Write output to a file instead of stdout.                                                                                                                                                                                                                                                                                                   |
 | `--quiet`                                     | resolve / check / validate / stream-check                | Exit code only, no stdout.                                                                                                                                                                                                                                                                                                                  |
@@ -402,12 +402,23 @@ the streamability analysis (`@oaverify/stream`'s
 see before deploy where a body would be materialized in heap.
 
 The default `text` envelope is a per-operation table. `--verbose` lists
-each unbounded buffering position with its path and the keyword that
-left it unbounded. `--format json` emits the `SpecBudget` payload for
+each buffering position with its path and buffering keyword. Bounded
+positions show estimated wire bytes; unbounded positions name the missing
+bound. With `--max-buffered-bytes`, bounded estimates above the per-buffer
+cap are marked:
+
+```text
+         - entity_version  format  estimate 131070 B; exceeds cap 65536 B
+```
+
+Estimates guide capacity planning; actual buffered bytes depend on the input.
+See `StreamabilityReport` for the budget contract.
+`--format json` emits the `SpecBudget` payload for
 machine consumers. `--fail-on-unbounded` exits `1` when any body has an
 unbounded peak, so CI can reject a spec that can't stream within a
 fixed memory bound; `--max-buffered-bytes <n>` computes the effective
-peak against a chosen cap. Overlays apply first (`--overlay`, same
+peak against a chosen cap. A bounded estimate above that cap does not trigger
+`--fail-on-unbounded`. Overlays apply first (`--overlay`, same
 semantics as `oaverify resolve`).
 
 A body whose schema can't be classified is reported with an error

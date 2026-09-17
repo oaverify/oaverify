@@ -333,7 +333,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       (v: string) => Number.parseInt(v, 10),
     )
     .option("--fail-on-unbounded", "exit non-zero if any body has an unbounded peak buffer", false)
-    .option("--verbose", "list each unbounded buffering position with its path", false)
+    .option(
+      "--verbose",
+      "list each buffering position with its path and byte estimate or missing bound",
+      false,
+    )
     .option("-o, --output <file>", "write output to a file instead of stdout")
     .option("--quiet", "print nothing; exit code only", false)
     .option(
