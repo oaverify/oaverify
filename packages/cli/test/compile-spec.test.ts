@@ -2162,3 +2162,138 @@ describe("the emitted validator's security mode (#895)", () => {
     expect(on).toContain("X-Key");
   });
 });
+
+describe("compile-spec: boolean HTTP schemas (#1144)", () => {
+  for (const openapi of ["3.0.3", "3.1.0", "3.2.0"]) {
+    for (const form of ["inline", "schema-ref", "object-ref"] as const) {
+      for (const schema of [false, true, undefined]) {
+        if (form === "schema-ref" && schema === undefined) continue;
+        it(`${openapi} ${form} schema ${String(schema)} preserves HTTP verdicts`, async () => {
+          const schemaField =
+            schema === undefined
+              ? {}
+              : {
+                  schema: form === "schema-ref" ? { $ref: "#/components/schemas/Value" } : schema,
+                };
+          const requestBody = { content: { "application/json": schemaField } };
+          const header = { ...schemaField };
+          const response = {
+            description: "ok",
+            content: { "application/json": schemaField },
+            headers: {
+              "X-Test": form === "object-ref" ? { $ref: "#/components/headers/Test" } : header,
+            },
+          };
+          const document: OpenAPIDocument = {
+            openapi,
+            info: { title: "Boolean HTTP schemas", version: "1" },
+            paths: {
+              "/x": {
+                post: {
+                  requestBody:
+                    form === "object-ref"
+                      ? { $ref: "#/components/requestBodies/Test" }
+                      : requestBody,
+                  responses: {
+                    "200":
+                      form === "object-ref" ? { $ref: "#/components/responses/Test" } : response,
+                  },
+                },
+              },
+            },
+            components: {
+              schemas: schema === undefined ? {} : { Value: schema },
+              requestBodies: { Test: requestBody },
+              responses: { Test: response },
+              headers: { Test: header },
+            },
+          };
+          const runtime = createValidator(document);
+          const emitted = await buildAot(document);
+          const request = { method: "POST", path: "/x", contentType: "application/json" } as const;
+          for (const validator of [runtime, emitted]) {
+            for (const body of [null, false, 0, "", {}, []]) {
+              const reqResult = validator.validateRequest({ ...request, body });
+              const resResult = validator.validateResponse(request, {
+                status: 200,
+                contentType: "application/json",
+                body,
+              });
+              for (const result of [reqResult, resResult]) {
+                expect.soft(result).toMatchObject({ valid: schema !== false });
+                if (schema === false)
+                  expect
+                    .soft(flatErrors(result))
+                    .toMatchObject([{ code: "false", path: ["body"] }]);
+              }
+            }
+            const headerResult = validator.validateResponse(request, {
+              status: 200,
+              headers: { "x-test": "value" },
+            });
+            expect.soft(headerResult).toMatchObject({ valid: schema !== false });
+            if (schema === false)
+              expect
+                .soft(flatErrors(headerResult))
+                .toMatchObject([{ code: "false", path: ["header", "X-Test"] }]);
+            expect(validator.validateRequest(request)).toEqual({ valid: true });
+            expect(validator.validateResponse(request, { status: 200, headers: {} })).toEqual({
+              valid: true,
+            });
+          }
+        });
+      }
+    }
+  }
+});
+
+describe("compile-spec: null HTTP schemas (#1144)", () => {
+  it.each(["request body", "response body", "response header"] as const)(
+    "refuses a null %s schema when compiled",
+    async (position) => {
+      const malformedSchema = null as unknown as SchemaOrBoolean;
+      const content = { "application/json": { schema: malformedSchema } };
+      const document: OpenAPIDocument = {
+        openapi: "3.1.0",
+        info: { title: "Malformed HTTP schema", version: "1" },
+        paths: {
+          "/x": {
+            post: {
+              ...(position === "request body" ? { requestBody: { content } } : {}),
+              responses: {
+                "200": {
+                  description: "ok",
+                  ...(position === "response body" ? { content } : {}),
+                  ...(position === "response header"
+                    ? { headers: { "X-Test": { schema: malformedSchema } } }
+                    : {}),
+                },
+              },
+            },
+          },
+        },
+      };
+      const runtime = createValidator(document);
+      const request = { method: "POST", path: "/x", contentType: "application/json" } as const;
+      const response = {
+        status: 200,
+        contentType: "application/json",
+        body: 1,
+        headers: { "x-test": "value" },
+      };
+      const malformed = /schema at <root> must be an object or boolean; got null/;
+      if (position === "request body") {
+        expect(() => runtime.validateRequest({ ...request, body: 1 })).toThrow(malformed);
+      } else {
+        expect(runtime.validateRequest(request)).toEqual({ valid: true });
+        expect(runtime.validateResponse(request, { status: 200 })).toEqual({ valid: true });
+        expect(() => runtime.validateResponse(request, response)).toThrow(malformed);
+      }
+      expect(() => createValidator(document).precompile()).toThrow(malformed);
+      const failures = createValidator(document).precompile({ onMalformed: "collect" });
+      expect(failures).toHaveLength(1);
+      expect(failures[0]?.message).toMatch(malformed);
+      await expect(buildAot(document)).rejects.toThrow(/compile-spec failed \(3\):/);
+    },
+  );
+});

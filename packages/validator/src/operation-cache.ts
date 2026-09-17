@@ -618,7 +618,8 @@ export function buildOperationCache(
   if (requestBody?.content) {
     for (const [mt, mto] of Object.entries(requestBody.content)) {
       declaredRequestMediaTypes.push(mt);
-      if (mto.schema) {
+      const schema = mto.schema;
+      if (schema !== undefined) {
         const context = `${operation} request body (${mt})`;
         const pointer =
           requestBodyOrigin.pointer === undefined
@@ -629,10 +630,8 @@ export function buildOperationCache(
           pointer,
           anchor: requestBodyOrigin.anchor,
         };
-        const origin = deps.bodySchemaOrigin?.(mto.schema as SchemaOrBoolean, useSite) ?? useSite;
-        const v = guarded(origin, () =>
-          deps.compileForDirection(mto.schema as SchemaOrBoolean, "request", origin),
-        );
+        const origin = deps.bodySchemaOrigin?.(schema, useSite) ?? useSite;
+        const v = guarded(origin, () => deps.compileForDirection(schema, "request", origin));
         if (v !== undefined) bodyValidators.set(mt, v);
       }
     }
@@ -662,7 +661,7 @@ export function buildOperationCache(
     const declaredResponseMediaTypes: string[] = [];
     for (const [mt, mto] of Object.entries(response.content ?? {})) {
       declaredResponseMediaTypes.push(mt);
-      if (mto.schema) bodySchemas.set(mt, mto.schema);
+      if (mto.schema !== undefined) bodySchemas.set(mt, mto.schema);
     }
     for (const [name, rawHdr] of Object.entries(response.headers ?? {})) {
       const hdr = deps.resolveRef<HeaderObject>(rawHdr);
@@ -682,7 +681,7 @@ export function buildOperationCache(
           anchor: responseOrigin.anchor,
         }),
       });
-      if (hdr.schema) headerSchemas.set(lower, hdr.schema);
+      if (hdr.schema !== undefined) headerSchemas.set(lower, hdr.schema);
     }
     responses.set(status, {
       object: response,

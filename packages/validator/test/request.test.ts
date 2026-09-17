@@ -1932,3 +1932,30 @@ describe("matrix path parameters (#758)", () => {
     expect(get(matrixSpec({ type: "integer" }, false), "/t/;p=42")).toBeNull();
   });
 });
+
+describe("boolean request-body schemas (#1144)", () => {
+  it.each(["3.1.0", "3.2.0"])("keeps required separate from schema validation in %s", (openapi) => {
+    for (const schema of [false, true, undefined]) {
+      const document: OpenAPIDocument = {
+        openapi,
+        info: { title: "Required body", version: "1" },
+        paths: {
+          "/x": {
+            post: {
+              requestBody: {
+                required: true,
+                content: { "application/json": schema === undefined ? {} : { schema } },
+              },
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      };
+      const validator = createValidator(document);
+      const request = { method: "POST", path: "/x", contentType: "application/json" } as const;
+      expect(leafCodes(validator.validateRequest(request))).toContain("body");
+      const supplied = validator.validateRequest({ ...request, body: null });
+      expect(leafCodes(supplied)).toEqual(schema === false ? ["false"] : []);
+    }
+  });
+});

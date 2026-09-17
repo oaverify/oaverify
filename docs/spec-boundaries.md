@@ -33,14 +33,14 @@ conforming implementation choice.
 
 | kind | meaning | entries |
 | ---- | ------- | ----- |
-| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 27 |
+| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 28 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 7 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 3 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 6 |
 
-57 documented entries across 31 files.
+58 documented entries across 31 files.
 
 ## under-asserts
 
@@ -71,7 +71,17 @@ dialect (the set of schema rules to apply).
 
 ### packages/core
 
-**`method`** ([packages/core/src/types.ts:551](../packages/core/src/types.ts#L551))
+**`SchemaOrBoolean`** ([packages/core/src/types.ts:124](../packages/core/src/types.ts#L124))
+
+Against OpenAPI 3.0.3 Schema Object (<https://spec.openapis.org/oas/v3.0.3#schema-object>).
+
+Runtime and emitted validators compile a boolean body or header schema
+in an OpenAPI 3.0 document: `true` accepts supplied values and `false`
+rejects them. OpenAPI 3.0 requires a Schema Object at these positions.
+This preserves the compiler's boolean semantics across dialects; accepting
+the schema for compilation does not establish document conformance.
+
+**`method`** ([packages/core/src/types.ts:572](../packages/core/src/types.ts#L572))
 
 Against RFC 9110 section 9.1 (<https://www.rfc-editor.org/rfc/rfc9110#section-9.1>).
 
@@ -460,7 +470,7 @@ Changes the value handed on, which can affect subsequent validation.
 
 ### packages/core
 
-**`cookies`** ([packages/core/src/types.ts:579](../packages/core/src/types.ts#L579))
+**`cookies`** ([packages/core/src/types.ts:600](../packages/core/src/types.ts#L600))
 
 Against OpenAPI 3.2 style values (<https://spec.openapis.org/oas/v3.2.0#style-values>).
 
@@ -595,7 +605,7 @@ The spec is silent or self-contradictory, and this picked a reading.
 
 ### packages/core
 
-**`allowEmptyValue`** ([packages/core/src/types.ts:468](../packages/core/src/types.ts#L468))
+**`allowEmptyValue`** ([packages/core/src/types.ts:475](../packages/core/src/types.ts#L475))
 
 Against OpenAPI 3.1 Parameter Object (<https://spec.openapis.org/oas/v3.1.0#parameter-object>).
 
