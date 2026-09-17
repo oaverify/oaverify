@@ -323,16 +323,11 @@ JavaScript calculates `0.3 / 0.1` as `2.9999999999999996` instead of `3`.
 
 Against RFC 8259 section 8.1 (<https://www.rfc-editor.org/rfc/rfc8259#section-8.1>).
 
-`utf8: "replace"` accepts input bytes that are not valid UTF-8. JSON
-requires UTF-8 of text exchanged between systems outside a closed
-ecosystem. Under that setting each ill-formed byte sequence becomes
-U+FFFD and validation continues against the replaced text, so whether
-the body is accepted depends on the schema: a string constrained to
-printable ASCII rejects it because U+FFFD is not printable ASCII, and
-an unconstrained string accepts it. The echoed output is the input
-bytes unchanged, so a consumer that stores or forwards them keeps JSON
-text that is not valid UTF-8. The default, `utf8: "reject"`, fails the
-stream at the offending byte.
+RFC 8259 requires UTF-8 for JSON exchanged outside a closed ecosystem.
+`utf8: "replace"` allows malformed sequences in strings and keys,
+validating their U+FFFD replacement text while echoing the original bytes.
+This compatibility setting can accept malformed input when the schema
+permits the replacement text. The default, `utf8: "reject"`, rejects it.
 
 ### packages/validator
 

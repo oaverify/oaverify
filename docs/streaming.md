@@ -38,40 +38,23 @@ const validator = createStreamValidator(
 
 ## Input Encoding
 
-The input is bytes, so the validator sees encoding errors the in-memory
-engine never can: `createValidator` takes an already-parsed JavaScript
-value, and whoever parsed it has already decoded the bytes.
-
-By default a byte sequence inside a string or a key that is not
-well-formed UTF-8 fails the stream with a `JsonParseError` carrying the
-offending byte offset, the same channel an unescaped control character
-uses. `utf8: "replace"` opts out: each ill-formed sequence decodes to
-U+FFFD and validation continues against the replaced text, which is what
-`Buffer.from(bytes).toString("utf8")` does. See
-{@link StreamValidatorOptions.utf8}.
+Malformed UTF-8 in a string or key fails the stream and rejects
+`validator.result` with a `JsonParseError` identifying the malformed
+sequence's first byte. For a closed ecosystem that needs the previous
+replacement behavior, set `utf8: "replace"`. See `StreamValidatorOptions.utf8`.
 
 ```ts
 const validator = createStreamValidator(schema, { utf8: "replace" });
 ```
 
-Two things worth knowing before you reach for the opt-out.
+Under `"replace"`, schema validation sees U+FFFD replacement characters.
+A printable-ASCII pattern rejects that text; a permissive pattern accepts
+it. A sender's own encoded U+FFFD is valid UTF-8 under either setting.
 
-A schema cannot stand in for the check. Under `"replace"` the verdict
-depends on which keywords cover the string: `pattern: "^[\x20-\x7E]+$"`
-rejects the body because U+FFFD is not printable ASCII, a permissive
-pattern accepts the same bytes, and a string no keyword covers accepts
-them silently. None of those is a test of the encoding. Nor is looking
-for U+FFFD in the decoded value, since a sender may encode U+FFFD itself
-and mean it.
-
-A fatal error does not unsend bytes. The echo is verbatim pass-through,
-so bytes already written downstream stay written, including the malformed
-ones in the chunk that failed. If you store or forward the echoed stream,
-the encoding guarantee you get is "the pipeline failed", and turning that
-into "nothing bad was stored" is yours: write to a staging location and
-promote it once `validator.result` resolves valid, or abort the upload on
-the stream's `error` event. That is true of every parse error and every
-violation under `policy: "terminate"`, not only of this one.
+Already echoed bytes remain downstream, including malformed bytes in the
+chunk that failed. When storing output, use a staging location and promote
+it only after the pipeline completes and `validator.result` resolves valid.
+Abort or discard stored output when validation fails.
 
 ## Hooks
 

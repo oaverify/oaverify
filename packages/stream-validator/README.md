@@ -69,11 +69,10 @@ The default policy is `terminate` with `maxErrors: 1` (the first violation
 destroys the stream and rejects the `pipeline`); `detach` instead seals
 the verdict and raw-copies the tail.
 
-Because the input is bytes, the encoding is checked too: a byte sequence
-inside a string or a key that is not well-formed UTF-8 is a parse error,
-which the `rename`-on-clean-finish shape above already handles. Pass
-`utf8: "replace"` to decode ill-formed sequences to U+FFFD and validate
-the replaced text instead. See [docs/streaming.md](../../docs/streaming.md#input-encoding).
+Malformed UTF-8 in strings or keys is a parse error. `utf8: "replace"`
+preserves the previous replacement decoding behavior. See
+[Input Encoding](../../docs/streaming.md#input-encoding) and
+`StreamValidatorOptions.utf8`.
 
 Count and length limits resolve as early as the input allows: an
 **over-limit** (`maxItems`, `maxProperties`, `maxLength`) fails at the

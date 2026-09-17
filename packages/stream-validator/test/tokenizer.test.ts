@@ -227,6 +227,48 @@ const MALFORMED_DOCS: Array<[string, Uint8Array]> = [
   ],
 ];
 
+describe("JsonTokenizer UTF-8 scalar boundaries", () => {
+  const cases: Array<[number, number[]]> = [
+    [0x80, [0xc2, 0x80]],
+    [0x7ff, [0xdf, 0xbf]],
+    [0x800, [0xe0, 0xa0, 0x80]],
+    [0xd7ff, [0xed, 0x9f, 0xbf]],
+    [0xe000, [0xee, 0x80, 0x80]],
+    [0xfeff, [0xef, 0xbb, 0xbf]],
+    [0xfffd, [0xef, 0xbf, 0xbd]],
+    [0xffff, [0xef, 0xbf, 0xbf]],
+    [0x10000, [0xf0, 0x90, 0x80, 0x80]],
+    [0x10ffff, [0xf4, 0x8f, 0xbf, 0xbf]],
+  ];
+  for (const [codePoint, body] of cases) {
+    for (const key of [false, true]) {
+      it(`decodes U+${codePoint.toString(16)} in a ${key ? "key" : "value"} across writes`, () => {
+        const bytes = Buffer.concat([
+          Buffer.from(key ? '{"' : '"'),
+          Buffer.from(body),
+          Buffer.from(key ? '":0}' : '"'),
+        ]);
+        const expected = String.fromCodePoint(codePoint);
+        const whole = run(bytes);
+        expect(whole.value).toEqual(key ? { [expected]: 0 } : expected);
+        expect(whole.events).toContainEqual(
+          expect.objectContaining({ t: key ? "key" : "string", v: expected, cp: 1 }),
+        );
+        for (let split = 0; split <= bytes.length; split++) {
+          const rec = new Recorder();
+          const tokenizer = new JsonTokenizer(rec);
+          tokenizer.write(bytes.subarray(0, split));
+          tokenizer.write(bytes.subarray(split));
+          tokenizer.end();
+          expect(rec.events).toEqual(whole.events);
+          expect(rec.value).toEqual(whole.value);
+        }
+        expect(run(bytes, 1).events).toEqual(whole.events);
+      });
+    }
+  }
+});
+
 describe("JsonTokenizer value parity with JSON.parse for malformed UTF-8", () => {
   for (const [label, bytes] of MALFORMED_DOCS) {
     it(`reconstructs ${label}`, () => {

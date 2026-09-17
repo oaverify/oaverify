@@ -855,16 +855,11 @@ export class StreamValidator extends Transform {
  * (#1090). Separately, some malformed schema keyword values are silently
  * ignored instead of rejected (#919).
  * @specBoundary under-asserts https://www.rfc-editor.org/rfc/rfc8259#section-8.1
- * `utf8: "replace"` accepts input bytes that are not valid UTF-8. JSON
- * requires UTF-8 of text exchanged between systems outside a closed
- * ecosystem. Under that setting each ill-formed byte sequence becomes
- * U+FFFD and validation continues against the replaced text, so whether
- * the body is accepted depends on the schema: a string constrained to
- * printable ASCII rejects it because U+FFFD is not printable ASCII, and
- * an unconstrained string accepts it. The echoed output is the input
- * bytes unchanged, so a consumer that stores or forwards them keeps JSON
- * text that is not valid UTF-8. The default, `utf8: "reject"`, fails the
- * stream at the offending byte.
+ * RFC 8259 requires UTF-8 for JSON exchanged outside a closed ecosystem.
+ * `utf8: "replace"` allows malformed sequences in strings and keys,
+ * validating their U+FFFD replacement text while echoing the original bytes.
+ * This compatibility setting can accept malformed input when the schema
+ * permits the replacement text. The default, `utf8: "reject"`, rejects it.
  * @specBoundary resolves https://www.rfc-editor.org/rfc/rfc8259#section-4
  * When a JSON object repeats a property name, streaming validation can
  * check and count every occurrence toward `minProperties` and

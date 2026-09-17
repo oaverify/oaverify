@@ -1,16 +1,3 @@
-/**
- * Malformed UTF-8 in the input bytes (`utf8`).
- *
- * The default (`"reject"`) fails the stream at the offending byte. The
- * opt-out (`"replace"`) keeps the replacing decode, whose chunk-boundary
- * invariants `tokenizer.test.ts` and `string-length-counter.test.ts`
- * pin.
- *
- * What makes the check sound is that it reads the encoding rather than
- * the decoded text: a sender's own U+FFFD is well-formed UTF-8 and is
- * accepted, where a "the value contains U+FFFD" test would reject it.
- */
-
 import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
@@ -45,6 +32,7 @@ async function feed(
     await pipeline(Readable.from(chunks.map((c) => Buffer.from(c))), validator, sink);
   } catch (err) {
     if (err instanceof JsonParseError) {
+      await expect(validator.result).rejects.toBe(err);
       return { kind: "parseError", message: err.message, byteOffset: err.byteOffset };
     }
     // A violation under the default `policy: "terminate"` rejects the
@@ -64,8 +52,6 @@ function inValue(bad: number[]): Uint8Array[] {
 
 const STRING = { type: "object", properties: { s: { type: "string" } } } as const;
 
-// Every shape RFC 3629 excludes, with the offset of its first byte in
-// `inValue`'s document.
 const ILL_FORMED: Array<[string, number[]]> = [
   ["a surrogate (ED A0 80)", [0xed, 0xa0, 0x80]],
   ["an overlong NUL (C0 80)", [0xc0, 0x80]],
@@ -73,16 +59,52 @@ const ILL_FORMED: Array<[string, number[]]> = [
   ["a bare continuation byte (80)", [0x80]],
   ["a truncated sequence (E2 82)", [0xe2, 0x82]],
   ["a lead past U+10FFFF (F5 80 80 80)", [0xf5, 0x80, 0x80, 0x80]],
+  ["an overlong two-byte sequence (C1 BF)", [0xc1, 0xbf]],
+  ["an overlong three-byte sequence (E0 9F BF)", [0xe0, 0x9f, 0xbf]],
+  ["an overlong four-byte sequence (F0 8F BF BF)", [0xf0, 0x8f, 0xbf, 0xbf]],
+  ["a code point past U+10FFFF (F4 90 80 80)", [0xf4, 0x90, 0x80, 0x80]],
+  ["an invalid second byte (E2 61 A1)", [0xe2, 0x61, 0xa1]],
+  ["an invalid third byte (E2 82 61)", [0xe2, 0x82, 0x61]],
+  ["an invalid fourth byte (F0 90 80 61)", [0xf0, 0x90, 0x80, 0x61]],
+  ["a truncated two-byte sequence (C2)", [0xc2]],
+  ["a truncated four-byte sequence (F0 90 80)", [0xf0, 0x90, 0x80]],
 ];
 
+function* chunkings(bytes: Uint8Array): Generator<Uint8Array[]> {
+  yield [bytes];
+  for (let split = 0; split <= bytes.length; split++) {
+    yield [bytes.subarray(0, split), bytes.subarray(split)];
+  }
+  yield Array.from(bytes, (byte) => Uint8Array.of(byte));
+}
+
 describe("utf8: reject (the default)", () => {
-  for (const [label, bad] of ILL_FORMED) {
-    it(`fails the stream on ${label}`, async () => {
-      const out = await feed(STRING, inValue(bad));
-      expect(out.kind).toBe("parseError");
-      if (out.kind !== "parseError") return;
-      expect(out.byteOffset).toBe(6);
-    });
+  const cases: Array<[string, number[], number]> = [
+    ...ILL_FORMED.map(([label, bytes]): [string, number[], number] => [label, bytes, 0]),
+    ["a valid split character before FF", [0xc2, 0x80, 0x61, 0xff], 3],
+    ["a held malformed sequence before FF", [0xe2, 0x61, 0xff], 0],
+    ["a completed character before a new partial", [0xf0, 0x90, 0x80, 0x80, 0xe2, 0x82], 4],
+  ];
+  for (const [label, body, badOffset] of cases) {
+    for (const key of [false, true]) {
+      it(`locates ${label} in a ${key ? "key" : "value"} across chunk boundaries`, async () => {
+        const prefix = Buffer.from(key ? '{"' : '{"s":"');
+        for (const suffix of ['"', '\\n"', '\\u0041"']) {
+          const bytes = Buffer.concat([
+            prefix,
+            Buffer.from(body),
+            Buffer.from(suffix + (key ? ":0}" : "}")),
+          ]);
+          for (const chunks of chunkings(bytes)) {
+            const out = await feed({ type: "object" }, chunks);
+            expect(out).toMatchObject({
+              kind: "parseError",
+              byteOffset: prefix.length + badOffset,
+            });
+          }
+        }
+      });
+    }
   }
 
   it("fails on ill-formed bytes in a key, not only a value", async () => {
@@ -103,11 +125,9 @@ describe("utf8: reject (the default)", () => {
     expect(out.byteOffset).toBe(6 + 9);
   });
 
-  it("reports a truncated sequence at the byte that ends the string", async () => {
-    const out = await feed(STRING, inValue([0xe2, 0x82]));
-    expect(out.kind).toBe("parseError");
-    if (out.kind !== "parseError") return;
-    expect(out.message).toContain("UTF-8");
+  it("rejects the pipeline and result under detach before the error budget is reached", async () => {
+    const out = await feed(STRING, inValue([0x80]), { policy: "detach" });
+    expect(out).toMatchObject({ kind: "parseError", byteOffset: 6 });
   });
 
   it("fails where the schema routes the string to a buffered island", async () => {
@@ -130,9 +150,8 @@ describe("utf8: reject (the default)", () => {
   });
 });
 
-describe("utf8: reject accepts every well-formed input", () => {
+describe("utf8: reject accepts well-formed input", () => {
   it("accepts a U+FFFD the sender encoded itself", async () => {
-    // The soundness case: replacement output is not a test of the input.
     const out = await feed(STRING, [Buffer.from('{"s":"a�b"}')]);
     expect(out.kind).toBe("accept");
   });
@@ -150,9 +169,6 @@ describe("utf8: reject accepts every well-formed input", () => {
   });
 
   it("still accepts a lone surrogate escape, as JSON.parse does", async () => {
-    // The `JSON.parse` anchor is about the grammar and the values it
-    // yields. `\uD800` is ASCII on the wire, so the encoding check never
-    // sees it.
     const out = await feed(STRING, [Buffer.from('{"s":"\\uD800"}')]);
     expect(out.kind).toBe("accept");
   });
@@ -174,10 +190,7 @@ describe('utf8: "replace"', () => {
     expect(out.echoed.includes(Buffer.from([0xc0, 0xaf]))).toBe(true);
   });
 
-  it("rejects them against a printable-ASCII pattern, for U+FFFD's sake", async () => {
-    // The pattern rejects the replacement character, not the encoding: a
-    // permissive pattern accepts the same bytes, which is why this is no
-    // substitute for the check.
+  it("validates the replacement text against the pattern", async () => {
     const strict = await feed(
       { type: "object", properties: { s: { type: "string", pattern: "^[\\x20-\\x7E]+$" } } },
       inValue([0xc0, 0xaf]),

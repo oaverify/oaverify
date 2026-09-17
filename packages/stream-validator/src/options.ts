@@ -140,42 +140,18 @@ export interface StreamValidatorOptions {
   unknownFormats?: "ignore" | "error";
 
   /**
-   * Whether malformed UTF-8 in the input bytes fails the stream.
+   * Input encoding policy for strings and object keys.
    *
-   *   - `"reject"` (default): a byte sequence inside a string or a key
-   *     that is not well-formed UTF-8 fails the stream fatally with a
-   *     `JsonParseError` carrying the offending byte offset, the channel
-   *     an unescaped control character already uses. Ill-formed covers a
-   *     surrogate encoded as three bytes, an overlong encoding, a bare
-   *     continuation byte, a truncated sequence, and a code point past
-   *     U+10FFFF.
-   *   - `"replace"`: each ill-formed sequence decodes to U+FFFD and
-   *     validation continues against the replaced text, matching
-   *     `Buffer#toString`.
+   * - `"reject"` (default): malformed UTF-8 rejects the stream and `result`
+   *   with a `JsonParseError` at the first byte of the malformed sequence.
+   * - `"replace"`: decode malformed sequences to U+FFFD and validate the
+   *   replacement text, matching `Buffer#toString`. This preserves the
+   *   previous behavior for closed ecosystems.
    *
-   * Bytes above 0x7F outside a string are a parse error under both
-   * settings, since no such byte is legal in JSON structure, so a string
-   * body and an object key are the only places this option decides
-   * anything.
-   *
-   * Under `"replace"` the validated text differs from the bytes the
-   * sender wrote, and the schema then decides the verdict: a string with
-   * `pattern: "^[\\x20-\\x7E]+$"` rejects the body because U+FFFD
-   * fails that pattern, while an unconstrained string accepts it. A
-   * consumer that forwards the input bytes onward therefore stores JSON
-   * text that is not valid UTF-8. RFC 8259 section 8.1 requires UTF-8 of
-   * JSON text exchanged outside a closed ecosystem, which is the case
-   * `"replace"` exists for.
-   *
-   * A U+FFFD the sender encoded itself (`EF BF BD`) is well-formed and is
-   * accepted under both settings, so `"reject"` is a test of the encoding
-   * rather than of the decoded text.
-   *
-   * `"reject"` reuses the decode pass the code-point counter already
-   * needs, so it costs under 1% of validation throughput. A fatal error
-   * does not unsend bytes already echoed: a consumer writing the echoed
-   * stream somewhere durable has to discard or abort on the stream's
-   * `error` event, as it does for any other parse error.
+   * Encoded U+FFFD and JSON surrogate escapes are accepted under either
+   * setting, subject to the schema. Bytes above 0x7F outside strings remain
+   * parse errors. The echoed bytes are unchanged by this option; abort or
+   * discard stored output when validation fails.
    */
   utf8?: "reject" | "replace";
 
