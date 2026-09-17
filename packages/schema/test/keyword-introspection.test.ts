@@ -51,12 +51,20 @@ describe("contains-bound exports", () => {
     "rejects malformed %s in a custom dialect",
     (keyword) => {
       for (const value of [-1, 1.5, "2"]) {
-        expect(() =>
-          compileSchema({ contains: true, [keyword]: value } as SchemaOrBoolean, { dialect }),
-        ).toThrow(`keyword "${keyword}" requires a non-negative integer`);
+        for (const schema of [{ [keyword]: value }, { contains: true, [keyword]: value }]) {
+          expect(() => compileSchema(schema as SchemaOrBoolean, { dialect })).toThrow(
+            `keyword "${keyword}" requires a non-negative integer`,
+          );
+        }
       }
     },
   );
+
+  it("leaves instance validation unconstrained when contains is absent", () => {
+    const compiled = compileSchema({ minContains: 1, maxContains: 2 }, { dialect });
+    expect(compiled.validate([]).valid).toBe(true);
+    expect(compiled.validate([1, 2, 3]).valid).toBe(true);
+  });
 
   it("enforces the selected contains bounds in a custom dialect", () => {
     const compiled = compileSchema(
