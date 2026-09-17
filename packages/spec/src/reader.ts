@@ -161,6 +161,10 @@ export function assertWithinMaxBytesSync(
  * `@oaverify/syntax`'s `createYamlFileReader` via
  * {@link composeReaders} for YAML support.
  *
+ * Percent-encoded UTF-8 paths decode once before filesystem lookup. Stray
+ * percent signs remain literal; malformed UTF-8 escape runs throw `URIError`.
+ * Encode a literal percent sequence once more (`%2520` names `%20`).
+ *
  * The base directory is a resolution root, not a sandbox, unless
  * {@link FileReaderOptions.confine} is set.
  *
@@ -196,10 +200,10 @@ export function createFileReader(
       const stripped = uri.replace(/^file:\/\//, "");
       // `$ref` URIs are percent-encoded per RFC 3986, so a filesystem
       // path like "my spec.json" arrives here as "my%20spec.json". Decode
-      // well-formed %XX escapes before hitting the disk. Stray `%` that
+      // complete UTF-8 escape runs before hitting the disk. Stray `%` that
       // isn't a valid escape passes through so it can match a literal
       // filename that actually contains one.
-      const decoded = stripped.replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
+      const decoded = stripped.replace(/(?:%[0-9A-Fa-f]{2})+/g, (m) => decodeURIComponent(m));
       const path = await resolveReadPath(root, decoded, uri, options.confine === true);
       if (hasYamlExtension(path)) throw new Error(`${uri}: ${YAML_HINT}`);
       await assertWithinMaxBytes(path, uri, options.maxBytes);
@@ -563,7 +567,7 @@ export function createFileReaderSync(
     },
     read(uri) {
       const stripped = uri.replace(/^file:\/\//, "");
-      const decoded = stripped.replace(/%[0-9A-Fa-f]{2}/g, (m) => decodeURIComponent(m));
+      const decoded = stripped.replace(/(?:%[0-9A-Fa-f]{2})+/g, (m) => decodeURIComponent(m));
       const path = resolveReadPathSync(root, decoded, uri, options.confine === true);
       if (hasYamlExtension(path)) throw new Error(`${uri}: ${YAML_HINT}`);
       assertWithinMaxBytesSync(path, uri, options.maxBytes);
