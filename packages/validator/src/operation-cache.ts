@@ -618,7 +618,8 @@ export function buildOperationCache(
   if (requestBody?.content) {
     for (const [mt, mto] of Object.entries(requestBody.content)) {
       declaredRequestMediaTypes.push(mt);
-      if (mto.schema !== undefined) {
+      const schema = mto.schema;
+      if (schema !== undefined) {
         const context = `${operation} request body (${mt})`;
         const pointer =
           requestBodyOrigin.pointer === undefined
@@ -629,10 +630,8 @@ export function buildOperationCache(
           pointer,
           anchor: requestBodyOrigin.anchor,
         };
-        const origin = deps.bodySchemaOrigin?.(mto.schema as SchemaOrBoolean, useSite) ?? useSite;
-        const v = guarded(origin, () =>
-          deps.compileForDirection(mto.schema as SchemaOrBoolean, "request", origin),
-        );
+        const origin = deps.bodySchemaOrigin?.(schema, useSite) ?? useSite;
+        const v = guarded(origin, () => deps.compileForDirection(schema, "request", origin));
         if (v !== undefined) bodyValidators.set(mt, v);
       }
     }

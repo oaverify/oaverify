@@ -2164,7 +2164,7 @@ describe("the emitted validator's security mode (#895)", () => {
 });
 
 describe("compile-spec: boolean HTTP schemas (#1144)", () => {
-  for (const openapi of ["3.1.0", "3.2.0"]) {
+  for (const openapi of ["3.0.3", "3.1.0", "3.2.0"]) {
     for (const form of ["inline", "schema-ref", "object-ref"] as const) {
       for (const schema of [false, true, undefined]) {
         if (form === "schema-ref" && schema === undefined) continue;
@@ -2245,4 +2245,55 @@ describe("compile-spec: boolean HTTP schemas (#1144)", () => {
       }
     }
   }
+});
+
+describe("compile-spec: null HTTP schemas (#1144)", () => {
+  it.each(["request body", "response body", "response header"] as const)(
+    "refuses a null %s schema when compiled",
+    async (position) => {
+      const malformedSchema = null as unknown as SchemaOrBoolean;
+      const content = { "application/json": { schema: malformedSchema } };
+      const document: OpenAPIDocument = {
+        openapi: "3.1.0",
+        info: { title: "Malformed HTTP schema", version: "1" },
+        paths: {
+          "/x": {
+            post: {
+              ...(position === "request body" ? { requestBody: { content } } : {}),
+              responses: {
+                "200": {
+                  description: "ok",
+                  ...(position === "response body" ? { content } : {}),
+                  ...(position === "response header"
+                    ? { headers: { "X-Test": { schema: malformedSchema } } }
+                    : {}),
+                },
+              },
+            },
+          },
+        },
+      };
+      const runtime = createValidator(document);
+      const request = { method: "POST", path: "/x", contentType: "application/json" } as const;
+      const response = {
+        status: 200,
+        contentType: "application/json",
+        body: 1,
+        headers: { "x-test": "value" },
+      };
+      const malformed = /schema at <root> must be an object or boolean; got null/;
+      if (position === "request body") {
+        expect(() => runtime.validateRequest({ ...request, body: 1 })).toThrow(malformed);
+      } else {
+        expect(runtime.validateRequest(request)).toEqual({ valid: true });
+        expect(runtime.validateResponse(request, { status: 200 })).toEqual({ valid: true });
+        expect(() => runtime.validateResponse(request, response)).toThrow(malformed);
+      }
+      expect(() => createValidator(document).precompile()).toThrow(malformed);
+      const failures = createValidator(document).precompile({ onMalformed: "collect" });
+      expect(failures).toHaveLength(1);
+      expect(failures[0]?.message).toMatch(malformed);
+      await expect(buildAot(document)).rejects.toThrow(/compile-spec failed \(3\):/);
+    },
+  );
 });

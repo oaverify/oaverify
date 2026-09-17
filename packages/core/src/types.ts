@@ -123,8 +123,15 @@ export interface SchemaObject {
 
 /**
  * A schema value: either a schema object or a boolean (`true` accepts all,
- * `false` rejects all).
+ * `false` rejects all). `null` is invalid and throws when compiled.
  *
+ * @specCites OpenAPI 3.0.3 Schema Object, https://spec.openapis.org/oas/v3.0.3#schema-object
+ * @specBoundary under-asserts
+ * Runtime and emitted validators compile a boolean body or header schema
+ * in an OpenAPI 3.0 document: `true` accepts supplied values and `false`
+ * rejects them. OpenAPI 3.0 requires a Schema Object at these positions.
+ * This preserves the compiler's boolean semantics across dialects; accepting
+ * the schema for compilation does not establish document conformance.
  * @public
  */
 export type SchemaOrBoolean = SchemaObject | boolean;
@@ -521,8 +528,9 @@ export interface ResponseObject {
  */
 export interface MediaTypeObject {
   /**
-   * Schema for a supplied body value. In OpenAPI 3.1/3.2, `false` rejects
-   * every supplied value (including `null`), while `true` accepts any value.
+   * Schema for a supplied body value. `false` rejects every supplied value
+   * (including `null`), while `true` accepts any value. See
+   * {@link SchemaOrBoolean} for version constraints and malformed values.
    * Omitting the schema leaves the body unconstrained. Body presence is
    * checked separately, for example by {@link RequestBodyObject.required}.
    */
@@ -543,8 +551,9 @@ export interface HeaderObject {
   style?: ParameterStyle;
   explode?: boolean;
   /**
-   * Schema for a supplied header value. In OpenAPI 3.1/3.2, `false` rejects
-   * every supplied value and `true` accepts any value. Omitting the schema
+   * Schema for a supplied header value. `false` rejects every supplied value
+   * and `true` accepts any value. See {@link SchemaOrBoolean} for version
+   * constraints and malformed values. Omitting the schema
    * leaves the value unconstrained; {@link HeaderObject.required} controls
    * whether the header must be present.
    */

@@ -1236,6 +1236,11 @@ function assertFormatTypesMatch(supplied: Record<string, FormatDefinition> | und
 /**
  * Build a {@link Validator} from a resolved OpenAPI 3.1 document.
  *
+ * Schema compilation is lazy. Invalid schema values, such as `schema: null`,
+ * throw when the affected schema is first compiled during validation. Call
+ * {@link Validator.precompile} at startup to surface these failures before
+ * serving traffic.
+ *
  * @param spec - The fully-resolved OpenAPI document (no external `$ref`s).
  * @param options - Tunables for the validator. See {@link ValidatorOptions}
  *   for the full set: security gating, path filtering, dialect override,
