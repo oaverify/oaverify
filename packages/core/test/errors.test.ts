@@ -12,6 +12,7 @@ import {
   type CustomErrorParams,
   type ErrorParams,
   type ErrorParamsFor,
+  type PathSegment,
   type ValidationError,
 } from "../src/errors.js";
 
@@ -207,4 +208,41 @@ describe("joinPath", () => {
   it("treats a leading number as a bracket", () => {
     expect(joinPath([0, "x"])).toBe("[0].x");
   });
+});
+
+describe.each([
+  {
+    name: "createLeafError",
+    create: (path: readonly PathSegment[], extra?: PathSegment, extra2?: PathSegment) =>
+      createLeafError("type", path, "bad value", {}, extra, extra2),
+  },
+  {
+    name: "createBranchError",
+    create: (path: readonly PathSegment[], extra?: PathSegment, extra2?: PathSegment) =>
+      createBranchError("schema", path, "bad value", [], {}, extra, extra2),
+  },
+])("$name path inputs", ({ create }) => {
+  it.each<{ extras: PathSegment[] }>([{ extras: [] }, { extras: [0] }, { extras: [0, "name"] }])(
+    "copies a frozen readonly path with trailing segments $extras",
+    ({ extras }) => {
+      const path = Object.freeze(["body", "items"] as const);
+      const error = create(path, extras[0], extras[1]);
+      expectTypeOf(error).toEqualTypeOf<ValidationError>();
+      expect(error.path).toEqual([...path, ...extras]);
+      expect(error.path).not.toBe(path);
+      expect(path).toEqual(["body", "items"]);
+    },
+  );
+
+  it.each<{ extras: PathSegment[] }>([{ extras: [] }, { extras: [0] }, { extras: [0, "name"] }])(
+    "snapshots a mutable path with trailing segments $extras",
+    ({ extras }) => {
+      const path: PathSegment[] = ["body", "items"];
+      const error = create(path, extras[0], extras[1]);
+      path[0] = "response";
+      path.push("later");
+      expect(error.path).toEqual(["body", "items", ...extras]);
+      expect(error.path).not.toBe(path);
+    },
+  );
 });
