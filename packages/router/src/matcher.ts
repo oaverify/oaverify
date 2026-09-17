@@ -109,7 +109,8 @@ export interface RouteMatch {
   pathParams: Record<string, string>;
   /**
    * Original wire captures, for splitting style delimiters before decoding.
-   * Matching still uses decoded tokens, including compound-template literals.
+   * Omitted when the path contains no percent escapes. Matching still uses
+   * decoded tokens, including compound-template literals.
    * A compound capture that bisects a percent-encoded UTF-16 surrogate pair
    * has no corresponding wire substring and is omitted. Consumers fall back
    * to `pathParams` when this map or the named capture is absent.
@@ -629,9 +630,12 @@ export function createRouter(paths: Record<string, PathItem>): Router {
       const cut = qIdx === -1 ? hIdx : hIdx === -1 ? qIdx : Math.min(qIdx, hIdx);
       const stripped = cut === -1 ? path : path.slice(0, cut);
       const trimmed = trimSlashes(stripped);
-      const rawTokens = trimmed === "" ? [] : trimmed.split("/");
-      const tokens = rawTokens.map(decodePathToken);
-      const offsets = new Map<number, (number | undefined)[]>();
+      const tokens = trimmed === "" ? [] : trimmed.split("/");
+      const rawTokens = trimmed.includes("%") ? tokens.slice() : undefined;
+      if (rawTokens !== undefined) {
+        for (let i = 0; i < tokens.length; i += 1) tokens[i] = decodePathToken(tokens[i]!);
+      }
+      let offsets: Map<number, (number | undefined)[]> | undefined;
 
       // If we scan every matching path without finding the method, we
       // still want to report a 405 (not 404) and carry the union of
@@ -666,8 +670,10 @@ export function createRouter(paths: Record<string, PathItem>): Router {
           } else if (seg.kind === "template") {
             params ??= {};
             setSpecKey(params, seg.name, tok);
-            rawParams ??= {};
-            setSpecKey(rawParams, seg.name, rawTokens[i]!);
+            if (rawTokens !== undefined) {
+              rawParams ??= {};
+              setSpecKey(rawParams, seg.name, rawTokens[i]!);
+            }
           } else {
             const captures = matchCompound(seg, tok);
             if (captures === null) {
@@ -675,10 +681,11 @@ export function createRouter(paths: Record<string, PathItem>): Router {
               break;
             }
             params ??= {};
-            rawParams ??= {};
-            const rawToken = rawTokens[i]!;
+            const rawToken = rawTokens?.[i];
             let boundaries: (number | undefined)[] | undefined;
-            if (rawToken !== tok) {
+            if (rawToken !== undefined && rawToken !== tok) {
+              // A changed token proves decoding succeeded; malformed input is returned unchanged.
+              offsets ??= new Map();
               boundaries = offsets.get(i);
               if (boundaries === undefined) {
                 boundaries = wireOffsets(rawToken);
@@ -689,6 +696,8 @@ export function createRouter(paths: Record<string, PathItem>): Router {
               const [start, end] = captures[j]!;
               const name = seg.names[j]!;
               setSpecKey(params, name, tok.slice(start, end));
+              if (rawToken === undefined) continue;
+              rawParams ??= {};
               const rawStart = boundaries === undefined ? start : boundaries[start];
               const rawEnd = boundaries === undefined ? end : boundaries[end];
               if (rawStart !== undefined && rawEnd !== undefined) {
@@ -714,7 +723,7 @@ export function createRouter(paths: Record<string, PathItem>): Router {
             pathItem: route.pathItem,
             pathPattern: route.pathPattern,
             pathParams: params ?? {},
-            rawPathParams: rawParams ?? {},
+            rawPathParams: rawParams,
           };
         }
 

@@ -806,13 +806,25 @@ describe("raw path captures", () => {
     ["/{a}/{b}", "/%ZZ%61/%25", { a: "%ZZ%61", b: "%" }, { a: "%ZZ%61", b: "%25" }],
     ["/pre-{a}.{b}", "/pre-%ZZ.%61", { a: "%ZZ", b: "%61" }, { a: "%ZZ", b: "%61" }],
     ["/{a}{b}", "/%F0%9F%98%80", { a: "\ud83d", b: "\ude00" }, {}],
-    ["/{a}{b}", "/😀", { a: "\ud83d", b: "\ude00" }, { a: "\ud83d", b: "\ude00" }],
+    ["/{a}{b}", "/😀", { a: "\ud83d", b: "\ude00" }, undefined],
     ["/{a}{b}", "/%C3%A9%61", { a: "é", b: "a" }, { a: "%C3%A9", b: "%61" }],
     ["/{a}.{b}", "/%25.%2525", { a: "%", b: "%25" }, { a: "%25", b: "%2525" }],
   ])("maps compound boundaries for %s against %s", (pattern, path, decoded, raw) => {
     const result = capture(pattern, path);
     expect(result.pathParams).toEqual(decoded);
     expect(result.rawPathParams).toEqual(raw);
+  });
+
+  it.each(["/literal", "/{p}", "/pre-{p}"])("omits raw captures on unescaped %s", (pattern) => {
+    expect(
+      capture(pattern, pattern === "/literal" ? "/literal" : "/pre-value").rawPathParams,
+    ).toBeUndefined();
+  });
+
+  it("preserves wire data for siblings of an unrepresentable capture", () => {
+    const result = capture("/{a}{b}.{c}", "/%F0%9F%98%80.a%2Cb");
+    expect(result.pathParams).toEqual({ a: "\ud83d", b: "\ude00", c: "a,b" });
+    expect(result.rawPathParams).toEqual({ c: "a%2Cb" });
   });
 
   it("retains prototype-named captures as own properties", () => {

@@ -258,7 +258,7 @@ supply the header in their `onError` handler (#1087).
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:471](../packages/router/src/matcher.ts#L471))
+**`createRouter`** ([packages/router/src/matcher.ts:472](../packages/router/src/matcher.ts#L472))
 
 Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
 
@@ -376,7 +376,7 @@ every depth with `$..description` or selecting an array slice with
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:471](../packages/router/src/matcher.ts#L471))
+**`createRouter`** ([packages/router/src/matcher.ts:472](../packages/router/src/matcher.ts#L472))
 
 Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
 
@@ -518,7 +518,7 @@ lists individual errors in the `issues` field.
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:471](../packages/router/src/matcher.ts#L471))
+**`createRouter`** ([packages/router/src/matcher.ts:472](../packages/router/src/matcher.ts#L472))
 
 Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
 
@@ -627,7 +627,7 @@ register their own validators.
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:471](../packages/router/src/matcher.ts#L471))
+**`createRouter`** ([packages/router/src/matcher.ts:472](../packages/router/src/matcher.ts#L472))
 
 Against OpenAPI 3.2.0 (<https://spec.openapis.org/oas/v3.2.0#path-item-object>).
 

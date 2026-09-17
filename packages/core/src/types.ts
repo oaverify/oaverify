@@ -479,8 +479,8 @@ export interface ParameterObject {
    */
   allowEmptyValue?: boolean;
   /**
-   * Serialization style. Schema-based path parameters split literal wire
-   * delimiters before percent-decoding each key or value once. For example,
+   * Serialization style. For schema-based path parameters, literal wire
+   * delimiters are split before percent-decoding each key or value once. For example,
    * a simple array sent as `a%2Cb,c` becomes `["a,b", "c"]`.
    */
   style?: ParameterStyle;
