@@ -74,40 +74,44 @@ describe("streamCheckCommand", () => {
     expect(stdout.value).toContain("code  pattern  unbounded (needs maxLength)");
   });
 
-  it.each([undefined, 4093, 4094, 65536, 131070, 131071])(
-    "lists bounded estimates and compares them with cap %s",
-    async (cap) => {
-      const spec = structuredClone(SPEC);
-      Object.assign(spec.paths["/pets"].post.requestBody.content["application/json"].schema, {
-        properties: {
-          message_id: { type: "string", pattern: "^.+$", maxLength: 1023 },
-          entity_version: { type: "string", format: "uri", maxLength: 32767 },
-          callback_url: { type: "string", format: "uri", maxLength: 32767 },
-          code: { type: "string", pattern: "^[A-Z]+$" },
-        },
-      });
-      const { io: cmdIo, stdout } = memoryIo([["spec.json", spec]]);
-      const res = await streamCheckCommand(
-        {
-          ...base,
-          format: "text",
-          verbose: true,
-          ...(cap === undefined ? {} : { maxBufferedBytes: cap }),
-          options: textOpts,
-        },
-        cmdIo,
-      );
-      expect(res.exitCode).toBe(0);
-      const overCap = (size: number) =>
-        cap !== undefined && size > cap ? `; exceeds cap ${cap} B` : "";
-      expect(stdout.value.split("\n").filter((line) => line.startsWith("         - "))).toEqual([
-        `         - message_id  pattern  estimate 4094 B${overCap(4094)}`,
-        `         - entity_version  format  estimate 131070 B${overCap(131070)}`,
-        `         - callback_url  format  estimate 131070 B${overCap(131070)}`,
-        "         - code  pattern  unbounded (needs maxLength)",
-      ]);
-    },
-  );
+  it.each([
+    [undefined, ""],
+    [4093, "4.0 KB (4093 B)"],
+    [4094, "4.0 KB (4094 B)"],
+    [65536, "64.0 KB (65536 B)"],
+    [131070, "128.0 KB (131070 B)"],
+    [131071, "128.0 KB (131071 B)"],
+  ] as const)("lists bounded estimates and compares them with cap %s", async (cap, capText) => {
+    const spec = structuredClone(SPEC);
+    Object.assign(spec.paths["/pets"].post.requestBody.content["application/json"].schema, {
+      properties: {
+        message_id: { type: "string", pattern: "^.+$", maxLength: 1023 },
+        entity_version: { type: "string", format: "uri", maxLength: 32767 },
+        callback_url: { type: "string", format: "uri", maxLength: 32767 },
+        code: { type: "string", pattern: "^[A-Z]+$" },
+      },
+    });
+    const { io: cmdIo, stdout } = memoryIo([["spec.json", spec]]);
+    const res = await streamCheckCommand(
+      {
+        ...base,
+        format: "text",
+        verbose: true,
+        ...(cap === undefined ? {} : { maxBufferedBytes: cap }),
+        options: textOpts,
+      },
+      cmdIo,
+    );
+    expect(res.exitCode).toBe(0);
+    const overCap = (size: number) =>
+      cap !== undefined && size > cap ? `; exceeds cap ${capText}` : "";
+    expect(stdout.value.split("\n").filter((line) => line.startsWith("         - "))).toEqual([
+      `         - message_id  pattern  estimate 4.0 KB (4094 B)${overCap(4094)}`,
+      `         - entity_version  format  estimate 128.0 KB (131070 B)${overCap(131070)}`,
+      `         - callback_url  format  estimate 128.0 KB (131070 B)${overCap(131070)}`,
+      "         - code  pattern  unbounded (needs maxLength)",
+    ]);
+  });
 
   it.each([false, true])("renders a bounded root with verbose %s", async (verbose) => {
     const spec = structuredClone(SPEC);

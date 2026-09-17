@@ -19,6 +19,23 @@ export function formatBytes(size: ByteSize): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Match the summary's units while retaining exact bytes for cap comparisons. */
+function formatExactBytes(size: number): string {
+  const rounded = formatBytes(size);
+  return size < 1024 ? rounded : `${rounded} (${size} B)`;
+}
+
+/** Controls position details and their comparison with the analysis cap. */
+interface RenderOptions {
+  /** List buffering positions under each body. */
+  verbose?: boolean;
+  /**
+   * Per-buffer cap used to analyze this budget. Verbose output marks bounded
+   * estimates above this cap. Omit when the budget was analyzed without a cap.
+   */
+  maxBufferedBytes?: number;
+}
+
 // "request" / a response status, padded so the body lines align.
 function roleLabel(body: BodyBudget): string {
   return body.role === "request" ? "request" : (body.status ?? "response");
@@ -28,12 +45,8 @@ function classLabel(report: StreamabilityReport): string {
   return report.classification;
 }
 
-function renderBody(
-  body: BodyBudget,
-  pad: number,
-  verbose: boolean,
-  maxBufferedBytes: number | undefined,
-): string[] {
+function renderBody(body: BodyBudget, pad: number, options: RenderOptions): string[] {
+  const { verbose, maxBufferedBytes } = options;
   const role = roleLabel(body).padEnd(pad);
   const media = body.mediaType.padEnd(24);
   if (body.report === undefined) {
@@ -62,9 +75,9 @@ function renderBody(
     } else {
       const cap =
         maxBufferedBytes !== undefined && p.maxBytes > maxBufferedBytes
-          ? `; exceeds cap ${maxBufferedBytes} B`
+          ? `; exceeds cap ${formatExactBytes(maxBufferedBytes)}`
           : "";
-      lines.push(`         - ${at}  ${p.keyword}  estimate ${p.maxBytes} B${cap}`);
+      lines.push(`         - ${at}  ${p.keyword}  estimate ${formatExactBytes(p.maxBytes)}${cap}`);
     }
   }
   return lines;
@@ -115,17 +128,8 @@ export function hasUnbounded(budget: SpecBudget): boolean {
 export function renderStreamBudget(
   doc: OpenAPIDocument,
   budget: SpecBudget,
-  options: {
-    /** List buffering positions under each body. */
-    verbose?: boolean;
-    /**
-     * Per-buffer cap used to analyze this budget. Verbose output marks bounded
-     * estimates above this cap. Omit when the budget was analyzed without a cap.
-     */
-    maxBufferedBytes?: number;
-  } = {},
+  options: RenderOptions = {},
 ): string {
-  const verbose = options.verbose ?? false;
   const title = doc.info?.title ?? "(untitled)";
   const lines: string[] = [`${title}  (openapi ${doc.openapi})`, ""];
 
@@ -137,8 +141,7 @@ export function renderStreamBudget(
 
   for (const op of budget.operations) {
     lines.push(`${op.method} ${JSON.stringify(op.path)}`);
-    for (const body of op.bodies)
-      lines.push(...renderBody(body, pad, verbose, options.maxBufferedBytes));
+    for (const body of op.bodies) lines.push(...renderBody(body, pad, options));
   }
 
   const c = tally(budget);

@@ -403,20 +403,19 @@ see before deploy where a body would be materialized in heap.
 
 The default `text` envelope is a per-operation table. `--verbose` lists
 each buffering position with its path and buffering keyword. Bounded
-positions show estimated wire bytes; unbounded positions name the missing
-bound. With `--max-buffered-bytes`, bounded estimates above the per-buffer
-cap are marked:
+positions show estimated wire bytes in the summary's units alongside exact
+bytes; unbounded positions name the missing bound. With `--max-buffered-bytes`,
+bounded estimates above the per-buffer cap are marked:
 
 ```text
-         - entity_version  format  estimate 131070 B; exceeds cap 65536 B
+         - entity_version  format  estimate 128.0 KB (131070 B); exceeds cap 64.0 KB (65536 B)
 ```
 
 Estimates guide capacity planning; actual buffered bytes depend on the input.
-See `StreamabilityReport` for the budget contract.
-`--format json` emits the `SpecBudget` payload for
-machine consumers. `--fail-on-unbounded` exits `1` when any body has an
-unbounded peak, so CI can reject a spec that can't stream within a
-fixed memory bound; `--max-buffered-bytes <n>` computes the effective
+See `StreamabilityReport` for the budget contract. `--format json` emits the
+`SpecBudget` payload for machine consumers. `--fail-on-unbounded` exits `1`
+when any body has an unbounded peak, so CI can reject a spec that can't stream
+within a fixed memory bound; `--max-buffered-bytes <n>` computes the effective
 peak against a chosen cap. A bounded estimate above that cap does not trigger
 `--fail-on-unbounded`. Overlays apply first (`--overlay`, same
 semantics as `oaverify resolve`).

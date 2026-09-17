@@ -166,8 +166,8 @@ an `error` field rather than throwing, so a sweep surveys the whole spec.
 The `oaverify` CLI surfaces it as `oaverify stream-check <spec>` (a per-operation
 table; `--verbose` lists each buffering position with its byte estimate or
 missing bound and marks bounded estimates above `--max-buffered-bytes`,
-`--format json` emits
-the `SpecBudget`, `--fail-on-unbounded` exits non-zero for CI):
+`--format json` emits the `SpecBudget`, `--fail-on-unbounded` exits non-zero
+for CI):
 
 ```ts
 import { createFileReader, resolveSpec } from "@oaverify/core/spec";
