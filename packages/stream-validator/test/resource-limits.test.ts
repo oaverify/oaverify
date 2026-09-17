@@ -1,7 +1,7 @@
 import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
-import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import type { RegexCompiler } from "@oaverify/internal-schema";
 import { compileSchema, jsonSchemaDialect, openapi31Dialect } from "@oaverify/internal-schema";
 import { builtInFormats } from "@oaverify/internal-formats";
@@ -103,7 +103,119 @@ describe("forced-buffer scalar is capped by maxBufferedBytes", () => {
   });
 });
 
+describe("default regex compilation parity", () => {
+  const cases: Array<{ schema: SchemaObject; values: Array<[unknown, boolean]> }> = [
+    {
+      schema: { type: "string", pattern: "\\8" },
+      values: [
+        ["8", true],
+        ["x", false],
+      ],
+    },
+    {
+      schema: {
+        type: "object",
+        patternProperties: { "\\8": { type: "number" } },
+        additionalProperties: false,
+      },
+      values: [
+        [{ "8": 1 }, true],
+        [{ "8": "bad" }, false],
+        [{ x: 1 }, false],
+      ],
+    },
+    {
+      schema: { type: "object", propertyNames: { pattern: "\\8" } },
+      values: [
+        [{ "8": 1 }, true],
+        [{ x: 1 }, false],
+      ],
+    },
+  ];
+  for (const { schema, values } of cases) {
+    it(`retries without Unicode mode for ${JSON.stringify(schema)}`, async () => {
+      const core = compileSchema(schema, { dialect: jsonSchemaDialect });
+      const delegatedSchema = { ...schema, delegated: true };
+      for (const [value, expected] of values) {
+        expect(core.validate(value).valid).toBe(expected);
+        expect((await verdictOf(schema, value)).valid).toBe(expected);
+        expect(
+          (
+            await verdictOf(delegatedSchema, value, {
+              keywords: { delegated: () => true },
+            })
+          ).valid,
+        ).toBe(expected);
+      }
+    });
+  }
+
+  it.each([
+    { schema: { pattern: "[" }, value: "a" },
+    { schema: { patternProperties: { "[": true } }, value: { a: 1 } },
+  ])("keeps invalid patterns in the fatal stream channel: $schema", async ({ schema, value }) => {
+    const validator = createStreamValidator(schema);
+    const errors: Error[] = [];
+    validator.on("error", (error: Error) => errors.push(error));
+    validator.resume();
+    const result = validator.result.catch((error: unknown) => error);
+    await expect(
+      pipeline(
+        source(JSON.stringify(value)),
+        validator,
+        new Writable({ write: (_c, _e, cb) => cb() }),
+      ),
+    ).rejects.toBeInstanceOf(SyntaxError);
+    const error = await result;
+    expect(error).toBeInstanceOf(SyntaxError);
+    expect(errors).toContain(error);
+  });
+
+  it("keeps format: regex restricted to Unicode syntax", async () => {
+    expect((await verdictOf({ format: "regex" }, "\\8", { dialect: openapi31Dialect })).valid).toBe(
+      false,
+    );
+  });
+});
+
 describe("regexCompiler hardens the spine's own pattern check", () => {
+  it("caches a supplied compiler's result for repeated pattern checks", async () => {
+    let called = 0;
+    const verdict = await verdictOf(
+      { type: "object", patternProperties: { "\\8": { type: "number" } } },
+      { "8": 1, "88": 2 },
+      {
+        regexCompiler: () => {
+          called += 1;
+          return { test: () => true };
+        },
+      },
+    );
+    expect(verdict.valid).toBe(true);
+    expect(called).toBe(1);
+  });
+
+  it("propagates a supplied compiler's failure without a native retry", async () => {
+    const error = new Error("compiler rejected pattern");
+    await expect(
+      verdictOf({ pattern: "\\8" }, "8", {
+        regexCompiler: () => {
+          throw error;
+        },
+      }),
+    ).rejects.toBe(error);
+  });
+
+  it("reports a custom regex-format compiler failure as a validation failure", async () => {
+    const verdict = await verdictOf({ format: "regex" }, "^a$", {
+      dialect: openapi31Dialect,
+      regexCompiler: () => {
+        throw new Error("compiler rejected pattern");
+      },
+    });
+    expect(verdict.valid).toBe(false);
+  });
+
   it("routes pattern through the supplied compiler", async () => {
     let called = 0;
     const compiler: RegexCompiler = (pattern) => {

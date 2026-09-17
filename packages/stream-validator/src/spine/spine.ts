@@ -791,8 +791,19 @@ export class SpineValidator implements JsonEventHandler {
     if (re === undefined) {
       // Route through the hardening compiler (e.g. RE2) when provided;
       // the spine's regex runs against attacker-controlled input bytes.
-      re =
-        this.regexCompiler !== undefined ? this.regexCompiler(pattern) : new RegExp(pattern, "u");
+      if (this.regexCompiler !== undefined) {
+        re = this.regexCompiler(pattern);
+      } else {
+        try {
+          re = new RegExp(pattern, "u");
+        } catch (unicodeError) {
+          try {
+            re = new RegExp(pattern);
+          } catch {
+            throw unicodeError;
+          }
+        }
+      }
       this.regexCache.set(pattern, re);
     }
     return re;
