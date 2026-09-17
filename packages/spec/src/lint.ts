@@ -1,5 +1,9 @@
 import type { HoistedSchemaCopies } from "./schema-copies.js";
 import {
+  detectOpenAPIVersion,
+  followsRef,
+  refPositionFor,
+  type RefNodeKind,
   escapePointerSegment,
   pointerFromFragment,
   resolveJsonPointer,
@@ -11,6 +15,7 @@ import {
   type SecurityRequirementObject,
   type TagObject,
 } from "@oaverify/internal-core";
+import { subschemaEntries } from "@oaverify/internal-core/subschema-positions";
 import { HTTP_METHODS } from "@oaverify/internal-core";
 
 /**
@@ -113,12 +118,13 @@ const PLACEHOLDER_RE = /^\{[^{}]+\}$/;
  * are linted as such, so one referenced by nothing is reported unused
  * like any other.
  *
- * The lint walks the whole resolved document, the externals field
- * included: a `$defs` inside stitched content is reported exactly as one
- * anywhere else would be. That is deliberate rather than overlooked.
- * Those entries came from a file the author wrote, so a dead one is
- * still worth knowing about; only the resolver's own bookkeeping keys
- * are skipped.
+ * Definition findings are restricted to schema positions. Example values
+ * and vendor extensions are data unless a schema reference targets them.
+ * Local references preserve the context of stitched external content, so
+ * a schema reached there is checked at its physical document pointer.
+ * Conflicting local resource interpretations are handled conservatively:
+ * only positions common to every interpretation are diagnosed. The
+ * resolver's own bookkeeping keys are skipped.
  *
  * The five checks:
  *
@@ -475,14 +481,9 @@ function findUnreachableDefs(
   }
 
   const issues: SpecHygieneIssue[] = [];
-  walkForDefs(document, "", (defsPointer, name) => {
-    // The resolver's own bookkeeping, not something an author wrote:
-    // always referenced by construction. Kept for a document resolved by
-    // an older oaverify, whose stitched externals sat under
-    // `$defs.__ext__`; current output puts them in an `x-` field, which
-    // is not a `$defs` map and so never produces a name here. Content
-    // *inside* the externals field is still walked, and a dead `$defs`
-    // there is reported like any other.
+  walkForDefs(document, "", collectSchemaPointers(document), (defsPointer, name) => {
+    // Legacy resolver bookkeeping keys stay exempt. Authored definitions
+    // inside reached stitched schemas remain eligible.
     if (name.startsWith("__ext__/")) return;
     const target = `${defsPointer}/${escapePointerSegment(name)}`;
     if (refsHit(copyRefs, target) || refsHit(allRefs, target)) return;
@@ -509,27 +510,158 @@ function collectEveryRefValue(value: unknown, sink: Set<string>): void {
   for (const v of Object.values(obj)) collectEveryRefValue(v, sink);
 }
 
+type SchemaResource = { value: unknown; pointer: string };
+
+/**
+ * Discover positions again when references reveal an enclosing resource.
+ * A target visited before that resource can otherwise resolve its own
+ * fragment against the document and turn unrelated data into a schema.
+ */
+function collectSchemaPointers(document: OpenAPIDocument): Set<string> {
+  let resources = new Map<string, SchemaResource>();
+  const rounds = new Map<string, Set<string>>();
+  while (true) {
+    const key = JSON.stringify([...resources.keys()].sort());
+    const previous = rounds.get(key);
+    if (previous !== undefined) {
+      // Mutually dependent resource discoveries have no stable scope.
+      // Only positions present throughout that cycle justify a finding.
+      const common = new Set(previous);
+      let inCycle = false;
+      for (const [round, schemas] of rounds) {
+        if (round === key) inCycle = true;
+        if (inCycle)
+          for (const pointer of common) if (!schemas.has(pointer)) common.delete(pointer);
+      }
+      return common;
+    }
+    const result = discoverSchemaPointers(document, resources);
+    if (JSON.stringify([...result.resources.keys()].sort()) === key) return result.schemas;
+    rounds.set(key, result.schemas);
+    resources = result.resources;
+  }
+}
+
+function discoverSchemaPointers(
+  document: OpenAPIDocument,
+  knownResources: ReadonlyMap<string, SchemaResource>,
+): { schemas: Set<string>; resources: Map<string, SchemaResource> } {
+  const version = detectOpenAPIVersion(document) ?? "3.1";
+  const schemas = new Set<string>();
+  const visited = new Set<string>();
+  const documentResource: SchemaResource = { value: document, pointer: "" };
+  const resources = new Map<string, SchemaResource>();
+  const references: Array<{ ref: string; kind: RefNodeKind; refable: boolean; from: string }> = [];
+  const walk = (value: unknown, pointer: string, kind: RefNodeKind, refable: boolean): void => {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) return;
+    const identity = `${kind}:${pointer}`;
+    if (visited.has(identity)) return;
+    visited.add(identity);
+    const obj = value as Record<string, unknown>;
+    if (kind === "schema") {
+      schemas.add(pointer);
+      if (version !== "3.0" && typeof obj.$id === "string")
+        resources.set(pointer, { value, pointer });
+    }
+    const refs =
+      kind === "schema"
+        ? [obj.$ref, ...(version === "3.0" ? [] : [obj.$dynamicRef])]
+        : followsRef(kind, refable)
+          ? [obj.$ref]
+          : [];
+    for (const ref of refs) {
+      if (typeof ref === "string" && ref.startsWith("#"))
+        references.push({ ref, kind, refable, from: pointer });
+    }
+    if (kind === "schema") {
+      for (const { value: child, key, at } of subschemaEntries(obj)) {
+        const suffix = at === undefined ? "" : `/${escapePointerSegment(String(at))}`;
+        walk(child, `${pointer}/${escapePointerSegment(key)}${suffix}`, "schema", true);
+      }
+      return;
+    }
+    for (const [key, child] of Object.entries(obj)) {
+      if (kind !== "content" && key.startsWith("x-")) continue;
+      const position = refPositionFor(version, kind, key);
+      if (position === undefined) continue;
+      const childPointer = `${pointer}/${escapePointerSegment(key)}`;
+      if (position.arity === "one") {
+        walk(child, childPointer, position.kind, position.refable);
+      } else if (position.arity === "array") {
+        if (!Array.isArray(child)) continue;
+        child.forEach((entry, index) =>
+          walk(entry, `${childPointer}/${index}`, position.kind, position.refable),
+        );
+      } else if (child !== null && typeof child === "object" && !Array.isArray(child)) {
+        for (const [name, entry] of Object.entries(child)) {
+          if (kind === "document" && key === "paths" && name.startsWith("x-")) continue;
+          walk(
+            entry,
+            `${childPointer}/${escapePointerSegment(name)}`,
+            position.kind,
+            position.refable,
+          );
+        }
+      }
+    }
+  };
+  walk(document, "", "document", false);
+  for (let i = 0; i < references.length; i += 1) {
+    const { ref, kind, refable, from } = references[i]!;
+    let resource = documentResource;
+    if (kind === "schema") {
+      let ancestor = from;
+      while (ancestor !== "") {
+        const found = resources.get(ancestor) ?? knownResources.get(ancestor);
+        if (found !== undefined) {
+          resource = found;
+          break;
+        }
+        ancestor = ancestor.slice(0, ancestor.lastIndexOf("/"));
+      }
+    }
+    let fragment: string;
+    let target: unknown;
+    try {
+      fragment = pointerFromFragment(ref.slice(1));
+      target = resolveJsonPointer(resource.value, fragment);
+    } catch {
+      // An unresolved reference supplies no schema position.
+      continue;
+    }
+    walk(target, resource.pointer + fragment, kind, refable);
+  }
+  return { schemas, resources };
+}
+
 function walkForDefs(
   value: unknown,
   pointer: string,
+  schemaPointers: ReadonlySet<string>,
   visit: (defsPointer: string, name: string) => void,
 ): void {
   if (value === null || typeof value !== "object") return;
   if (Array.isArray(value)) {
     for (let i = 0; i < value.length; i += 1) {
-      walkForDefs(value[i], `${pointer}/${i}`, visit);
+      walkForDefs(value[i], `${pointer}/${i}`, schemaPointers, visit);
     }
     return;
   }
   const obj = value as Record<string, unknown>;
   for (const [key, child] of Object.entries(obj)) {
     const childPointer = `${pointer}/${escapePointerSegment(key)}`;
-    if (key === "$defs" && child && typeof child === "object" && !Array.isArray(child)) {
+    if (
+      schemaPointers.has(pointer) &&
+      key === "$defs" &&
+      child &&
+      typeof child === "object" &&
+      !Array.isArray(child)
+    ) {
       for (const name of Object.keys(child as Record<string, unknown>)) {
         visit(childPointer, name);
       }
     }
-    walkForDefs(child, childPointer, visit);
+    walkForDefs(child, childPointer, schemaPointers, visit);
   }
 }
 
