@@ -49,6 +49,7 @@ export {
 // response-status key matching, and the pre-compiled security plan.
 export {
   deserialize,
+  deserializePath,
   matchParsedMediaType,
   matchResponseKey,
   normalizeRequestQuery,

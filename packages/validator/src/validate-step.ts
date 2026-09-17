@@ -6,7 +6,7 @@ import {
 } from "@oaverify/internal-core";
 import type { RouteMatch } from "@oaverify/internal-router";
 import type { CompiledTreeSchema } from "@oaverify/internal-schema";
-import { deserialize, matchParsedMediaType } from "./deserialize.js";
+import { deserialize, deserializePath, matchParsedMediaType } from "./deserialize.js";
 import { effectiveType } from "./schema-type.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast, getOwn } from "./headers.js";
 import type { OperationCache } from "./operation-cache.js";
@@ -311,7 +311,13 @@ export function validateParameter(
     );
   }
 
-  const value = deserialize(raw, p);
+  const rawPath =
+    p.in === "path"
+      ? cache.requestParameterReadsRequireOwnProperties
+        ? getOwn(match.rawPathParams, p.name)
+        : match.rawPathParams?.[p.name]
+      : undefined;
+  const value = rawPath === undefined ? deserialize(raw, p) : deserializePath(rawPath, p);
   // A present token can still supply no value for this parameter: a
   // `style: matrix` segment whose groups all name something else
   // (#758), or a `label` / `matrix` token carrying none of the style's

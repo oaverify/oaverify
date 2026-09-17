@@ -27,7 +27,10 @@ router.match("POST", "/vets");      // → undefined
 
 Literal segments beat template segments at the same depth. Trailing
 slashes and query strings are ignored. Method matching is
-case-insensitive. Path segments are percent-decoded.
+case-insensitive. Path segments are percent-decoded for matching and
+`RouteMatch.pathParams`. `RouteMatch.rawPathParams` preserves wire captures
+so path deserialization can split delimiters before decoding; see
+`RouteMatch` for the fallback contract.
 
 ## Identity invariant
 

@@ -402,7 +402,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     // membership in `@oaverify/core/codegen-runtime` follows this import
     // (see that module's header). Do not point it at a subpath that
     // promises less.
-    `import { deserialize, matchParsedMediaType, matchResponseKey, normalizeRequestQuery, assembleObjectQueryParam, assembleObjectCookieParam, FetchBodyParseError, FetchBodyTooLargeError, httpRequestFromFetch, httpResponseFromFetch, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage${returnValues ? ", emptyRequestValues" : ""}${checksSecurity ? ", checkSecurity, compileOperationSecurity" : ""} } from "${importPrefix}/codegen-runtime";`,
+    `import { deserialize, deserializePath, matchParsedMediaType, matchResponseKey, normalizeRequestQuery, assembleObjectQueryParam, assembleObjectCookieParam, FetchBodyParseError, FetchBodyTooLargeError, httpRequestFromFetch, httpResponseFromFetch, resolveOperationRef, createRouter, reshapeResult, toFetchResult, contentTypeErrorMessage${returnValues ? ", emptyRequestValues" : ""}${checksSecurity ? ", checkSecurity, compileOperationSecurity" : ""} } from "${importPrefix}/codegen-runtime";`,
     "",
     "void createBranchError; void createError; void deepEqual; void typeOf; void wrapErrors;",
     "void resolveOperationRef;",
@@ -1321,7 +1321,10 @@ ${contentBranch}  // Mirrors validateParameter in validate-step.ts: a repeated n
       { name: p.name, in: p.in },
     );
   }
-  const value = deserialize(raw, p);
+  const rawPath = p.in === "path"
+    ? (p.__readOwn ? __own(match.rawPathParams, p.name) : match.rawPathParams?.[p.name])
+    : undefined;
+  const value = rawPath === undefined ? deserialize(raw, p) : deserializePath(rawPath, p);
   // Mirrors validateParameter in validate-step.ts: a present token can
   // still supply no value, which \`deserialize\` reports as undefined.
   // Gated on the style there and here, because an object-typed
