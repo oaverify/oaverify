@@ -122,9 +122,12 @@ const PLACEHOLDER_RE = /^\{[^{}]+\}$/;
  * and vendor extensions are data unless a schema reference targets them.
  * Local references preserve the context of stitched external content, so
  * a schema reached there is checked at its physical document pointer.
- * Conflicting local resource interpretations are handled conservatively:
- * only positions common to every interpretation are diagnosed. The
- * resolver's own bookkeeping keys are skipped.
+ * If following a fragment reveals an enclosing `$id`, discovery repeats
+ * using that resource. A cycle can make a target alternately resolve inside
+ * that resource and at the document root; findings are then restricted to
+ * schema positions present throughout the cycle. Definition-shaped data
+ * reached under only one interpretation is omitted. The resolver's own
+ * bookkeeping keys are skipped.
  *
  * The five checks:
  *
@@ -482,7 +485,8 @@ function findUnreachableDefs(
 
   const issues: SpecHygieneIssue[] = [];
   walkForDefs(document, "", collectSchemaPointers(document), (defsPointer, name) => {
-    // Legacy resolver bookkeeping keys stay exempt. Authored definitions
+    // Older oaverify releases stored stitched externals under $defs with
+    // __ext__/ keys. Those generated keys stay exempt; authored definitions
     // inside reached stitched schemas remain eligible.
     if (name.startsWith("__ext__/")) return;
     const target = `${defsPointer}/${escapePointerSegment(name)}`;
@@ -536,7 +540,7 @@ function collectSchemaPointers(document: OpenAPIDocument): Set<string> {
       return common;
     }
     const result = discoverSchemaPointers(document, resources);
-    if (JSON.stringify([...result.resources.keys()].sort()) === key) return result.schemas;
+    if (result.stable) return result.schemas;
     rounds.set(key, result.schemas);
     resources = result.resources;
   }
@@ -545,7 +549,9 @@ function collectSchemaPointers(document: OpenAPIDocument): Set<string> {
 function discoverSchemaPointers(
   document: OpenAPIDocument,
   knownResources: ReadonlyMap<string, SchemaResource>,
-): { schemas: Set<string>; resources: Map<string, SchemaResource> } {
+): { schemas: Set<string>; resources: Map<string, SchemaResource>; stable: boolean } {
+  // Match resolveSpec's unknown-version position table. This identifies
+  // known schema locations without asserting that the document is 3.1.
   const version = detectOpenAPIVersion(document) ?? "3.1";
   const schemas = new Set<string>();
   const visited = new Set<string>();
@@ -606,6 +612,7 @@ function discoverSchemaPointers(
     }
   };
   walk(document, "", "document", false);
+  const lexicalResources = new Set(resources.keys());
   for (let i = 0; i < references.length; i += 1) {
     const { ref, kind, refable, from } = references[i]!;
     let resource = documentResource;
@@ -631,7 +638,12 @@ function discoverSchemaPointers(
     }
     walk(target, resource.pointer + fragment, kind, refable);
   }
-  return { schemas, resources };
+  // Lexical roots are all known before any reference is followed. Only
+  // reference-discovered scope changes require another discovery round.
+  const stable =
+    [...resources.keys()].every((p) => lexicalResources.has(p) || knownResources.has(p)) &&
+    [...knownResources.keys()].every((p) => resources.has(p));
+  return { schemas, resources, stable };
 }
 
 function walkForDefs(
