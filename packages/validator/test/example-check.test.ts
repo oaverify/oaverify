@@ -1207,7 +1207,7 @@ describe("the pattern guard (#687)", () => {
         message: expect.stringContaining("no addressable members"),
       }),
     ]);
-    expect(issues[0]!.message).toContain("schema compilation failed");
+    expect(issues[0]!.message).toContain("compilation failed");
   });
 });
 

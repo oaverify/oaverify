@@ -27,7 +27,7 @@ describe("example schema compilation failure", () => {
       }),
     ]);
     expect(issues[0]!.message).toMatch(reason);
-    expect(issues[0]!.message).toContain("schema compilation failed");
+    expect(issues[0]!.message).toContain("compilation failed");
   });
 
   it.each(["3.0.3", "3.1.0", "3.2.0"])("reports eligible examples in %s", (openapi) => {

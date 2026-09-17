@@ -38,6 +38,8 @@ it("keeps standalone compile failures distinct from checker-owned withholding", 
       .map((i) => i.code)
       .sort(),
   ).toEqual(["example-invalid", "malformed-schema", "unsupported-schema-dialect"]);
+  // Examples-only selection still hides checker-owned compile failures.
+  // That existing selection limitation is outside standalone issue #1106.
   expect(selected("examples")).toEqual([
     expect.objectContaining({
       code: "example-invalid",

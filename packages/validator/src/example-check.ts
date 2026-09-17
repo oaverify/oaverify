@@ -580,7 +580,7 @@ export function checkDocumentExamplesInContext(
       const failure = uncheckable(err);
       const check: ExampleCheck = () => ({
         ...failure,
-        summary: `schema compilation failed: ${failure.summary}`,
+        summary: `compilation failed: ${failure.summary}`,
       });
       compiled.set(schema, check);
       return check;
