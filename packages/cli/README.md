@@ -200,7 +200,10 @@ below for the expected shape.
 ## `compile-schema` output
 
 `oaverify compile-schema <schema.json>` emits an ESM module exporting a
-`validate(data)` function matching `compileSchema(schema).validate(data)`.
+`validate(data)` function matching `compileSchema` with the same dialect
+and built-in formats. It preserves the library's default flat output and
+`maxErrors: 1` budget, including the `truncated` flag (see `CompileOptions`
+and `ValidationResult`).
 esbuild bundles the runtime helpers into the output, so the resulting
 module has zero imports. Typical output is ~13 KB for a small schema,
 ~20–40 KB for a schema that touches every built-in format.

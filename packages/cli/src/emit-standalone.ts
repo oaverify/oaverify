@@ -65,19 +65,14 @@ export interface EmitStandaloneOptions {
 /**
  * Compile a JSON Schema and emit a standalone ES module source string.
  *
- * The module exports a `validate(data)` function that reaches the same
- * verdict as `compileSchema(schema, { dialect }).validate(data)` while
- * requiring no `new Function()` at load time. Useful for edge runtimes
- * (Cloudflare Workers, Vercel Edge) and build-time-prepared validator
- * bundles.
+ * The module exports a `validate(data)` function with the same result as
+ * `compileSchema(schema, { dialect, formats: builtInFormats }).validate(data)`,
+ * including the default flat output and `maxErrors: 1` budget. It requires
+ * no `new Function()` at load time, making it useful for edge runtimes
+ * and build-time-prepared validator bundles.
  *
- * **The verdict crosses the boundary; the result object does not.** The
- * emitted module builds its runtime with a bare `createDeps()`, which
- * leaves the error budget uncapped, so it reports every error and
- * `truncated: false` where the in-process default reports one and
- * `truncated: true` (#1089). Nothing that reaches the validator as a
- * JavaScript value survives emission either: a custom format function
- * is the obvious case, and `regexCompiler` is the same rule.
+ * Runtime-supplied functions, such as custom format validators and
+ * `regexCompiler`, cannot be carried into the emitted module.
  *
  * By default, rejects schemas that use `format: "..."` values outside
  * {@link @oaverify/core/formats!builtInFormats}; `unknownFormats:
@@ -140,7 +135,8 @@ export function emitStandalone(schema: SchemaOrBoolean, options: EmitStandaloneO
     "void createLeafError; void createBranchError; void createError;",
     "void deepEqual; void typeOf; void wrapErrors;",
     "",
-    "const deps = createDeps();",
+    // Match CompileOptions.maxErrors, applied by compileSchemaInContext.
+    "const deps = createDeps({ maxErrors: 1 });",
     "for (const [name, def] of Object.entries(builtInFormats)) deps.formats.set(name, normalizeFormat(def));",
     "",
     "const { validate } = (function (deps) {",

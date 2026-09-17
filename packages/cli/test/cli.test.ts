@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { compileSchema, jsonSchemaDialect } from "@oaverify/internal-schema";
 import { buildProgram, defaultExit } from "../src/cli.js";
 import { memoryIo, type MemoryIo } from "./fixtures.js";
 import { resolve as resolvePath } from "node:path";
@@ -349,7 +350,11 @@ describe("compile-schema output", () => {
     const { compileSchemaCommand } = await import("../src/commands.js");
     const { resolve } = await import("node:path");
     const { fileURLToPath } = await import("node:url");
-    const schema = { type: "object", required: ["name"], properties: { name: { type: "string" } } };
+    const schema = {
+      type: "object" as const,
+      required: ["name"],
+      properties: { name: { type: "string" as const }, age: { type: "integer" as const } },
+    };
     const mem = memoryIo([], [["schema.json", JSON.stringify(schema)]]);
     const resolveDir = resolve(fileURLToPath(new URL("../../oav", import.meta.url)));
     const res = await compileSchemaCommand(
@@ -373,8 +378,15 @@ describe("compile-schema output", () => {
     const mod = (await import(
       `data:text/javascript;base64,${Buffer.from(bundled).toString("base64")}`
     )) as { validate: (d: unknown) => { valid: boolean } };
-    expect(mod.validate({ name: "Fido" })).toEqual({ valid: true });
-    expect(mod.validate({}).valid).toBe(false);
+    const runtime = compileSchema(schema, { dialect: jsonSchemaDialect });
+    for (const data of [
+      { name: "Fido" },
+      {},
+      { name: 123, age: "old" },
+      { name: "Fido", age: 3 },
+    ]) {
+      expect(mod.validate(data)).toEqual(runtime.validate(data));
+    }
   });
 
   it("emits through the shared primary sink, to a file or to stdout (#868)", async () => {

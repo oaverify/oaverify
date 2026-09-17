@@ -3,12 +3,20 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import {
+  compileSchema,
+  jsonSchemaDialect,
+  openapi31Dialect,
+  oas30Dialect,
+  type ValidationResult,
+} from "@oaverify/internal-schema";
+import { builtInFormats } from "@oaverify/internal-formats";
 import { emitStandalone } from "../src/emit-standalone.js";
 
 /**
  * Round-trip: compile a schema, write the emitted module to a temp
  * file, import it, and verify its `validate` produces the same
- * verdict as compileSchema's dynamic version on the same fixtures.
+ * result as compileSchema's dynamic version on the same fixtures.
  *
  * The emitter's import prefix defaults to `@oaverify/core`
  * so vitest's module resolver can satisfy the generated imports
@@ -20,7 +28,7 @@ async function compileModule<T = unknown>(
     dialect?: "2020-12" | "openapi-3.1" | "openapi-3.0";
     unknownFormats?: "ignore" | "error";
   },
-): Promise<{ validate: (data: unknown) => { valid: boolean; error?: unknown }; dir: string }> {
+): Promise<{ validate: (data: unknown) => ValidationResult; dir: string }> {
   const source = emitStandalone(schema, {
     dialect: opts?.dialect ?? "2020-12",
     unknownFormats: opts?.unknownFormats,
@@ -29,7 +37,7 @@ async function compileModule<T = unknown>(
   const file = join(dir, "v.mjs");
   await writeFile(file, source);
   const mod = (await import(file)) as {
-    validate: (data: unknown) => { valid: boolean; error?: unknown };
+    validate: (data: unknown) => ValidationResult;
   };
   // Cast through T for narrowing on the caller side if needed.
   void ({} as T);
@@ -37,6 +45,42 @@ async function compileModule<T = unknown>(
 }
 
 describe("emitStandalone", () => {
+  it.each([
+    ["2020-12", jsonSchemaDialect],
+    ["openapi-3.1", openapi31Dialect],
+    ["openapi-3.0", oas30Dialect],
+  ] as const)("preserves complete default-budget results under %s", async (name, dialect) => {
+    const schema: SchemaOrBoolean = {
+      type: "object",
+      properties: {
+        a: { type: "string" },
+        b: { type: "string" },
+        c: { type: "string" },
+      },
+    };
+    const runtime = compileSchema(schema, { dialect, formats: builtInFormats });
+    const { validate, dir } = await compileModule(schema, { dialect: name });
+    try {
+      for (const data of [
+        { a: "a", b: "b", c: "c" },
+        { a: 1, b: "b", c: "c" },
+        { a: 1, b: 2, c: 3 },
+        { a: "a", b: 2, c: "c" },
+        // A valid call after failures verifies that per-call state resets.
+        { a: "a", b: "b", c: "c" },
+      ]) {
+        const expected = runtime.validate(data);
+        expect(validate(data)).toEqual(expected);
+        if (!expected.valid) {
+          expect(expected.errors).toHaveLength(1);
+          expect(expected.truncated).toBe(true);
+        }
+      }
+    } finally {
+      await rm(dir, { recursive: true });
+    }
+  });
+
   it.each(["openapi-3.0", "openapi-3.1"] as const)(
     "emits the non-object discriminator fallback under %s",
     async (dialect) => {
