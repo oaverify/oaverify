@@ -107,3 +107,55 @@ describe("parseTarget", () => {
     }
   });
 });
+
+describe("quoted target escapes", () => {
+  it.each([
+    [String.raw`$['a\\b']`, String.raw`a\b`],
+    [String.raw`$["a\\b"]`, String.raw`a\b`],
+    [String.raw`$['a\'b']`, "a'b"],
+    [String.raw`$["a\"b"]`, 'a"b'],
+    [String.raw`$['a\"b']`, 'a"b'],
+    [String.raw`$["a\'b"]`, "a'b"],
+    [String.raw`$['a\\\'b']`, "a\\'b"],
+    [String.raw`$["a\\\"b"]`, 'a\\"b'],
+    [String.raw`$['a\\']`, "a\\"],
+    [String.raw`$['\\\\']`, "\\\\"],
+    [String.raw`$['\\n']`, String.raw`\n`],
+    ["$['ordinary/key']", "ordinary/key"],
+    ["$['']", ""],
+  ])("decodes %s once", (target, key) => {
+    expect(parseTarget(target)).toEqual([{ kind: "key", key }]);
+  });
+
+  it.each([
+    String.raw`$['a\q']`,
+    String.raw`$['a\n']`,
+    String.raw`$['a\u0062']`,
+    String.raw`$['a\u00XX']`,
+    String.raw`$['a\/b']`,
+    "$['a" + "\\",
+    String.raw`$['a\']`,
+  ])("rejects unsupported or incomplete escapes in %s", (target) => {
+    expect(() => parseTarget(target)).toThrow(UnrecognisedTargetError);
+    expect(() => parseTarget(target)).toThrow(/escape|unterminated/);
+    try {
+      parseTarget(target);
+    } catch (error) {
+      expect((error as UnrecognisedTargetError).target).toBe(target);
+    }
+  });
+
+  it("decodes filter values with the same rules as keys", () => {
+    expect(parseTarget(String.raw`$.tags[?(@.name=='a\\\'b')]`)[1]).toEqual({
+      kind: "filter",
+      expr: { kind: "field-eq", field: "name", value: "a\\'b" },
+    });
+    expect(parseTarget(String.raw`$.paths.*.*[?(@.tags contains 'a\\b')]`)[3]).toEqual({
+      kind: "filter",
+      expr: { kind: "field-contains", field: "tags", value: String.raw`a\b` },
+    });
+    expect(() => parseTarget(String.raw`$.tags[?(@.name=='a\q')]`)).toThrow(
+      UnrecognisedTargetError,
+    );
+  });
+});
