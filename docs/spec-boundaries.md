@@ -612,9 +612,9 @@ The cited spec requires it and this does not implement it yet.
 
 ### packages/check
 
-**`renderSarif`** ([packages/check/src/sarif.ts:374](../packages/check/src/sarif.ts#L374))
+**`renderSarif`** ([packages/check/src/sarif.ts:379](../packages/check/src/sarif.ts#L379))
 
-Against SARIF 2.1.0 (<https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html>).
+Against SARIF 2.1.0 Errata 01 section 3.14.27 (<https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html#_Toc141790761>).
 
 Tools reading the generated SARIF report can highlight the wrong text
 after a character such as an emoji. The report measures columns in UTF-16

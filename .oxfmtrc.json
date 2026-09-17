@@ -13,6 +13,7 @@
     "conformance/json-schema-results.json",
     "detection/results/",
     "detection/real-world/results/",
+    "packages/check/test/fixtures/sarif/*.json",
     "packages/metaschema/src/vendor/",
     "packages/metaschema/scripts/oas-3.0-upstream.json",
     "**/test/golden/"
