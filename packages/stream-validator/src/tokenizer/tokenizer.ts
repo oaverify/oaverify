@@ -435,18 +435,12 @@ export class JsonTokenizer {
     }
     if (i >= n) return i; // chunk exhausted mid-string
     const b = chunk[i] as number;
-    if (b === CH_QUOTE) return this.finishString(i);
-    // backslash. Flush before the escape, for the same reason
-    // `finishString` flushes before the closing quote: a `write` that
-    // begins at the backslash leaves `i === start`, so the branch above
-    // never decodes, and bytes the decoder still held would otherwise be
-    // completed by text arriving after the escape. The escape's own
-    // character would then be emitted ahead of them, and a truncated
-    // sequence would pair with a following continuation byte into a
-    // character the sender never sent. A non-empty run ending here
-    // already flushed: `atChunkEnd` is false, so its decode passed
-    // `stream: false` (#886).
-    this.flushHeldPartial(this.pos(i));
+    // A non-empty run ending at this delimiter already decoded with
+    // `stream: false`. Otherwise a partial from an earlier write still
+    // needs flushing before the quote or escape (#886).
+    const needsFlush = i === start;
+    if (b === CH_QUOTE) return this.finishString(i, needsFlush);
+    if (needsFlush) this.flushHeldPartial(this.pos(i));
     this.state = ST_IN_STRING_ESCAPE;
     return i + 1;
   }
@@ -597,13 +591,8 @@ export class JsonTokenizer {
     return i + 1;
   }
 
-  private finishString(i: number): number {
-    // Flush any UTF-8 partial held by the decoder. It can emit a U+FFFD
-    // the literal-run branch never saw: a `write` ending mid sequence
-    // followed by one starting with the closing quote leaves
-    // `i === start`, skipping that branch entirely. Counting only there
-    // left the string one code point short (#852).
-    this.flushHeldPartial(this.pos(i));
+  private finishString(i: number, needsFlush: boolean): number {
+    if (needsFlush) this.flushHeldPartial(this.pos(i));
     const endOffset = this.pos(i) + 1; // past the closing quote
     if (this.stringIsKey) {
       this.handler.onKey(this.keyBuf, this.strCodePoints, this.stringStart, endOffset);

@@ -269,6 +269,33 @@ describe("JsonTokenizer UTF-8 scalar boundaries", () => {
   }
 });
 
+describe("JsonTokenizer decoder resets", () => {
+  const docs = [
+    '["ascii","","\\n\uFEFF","\uFEFF","é","😀","\\uD800","\\uD83D\\uDE00"]',
+    '{"":"ascii","\\n\uFEFF":"","é":"😀","\\uD800":"\\uD83D\\uDE00"}',
+  ];
+  for (const utf8 of ["reject", "replace"] as const) {
+    for (const doc of docs) {
+      it(`preserves adjacent strings and escapes under ${utf8}: ${doc}`, () => {
+        const bytes = enc.encode(doc);
+        const expected: unknown = JSON.parse(doc);
+        const whole = run(bytes, 0, { utf8 });
+        expect(whole.value).toEqual(expected);
+        for (let split = 0; split <= bytes.length; split++) {
+          const rec = new Recorder();
+          const tokenizer = new JsonTokenizer(rec, { utf8 });
+          tokenizer.write(bytes.subarray(0, split));
+          tokenizer.write(bytes.subarray(split));
+          tokenizer.end();
+          expect(rec.value).toEqual(expected);
+          expect(rec.events).toEqual(whole.events);
+        }
+        expect(run(bytes, 1, { utf8 }).events).toEqual(whole.events);
+      });
+    }
+  }
+});
+
 describe("JsonTokenizer value parity with JSON.parse for malformed UTF-8", () => {
   for (const [label, bytes] of MALFORMED_DOCS) {
     it(`reconstructs ${label}`, () => {
