@@ -1,6 +1,6 @@
 # @oaverify/internal-overlay-spec
 
-Translator from [OpenAPI Overlay 1.0](https://spec.openapis.org/overlay/1.0.0) spec-format documents to oaverify's typed `SpecOverlay`. Internal workspace package; the public surface ships at `@oaverify/core/overlay-spec`.
+Translator from [OpenAPI Overlay 1.0](https://spec.openapis.org/overlay/v1.0.0.html) spec-format documents to oaverify's typed `SpecOverlay`. Internal workspace package; the public surface ships at `@oaverify/core/overlay-spec`.
 
 ## Why
 

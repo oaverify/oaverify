@@ -48,7 +48,7 @@ export interface OverlayAction {
 
 /**
  * An OpenAPI Overlay 1.0 document. Mirrors the spec envelope
- * (https://spec.openapis.org/overlay/1.0.0). Fields outside `actions`
+ * (https://spec.openapis.org/overlay/v1.0.0.html). Fields outside `actions`
  * are metadata and are not consumed by the translator.
  *
  * @public
