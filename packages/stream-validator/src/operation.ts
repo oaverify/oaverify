@@ -49,7 +49,13 @@ export interface OperationLocator {
  * Build a {@link StreamValidator} for an operation's request body. Reads
  * the OpenAPI version off `doc.openapi` (override with
  * `options.openApiVersion`) and carries `doc.components` so internal
- * `$ref`s resolve.
+ * `$ref`s resolve. Schema siblings at the use site and along a reference
+ * chain apply in 3.1 and 3.2; 3.0 discards them.
+ *
+ * Top-level reference chains pointing outside `components` are inlined as
+ * conjunctions. A classifier error can name a generated path such as
+ * `allOf[0]`; that path describes the extracted schema. Relative references
+ * retain the stream engine's document-root resolution model.
  *
  * ```ts
  * import { resolveSpec } from "@oaverify/core/spec";
@@ -109,11 +115,8 @@ export function streamValidatorForOperation(
     throw new Error(`streamValidatorForOperation: no schema for "${mediaType}" on ${where}`);
   }
 
-  // Carry the document's ref container so an internal `$ref` in the body
-  // schema resolves (deref a top-level `$ref` first; see carryComponents).
-  const schema = carryComponents(doc, bodySchema);
-
   const openApiVersion = options.openApiVersion ?? versionFromDoc(doc.openapi);
+  const schema = carryComponents(doc, bodySchema, openApiVersion);
   return createStreamValidator(schema, {
     ...options,
     ...(openApiVersion === undefined ? {} : { openApiVersion }),

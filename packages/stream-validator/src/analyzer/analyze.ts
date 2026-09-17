@@ -151,6 +151,8 @@ type Contribution =
   | { kind: "zero" }
   | { kind: "island"; path: string; keyword: string; intrinsic: ByteSize; unboundedBy?: string }
   | { kind: "max"; parts: Contribution[] }
+  // Sum child contributions without reporting a position of its own.
+  | { kind: "parallel"; parts: Contribution[] }
   | { kind: "sum"; path: string; keyword: string; parts: Contribution[] };
 
 /** Collapse a contribution to a size; `capIsland` maps each island's intrinsic size. */
@@ -162,6 +164,7 @@ function rollup(c: Contribution, capIsland: (s: ByteSize) => ByteSize): ByteSize
       return capIsland(c.intrinsic);
     case "max":
       return c.parts.reduce<ByteSize>((acc, p) => maxSize(acc, rollup(p, capIsland)), 0);
+    case "parallel":
     case "sum":
       return c.parts.reduce<ByteSize>((acc, p) => addSize(acc, rollup(p, capIsland)), 0);
   }
@@ -182,6 +185,7 @@ function collectPositions(c: Contribution, out: BufferPosition[]): void {
       });
       return;
     case "max":
+    case "parallel":
       for (const p of c.parts) collectPositions(p, out);
       return;
     case "sum": {
@@ -286,12 +290,6 @@ function materialize(node: SchemaOrBoolean, root: SchemaObject, seen: Set<Schema
   if (seen.has(node)) return UNBOUNDED("$ref"); // recursive: unbounded depth
   const next = new Set(seen).add(node);
 
-  if (typeof node.$ref === "string") {
-    const target = resolveRefLocal(root, node.$ref);
-    if (target === undefined) return UNBOUNDED("$ref");
-    return materialize(target, root, next);
-  }
-
   if (node.const !== undefined) return { size: literalBytes(node.const) };
   if (Array.isArray(node.enum)) {
     return { size: node.enum.reduce<number>((m, v) => Math.max(m, literalBytes(v)), 0) };
@@ -303,6 +301,11 @@ function materialize(node: SchemaOrBoolean, root: SchemaObject, seen: Set<Schema
   if (types !== undefined) {
     result = { size: 0 };
     for (const t of types) result = maxSized(result, sizeOfType(node, t, root, next));
+  }
+
+  if (typeof node.$ref === "string") {
+    const target = resolveRefLocal(root, node.$ref);
+    if (target !== undefined) result = minSized(result, materialize(target, root, next));
   }
 
   // Composition tightens (allOf) or widens (anyOf/oneOf) the bound.
@@ -471,12 +474,28 @@ function effectiveMaxLength(node: SchemaObject): number | undefined {
 // A forced-buffer scalar island for a `pattern` string (the spine buffers the
 // whole string to test the regex), bounded by the effective `maxLength`, or
 // null when the node carries no `pattern`.
-function forcedScalarIsland(node: SchemaObject, path: string): Contribution | null {
+function forcedScalarIsland(
+  node: SchemaObject,
+  path: string,
+  max: number | undefined,
+): Contribution | null {
   if (node.pattern === undefined) return null;
-  const max = effectiveMaxLength(node);
   return max === undefined
     ? { kind: "island", path, keyword: "pattern", intrinsic: "unbounded", unboundedBy: "maxLength" }
     : { kind: "island", path, keyword: "pattern", intrinsic: max * BYTES_PER_CHAR + QUOTE_BYTES };
+}
+
+/** The schemas applying to the same value through a static reference chain. */
+function refSchemas(node: SchemaObject, root: SchemaObject): SchemaObject[] {
+  const out: SchemaObject[] = [];
+  const seen = new Set<SchemaObject>();
+  let current: SchemaOrBoolean | undefined = node;
+  while (isObjectSchema(current) && !seen.has(current)) {
+    seen.add(current);
+    out.push(current);
+    current = typeof current.$ref === "string" ? resolveRefLocal(root, current.$ref) : undefined;
+  }
+  return out;
 }
 
 function walk(
@@ -488,57 +507,63 @@ function walk(
   formatAsserts: boolean,
 ): Contribution {
   if (!isObjectSchema(node)) return { kind: "zero" };
-  const strat = nodeKind(node, cls, formatAsserts);
+  const applicable = refSchemas(node, root);
+  const buffering = applicable.find((s) => nodeKind(s, cls, formatAsserts) === "buffer");
+  let maxLength: number | undefined;
+  for (const s of applicable) {
+    const bound = effectiveMaxLength(s);
+    if (bound !== undefined)
+      maxLength = maxLength === undefined ? bound : Math.min(maxLength, bound);
+  }
 
-  if (strat === "buffer") {
+  if (buffering !== undefined) {
     if (seen.has(node)) {
       return { kind: "island", path, keyword: "$ref", intrinsic: "unbounded", unboundedBy: "$ref" };
     }
-    const sized = materialize(node, root, new Set());
+    // A type and a string bound can live on different hops of the chain.
+    // Other structural intersections retain conservative allOf sizing.
+    const type = applicable.find((s) => s.type !== undefined)?.type;
+    const sized = materialize(
+      {
+        allOf: applicable,
+        ...(type === undefined ? {} : { type }),
+        ...(maxLength === undefined ? {} : { maxLength }),
+      },
+      root,
+      new Set(),
+    );
     return {
       kind: "island",
       path,
-      keyword: bufferKeyword(node, formatAsserts),
+      keyword: bufferKeyword(buffering, formatAsserts),
       intrinsic: sized.size,
       ...(sized.unboundedBy === undefined ? {} : { unboundedBy: sized.unboundedBy }),
     };
   }
 
-  if (seen.has(node)) return { kind: "zero" }; // recursive STREAM/TEE: counted at first visit
-  const next = new Set(seen).add(node);
-
-  // Follow a bare `$ref` so the referenced subtree's member islands are sized.
-  if (typeof node.$ref === "string") {
-    const target = resolveRefLocal(root, node.$ref);
-    if (!isObjectSchema(target)) return { kind: "zero" };
-    return walk(target, path, root, cls, next, formatAsserts);
+  if (seen.has(node)) return { kind: "zero" };
+  const next = new Set([...seen, ...applicable]);
+  const tee = applicable.find((s) => nodeKind(s, cls, formatAsserts) === "tee");
+  const parts: Contribution[] = [];
+  for (const s of applicable) {
+    if (seen.has(s)) continue;
+    const own: Contribution[] = [];
+    const scalar = forcedScalarIsland(s, path, maxLength);
+    if (scalar !== null) own.push(scalar);
+    for (const m of streamMembers(s)) {
+      own.push(walk(m.node, joinPath(path, m.rel), root, cls, next, formatAsserts));
+    }
+    parts.push({ kind: "max", parts: own });
+    for (const b of teeBranches(s)) {
+      parts.push(walk(b.node, joinPath(path, b.rel), root, cls, next, formatAsserts));
+    }
   }
-
-  // The node's own (non-composition) forward obligation: a forced-buffer
-  // scalar (`pattern`, which accumulates the whole string for the regex even
-  // on the STREAM path) plus its per-member islands, which buffer one at a
-  // time (max). Mirrors the spine's `ownSchemaForTee` sub-spine. Asserting
-  // `format` / `uniqueItems` / complex `enum`|`const` are BUFFER above;
-  // bounded scalar `enum`/`const` buffer a negligible amount and are dropped.
-  const ownParts: Contribution[] = [];
-  const scalar = forcedScalarIsland(node, path);
-  if (scalar !== null) ownParts.push(scalar);
-  for (const m of streamMembers(node)) {
-    ownParts.push(walk(m.node, joinPath(path, m.rel), root, cls, next, formatAsserts));
-  }
-  const ownPart: Contribution =
-    ownParts.length > 0 ? { kind: "max", parts: ownParts } : { kind: "zero" };
-
-  if (strat === "tee") {
-    // The spine fans every event to concurrent sub-spines: the node's own
-    // obligation plus one per composition branch. Concurrent islands sum.
-    const branchParts = teeBranches(node).map((b) =>
-      walk(b.node, joinPath(path, b.rel), root, cls, next, formatAsserts),
-    );
-    return { kind: "sum", path, keyword: teeKeyword(node), parts: [ownPart, ...branchParts] };
-  }
-
-  return ownPart;
+  // Ref obligations can overlap at a member that tees. Summing their
+  // separate contributions is conservative even when a single forward
+  // spine would share storage or visit their members sequentially.
+  return tee === undefined
+    ? { kind: applicable.length > 1 ? "parallel" : "max", parts }
+    : { kind: "sum", path, keyword: teeKeyword(tee), parts };
 }
 
 // --- Public entry point. ---
@@ -555,6 +580,14 @@ function walk(
  * affect classification; `enforceBounds` escalates the classifier's
  * unbounded warnings, below). An unstreamable schema throws
  * {@link ClassifierError}, the same error `createStreamValidator` raises.
+ *
+ * Static `$ref` targets and their siblings both contribute. Bounds split
+ * across a reference chain can remain conservatively unbounded when their
+ * structural intersection is not modeled. Separate ref obligations are
+ * summed conservatively because overlapping members can tee concurrently.
+ * This also affects direct schema analysis: separate ref obligations on
+ * sequential object members can receive a higher budget even when forward
+ * validation shares storage. It applies to schemas beyond operation bodies.
  *
  * Wire-byte sizes are an upper-bound estimate (see the module overview),
  * not a guaranteed ceiling. An `"unbounded"` position is the headline
