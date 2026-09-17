@@ -2297,3 +2297,91 @@ describe("compile-spec: null HTTP schemas (#1144)", () => {
     },
   );
 });
+
+describe("compile-spec: omitted response headers (#1146)", () => {
+  function document(required: boolean, name = "X-Test"): OpenAPIDocument {
+    return {
+      openapi: "3.1.0",
+      info: { title: "Response headers", version: "1" },
+      paths: {
+        "/x": {
+          post: {
+            responses: {
+              "200": {
+                description: "ok",
+                headers: { [name]: { required, schema: { type: "string" } } },
+              },
+            },
+          },
+        },
+      },
+    };
+  }
+
+  for (const output of ["flat", "tree", "predicate"] as const) {
+    it.each([true, false])(
+      `${output}: treats an omitted map as empty (required: %s)`,
+      async (required) => {
+        const spec = document(required);
+        const runtime = createValidator(spec, { output });
+        const emitted = await buildAot(spec, { outputMode: output });
+        const request = { method: "POST", path: "/x" } as const;
+        const omitted = emitted.validateResponse(request, { status: 200 });
+        const empty = emitted.validateResponse(request, { status: 200, headers: {} });
+        expect(omitted).toEqual(empty);
+        for (const validator of [runtime, emitted]) {
+          for (const response of [{ status: 200 }, { status: 200, headers: {} }]) {
+            const result = validator.validateResponse(request, response);
+            if (output === "predicate") {
+              expect(result).toBe(!required);
+            } else if (required) {
+              expect(result).toMatchObject({ valid: false, truncated: true });
+              const leaves = output === "flat" ? flatErrors(result) : treeOf(result)?.children;
+              expect(leaves).toEqual([
+                {
+                  code: "header-param",
+                  children: [],
+                  path: ["header", "X-Test"],
+                  message: 'missing required header "X-Test"',
+                  params: { name: "X-Test", in: "header" },
+                },
+              ]);
+            } else {
+              expect(result).toEqual({ valid: true });
+            }
+          }
+          for (const name of ["x-test", "X-TEST", "X-Test"]) {
+            expect(
+              validator.validateResponse(request, { status: 200, headers: { [name]: "value" } }),
+            ).toEqual(output === "predicate" ? true : { valid: true });
+          }
+        }
+      },
+    );
+  }
+
+  it.each(["constructor", "toString"])("requires an own value for %s", async (name) => {
+    const spec = document(true, name);
+    const runtime = createValidator(spec);
+    const emitted = await buildAot(spec);
+    const request = { method: "POST", path: "/x" } as const;
+    for (const validator of [runtime, emitted]) {
+      for (const headers of [
+        undefined,
+        {},
+        Object.create({ [name]: "inherited" }) as Record<string, string>,
+      ]) {
+        const result = validator.validateResponse(request, { status: 200, headers });
+        expect(result).toMatchObject({ valid: false });
+        expect(flatErrors(result)).toMatchObject([
+          { code: "header-param", path: ["header", name] },
+        ]);
+      }
+      for (const key of [name, name.toUpperCase()]) {
+        expect(
+          validator.validateResponse(request, { status: 200, headers: { [key]: "own" } }),
+        ).toEqual({ valid: true });
+      }
+    }
+  });
+});

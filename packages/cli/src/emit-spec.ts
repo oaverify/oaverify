@@ -886,7 +886,7 @@ function mapResponsesToPlaceholders(
     setSpecKey(out, status, {
       bodyValidators: toPlaceholderMap(r.bodyValidators),
       bodyMediaTypes: compileMediaTypePatterns(r.declaredMediaTypes),
-      headers: headerOut,
+      ...(Object.keys(headerOut).length > 0 ? { headers: headerOut } : {}),
     });
   }
   return out;
@@ -1411,7 +1411,7 @@ function renderValidateResponseTree(): string {
     const resp = op.responses[statusKey];
     if (resp !== undefined) {
       // Header validation.
-      if (res.headers !== undefined) {
+      if (resp.headers !== undefined) {
         for (const [name, hdr] of Object.entries(resp.headers)) {
           const raw = hdr.__readOwn ? __readHeader(res.headers, name) : __readHeaderFast(res.headers, name);
           if (hdr.required && (raw === undefined || raw === "")) {
