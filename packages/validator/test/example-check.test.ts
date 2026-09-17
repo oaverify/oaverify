@@ -614,12 +614,8 @@ describe("checkDocumentExamples", () => {
   });
 
   describe("stays consistent with the validator", () => {
-    // A schema-resource-local fragment (`#/$defs/X` inside a component)
-    // is not resolvable in an OpenAPI document: the Schema Object's base
-    // is the document, so the pointer means the document root. The
-    // validator throws on these, and `check` reports them as fatal
-    // `malformed-schema`. This pass declining is what keeps it from
-    // stacking a second, less useful finding on top of a fatal one.
+    // Standalone callers need the compile failure at the example. The
+    // composed checker owns the corresponding malformed-schema finding.
     const referencing = (name: string) => ({
       "/things": {
         post: {
@@ -632,7 +628,7 @@ describe("checkDocumentExamples", () => {
       },
     });
 
-    it("declines where the validator itself cannot compile the schema", () => {
+    it("reports where the validator itself cannot compile the schema", () => {
       const localDefs = doc({
         paths: referencing("Thing"),
         components: {
@@ -646,14 +642,19 @@ describe("checkDocumentExamples", () => {
           },
         },
       });
-      expect(checkDocumentExamples(localDefs)).toEqual([]);
+      expect(checkDocumentExamples(localDefs)).toEqual([
+        expect.objectContaining({
+          code: "example-uncheckable",
+          message: expect.stringContaining("$defs/Count"),
+        }),
+      ]);
       // The document is not silently accepted: compiling it reports a
       // malformed schema, which is what `check` surfaces as fatal.
       const failures = createValidator(localDefs).precompile({ onMalformed: "collect" });
       expect(failures.map((f) => f.message).join()).toMatch(/\$defs\/Count/);
     });
 
-    it("declines a relative $ref under an $id, which the validator also rejects", () => {
+    it("reports a relative $ref under an $id, which the validator also rejects", () => {
       const relative = doc({
         paths: referencing("Root"),
         components: {
@@ -667,7 +668,12 @@ describe("checkDocumentExamples", () => {
           },
         },
       });
-      expect(checkDocumentExamples(relative)).toEqual([]);
+      expect(checkDocumentExamples(relative)).toEqual([
+        expect.objectContaining({
+          code: "example-uncheckable",
+          message: expect.stringContaining("defs.json"),
+        }),
+      ]);
       const failures = createValidator(relative).precompile({ onMalformed: "collect" });
       expect(failures.map((f) => f.message).join()).toMatch(/defs\.json/);
     });
@@ -909,11 +915,16 @@ describe("checkDocumentExamples", () => {
     });
   });
 
-  it("declines a schema that will not compile rather than guessing", () => {
+  it("reports when an example schema cannot compile", () => {
     const issues = checkDocumentExamples(
       withJsonBody({ schema: { $ref: "#/components/schemas/Missing", example: "anything" } }),
     );
-    expect(issues).toEqual([]);
+    expect(issues).toEqual([
+      expect.objectContaining({
+        code: "example-uncheckable",
+        message: expect.stringContaining("Missing"),
+      }),
+    ]);
   });
 
   it("returns nothing for a document with no examples", () => {
@@ -1190,7 +1201,13 @@ describe("the pattern guard (#687)", () => {
       }),
       { patternGuard: guard },
     );
-    expect(issues).toEqual([]);
+    expect(issues).toEqual([
+      expect.objectContaining({
+        code: "example-uncheckable",
+        message: expect.stringContaining("no addressable members"),
+      }),
+    ]);
+    expect(issues[0]!.message).toContain("compilation failed");
   });
 });
 
