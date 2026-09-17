@@ -886,7 +886,7 @@ function mapResponsesToPlaceholders(
     setSpecKey(out, status, {
       bodyValidators: toPlaceholderMap(r.bodyValidators),
       bodyMediaTypes: compileMediaTypePatterns(r.declaredMediaTypes),
-      headers: headerOut,
+      ...(Object.keys(headerOut).length > 0 ? { headers: headerOut } : {}),
     });
   }
   return out;
@@ -1411,18 +1411,19 @@ function renderValidateResponseTree(): string {
     const resp = op.responses[statusKey];
     if (resp !== undefined) {
       // Header validation.
-      const headers = res.headers ?? {};
-      for (const [name, hdr] of Object.entries(resp.headers)) {
-        const raw = hdr.__readOwn ? __readHeader(headers, name) : __readHeaderFast(headers, name);
-        if (hdr.required && (raw === undefined || raw === "")) {
-          children.push(createLeafError("header-param", ["header", name], \`missing required header "\${name}"\`, { name, in: "header" }));
-          continue;
+      if (resp.headers !== undefined) {
+        for (const [name, hdr] of Object.entries(resp.headers)) {
+          const raw = hdr.__readOwn ? __readHeader(res.headers, name) : __readHeaderFast(res.headers, name);
+          if (hdr.required && (raw === undefined || raw === "")) {
+            children.push(createLeafError("header-param", ["header", name], \`missing required header "\${name}"\`, { name, in: "header" }));
+            continue;
+          }
+          if (raw === undefined) continue;
+          if (hdr.__validator === null) continue;
+          const value = deserialize(raw, { name, in: "header", schema: hdr.schema, style: undefined, explode: undefined });
+          const r = hdr.__validator.validate(value, ["header", name]);
+          if (!r.valid && r.error !== undefined) children.push(r.error);
         }
-        if (raw === undefined) continue;
-        if (hdr.__validator === null) continue;
-        const value = deserialize(raw, { name, in: "header", schema: hdr.schema, style: undefined, explode: undefined });
-        const r = hdr.__validator.validate(value, ["header", name]);
-        if (!r.valid && r.error !== undefined) children.push(r.error);
       }
       // Body validation.
       const bodyMediaTypes = resp.bodyMediaTypes;

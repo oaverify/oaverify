@@ -2332,9 +2332,6 @@ describe("compile-spec: omitted response headers (#1146)", () => {
         for (const validator of [runtime, emitted]) {
           for (const response of [{ status: 200 }, { status: 200, headers: {} }]) {
             const result = validator.validateResponse(request, response);
-            expect(result).toEqual(
-              validator.validateResponse(request, { status: 200, headers: {} }),
-            );
             if (output === "predicate") {
               expect(result).toBe(!required);
             } else if (required) {

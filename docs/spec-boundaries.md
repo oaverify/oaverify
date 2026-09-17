@@ -470,7 +470,7 @@ Changes the value handed on, which can affect subsequent validation.
 
 ### packages/core
 
-**`cookies`** ([packages/core/src/types.ts:600](../packages/core/src/types.ts#L600))
+**`cookies`** ([packages/core/src/types.ts:601](../packages/core/src/types.ts#L601))
 
 Against OpenAPI 3.2 style values (<https://spec.openapis.org/oas/v3.2.0#style-values>).
 

@@ -594,7 +594,8 @@ export interface HttpRequest {
   /**
    * HTTP headers. Header names are matched case-insensitively; adapter
    * helpers normalize keys to lowercase at the framework boundary for the
-   * fastest lookup path.
+   * fastest lookup path. Omitting this map is equivalent to an empty map:
+   * declared required request headers are still checked.
    */
   headers?: Record<string, string | string[]>;
   /**
