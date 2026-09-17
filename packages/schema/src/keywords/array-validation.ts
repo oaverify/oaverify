@@ -90,7 +90,18 @@ export const uniqueItemsKeyword: KeywordDefinition = {
   },
 };
 
-/** Schema-side bound; `contains` emits the corresponding assertion. */
+/**
+ * The JSON Schema `minContains` keyword. Sets the minimum number of array
+ * items that must match `contains`; the minimum defaults to 1 when omitted.
+ *
+ * This definition requires a non-negative integer, even when `contains` is
+ * absent, and emits no validation code. Select it alongside
+ * {@link containsKeyword} when composing a custom dialect; that keyword
+ * emits the match-count assertion. Without `contains`, a valid bound has
+ * no effect on instance validation.
+ *
+ * @public
+ */
 export const minContainsKeyword: KeywordDefinition = {
   keyword: "minContains",
   annotation: true,
@@ -99,7 +110,18 @@ export const minContainsKeyword: KeywordDefinition = {
   compile(): void {},
 };
 
-/** Schema-side bound; `contains` emits the corresponding assertion. */
+/**
+ * The JSON Schema `maxContains` keyword. Sets the maximum number of array
+ * items that may match `contains`; there is no maximum when omitted.
+ *
+ * This definition requires a non-negative integer, even when `contains` is
+ * absent, and emits no validation code. Select it alongside
+ * {@link containsKeyword} when composing a custom dialect; that keyword
+ * emits the match-count assertion. Without `contains`, a valid bound has
+ * no effect on instance validation.
+ *
+ * @public
+ */
 export const maxContainsKeyword: KeywordDefinition = {
   keyword: "maxContains",
   annotation: true,
