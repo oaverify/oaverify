@@ -73,6 +73,9 @@
     "@oaverify/internal-spec": "workspace:*",
     "@oaverify/internal-validator": "workspace:*",
     "@oaverify/syntax": "workspace:*",
+    "ajv": "8.20.0",
+    "ajv-draft-04": "1.0.0",
+    "ajv-formats": "3.0.1",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "5.0.0"

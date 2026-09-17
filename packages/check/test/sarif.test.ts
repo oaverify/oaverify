@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import Ajv from "ajv-draft-04";
+import addFormats from "ajv-formats";
 import { pathToFileURL } from "node:url";
 import { createMemoryReader, loadSpec } from "@oaverify/internal-spec";
 import { checkSpec } from "../src/check.js";
@@ -8,8 +12,7 @@ import { selectionForClasses } from "../src/selection.js";
 
 const BASE = "/repo";
 
-/** Only the parts these tests read; the whole log is validated against
- * the published SARIF schema separately (see the PR). */
+/** Only the fields inspected directly; the pinned schema checks the whole log. */
 interface SarifArtifact {
   uri: string;
   uriBaseId?: string;
@@ -77,7 +80,9 @@ describe("the log envelope", () => {
   it("declares 2.1.0 and names the tool and its version", () => {
     const log = render([finding()]);
     expect(log.version).toBe("2.1.0");
-    expect(log.$schema).toContain("sarif-schema-2.1.0");
+    expect(log.$schema).toBe(
+      "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+    );
     expect(log.runs[0]?.tool.driver.name).toBe("oaverify");
     expect(log.runs[0]?.tool.driver.version).toBe("9.9.9");
   });
@@ -380,5 +385,72 @@ describe("option defaults for a caller that supplies only classes", () => {
       "hygiene",
       "redos",
     ]);
+  });
+});
+
+describe("offline SARIF schema validation", () => {
+  const schemaBytes = readFileSync(
+    new URL("./fixtures/sarif/sarif-schema-2.1.0.json", import.meta.url),
+  );
+  const schema = JSON.parse(schemaBytes.toString("utf8"));
+  const ajv = new Ajv({ allErrors: true, strict: false });
+  addFormats(ajv);
+  const validate = ajv.compile(schema);
+
+  it("matches the fixture checksum documented in its README", () => {
+    const readme = readFileSync(new URL("./fixtures/sarif/README.md", import.meta.url), "utf8");
+    const checksum = readme.match(/SHA-256: `([a-f0-9]{64})`/u)?.[1];
+    expect(createHash("sha256").update(schemaBytes).digest("hex")).toBe(checksum);
+  });
+
+  const goldenDir = new URL("../../cli/test/golden/", import.meta.url);
+  const goldenFiles = readdirSync(goldenDir)
+    .filter((name) => name.endsWith(".sarif"))
+    .sort();
+  it("finds the expected CLI SARIF report fixtures", () => {
+    expect(goldenFiles).toHaveLength(4);
+  });
+
+  it.each(goldenFiles)("validates the stored CLI report %s", (name) => {
+    const log = JSON.parse(readFileSync(new URL(name, goldenDir), "utf8"));
+    expect(validate(log), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it.each([
+    ["empty", []],
+    ["located with related locations", [finding()]],
+    ["without provenance", [finding({ target: undefined })]],
+    [
+      "mixed severities",
+      [finding(), finding({ severity: "error" }), finding({ severity: "fatal" })],
+    ],
+  ] as const)("validates a %s report", (_label, findings) => {
+    const log = JSON.parse(renderSarif(findings, { classes: ["schema"], base: BASE }));
+    expect(validate(log), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("validates regions and selection notifications", () => {
+    const log = JSON.parse(
+      renderSarif([finding()], {
+        classes: ["schema"],
+        base: BASE,
+        spanOf: () => ({
+          start: { line: 1, column: 1, offset: 0 },
+          end: { line: 1, column: 5, offset: 4 },
+        }),
+        skipped: [{ key: "unknown-keyword", count: 1 }],
+        noopTerms: [{ term: "schema", noop: "already selected" }],
+      }),
+    );
+    expect(validate(log), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("rejects an invalid version and result level", () => {
+    const log = render([finding()]);
+    log.version = "9.9.9";
+    expect(validate(log)).toBe(false);
+    log.version = "2.1.0";
+    log.runs[0]!.results[0]!.level = "fatal";
+    expect(validate(log)).toBe(false);
   });
 });

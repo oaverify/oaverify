@@ -56,8 +56,13 @@ import type { TermReport } from "./selection.js";
 
 /** The version this emitter targets, and the schema it declares. */
 const SARIF_VERSION = "2.1.0";
+/**
+ * The published schema for the declared SARIF version.
+ *
+ * @specCites SARIF 2.1.0 Errata 01 section 3.13.3, https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html#_Toc141790731
+ */
 const SARIF_SCHEMA =
-  "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json";
+  "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
 
 /**
  * `severity` to SARIF `level`.
@@ -372,7 +377,8 @@ function rulesOf(findings: readonly CheckFinding[]): {
 }
 
 /**
- * Render a `check` report as a SARIF 2.1.0 log.
+ * Render a `check` report as a SARIF 2.1.0 log. The `$schema` URI
+ * identifies the versioned OASIS Errata 01 schema.
  *
  * A data transformation rather than a rendering choice, which is why it
  * lives here and the text report does not: uploading findings to code
@@ -404,8 +410,8 @@ function rulesOf(findings: readonly CheckFinding[]): {
  *   tell a partial run from a clean document; a default of all five
  *   would label a partial run complete.
  *
- * @specCites SARIF 2.1.0, https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
- * @specBoundary defers https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
+ * @specCites SARIF 2.1.0 Errata 01 section 3.14.27, https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html#_Toc141790761
+ * @specBoundary defers https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html#_Toc141790761
  * Tools reading the generated SARIF report can highlight the wrong text
  * after a character such as an emoji. The report measures columns in UTF-16
  * code units but omits `columnKind`, which tells readers how to count them.
