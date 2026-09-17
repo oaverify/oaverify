@@ -2,9 +2,8 @@ import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
-import { ValidationFailedError, createStreamValidator } from "../src/index.js";
+import { JsonParseError, ValidationFailedError, createStreamValidator } from "../src/index.js";
 import type { StreamValidatorOptions } from "../src/options.js";
-import { JsonParseError } from "../src/tokenizer/index.js";
 
 type Outcome =
   | { kind: "accept"; echoed: Buffer }

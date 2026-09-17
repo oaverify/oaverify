@@ -127,7 +127,7 @@ function firstIllFormedUtf8(bytes: Uint8Array): number {
  * Tokenizer construction options. Carries the subset of
  * `StreamValidatorOptions` the byte layer decides.
  *
- * @public
+ * @internal
  */
 export interface JsonTokenizerOptions {
   /** See `StreamValidatorOptions.utf8`. Defaults to `"reject"`. */

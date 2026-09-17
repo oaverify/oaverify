@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import {
   createStreamValidator,
+  JsonParseError,
   type StreamValidator,
   ValidationFailedError,
 } from "../src/index.js";
-import { JsonParseError } from "../src/tokenizer/index.js";
 
 const enc = new TextEncoder();
 
