@@ -11,7 +11,16 @@
  *     the partial state across.
  *   - **Match `JSON.parse`.** Numbers are JS doubles; lone surrogate
  *     escapes are accepted; trailing non-whitespace is rejected;
- *     multiple top-level texts are rejected.
+ *     multiple top-level texts are rejected. This anchor covers the
+ *     grammar and the values it yields. `JSON.parse` takes text, so it
+ *     has no opinion about the bytes below it, which is what the
+ *     `utf8` option governs.
+ *   - **Well-formed UTF-8, by default.** A byte sequence inside a string
+ *     or a key that is not well-formed UTF-8 is a parse error, the same
+ *     class as an unescaped control character. `utf8: "replace"` decodes
+ *     each malformed sequence to U+FFFD instead and validates the
+ *     replaced text, matching `Buffer#toString`. A sender's own U+FFFD is
+ *     content under both settings.
  *   - **A U+FEFF inside a string is content.** It survives decoding and
  *     reaches the handler, so a string keyword compares against what the
  *     sender wrote. A document-*leading* BOM is a parse error, which is
@@ -79,6 +88,65 @@ const CH_BACKSLASH = 0x5c;
 // string's end (avoids a per-string allocation).
 const EMPTY = new Uint8Array(0);
 
+/**
+ * Index of the first byte of the first ill-formed UTF-8 sequence in
+ * `bytes`, or -1 when none is found. A sequence cut off at the end of
+ * `bytes` is ill-formed unless `tailIsHeld`, which says the decoder is
+ * holding those bytes to complete from the next chunk.
+ *
+ * Runs on the failure path only, to name the byte a fatal `TextDecoder`
+ * has already rejected. -1 is a real answer: the rejected sequence can
+ * begin in bytes held from an earlier chunk, which this run does not
+ * contain, and the caller reports the run's first byte for that.
+ */
+function firstIllFormedUtf8(bytes: Uint8Array, tailIsHeld: boolean): number {
+  const n = bytes.length;
+  let i = 0;
+  while (i < n) {
+    const b = bytes[i] as number;
+    if (b < 0x80) {
+      i++;
+      continue;
+    }
+    // Continuation bytes (0x80-0xbf), the overlong leads (0xc0, 0xc1)
+    // and the out-of-range leads (0xf5-0xff) can begin nothing.
+    let need: number;
+    let lo2 = 0x80;
+    let hi2 = 0xbf;
+    if (b >= 0xc2 && b <= 0xdf) need = 1;
+    else if (b >= 0xe0 && b <= 0xef) {
+      need = 2;
+      // 0xe0 80..9f is overlong; 0xed a0..bf encodes a surrogate.
+      if (b === 0xe0) lo2 = 0xa0;
+      else if (b === 0xed) hi2 = 0x9f;
+    } else if (b >= 0xf0 && b <= 0xf4) {
+      need = 3;
+      if (b === 0xf0) lo2 = 0x90; // 0xf0 80..8f is overlong
+      else if (b === 0xf4) hi2 = 0x8f; // past U+10FFFF
+    } else return i;
+    for (let k = 1; k <= need; k++) {
+      if (i + k >= n) return tailIsHeld ? -1 : i;
+      const c = bytes[i + k] as number;
+      const lo = k === 1 ? lo2 : 0x80;
+      const hi = k === 1 ? hi2 : 0xbf;
+      if (c < lo || c > hi) return i;
+    }
+    i += need + 1;
+  }
+  return -1;
+}
+
+/**
+ * Tokenizer construction options. Carries the subset of
+ * `StreamValidatorOptions` the byte layer decides.
+ *
+ * @public
+ */
+export interface JsonTokenizerOptions {
+  /** See `StreamValidatorOptions.utf8`. Defaults to `"reject"`. */
+  utf8?: "reject" | "replace";
+}
+
 function isWhitespace(b: number): boolean {
   return b === CH_SPACE || b === CH_LF || b === CH_TAB || b === CH_CR;
 }
@@ -130,7 +198,12 @@ export class JsonTokenizer {
   // The count agreed with the value both before and after, because the
   // counter measures the decode's output (#852). The defect was the
   // value alone.
-  private readonly decoder = new TextDecoder("utf-8", { ignoreBOM: true });
+  //
+  // `fatal` is what makes `utf8: "reject"` work: the decode pass the
+  // code-point counter already needs is the pass that checks
+  // well-formedness, so the check rides a pass already being paid.
+  private readonly decoder: TextDecoder;
+  private readonly strictUtf8: boolean;
 
   private state = ST_VALUE;
   private readonly stack: number[] = [];
@@ -158,8 +231,10 @@ export class JsonTokenizer {
   private litValue: boolean | null = null;
   private litPos = 0;
 
-  constructor(handler: JsonEventHandler) {
+  constructor(handler: JsonEventHandler, options: JsonTokenizerOptions = {}) {
     this.handler = handler;
+    this.strictUtf8 = options.utf8 !== "replace";
+    this.decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: this.strictUtf8 });
   }
 
   /**
@@ -363,7 +438,9 @@ export class JsonTokenizer {
       // Decode the literal run (streaming: a multibyte char split at the
       // chunk end is held by the decoder and completed next chunk).
       const atChunkEnd = i === n;
-      const text = this.decoder.decode(chunk.subarray(start, i), { stream: atChunkEnd });
+      const text = this.strictUtf8
+        ? this.decodeRunStrict(chunk.subarray(start, i), atChunkEnd, start)
+        : this.decoder.decode(chunk.subarray(start, i), { stream: atChunkEnd });
       // Count the decode's output. Counting input bytes missed a stray
       // continuation byte, which is no lead byte and one U+FFFD, so a
       // lead-byte count read a string of them as empty: `minLength`
@@ -398,17 +475,46 @@ export class JsonTokenizer {
     return i + 1;
   }
 
+  // Decodes a literal string run under `utf8: "reject"`. The decoder is
+  // fatal, so it throws a `TypeError` naming no position; the rescan
+  // turns that into a `JsonParseError` at the offending byte and runs on
+  // the failure path only. Where the rejected sequence began in bytes
+  // held from an earlier chunk the run does not contain it, and the run's
+  // first byte is reported, the attribution a decoder flush already uses
+  // (#894).
+  private decodeRunStrict(bytes: Uint8Array, atChunkEnd: boolean, start: number): string {
+    try {
+      return this.decoder.decode(bytes, { stream: atChunkEnd });
+    } catch {
+      const bad = firstIllFormedUtf8(bytes, atChunkEnd);
+      return this.fail("malformed UTF-8 in string", bad < 0 ? start : start + bad);
+    }
+  }
+
   // Ends the decode stream and emits whatever partial sequence it held,
   // as U+FFFD per unpaired byte, matching `Buffer#toString`. Empty when
-  // the decoder held nothing, which is every well-formed boundary.
+  // the decoder held nothing, which is every well-formed boundary. Under
+  // `utf8: "reject"` a held sequence is a truncated one, since the
+  // boundary that ends the stream is the closing quote or an escape's
+  // backslash, and neither can continue a sequence.
   private flushHeldPartial(offset: number): void {
-    const tail = this.decoder.decode(EMPTY, { stream: false });
+    const tail = this.strictUtf8
+      ? this.flushStrict(offset)
+      : this.decoder.decode(EMPTY, { stream: false });
     if (tail.length === 0) return;
     this.strCodePoints += countCodePoints(tail);
     // Flushed text separates a `\uXXXX` high surrogate from any later
     // low one, exactly as a literal run does.
     this.pendingHighSurrogate = false;
     this.emitStringText(tail, offset);
+  }
+
+  private flushStrict(offset: number): string {
+    try {
+      return this.decoder.decode(EMPTY, { stream: false });
+    } catch {
+      throw new JsonParseError("truncated UTF-8 sequence in string", offset);
+    }
   }
 
   private emitStringText(text: string, offset: number): void {

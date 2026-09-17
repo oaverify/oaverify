@@ -471,7 +471,7 @@ export class StreamValidator extends Transform {
       maxMemberPrefixBytes: this.maxMemberPrefixBytes,
       maxMemberDropBytes: this.maxMemberDropBytes,
     });
-    this.tokenizer = new JsonTokenizer(this.spine);
+    this.tokenizer = new JsonTokenizer(this.spine, { utf8: options.utf8 });
     this.result = new Promise<StreamVerdict>((resolve, reject) => {
       this.resolveResult = resolve;
       this.rejectResult = reject;
@@ -854,6 +854,17 @@ export class StreamValidator extends Transform {
  * target to depend on the schema being applied, also ignores that context
  * (#1090). Separately, some malformed schema keyword values are silently
  * ignored instead of rejected (#919).
+ * @specBoundary under-asserts https://www.rfc-editor.org/rfc/rfc8259#section-8.1
+ * `utf8: "replace"` accepts input bytes that are not valid UTF-8. JSON
+ * requires UTF-8 of text exchanged between systems outside a closed
+ * ecosystem. Under that setting each ill-formed byte sequence becomes
+ * U+FFFD and validation continues against the replaced text, so whether
+ * the body is accepted depends on the schema: a string constrained to
+ * printable ASCII rejects it because U+FFFD is not printable ASCII, and
+ * an unconstrained string accepts it. The echoed output is the input
+ * bytes unchanged, so a consumer that stores or forwards them keeps JSON
+ * text that is not valid UTF-8. The default, `utf8: "reject"`, fails the
+ * stream at the offending byte.
  * @specBoundary resolves https://www.rfc-editor.org/rfc/rfc8259#section-4
  * When a JSON object repeats a property name, streaming validation can
  * check and count every occurrence toward `minProperties` and

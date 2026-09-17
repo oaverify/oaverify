@@ -42,6 +42,8 @@ export type PathFilter = JsonPath | ((path: JsonPath, kind: "object" | "array") 
  *     set the delegate compiles under.
  *   - **Format policy** (`unknownFormats`): what an unregistered
  *     `format` name does.
+ *   - **Input encoding** (`utf8`): whether malformed UTF-8 in the input
+ *     bytes fails the stream.
  *   - **Observability** (`keyEvents`, `valueEvents`, `warn`): opt-in,
  *     compile-time-gated channels.
  *   - **Resource limits** (`maxBufferedBytes`, `maxDepth`,
@@ -136,6 +138,46 @@ export interface StreamValidatorOptions {
    * See `CompileOptions.unknownFormats`.
    */
   unknownFormats?: "ignore" | "error";
+
+  /**
+   * Whether malformed UTF-8 in the input bytes fails the stream.
+   *
+   *   - `"reject"` (default): a byte sequence inside a string or a key
+   *     that is not well-formed UTF-8 fails the stream fatally with a
+   *     `JsonParseError` carrying the offending byte offset, the channel
+   *     an unescaped control character already uses. Ill-formed covers a
+   *     surrogate encoded as three bytes, an overlong encoding, a bare
+   *     continuation byte, a truncated sequence, and a code point past
+   *     U+10FFFF.
+   *   - `"replace"`: each ill-formed sequence decodes to U+FFFD and
+   *     validation continues against the replaced text, matching
+   *     `Buffer#toString`.
+   *
+   * Bytes above 0x7F outside a string are a parse error under both
+   * settings, since no such byte is legal in JSON structure, so a string
+   * body and an object key are the only places this option decides
+   * anything.
+   *
+   * Under `"replace"` the validated text differs from the bytes the
+   * sender wrote, and the schema then decides the verdict: a string with
+   * `pattern: "^[\\x20-\\x7E]+$"` rejects the body because U+FFFD
+   * fails that pattern, while an unconstrained string accepts it. A
+   * consumer that forwards the input bytes onward therefore stores JSON
+   * text that is not valid UTF-8. RFC 8259 section 8.1 requires UTF-8 of
+   * JSON text exchanged outside a closed ecosystem, which is the case
+   * `"replace"` exists for.
+   *
+   * A U+FFFD the sender encoded itself (`EF BF BD`) is well-formed and is
+   * accepted under both settings, so `"reject"` is a test of the encoding
+   * rather than of the decoded text.
+   *
+   * `"reject"` reuses the decode pass the code-point counter already
+   * needs, so it costs under 1% of validation throughput. A fatal error
+   * does not unsend bytes already echoed: a consumer writing the echoed
+   * stream somewhere durable has to discard or abort on the stream's
+   * `error` event, as it does for any other parse error.
+   */
+  utf8?: "reject" | "replace";
 
   /**
    * Custom keywords registered with the in-memory compiler. A keyword

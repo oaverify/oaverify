@@ -36,6 +36,43 @@ const validator = createStreamValidator(
 );
 ```
 
+## Input Encoding
+
+The input is bytes, so the validator sees encoding errors the in-memory
+engine never can: `createValidator` takes an already-parsed JavaScript
+value, and whoever parsed it has already decoded the bytes.
+
+By default a byte sequence inside a string or a key that is not
+well-formed UTF-8 fails the stream with a `JsonParseError` carrying the
+offending byte offset, the same channel an unescaped control character
+uses. `utf8: "replace"` opts out: each ill-formed sequence decodes to
+U+FFFD and validation continues against the replaced text, which is what
+`Buffer.from(bytes).toString("utf8")` does. See
+{@link StreamValidatorOptions.utf8}.
+
+```ts
+const validator = createStreamValidator(schema, { utf8: "replace" });
+```
+
+Two things worth knowing before you reach for the opt-out.
+
+A schema cannot stand in for the check. Under `"replace"` the verdict
+depends on which keywords cover the string: `pattern: "^[\x20-\x7E]+$"`
+rejects the body because U+FFFD is not printable ASCII, a permissive
+pattern accepts the same bytes, and a string no keyword covers accepts
+them silently. None of those is a test of the encoding. Nor is looking
+for U+FFFD in the decoded value, since a sender may encode U+FFFD itself
+and mean it.
+
+A fatal error does not unsend bytes. The echo is verbatim pass-through,
+so bytes already written downstream stay written, including the malformed
+ones in the chunk that failed. If you store or forward the echoed stream,
+the encoding guarantee you get is "the pipeline failed", and turning that
+into "nothing bad was stored" is yours: write to a staging location and
+promote it once `validator.result` resolves valid, or abort the upload on
+the stream's `error` event. That is true of every parse error and every
+violation under `policy: "terminate"`, not only of this one.
+
 ## Hooks
 
 `StreamValidatorOptions` is the source contract for the hook options,

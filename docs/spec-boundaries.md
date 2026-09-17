@@ -33,14 +33,14 @@ conforming implementation choice.
 
 | kind | meaning | entries |
 | ---- | ------- | ----- |
-| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 28 |
+| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 29 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 7 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 3 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 6 |
 
-58 documented entries across 31 files.
+59 documented entries across 31 files.
 
 ## under-asserts
 
@@ -316,6 +316,23 @@ A number very close to an exact multiple can pass `multipleOf`. JSON
 Schema requires exact divisibility, but the validator allows a small
 rounding tolerance. This avoids rejecting ordinary decimal multiples:
 JavaScript calculates `0.3 / 0.1` as `2.9999999999999996` instead of `3`.
+
+### packages/stream-validator
+
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:837](../packages/stream-validator/src/engine/stream-validator.ts#L837))
+
+Against RFC 8259 section 8.1 (<https://www.rfc-editor.org/rfc/rfc8259#section-8.1>).
+
+`utf8: "replace"` accepts input bytes that are not valid UTF-8. JSON
+requires UTF-8 of text exchanged between systems outside a closed
+ecosystem. Under that setting each ill-formed byte sequence becomes
+U+FFFD and validation continues against the replaced text, so whether
+the body is accepted depends on the schema: a string constrained to
+printable ASCII rejects it because U+FFFD is not printable ASCII, and
+an unconstrained string accepts it. The echoed output is the input
+bytes unchanged, so a consumer that stores or forwards them keeps JSON
+text that is not valid UTF-8. The default, `utf8: "reject"`, fails the
+stream at the offending byte.
 
 ### packages/validator
 
