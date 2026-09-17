@@ -104,3 +104,34 @@ describe("toProblemDetails", () => {
     expect(round).toEqual(pd);
   });
 });
+
+describe.each(["tree", "flat"] as const)("%s issue isolation", (shape) => {
+  it.each(["collectIssues", "toProblemDetails"] as const)(
+    "%s owns mutable paths and top-level params",
+    (projection) => {
+      const expected = ["number"];
+      const leaf = createLeafError("type", ["body", "age"], "must be number", {
+        expected,
+        actual: "string",
+      });
+      const input =
+        shape === "tree" ? createBranchError("body", ["body"], "bad body", [leaf]) : [leaf];
+      const project = () =>
+        projection === "collectIssues" ? collectIssues(input) : toProblemDetails(input).issues;
+      const [issue] = project();
+      const [other] = project();
+      expect(issue).toBeDefined();
+      expect(other).toBeDefined();
+      issue!.path.push("changed");
+      issue!.params.actual = "boolean";
+      delete issue!.params.expected;
+      expect(leaf.path).toEqual(["body", "age"]);
+      expect(leaf.params).toEqual({ expected: ["number"], actual: "string" });
+      expect(other!.params).toEqual({ expected: ["number"], actual: "string" });
+      expect(other!.path).toEqual(["body", "age"]);
+      expect(other!.pointer).toBe("/body/age");
+      expect(other!.params.expected).toBe(leaf.params.expected);
+      expect(other!.params.expected).toBe(expected);
+    },
+  );
+});
