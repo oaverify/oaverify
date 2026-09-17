@@ -17,7 +17,10 @@ import { formatSummary } from "./format.js";
 export interface ValidationIssue {
   /** Stable error identifier (e.g. `"type"`, `"required"`, `"content-type"`). */
   code: string;
-  /** Raw path segments to the offending data location. */
+  /**
+   * Raw path segments copied from the source error. Mutating this array
+   * leaves the source unchanged; `pointer` remains the original snapshot.
+   */
   path: PathSegment[];
   /** RFC 6901 JSON Pointer form of `path`, e.g. `"/body/pets/3/name"`. */
   pointer: string;
@@ -30,6 +33,10 @@ export interface ValidationIssue {
    * `additionalProperties.unexpected`) or schema-derived metadata
    * (e.g. `enum.allowed`, `maximum.maximum`). See the security note
    * on {@link toProblemDetails} when serving untrusted clients.
+   *
+   * The top-level object is a mutable copy of the source error's params.
+   * Nested values retain their original references and must be treated
+   * as readonly.
    */
   params: Record<string, unknown>;
 }
@@ -119,6 +126,9 @@ export interface ProblemDetailsOptions {
  * with an RFC 6901 JSON Pointer. Useful when you want a client-friendly
  * issues array but don't need the {@link ProblemDetails} envelope.
  *
+ * Each issue owns its path array and top-level params object. Nested
+ * params values remain shared with the source error; see {@link ValidationIssue}.
+ *
  * Leaf-only by design: branch-level `params` (e.g. `oneOf`'s `matchCount`)
  * are not in the result. Access the raw {@link ValidationError} if you
  * need the tree.
@@ -131,10 +141,10 @@ export function collectIssues(
   const leaves = Array.isArray(error) ? error : collectLeaves(error as ValidationError);
   return leaves.map((leaf) => ({
     code: leaf.code,
-    path: leaf.path,
+    path: [...leaf.path],
     pointer: toJsonPointer(leaf.path),
     message: leaf.message,
-    params: leaf.params,
+    params: { ...leaf.params },
   }));
 }
 

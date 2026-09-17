@@ -641,6 +641,9 @@ Clients lose machine-readable detail in exchange for not leaking field
 values or schema internals; each issue still carries `code` and
 `pointer`. Narrower policies (clear `params` only on specific codes,
 keep `enum.allowed` but drop `enum.actual`) compose from the same hook.
+You can edit or delete top-level `params` fields without changing the source
+errors; nested values remain shared and should be treated as readonly (see
+`ValidationIssue.params`).
 
 ### Preserving an existing client error envelope
 
