@@ -97,7 +97,10 @@ function budgetForBody(
     const schema = mto.schema;
     if (schema === undefined) continue; // a media type with no schema is unconstrained
     try {
-      const report = analyzeStreamability(carryComponents(doc, schema), options);
+      const report = analyzeStreamability(
+        carryComponents(doc, schema, options.openApiVersion),
+        options,
+      );
       out.push({ ...base, mediaType, report });
     } catch (e) {
       out.push({ ...base, mediaType, error: e instanceof Error ? e.message : String(e) });
@@ -154,7 +157,8 @@ function bodiesForOperation(
  * document. The OpenAPI version is read off `doc.openapi` (override with
  * `options.openApiVersion`) and applied to every body; other options
  * (`maxBufferedBytes`, `dialect`, ...) thread through to
- * {@link analyzeStreamability}.
+ * {@link analyzeStreamability}. Schema ref siblings contribute to each
+ * body budget in 3.1 and 3.2; 3.0 discards them.
  *
  * Operations with no body schema are omitted. A body whose schema cannot be
  * classified is reported with `error` set rather than throwing, so a sweep

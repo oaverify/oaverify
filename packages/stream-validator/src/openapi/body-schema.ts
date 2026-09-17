@@ -95,15 +95,50 @@ export function derefTopLevelSchemaRef(
 }
 
 /**
- * Shape a body schema for classification: dereference a top-level `$ref` and
- * carry the document's `components` so internal refs resolve. A boolean
- * schema needs nothing and is returned as-is.
+ * Preserve top-level document pointers outside the carried components.
+ * Their targets were accepted by the original document-root dereference.
+ * Keep each hop's siblings as a separate conjunct when inlining is needed.
+ */
+function inlineDocumentRefChain(doc: OpenAPIDocument, schema: SchemaObject): SchemaOrBoolean {
+  const carried = { ...schema, components: doc.components } as SchemaObject;
+  const siblings: SchemaObject[] = [];
+  const seen = new Set<SchemaObject>();
+  let current: SchemaOrBoolean = schema;
+  let needsInlining = false;
+  while (isObjectSchema(current) && typeof current.$ref === "string") {
+    if (seen.has(current)) return schema;
+    seen.add(current);
+    const target = resolveRef(doc as unknown as SchemaObject, current.$ref);
+    if (target === undefined) return schema;
+    if (resolveRef(carried, current.$ref) === undefined) needsInlining = true;
+    const { $ref: _ref, ...own } = current;
+    if (Object.keys(own).length > 0) siblings.push(own);
+    current = target;
+  }
+  if (!needsInlining) return schema;
+  if (siblings.length === 0) return current;
+  if (!isObjectSchema(current)) return { allOf: [current, ...siblings] };
+  return { ...current, allOf: [...(current.allOf ?? []), ...siblings] };
+}
+
+/**
+ * Shape a body schema for classification, carrying the document's
+ * `components` so internal refs resolve. Modern schemas retain their ref
+ * siblings. Top-level refs outside components are inlined as conjunctions
+ * against the document. Under 3.0, dereference first so sibling suppression cannot
+ * discard the carried container. Boolean schemas pass through unchanged.
  */
 export function carryComponents(
   doc: OpenAPIDocument,
   bodySchema: SchemaOrBoolean,
+  openApiVersion: StreamValidatorOptions["openApiVersion"],
 ): SchemaOrBoolean {
-  const resolvedBody = derefTopLevelSchemaRef(doc, bodySchema);
+  const resolvedBody =
+    openApiVersion === "3.0"
+      ? derefTopLevelSchemaRef(doc, bodySchema)
+      : isObjectSchema(bodySchema)
+        ? inlineDocumentRefChain(doc, bodySchema)
+        : bodySchema;
   return isObjectSchema(resolvedBody) && doc.components !== undefined
     ? ({ ...resolvedBody, components: doc.components } as SchemaObject)
     : resolvedBody;
