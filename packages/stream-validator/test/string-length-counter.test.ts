@@ -5,7 +5,12 @@ import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { createStreamValidator } from "../src/index.js";
 import { SpineValidator } from "../src/spine/spine.js";
 import type { JsonEventHandler } from "../src/tokenizer/index.js";
+import type { JsonTokenizerOptions } from "../src/tokenizer/index.js";
 import { JsonTokenizer } from "../src/tokenizer/index.js";
+
+// The malformed-UTF-8 cases below assert the replacing decode the counter
+// was fixed against (#852). The default rejects those bytes outright.
+const REPLACE: JsonTokenizerOptions = { utf8: "replace" };
 
 /**
  * `minLength` and `maxLength` count one string (#852).
@@ -75,7 +80,7 @@ function countOf(s: string): number {
 }
 
 async function verdictBytes(schema: SchemaOrBoolean, bytes: Uint8Array): Promise<boolean> {
-  const validator = createStreamValidator(schema);
+  const validator = createStreamValidator(schema, REPLACE);
   const sink = new Writable({
     write(_chunk, _enc, cb) {
       cb();
@@ -153,7 +158,7 @@ describe("minLength and maxLength count the same string", () => {
     // string one code point short (#852).
     const bytes = Uint8Array.from([0x22, 0xe2, 0x82, 0xe2, 0x22]);
     const cap = new CountingHandler();
-    const tok = new JsonTokenizer(cap);
+    const tok = new JsonTokenizer(cap, REPLACE);
     tok.write(bytes.subarray(0, 4));
     tok.write(bytes.subarray(4));
     tok.end();
@@ -165,7 +170,7 @@ describe("minLength and maxLength count the same string", () => {
     // A stray continuation byte is literal text (one U+FFFD), so it
     // separates the pair. The per-byte reset never ran for it.
     const cap = new CountingHandler();
-    const tok = new JsonTokenizer(cap);
+    const tok = new JsonTokenizer(cap, REPLACE);
     tok.write(
       Uint8Array.from([0x22, ...enc.encode("\\ud83d"), 0x80, ...enc.encode("\\ude00"), 0x22]),
     );
@@ -210,7 +215,7 @@ describe("minLength and maxLength count the same string", () => {
       const bytes = Uint8Array.from([0x22, ...body, 0x22]);
       const split = rnd(bytes.length + 1);
       const cap = new CountingHandler();
-      const tok = new JsonTokenizer(cap);
+      const tok = new JsonTokenizer(cap, REPLACE);
       try {
         tok.write(bytes.subarray(0, split));
         tok.write(bytes.subarray(split));
@@ -252,7 +257,7 @@ describe("minLength and maxLength count the same string", () => {
       0x22,
     ]);
     const cap = new CountingHandler();
-    const tok = new JsonTokenizer(cap);
+    const tok = new JsonTokenizer(cap, REPLACE);
     // The split has to leave the partial held when the escape arrives.
     tok.write(bytes.subarray(0, 9));
     tok.write(bytes.subarray(9));

@@ -130,13 +130,14 @@ bug worth fixing.
 ## What the less obvious runners assert
 
 **`parse`** drives `@oaverify/stream`'s SAX tokenizer over JSONTestSuite's
-`y_`/`n_`/`i_` corpus. The tokenizer's contract is to match `JSON.parse`,
-so the oracle for every case is `JSON.parse` rather than the filename
-label. The suite also asserts the verdict is chunk-invariant (single-shot
-against a split feed) and that accepted values reconstruct to the same
-value `JSON.parse` produces. The streaming-specific replay at every byte
-boundary lives in `packages/stream-validator/test/tokenizer.test.ts` and
-runs under the root `pnpm test`; this suite adds corpus breadth.
+`y_`/`n_`/`i_` corpus in both UTF-8 modes. Each oracle decodes with the chosen
+policy before calling `JSON.parse`: the default rejects malformed UTF-8,
+while `"replace"` substitutes U+FFFD. A file passes only when both modes
+match their oracle's verdict and reconstructed value, and split input
+preserves the verdict. Filename labels are reported as context for the
+strict default. The replay at every byte boundary in
+`packages/stream-validator/test/tokenizer.test.ts` runs under the root
+`pnpm test`; this suite adds corpus breadth.
 
 **`format-suite`** is separate from `suite:optional` because the parent
 runner does not enter `optional/format/`: the path is a directory, and

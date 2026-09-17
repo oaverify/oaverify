@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { JsonEventHandler } from "../src/tokenizer/index.js";
+import type { JsonEventHandler, JsonTokenizerOptions } from "../src/tokenizer/index.js";
 import { JsonParseError, JsonTokenizer } from "../src/tokenizer/index.js";
 
 const enc = new TextEncoder();
@@ -93,9 +93,9 @@ class Recorder implements JsonEventHandler {
 }
 
 /** Tokenize `bytes` split into chunks of `chunkSize` (0 = single shot). */
-function run(bytes: Uint8Array, chunkSize = 0): Recorder {
+function run(bytes: Uint8Array, chunkSize = 0, options: JsonTokenizerOptions = {}): Recorder {
   const rec = new Recorder();
-  const tok = new JsonTokenizer(rec);
+  const tok = new JsonTokenizer(rec, options);
   if (chunkSize <= 0) {
     tok.write(bytes);
   } else {
@@ -180,8 +180,13 @@ describe("JsonTokenizer chunk-boundary invariance", () => {
  * fell, which no well-formed document can show.
  *
  * The oracle is `JSON.parse(Buffer.from(bytes).toString("utf8"))`, which
- * is what a caller buffering the whole body would get.
+ * is what a caller buffering the whole body would get. Every document
+ * here is ill-formed UTF-8, so these suites run under
+ * `utf8: "replace"`; the default rejects them as parse errors, which
+ * `utf8.test.ts` covers.
  */
+const REPLACE: JsonTokenizerOptions = { utf8: "replace" };
+
 const MALFORMED_DOCS: Array<[string, Uint8Array]> = [
   // A truncated 4-byte lead, an escape, then the continuation byte that
   // would have completed it. Split before the backslash, the held bytes
@@ -222,11 +227,80 @@ const MALFORMED_DOCS: Array<[string, Uint8Array]> = [
   ],
 ];
 
+describe("JsonTokenizer UTF-8 scalar boundaries", () => {
+  const cases: Array<[number, number[]]> = [
+    [0x80, [0xc2, 0x80]],
+    [0x7ff, [0xdf, 0xbf]],
+    [0x800, [0xe0, 0xa0, 0x80]],
+    [0xd7ff, [0xed, 0x9f, 0xbf]],
+    [0xe000, [0xee, 0x80, 0x80]],
+    [0xfeff, [0xef, 0xbb, 0xbf]],
+    [0xfffd, [0xef, 0xbf, 0xbd]],
+    [0xffff, [0xef, 0xbf, 0xbf]],
+    [0x10000, [0xf0, 0x90, 0x80, 0x80]],
+    [0x10ffff, [0xf4, 0x8f, 0xbf, 0xbf]],
+  ];
+  for (const [codePoint, body] of cases) {
+    for (const key of [false, true]) {
+      it(`decodes U+${codePoint.toString(16)} in a ${key ? "key" : "value"} across writes`, () => {
+        const bytes = Buffer.concat([
+          Buffer.from(key ? '{"' : '"'),
+          Buffer.from(body),
+          Buffer.from(key ? '":0}' : '"'),
+        ]);
+        const expected = String.fromCodePoint(codePoint);
+        const whole = run(bytes);
+        expect(whole.value).toEqual(key ? { [expected]: 0 } : expected);
+        expect(whole.events).toContainEqual(
+          expect.objectContaining({ t: key ? "key" : "string", v: expected, cp: 1 }),
+        );
+        for (let split = 0; split <= bytes.length; split++) {
+          const rec = new Recorder();
+          const tokenizer = new JsonTokenizer(rec);
+          tokenizer.write(bytes.subarray(0, split));
+          tokenizer.write(bytes.subarray(split));
+          tokenizer.end();
+          expect(rec.events).toEqual(whole.events);
+          expect(rec.value).toEqual(whole.value);
+        }
+        expect(run(bytes, 1).events).toEqual(whole.events);
+      });
+    }
+  }
+});
+
+describe("JsonTokenizer decoder resets", () => {
+  const docs = [
+    '["ascii","","\\n\uFEFF","\uFEFF","é","😀","\\uD800","\\uD83D\\uDE00"]',
+    '{"":"ascii","\\n\uFEFF":"","é":"😀","\\uD800":"\\uD83D\\uDE00"}',
+  ];
+  for (const utf8 of ["reject", "replace"] as const) {
+    for (const doc of docs) {
+      it(`preserves adjacent strings and escapes under ${utf8}: ${doc}`, () => {
+        const bytes = enc.encode(doc);
+        const expected: unknown = JSON.parse(doc);
+        const whole = run(bytes, 0, { utf8 });
+        expect(whole.value).toEqual(expected);
+        for (let split = 0; split <= bytes.length; split++) {
+          const rec = new Recorder();
+          const tokenizer = new JsonTokenizer(rec, { utf8 });
+          tokenizer.write(bytes.subarray(0, split));
+          tokenizer.write(bytes.subarray(split));
+          tokenizer.end();
+          expect(rec.value).toEqual(expected);
+          expect(rec.events).toEqual(whole.events);
+        }
+        expect(run(bytes, 1, { utf8 }).events).toEqual(whole.events);
+      });
+    }
+  }
+});
+
 describe("JsonTokenizer value parity with JSON.parse for malformed UTF-8", () => {
   for (const [label, bytes] of MALFORMED_DOCS) {
     it(`reconstructs ${label}`, () => {
       const expected: unknown = JSON.parse(Buffer.from(bytes).toString("utf8"));
-      expect(run(bytes).value).toEqual(expected);
+      expect(run(bytes, 0, REPLACE).value).toEqual(expected);
     });
   }
 });
@@ -234,11 +308,11 @@ describe("JsonTokenizer value parity with JSON.parse for malformed UTF-8", () =>
 describe("JsonTokenizer chunk-boundary invariance for malformed UTF-8", () => {
   for (const [label, bytes] of MALFORMED_DOCS) {
     it(`same events + value at every chunk size for ${label}`, () => {
-      const whole = run(bytes);
+      const whole = run(bytes, 0, REPLACE);
       const expectedValue: unknown = JSON.parse(Buffer.from(bytes).toString("utf8"));
       expect(whole.value).toEqual(expectedValue);
       for (let size = 1; size <= bytes.length; size++) {
-        const rec = run(bytes, size);
+        const rec = run(bytes, size, REPLACE);
         expect(rec.events, `chunkSize=${size}`).toEqual(whole.events);
         expect(rec.value, `chunkSize=${size}`).toEqual(expectedValue);
       }

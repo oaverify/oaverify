@@ -42,6 +42,8 @@ export type PathFilter = JsonPath | ((path: JsonPath, kind: "object" | "array") 
  *     set the delegate compiles under.
  *   - **Format policy** (`unknownFormats`): what an unregistered
  *     `format` name does.
+ *   - **Input encoding** (`utf8`): whether malformed UTF-8 in the input
+ *     bytes fails the stream.
  *   - **Observability** (`keyEvents`, `valueEvents`, `warn`): opt-in,
  *     compile-time-gated channels.
  *   - **Resource limits** (`maxBufferedBytes`, `maxDepth`,
@@ -136,6 +138,22 @@ export interface StreamValidatorOptions {
    * See `CompileOptions.unknownFormats`.
    */
   unknownFormats?: "ignore" | "error";
+
+  /**
+   * Input encoding policy for strings and object keys.
+   *
+   * - `"reject"` (default): malformed UTF-8 rejects the stream and `result`
+   *   with a `JsonParseError` at the first byte of the malformed sequence.
+   * - `"replace"`: decode malformed sequences to U+FFFD and validate the
+   *   replacement text, matching `Buffer#toString`. This preserves the
+   *   previous behavior for closed ecosystems.
+   *
+   * Encoded U+FFFD and JSON surrogate escapes are accepted under either
+   * setting, subject to the schema. Bytes above 0x7F outside strings remain
+   * parse errors. The echoed bytes are unchanged by this option; abort or
+   * discard stored output when validation fails.
+   */
+  utf8?: "reject" | "replace";
 
   /**
    * Custom keywords registered with the in-memory compiler. A keyword

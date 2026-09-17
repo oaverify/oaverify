@@ -36,6 +36,26 @@ const validator = createStreamValidator(
 );
 ```
 
+## Input Encoding
+
+Malformed UTF-8 in a string or key fails the stream and rejects
+`validator.result` with a `JsonParseError` identifying the malformed
+sequence's first byte. For a closed ecosystem that needs the previous
+replacement behavior, set `utf8: "replace"`. See `StreamValidatorOptions.utf8`.
+
+```ts
+const validator = createStreamValidator(schema, { utf8: "replace" });
+```
+
+Under `"replace"`, schema validation sees U+FFFD replacement characters.
+A printable-ASCII pattern rejects that text; a permissive pattern accepts
+it. A sender's own encoded U+FFFD is valid UTF-8 under either setting.
+
+Already echoed bytes remain downstream, including malformed bytes in the
+chunk that failed. When storing output, use a staging location and promote
+it only after the pipeline completes and `validator.result` resolves valid.
+Abort or discard stored output when validation fails.
+
 ## Hooks
 
 `StreamValidatorOptions` is the source contract for the hook options,

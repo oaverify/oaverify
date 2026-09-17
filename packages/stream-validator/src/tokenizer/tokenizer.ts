@@ -12,6 +12,8 @@
  *   - **Match `JSON.parse`.** Numbers are JS doubles; lone surrogate
  *     escapes are accepted; trailing non-whitespace is rejected;
  *     multiple top-level texts are rejected.
+ *   - **Well-formed UTF-8, by default.** Malformed input fails with a
+ *     parse error. See `StreamValidatorOptions.utf8` for the encoding policy.
  *   - **A U+FEFF inside a string is content.** It survives decoding and
  *     reaches the handler, so a string keyword compares against what the
  *     sender wrote. A document-*leading* BOM is a parse error, which is
@@ -79,6 +81,59 @@ const CH_BACKSLASH = 0x5c;
 // string's end (avoids a per-string allocation).
 const EMPTY = new Uint8Array(0);
 
+/**
+ * Locate a sequence rejected by the decoder. `bytes` includes its held
+ * prefix, so the scan starts at a character boundary. Returns the input
+ * length if no malformed sequence is found.
+ */
+function firstIllFormedUtf8(bytes: Uint8Array): number {
+  const n = bytes.length;
+  let i = 0;
+  while (i < n) {
+    const b = bytes[i] as number;
+    if (b < 0x80) {
+      i++;
+      continue;
+    }
+    // Continuation bytes (0x80-0xbf), the overlong leads (0xc0, 0xc1)
+    // and the out-of-range leads (0xf5-0xff) can begin nothing.
+    let need: number;
+    let lo2 = 0x80;
+    let hi2 = 0xbf;
+    if (b >= 0xc2 && b <= 0xdf) need = 1;
+    else if (b >= 0xe0 && b <= 0xef) {
+      need = 2;
+      // 0xe0 80..9f is overlong; 0xed a0..bf encodes a surrogate.
+      if (b === 0xe0) lo2 = 0xa0;
+      else if (b === 0xed) hi2 = 0x9f;
+    } else if (b >= 0xf0 && b <= 0xf4) {
+      need = 3;
+      if (b === 0xf0) lo2 = 0x90; // 0xf0 80..8f is overlong
+      else if (b === 0xf4) hi2 = 0x8f; // past U+10FFFF
+    } else return i;
+    for (let k = 1; k <= need; k++) {
+      if (i + k >= n) return i;
+      const c = bytes[i + k] as number;
+      const lo = k === 1 ? lo2 : 0x80;
+      const hi = k === 1 ? hi2 : 0xbf;
+      if (c < lo || c > hi) return i;
+    }
+    i += need + 1;
+  }
+  return n;
+}
+
+/**
+ * Tokenizer construction options. Carries the subset of
+ * `StreamValidatorOptions` the byte layer decides.
+ *
+ * @internal
+ */
+export interface JsonTokenizerOptions {
+  /** See `StreamValidatorOptions.utf8`. Defaults to `"reject"`. */
+  utf8?: "reject" | "replace";
+}
+
 function isWhitespace(b: number): boolean {
   return b === CH_SPACE || b === CH_LF || b === CH_TAB || b === CH_CR;
 }
@@ -118,19 +173,13 @@ function countCodePoints(s: string): number {
  */
 export class JsonTokenizer {
   private readonly handler: JsonEventHandler;
-  // `ignoreBOM` keeps a U+FEFF that appears in the input instead of
-  // treating it as a byte-order mark. A `decode` with `{ stream: false }`
-  // ends the decode stream, so the next call starts a fresh one, and a
-  // fresh stream strips a U+FEFF that begins it. `scanStringBody` passes
-  // `stream: true` at a chunk end, which keeps the stream open, so the
-  // two run starts that follow an ended stream are a string's opening
-  // quote and the text after an escape. A BOM at either was deleted from
-  // the value the handler received (#851).
-  //
-  // The count agreed with the value both before and after, because the
-  // counter measures the decode's output (#852). The defect was the
-  // value alone.
-  private readonly decoder = new TextDecoder("utf-8", { ignoreBOM: true });
+  // `ignoreBOM` preserves U+FEFF when decoding restarts after a quote or
+  // escape (#851). Fatal decoding also checks the input encoding.
+  private readonly decoder: TextDecoder;
+  private readonly strictUtf8: boolean;
+  private readonly utf8Pending = new Uint8Array(3);
+  private utf8PendingLength = 0;
+  private utf8PendingOffset = 0;
 
   private state = ST_VALUE;
   private readonly stack: number[] = [];
@@ -158,8 +207,10 @@ export class JsonTokenizer {
   private litValue: boolean | null = null;
   private litPos = 0;
 
-  constructor(handler: JsonEventHandler) {
+  constructor(handler: JsonEventHandler, options: JsonTokenizerOptions = {}) {
     this.handler = handler;
+    this.strictUtf8 = options.utf8 !== "replace";
+    this.decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: this.strictUtf8 });
   }
 
   /**
@@ -363,7 +414,9 @@ export class JsonTokenizer {
       // Decode the literal run (streaming: a multibyte char split at the
       // chunk end is held by the decoder and completed next chunk).
       const atChunkEnd = i === n;
-      const text = this.decoder.decode(chunk.subarray(start, i), { stream: atChunkEnd });
+      const text = this.strictUtf8
+        ? this.decodeRunStrict(chunk.subarray(start, i), atChunkEnd, start)
+        : this.decoder.decode(chunk.subarray(start, i), { stream: atChunkEnd });
       // Count the decode's output. Counting input bytes missed a stray
       // continuation byte, which is no lead byte and one U+FFFD, so a
       // lead-byte count read a string of them as empty: `minLength`
@@ -382,33 +435,85 @@ export class JsonTokenizer {
     }
     if (i >= n) return i; // chunk exhausted mid-string
     const b = chunk[i] as number;
-    if (b === CH_QUOTE) return this.finishString(i);
-    // backslash. Flush before the escape, for the same reason
-    // `finishString` flushes before the closing quote: a `write` that
-    // begins at the backslash leaves `i === start`, so the branch above
-    // never decodes, and bytes the decoder still held would otherwise be
-    // completed by text arriving after the escape. The escape's own
-    // character would then be emitted ahead of them, and a truncated
-    // sequence would pair with a following continuation byte into a
-    // character the sender never sent. A non-empty run ending here
-    // already flushed: `atChunkEnd` is false, so its decode passed
-    // `stream: false` (#886).
-    this.flushHeldPartial(this.pos(i));
+    // A non-empty run ending at this delimiter already decoded with
+    // `stream: false`. Otherwise a partial from an earlier write still
+    // needs flushing before the quote or escape (#886).
+    const needsFlush = i === start;
+    if (b === CH_QUOTE) return this.finishString(i, needsFlush);
+    if (needsFlush) this.flushHeldPartial(this.pos(i));
     this.state = ST_IN_STRING_ESCAPE;
     return i + 1;
   }
 
-  // Ends the decode stream and emits whatever partial sequence it held,
-  // as U+FFFD per unpaired byte, matching `Buffer#toString`. Empty when
-  // the decoder held nothing, which is every well-formed boundary.
+  // Native decoding decides validity; only a failure scans for its location.
+  private decodeRunStrict(bytes: Uint8Array, atChunkEnd: boolean, start: number): string {
+    let text: string;
+    try {
+      text = this.decoder.decode(bytes, { stream: atChunkEnd });
+    } catch {
+      let offset = this.pos(start);
+      if (this.utf8PendingLength > 0) {
+        const joined = new Uint8Array(this.utf8PendingLength + bytes.length);
+        joined.set(this.utf8Pending.subarray(0, this.utf8PendingLength));
+        joined.set(bytes, this.utf8PendingLength);
+        bytes = joined;
+        offset = this.utf8PendingOffset;
+      }
+      throw new JsonParseError("malformed UTF-8 in string", offset + firstIllFormedUtf8(bytes));
+    }
+    if (atChunkEnd) this.holdUtf8Tail(bytes, this.pos(start) + bytes.length);
+    else this.utf8PendingLength = 0;
+    return text;
+  }
+
+  // After a successful streaming decode, only an incomplete suffix can
+  // remain held. Inspect at most three bytes, including the previous prefix
+  // when a character spans several short writes.
+  private holdUtf8Tail(bytes: Uint8Array, endOffset: number): void {
+    const previousLength = this.utf8PendingLength;
+    const end = previousLength + bytes.length;
+    for (let i = end - 1; i >= Math.max(0, end - 3); i--) {
+      const b = (i < previousLength ? this.utf8Pending[i] : bytes[i - previousLength]) as number;
+      if (b < 0x80) break;
+      if (b < 0xc0) continue;
+      const width = b < 0xe0 ? 2 : b < 0xf0 ? 3 : 4;
+      const length = end - i;
+      if (length >= width) break;
+      for (let k = 0; k < length; k++) {
+        const source = i + k;
+        this.utf8Pending[k] = (
+          source < previousLength ? this.utf8Pending[source] : bytes[source - previousLength]
+        ) as number;
+      }
+      this.utf8PendingLength = length;
+      this.utf8PendingOffset = endOffset - length;
+      return;
+    }
+    this.utf8PendingLength = 0;
+  }
+
+  // A quote or escape ends the decode stream. Any held partial must be
+  // rejected or emitted as replacement text before processing that boundary.
   private flushHeldPartial(offset: number): void {
-    const tail = this.decoder.decode(EMPTY, { stream: false });
+    const tail = this.strictUtf8
+      ? this.flushStrict()
+      : this.decoder.decode(EMPTY, { stream: false });
     if (tail.length === 0) return;
     this.strCodePoints += countCodePoints(tail);
     // Flushed text separates a `\uXXXX` high surrogate from any later
     // low one, exactly as a literal run does.
     this.pendingHighSurrogate = false;
     this.emitStringText(tail, offset);
+  }
+
+  private flushStrict(): string {
+    try {
+      const text = this.decoder.decode(EMPTY, { stream: false });
+      this.utf8PendingLength = 0;
+      return text;
+    } catch {
+      throw new JsonParseError("truncated UTF-8 sequence in string", this.utf8PendingOffset);
+    }
   }
 
   private emitStringText(text: string, offset: number): void {
@@ -486,13 +591,8 @@ export class JsonTokenizer {
     return i + 1;
   }
 
-  private finishString(i: number): number {
-    // Flush any UTF-8 partial held by the decoder. It can emit a U+FFFD
-    // the literal-run branch never saw: a `write` ending mid sequence
-    // followed by one starting with the closing quote leaves
-    // `i === start`, skipping that branch entirely. Counting only there
-    // left the string one code point short (#852).
-    this.flushHeldPartial(this.pos(i));
+  private finishString(i: number, needsFlush: boolean): number {
+    if (needsFlush) this.flushHeldPartial(this.pos(i));
     const endOffset = this.pos(i) + 1; // past the closing quote
     if (this.stringIsKey) {
       this.handler.onKey(this.keyBuf, this.strCodePoints, this.stringStart, endOffset);

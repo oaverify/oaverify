@@ -69,6 +69,11 @@ The default policy is `terminate` with `maxErrors: 1` (the first violation
 destroys the stream and rejects the `pipeline`); `detach` instead seals
 the verdict and raw-copies the tail.
 
+Malformed UTF-8 in strings or keys is a parse error. `utf8: "replace"`
+preserves the previous replacement decoding behavior. See
+[Input Encoding](../../docs/streaming.md#input-encoding) and
+`StreamValidatorOptions.utf8`.
+
 Count and length limits resolve as early as the input allows: an
 **over-limit** (`maxItems`, `maxProperties`, `maxLength`) fails at the
 offending element / key / code point, before the rest of the value
