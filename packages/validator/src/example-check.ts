@@ -78,8 +78,8 @@ export interface ExampleIssue {
   /**
    * - `"example-invalid"`: the schema rejects the example.
    * - `"example-uncheckable"`: nothing is known about the example
-   *   either way: the validator threw, or executing it was refused
-   *   because the schema reaches a pattern the caller's
+   *   either way: compiling or executing the validator threw, or
+   *   execution was refused because the schema reaches a pattern the caller's
    *   {@link CheckDocumentExamplesOptions.patternGuard} marked unsafe
    *   to run (#687).
    *
@@ -321,7 +321,10 @@ export interface CheckDocumentExamplesOptions {
  *
  * Compiles each distinct schema once, keyed by identity, so a component
  * reached from many operations costs one compile and yields one finding
- * per bad example rather than one per reference.
+ * per bad example rather than one per reference. If an eligible example's
+ * schema cannot compile, returns `example-uncheckable` at that example's
+ * pointer with the compilation reason and an empty `reasons` array.
+ * Independent examples continue to be checked.
  *
  * @param document - A resolved document: external `$ref`s already
  *   resolved, with schema targets hoisted into `components.schemas`.
@@ -345,7 +348,13 @@ export type PrepareExampleSchema = (schema: unknown) =>
     }
   | undefined;
 
-/** Validate examples with the document checker's resource context. @internal */
+/**
+ * Validate examples with the document checker's resource context.
+ * With `prepare`, unavailable units and compilation failures are withheld:
+ * the composed checker owns their schema or dialect findings. Without it,
+ * standalone compilation failures produce `example-uncheckable`.
+ * @internal
+ */
 export function checkDocumentExamplesInContext(
   document: OpenAPIDocument,
   options: CheckDocumentExamplesOptions,
@@ -489,8 +498,8 @@ export function checkDocumentExamplesInContext(
   const refResolver = lazyDocumentRefResolver(document, dialect);
 
   // Identity-keyed, so a component shared by 60 operations compiles
-  // once. `null` records "this one will not compile", which is asked
-  // again for every example on the same schema.
+  // once. A cached check also reports a standalone compile failure at each
+  // example location; `null` withholds a checker-owned unit.
   const compiled = new Map<unknown, ExampleCheck | null>();
 
   const checkerFor = (schema: unknown): ExampleCheck | null => {
@@ -563,9 +572,18 @@ export function checkDocumentExamplesInContext(
           context,
         ) as CompiledPredicate,
       };
-    } catch {
-      compiled.set(schema, null);
-      return null;
+    } catch (err) {
+      if (prepare !== undefined) {
+        compiled.set(schema, null);
+        return null;
+      }
+      const failure = uncheckable(err);
+      const check: ExampleCheck = () => ({
+        ...failure,
+        summary: `schema compilation failed: ${failure.summary}`,
+      });
+      compiled.set(schema, check);
+      return check;
     }
 
     const detail = (): CompiledSchema => {
