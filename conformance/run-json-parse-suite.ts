@@ -6,19 +6,12 @@
  * A clone of that repo lives under ./JSONTestSuite (gitignored; cloned
  * by `pnpm corpora:json-parse`). This script walks `test_parsing/*.json`,
  * whose filenames are prefixed `y_` (must accept), `n_` (must reject), or
- * `i_` (implementation-defined). The tokenizer's contract is to **match
- * `JSON.parse`**, so the oracle for every
- * case is `JSON.parse(bytes.toString("utf8"))`, not the filename label;
- * the label is reported for context.
+ * `i_` (implementation-defined). Each file is checked in both UTF-8
+ * modes against JSON.parse after decoding with the corresponding policy.
+ * The filename label is reported as context for the strict default.
  *
- * For each case it checks three things:
- *   1. accept/reject matches the `JSON.parse` oracle;
- *   2. the verdict is chunk-invariant (single-shot vs. a split feed,
- *      byte-by-byte for small inputs) - the streaming-specific property a
- *      static corpus does not otherwise exercise;
- *   3. for accepted cases, the reconstructed value matches `JSON.parse`
- *      (compared via `JSON.stringify` to neutralize representation
- *      quirks like Infinity / -0).
+ * A file passes when both modes match their oracle's verdict and value,
+ * and replaying split input preserves the verdict.
  *
  * Usage:
  *   pnpm tsx run-json-parse-suite.ts                  # run + write results
@@ -30,7 +23,10 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { assertPinned, corpusPath } from "./corpora.ts";
 import { writeBaseline } from "./baseline.ts";
-import type { JsonEventHandler } from "../packages/stream-validator/src/tokenizer/index.ts";
+import type {
+  JsonEventHandler,
+  JsonTokenizerOptions,
+} from "../packages/stream-validator/src/tokenizer/index.ts";
 import { JsonParseError, JsonTokenizer } from "../packages/stream-validator/src/tokenizer/index.ts";
 
 const SUITE = "JSONTestSuite";
@@ -45,6 +41,8 @@ const args = process.argv.slice(2);
 const checkBaseline = args.includes("--check-baseline");
 const filterArg = args.find((a) => a.startsWith("--filter="));
 const filterPattern = filterArg?.slice("--filter=".length);
+
+type Utf8Policy = NonNullable<JsonTokenizerOptions["utf8"]>;
 
 type Verdict = { accepted: true; value: unknown } | { accepted: false };
 
@@ -107,9 +105,9 @@ class ValueBuilder implements JsonEventHandler {
 }
 
 /** Tokenize `bytes` (single shot or split into `chunkSize` pieces). */
-function tokenize(bytes: Uint8Array, chunkSize: number): Verdict {
+function tokenize(bytes: Uint8Array, chunkSize: number, utf8: Utf8Policy): Verdict {
   const builder = new ValueBuilder();
-  const tok = new JsonTokenizer(builder);
+  const tok = new JsonTokenizer(builder, { utf8 });
   if (chunkSize <= 0) {
     tok.write(bytes);
   } else {
@@ -122,18 +120,26 @@ function tokenize(bytes: Uint8Array, chunkSize: number): Verdict {
 }
 
 /** Tokenizer verdict, swallowing JsonParseError as a clean reject. */
-function tokenizerVerdict(bytes: Uint8Array, chunkSize: number): Verdict | { crash: string } {
+function tokenizerVerdict(
+  bytes: Uint8Array,
+  chunkSize: number,
+  utf8: Utf8Policy,
+): Verdict | { crash: string } {
   try {
-    return tokenize(bytes, chunkSize);
+    return tokenize(bytes, chunkSize, utf8);
   } catch (err) {
     if (err instanceof JsonParseError) return { accepted: false };
     return { crash: (err as Error).message };
   }
 }
 
-function oracleVerdict(bytes: Uint8Array): Verdict {
+function oracleVerdict(bytes: Uint8Array, utf8: Utf8Policy): Verdict {
   try {
-    const value = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    const text =
+      utf8 === "reject"
+        ? new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes)
+        : Buffer.from(bytes).toString("utf8");
+    const value: unknown = JSON.parse(text);
     return { accepted: true, value };
   } catch {
     return { accepted: false };
@@ -151,7 +157,7 @@ interface Summary {
   total: number;
   pass: number;
   mismatches: Mismatch[];
-  // For context only: how often the JSON.parse oracle agrees with the
+  // For context only: how often the strict oracle agrees with the
   // suite's y_/n_ label (i_ excluded). Not a pass/fail signal.
   labelAgree: number;
   labelTotal: number;
@@ -179,61 +185,65 @@ function run(): Summary {
   for (const file of files) {
     const label = file[0] as string; // y / n / i
     const bytes = readFileSync(join(PARSING_DIR, file));
-    const oracle = oracleVerdict(bytes);
+    const strictOracle = oracleVerdict(bytes, "reject");
 
     if (label === "y" || label === "n") {
       summary.labelTotal += 1;
-      if ((label === "y") === oracle.accepted) summary.labelAgree += 1;
+      if ((label === "y") === strictOracle.accepted) summary.labelAgree += 1;
     }
 
     summary.total += 1;
-    const single = tokenizerVerdict(bytes, 0);
+    const previousMismatches = summary.mismatches.length;
+    for (const utf8 of ["reject", "replace"] as const) {
+      const oracle = utf8 === "reject" ? strictOracle : oracleVerdict(bytes, utf8);
+      const single = tokenizerVerdict(bytes, 0, utf8);
 
-    if ("crash" in single) {
-      summary.mismatches.push({ file, label, kind: "crash", detail: single.crash });
-      continue;
-    }
-    if (single.accepted !== oracle.accepted) {
-      summary.mismatches.push({
-        file,
-        label,
-        kind: "verdict",
-        detail: `tokenizer ${single.accepted ? "accepted" : "rejected"}, JSON.parse ${oracle.accepted ? "accepted" : "rejected"}`,
-      });
-      continue;
-    }
-    // Chunk-invariance of the verdict (and value, if accepted).
-    let chunkOk = true;
-    for (const size of replayChunkSizes(bytes.length)) {
-      const split = tokenizerVerdict(bytes, size);
-      if ("crash" in split || split.accepted !== single.accepted) {
-        summary.mismatches.push({
-          file,
-          label,
-          kind: "chunk-variance",
-          detail: `chunkSize=${size} diverged from single-shot`,
-        });
-        chunkOk = false;
-        break;
+      if ("crash" in single) {
+        summary.mismatches.push({ file, label, kind: "crash", detail: `${utf8}: ${single.crash}` });
+        continue;
       }
-    }
-    if (!chunkOk) continue;
-
-    // Value parity for accepted cases.
-    if (single.accepted && oracle.accepted) {
-      const a = JSON.stringify(single.value);
-      const b = JSON.stringify(oracle.value);
-      if (a !== b) {
+      if (single.accepted !== oracle.accepted) {
         summary.mismatches.push({
           file,
           label,
-          kind: "value",
-          detail: `tokenizer ${a} vs JSON.parse ${b}`,
+          kind: "verdict",
+          detail: `${utf8}: tokenizer ${single.accepted ? "accepted" : "rejected"}, oracle ${oracle.accepted ? "accepted" : "rejected"}`,
         });
         continue;
       }
+      // Chunk-invariance of the verdict.
+      let chunkOk = true;
+      for (const size of replayChunkSizes(bytes.length)) {
+        const split = tokenizerVerdict(bytes, size, utf8);
+        if ("crash" in split || split.accepted !== single.accepted) {
+          summary.mismatches.push({
+            file,
+            label,
+            kind: "chunk-variance",
+            detail: `${utf8}: chunkSize=${size} diverged from single-shot`,
+          });
+          chunkOk = false;
+          break;
+        }
+      }
+      if (!chunkOk) continue;
+
+      // Value parity for accepted cases.
+      if (single.accepted && oracle.accepted) {
+        const a = JSON.stringify(single.value);
+        const b = JSON.stringify(oracle.value);
+        if (a !== b) {
+          summary.mismatches.push({
+            file,
+            label,
+            kind: "value",
+            detail: `${utf8}: tokenizer ${a} vs JSON.parse ${b}`,
+          });
+          continue;
+        }
+      }
     }
-    summary.pass += 1;
+    if (summary.mismatches.length === previousMismatches) summary.pass += 1;
   }
   return summary;
 }
@@ -241,10 +251,10 @@ function run(): Summary {
 const summary = run();
 
 console.log(
-  `JSONTestSuite/test_parsing: ${summary.pass}/${summary.total} match the JSON.parse oracle`,
+  `JSONTestSuite/test_parsing: ${summary.pass}/${summary.total} match in both UTF-8 modes`,
 );
 console.log(
-  `(label context: ${summary.labelAgree}/${summary.labelTotal} y_/n_ cases agree with JSON.parse)`,
+  `(label context: ${summary.labelAgree}/${summary.labelTotal} y_/n_ cases agree with strict UTF-8 + JSON.parse)`,
 );
 if (summary.mismatches.length > 0) {
   console.log(`\n${summary.mismatches.length} mismatch(es):`);
