@@ -1,4 +1,5 @@
 import { quoteString } from "../codegen/index.js";
+import { anyOfKeyword, oneOfKeyword } from "./composition.js";
 import { computeDiscriminatorRoutes } from "./discriminator-routes.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { APPLICATOR_VOCAB } from "./vocabulary-uris.js";
@@ -8,12 +9,13 @@ import { APPLICATOR_VOCAB } from "./vocabulary-uris.js";
  * present alongside `oneOf` (or `anyOf`), the validator reads the named
  * property, routes on it (via `mapping`, or via the implicit name each
  * branch `$ref`'s last segment supplies), and validates the data against
- * ONLY the selected branch, producing a single-branch failure tree
- * rather than N branches.
+ * the selected branch, producing a single-branch failure tree. Non-object
+ * values use normal `oneOf` / `anyOf` validation because they have no
+ * discriminator property to route on.
  *
  * @remarks
- * When `discriminator` is present the normal `oneOf` / `anyOf` pathway
- * is suppressed via the `implements` field.
+ * A usable `discriminator` replaces the normal `oneOf` / `anyOf` pathway
+ * via `implements`, emitting composition checks in its non-object fallback.
  *
  * @specCites OpenAPI 3.1 Discriminator Object, https://spec.openapis.org/oas/v3.1.0#discriminator-object
  * @specBoundary resolves
@@ -129,6 +131,14 @@ export const discriminatorKeyword: KeywordDefinition = {
             gi.line(`    }`);
           },
         );
+      },
+      () => {
+        if (ctx.parentSchema.oneOf !== undefined) {
+          oneOfKeyword.compile({ ...ctx, schema: ctx.parentSchema.oneOf });
+        }
+        if (ctx.parentSchema.anyOf !== undefined) {
+          anyOfKeyword.compile({ ...ctx, schema: ctx.parentSchema.anyOf });
+        }
       },
     );
   },

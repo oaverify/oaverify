@@ -37,6 +37,35 @@ async function compileModule<T = unknown>(
 }
 
 describe("emitStandalone", () => {
+  it.each(["openapi-3.0", "openapi-3.1"] as const)(
+    "emits the non-object discriminator fallback under %s",
+    async (dialect) => {
+      for (const keyword of ["oneOf", "anyOf"] as const) {
+        const { validate, dir } = await compileModule(
+          {
+            $defs: {
+              A: { type: "number" },
+              B: { type: "integer" },
+              Cat: { type: "object", required: ["lives"] },
+            },
+            [keyword]: [{ $ref: "#/$defs/A" }, { $ref: "#/$defs/B" }, { $ref: "#/$defs/Cat" }],
+            discriminator: { propertyName: "kind" },
+          },
+          { dialect },
+        );
+        try {
+          expect(validate(1.5).valid).toBe(true);
+          expect(validate(42).valid).toBe(keyword === "anyOf");
+          for (const value of [null, "cat", [], true]) expect(validate(value).valid).toBe(false);
+          expect(validate({ kind: "Cat", lives: 9 }).valid).toBe(true);
+          expect(validate({ kind: "Cat" }).valid).toBe(false);
+        } finally {
+          await rm(dir, { recursive: true });
+        }
+      }
+    },
+  );
+
   it("round-trips a simple schema (2020-12): accepts valid, rejects invalid", async () => {
     const schema: SchemaOrBoolean = {
       type: "object",

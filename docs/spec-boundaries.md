@@ -571,7 +571,7 @@ permission to bypass schema checks for an empty value.
 
 ### packages/schema
 
-**`discriminatorKeyword`** ([packages/schema/src/keywords/discriminator.ts:6](../packages/schema/src/keywords/discriminator.ts#L6))
+**`discriminatorKeyword`** ([packages/schema/src/keywords/discriminator.ts:7](../packages/schema/src/keywords/discriminator.ts#L7))
 
 Against OpenAPI 3.1 Discriminator Object (<https://spec.openapis.org/oas/v3.1.0#discriminator-object>).
 

@@ -376,9 +376,9 @@ describe("predicate mode: discriminator (OAS 3.1)", () => {
     expect(p.validate({ kind: "cat", meow: "not-a-bool" })).toBe(false);
     expect(p.validate({ kind: "fish" })).toBe(false);
     expect(p.validate({ kind: 42 })).toBe(false);
-    // Non-object data is vacuously valid; discriminator only activates
-    // on objects; the schema has no sibling `type: "object"` constraint,
-    // so that matches tree-mode semantics.
+    expect(p.validate(42)).toBe(false);
+    expect(p.validate(null)).toBe(false);
+    expect(p.validate([])).toBe(false);
   });
 });
 
