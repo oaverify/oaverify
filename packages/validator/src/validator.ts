@@ -1346,11 +1346,9 @@ export function createValidator(
   //   (3) valid 3.x major but unknown minor (e.g. "3.7.0"): forward
   //       compat, governed by `onUnknownVersion`
   //
-  // `dialect` outranks all three, on every branch. Consulted only where
-  // detection fails, it is read and discarded on any spec that declares
-  // a version, which leaves a custom Dialect no way in at all (#534).
-  // Detection runs regardless and fills `detectedVersion`: the option
-  // decides what compiles, and the document decides what it says it is.
+  // An explicit `dialect` takes precedence whether detection succeeds or
+  // fails. Detection still fills `detectedVersion` from the document;
+  // the override selects the compiler dialect.
   const detectedVersion = detectOpenAPIVersion(spec);
   const dialect: Dialect = (() => {
     if (detectedVersion !== undefined) return options.dialect ?? dialectFor(detectedVersion);
