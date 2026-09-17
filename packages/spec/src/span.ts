@@ -33,11 +33,12 @@
 /**
  * A position in a source document.
  *
- * `line` and `column` are 1-based; `offset` is 0-based. All three count
- * **UTF-16 code units**, which is what JavaScript string indices are,
- * what SARIF `region` counts by default, and what LSP negotiates to by
- * default. A consumer that wants code points (a terminal drawing a
- * caret, say) converts at its own edge.
+ * `line` and `column` are 1-based; `offset` is 0-based. Columns and offsets
+ * count **UTF-16 code units**, matching JavaScript string indices and
+ * LSP's default position encoding. SARIF producers must declare
+ * `columnKind: "utf16CodeUnits"` when using these columns. A consumer
+ * that wants code points (a terminal drawing a caret, say) converts at
+ * its own edge.
  *
  * `offset` is here because both SARIF (`charOffset` / `charLength`) and
  * `text.slice(start.offset, end.offset)` want it, and every backend

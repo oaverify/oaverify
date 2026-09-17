@@ -38,9 +38,9 @@ conforming implementation choice.
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 6 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 3 |
-| [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 7 |
+| [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 6 |
 
-56 documented entries across 31 files.
+55 documented entries across 30 files.
 
 ## under-asserts
 
@@ -609,18 +609,6 @@ unspecified, so the result here depends on the schema.
 ## defers
 
 The cited spec requires it and this does not implement it yet.
-
-### packages/check
-
-**`renderSarif`** ([packages/check/src/sarif.ts:379](../packages/check/src/sarif.ts#L379))
-
-Against SARIF 2.1.0 Errata 01 section 3.14.27 (<https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html#_Toc141790761>).
-
-Tools reading the generated SARIF report can highlight the wrong text
-after a character such as an emoji. The report measures columns in UTF-16
-code units but omits `columnKind`, which tells readers how to count them.
-SARIF requires that field when a run has results. Adding `columnKind:
-"utf16CodeUnits"` is tracked in #1091.
 
 ### packages/formats
 

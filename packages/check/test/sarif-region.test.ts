@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SourceSpan } from "@oaverify/internal-spec";
+import { createSourceSpanResolver, type SourceSpan } from "@oaverify/internal-spec";
+import { createJsonSpanBackend } from "@oaverify/syntax";
 import type { CheckFinding } from "../src/finding.js";
 import { renderSarif } from "../src/sarif.js";
 
@@ -24,7 +25,10 @@ interface SarifLoc {
   physicalLocation: { artifactLocation: { uri: string }; region?: SarifRegion };
 }
 interface SarifLog {
-  runs: { results: { locations: SarifLoc[]; relatedLocations?: SarifLoc[] }[] }[];
+  runs: {
+    columnKind: string;
+    results: { locations: SarifLoc[]; relatedLocations?: SarifLoc[] }[];
+  }[];
 }
 
 const FINDING: CheckFinding = {
@@ -140,5 +144,52 @@ describe("renderSarif emits a region only when a caller supplies one", () => {
 
     expect(asked).toEqual([]);
     expect(only(log)?.locations).toEqual([]);
+  });
+});
+
+describe("renderSarif declares UTF-16 column units", () => {
+  it.each([undefined, () => undefined, () => span(13, 220)])(
+    "declares units with span lookup %s",
+    (spanOf) => {
+      const log = render({ base: BASE, classes: ["hygiene"], spanOf });
+      expect(log.runs[0]?.columnKind).toBe("utf16CodeUnits");
+    },
+  );
+
+  it("declares units for findings without source addresses", () => {
+    const log = JSON.parse(
+      renderSarif([{ ...FINDING, target: undefined }], { classes: ["hygiene"] }),
+    ) as SarifLog;
+    expect(log.runs[0]?.columnKind).toBe("utf16CodeUnits");
+    expect(only(log)?.locations).toEqual([]);
+  });
+
+  it("declares units for an empty run", () => {
+    const log = JSON.parse(renderSarif([], { classes: ["hygiene"] })) as SarifLog;
+    expect(log.runs[0]?.columnKind).toBe("utf16CodeUnits");
+    expect(log.runs[0]?.results).toEqual([]);
+  });
+
+  it("preserves source positions after an astral character", () => {
+    const text = '{"emoji":"😀","components":{"schemas":{"Order":false}}}';
+    const resolver = createSourceSpanResolver({
+      texts: { textFor: () => ({ text, syntax: "json" }) },
+      backends: [createJsonSpanBackend()],
+    });
+    const log = render({
+      base: BASE,
+      classes: ["hygiene"],
+      spanOf: (request) => resolver.spansFor([request])[0],
+    });
+    const offset = text.indexOf('"Order"');
+    expect(log.runs[0]?.columnKind).toBe("utf16CodeUnits");
+    expect(only(log)?.locations[0]?.physicalLocation.region).toEqual({
+      startLine: 1,
+      startColumn: offset + 1,
+      endLine: 1,
+      endColumn: offset + 8,
+      charOffset: offset,
+      charLength: 7,
+    });
   });
 });
