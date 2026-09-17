@@ -110,6 +110,8 @@ function inlineDocumentRefChain(doc: OpenAPIDocument, schema: SchemaObject): Sch
     seen.add(current);
     const target = resolveRef(doc as unknown as SchemaObject, current.$ref);
     if (target === undefined) return schema;
+    // Extraction retains the stream engine's document-root ref model;
+    // relative refs are not rebound to an enclosing $id (see #1090).
     if (resolveRef(carried, current.$ref) === undefined) needsInlining = true;
     const { $ref: _ref, ...own } = current;
     if (Object.keys(own).length > 0) siblings.push(own);
@@ -125,8 +127,10 @@ function inlineDocumentRefChain(doc: OpenAPIDocument, schema: SchemaObject): Sch
  * Shape a body schema for classification, carrying the document's
  * `components` so internal refs resolve. Modern schemas retain their ref
  * siblings. Top-level refs outside components are inlined as conjunctions
- * against the document. Under 3.0, dereference first so sibling suppression cannot
- * discard the carried container. Boolean schemas pass through unchanged.
+ * against the document. Classifier error paths and analyzer positions can
+ * therefore name generated `allOf` branches, describing the extracted schema.
+ * Under 3.0, dereference first so sibling suppression cannot discard the
+ * carried container. Boolean schemas pass through unchanged.
  */
 export function carryComponents(
   doc: OpenAPIDocument,

@@ -150,7 +150,9 @@ function literalBytes(value: unknown): number {
 type Contribution =
   | { kind: "zero" }
   | { kind: "island"; path: string; keyword: string; intrinsic: ByteSize; unboundedBy?: string }
-  | { kind: "max" | "parallel"; parts: Contribution[] }
+  | { kind: "max"; parts: Contribution[] }
+  // Sum child contributions without reporting a position of its own.
+  | { kind: "parallel"; parts: Contribution[] }
   | { kind: "sum"; path: string; keyword: string; parts: Contribution[] };
 
 /** Collapse a contribution to a size; `capIsland` maps each island's intrinsic size. */
@@ -583,6 +585,9 @@ function walk(
  * across a reference chain can remain conservatively unbounded when their
  * structural intersection is not modeled. Separate ref obligations are
  * summed conservatively because overlapping members can tee concurrently.
+ * This also affects direct schema analysis: separate ref obligations on
+ * sequential object members can receive a higher budget even when forward
+ * validation shares storage. It applies to schemas beyond operation bodies.
  *
  * Wire-byte sizes are an upper-bound estimate (see the module overview),
  * not a guaranteed ceiling. An `"unbounded"` position is the headline

@@ -52,6 +52,11 @@ export interface OperationLocator {
  * `$ref`s resolve. Schema siblings at the use site and along a reference
  * chain apply in 3.1 and 3.2; 3.0 discards them.
  *
+ * Top-level reference chains pointing outside `components` are inlined as
+ * conjunctions. A classifier error can name a generated path such as
+ * `allOf[0]`; that path describes the extracted schema. Relative references
+ * retain the stream engine's document-root resolution model.
+ *
  * ```ts
  * import { resolveSpec } from "@oaverify/core/spec";
  * import { streamValidatorForOperation } from "@oaverify/stream";

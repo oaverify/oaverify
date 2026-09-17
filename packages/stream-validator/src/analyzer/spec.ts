@@ -158,7 +158,10 @@ function bodiesForOperation(
  * `options.openApiVersion`) and applied to every body; other options
  * (`maxBufferedBytes`, `dialect`, ...) thread through to
  * {@link analyzeStreamability}. Schema ref siblings contribute to each
- * body budget in 3.1 and 3.2; 3.0 discards them.
+ * body budget in 3.1 and 3.2; 3.0 discards them. Top-level reference chains
+ * outside `components` are inlined as conjunctions, so reported positions
+ * and classifier error paths can name generated `allOf` branches in the
+ * extracted schema.
  *
  * Operations with no body schema are omitted. A body whose schema cannot be
  * classified is reported with `error` set rather than throwing, so a sweep
