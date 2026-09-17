@@ -279,7 +279,7 @@ only when they share a method.
 
 ### packages/schema
 
-**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1260](../packages/schema/src/compiler/compiler.ts#L1260))
+**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1271](../packages/schema/src/compiler/compiler.ts#L1271))
 
 Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.3>).
 
@@ -316,7 +316,7 @@ Against RFC 3986 section 2.1 (<https://www.rfc-editor.org/rfc/rfc3986#section-2.
 Malformed percent escapes such as `%ZZ` are passed through to schema
 validation unchanged. RFC 3986 requires two hexadecimal digits after `%`.
 
-**`maxFormatLength`** ([packages/validator/src/validator.ts:844](../packages/validator/src/validator.ts#L844))
+**`maxFormatLength`** ([packages/validator/src/validator.ts:847](../packages/validator/src/validator.ts#L847))
 
 Against JSON Schema 2020-12 validation section 7 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7>).
 
@@ -408,7 +408,7 @@ trailing slashes.
 
 ### packages/schema
 
-**`maxDepth`** ([packages/schema/src/compiler/compiler.ts:1175](../packages/schema/src/compiler/compiler.ts#L1175))
+**`maxDepth`** ([packages/schema/src/compiler/compiler.ts:1181](../packages/schema/src/compiler/compiler.ts#L1181))
 
 Against JSON Schema 2020-12 core section 8.2.3 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3>).
 
@@ -444,7 +444,7 @@ resource use.
 
 ### packages/validator
 
-**`maxDepth`** ([packages/validator/src/validator.ts:818](../packages/validator/src/validator.ts#L818))
+**`maxDepth`** ([packages/validator/src/validator.ts:821](../packages/validator/src/validator.ts#L821))
 
 Against JSON Schema 2020-12 core section 8.2.3 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3>).
 
@@ -567,7 +567,7 @@ explicitly lets tooling decide how to resolve ambiguous matches.
 
 ### packages/schema
 
-**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1260](../packages/schema/src/compiler/compiler.ts#L1260))
+**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1271](../packages/schema/src/compiler/compiler.ts#L1271))
 
 Against JSON Schema 2020-12 validation section 7 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7>).
 

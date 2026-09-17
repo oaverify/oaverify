@@ -1050,19 +1050,22 @@ export type CompiledPredicate = Omit<CompiledSchema, "validate"> & {
 /**
  * Options accepted by {@link compileSchema}.
  *
- * @remarks
- * Ordering convention (shared with `@oaverify/core`'s
- * `ValidatorOptions`):
+ * Field groups, in declaration order:
  *
  *   1. Compile essentials: `dialect`.
  *   2. Shared extension points: `formats`, `keywords`.
  *   3. Error-collection policy: `output`, `maxErrors`.
- *   4. Surface-specific extras last: here, `external`, `refResolver`.
+ *   4. Resource limits: `maxDepth`, `maxFormatLength`.
+ *   5. Schema lint: `schemaLint`.
+ *   6. Format and regex policy: `unknownFormats`, `regexCompiler`.
+ *   7. Schema compilation context: `retainSource`, `label`, `pointer`,
+ *      `anchor`, `external`, `refResolver`.
  *
- * Options common to both surfaces share names and positions so a
- * reader of one declaration can predict the other. When adding a new
- * option, put it in the section that matches its role and use the
- * same name on the validator side if the concept applies there too.
+ * @remarks
+ * Common option groups follow the same order as `@oaverify/core`'s
+ * `ValidatorOptions`; each surface can add its own fields within them.
+ * Use the same name for a shared concept and keep related settings
+ * together when adding an option.
  *
  * @public
  */
@@ -1172,6 +1175,9 @@ export interface CompileOptions {
    * `compileSchema` throws on `maxErrors <= 0`.
    */
   maxErrors?: number;
+
+  // --- 4. Resource limits ---
+
   /**
    * Cap on recursion depth through `$ref` cycles per `validate()` call.
    * Defaults to uncapped.
@@ -1234,6 +1240,9 @@ export interface CompileOptions {
    * otherwise.
    */
   maxFormatLength?: number;
+
+  // --- 5. Schema lint ---
+
   /**
    * Compile-time schema linting. All modes collect their findings to
    * {@link CompileStats.schemaLintIssues} rather than throwing.
@@ -1256,6 +1265,8 @@ export interface CompileOptions {
    *   `$`-prefixed metadata). Catches typos like `minimumx: 5`.
    */
   schemaLint?: "off" | "warn" | "strict";
+
+  // --- 6. Format and regex policy ---
 
   /**
    * What to do about a `format` with no validator registered under its
@@ -1292,6 +1303,29 @@ export interface CompileOptions {
    *
    */
   unknownFormats?: "ignore" | "error";
+  /**
+   * Custom compiler for schema `pattern` keywords and the `format:
+   * "regex"` assertion. Defaults to `new RegExp(pattern, "u")` with a
+   * non-`u` fallback. Override to plug in a library like `re2`, wrap
+   * with a complexity check, or reject patterns that fail a
+   * safe-regex analysis.
+   *
+   * JavaScript's built-in `RegExp` has no execution timeout, so a
+   * catastrophic pattern like `(a+)+$` is a denial-of-service vector
+   * against any string the validator checks. Reach for this option
+   * when the spec is attacker-controlled (multi-tenant SaaS,
+   * spec-editing tools, mock-as-a-service).
+   *
+   * The runtime only reads `.test(s: string): boolean` off the
+   * returned object; built-in `RegExp` already satisfies the shape.
+   * Memoization is split by audience: schema `pattern` strings cache
+   * for the validator's lifetime (bounded by spec size), `format:
+   * "regex"` runs the compiler per call (runtime values are not).
+   * See {@link RegexCompiler}.
+   */
+  regexCompiler?: RegexCompiler;
+
+  // --- 7. Schema compilation context ---
 
   /**
    * Whether the compiled validator keeps the generated source that
@@ -1311,8 +1345,6 @@ export interface CompileOptions {
    * 2271 units (#624).
    */
   retainSource?: boolean;
-
-  // --- 4. Schema-compile-specific extras ---
 
   /**
    * Names what is being compiled, for callers that compile many schemas
@@ -1402,27 +1434,6 @@ export interface CompileOptions {
    * participate.
    */
   refResolver?: RefResolver;
-  /**
-   * Custom compiler for schema `pattern` keywords and the `format:
-   * "regex"` assertion. Defaults to `new RegExp(pattern, "u")` with a
-   * non-`u` fallback. Override to plug in a library like `re2`, wrap
-   * with a complexity check, or reject patterns that fail a
-   * safe-regex analysis.
-   *
-   * JavaScript's built-in `RegExp` has no execution timeout, so a
-   * catastrophic pattern like `(a+)+$` is a denial-of-service vector
-   * against any string the validator checks. Reach for this option
-   * when the spec is attacker-controlled (multi-tenant SaaS,
-   * spec-editing tools, mock-as-a-service).
-   *
-   * The runtime only reads `.test(s: string): boolean` off the
-   * returned object; built-in `RegExp` already satisfies the shape.
-   * Memoization is split by audience: schema `pattern` strings cache
-   * for the validator's lifetime (bounded by spec size), `format:
-   * "regex"` runs the compiler per call (runtime values are not).
-   * See {@link RegexCompiler}.
-   */
-  regexCompiler?: RegexCompiler;
 }
 
 /** @internal */
