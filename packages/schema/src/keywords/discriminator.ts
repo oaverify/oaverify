@@ -1,4 +1,5 @@
 import { quoteString } from "../codegen/index.js";
+import { anyOfKeyword, oneOfKeyword } from "./composition.js";
 import { computeDiscriminatorRoutes } from "./discriminator-routes.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { APPLICATOR_VOCAB } from "./vocabulary-uris.js";
@@ -8,15 +9,18 @@ import { APPLICATOR_VOCAB } from "./vocabulary-uris.js";
  * present alongside `oneOf` (or `anyOf`), the validator reads the named
  * property, routes on it (via `mapping`, or via the implicit name each
  * branch `$ref`'s last segment supplies), and validates the data against
- * ONLY the selected branch, producing a single-branch failure tree
- * rather than N branches.
+ * the selected branch, producing a single-branch failure tree. Non-object
+ * values use normal `oneOf` / `anyOf` validation because they have no
+ * discriminator property to route on.
  *
  * @remarks
- * When `discriminator` is present the normal `oneOf` / `anyOf` pathway
- * is suppressed via the `implements` field.
+ * A usable `discriminator` routes objects through `oneOf` when present,
+ * otherwise through `anyOf`. Non-object values check every co-located
+ * composition keyword through its ordinary compiler.
  *
  * @specCites OpenAPI 3.1 Discriminator Object, https://spec.openapis.org/oas/v3.1.0#discriminator-object
- * @specBoundary resolves
+ * @specCites JSON Schema 2020-12 anyOf, https://json-schema.org/draft/2020-12/json-schema-core#section-10.2.1.2
+ * @specBoundary resolves https://spec.openapis.org/oas/v3.1.0#discriminator-object
  * If a `discriminator` cannot match its values to the schemas in `oneOf` or
  * `anyOf`, it is ignored and normal branch validation applies. A
  * discriminator uses a payload field to select a schema; OpenAPI does not
@@ -24,6 +28,11 @@ import { APPLICATOR_VOCAB } from "./vocabulary-uris.js";
  * `silent-rewrite/discriminator-unroutable` so the author can find the
  * unused mapping. This can happen when a bundled document retains mappings
  * to the original files (#561).
+ * @specBoundary under-asserts https://json-schema.org/draft/2020-12/json-schema-core#section-10.2.1.2
+ * When both `oneOf` and `anyOf` accompany a usable discriminator, routed
+ * objects skip `anyOf`. An object can pass even when `anyOf` accepts only
+ * booleans. JSON Schema requires at least one `anyOf` branch to accept the
+ * instance. This separate object-path defect is tracked in #1124.
  *
  * @public
  */
@@ -129,6 +138,16 @@ export const discriminatorKeyword: KeywordDefinition = {
             gi.line(`    }`);
           },
         );
+      },
+      () => {
+        // Reuse ordinary composition semantics in the same emitter scope.
+        // Only the keyword value changes; the surrounding schema stays shared.
+        if (ctx.parentSchema.oneOf !== undefined) {
+          oneOfKeyword.compile({ ...ctx, schema: ctx.parentSchema.oneOf });
+        }
+        if (ctx.parentSchema.anyOf !== undefined) {
+          anyOfKeyword.compile({ ...ctx, schema: ctx.parentSchema.anyOf });
+        }
       },
     );
   },

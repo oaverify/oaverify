@@ -33,14 +33,14 @@ conforming implementation choice.
 
 | kind | meaning | entries |
 | ---- | ------- | ----- |
-| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 25 |
+| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 26 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 6 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 3 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 7 |
 
-55 documented entries across 31 files.
+56 documented entries across 31 files.
 
 ## under-asserts
 
@@ -278,6 +278,15 @@ by default while other schema constraints still apply. These dialects
 enable Format-Assertion, the JSON Schema rules for checking formats,
 which require unknown names to cause an error. Set `unknownFormats:
 "error"` to reject schemas containing them.
+
+**`discriminatorKeyword`** ([packages/schema/src/keywords/discriminator.ts:7](../packages/schema/src/keywords/discriminator.ts#L7))
+
+Against JSON Schema 2020-12 anyOf (<https://json-schema.org/draft/2020-12/json-schema-core#section-10.2.1.2>).
+
+When both `oneOf` and `anyOf` accompany a usable discriminator, routed
+objects skip `anyOf`. An object can pass even when `anyOf` accepts only
+booleans. JSON Schema requires at least one `anyOf` branch to accept the
+instance. This separate object-path defect is tracked in #1124.
 
 **`multipleOfKeyword`** ([packages/schema/src/keywords/number.ts:32](../packages/schema/src/keywords/number.ts#L32))
 
@@ -571,7 +580,7 @@ permission to bypass schema checks for an empty value.
 
 ### packages/schema
 
-**`discriminatorKeyword`** ([packages/schema/src/keywords/discriminator.ts:6](../packages/schema/src/keywords/discriminator.ts#L6))
+**`discriminatorKeyword`** ([packages/schema/src/keywords/discriminator.ts:7](../packages/schema/src/keywords/discriminator.ts#L7))
 
 Against OpenAPI 3.1 Discriminator Object (<https://spec.openapis.org/oas/v3.1.0#discriminator-object>).
 

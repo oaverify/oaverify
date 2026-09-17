@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SchemaOrBoolean } from "@oaverify/internal-core";
+import type { SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
 import { compileSchema } from "../src/compiler/compiler.js";
 import { computeDiscriminatorRoutes } from "../src/keywords/discriminator-routes.js";
 import { keywordDefinitions } from "../src/introspection.js";
@@ -165,6 +165,87 @@ describe("discriminator routing", () => {
       });
       expect(compiled.validate({ type: "a" }).valid).toBe(false);
     });
+  });
+
+  describe.each([oas30Dialect, openapi31Dialect, jsonSchemaDialect])(
+    "non-object composition under $name",
+    (dialect) => {
+      for (const keyword of ["oneOf", "anyOf"] as const) {
+        for (const output of ["flat", "tree", "predicate"] as const) {
+          for (const maxErrors of output === "predicate" ? [Infinity] : [1, 2, Infinity]) {
+            it(`${keyword}, ${output}, budget ${maxErrors}: preserves composition results`, () => {
+              const schemas: SchemaObject[] = [
+                {
+                  $defs: { Cat, Dog },
+                  [keyword]: [{ $ref: "#/$defs/Cat" }, { $ref: "#/$defs/Dog" }],
+                },
+                {
+                  $defs: { A: { type: "number" }, B: { type: "integer" } },
+                  [keyword]: [{ $ref: "#/$defs/A" }, { $ref: "#/$defs/B" }],
+                },
+                {
+                  $defs: { A: { enum: [null, true, "yes", [1]] } },
+                  [keyword]: [{ $ref: "#/$defs/A" }, { type: "number" }],
+                },
+              ];
+              for (const schema of schemas) {
+                const options = { dialect, output, maxErrors };
+                const plain = compileSchema(schema, options);
+                const routed = compileSchema(
+                  { ...schema, discriminator: { propertyName: "type" } },
+                  options,
+                );
+                for (const value of [42, 1.5, "yes", "no", null, true, false, [], [1], [2]]) {
+                  expect(routed.validate(value)).toEqual(plain.validate(value));
+                }
+              }
+            });
+          }
+        }
+      }
+    },
+  );
+
+  it.each(["flat", "tree", "predicate"] as const)(
+    "preserves array annotations and nested paths in %s mode",
+    (output) => {
+      for (const keyword of ["oneOf", "anyOf"] as const) {
+        const valueSchema: SchemaObject = {
+          [keyword]: [{ $ref: "#/$defs/A" }, { type: "string" }],
+          unevaluatedItems: false,
+        };
+        const schema: SchemaObject = {
+          $defs: { A: { type: "array", prefixItems: [{ type: "number" }] } },
+          properties: { value: valueSchema },
+        };
+        const options = { dialect: openapi31Dialect, output };
+        const plain = compileSchema(schema, options);
+        const routed = compileSchema(
+          {
+            ...schema,
+            properties: {
+              value: { ...valueSchema, discriminator: { propertyName: "type" } },
+            },
+          },
+          options,
+        );
+        for (const value of [[1], [1, 2], ["bad"], "ok", 42]) {
+          expect(routed.validate({ value })).toEqual(plain.validate({ value }));
+        }
+      }
+    },
+  );
+
+  it("applies both compositions to non-objects when both are present", () => {
+    const schema: SchemaOrBoolean = {
+      $defs: { A: { type: "number" } },
+      oneOf: [{ $ref: "#/$defs/A" }],
+      anyOf: [{ minimum: 5 }],
+      discriminator: { propertyName: "type" },
+    };
+    const compiled = compile(schema);
+    expect(compiled.validate(3).valid).toBe(false);
+    expect(compiled.validate(6).valid).toBe(true);
   });
 
   describe("a routable discriminator is unchanged", () => {
