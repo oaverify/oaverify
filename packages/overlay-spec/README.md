@@ -26,6 +26,14 @@ const alsoPatched = applySpecOverlay(baseSpec, specFormatDocument);
 
 Both functions throw on the first malformed or unrecognised action; no partial application.
 
+Quoted keys and filter values decode escaped backslashes and quote characters.
+Other escapes are rejected; see `OverlayAction.target` for the escape contract.
+For example, `String.raw` preserves the target's escapes in TypeScript:
+
+```ts
+const target = String.raw`$.webhooks['a\\b']`; // Selects the name containing one backslash.
+```
+
 ## Recognised target shapes
 
 | Target                                                                    | Typed verb                                                   |

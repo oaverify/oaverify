@@ -63,6 +63,10 @@ export class UnrecognisedTargetError extends Error {
 /**
  * Parse a JSONPath `target` string into a flat token stream.
  *
+ * Quoted keys and filter values decode escaped backslashes and either
+ * quote character once. Other escapes throw; the target grammar does not
+ * decode Unicode or control-character escapes.
+ *
  * @throws {@link UnrecognisedTargetError} on syntactically malformed
  *         input or on filter shapes that fall outside the recognised
  *         set.
@@ -73,7 +77,9 @@ export class UnrecognisedTargetError extends Error {
  * Overlay 1.0 uses JSONPath to select parts of a document; oaverify
  * supports only a subset of that query language. For example, searching at
  * every depth with `$..description` or selecting an array slice with
- * `[0:2]` is unsupported.
+ * `[0:2]` is unsupported. Quoted strings support only escaped backslashes
+ * and quote characters; valid JSONPath escapes such as `\n` and `\u0061`
+ * are rejected.
  */
 export function parseTarget(target: string): PathToken[] {
   const lex = new Lexer(target);
@@ -190,18 +196,28 @@ class Lexer {
 
   private readQuotedString(quote: string): string {
     this.expectChar(quote);
-    const start = this.pos;
+    let value = "";
     while (!this.atEnd() && this.peek() !== quote) {
-      if (this.peek() === "\\") {
-        // Permit `\'` and `\"` escapes; ignore unrecognised escapes.
+      let char = this.peek();
+      this.pos += 1;
+      if (char === "\\") {
+        if (this.atEnd()) {
+          throw new UnrecognisedTargetError(this.src, "unterminated escape in quoted string");
+        }
+        char = this.peek();
+        if (char !== "\\" && char !== "'" && char !== '"') {
+          throw new UnrecognisedTargetError(
+            this.src,
+            `unsupported escape ${JSON.stringify("\\" + char)} at position ${this.pos - 1}`,
+          );
+        }
         this.pos += 1;
       }
-      this.pos += 1;
+      value += char;
     }
     if (this.atEnd()) {
-      throw new UnrecognisedTargetError(this.src, "unterminated quoted key");
+      throw new UnrecognisedTargetError(this.src, "unterminated quoted string");
     }
-    const value = this.src.slice(start, this.pos).replace(/\\(['"])/g, "$1");
     this.expectChar(quote);
     return value;
   }

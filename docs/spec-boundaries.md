@@ -364,7 +364,7 @@ because different timestamps beyond it can be rounded to the same number.
 
 ### packages/overlay-spec
 
-**`translateOverlay`** ([packages/overlay-spec/src/index.ts:78](../packages/overlay-spec/src/index.ts#L78))
+**`translateOverlay`** ([packages/overlay-spec/src/index.ts:86](../packages/overlay-spec/src/index.ts#L86))
 
 Against OpenAPI Overlay 1.0 (<https://spec.openapis.org/overlay/v1.0.0.html>).
 
@@ -381,7 +381,9 @@ Some valid overlay targets are rejected with `UnrecognisedTargetError`.
 Overlay 1.0 uses JSONPath to select parts of a document; oaverify
 supports only a subset of that query language. For example, searching at
 every depth with `$..description` or selecting an array slice with
-`[0:2]` is unsupported.
+`[0:2]` is unsupported. Quoted strings support only escaped backslashes
+and quote characters; valid JSONPath escapes such as `\n` and `\u0061`
+are rejected.
 
 ### packages/router
 

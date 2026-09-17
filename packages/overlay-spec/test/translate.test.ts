@@ -585,3 +585,47 @@ describe("a path key that names an inherited member", () => {
     expect(out.overrides?.["/pets"]?.operations?.get).toEqual({ operationId: "listPets" });
   });
 });
+
+describe("escaped target names survive translation and application", () => {
+  it.each([
+    [String.raw`$.webhooks['a\\b']`, String.raw`a\b`],
+    [String.raw`$.webhooks["a\\\"b"]`, 'a\\"b'],
+  ])("updates and removes the intended webhook with %s", (target, key) => {
+    const webhook = { post: { responses: { "200": { description: "ok" } } } };
+    const update = doc([{ target, update: webhook }]);
+    expect(translateOverlay(update).addWebhooks).toEqual({ [key]: webhook });
+    const original = base();
+    const patched = applySpecOverlay(original, update);
+    expect(patched.webhooks).toEqual({ [key]: webhook });
+    expect(original.webhooks).toBeUndefined();
+    const remove = doc([{ target, remove: true }]);
+    expect(translateOverlay(remove).removeWebhooks).toEqual([key]);
+    expect(applySpecOverlay(patched, remove).webhooks).toEqual({});
+    expect(patched.webhooks).toEqual({ [key]: webhook });
+  });
+
+  it("matches the decoded tag filter value", () => {
+    const original = { ...base(), tags: [{ name: String.raw`a\b` }, { name: "keep" }] };
+    const patched = applySpecOverlay(
+      original,
+      doc([{ target: String.raw`$.tags[?(@.name=='a\\b')]`, remove: true }]),
+    );
+    expect(patched.tags).toEqual([{ name: "keep" }]);
+    expect(original.tags).toHaveLength(2);
+  });
+
+  it("rejects unknown escapes before applying any action", () => {
+    const original = base();
+    const snapshot = structuredClone(original);
+    expect(() =>
+      applySpecOverlay(
+        original,
+        doc([
+          { target: "$.info", update: { title: "changed" } },
+          { target: String.raw`$.webhooks['a\q']`, remove: true },
+        ]),
+      ),
+    ).toThrow(UnrecognisedTargetError);
+    expect(original).toEqual(snapshot);
+  });
+});

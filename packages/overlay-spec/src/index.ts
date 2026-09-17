@@ -33,6 +33,14 @@ export { UnrecognisedTargetError } from "./parse-target.js";
  * @public
  */
 export interface OverlayAction {
+  /**
+   * A supported JSONPath target. Quoted keys and filter values decode
+   * `\\` to one backslash, `\'` to a single quote and `\"` to a double
+   * quote. Either quote escape is accepted in either quoting style.
+   * Other escapes (including `\n`, `\/` and `\uXXXX`) and unterminated
+   * strings throw {@link UnrecognisedTargetError}. Use literal Unicode
+   * characters instead of Unicode escapes.
+   */
   target: string;
   update?: JsonValue;
   remove?: boolean;
