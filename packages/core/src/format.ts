@@ -14,7 +14,7 @@ const SELF_LOCATING = new Set<string>(SELF_LOCATING_ERROR_CODES);
  * @public
  */
 export interface FormatOptions {
-  /** Maximum depth to render; nodes deeper than this are truncated with `…`. Defaults to Infinity. */
+  /** Maximum depth to render; nodes deeper than this are truncated with `...`. Defaults to Infinity. */
   maxDepth?: number;
   /** String used for each level of indentation in `formatText`. Defaults to `"  "`. */
   indent?: string;
@@ -53,7 +53,7 @@ export function formatText(
   const lines: string[] = [];
   const render = (node: ValidationError, depth: number): void => {
     if (depth > maxDepth) {
-      lines.push(`${indent.repeat(depth)}…`);
+      lines.push(`${indent.repeat(depth)}...`);
       return;
     }
     const prefix = indent.repeat(depth);

@@ -48,10 +48,10 @@ describe("formatText", () => {
     expect(lines[5]).toBe('      body must have required property "bark" [required]');
   });
 
-  it("truncates at maxDepth with an ellipsis marker", () => {
+  it("truncates at maxDepth with an ASCII ellipsis marker", () => {
     const out = formatText(sampleTree(), { maxDepth: 2 });
     const lines = out.split("\n");
-    expect(lines).toContain("      …");
+    expect(lines).toContain("      ...");
     for (const line of lines) {
       expect(line).not.toContain("must be boolean");
     }
