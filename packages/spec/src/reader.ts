@@ -15,6 +15,27 @@ export interface DocumentReader {
   canRead(uri: string): boolean;
 }
 
+/**
+ * Decode a file URI or path once, retaining stray percent signs literally.
+ * Malformed UTF-8 escape runs throw `URIError` with the original URI and
+ * the native decoding error as its cause.
+ *
+ * File readers reject undecodable bytes before filesystem lookup. Fragment
+ * lookup's `pointerFromFragment` tolerates such runs to preserve literal
+ * object keys; the two operations keep their established input contracts.
+ * This helper is shared through spec/internals with the syntax readers.
+ *
+ * @internal
+ */
+export function decodeFilePath(uri: string): string {
+  const stripped = uri.replace(/^file:\/\//, "");
+  try {
+    return stripped.replace(/(?:%[0-9A-Fa-f]{2})+/g, (run) => decodeURIComponent(run));
+  } catch (cause) {
+    throw new URIError(`${uri}: invalid UTF-8 in percent-encoded file path`, { cause });
+  }
+}
+
 function hasYamlExtension(uri: string): boolean {
   const lower = uri.toLowerCase();
   return lower.endsWith(".yaml") || lower.endsWith(".yml");
@@ -162,7 +183,10 @@ export function assertWithinMaxBytesSync(
  * {@link composeReaders} for YAML support.
  *
  * Percent-encoded UTF-8 paths decode once before filesystem lookup. Stray
- * percent signs remain literal; malformed UTF-8 escape runs throw `URIError`.
+ * percent signs remain literal; malformed UTF-8 escape runs throw `URIError`
+ * naming the original URI, with the native decoding error as its cause.
+ * File reads reject undecodable bytes before filesystem lookup; fragment
+ * lookup separately tolerates malformed runs to preserve literal object keys.
  * Encode a literal percent sequence once more (`%2520` names `%20`).
  *
  * The base directory is a resolution root, not a sandbox, unless
@@ -197,13 +221,7 @@ export function createFileReader(
       return !/^(https?|memory):/i.test(uri);
     },
     async read(uri) {
-      const stripped = uri.replace(/^file:\/\//, "");
-      // `$ref` URIs are percent-encoded per RFC 3986, so a filesystem
-      // path like "my spec.json" arrives here as "my%20spec.json". Decode
-      // complete UTF-8 escape runs before hitting the disk. Stray `%` that
-      // isn't a valid escape passes through so it can match a literal
-      // filename that actually contains one.
-      const decoded = stripped.replace(/(?:%[0-9A-Fa-f]{2})+/g, (m) => decodeURIComponent(m));
+      const decoded = decodeFilePath(uri);
       const path = await resolveReadPath(root, decoded, uri, options.confine === true);
       if (hasYamlExtension(path)) throw new Error(`${uri}: ${YAML_HINT}`);
       await assertWithinMaxBytes(path, uri, options.maxBytes);
@@ -566,8 +584,7 @@ export function createFileReaderSync(
       return !/^(https?|memory):/i.test(uri);
     },
     read(uri) {
-      const stripped = uri.replace(/^file:\/\//, "");
-      const decoded = stripped.replace(/(?:%[0-9A-Fa-f]{2})+/g, (m) => decodeURIComponent(m));
+      const decoded = decodeFilePath(uri);
       const path = resolveReadPathSync(root, decoded, uri, options.confine === true);
       if (hasYamlExtension(path)) throw new Error(`${uri}: ${YAML_HINT}`);
       assertWithinMaxBytesSync(path, uri, options.maxBytes);

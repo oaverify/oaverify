@@ -35,6 +35,7 @@ import {
 import {
   composeReadersSync,
   createFileReaderSync,
+  decodeFilePath,
   fetchInit,
   readStream,
   assertWithinMaxBytes,
@@ -47,11 +48,6 @@ import {
 } from "@oaverify/internal-spec/internals";
 import { parse as parseYaml, parseDocument as parseYamlNode } from "yaml";
 
-/** Decode UTF-8 escape runs once; malformed UTF-8 throws, stray percent signs stay literal. */
-function decodePercent(s: string): string {
-  return s.replace(/(?:%[0-9A-Fa-f]{2})+/g, (m) => decodeURIComponent(m));
-}
-
 function hasYamlExtension(uri: string): boolean {
   const lower = uri.toLowerCase();
   return lower.endsWith(".yaml") || lower.endsWith(".yml");
@@ -63,7 +59,10 @@ function hasYamlExtension(uri: string): boolean {
  * `createFileReader` to cover JSON alongside.
  *
  * Percent-encoded UTF-8 paths decode once before filesystem lookup. Stray
- * percent signs remain literal; malformed UTF-8 escape runs throw `URIError`.
+ * percent signs remain literal; malformed UTF-8 escape runs throw `URIError`
+ * naming the original URI, with the native decoding error as its cause.
+ * File reads reject undecodable bytes before filesystem lookup; fragment
+ * lookup separately tolerates malformed runs to preserve literal object keys.
  * Encode a literal percent sequence once more (`%2520` names `%20`).
  *
  * @param cwd - Optional base directory. Defaults to `process.cwd()`.
@@ -89,13 +88,7 @@ export function createYamlFileReader(
       return hasYamlExtension(uri);
     },
     async read(uri) {
-      const stripped = uri.replace(/^file:\/\//, "");
-      // `$ref` URIs are percent-encoded per RFC 3986, so a filesystem
-      // path like "my spec.yaml" arrives here as "my%20spec.yaml".
-      // Decode complete UTF-8 escape runs before hitting the disk; stray
-      // `%` that isn't a valid escape passes through so it can match
-      // a literal filename that actually contains one.
-      const decoded = decodePercent(stripped);
+      const decoded = decodeFilePath(uri);
       const path = await resolveReadPath(root, decoded, uri, options.confine === true);
       await assertWithinMaxBytes(path, uri, options.maxBytes);
       const raw = await readFile(path, "utf8");
@@ -341,8 +334,7 @@ function createYamlFileReaderSync(
       return hasYamlExtension(uri);
     },
     read(uri) {
-      const stripped = uri.replace(/^file:\/\//, "");
-      const decoded = decodePercent(stripped);
+      const decoded = decodeFilePath(uri);
       const path = resolveReadPathSync(root, decoded, uri, options.confine === true);
       assertWithinMaxBytesSync(path, uri, options.maxBytes);
       return parseYamlDocument(readFileSync(path, "utf8"), uri);

@@ -35,10 +35,16 @@ describe("YAML file path decoding", () => {
     async (bad) => {
       const uri = `${bad}.yaml`;
       writeFileSync(join(root, uri), source);
-      await expect(reader.read(uri)).rejects.toBeInstanceOf(URIError);
-      expect(() => loadSpecSync({ entry: join(root, uri) })).toThrow(
-        expect.objectContaining({ cause: expect.any(URIError) }),
-      );
+      const entry = `file://${join(root, uri)}`;
+      const error = expect.objectContaining({
+        name: "URIError",
+        message: `${entry}: invalid UTF-8 in percent-encoded file path`,
+        cause: expect.any(URIError),
+      });
+      await expect(reader.read(entry)).rejects.toThrow(error);
+      const wrapped = expect.objectContaining({ cause: error });
+      await expect(loadSpec({ entry, reader })).rejects.toThrow(wrapped);
+      expect(() => loadSpecSync({ entry })).toThrow(wrapped);
     },
   );
 

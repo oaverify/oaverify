@@ -22,6 +22,7 @@
 export {
   composeReadersSync,
   createFileReaderSync,
+  decodeFilePath,
   fetchInit,
   readStream,
   assertWithinMaxBytes,

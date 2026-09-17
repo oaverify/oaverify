@@ -36,8 +36,18 @@ describe("JSON file path decoding", () => {
     async (bad) => {
       const uri = `${bad}.json`;
       writeFileSync(join(root, uri), JSON.stringify(spec));
-      await expect(reader.read(uri)).rejects.toBeInstanceOf(URIError);
-      expect(() => syncReader.read(uri)).toThrow(URIError);
+      for (const input of [uri, `file://${join(root, uri)}`]) {
+        const error = expect.objectContaining({
+          name: "URIError",
+          message: `${input}: invalid UTF-8 in percent-encoded file path`,
+          cause: expect.any(URIError),
+        });
+        await expect(reader.read(input)).rejects.toThrow(error);
+        expect(() => syncReader.read(input)).toThrow(error);
+        const wrapped = expect.objectContaining({ cause: error });
+        await expect(loadSpec({ entry: input, reader })).rejects.toThrow(wrapped);
+        expect(() => loadSpecSync({ entry: input, reader: syncReader })).toThrow(wrapped);
+      }
     },
   );
 
