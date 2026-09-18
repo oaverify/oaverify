@@ -13,8 +13,8 @@
     },
     "Overlay-Specification": {
       "url": "https://github.com/OAI/Overlay-Specification.git",
-      "rev": "4678ec57f2849b93065f408590085ae4e0f0508c",
-      "note": "2026-09-08. Baseline: overlay-results.json."
+      "rev": "7bbb28231817aebfb7116c3b191b0159e91dbaf9",
+      "note": "2026-09-10. Baseline: overlay-results.json."
     }
   }
 }
