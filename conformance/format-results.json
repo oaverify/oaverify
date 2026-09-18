@@ -462,8 +462,8 @@
   },
   {
     "format": "iri",
-    "cases": 27,
-    "pass": 27,
+    "cases": 26,
+    "pass": 26,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
@@ -489,8 +489,8 @@
   },
   {
     "format": "relative-json-pointer",
-    "cases": 25,
-    "pass": 25,
+    "cases": 26,
+    "pass": 26,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,
@@ -516,8 +516,8 @@
   },
   {
     "format": "uri-reference",
-    "cases": 30,
-    "pass": 30,
+    "cases": 29,
+    "pass": 29,
     "falseAccept": 0,
     "falseReject": 0,
     "error": 0,

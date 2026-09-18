@@ -126,8 +126,8 @@ comparative format number exists for anyone, which is why this one is
 measured locally.
 
 `format-suite` compiles with the OpenAPI 3.1 dialect, which promotes
-`format` to an assertion. The subtree is 861 cases across 21 formats, of
-which 453 expect a rejection, and scores **801/861** on a corpus reaching
+`format` to an assertion. The subtree is 860 cases across 21 formats, of
+which 454 expect a rejection, and scores **800/860** on a corpus reaching
 18 of the 38 `builtInFormats` keys. The other three suite files are
 `ecmascript-regex`, `regex` and `unknown`; the first two exercise the
 compiler-provided `regex` format, and `unknown` exercises unregistered
@@ -143,7 +143,7 @@ The gap is concentrated rather than spread. `hostname` and
 IDNA / UTS-46 rules, deliberately punted (#669). `email` and
 `idn-email` are clean.
 
-**This total went down by one, and that was a deliberate trade.**
+**Two of the `idn-hostname` false accepts are a deliberate trade.**
 Admitting combining marks to a U-label fixed the `idn-email` NFC case
 and cost two `idn-hostname` false accepts, on code points RFC 5892
 Appendix B lists as DISALLOWED exceptions (U+302E, and the U+3031-3035 /

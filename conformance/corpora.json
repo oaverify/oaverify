@@ -3,8 +3,8 @@
   "corpora": {
     "JSON-Schema-Test-Suite": {
       "url": "https://github.com/json-schema-org/JSON-Schema-Test-Suite.git",
-      "rev": "f6fd52a0a95472e079cbfc6ef7f089702b80e045",
-      "note": "2026-09-06. Baselines: json-schema-results.json, format-results.json."
+      "rev": "80c87e8fca8b207a7a7ae944b875f0fcf889f46a",
+      "note": "2026-09-15. Baselines: json-schema-results.json, format-results.json."
     },
     "JSONTestSuite": {
       "url": "https://github.com/nst/JSONTestSuite.git",
