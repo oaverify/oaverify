@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.3.0](https://github.com/oaverify/oaverify/compare/syntax-v7.2.2...syntax-v7.3.0) (2026-09-18)
+
+
+### Bug Fixes
+
+* **spec:** decode UTF-8 filename escape runs ([#1128](https://github.com/oaverify/oaverify/issues/1128)) ([bce1954](https://github.com/oaverify/oaverify/commit/bce19548c5cc655e971da7509f76c239a021e6ef))
+
+
+### Documentation
+
+* **tooling:** track specification boundaries and generate their inventory ([#1095](https://github.com/oaverify/oaverify/issues/1095)) ([2e5f824](https://github.com/oaverify/oaverify/commit/2e5f8249aa40686fe4fa876d5651c97f268744e6))
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/syntax-v7.2.1...syntax-v7.2.2) (2026-09-09)
 
 
