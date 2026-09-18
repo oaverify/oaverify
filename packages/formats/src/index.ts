@@ -108,11 +108,12 @@ import {
  * `formats: { regex: yourFn, ... }` if you want a different policy.
  *
  * @specCites the OpenAPI Format Registry, https://spec.openapis.org/registry/format/
- * @specBoundary defers
+ * @specBoundary chooses
  * Some formats in the OpenAPI Format Registry have no built-in validator
- * yet (#696). With the default unknown-format policy, those names add no
- * validation; other schema constraints still apply. The format pass in
- * `@oaverify/check` reports missing format checks. Applications can
+ * yet (#696). The registry explicitly says tools are not required to
+ * implement its entries. With the default unknown-format policy, those
+ * names add no validation; other schema constraints still apply. The format
+ * pass in `@oaverify/check` reports missing format checks. Applications can
  * register their own validators.
  * @specBoundary under-asserts
  * The `float` format does not check whether a number fits in a 32-bit

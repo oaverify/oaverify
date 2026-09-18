@@ -36,9 +36,9 @@ conforming implementation choice.
 | [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 29 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
-| [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 7 |
-| [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 3 |
-| [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 6 |
+| [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 9 |
+| [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 2 |
+| [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 5 |
 
 59 documented entries across 31 files.
 
@@ -107,8 +107,11 @@ Against RFC 4648 section 3.5 (<https://datatracker.ietf.org/doc/html/rfc4648#sec
 
 Some base64 strings are accepted even though decoding and re-encoding
 changes their spelling. For example, `"cE6="` becomes `"cE4="`. RFC 4648
-requires the unused bits in the final encoded group to be zero; this
-validator checks the alphabet and padding without checking those bits.
+requires encoders to set the unused bits in the final encoded group to
+zero for a canonical encoding, but lets decoders accept nonzero bits.
+This validator checks the alphabet and padding without requiring that
+canonical spelling. `validateByteRfc4648` also accepts nonzero pad bits;
+its stricter check rejects whitespace.
 
 **`validateTimeLocal`** ([packages/formats/src/date.ts:185](../packages/formats/src/date.ts#L185))
 
@@ -212,11 +215,10 @@ string representation. Other schema constraints still apply: for example,
 
 Against RFC 6570 section 2 (<https://datatracker.ietf.org/doc/html/rfc6570#section-2>).
 
-URI templates containing an apostrophe, such as `/a'b`, are accepted even
-though RFC 6570 forbids that literal character. The same gap allows C1
-control characters (U+0080 through U+009F) and Unicode noncharacters,
-which are code points reserved for internal use. Tightening these checks
-is tracked in #965.
+URI templates containing C1 control characters (U+0080 through U+009F)
+or Unicode noncharacters, such as U+FFFF, are accepted. RFC 6570's
+literal character ranges exclude these code points. Tightening the
+check is tracked in #965.
 
 ### packages/metaschema
 
@@ -486,12 +488,15 @@ Changes the value handed on, which can affect subsequent validation.
 
 Against OpenAPI 3.2 style values (<https://spec.openapis.org/oas/v3.2.0#style-values>).
 
-For OpenAPI 3.2's `style: cookie`, percent-encoded values are decoded
-even though the style requires them to stay unchanged. For example,
+When cookies arrive percent-decoded, OpenAPI 3.2's `style: cookie`
+validates the decoded values even though the style requires preserving
+the percent-encoded text. For example,
 `session=%41` becomes `A`: a schema with `const: "%41"` then rejects
 it, while `const: "A"` accepts it. The returned parameter value is also
-`A`. Adapters decode cookies before reading the spec, using the
-behavior appropriate for the default `form` style.
+`A`. The Fetch adapter decodes cookies itself; Express and Fastify
+adapters pass through the values supplied by their cookie parsers.
+Decoding follows the default `form` style, regardless of the style
+declared in the spec.
 
 ### packages/metaschema
 
@@ -522,6 +527,31 @@ discriminator matching (#553) and recursive schemas (#556).
 ## chooses
 
 The spec grants latitude, and this picked one option.
+
+### packages/core
+
+**`allowEmptyValue`** ([packages/core/src/types.ts:475](../packages/core/src/types.ts#L475))
+
+Against OpenAPI 3.1.1 Parameter Object (<https://spec.openapis.org/oas/v3.1.1#parameter-object>).
+
+With `allowEmptyValue: true`, an empty query value such as `?flag=` is
+accepted without checking its parameter schema. Even `minLength: 1` or
+`type: integer` does not reject it. OpenAPI 3.1.1 explicitly makes
+interactions with the Schema Object implementation-defined; oaverify
+chooses to bypass schema checks for an empty value.
+
+### packages/formats
+
+**`builtInFormats`** ([packages/formats/src/index.ts:83](../packages/formats/src/index.ts#L83))
+
+Against the OpenAPI Format Registry (<https://spec.openapis.org/registry/format/>).
+
+Some formats in the OpenAPI Format Registry have no built-in validator
+yet (#696). The registry explicitly says tools are not required to
+implement its entries. With the default unknown-format policy, those
+names add no validation; other schema constraints still apply. The format
+pass in `@oaverify/check` reports missing format checks. Applications can
+register their own validators.
 
 ### packages/metaschema
 
@@ -615,18 +645,6 @@ required in a response.
 
 The spec is silent or self-contradictory, and this picked a reading.
 
-### packages/core
-
-**`allowEmptyValue`** ([packages/core/src/types.ts:475](../packages/core/src/types.ts#L475))
-
-Against OpenAPI 3.1 Parameter Object (<https://spec.openapis.org/oas/v3.1.0#parameter-object>).
-
-With `allowEmptyValue: true`, an empty query value such as `?flag=` is
-accepted without checking its parameter schema. Even `minLength: 1` or
-`type: integer` does not reject it. OpenAPI allows implementations to
-choose how this option interacts with the schema; oaverify treats it as
-permission to bypass schema checks for an empty value.
-
 ### packages/schema
 
 **`discriminatorKeyword`** ([packages/schema/src/keywords/discriminator.ts:7](../packages/schema/src/keywords/discriminator.ts#L7))
@@ -658,18 +676,6 @@ unspecified, so the result here depends on the schema.
 ## defers
 
 The cited spec requires it and this does not implement it yet.
-
-### packages/formats
-
-**`builtInFormats`** ([packages/formats/src/index.ts:83](../packages/formats/src/index.ts#L83))
-
-Against the OpenAPI Format Registry (<https://spec.openapis.org/registry/format/>).
-
-Some formats in the OpenAPI Format Registry have no built-in validator
-yet (#696). With the default unknown-format policy, those names add no
-validation; other schema constraints still apply. The format pass in
-`@oaverify/check` reports missing format checks. Applications can
-register their own validators.
 
 ### packages/router
 
