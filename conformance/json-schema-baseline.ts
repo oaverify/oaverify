@@ -45,10 +45,17 @@ function indexResults(
   }
   const files = new Map<string, FileResult>();
   for (const entry of value) {
-    if (!isRecord(entry) || typeof entry.file !== "string" || files.has(entry.file)) {
-      throw new Error(`${label}: invalid or duplicate file entry`);
+    if (!isRecord(entry) || typeof entry.file !== "string") {
+      throw new Error(`${label}: invalid file entry`);
     }
     const file = entry.file;
+    if (files.has(file)) {
+      const hint =
+        label === "baseline"
+          ? ". Re-run without --check-baseline or --filter to refresh the baseline."
+          : "";
+      throw new Error(`${label}: duplicate file entry ${file}${hint}`);
+    }
     const ids = caseIds.get(file);
     if (ids === undefined) throw new Error(`${label}: ${file} is absent from this run`);
     for (const field of ["groups", "cases", "pass", "fail", "error"]) {

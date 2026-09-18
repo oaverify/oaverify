@@ -95,13 +95,10 @@ function listJsonFiles(dir: string): string[] {
   return out;
 }
 
-const caseIds = new Map<string, Set<string>>();
-
-function runFile(path: string): FileResult {
+function runFile(path: string): { result: FileResult; ids: Set<string> } {
   const groups = JSON.parse(readFileSync(path, "utf8")) as Group[];
   const file = relative(TESTS_DIR, path).split(sep).join("/");
   const ids = new Set<string>();
-  caseIds.set(file, ids);
   const result: FileResult = {
     file,
     groups: groups.length,
@@ -119,6 +116,7 @@ function runFile(path: string): FileResult {
         data: t.data,
         expected: t.valid,
       });
+      // Floating runs compare files; upstream may introduce repeated case identities.
       if (!floating && ids.has(id)) throw new Error(`${file}: ambiguous case identity`);
       ids.add(id);
     }
@@ -171,7 +169,7 @@ function runFile(path: string): FileResult {
       }
     }
   }
-  return result;
+  return { result, ids };
 }
 
 function matches(filename: string): boolean {
@@ -191,8 +189,13 @@ if (includeOptional) {
 }
 
 const results: FileResult[] = [];
+const caseIds = new Map<string, Set<string>>();
 try {
-  for (const f of files) results.push(runFile(f));
+  for (const f of files) {
+    const { result, ids } = runFile(f);
+    results.push(result);
+    caseIds.set(result.file, ids);
+  }
 } catch (err) {
   console.error(`Could not measure JSON Schema suite: ${(err as Error).message}`);
   process.exit(2);
@@ -250,7 +253,7 @@ if (checkBaseline) {
   }
   if (floating) {
     const unit = (r: FileResult) => ({
-      name: basename(r.file),
+      name: r.file,
       cases: r.cases,
       failures: r.fail + r.error,
     });
@@ -273,7 +276,9 @@ if (checkBaseline) {
     }
     console.log("OK: no new failing cases or error regressions.");
   } catch (err) {
-    console.error(`--check-baseline: cannot compare results: ${(err as Error).message}`);
+    console.error(
+      `--check-baseline: cannot compare ${basename(summaryPath)}: ${(err as Error).message}`,
+    );
     process.exit(2);
   }
 } else {

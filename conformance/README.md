@@ -90,10 +90,12 @@ Invalid baseline records, case identities absent from the corpus and mismatched
 file/group/case inventories exit 2. Partial filtered runs cannot be compared
 against a full baseline. Checks never rewrite the baseline; an unfiltered run
 without `--check-baseline` refreshes it explicitly.
+Until refreshed, a newly passing case remains an allowed failure in the baseline.
 
 Optional-suite measurements use `optional/` in file paths to distinguish them
-from required files with the same name. Regenerate older local
-`json-schema-results-with-optional.json` files before comparing them.
+from required files with the same name in both pinned and floating comparisons.
+Regenerate older local `json-schema-results-with-optional.json` files before
+comparing them.
 
 `pnpm corpora:stale` is the exception: it exits 0 whether or not a pin is
 behind, because being behind is expected most of the time. The scheduled

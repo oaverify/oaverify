@@ -71,7 +71,7 @@ beforeAll(() => {
     platform: "node",
     format: "esm",
     alias: workspaceAliases(root),
-    logLevel: "silent",
+    logLevel: "warning",
   });
 });
 
@@ -137,6 +137,32 @@ describe("JSON Schema runner baseline gate", () => {
       "same.json",
     ]);
     expect(run("--optional", "--check-baseline").status).toBe(0);
+    expect(readFileSync(optionalPath, "utf8")).toBe(contents);
+  });
+
+  it("detects a floating regression when an optional file shares its basename", () => {
+    const optionalPath = join(scratch, "json-schema-results-with-optional.json");
+    const contents = JSON.stringify([
+      { ...baseline[0], file: "same.json", pass: 2, fail: 0, mismatches: [] },
+      { ...baseline[0], file: "optional/same.json" },
+    ]);
+    writeFileSync(optionalPath, contents);
+    const measured = run("--optional", "--check-baseline", "--floating");
+    expect(measured.status, measured.stderr).toBe(1);
+    expect(measured.stdout).toContain("same.json: 0 -> 1 failing");
+    expect(measured.stdout).not.toContain("optional/same.json: 0 -> 1 failing");
+    expect(readFileSync(optionalPath, "utf8")).toBe(contents);
+  });
+
+  it("names duplicate baseline files and explains how to refresh them", () => {
+    const optionalPath = join(scratch, "json-schema-results-with-optional.json");
+    const contents = JSON.stringify([baseline[0], baseline[0]]);
+    writeFileSync(optionalPath, contents);
+    const measured = run("--optional", "--check-baseline");
+    expect(measured.status).toBe(2);
+    expect(measured.stderr).toContain("json-schema-results-with-optional.json");
+    expect(measured.stderr).toContain("duplicate file entry same.json");
+    expect(measured.stderr).toContain("Re-run without --check-baseline or --filter to refresh");
     expect(readFileSync(optionalPath, "utf8")).toBe(contents);
   });
 
