@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.3.0](https://github.com/oaverify/oaverify/compare/express5-v7.2.2...express5-v7.3.0) (2026-09-18)
+
+
+### Documentation
+
+* **tooling:** track specification boundaries and generate their inventory ([#1095](https://github.com/oaverify/oaverify/issues/1095)) ([2e5f824](https://github.com/oaverify/oaverify/commit/2e5f8249aa40686fe4fa876d5651c97f268744e6))
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/express5-v7.2.1...express5-v7.2.2) (2026-09-09)
 
 
