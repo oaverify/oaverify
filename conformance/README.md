@@ -69,18 +69,33 @@ single mismatch. `openapi` has no baseline and takes no flags; it fails
 on any mismatch. What counts as a regression differs per runner,
 deliberately:
 
-| Runner         | Fails when                                                      |
-| -------------- | --------------------------------------------------------------- |
-| `openapi`      | **any** case mismatches; there is no baseline to drift from     |
-| `suite`        | the total pass count drops below baseline                       |
-| `format-suite` | any single format's false accepts, false rejects or errors grow |
-| `parse`        | the pass count drops, or the mismatch count grows               |
-| `overlay`      | the envelope-pass or translator-ok count drops                  |
+| Runner         | Fails when                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `openapi`      | **any** case mismatches; there is no baseline to drift from                                                        |
+| `suite`        | a previously passing case fails, a wrong verdict becomes an error, or an error changes between compile and runtime |
+| `format-suite` | any single format's false accepts, false rejects or errors grow                                                    |
+| `parse`        | the pass count drops, or the mismatch count grows                                                                  |
+| `overlay`      | the envelope-pass or translator-ok count drops                                                                     |
 
 `format-suite` also fails on **improvement**: a case that starts passing
 is good news the baseline has not been told about, so the run tells you to
 ratchet it. Exit code 2 throughout means "could not measure" (missing
 corpus, drifted pin, missing baseline) rather than "regressed".
+
+At the pin, `suite` compares each mismatch by relative file path, group and
+test descriptions, input data and expected verdict. One fixed failure cannot
+cancel a new failure, even within the same file. Known failures remain allowed;
+improvements are reported without failing. Error message changes are ignored.
+Invalid baseline records, case identities absent from the corpus and mismatched
+file/group/case inventories exit 2. Partial filtered runs cannot be compared
+against a full baseline. Checks never rewrite the baseline; an unfiltered run
+without `--check-baseline` refreshes it explicitly.
+Until refreshed, a newly passing case remains an allowed failure in the baseline.
+
+Optional-suite measurements use `optional/` in file paths to distinguish them
+from required files with the same name in both pinned and floating comparisons.
+Regenerate older local `json-schema-results-with-optional.json` files before
+comparing them.
 
 `pnpm corpora:stale` is the exception: it exits 0 whether or not a pin is
 behind, because being behind is expected most of the time. The scheduled
