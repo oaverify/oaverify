@@ -15,8 +15,29 @@
  * plugin genuinely needs them, accepting that they're not covered by
  * semver.
  *
+ * The shared types the published modules here depend on are
+ * re-exported, so naming what `compileSchema` accepts does not mean
+ * importing from a second subpath. They are the same declarations
+ * `@oaverify/core` and `@oaverify/core/core` publish.
+ *
  * @packageDocumentation
  */
+
+// Re-exported so this entry can be consumed on its own. The rule:
+// a core type is re-exported when any module this entry publishes from
+// imports it. That is coarser than "appears in an exported signature",
+// and deliberately so, the narrower rule needing type analysis to
+// decide. `test/entry-core-types.test.ts` derives the set and fails
+// when one is missing.
+export type {
+  FormatDefinition,
+  JsonValue,
+  NormalizedFormat,
+  PathSegment,
+  SchemaObject,
+  SchemaOrBoolean,
+  ValidationError,
+} from "@oaverify/internal-core";
 
 // Compiler: turning schemas into validators.
 export {

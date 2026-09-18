@@ -4,14 +4,14 @@
 five public subpath entrypoints (plus the not-semver-covered
 `*/internals` subpaths listed further down).
 
-| Import                        | Surface                                                                                                     |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `@oaverify/core`              | `createValidator`, `combineValidators`, error helpers, formatters, types                                    |
-| `@oaverify/core/schema`       | `compileSchema`, dialects, vocabularies, custom keywords, keyword introspection                             |
-| `@oaverify/core/spec`         | `loadSpec`, `loadSpecSync`, `resolveSpec`, `applyOverlays`, `sourceOf`, `createSourceSpanResolver`, readers |
-| `@oaverify/core/overlay-spec` | `translateOverlay`, `applySpecOverlay`: OpenAPI Overlay 1.0 → typed SpecOverlay                             |
-| `@oaverify/core/formats`      | Built-in format validators, string and numeric                                                              |
-| `@oaverify/core/core`         | Error tree model, shared OpenAPI / HTTP types                                                               |
+| Import                        | Surface                                                                                                                          |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `@oaverify/core`              | `createValidator`, `combineValidators`, error helpers, formatters, types                                                         |
+| `@oaverify/core/schema`       | `compileSchema`, dialects, vocabularies, custom keywords, keyword introspection, the shared types these are declared in terms of |
+| `@oaverify/core/spec`         | `loadSpec`, `loadSpecSync`, `resolveSpec`, `applyOverlays`, `sourceOf`, `createSourceSpanResolver`, readers                      |
+| `@oaverify/core/overlay-spec` | `translateOverlay`, `applySpecOverlay`: OpenAPI Overlay 1.0 → typed SpecOverlay                                                  |
+| `@oaverify/core/formats`      | Built-in format validators, string and numeric                                                                                   |
+| `@oaverify/core/core`         | Error tree model, shared OpenAPI / HTTP types                                                                                    |
 
 `@oaverify/core` carries no runtime dependencies and parses JSON only.
 
