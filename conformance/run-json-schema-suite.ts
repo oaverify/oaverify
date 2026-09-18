@@ -9,7 +9,7 @@
  *   - total cases attempted
  *   - pass (our verdict matches `valid`)
  *   - fail (verdict mismatch)
- *   - error (compile/runtime crash — we couldn't produce a verdict)
+ *   - error (compile/runtime crash: we couldn't produce a verdict)
  *   - a per-file breakdown with concrete mismatches listed
  *
  * Usage:
@@ -17,16 +17,16 @@
  *   pnpm tsx conformance/run-json-schema-suite.ts --optional      # + optional suite
  *   pnpm tsx conformance/run-json-schema-suite.ts --filter=type   # only files matching "type"
  *   pnpm tsx conformance/run-json-schema-suite.ts --check-baseline
- *     # exits non-zero if the current run's pass count drops below
- *     # the one recorded in the committed results file. Used in CI to
- *     # catch regressions without failing on any single mismatch.
+ *     # rejects newly failing cases at the corpus pin, even when another
+ *     # case improves. Known mismatches are allowed; improvements are reported.
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { resolve, join, basename } from "node:path";
+import { resolve, join, basename, relative, sep } from "node:path";
 import { assertPinned, corpusPath } from "./corpora.ts";
 import { writeBaseline } from "./baseline.ts";
 import { enterFloating, exitFloating } from "./floating.ts";
+import { compareSuiteBaseline, suiteCaseId, type FileResult } from "./json-schema-baseline.ts";
 import { compileSchema, jsonSchemaDialect } from "../packages/schema/src/index.ts";
 import { builtInFormats } from "../packages/formats/src/index.ts";
 
@@ -40,22 +40,6 @@ interface Group {
   schema: unknown;
   tests: Case[];
 }
-interface FileResult {
-  file: string;
-  groups: number;
-  cases: number;
-  pass: number;
-  fail: number;
-  error: number;
-  mismatches: Array<{
-    group: string;
-    test: string;
-    data: unknown;
-    expected: boolean;
-    actual: boolean | "error";
-    reason?: string;
-  }>;
-}
 
 const SUITE = "JSON-Schema-Test-Suite";
 const SUITE_ROOT = corpusPath(SUITE);
@@ -66,7 +50,7 @@ const REMOTE_BASE = "http://localhost:1234";
 const args = new Set(process.argv.slice(2));
 const checkBaseline = args.has("--check-baseline");
 // See floating.ts: the nightly runs this against upstream HEAD, where the
-// strict pass-count ratchet cannot tell a regression from new cases.
+// pinned comparison cannot tell a regression from new cases.
 const floating = args.has("--floating");
 const includeOptional = args.has("--optional");
 const filterArg = process.argv.slice(2).find((a) => a.startsWith("--filter="));
@@ -111,10 +95,15 @@ function listJsonFiles(dir: string): string[] {
   return out;
 }
 
+const caseIds = new Map<string, Set<string>>();
+
 function runFile(path: string): FileResult {
   const groups = JSON.parse(readFileSync(path, "utf8")) as Group[];
+  const file = relative(TESTS_DIR, path).split(sep).join("/");
+  const ids = new Set<string>();
+  caseIds.set(file, ids);
   const result: FileResult = {
-    file: basename(path),
+    file,
     groups: groups.length,
     cases: 0,
     pass: 0,
@@ -123,6 +112,16 @@ function runFile(path: string): FileResult {
     mismatches: [],
   };
   for (const group of groups) {
+    for (const t of group.tests) {
+      const id = suiteCaseId({
+        group: group.description,
+        test: t.description,
+        data: t.data,
+        expected: t.valid,
+      });
+      if (!floating && ids.has(id)) throw new Error(`${file}: ambiguous case identity`);
+      ids.add(id);
+    }
     let validate: ((data: unknown) => { valid: boolean }) | undefined;
     try {
       const compiled = compileSchema(group.schema as never, {
@@ -187,12 +186,17 @@ if (includeOptional) {
   try {
     for (const f of listJsonFiles(optDir)) if (matches(basename(f))) files.push(f);
   } catch {
-    // optional directory is missing — that's fine
+    // A missing optional directory contributes no cases.
   }
 }
 
 const results: FileResult[] = [];
-for (const f of files) results.push(runFile(f));
+try {
+  for (const f of files) results.push(runFile(f));
+} catch (err) {
+  console.error(`Could not measure JSON Schema suite: ${(err as Error).message}`);
+  process.exit(2);
+}
 
 let totalCases = 0;
 let totalPass = 0;
@@ -237,10 +241,16 @@ if (checkBaseline) {
     console.error(`--check-baseline: no committed results at ${summaryPath}`);
     process.exit(2);
   }
-  const baseline = JSON.parse(readFileSync(summaryPath, "utf8")) as FileResult[];
+  let baseline: unknown;
+  try {
+    baseline = JSON.parse(readFileSync(summaryPath, "utf8"));
+  } catch (err) {
+    console.error(`--check-baseline: cannot read ${summaryPath}: ${(err as Error).message}`);
+    process.exit(2);
+  }
   if (floating) {
     const unit = (r: FileResult) => ({
-      name: r.file,
+      name: basename(r.file),
       cases: r.cases,
       failures: r.fail + r.error,
     });
@@ -248,20 +258,24 @@ if (checkBaseline) {
       includeOptional ? "suite + optional" : "required suite",
       SUITE,
       results.map(unit),
-      baseline.map(unit),
+      (baseline as FileResult[]).map(unit),
     );
   }
-  const baselinePass = baseline.reduce((n, r) => n + r.pass, 0);
-  const baselineCases = baseline.reduce((n, r) => n + r.cases, 0);
-  console.log(`\nbaseline: ${baselinePass}/${baselineCases} pass`);
-  console.log(`current:  ${totalPass}/${totalCases} pass`);
-  if (totalPass < baselinePass) {
-    console.error(
-      `FAIL: pass count regressed (${totalPass} < baseline ${baselinePass}). Inspect mismatches in ${summaryPath}.`,
-    );
-    process.exit(1);
+  try {
+    const comparison = compareSuiteBaseline(results, baseline, caseIds);
+    console.log(`\nbaseline: ${comparison.baselinePass}/${comparison.baselineCases} pass`);
+    console.log(`current:  ${totalPass}/${totalCases} pass`);
+    for (const line of comparison.improvements) console.log(`IMPROVED: ${line}`);
+    for (const line of comparison.regressions) console.error(`REGRESSED: ${line}`);
+    if (comparison.regressions.length > 0) {
+      console.error(`FAIL: ${comparison.regressions.length} case(s) regressed.`);
+      process.exit(1);
+    }
+    console.log("OK: no new failing cases or error regressions.");
+  } catch (err) {
+    console.error(`--check-baseline: cannot compare results: ${(err as Error).message}`);
+    process.exit(2);
   }
-  console.log("OK: pass count meets or exceeds baseline.");
 } else {
   writeBaseline(summaryPath, results, filterPattern, "Per-file mismatches");
 }
