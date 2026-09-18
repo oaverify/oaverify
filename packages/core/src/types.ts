@@ -476,13 +476,13 @@ export interface ParameterObject {
    * Query-only. When `true`, an empty value (`?flag=`) is legitimate and
    * exempted from schema validation.
    *
-   * @specCites OpenAPI 3.1 Parameter Object, https://spec.openapis.org/oas/v3.1.0#parameter-object
-   * @specBoundary resolves
+   * @specCites OpenAPI 3.1.1 Parameter Object, https://spec.openapis.org/oas/v3.1.1#parameter-object
+   * @specBoundary chooses
    * With `allowEmptyValue: true`, an empty query value such as `?flag=` is
    * accepted without checking its parameter schema. Even `minLength: 1` or
-   * `type: integer` does not reject it. OpenAPI allows implementations to
-   * choose how this option interacts with the schema; oaverify treats it as
-   * permission to bypass schema checks for an empty value.
+   * `type: integer` does not reject it. OpenAPI 3.1.1 explicitly makes
+   * interactions with the Schema Object implementation-defined; oaverify
+   * chooses to bypass schema checks for an empty value.
    */
   allowEmptyValue?: boolean;
   /**
@@ -626,12 +626,15 @@ export interface HttpRequest {
    *
    * @specCites OpenAPI 3.2 style values, https://spec.openapis.org/oas/v3.2.0#style-values
    * @specBoundary transforms
-   * For OpenAPI 3.2's `style: cookie`, percent-encoded values are decoded
-   * even though the style requires them to stay unchanged. For example,
+   * When cookies arrive percent-decoded, OpenAPI 3.2's `style: cookie`
+   * validates the decoded values even though the style requires preserving
+   * the percent-encoded text. For example,
    * `session=%41` becomes `A`: a schema with `const: "%41"` then rejects
    * it, while `const: "A"` accepts it. The returned parameter value is also
-   * `A`. Adapters decode cookies before reading the spec, using the
-   * behavior appropriate for the default `form` style.
+   * `A`. The Fetch adapter decodes cookies itself; Express and Fastify
+   * adapters pass through the values supplied by their cookie parsers.
+   * Decoding follows the default `form` style, regardless of the style
+   * declared in the spec.
    */
   cookies?: Record<string, string | string[]>;
   /**

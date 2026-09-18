@@ -59,8 +59,11 @@ const BASE64URL_RE = /^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-]{2}(?:==)?|[A-Za-z0-
  * @specBoundary under-asserts https://datatracker.ietf.org/doc/html/rfc4648#section-3.5
  * Some base64 strings are accepted even though decoding and re-encoding
  * changes their spelling. For example, `"cE6="` becomes `"cE4="`. RFC 4648
- * requires the unused bits in the final encoded group to be zero; this
- * validator checks the alphabet and padding without checking those bits.
+ * requires encoders to set the unused bits in the final encoded group to
+ * zero for a canonical encoding, but lets decoders accept nonzero bits.
+ * This validator checks the alphabet and padding without requiring that
+ * canonical spelling. `validateByteRfc4648` also accepts nonzero pad bits;
+ * its stricter check rejects whitespace.
  * @public
  */
 export function validateByte(value: string): boolean {

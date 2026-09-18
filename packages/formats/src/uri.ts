@@ -194,13 +194,15 @@ const URI_TEMPLATE_RE = new RegExp(
 /**
  * RFC 6570 `uri-template` (e.g. `"/pets/{id}"`, `"/search{?q,page}"`).
  *
+ * Apostrophes are accepted as literals, following verified RFC 6570
+ * erratum 6937: https://www.rfc-editor.org/errata/eid6937.
+ *
  * @specCites RFC 6570 section 2, https://datatracker.ietf.org/doc/html/rfc6570#section-2
  * @specBoundary under-asserts
- * URI templates containing an apostrophe, such as `/a'b`, are accepted even
- * though RFC 6570 forbids that literal character. The same gap allows C1
- * control characters (U+0080 through U+009F) and Unicode noncharacters,
- * which are code points reserved for internal use. Tightening these checks
- * is tracked in #965.
+ * URI templates containing C1 control characters (U+0080 through U+009F)
+ * or Unicode noncharacters, such as U+FFFF, are accepted. RFC 6570's
+ * literal character ranges exclude these code points. Tightening the
+ * check is tracked in #965.
  * @public
  */
 export function validateUriTemplate(value: string): boolean {
