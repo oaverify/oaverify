@@ -15,6 +15,33 @@ five public subpath entrypoints (plus the not-semver-covered
 
 `@oaverify/core` carries no runtime dependencies and parses JSON only.
 
+## Resolving the subpath types
+
+The subpaths are published through `exports`, so their types need
+`moduleResolution: node16`, `nodenext` or `bundler`. Under `node10` a
+subpath import runs but fails to typecheck with TS2307; the root
+`@oaverify/core` import still resolves, through the top-level `types`.
+
+`module: commonjs` forces `node10`, so a CommonJS toolchain lands there
+without choosing it. `ts-jest` is the common case. There is no
+`typesVersions` fallback, so point it at the type files:
+
+```jsonc
+// tsconfig.json used by the CommonJS toolchain only
+{
+  "compilerOptions": {
+    "paths": {
+      "@oaverify/core/*/internals": ["./node_modules/@oaverify/core/dist/*-internals.d.ts"],
+      "@oaverify/core/*": ["./node_modules/@oaverify/core/dist/*.d.ts"],
+    },
+  },
+}
+```
+
+The `/internals` subpaths need the second line because they flatten to
+`<name>-internals.d.ts` in `dist`. Keep the whole mapping out of your
+application's build tsconfig: it hardcodes paths inside the package.
+
 ## Syntax
 
 `@oaverify/syntax` carries the parsers, in its own package so
