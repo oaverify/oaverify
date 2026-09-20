@@ -846,6 +846,7 @@ export class StreamValidator extends Transform {
  * factory's contract stays single-document.
  *
  * @specCites JSON Schema 2020-12 core, https://json-schema.org/draft/2020-12/json-schema-core.html
+ * @specCites OpenAPI 3.0.3 Reference Object, https://spec.openapis.org/oas/v3.0.3#reference-object
  * @specBoundary defers https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3.2
  * Streaming validation can disagree with `@oaverify/core` for the same
  * schema and data, without warning when the validator is created. Named
@@ -868,6 +869,15 @@ export class StreamValidator extends Transform {
  * when the schema requires it to collect an object in memory before
  * checking it. JSON recommends unique names and leaves duplicate handling
  * unspecified, so the result here depends on the schema.
+ * @specBoundary narrows https://spec.openapis.org/oas/v3.0.3#reference-object
+ * Under a bare `oas30Dialect`, a schema placing a keyword beside a
+ * `$ref` can be refused at construction with a `ClassifierError`. OAS
+ * 3.0 ignores anything added beside a `$ref` ("any properties added
+ * SHALL be ignored"), so the keyword never runs and `@oaverify/core`
+ * compiles the schema; the classifier reads it anyway and rejects the
+ * keywords it cannot stream, such as `unevaluatedProperties`. Passing
+ * `openApiVersion: "3.0"` rather than the dialect directly removes the
+ * sibling before classification, and the schema streams (#998).
  *
  * @public
  */

@@ -34,13 +34,13 @@ conforming implementation choice.
 | kind | meaning | entries |
 | ---- | ------- | ----- |
 | [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 29 |
-| [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
+| [`narrows`](#narrows) | rejects what the cited spec allows | 12 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 9 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 2 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 5 |
 
-59 documented entries across 31 files.
+60 documented entries across 31 files.
 
 ## under-asserts
 
@@ -453,6 +453,21 @@ with an invalid-pointer error. JSON Schema allows `$anchor: "Pet"` to
 name a target. The resolver supports external fragments that give a JSON
 Pointer path, such as `pet.json#/components/schemas/Pet`, but does not
 look up named anchors.
+
+### packages/stream-validator
+
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:837](../packages/stream-validator/src/engine/stream-validator.ts#L837))
+
+Against OpenAPI 3.0.3 Reference Object (<https://spec.openapis.org/oas/v3.0.3#reference-object>).
+
+Under a bare `oas30Dialect`, a schema placing a keyword beside a
+`$ref` can be refused at construction with a `ClassifierError`. OAS
+3.0 ignores anything added beside a `$ref` ("any properties added
+SHALL be ignored"), so the keyword never runs and `@oaverify/core`
+compiles the schema; the classifier reads it anyway and rejects the
+keywords it cannot stream, such as `unevaluatedProperties`. Passing
+`openApiVersion: "3.0"` rather than the dialect directly removes the
+sibling before classification, and the schema streams (#998).
 
 ### packages/syntax
 
