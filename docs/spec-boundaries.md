@@ -26,6 +26,13 @@ This page is generated from the `@specBoundary` tags in the source. The gate
 checks tag structure and keeps the page current; verifying the claims and
 finding omitted boundaries requires review and testing.
 
+Entries are grouped by implementation area, then by kind. Shared code can
+affect more than one API surface.
+
+- [Schema and HTTP validation](#schema-and-http-validation)
+- [Streaming-specific behavior](#streaming-specific-behavior)
+- [Document loading and tooling](#document-loading-and-tooling)
+
 **How to read a kind.** Each answers one question: how does our behaviour
 relate to the cited text? A kind describes the behavior, not its severity or
 whether it is scheduled for repair. A `chooses` entry can describe a
@@ -33,43 +40,22 @@ conforming implementation choice.
 
 | kind | meaning | entries |
 | ---- | ------- | ----- |
-| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 29 |
-| [`narrows`](#narrows) | rejects what the cited spec allows | 12 |
-| [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
-| [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 9 |
-| [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 2 |
-| [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 5 |
+| `under-asserts` | accepts what the cited spec forbids | 29 |
+| `narrows` | rejects what the cited spec allows | 12 |
+| `transforms` | changes the value handed on, which can affect subsequent validation | 3 |
+| `chooses` | the spec grants latitude, and this picked one option | 9 |
+| `resolves` | the spec is silent or self-contradictory, and this picked a reading | 2 |
+| `defers` | the cited spec requires it and this does not implement it yet | 5 |
 
 60 documented entries across 31 files.
 
-## under-asserts
+## Schema and HTTP validation
+
+### under-asserts
 
 Accepts what the cited spec forbids.
 
-### packages/check
-
-**`checkSpec`** ([packages/check/src/check.ts:162](../packages/check/src/check.ts#L162))
-
-Against OpenAPI 3.1 Schema Object (<https://spec.openapis.org/oas/v3.1.0#schema-object>).
-
-In OpenAPI 3.1 and 3.2, the conformance pass misses malformed fields
-inside Schema Objects, such as `xml: 5` or `externalDocs` without a
-`url`. It uses the published meta-schemas (schemas describing valid
-OpenAPI documents), which leave these fields unchecked. The pass checks
-them in OpenAPI 3.0 documents. Other passes still check schema validation
-rules.
-
-**`checkSpec`** ([packages/check/src/check.ts:162](../packages/check/src/check.ts#L162))
-
-Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.1.1>).
-
-A `$schema` declaration in a nested schema is ignored without a finding
-unless that schema also declares `$id`. JSON Schema allows `$schema` only
-at a schema resource's root: the top-level schema, or a nested schema
-with its own `$id`. Elsewhere, the nested schema inherits its parent's
-dialect (the set of schema rules to apply).
-
-### packages/core
+#### packages/core
 
 **`SchemaOrBoolean`** ([packages/core/src/types.ts:124](../packages/core/src/types.ts#L124))
 
@@ -89,7 +75,7 @@ A request with method `Get` is matched to the OpenAPI `get` operation,
 just like `GET`. oaverify lowercases method names before routing,
 although HTTP defines method names as case-sensitive.
 
-### packages/formats
+#### packages/formats
 
 **`validateByte`** ([packages/formats/src/base64.ts:34](../packages/formats/src/base64.ts#L34))
 
@@ -220,19 +206,7 @@ or Unicode noncharacters, such as U+FFFF, are accepted. RFC 6570's
 literal character ranges exclude these code points. Tightening the
 check is tracked in #965.
 
-### packages/metaschema
-
-**`metaschemaFor`** ([packages/metaschema/src/index.ts:123](../packages/metaschema/src/index.ts#L123))
-
-Against OpenAPI 3.1.0 (<https://spec.openapis.org/oas/v3.1.0#schema-object>).
-
-For OpenAPI 3.1 and 3.2, the meta-schema only checks that a Schema Object
-is an object or a boolean. It leaves fields inside it unchecked, so
-malformed `xml` or `externalDocs` fields can pass. The meta-schema is the
-schema used to check an OpenAPI document's structure; the published 3.0
-version describes these fields and catches those errors.
-
-### packages/oav-express4
+#### packages/oav-express4
 
 **`renderProblemDetails`** ([packages/oav-express4/src/render.ts:9](../packages/oav-express4/src/render.ts#L9))
 
@@ -244,7 +218,7 @@ client how to authenticate. The adapter knows the security scheme names
 but lacks the details needed to build a challenge. Applications must
 supply the header in their `onError` handler (#1087).
 
-### packages/oav-express5
+#### packages/oav-express5
 
 **`renderProblemDetails`** ([packages/oav-express5/src/render.ts:9](../packages/oav-express5/src/render.ts#L9))
 
@@ -256,7 +230,7 @@ client how to authenticate. The adapter knows the security scheme names
 but lacks the details needed to build a challenge. Applications must
 supply the header in their `onError` handler (#1087).
 
-### packages/oav-fastify
+#### packages/oav-fastify
 
 **`renderProblemDetails`** ([packages/oav-fastify/src/render.ts:9](../packages/oav-fastify/src/render.ts#L9))
 
@@ -268,17 +242,7 @@ client how to authenticate. The adapter knows the security scheme names
 but lacks the details needed to build a challenge. Applications must
 supply the header in their `onError` handler (#1087).
 
-### packages/overlay-spec
-
-**`parseTarget`** ([packages/overlay-spec/src/parse-target.ts:63](../packages/overlay-spec/src/parse-target.ts#L63))
-
-Against RFC 9535 section 2.3.1.1 (<https://www.rfc-editor.org/rfc/rfc9535#section-2.3.1.1>).
-
-Quoted targets accept an escape for either quote character, so
-`$['a\"b']` selects the key `a"b`. JSONPath permits escaping only the
-enclosing quote; the other quote character appears literally.
-
-### packages/router
+#### packages/router
 
 **`createRouter`** ([packages/router/src/matcher.ts:472](../packages/router/src/matcher.ts#L472))
 
@@ -289,7 +253,7 @@ a router conflict. OpenAPI forbids path templates that differ only in
 parameter names, even when their methods differ. oaverify rejects them
 only when they share a method.
 
-### packages/schema
+#### packages/schema
 
 **`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1271](../packages/schema/src/compiler/compiler.ts#L1271))
 
@@ -319,19 +283,7 @@ Schema requires exact divisibility, but the validator allows a small
 rounding tolerance. This avoids rejecting ordinary decimal multiples:
 JavaScript calculates `0.3 / 0.1` as `2.9999999999999996` instead of `3`.
 
-### packages/stream-validator
-
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:837](../packages/stream-validator/src/engine/stream-validator.ts#L837))
-
-Against RFC 8259 section 8.1 (<https://www.rfc-editor.org/rfc/rfc8259#section-8.1>).
-
-RFC 8259 requires UTF-8 for JSON exchanged outside a closed ecosystem.
-`utf8: "replace"` allows malformed sequences in strings and keys,
-validating their U+FFFD replacement text while echoing the original bytes.
-This compatibility setting can accept malformed input when the schema
-permits the replacement text. The default, `utf8: "reject"`, rejects it.
-
-### packages/validator
+#### packages/validator
 
 **`deserializePath`** ([packages/validator/src/deserialize.ts:65](../packages/validator/src/deserialize.ts#L65))
 
@@ -351,23 +303,11 @@ enough. Other schema constraints still apply. The default cap is
 risk of format checks exhausting the stack; raise it or set `Infinity`
 to check longer strings.
 
-## narrows
+### narrows
 
 Rejects what the cited spec allows.
 
-### packages/cli
-
-**`unknownFormats`** ([packages/cli/src/emit-standalone.ts:40](../packages/cli/src/emit-standalone.ts#L40))
-
-Against JSON Schema 2020-12 validation section 7.2.3 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.3>).
-
-By default, standalone code generation rejects schemas with unknown
-formats, such as `{"type":"string","format":"phone"}`. This also
-applies to plain JSON Schema 2020-12, where formats are metadata by
-default and unknown names should be allowed. Set `unknownFormats:
-"ignore"` to generate code without a check for those names.
-
-### packages/formats
+#### packages/formats
 
 **`validateInt64`** ([packages/formats/src/numeric.ts:123](../packages/formats/src/numeric.ts#L123))
 
@@ -396,7 +336,364 @@ rejected, even though POSIX does not impose this range on seconds since
 the Unix epoch. This validator uses JavaScript's safe-integer range
 because different timestamps beyond it can be rounded to the same number.
 
-### packages/overlay-spec
+#### packages/router
+
+**`createRouter`** ([packages/router/src/matcher.ts:472](../packages/router/src/matcher.ts#L472))
+
+Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
+
+The router treats `/pets/` and `/pets` as the same path, including when
+matching requests. Declaring both for the same HTTP method causes a
+conflict. OpenAPI allows them as distinct paths; this router removes
+trailing slashes.
+
+#### packages/schema
+
+**`maxDepth`** ([packages/schema/src/compiler/compiler.ts:1181](../packages/schema/src/compiler/compiler.ts#L1181))
+
+Against JSON Schema 2020-12 core section 8.2.3 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3>).
+
+Setting `maxDepth` can reject otherwise valid data when validation
+follows a recursive `$ref` beyond the configured limit. JSON Schema
+imposes no such limit. This optional safeguard bounds recursion through
+self-referencing schemas to help prevent a JavaScript stack overflow;
+it does not limit all JSON nesting. The default is uncapped.
+
+#### packages/validator
+
+**`maxDepth`** ([packages/validator/src/validator.ts:821](../packages/validator/src/validator.ts#L821))
+
+Against JSON Schema 2020-12 core section 8.2.3 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3>).
+
+Setting `maxDepth` can reject an otherwise valid request body with a
+`depth` error (HTTP 400) when validation follows a recursive `$ref`
+beyond the limit. JSON Schema imposes no such limit. This optional
+safeguard helps prevent stack overflows with self-referencing schemas;
+it does not limit all JSON nesting. The default is uncapped.
+
+### transforms
+
+Changes the value handed on, which can affect subsequent validation.
+
+#### packages/core
+
+**`cookies`** ([packages/core/src/types.ts:601](../packages/core/src/types.ts#L601))
+
+Against OpenAPI 3.2 style values (<https://spec.openapis.org/oas/v3.2.0#style-values>).
+
+When cookies arrive percent-decoded, OpenAPI 3.2's `style: cookie`
+validates the decoded values even though the style requires preserving
+the percent-encoded text. For example,
+`session=%41` becomes `A`: a schema with `const: "%41"` then rejects
+it, while `const: "A"` accepts it. The returned parameter value is also
+`A`. The Fetch adapter decodes cookies itself; Express and Fastify
+adapters pass through the values supplied by their cookie parsers.
+Decoding follows the default `form` style, regardless of the style
+declared in the spec.
+
+### chooses
+
+The spec grants latitude, and this picked one option.
+
+#### packages/core
+
+**`allowEmptyValue`** ([packages/core/src/types.ts:475](../packages/core/src/types.ts#L475))
+
+Against OpenAPI 3.1.1 Parameter Object (<https://spec.openapis.org/oas/v3.1.1#parameter-object>).
+
+With `allowEmptyValue: true`, an empty query value such as `?flag=` is
+accepted without checking its parameter schema. Even `minLength: 1` or
+`type: integer` does not reject it. OpenAPI 3.1.1 explicitly makes
+interactions with the Schema Object implementation-defined; oaverify
+chooses to bypass schema checks for an empty value.
+
+#### packages/formats
+
+**`builtInFormats`** ([packages/formats/src/index.ts:83](../packages/formats/src/index.ts#L83))
+
+Against the OpenAPI Format Registry (<https://spec.openapis.org/registry/format/>).
+
+Some formats in the OpenAPI Format Registry have no built-in validator
+yet (#696). The registry explicitly says tools are not required to
+implement its entries. With the default unknown-format policy, those
+names add no validation; other schema constraints still apply. The format
+pass in `@oaverify/check` reports missing format checks. Applications can
+register their own validators.
+
+#### packages/oav-express4
+
+**`renderProblemDetails`** ([packages/oav-express4/src/render.ts:9](../packages/oav-express4/src/render.ts#L9))
+
+Against RFC 9457 section 4.2.1 (<https://www.rfc-editor.org/rfc/rfc9457#section-4.2.1>).
+
+Every error response uses `title: "Validation failed"`, regardless of its
+HTTP status. The response's `about:blank` problem type means a generic
+HTTP error; RFC 9457 recommends using the status phrase, such as `Bad
+Request`, as its title. oaverify uses one validation-specific title and
+lists individual errors in the `issues` field.
+
+#### packages/oav-express5
+
+**`renderProblemDetails`** ([packages/oav-express5/src/render.ts:9](../packages/oav-express5/src/render.ts#L9))
+
+Against RFC 9457 section 4.2.1 (<https://www.rfc-editor.org/rfc/rfc9457#section-4.2.1>).
+
+Every error response uses `title: "Validation failed"`, regardless of its
+HTTP status. The response's `about:blank` problem type means a generic
+HTTP error; RFC 9457 recommends using the status phrase, such as `Bad
+Request`, as its title. oaverify uses one validation-specific title and
+lists individual errors in the `issues` field.
+
+#### packages/oav-fastify
+
+**`renderProblemDetails`** ([packages/oav-fastify/src/render.ts:9](../packages/oav-fastify/src/render.ts#L9))
+
+Against RFC 9457 section 4.2.1 (<https://www.rfc-editor.org/rfc/rfc9457#section-4.2.1>).
+
+Every error response uses `title: "Validation failed"`, regardless of its
+HTTP status. The response's `about:blank` problem type means a generic
+HTTP error; RFC 9457 recommends using the status phrase, such as `Bad
+Request`, as its title. oaverify uses one validation-specific title and
+lists individual errors in the `issues` field.
+
+#### packages/router
+
+**`createRouter`** ([packages/router/src/matcher.ts:472](../packages/router/src/matcher.ts#L472))
+
+Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
+
+When two path templates match a request, their segment types are compared
+from left to right. At the first difference, fixed text takes priority
+over a mix such as `file-{id}`, which takes priority over a bare
+parameter such as `{id}`. For example, `/a/b/c` matches both
+`/a/{x}/c` and `/{y}/b/c`; oaverify chooses `/a/{x}/c`. OpenAPI
+explicitly lets tooling decide how to resolve ambiguous matches.
+
+#### packages/schema
+
+**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1271](../packages/schema/src/compiler/compiler.ts#L1271))
+
+Against JSON Schema 2020-12 validation section 7 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7>).
+
+With `jsonSchemaDialect`, `format` values are metadata and do not
+trigger format checks. Even `unknownFormats: "error"` has no effect.
+JSON Schema permits this behavior. Select a dialect that enables format
+validation, such as `openapi31Dialect`, to check formats and apply the
+unknown-name policy.
+
+#### packages/validator
+
+**`transformBodySchemaForDirection`** ([packages/validator/src/body-schema-transform.ts:51](../packages/validator/src/body-schema-transform.ts#L51))
+
+Against JSON Schema 2020-12 validation section 9.4 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-9.4>).
+
+A request body containing a `readOnly` property is rejected. JSON Schema
+allows the receiving application to ignore that property or return an
+error; oaverify chooses an error. The property is also removed from the
+request's `required` list, so clients can omit it even when it is
+required in a response.
+
+### resolves
+
+The spec is silent or self-contradictory, and this picked a reading.
+
+#### packages/schema
+
+**`discriminatorKeyword`** ([packages/schema/src/keywords/discriminator.ts:7](../packages/schema/src/keywords/discriminator.ts#L7))
+
+Against OpenAPI 3.1 Discriminator Object (<https://spec.openapis.org/oas/v3.1.0#discriminator-object>).
+
+If a `discriminator` cannot match its values to the schemas in `oneOf` or
+`anyOf`, it is ignored and normal branch validation applies. A
+discriminator uses a payload field to select a schema; OpenAPI does not
+specify how to handle an unusable mapping. oaverify reports
+`silent-rewrite/discriminator-unroutable` so the author can find the
+unused mapping. This can happen when a bundled document retains mappings
+to the original files (#561).
+
+### defers
+
+The cited spec requires it and this does not implement it yet.
+
+#### packages/router
+
+**`createRouter`** ([packages/router/src/matcher.ts:472](../packages/router/src/matcher.ts#L472))
+
+Against OpenAPI 3.2.0 (<https://spec.openapis.org/oas/v3.2.0#path-item-object>).
+
+Custom HTTP methods declared through OpenAPI 3.2's `additionalOperations`
+are not routed. For a matching path, a request using one receives a 405
+(Method Not Allowed) result, and the method is missing from the reported
+allowed methods.
+Support is tracked in #396.
+
+#### packages/validator
+
+**`headerParamValidators`** ([packages/validator/src/operation-cache.ts:42](../packages/validator/src/operation-cache.ts#L42))
+
+Against OpenAPI 3.1 Parameter Object (<https://spec.openapis.org/oas/v3.1.0#parameter-object>).
+
+A request can be rejected for omitting a required header parameter
+named `Accept`, `Content-Type`, or `Authorization`. OpenAPI says to
+ignore Parameter Object definitions with these names, but oaverify
+currently enforces them like other header parameters. Correcting this
+is tracked in #1084.
+
+**`UNIMPLEMENTED_LOCATIONS`** ([packages/validator/src/parameter-locations.ts:85](../packages/validator/src/parameter-locations.ts#L85))
+
+Against OpenAPI 3.2 Parameter Object (<https://spec.openapis.org/oas/v3.2.0#parameter-object>).
+
+Creating a validator fails if the document declares an OpenAPI 3.2 `in:
+querystring` parameter. That location validates the entire query string
+as one value, which the current `HttpRequest` interface does not provide
+(#397). The validator refuses the unsupported declaration so the
+operation cannot silently run without the required checks (#836).
+
+## Streaming-specific behavior
+
+These entries describe behavior specific to streaming validation. Buffered
+subtrees use the in-memory schema compiler; relevant
+[schema and format boundaries](#schema-and-http-validation) also apply there.
+
+### under-asserts
+
+Accepts what the cited spec forbids.
+
+#### packages/stream-validator
+
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:837](../packages/stream-validator/src/engine/stream-validator.ts#L837))
+
+Against RFC 8259 section 8.1 (<https://www.rfc-editor.org/rfc/rfc8259#section-8.1>).
+
+RFC 8259 requires UTF-8 for JSON exchanged outside a closed ecosystem.
+`utf8: "replace"` allows malformed sequences in strings and keys,
+validating their U+FFFD replacement text while echoing the original bytes.
+This compatibility setting can accept malformed input when the schema
+permits the replacement text. The default, `utf8: "reject"`, rejects it.
+
+### narrows
+
+Rejects what the cited spec allows.
+
+#### packages/stream-validator
+
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:837](../packages/stream-validator/src/engine/stream-validator.ts#L837))
+
+Against OpenAPI 3.0.3 Reference Object (<https://spec.openapis.org/oas/v3.0.3#reference-object>).
+
+Under a bare `oas30Dialect`, a schema placing a keyword beside a
+`$ref` can be refused at construction with a `ClassifierError`. OAS
+3.0 ignores anything added beside a `$ref` ("any properties added
+SHALL be ignored"), so the keyword never runs and `@oaverify/core`
+compiles the schema; the classifier reads it anyway and rejects the
+keywords it cannot stream, such as `unevaluatedProperties`. Passing
+`openApiVersion: "3.0"` rather than the dialect directly removes the
+sibling before classification, and the schema streams (#998).
+
+### resolves
+
+The spec is silent or self-contradictory, and this picked a reading.
+
+#### packages/stream-validator
+
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:837](../packages/stream-validator/src/engine/stream-validator.ts#L837))
+
+Against RFC 8259 section 4 (<https://www.rfc-editor.org/rfc/rfc8259#section-4>).
+
+When a JSON object repeats a property name, streaming validation can
+check and count every occurrence toward `minProperties` and
+`maxProperties`. The in-memory validator keeps only the last occurrence,
+as `JSON.parse` does. The streaming validator also keeps only the last
+when the schema requires it to collect an object in memory before
+checking it. JSON recommends unique names and leaves duplicate handling
+unspecified, so the result here depends on the schema.
+
+### defers
+
+The cited spec requires it and this does not implement it yet.
+
+#### packages/stream-validator
+
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:837](../packages/stream-validator/src/engine/stream-validator.ts#L837))
+
+Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3.2>).
+
+Streaming validation can disagree with `@oaverify/core` for the same
+schema and data, without warning when the validator is created. Named
+references such as `#Pet` can select the wrong target when multiple
+schemas define that name. `$dynamicRef`, which allows a reference's
+target to depend on the schema being applied, also ignores that context
+(#1090). Separately, some malformed schema keyword values are silently
+ignored instead of rejected (#919).
+
+## Document loading and tooling
+
+### under-asserts
+
+Accepts what the cited spec forbids.
+
+#### packages/check
+
+**`checkSpec`** ([packages/check/src/check.ts:162](../packages/check/src/check.ts#L162))
+
+Against OpenAPI 3.1 Schema Object (<https://spec.openapis.org/oas/v3.1.0#schema-object>).
+
+In OpenAPI 3.1 and 3.2, the conformance pass misses malformed fields
+inside Schema Objects, such as `xml: 5` or `externalDocs` without a
+`url`. It uses the published meta-schemas (schemas describing valid
+OpenAPI documents), which leave these fields unchecked. The pass checks
+them in OpenAPI 3.0 documents. Other passes still check schema validation
+rules.
+
+**`checkSpec`** ([packages/check/src/check.ts:162](../packages/check/src/check.ts#L162))
+
+Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.1.1>).
+
+A `$schema` declaration in a nested schema is ignored without a finding
+unless that schema also declares `$id`. JSON Schema allows `$schema` only
+at a schema resource's root: the top-level schema, or a nested schema
+with its own `$id`. Elsewhere, the nested schema inherits its parent's
+dialect (the set of schema rules to apply).
+
+#### packages/metaschema
+
+**`metaschemaFor`** ([packages/metaschema/src/index.ts:123](../packages/metaschema/src/index.ts#L123))
+
+Against OpenAPI 3.1.0 (<https://spec.openapis.org/oas/v3.1.0#schema-object>).
+
+For OpenAPI 3.1 and 3.2, the meta-schema only checks that a Schema Object
+is an object or a boolean. It leaves fields inside it unchecked, so
+malformed `xml` or `externalDocs` fields can pass. The meta-schema is the
+schema used to check an OpenAPI document's structure; the published 3.0
+version describes these fields and catches those errors.
+
+#### packages/overlay-spec
+
+**`parseTarget`** ([packages/overlay-spec/src/parse-target.ts:63](../packages/overlay-spec/src/parse-target.ts#L63))
+
+Against RFC 9535 section 2.3.1.1 (<https://www.rfc-editor.org/rfc/rfc9535#section-2.3.1.1>).
+
+Quoted targets accept an escape for either quote character, so
+`$['a\"b']` selects the key `a"b`. JSONPath permits escaping only the
+enclosing quote; the other quote character appears literally.
+
+### narrows
+
+Rejects what the cited spec allows.
+
+#### packages/cli
+
+**`unknownFormats`** ([packages/cli/src/emit-standalone.ts:40](../packages/cli/src/emit-standalone.ts#L40))
+
+Against JSON Schema 2020-12 validation section 7.2.3 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.3>).
+
+By default, standalone code generation rejects schemas with unknown
+formats, such as `{"type":"string","format":"phone"}`. This also
+applies to plain JSON Schema 2020-12, where formats are metadata by
+default and unknown names should be allowed. Set `unknownFormats:
+"ignore"` to generate code without a check for those names.
+
+#### packages/overlay-spec
 
 **`translateOverlay`** ([packages/overlay-spec/src/index.ts:86](../packages/overlay-spec/src/index.ts#L86))
 
@@ -419,30 +716,7 @@ every depth with `$..description` or selecting an array slice with
 and quote characters; valid JSONPath escapes such as `\n` and `\u0061`
 are rejected.
 
-### packages/router
-
-**`createRouter`** ([packages/router/src/matcher.ts:472](../packages/router/src/matcher.ts#L472))
-
-Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
-
-The router treats `/pets/` and `/pets` as the same path, including when
-matching requests. Declaring both for the same HTTP method causes a
-conflict. OpenAPI allows them as distinct paths; this router removes
-trailing slashes.
-
-### packages/schema
-
-**`maxDepth`** ([packages/schema/src/compiler/compiler.ts:1181](../packages/schema/src/compiler/compiler.ts#L1181))
-
-Against JSON Schema 2020-12 core section 8.2.3 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3>).
-
-Setting `maxDepth` can reject otherwise valid data when validation
-follows a recursive `$ref` beyond the configured limit. JSON Schema
-imposes no such limit. This optional safeguard bounds recursion through
-self-referencing schemas to help prevent a JavaScript stack overflow;
-it does not limit all JSON nesting. The default is uncapped.
-
-### packages/spec
+#### packages/spec
 
 **`resolveSpec`** ([packages/spec/src/resolver.ts:238](../packages/spec/src/resolver.ts#L238))
 
@@ -454,22 +728,7 @@ name a target. The resolver supports external fragments that give a JSON
 Pointer path, such as `pet.json#/components/schemas/Pet`, but does not
 look up named anchors.
 
-### packages/stream-validator
-
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:837](../packages/stream-validator/src/engine/stream-validator.ts#L837))
-
-Against OpenAPI 3.0.3 Reference Object (<https://spec.openapis.org/oas/v3.0.3#reference-object>).
-
-Under a bare `oas30Dialect`, a schema placing a keyword beside a
-`$ref` can be refused at construction with a `ClassifierError`. OAS
-3.0 ignores anything added beside a `$ref` ("any properties added
-SHALL be ignored"), so the keyword never runs and `@oaverify/core`
-compiles the schema; the classifier reads it anyway and rejects the
-keywords it cannot stream, such as `unevaluatedProperties`. Passing
-`openApiVersion: "3.0"` rather than the dialect directly removes the
-sibling before classification, and the schema streams (#998).
-
-### packages/syntax
+#### packages/syntax
 
 **`parseYamlDocument`** ([packages/syntax/src/index.ts:100](../packages/syntax/src/index.ts#L100))
 
@@ -481,39 +740,11 @@ file expand into a very large structure. YAML does not set a limit, but
 oaverify keeps the `yaml` package's default safeguard against excessive
 resource use.
 
-### packages/validator
-
-**`maxDepth`** ([packages/validator/src/validator.ts:821](../packages/validator/src/validator.ts#L821))
-
-Against JSON Schema 2020-12 core section 8.2.3 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3>).
-
-Setting `maxDepth` can reject an otherwise valid request body with a
-`depth` error (HTTP 400) when validation follows a recursive `$ref`
-beyond the limit. JSON Schema imposes no such limit. This optional
-safeguard helps prevent stack overflows with self-referencing schemas;
-it does not limit all JSON nesting. The default is uncapped.
-
-## transforms
+### transforms
 
 Changes the value handed on, which can affect subsequent validation.
 
-### packages/core
-
-**`cookies`** ([packages/core/src/types.ts:601](../packages/core/src/types.ts#L601))
-
-Against OpenAPI 3.2 style values (<https://spec.openapis.org/oas/v3.2.0#style-values>).
-
-When cookies arrive percent-decoded, OpenAPI 3.2's `style: cookie`
-validates the decoded values even though the style requires preserving
-the percent-encoded text. For example,
-`session=%41` becomes `A`: a schema with `const: "%41"` then rejects
-it, while `const: "A"` accepts it. The returned parameter value is also
-`A`. The Fetch adapter decodes cookies itself; Express and Fastify
-adapters pass through the values supplied by their cookie parsers.
-Decoding follows the default `form` style, regardless of the style
-declared in the spec.
-
-### packages/metaschema
+#### packages/metaschema
 
 **`metaschemaFor`** ([packages/metaschema/src/index.ts:123](../packages/metaschema/src/index.ts#L123))
 
@@ -526,7 +757,7 @@ can use the same compiler as newer versions. See
 `packages/metaschema/scripts/convert-oas30.mjs`. The OpenAPI 3.1 and 3.2
 meta-schemas are used unchanged.
 
-### packages/spec
+#### packages/spec
 
 **`resolveSpec`** ([packages/spec/src/resolver.ts:238](../packages/spec/src/resolver.ts#L238))
 
@@ -539,36 +770,11 @@ specifies which schema a reference identifies but leaves the resolved
 document's layout to tooling. Keeping shared references preserves
 discriminator matching (#553) and recursive schemas (#556).
 
-## chooses
+### chooses
 
 The spec grants latitude, and this picked one option.
 
-### packages/core
-
-**`allowEmptyValue`** ([packages/core/src/types.ts:475](../packages/core/src/types.ts#L475))
-
-Against OpenAPI 3.1.1 Parameter Object (<https://spec.openapis.org/oas/v3.1.1#parameter-object>).
-
-With `allowEmptyValue: true`, an empty query value such as `?flag=` is
-accepted without checking its parameter schema. Even `minLength: 1` or
-`type: integer` does not reject it. OpenAPI 3.1.1 explicitly makes
-interactions with the Schema Object implementation-defined; oaverify
-chooses to bypass schema checks for an empty value.
-
-### packages/formats
-
-**`builtInFormats`** ([packages/formats/src/index.ts:83](../packages/formats/src/index.ts#L83))
-
-Against the OpenAPI Format Registry (<https://spec.openapis.org/registry/format/>).
-
-Some formats in the OpenAPI Format Registry have no built-in validator
-yet (#696). The registry explicitly says tools are not required to
-implement its entries. With the default unknown-format policy, those
-names add no validation; other schema constraints still apply. The format
-pass in `@oaverify/check` reports missing format checks. Applications can
-register their own validators.
-
-### packages/metaschema
+#### packages/metaschema
 
 **`checkDocumentConformance`** ([packages/metaschema/src/conformance.ts:220](../packages/metaschema/src/conformance.ts#L220))
 
@@ -583,128 +789,11 @@ disabled by default; this pass leaves it disabled. A conformance
 `format` severity setting only grades findings that exist; it does not
 enable these checks.
 
-### packages/oav-express4
-
-**`renderProblemDetails`** ([packages/oav-express4/src/render.ts:9](../packages/oav-express4/src/render.ts#L9))
-
-Against RFC 9457 section 4.2.1 (<https://www.rfc-editor.org/rfc/rfc9457#section-4.2.1>).
-
-Every error response uses `title: "Validation failed"`, regardless of its
-HTTP status. The response's `about:blank` problem type means a generic
-HTTP error; RFC 9457 recommends using the status phrase, such as `Bad
-Request`, as its title. oaverify uses one validation-specific title and
-lists individual errors in the `issues` field.
-
-### packages/oav-express5
-
-**`renderProblemDetails`** ([packages/oav-express5/src/render.ts:9](../packages/oav-express5/src/render.ts#L9))
-
-Against RFC 9457 section 4.2.1 (<https://www.rfc-editor.org/rfc/rfc9457#section-4.2.1>).
-
-Every error response uses `title: "Validation failed"`, regardless of its
-HTTP status. The response's `about:blank` problem type means a generic
-HTTP error; RFC 9457 recommends using the status phrase, such as `Bad
-Request`, as its title. oaverify uses one validation-specific title and
-lists individual errors in the `issues` field.
-
-### packages/oav-fastify
-
-**`renderProblemDetails`** ([packages/oav-fastify/src/render.ts:9](../packages/oav-fastify/src/render.ts#L9))
-
-Against RFC 9457 section 4.2.1 (<https://www.rfc-editor.org/rfc/rfc9457#section-4.2.1>).
-
-Every error response uses `title: "Validation failed"`, regardless of its
-HTTP status. The response's `about:blank` problem type means a generic
-HTTP error; RFC 9457 recommends using the status phrase, such as `Bad
-Request`, as its title. oaverify uses one validation-specific title and
-lists individual errors in the `issues` field.
-
-### packages/router
-
-**`createRouter`** ([packages/router/src/matcher.ts:472](../packages/router/src/matcher.ts#L472))
-
-Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
-
-When two path templates match a request, their segment types are compared
-from left to right. At the first difference, fixed text takes priority
-over a mix such as `file-{id}`, which takes priority over a bare
-parameter such as `{id}`. For example, `/a/b/c` matches both
-`/a/{x}/c` and `/{y}/b/c`; oaverify chooses `/a/{x}/c`. OpenAPI
-explicitly lets tooling decide how to resolve ambiguous matches.
-
-### packages/schema
-
-**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1271](../packages/schema/src/compiler/compiler.ts#L1271))
-
-Against JSON Schema 2020-12 validation section 7 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7>).
-
-With `jsonSchemaDialect`, `format` values are metadata and do not
-trigger format checks. Even `unknownFormats: "error"` has no effect.
-JSON Schema permits this behavior. Select a dialect that enables format
-validation, such as `openapi31Dialect`, to check formats and apply the
-unknown-name policy.
-
-### packages/validator
-
-**`transformBodySchemaForDirection`** ([packages/validator/src/body-schema-transform.ts:51](../packages/validator/src/body-schema-transform.ts#L51))
-
-Against JSON Schema 2020-12 validation section 9.4 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-9.4>).
-
-A request body containing a `readOnly` property is rejected. JSON Schema
-allows the receiving application to ignore that property or return an
-error; oaverify chooses an error. The property is also removed from the
-request's `required` list, so clients can omit it even when it is
-required in a response.
-
-## resolves
-
-The spec is silent or self-contradictory, and this picked a reading.
-
-### packages/schema
-
-**`discriminatorKeyword`** ([packages/schema/src/keywords/discriminator.ts:7](../packages/schema/src/keywords/discriminator.ts#L7))
-
-Against OpenAPI 3.1 Discriminator Object (<https://spec.openapis.org/oas/v3.1.0#discriminator-object>).
-
-If a `discriminator` cannot match its values to the schemas in `oneOf` or
-`anyOf`, it is ignored and normal branch validation applies. A
-discriminator uses a payload field to select a schema; OpenAPI does not
-specify how to handle an unusable mapping. oaverify reports
-`silent-rewrite/discriminator-unroutable` so the author can find the
-unused mapping. This can happen when a bundled document retains mappings
-to the original files (#561).
-
-### packages/stream-validator
-
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:837](../packages/stream-validator/src/engine/stream-validator.ts#L837))
-
-Against RFC 8259 section 4 (<https://www.rfc-editor.org/rfc/rfc8259#section-4>).
-
-When a JSON object repeats a property name, streaming validation can
-check and count every occurrence toward `minProperties` and
-`maxProperties`. The in-memory validator keeps only the last occurrence,
-as `JSON.parse` does. The streaming validator also keeps only the last
-when the schema requires it to collect an object in memory before
-checking it. JSON recommends unique names and leaves duplicate handling
-unspecified, so the result here depends on the schema.
-
-## defers
+### defers
 
 The cited spec requires it and this does not implement it yet.
 
-### packages/router
-
-**`createRouter`** ([packages/router/src/matcher.ts:472](../packages/router/src/matcher.ts#L472))
-
-Against OpenAPI 3.2.0 (<https://spec.openapis.org/oas/v3.2.0#path-item-object>).
-
-Custom HTTP methods declared through OpenAPI 3.2's `additionalOperations`
-are not routed. For a matching path, a request using one receives a 405
-(Method Not Allowed) result, and the method is missing from the reported
-allowed methods.
-Support is tracked in #396.
-
-### packages/spec
+#### packages/spec
 
 **`resolveSpec`** ([packages/spec/src/resolver.ts:238](../packages/spec/src/resolver.ts#L238))
 
@@ -716,42 +805,6 @@ relative references; the resolver instead uses the containing file's
 location. For example, `$id: "nested/base.json"` should make `$ref:
 "pet.json"` load `nested/pet.json`, but it loads `pet.json` beside the
 containing file (#1088).
-
-### packages/stream-validator
-
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:837](../packages/stream-validator/src/engine/stream-validator.ts#L837))
-
-Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3.2>).
-
-Streaming validation can disagree with `@oaverify/core` for the same
-schema and data, without warning when the validator is created. Named
-references such as `#Pet` can select the wrong target when multiple
-schemas define that name. `$dynamicRef`, which allows a reference's
-target to depend on the schema being applied, also ignores that context
-(#1090). Separately, some malformed schema keyword values are silently
-ignored instead of rejected (#919).
-
-### packages/validator
-
-**`headerParamValidators`** ([packages/validator/src/operation-cache.ts:42](../packages/validator/src/operation-cache.ts#L42))
-
-Against OpenAPI 3.1 Parameter Object (<https://spec.openapis.org/oas/v3.1.0#parameter-object>).
-
-A request can be rejected for omitting a required header parameter
-named `Accept`, `Content-Type`, or `Authorization`. OpenAPI says to
-ignore Parameter Object definitions with these names, but oaverify
-currently enforces them like other header parameters. Correcting this
-is tracked in #1084.
-
-**`UNIMPLEMENTED_LOCATIONS`** ([packages/validator/src/parameter-locations.ts:85](../packages/validator/src/parameter-locations.ts#L85))
-
-Against OpenAPI 3.2 Parameter Object (<https://spec.openapis.org/oas/v3.2.0#parameter-object>).
-
-Creating a validator fails if the document declares an OpenAPI 3.2 `in:
-querystring` parameter. That location validates the entire query string
-as one value, which the current `HttpRequest` interface does not provide
-(#397). The validator refuses the unsupported declaration so the
-operation cannot silently run without the required checks (#836).
 
 ## Regenerating
 

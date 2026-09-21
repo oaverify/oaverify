@@ -7,9 +7,8 @@
  * The page is asserted against the source by `pnpm check:boundaries-doc`, so a
  * rendering bug cannot make the gate red on its own: the gate compares the
  * committed page against this renderer's output, and both move together. What
- * these cover is the three transforms that exist because a tag body is written
- * for a TSDoc reader and the page is Markdown, each of which was a real
- * mis-render before it was fixed.
+ * these cover is how source tags become readable entries and how readers
+ * navigate the generated inventory.
  */
 
 import { describe, expect, it } from "vitest";
@@ -199,16 +198,82 @@ describe("renderDoc", () => {
 
   it("carries a count per kind and a total", () => {
     const out = page();
-    expect(out).toContain(
-      "| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 1 |",
-    );
+    expect(out).toContain("| `under-asserts` | accepts what the cited spec forbids | 1 |");
     expect(out).toContain("1 documented entries across 1 files.");
   });
 
   it("omits a kind with no entries rather than printing an empty section", () => {
     const out = page();
-    expect(out).toContain("## under-asserts");
-    expect(out).not.toContain("## transforms\n");
+    expect(out).toContain("\n### under-asserts\n");
+    expect(out).not.toContain("\n### transforms\n");
+  });
+
+  it("groups entries by implementation area, then kind and package, keeping every entry once", () => {
+    const fixtures = [
+      ["check", "under-asserts"],
+      ["stream-validator", "narrows"],
+      ["stream-validator", "under-asserts"],
+      ["validator", "under-asserts"],
+      ["formats", "narrows"],
+      ["formats", "under-asserts"],
+      ["oav-express4", "under-asserts"],
+    ];
+    const out = renderDoc(
+      collectBoundaries(
+        fixtures.map(([pkg, kind]) =>
+          file(`packages/${pkg}/src/example.ts`, [
+            `@specCites x, ${RFC}`,
+            `@specBoundary ${kind}`,
+            `Boundary for ${pkg}: ${kind}.`,
+          ]),
+        ),
+      ),
+    ) as string;
+    expect(out.match(/^#{2,4} .+$/gm)).toEqual([
+      "## Schema and HTTP validation",
+      "### under-asserts",
+      "#### packages/formats",
+      "#### packages/oav-express4",
+      "#### packages/validator",
+      "### narrows",
+      "#### packages/formats",
+      "## Streaming-specific behavior",
+      "### under-asserts",
+      "#### packages/stream-validator",
+      "### narrows",
+      "#### packages/stream-validator",
+      "## Document loading and tooling",
+      "### under-asserts",
+      "#### packages/check",
+      "## Regenerating",
+    ]);
+    for (const [pkg, kind] of fixtures) {
+      expect(out.split(`Boundary for ${pkg}: ${kind}.`)).toHaveLength(2);
+    }
+    expect(out).toContain("[Streaming-specific behavior](#streaming-specific-behavior)");
+    expect(out).toContain("[Document loading and tooling](#document-loading-and-tooling)");
+    expect(out).toContain("Buffered\nsubtrees use the in-memory schema compiler");
+    expect(out).toContain("[schema and format boundaries](#schema-and-http-validation)");
+  });
+
+  it("omits empty implementation areas from headings and navigation", () => {
+    expect(page()).toContain("[Schema and HTTP validation](#schema-and-http-validation)");
+    expect(page()).not.toContain("Streaming-specific behavior");
+    expect(page()).not.toContain("Document loading and tooling");
+  });
+
+  it("refuses to silently omit a package with no section mapping", () => {
+    expect(() =>
+      renderDoc(
+        collectBoundaries([
+          file("packages/new-package/src/example.ts", [
+            `@specCites x, ${RFC}`,
+            "@specBoundary narrows",
+            "A boundary awaiting a section.",
+          ]),
+        ]),
+      ),
+    ).toThrow("packages/new-package has no section in SECTIONS");
   });
 
   it("links the declaration and resolves inline links in the body", () => {

@@ -154,7 +154,41 @@ This page is generated from the \`@specBoundary\` tags in the source. The gate
 checks tag structure and keeps the page current; verifying the claims and
 finding omitted boundaries requires review and testing.
 
-**How to read a kind.** Each answers one question: how does our behaviour
+Entries are grouped by implementation area, then by kind. Shared code can
+affect more than one API surface.
+`;
+
+const SECTIONS = [
+  {
+    title: "Schema and HTTP validation",
+    anchor: "schema-and-http-validation",
+    packages: [
+      "core",
+      "schema",
+      "formats",
+      "router",
+      "validator",
+      "oav-express4",
+      "oav-express5",
+      "oav-fastify",
+    ],
+  },
+  {
+    title: "Streaming-specific behavior",
+    anchor: "streaming-specific-behavior",
+    packages: ["stream-validator"],
+    intro: `These entries describe behavior specific to streaming validation. Buffered
+subtrees use the in-memory schema compiler; relevant
+[schema and format boundaries](#schema-and-http-validation) also apply there.`,
+  },
+  {
+    title: "Document loading and tooling",
+    anchor: "document-loading-and-tooling",
+    packages: ["spec", "overlay-spec", "syntax", "metaschema", "check", "cli", "oav"],
+  },
+];
+
+const KIND_INTRO = `**How to read a kind.** Each answers one question: how does our behaviour
 relate to the cited text? A kind describes the behavior, not its severity or
 whether it is scheduled for repair. A \`chooses\` entry can describe a
 conforming implementation choice.
@@ -174,31 +208,46 @@ regenerate; the gate fails if the two disagree.
 
 /** The generated page, as a string. */
 export function renderDoc(rows) {
+  for (const row of rows) {
+    if (!SECTIONS.some((section) => section.packages.includes(row.pkg))) {
+      throw new Error(`spec-boundary-doc: packages/${row.pkg} has no section in SECTIONS.`);
+    }
+  }
+  const sections = SECTIONS.map((section) => ({
+    ...section,
+    rows: rows.filter((row) => section.packages.includes(row.pkg)),
+  })).filter((section) => section.rows.length > 0);
   const out = [INTRO];
 
+  for (const section of sections) {
+    out.push(`- [${section.title}](#${section.anchor})`);
+  }
+  out.push(`\n${KIND_INTRO}`);
   out.push("\n| kind | meaning | entries |\n| ---- | ------- | ----- |");
   for (const [kind, meaning] of KINDS) {
-    out.push(
-      `| [\`${kind}\`](#${kind}) | ${meaning} | ${rows.filter((r) => r.kind === kind).length} |`,
-    );
+    out.push(`| \`${kind}\` | ${meaning} | ${rows.filter((r) => r.kind === kind).length} |`);
   }
   out.push(
     `\n${rows.length} documented entries across ${new Set(rows.map((r) => r.path)).size} files.\n`,
   );
 
-  for (const [kind, meaning] of KINDS) {
-    const hit = rows.filter((r) => r.kind === kind);
-    if (hit.length === 0) continue;
-    out.push(`\n## ${kind}\n\n${meaning[0].toUpperCase()}${meaning.slice(1)}.\n`);
-    let pkg = "";
-    for (const row of hit) {
-      if (row.pkg !== pkg) {
-        pkg = row.pkg;
-        out.push(`\n### packages/${pkg}\n`);
+  for (const section of sections) {
+    out.push(`\n## ${section.title}\n`);
+    if (section.intro) out.push(`${section.intro}\n`);
+    for (const [kind, meaning] of KINDS) {
+      const hit = section.rows.filter((r) => r.kind === kind);
+      if (hit.length === 0) continue;
+      out.push(`\n### ${kind}\n\n${meaning[0].toUpperCase()}${meaning.slice(1)}.\n`);
+      let pkg = "";
+      for (const row of hit) {
+        if (row.pkg !== pkg) {
+          pkg = row.pkg;
+          out.push(`\n#### packages/${pkg}\n`);
+        }
+        out.push(`**\`${row.symbol}\`** ([${row.path}:${row.line}](../${row.path}#L${row.line}))`);
+        out.push(`\nAgainst ${row.label}${row.url ? ` (<${row.url}>)` : ""}.\n`);
+        out.push(`${row.body}\n`);
       }
-      out.push(`**\`${row.symbol}\`** ([${row.path}:${row.line}](../${row.path}#L${row.line}))`);
-      out.push(`\nAgainst ${row.label}${row.url ? ` (<${row.url}>)` : ""}.\n`);
-      out.push(`${row.body}\n`);
     }
   }
 
