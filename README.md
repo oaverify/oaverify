@@ -6,23 +6,20 @@
 [![types included](https://img.shields.io/badge/types-included-blue)](https://www.typescriptlang.org/)
 [![license: MIT](https://img.shields.io/npm/l/oaverify)](https://github.com/oaverify/oaverify/blob/main/LICENSE)
 
-oaverify checks OpenAPI 3.0, 3.1 and 3.2 documents, and validates HTTP
-traffic against them, in JavaScript and TypeScript services. Use it
-when an OpenAPI spec is the contract for a service, gateway, test
-suite, or edge deployment.
+oaverify is a schema validator, traffic validator, and streaming validator, with a
+**zero-dependency** kernel. It validates OpenAPI 3.0, 3.1 and 3.2 documents, and HTTP
+request and response frames (method, path, parameters, headers, content type, status,
+bodies) against those documents.
 
-Two questions, and a verb for each:
-
-| Question                                        | Verb                                    |
+| Question                                        | How to check                            |
 | ----------------------------------------------- | --------------------------------------- |
 | Is this request or response what the spec says? | `validateRequest` / `oaverify validate` |
 | Is the spec itself any good?                    | `checkSpec` / `oaverify check`          |
 
 The first is framework-neutral validation with structured errors. The
 second grades the document: unused components, schemas oaverify had to
-rewrite or could not satisfy, OpenAPI conformance, examples that do not
-match the schema beside them, and patterns that can be made to
-backtrack catastrophically.
+rewrite or could not satisfy, OpenAPI conformance, examples that don't
+match their schema, catastrophic regular expression backtracking, and more.
 
 The core package builds a validator from a parsed OpenAPI document.
 Companion packages add YAML loading, Express and Fastify adapters, a
@@ -48,13 +45,13 @@ if (!result.valid) {
 }
 ```
 
-One validation call covers the HTTP frame: method, path, parameters,
+One validation call covers the whole request or response: method, path, parameters,
 body, content type, status, and headers.
 
 ## Why this exists
 
 The established OpenAPI validators for JavaScript predate OpenAPI 3.1.
-oaverify is built to be the boring, correct option for modern specs.
+oaverify was built to be a boring, correct option for modern specs.
 
 - **3.1 and 3.2 are JSON Schema 2020-12, natively.** 1296/1301 on the
   required upstream test suite, every divergence itemized and
@@ -63,18 +60,18 @@ oaverify is built to be the boring, correct option for modern specs.
   integration tests
   ([conformance report](https://github.com/oaverify/oaverify/blob/main/conformance/REPORT.md)).
 - **Validator construction is cheap.** 1.7x to 3.8x faster than Ajv
-  compiling on an instance it already holds, and 14x to 174x faster than
-  standing one up, since a fresh `Ajv2020` compiles the 2020-12
+  compiling on an instance it already holds, and 14x to 174x faster
+  than one built from scratch, since a fresh `Ajv2020` compiles the 2020-12
   meta-schema first. Steady-state validation is at parity, including the
   cells where Ajv wins
   ([numbers and methodology](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md#performance)).
-  Cheap construction is what makes per-test, per-tenant, and
+  Cheap construction makes per-test, per-tenant, and
   overlay-patched validators practical.
 - **Zero dependencies, and nothing written back into your values.**
   The core carries zero runtime dependencies and failures are return
   values. Coercion happens on the way into validation, never back into
   your objects: `req.body`, `req.query` and `req.params` still hold
-  what your parser produced, so unmounting the middleware cannot change
+  what your parser produced, so unmounting the middleware won't change
   what a handler sees. The adapters keep their own per-request
   bookkeeping on the framework's objects, and on Express, mounting
   response validation replaces `res.send`, since checking a response
@@ -83,8 +80,8 @@ oaverify is built to be the boring, correct option for modern specs.
 - **Overlays patch specs you don't own, in memory.** Typed,
   OpenAPI-aware verbs, or standard Overlay 1.0 documents: 32/32 on the
   upstream suite, which validates the overlay envelope against the
-  canonical schema. Translating an overlay to our typed verbs is a
-  closed-form recogniser and covers less than that; the report scores
+  canonical schema. Translating an overlay to our typed verbs
+  covers less than that; the report scores
   both
   ([conformance report](https://github.com/oaverify/oaverify/blob/main/conformance/REPORT.md#openapi-overlay-10)).
   Applied just before construction, in place of hand-editing parsed
@@ -99,10 +96,10 @@ oaverify is built to be the boring, correct option for modern specs.
 
 **When not to use it.** If your OpenAPI document is generated from
 zod, TypeBox, or similar runtime schemas, your schema library already
-validates your traffic and oaverify adds little. Swagger 2.0 documents
-are not supported ([convert first](#versions)). If you want request
+validates your traffic and oaverify doesn't add much. Swagger 2.0 documents
+aren't supported ([convert first](#versions)). If you want request
 coercion by mutation or response mocking, `express-openapi-validator`
-and `openapi-backend` do those and oaverify deliberately does not.
+and `openapi-backend` do those and oaverify deliberately doesn't.
 
 **Coming from `express-openapi-validator`?** The middleware mounts in
 the same place and renders `application/problem+json`; you give up
@@ -126,12 +123,12 @@ Pick the packages that match what you need.
 | Streaming large bodies + buffer-budget analysis | `@oaverify/stream`                      |
 | Grading a spec document from your own tooling   | `@oaverify/check`                       |
 
-`@oaverify/core` is the library and carries no runtime dependencies. It parses
-JSON; YAML support is a separate package because it pulls in a parser.
+`@oaverify/core` is the zero-dependency core library. It parses
+JSON; YAML is a separate package because it pulls in a parser.
 The adapters, the streaming engine and the document check depend on
 `@oaverify/core`, so installing one gets you both. `@oaverify/check` is what
 `oaverify check` runs; install it directly when you want the findings, the
-severity grading and the SARIF output inside your own program rather than
+severity grading or the SARIF output inside your own program rather than
 from a shell.
 
 The CLI can validate a request before you wire validation into an
@@ -151,7 +148,7 @@ for what each one exports.
 
 ## Bundle cost
 
-The cost of embedding the library, measured with esbuild
+Embedding cost, measured with esbuild
 (`--bundle --minify`, ESM) against the published `dist`, then gzipped:
 
 | Import                                              | Entry point                |     Raw | Gzipped |
@@ -160,7 +157,7 @@ The cost of embedding the library, measured with esbuild
 | the same, plus `builtInFormats`                     | `+ @oaverify/core/formats` |  ~73 KB |  ~20 KB |
 | `createValidator` (request/response HTTP validator) | `@oaverify/core`           | ~107 KB |  ~31 KB |
 
-`@oaverify/core` carries no runtime dependencies, so these figures are
+`@oaverify/core` is zero-dependency, so these figures are
 the complete cost of the import. YAML parsing, the streaming engine,
 the adapters, the spec loader (`@oaverify/core/spec`), and the OpenAPI
 meta-schemas are separate packages or entry points and not included.
@@ -244,18 +241,18 @@ config, streaming validation, and pre-deploy buffer budgets.
 - Gating spec quality in CI with `oaverify check`, by severity.
 - Validating large JSON bodies as bytes arrive, and estimating the
   per-operation buffer budget before deploying.
-- Per-tenant, per-test and cold-start validators, which construction
-  cost makes practical.
+- Per-tenant, per-test and cold-start validators, which fast construction
+  makes practical.
 - Compiling a document to a standalone ESM validator for runtimes that
   forbid runtime code generation.
-- Patching a spec you do not own with overlays, in memory.
+- Patching a spec you don't own with overlays, in memory.
 
 ## Streaming large bodies
 
 `createValidator` validates a fully-parsed value. For a body too large
 to hold in memory, the separate `@oaverify/stream` package validates it
 as it streams, echoing the bytes through to a sink while reporting
-violations on a side channel. It is a second engine, with its own
+violations on a side channel. It's a second engine, with its own
 construction path: your router still picks the operation, and the
 stream validator checks one resolved schema.
 
@@ -288,7 +285,7 @@ Overlays patch a spec you don't own, or one published upstream of your
 repo (a vendor API, a template repo's canonical spec), in memory
 before the validator is constructed, without forking the file. They
 apply in order, so an organization-wide overlay and a per-deployment
-one layer:
+overlay can layer:
 
 ```ts
 import { applyOverlays, type SpecOverlay } from "@oaverify/core/spec";
@@ -358,10 +355,9 @@ has pass / fail counts by category, the out-of-scope list, and why each
 entry is out of scope.
 
 Those suites are pinned to a revision, so results stay reproducible. The
-**pins** badge says whether upstream has moved past a pin. Red means
-upstream added cases these runs haven't covered yet. It sits red often,
-and nothing is broken when it does. **CI** is the badge that tracks
-tests.
+**pins** badge turns red when upstream has changed its tests since we last
+updated our pin, and it sits red often: it means the pin is due for an
+update, it doesn't mean tests are failing. **CI** is the badge that tracks tests.
 
 ## CLI
 
@@ -397,7 +393,7 @@ are covered in
 
 Every command shares one exit-code taxonomy, tabulated in
 [the published CLI README](https://github.com/oaverify/oaverify/blob/main/packages/oav/README.md#exit-codes).
-The rule worth reading before you script around it: stdout carries the
+Worth reading before you script around it: stdout carries the
 report and the exit code summarises it. `check` exits `4` when a schema
 is malformed, and still prints every finding it reached, so treating
 non-zero as an opaque error throws away a complete payload.
@@ -443,7 +439,7 @@ Unknown / missing `openapi` strings fall back to the 3.1 dialect by
 default; configure with
 `onUnknownVersion: "throw" | "warn" | "fallback31"`.
 
-**Swagger 2.0 specs** aren't supported directly: `createValidator`
+**Swagger 2.0 specs** aren't directly supported: `createValidator`
 throws on `swagger: "2.0"` documents. Convert to OpenAPI 3.0 first with
 [`swagger2openapi`](https://github.com/Mermade/oas-kit/tree/main/packages/swagger2openapi)
 and pass the 3.0 output to `createValidator`:
@@ -456,7 +452,7 @@ npx swagger2openapi swagger.json -o openapi.json
 
 Node 22 or newer, on every published package. Nothing older is tested,
 and the packages declare `engines.node: ">=22"`, so an older runtime
-fails at install rather than at runtime.
+will fail at install.
 
 ## Framework integration
 
@@ -470,13 +466,13 @@ sibling, conventionally mounted in development only. Auth dispatch,
 upload parsing, and custom error envelopes stay explicit in your
 application.
 
-You are not locked into them. For Next.js, Hono, Bun, Deno, or a custom
+You're not locked into them. For Next.js, Hono, Bun, Deno, or a custom
 stack, `validateRequest` / `validateResponse` (or the Fetch helpers
 `validateFetchRequest` / `validateFetchResponse`) plus `httpStatusFor`,
 `allowHeaderFor` and `toProblemDetails` wire up an inline adapter in
 about fifteen lines.
 [docs/integration.md](https://github.com/oaverify/oaverify/blob/main/docs/integration.md)
-has that recipe.
+has the recipe.
 
 ## Known limitations
 
@@ -485,11 +481,11 @@ OpenAPI middleware packages (draft versions, `$data`, async
 validation, response interception, upload helpers), see
 [docs/comparison.md](https://github.com/oaverify/oaverify/blob/main/docs/comparison.md).
 
-- External / cross-document `$ref` loading is not supported inside the
+- External / cross-document `$ref` loading isn't supported inside the
   schema compiler; resolve the document first (`resolveSpec`, or the
   `resolve` CLI verb), which hoists external schema targets into
   `components.schemas`.
-- `style: deepObject` query parameters support only single-level nesting (`obj[key]=value`); OpenAPI 3.0 through 3.2 do not define nested semantics.
+- `style: deepObject` query parameters support only single-level nesting (`obj[key]=value`); OpenAPI 3.0 through 3.2 don't define nested semantics.
 - `pattern` keywords and `format: "regex"` compile to the JavaScript
   built-in `RegExp`, which has no execution timeout, so an
   attacker-controlled spec can carry a ReDoS pattern like `(a+)+$`.
