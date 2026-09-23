@@ -290,8 +290,8 @@ describe("codegen injection: boolean OAS 3.0 exclusive flag must be a boolean", 
 
 describe("negative space: string-encoded fields tolerate adversarial input", () => {
   // These fields all flow through `quoteString` / `JSON.stringify`. The
-  // schema validator's behavior is unaffected by adversarial strings;
-  // crucially, the canary is never set.
+  // schema validator's behavior is unaffected by adversarial strings,
+  // and the canary is never set.
 
   it("pattern with adversarial regex source", () => {
     const adversarial = "abc`; (globalThis.__oavInjection = 1); //";

@@ -1548,8 +1548,8 @@ export interface CompileState {
    * `false`, the compiler suppresses allocation of per-function
    * `evalProps` / `evalItems` Sets and the merge loop that threads them
    * back to the caller: machinery that's inert unless
-   * `unevaluated*` actually consumes it. OpenAPI specs essentially
-   * never use these keywords, so the false path is the common case.
+   * `unevaluated*` actually consumes it. OpenAPI specs rarely use
+   * these keywords, so the false path is the common case.
    */
   readonly unevaluatedTracking: boolean;
   /**
