@@ -2,7 +2,7 @@ import { defineConfig } from "tsup";
 import { workspaceAliases } from "./workspace-aliases.js";
 
 /**
- * Build config for the publishable `@oaverify/core` — the lean
+ * Build config for the publishable `@oaverify/core`, the lean
  * validator tarball with zero runtime dependencies. Each entry
  * becomes a subpath:
  *

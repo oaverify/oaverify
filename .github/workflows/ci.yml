@@ -250,8 +250,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # No explicit `pnpm build`: each publishable package's prepack
-      # rebuilds on `pnpm pack` below, so the explicit step is wasted
-      # work. Builds still happen — just via prepack.
+      # rebuilds on `pnpm pack` below, so an explicit `pnpm build` would
+      # build the CLI's packages twice.
       - name: pack every publishable workspace package
         run: |
           set -euo pipefail

@@ -61,7 +61,7 @@ jobs:
     # Release just created), OR when this workflow is manually
     # dispatched (recovery from a partial / failed publish).
     # Regular pushes to main run release-please above but skip
-    # publish — release-please's `releases_created` is `false` while
+    # publish: release-please's `releases_created` is `false` while
     # it's only updating the in-flight release PR. Note the plural: the
     # singular `release_created` is scoped to the ROOT component, so a
     # release that tagged no root change would tag but never publish.

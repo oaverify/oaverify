@@ -116,9 +116,9 @@ async function benchSchema(s: PerfSchema): Promise<void> {
   //   "ajv compile" constructs an instance per iteration. A fresh
   //   Ajv2020 compiles the 2020-12 meta-schema before it can compile
   //   anything else, so this is dominated by that one-time cost. It is
-  //   the honest number for a process that compiles one schema and
-  //   exits, and it is why this column used to be flat across schemas
-  //   of wildly different sizes.
+  //   the number for a process that compiles one schema and exits,
+  //   and it is why this column stays nearly flat across schemas of
+  //   very different sizes.
   //
   //   "ajv-reused compile" shares one instance, which is what a service
   //   holding per-tenant or per-test validators actually does. ajv
@@ -177,7 +177,7 @@ async function benchSchema(s: PerfSchema): Promise<void> {
 
   // VALIDATE BENCH: every library pre-compiles its validator OUTSIDE the
   // timed loop; the hot path is just `validator(sample)`. No closure,
-  // no modulo, no cursor math — so what we measure is as close as
+  // no modulo, no cursor math, so what we measure is as close as
   // possible to the real production cost of "I already loaded the spec;
   // now validate this one payload".
 
@@ -257,7 +257,7 @@ async function benchSchema(s: PerfSchema): Promise<void> {
   // Valid path: one representative sample per config. Invalid path: one
   // task per authored fixture per config, so the published invalid
   // number spans the failure-position spread instead of a single point.
-  // Each task still validates ONE fixed payload — pure hot loop, no
+  // Each task still validates ONE fixed payload: a pure hot loop with no
   // per-iteration selection.
   const validSample = s.validInputs[0];
   const validateBench = new Bench({ time });

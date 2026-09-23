@@ -1,4 +1,4 @@
-// eov memory test server — Express 4 + express-openapi-validator (ajv under the hood).
+// eov memory test server: Express 4 + express-openapi-validator (ajv under the hood).
 // Run with: node --expose-gc server.mjs
 //
 // Instruments /__memory (and /__memory?gc=1 to force a GC first).

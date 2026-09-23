@@ -100,7 +100,7 @@ async function bench(entryPath) {
   //       file contains internal `#/components/...` refs that get
   //       orphaned by the inliner. On this run we time it anyway; if
   //       it throws we fall back to (b) and record the failure.
-  //   (b) @apidevtools/json-schema-ref-parser — the same resolver
+  //   (b) @apidevtools/json-schema-ref-parser: the same resolver
   //       express-openapi-validator uses. Produces a fully-dereferenced
   //       document we can feed straight to createValidator. Isolates
   //       compile / validate performance from resolver concerns.
@@ -143,7 +143,7 @@ async function bench(entryPath) {
     perCall.push(performance.now() - t);
   }
 
-  // Hot-path: same ops again — request validators are now cached.
+  // Hot-path: same ops again; request validators are now cached.
   const hotSample = ops.slice(0, Math.min(ops.length, 50));
   const hotPerCall = [];
   for (const op of hotSample) {

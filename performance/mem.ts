@@ -1,8 +1,8 @@
 /**
  * Steady-state HTTP-server memory benchmark.
  *
- * Spawns two Express 4 servers — one wraps oav, the other
- * wraps express-openapi-validator (which uses ajv under the hood) —
+ * Spawns two Express 4 servers (one wraps oav, the other
+ * wraps express-openapi-validator, which uses ajv under the hood)
  * against the same 40-schema OpenAPI spec. Hits each with 500 warmup
  * requests + 100 × 500 = 50,000 workload requests round-robin across
  * 13 cases (valid + invalid POST/GET/404/405 on five endpoints,
@@ -15,9 +15,9 @@
  * each library carries at rest; growth across 50k reqs is a
  * leak-shape check.
  *
- * Not a `tinybench` task — the numbers measured are memory
- * footprints, which need a running HTTP server with a stable workload,
- * not microbenchmark-style hot loops.
+ * Not a `tinybench` task: the numbers measured are memory
+ * footprints, which need a running HTTP server with a stable workload
+ * rather than microbenchmark-style hot loops.
  *
  * Bootstrap:
  *   cd performance/mem-bench && pnpm install

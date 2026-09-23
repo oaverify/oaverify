@@ -2,8 +2,8 @@
  * Runner for the OpenAPI-level conformance cases under ./openapi-cases/.
  *
  * Each directory there contains:
- *   spec.yaml      — the OpenAPI document
- *   cases.json     — an array of {name, kind, method, path, ..., expect, expectCodes}
+ *   spec.yaml      the OpenAPI document
+ *   cases.json     an array of {name, kind, method, path, ..., expect, expectCodes}
  *
  * Cases run via the oaverify CLI (invokes the built binary at
  * packages/oav/dist/cli.js) and compare exit code + emitted leaf
