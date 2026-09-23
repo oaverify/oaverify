@@ -1,4 +1,4 @@
-// oav memory test server — Express 4 + oav adapter.
+// oav memory test server: Express 4 + oav adapter.
 // Run with: node --expose-gc server.mjs
 //
 // Instruments /__memory (and /__memory?gc=1 to force a GC first).

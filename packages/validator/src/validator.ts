@@ -137,10 +137,9 @@ function failureFrom(origin: SchemaOrigin, err: unknown): PrecompileFailure {
  */
 function responseBodyOrigin(response: ResponseCompiled, mediaType: string): SchemaOrigin {
   return {
-    // The response's own label, not a per-media-type one. The guard
-    // reported `context` before this change and the compiler's message
-    // already names the media type, so narrowing it here would both
-    // change existing human output and say it twice.
+    // The response's own label, not a per-media-type one: narrowing it
+    // would change the reported label, and the compiler's message
+    // already names the media type, so it would also say it twice.
     label: response.context,
     pointer:
       response.pointer === undefined
@@ -2096,11 +2095,9 @@ export function createValidator(
         cache = cacheFor(match);
       } else {
         // Each request-side schema is its own guarded unit, so one bad
-        // parameter costs itself rather than the operation. Previously
-        // the whole build was one unit: a malformed parameter left no
-        // cache, the response loops below were skipped, and every
-        // finding in the operation was lost with no sign in the output
-        // that it had been graded at all (#527).
+        // parameter costs itself rather than the operation: the cache
+        // still builds, the response loops below still run, and the
+        // operation's other findings are still reported (#527).
         const before = failures.length;
         attempt({ label: where, pointer: operationPointer(match) }, () => {
           cache = buildCache(match, (origin, err) => {

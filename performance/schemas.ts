@@ -19,7 +19,7 @@ export interface PerfSchema {
   invalidInputs: unknown[];
 }
 
-// 1. Tiny schema — floor-case for overhead measurement.
+// 1. Tiny schema: floor-case for overhead measurement.
 const tiny: PerfSchema = {
   name: "tiny",
   description: "single type + minimum; baseline per-call overhead",
@@ -32,7 +32,7 @@ const tiny: PerfSchema = {
   invalidInputs: [-1, 3.14, "nope", null],
 };
 
-// 2. Petstore-ish object — the most common real shape.
+// 2. Petstore-ish object: the most common real shape.
 const petstore: PerfSchema = {
   name: "petstore",
   description: "object with required + scalar properties; realistic small API payload",
@@ -65,7 +65,7 @@ const petstore: PerfSchema = {
   ],
 };
 
-// 3. Nested + $ref — recursive tree; exercises the ref cache.
+// 3. Nested + $ref: recursive tree; exercises the ref cache.
 const tree: PerfSchema = {
   name: "tree",
   description: "recursive tree via $ref; exercises the compiled-fn cache",
@@ -109,7 +109,7 @@ const tree: PerfSchema = {
   ],
 };
 
-// 4. Composition (oneOf + allOf) — the expensive path.
+// 4. Composition (oneOf + allOf): the expensive path.
 const composition: PerfSchema = {
   name: "composition",
   description: "oneOf + allOf + nested properties; stresses applicator dispatch",
@@ -153,7 +153,7 @@ const composition: PerfSchema = {
   ],
 };
 
-// 6. Unique-primitives — pure `uniqueItems` pressure on a large array.
+// 6. Unique-primitives: pure `uniqueItems` pressure on a large array.
 // Picks up any regression to the primitive-fast-path fix; a naïve
 // O(N^2) implementation would show a sharp compile/validate split.
 const uniquePrimitives: PerfSchema = {
@@ -189,7 +189,7 @@ function makeDuplicateStrings(n: number, dupAt: number): string[] {
   return out;
 }
 
-// 5. Array-heavy — exercises the hot per-item validation loop.
+// 5. Array-heavy: exercises the hot per-item validation loop.
 const arrayHeavy: PerfSchema = {
   name: "array-heavy",
   description: "array of 100 objects; amortised throughput on collections",
@@ -217,7 +217,7 @@ const arrayHeavy: PerfSchema = {
   ],
 };
 
-// 7. Large strings with length bounds — exercises minLength / maxLength
+// 7. Large strings with length bounds: exercises minLength / maxLength
 // code-point counting. Real API payloads carry big text fields
 // (descriptions, content, base64 blobs) under generous maxLength caps.
 // The valid body sits well under its cap, so a length-bounded check can
@@ -246,7 +246,7 @@ const longString: PerfSchema = {
   ],
 };
 
-// 8. Pattern-heavy — the only shape that measures regex cost.
+// 8. Pattern-heavy: the only shape that measures regex cost.
 //
 // Every other shape here bounds strings with minLength/maxLength, so
 // `pattern` was absent from the whole suite and a change in regex
@@ -299,7 +299,7 @@ const patternHeavy: PerfSchema = {
   ],
 };
 
-// 9. Pattern-backtracking — the pathological regex case, kept apart.
+// 9. Pattern-backtracking: the pathological regex case, kept apart.
 //
 // `[a-z]+$` is single-anchored, and a backtracking engine handles it in
 // quadratic time: a non-matching tail forces a retry from every start

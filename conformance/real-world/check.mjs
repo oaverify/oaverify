@@ -64,7 +64,7 @@ for (const file of files) {
     const t3 = performance.now();
     row.compileMs = Math.round(t3 - t2);
     // Smoke test: validate a request against every declared operation.
-    // We're not checking the result — only that routing + lazy per-op
+    // We're not checking the result, only that routing + lazy per-op
     // compilation + execution don't throw and don't blow the heap.
     // validateRequest never touches response schemas, so this stays
     // cheap even on Stripe-shaped specs.

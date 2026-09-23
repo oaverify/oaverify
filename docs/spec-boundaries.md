@@ -340,7 +340,7 @@ Against RFC 3986 section 2.1 (<https://www.rfc-editor.org/rfc/rfc3986#section-2.
 Malformed percent escapes such as `%ZZ` are passed through to schema
 validation unchanged. RFC 3986 requires two hexadecimal digits after `%`.
 
-**`maxFormatLength`** ([packages/validator/src/validator.ts:847](../packages/validator/src/validator.ts#L847))
+**`maxFormatLength`** ([packages/validator/src/validator.ts:846](../packages/validator/src/validator.ts#L846))
 
 Against JSON Schema 2020-12 validation section 7 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7>).
 
@@ -468,7 +468,7 @@ resource use.
 
 ### packages/validator
 
-**`maxDepth`** ([packages/validator/src/validator.ts:821](../packages/validator/src/validator.ts#L821))
+**`maxDepth`** ([packages/validator/src/validator.ts:820](../packages/validator/src/validator.ts#L820))
 
 Against JSON Schema 2020-12 core section 8.2.3 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3>).
 

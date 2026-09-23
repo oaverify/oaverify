@@ -1,7 +1,7 @@
 name: pr-title
 
 # With squash-merge enabled, the PR title becomes the commit subject on
-# main — which is what release-please reads to decide version bumps.
+# main, which is what release-please reads to decide version bumps.
 # This check gates PRs whose title doesn't match Conventional Commits.
 
 on:

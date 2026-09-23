@@ -25,12 +25,11 @@ function inMemory(schema: SchemaOrBoolean, value: unknown): boolean {
 }
 
 /**
- * Comprehensive composition coverage: this is the safety net for the TEE
- * refactor (which changes composition from buffer-and-delegate to forward
- * streaming). Every (schema, value) pair must produce the same verdict as
- * @oaverify/internal-schema's in-memory engine; the refactor must keep them green.
+ * Differential coverage for composition. Every (schema, value) pair
+ * must produce the same verdict as @oaverify/internal-schema's in-memory
+ * engine.
  *
- * Each schema is probed against a broad set of diverse values, so the
+ * Each schema is probed against a set of diverse values, so the
  * matrix exercises exactly-one (`oneOf`) overlap, keyword-applies-only-to-
  * type subtleties, nesting, refs, and composition-with-siblings.
  */
