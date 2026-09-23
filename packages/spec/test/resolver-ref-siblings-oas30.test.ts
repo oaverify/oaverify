@@ -100,9 +100,9 @@ describe("resolveSpec and OAS 3.0 $ref sibling suppression", () => {
 
     await expect(
       resolveSpec({ reader: createMemoryReader(sources), entry: "main.json" }),
-    ).rejects.toThrow(/OAS 3\.0 \$ref sibling/);
+    ).rejects.toThrow(/under OAS 3\.0 a schema that is a \$ref has no addressable members/);
     expect(() => resolveSpecSync({ reader: syncReader(sources), entry: "main.json" })).toThrow(
-      /OAS 3\.0 \$ref sibling/,
+      /under OAS 3\.0 a schema that is a \$ref has no addressable members/,
     );
   });
 
@@ -133,9 +133,9 @@ describe("resolveSpec and OAS 3.0 $ref sibling suppression", () => {
 
     await expect(
       resolveSpec({ reader: createMemoryReader(sources), entry: "main.json" }),
-    ).rejects.toThrow(/OAS 3\.0 \$ref sibling/);
+    ).rejects.toThrow(/under OAS 3\.0 a schema that is a \$ref has no addressable members/);
     expect(() => resolveSpecSync({ reader: syncReader(sources), entry: "main.json" })).toThrow(
-      /OAS 3\.0 \$ref sibling/,
+      /under OAS 3\.0 a schema that is a \$ref has no addressable members/,
     );
   });
 
@@ -163,9 +163,9 @@ describe("resolveSpec and OAS 3.0 $ref sibling suppression", () => {
 
     await expect(
       resolveSpec({ reader: createMemoryReader(sources), entry: "main.json" }),
-    ).rejects.toThrow(/OAS 3\.0 \$ref sibling/);
+    ).rejects.toThrow(/under OAS 3\.0 a schema that is a \$ref has no addressable members/);
     expect(() => resolveSpecSync({ reader: syncReader(sources), entry: "main.json" })).toThrow(
-      /OAS 3\.0 \$ref sibling/,
+      /under OAS 3\.0 a schema that is a \$ref has no addressable members/,
     );
   });
 
@@ -186,9 +186,9 @@ describe("resolveSpec and OAS 3.0 $ref sibling suppression", () => {
 
     await expect(
       resolveSpec({ reader: createMemoryReader(sources), entry: "main.json" }),
-    ).rejects.toThrow(/OAS 3\.0 \$ref sibling/);
+    ).rejects.toThrow(/under OAS 3\.0 a schema that is a \$ref has no addressable members/);
     expect(() => resolveSpecSync({ reader: syncReader(sources), entry: "main.json" })).toThrow(
-      /OAS 3\.0 \$ref sibling/,
+      /under OAS 3\.0 a schema that is a \$ref has no addressable members/,
     );
   });
 
@@ -209,9 +209,9 @@ describe("resolveSpec and OAS 3.0 $ref sibling suppression", () => {
 
     await expect(
       resolveSpec({ reader: createMemoryReader(sources), entry: "main.json" }),
-    ).rejects.toThrow(/OAS 3\.0 \$ref sibling/);
+    ).rejects.toThrow(/under OAS 3\.0 a schema that is a \$ref has no addressable members/);
     expect(() => resolveSpecSync({ reader: syncReader(sources), entry: "main.json" })).toThrow(
-      /OAS 3\.0 \$ref sibling/,
+      /under OAS 3\.0 a schema that is a \$ref has no addressable members/,
     );
   });
 
@@ -232,9 +232,9 @@ describe("resolveSpec and OAS 3.0 $ref sibling suppression", () => {
 
     await expect(
       resolveSpec({ reader: createMemoryReader(sources), entry: "main.json" }),
-    ).rejects.toThrow(/OAS 3\.0 \$ref sibling/);
+    ).rejects.toThrow(/under OAS 3\.0 a schema that is a \$ref has no addressable members/);
     expect(() => resolveSpecSync({ reader: syncReader(sources), entry: "main.json" })).toThrow(
-      /OAS 3\.0 \$ref sibling/,
+      /under OAS 3\.0 a schema that is a \$ref has no addressable members/,
     );
   });
 
@@ -255,9 +255,9 @@ describe("resolveSpec and OAS 3.0 $ref sibling suppression", () => {
 
     await expect(
       resolveSpec({ reader: createMemoryReader(sources), entry: "main.json" }),
-    ).rejects.toThrow(/OAS 3\.0 \$ref sibling/);
+    ).rejects.toThrow(/under OAS 3\.0 a schema that is a \$ref has no addressable members/);
     expect(() => resolveSpecSync({ reader: syncReader(sources), entry: "main.json" })).toThrow(
-      /OAS 3\.0 \$ref sibling/,
+      /under OAS 3\.0 a schema that is a \$ref has no addressable members/,
     );
   });
 
@@ -393,9 +393,9 @@ describe("resolveSpec and OAS 3.0 $ref sibling suppression", () => {
 
     await expect(
       resolveSpec({ reader: createMemoryReader(sources), entry: "main.json" }),
-    ).rejects.toThrow(/OAS 3\.0 \$ref sibling/);
+    ).rejects.toThrow(/under OAS 3\.0 a schema that is a \$ref has no addressable members/);
     expect(() => resolveSpecSync({ reader: syncReader(sources), entry: "main.json" })).toThrow(
-      /OAS 3\.0 \$ref sibling/,
+      /under OAS 3\.0 a schema that is a \$ref has no addressable members/,
     );
   });
 
