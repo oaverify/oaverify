@@ -1,5 +1,34 @@
 # Changelog
 
+## [7.3.0](https://github.com/oaverify/oaverify/compare/check-v7.2.2...check-v7.3.0) (2026-09-23)
+
+
+### Features
+
+* **schema:** diagnose composed finite-value conflicts ([#1080](https://github.com/oaverify/oaverify/issues/1080)) ([16cc706](https://github.com/oaverify/oaverify/commit/16cc7060326cd743c36fee3ee29237cf3278c521)), closes [#1079](https://github.com/oaverify/oaverify/issues/1079)
+* **schema:** report a close that rejects what its composition declares ([#1046](https://github.com/oaverify/oaverify/issues/1046)) ([a06b4d2](https://github.com/oaverify/oaverify/commit/a06b4d2b9f0bc8370a5739d3dd7164baa56e25e1))
+* **spec:** preserve definition reachability and correct source attribution ([#1082](https://github.com/oaverify/oaverify/issues/1082)) ([b086f49](https://github.com/oaverify/oaverify/commit/b086f4922c0e2584c3ab3b11c4c0033e6673ef29)), closes [#1081](https://github.com/oaverify/oaverify/issues/1081)
+
+
+### Bug Fixes
+
+* **check:** classify unknown versions explicitly ([#1070](https://github.com/oaverify/oaverify/issues/1070)) ([c7495fb](https://github.com/oaverify/oaverify/commit/c7495fbffdb4d40efc46ced1cdc164df293694df))
+* **check:** compile document schemas ([#1073](https://github.com/oaverify/oaverify/issues/1073)) ([f79adda](https://github.com/oaverify/oaverify/commit/f79addadfa25c26e3af58a41ae6da191282858dc))
+* **check:** declare the canonical SARIF schema URI ([#1136](https://github.com/oaverify/oaverify/issues/1136)) ([39e3f1a](https://github.com/oaverify/oaverify/commit/39e3f1a14c04d6de72d91c209513f47b2d129ce9))
+* **check:** declare UTF-16 SARIF column units ([#1138](https://github.com/oaverify/oaverify/issues/1138)) ([e4da54a](https://github.com/oaverify/oaverify/commit/e4da54a695f6cf303f92018ed2daad8c52cf24ca))
+* **check:** disclose unsupported OpenAPI versions ([#1064](https://github.com/oaverify/oaverify/issues/1064)) ([79a7e46](https://github.com/oaverify/oaverify/commit/79a7e46212c0b7f59b8e0371108bcffd86d964fa))
+* **check:** disclose unsupported schema dialects ([#1077](https://github.com/oaverify/oaverify/issues/1077)) ([5289dd7](https://github.com/oaverify/oaverify/commit/5289dd7dfa8b0223ed2617fce7e7f9088014b765)), closes [#1050](https://github.com/oaverify/oaverify/issues/1050)
+* **check:** tolerate malformed operation tags ([#1076](https://github.com/oaverify/oaverify/issues/1076)) ([4b22313](https://github.com/oaverify/oaverify/commit/4b22313244f027dfb11f157afd38669368244c92))
+* **check:** walk 3.2 media schemas ([#1075](https://github.com/oaverify/oaverify/issues/1075)) ([fe171f5](https://github.com/oaverify/oaverify/commit/fe171f50b5fb22dc667b6ea3904ed580f11eee89))
+* **check:** walk additional operations ([#1074](https://github.com/oaverify/oaverify/issues/1074)) ([6518c5c](https://github.com/oaverify/oaverify/commit/6518c5c4e2ef19e395757ab3947a2f512445177e))
+* **schema:** discard annotations at every schema-object boundary ([#1042](https://github.com/oaverify/oaverify/issues/1042)) ([a3d3b79](https://github.com/oaverify/oaverify/commit/a3d3b791c959c31cb0068df1c6d12991dcd7c801))
+* **validator:** report standalone example compilation failures ([#1134](https://github.com/oaverify/oaverify/issues/1134)) ([2958012](https://github.com/oaverify/oaverify/commit/29580129a7d62c8fc8ade58bc92afc6ebe69e43f))
+
+
+### Documentation
+
+* **tooling:** track specification boundaries and generate their inventory ([#1095](https://github.com/oaverify/oaverify/issues/1095)) ([2e5f824](https://github.com/oaverify/oaverify/commit/2e5f8249aa40686fe4fa876d5651c97f268744e6))
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/check-v7.2.1...check-v7.2.2) (2026-09-09)
 
 

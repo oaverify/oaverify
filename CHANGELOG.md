@@ -1,5 +1,71 @@
 # Changelog
 
+## [7.3.0](https://github.com/oaverify/oaverify/compare/core-v7.2.2...core-v7.3.0) (2026-09-23)
+
+
+### Features
+
+* **schema:** diagnose composed finite-value conflicts ([#1080](https://github.com/oaverify/oaverify/issues/1080)) ([16cc706](https://github.com/oaverify/oaverify/commit/16cc7060326cd743c36fee3ee29237cf3278c521)), closes [#1079](https://github.com/oaverify/oaverify/issues/1079)
+* **schema:** export contains-bound keyword definitions ([#1141](https://github.com/oaverify/oaverify/issues/1141)) ([6b8d060](https://github.com/oaverify/oaverify/commit/6b8d060735dde475ce4e7992d0300a9d18795095))
+* **schema:** re-export the core types @oaverify/core/schema is declared in ([#1165](https://github.com/oaverify/oaverify/issues/1165)) ([e1bc636](https://github.com/oaverify/oaverify/commit/e1bc636bdffc49d964a9b56e76a5c649f60e0f18)), closes [#1162](https://github.com/oaverify/oaverify/issues/1162)
+* **schema:** report a close that rejects what its composition declares ([#1046](https://github.com/oaverify/oaverify/issues/1046)) ([a06b4d2](https://github.com/oaverify/oaverify/commit/a06b4d2b9f0bc8370a5739d3dd7164baa56e25e1))
+* **spec:** preserve definition reachability and correct source attribution ([#1082](https://github.com/oaverify/oaverify/issues/1082)) ([b086f49](https://github.com/oaverify/oaverify/commit/b086f4922c0e2584c3ab3b11c4c0033e6673ef29)), closes [#1081](https://github.com/oaverify/oaverify/issues/1081)
+
+
+### Bug Fixes
+
+* **check:** classify unknown versions explicitly ([#1070](https://github.com/oaverify/oaverify/issues/1070)) ([c7495fb](https://github.com/oaverify/oaverify/commit/c7495fbffdb4d40efc46ced1cdc164df293694df))
+* **check:** compile document schemas ([#1073](https://github.com/oaverify/oaverify/issues/1073)) ([f79adda](https://github.com/oaverify/oaverify/commit/f79addadfa25c26e3af58a41ae6da191282858dc))
+* **check:** declare the canonical SARIF schema URI ([#1136](https://github.com/oaverify/oaverify/issues/1136)) ([39e3f1a](https://github.com/oaverify/oaverify/commit/39e3f1a14c04d6de72d91c209513f47b2d129ce9))
+* **check:** declare UTF-16 SARIF column units ([#1138](https://github.com/oaverify/oaverify/issues/1138)) ([e4da54a](https://github.com/oaverify/oaverify/commit/e4da54a695f6cf303f92018ed2daad8c52cf24ca))
+* **check:** deduplicate conformance leaves ([#1058](https://github.com/oaverify/oaverify/issues/1058)) ([568b3a4](https://github.com/oaverify/oaverify/commit/568b3a404f4fdb61a09aa145dec7c35956529361))
+* **check:** deduplicate conformance leaves ([#1061](https://github.com/oaverify/oaverify/issues/1061)) ([568b3a4](https://github.com/oaverify/oaverify/commit/568b3a404f4fdb61a09aa145dec7c35956529361))
+* **check:** disclose unsupported OpenAPI versions ([#1064](https://github.com/oaverify/oaverify/issues/1064)) ([79a7e46](https://github.com/oaverify/oaverify/commit/79a7e46212c0b7f59b8e0371108bcffd86d964fa))
+* **check:** disclose unsupported schema dialects ([#1077](https://github.com/oaverify/oaverify/issues/1077)) ([5289dd7](https://github.com/oaverify/oaverify/commit/5289dd7dfa8b0223ed2617fce7e7f9088014b765)), closes [#1050](https://github.com/oaverify/oaverify/issues/1050)
+* **check:** tolerate malformed operation tags ([#1076](https://github.com/oaverify/oaverify/issues/1076)) ([4b22313](https://github.com/oaverify/oaverify/commit/4b22313244f027dfb11f157afd38669368244c92))
+* **check:** walk 3.2 media schemas ([#1075](https://github.com/oaverify/oaverify/issues/1075)) ([fe171f5](https://github.com/oaverify/oaverify/commit/fe171f50b5fb22dc667b6ea3904ed580f11eee89))
+* **check:** walk additional operations ([#1074](https://github.com/oaverify/oaverify/issues/1074)) ([6518c5c](https://github.com/oaverify/oaverify/commit/6518c5c4e2ef19e395757ab3947a2f512445177e))
+* **cli:** check required response headers when the map is omitted ([#1157](https://github.com/oaverify/oaverify/issues/1157)) ([070ab29](https://github.com/oaverify/oaverify/commit/070ab29cfd0cd84720454f7a4eb010425ce2baf0))
+* **cli:** restore the one-error default in compile-schema output ([#1137](https://github.com/oaverify/oaverify/issues/1137)) ([25e59d8](https://github.com/oaverify/oaverify/commit/25e59d8c1759e061be3feec5d7198b74652f2d5c))
+* **cli:** show bounded buffering positions in stream-check verbose output ([#1164](https://github.com/oaverify/oaverify/issues/1164)) ([9118ae6](https://github.com/oaverify/oaverify/commit/9118ae6f7ef5ef8f75bac6b68594054ea31106af))
+* **conformance:** detect schema suite regressions by case identity ([#1167](https://github.com/oaverify/oaverify/issues/1167)) ([e51fbaa](https://github.com/oaverify/oaverify/commit/e51fbaaeeca548e384d08057d65787db0fa4b933))
+* **core:** accept readonly paths in error constructors ([#1140](https://github.com/oaverify/oaverify/issues/1140)) ([888eb66](https://github.com/oaverify/oaverify/commit/888eb66ea0a386f01e507c48d1930fe9d2422121))
+* **core:** isolate mutable validation issue projections ([#1135](https://github.com/oaverify/oaverify/issues/1135)) ([13c49cb](https://github.com/oaverify/oaverify/commit/13c49cb6e5039c90f1c659ac7fb91d48743be669))
+* **core:** type reusable path items ([#1066](https://github.com/oaverify/oaverify/issues/1066)) ([94e8826](https://github.com/oaverify/oaverify/commit/94e8826e3441d6ee80fae6496ff562fe53c80e1b))
+* **core:** use ASCII dots for text truncation ([#1142](https://github.com/oaverify/oaverify/issues/1142)) ([4dd2179](https://github.com/oaverify/oaverify/commit/4dd217920b4ca8ea3b84e0b21076f22c3344d3ca))
+* **overlay-spec:** decode quoted target escapes once ([#1139](https://github.com/oaverify/oaverify/issues/1139)) ([44511f2](https://github.com/oaverify/oaverify/commit/44511f2b9daa20e9850c5a156c306f14a2180083))
+* **schema:** align keyword error paths ([#1071](https://github.com/oaverify/oaverify/issues/1071)) ([2d57ca3](https://github.com/oaverify/oaverify/commit/2d57ca3c8b97749757e54107e27ff1889652f134))
+* **schema:** annotate for the parent from a nested unevaluated keyword ([#1045](https://github.com/oaverify/oaverify/issues/1045)) ([a12bb27](https://github.com/oaverify/oaverify/commit/a12bb27a08c49b8452c8a705086048081f5f73f9)), closes [#1038](https://github.com/oaverify/oaverify/issues/1038)
+* **schema:** check unused definition values ([#1065](https://github.com/oaverify/oaverify/issues/1065)) ([533a5c6](https://github.com/oaverify/oaverify/commit/533a5c6201297957b75b041b85ba031e995d120d))
+* **schema:** discard annotations at every schema-object boundary ([#1042](https://github.com/oaverify/oaverify/issues/1042)) ([a3d3b79](https://github.com/oaverify/oaverify/commit/a3d3b791c959c31cb0068df1c6d12991dcd7c801))
+* **schema:** drop the cause guess from the required-lint message ([#1022](https://github.com/oaverify/oaverify/issues/1022)) ([68e8d28](https://github.com/oaverify/oaverify/commit/68e8d28bbd72d9631dc7bd55851179fd978cc0b9))
+* **schema:** mark contains bounds as metadata ([#1072](https://github.com/oaverify/oaverify/issues/1072)) ([fe764ff](https://github.com/oaverify/oaverify/commit/fe764ffc3765b4e59a730aa44ccc0869e83aa3fe))
+* **schema:** validate non-object discriminator branches ([#1126](https://github.com/oaverify/oaverify/issues/1126)) ([6467f23](https://github.com/oaverify/oaverify/commit/6467f23eaafd450bb3cc118bdf1358dfe971b654))
+* **spec:** decode UTF-8 filename escape runs ([#1128](https://github.com/oaverify/oaverify/issues/1128)) ([bce1954](https://github.com/oaverify/oaverify/commit/bce19548c5cc655e971da7509f76c239a021e6ef))
+* **spec:** follow component containers ([#1060](https://github.com/oaverify/oaverify/issues/1060)) ([ef7b0b3](https://github.com/oaverify/oaverify/commit/ef7b0b3e44877053eb7f8d9ebc83a9c93cf5d471))
+* **spec:** restrict definition diagnostics to schema positions ([#1133](https://github.com/oaverify/oaverify/issues/1133)) ([89710db](https://github.com/oaverify/oaverify/commit/89710db9fb9137e51da556962b4f3a83ccf3f39a))
+* **spec:** reword the OAS 3.0 $ref sibling pointer error ([#1178](https://github.com/oaverify/oaverify/issues/1178)) ([12b2f97](https://github.com/oaverify/oaverify/commit/12b2f9729d982d163284e2ff8f238e652b21f582))
+* **stream:** enforce co-located reference targets ([#1127](https://github.com/oaverify/oaverify/issues/1127)) ([520c0f7](https://github.com/oaverify/oaverify/commit/520c0f75cebab188df431b8afd1b10dbfe38f827))
+* **stream:** match core regex compilation fallback ([#1129](https://github.com/oaverify/oaverify/issues/1129)) ([c43133a](https://github.com/oaverify/oaverify/commit/c43133a9b05540b26b200877fd25f562087e0168))
+* **stream:** reject malformed UTF-8 input ([#1161](https://github.com/oaverify/oaverify/issues/1161)) ([712b34c](https://github.com/oaverify/oaverify/commit/712b34cf3319b76d55cfe48887385610cec181c9))
+* **stream:** retain body schema reference siblings ([#1132](https://github.com/oaverify/oaverify/issues/1132)) ([95505f6](https://github.com/oaverify/oaverify/commit/95505f6f4c68261ce194b3752dc5d065b4b180d5))
+* **validator:** enforce false HTTP body and header schemas ([#1156](https://github.com/oaverify/oaverify/issues/1156)) ([a54c3b3](https://github.com/oaverify/oaverify/commit/a54c3b3b1d222e13ad2e10461a41b235408e27b7))
+* **validator:** report standalone example compilation failures ([#1134](https://github.com/oaverify/oaverify/issues/1134)) ([2958012](https://github.com/oaverify/oaverify/commit/29580129a7d62c8fc8ade58bc92afc6ebe69e43f))
+* **validator:** split path delimiters before decoding ([#1125](https://github.com/oaverify/oaverify/issues/1125)) ([5b6c2f9](https://github.com/oaverify/oaverify/commit/5b6c2f9c2b1a88c4b56cca02b22a891f3d4a4572))
+
+
+### Documentation
+
+* **cli:** refresh sample report ([#1078](https://github.com/oaverify/oaverify/issues/1078)) ([df1b824](https://github.com/oaverify/oaverify/commit/df1b824cee80630f3140bc4691c807490a21178e)), closes [#1024](https://github.com/oaverify/oaverify/issues/1024)
+* correct API contracts and maintenance guidance ([#1143](https://github.com/oaverify/oaverify/issues/1143)) ([a5643b5](https://github.com/oaverify/oaverify/commit/a5643b5b9502b7b74ac9fedbab436150b772bfe2))
+* correct specification boundary claims ([#1169](https://github.com/oaverify/oaverify/issues/1169)) ([37ce2ab](https://github.com/oaverify/oaverify/commit/37ce2abff0bb84bdbc2900107efa71fafcf8a52d))
+* **modules:** state the moduleResolution requirement for subpath types ([#1166](https://github.com/oaverify/oaverify/issues/1166)) ([e63460b](https://github.com/oaverify/oaverify/commit/e63460bc45bdb68cc19ae8075eb19bb0f7bb900d)), closes [#1163](https://github.com/oaverify/oaverify/issues/1163)
+* say what unknownFormats counts as registered ([#1020](https://github.com/oaverify/oaverify/issues/1020)) ([ed40c58](https://github.com/oaverify/oaverify/commit/ed40c58973308f10ad01d0c2e27eb47b4e1bbc4c))
+* **schema:** clarify OAS 3.0 keyword leniency ([#1044](https://github.com/oaverify/oaverify/issues/1044)) ([a34d53e](https://github.com/oaverify/oaverify/commit/a34d53e0d0258b0a1b730a2e8d345e21fe1cfeb4))
+* **spec:** say that extendSchemas can only narrow ([#1037](https://github.com/oaverify/oaverify/issues/1037)) ([8ae9892](https://github.com/oaverify/oaverify/commit/8ae9892802deb56469c1592cfe86a124da1cf5fa))
+* tighten readme ([#1177](https://github.com/oaverify/oaverify/issues/1177)) ([668a05f](https://github.com/oaverify/oaverify/commit/668a05feaafe2825acb754e177fa2bff9e98d1a5))
+* **tooling:** track specification boundaries and generate their inventory ([#1095](https://github.com/oaverify/oaverify/issues/1095)) ([2e5f824](https://github.com/oaverify/oaverify/commit/2e5f8249aa40686fe4fa876d5651c97f268744e6))
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/core-v7.2.1...core-v7.2.2) (2026-09-09)
 
 
