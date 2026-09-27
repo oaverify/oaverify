@@ -195,6 +195,71 @@ describe("buildProgram: argv-level", () => {
     ).rejects.toThrow(/unknown format: xml/);
   });
 
+  it("validate --depth refuses anything but a non-negative integer", async () => {
+    // A bare `parseInt` read `abc` as NaN, which rendered the full tree,
+    // and `-1`, which rendered only `...` and hid every error.
+    for (const depth of ["abc", "-1", "1.5", "2x"]) {
+      const mem = memoryIo([["spec.json", spec]], [["body.json", "{}"]]);
+      await expect(
+        runCli(
+          [
+            "validate",
+            "spec.json",
+            "--path",
+            "POST /pets",
+            "--body",
+            "body.json",
+            "--depth",
+            depth,
+          ],
+          mem,
+        ),
+        depth,
+      ).rejects.toThrow(/--depth must be a non-negative integer/);
+    }
+  });
+
+  it("validate --depth 0 is accepted and renders the root error only", async () => {
+    const mem = memoryIo([["spec.json", spec]], [["body.json", "{}"]]);
+    const out = await runCli(
+      ["validate", "spec.json", "--path", "POST /pets", "--body", "body.json", "--depth", "0"],
+      mem,
+    );
+    expect(out.exitCode).toBe(1);
+    expect(out.stdout).toContain("request validation failed");
+    expect(out.stdout).not.toContain("required");
+  });
+
+  it("validate --status refuses a value that is not an integer", async () => {
+    const mem = memoryIo([["spec.json", spec]], [["body.json", "{}"]]);
+    const out = await runCli(
+      [
+        "validate",
+        "spec.json",
+        "--path",
+        "POST /pets",
+        "--body",
+        "body.json",
+        "--response",
+        "--status",
+        "201abc",
+      ],
+      mem,
+    );
+    expect(out.exitCode).toBe(3);
+    expect(out.stderr).toContain("--status must be an integer");
+  });
+
+  it("stream-check --max-buffered-bytes refuses anything but a positive integer", async () => {
+    for (const cap of ["abc", "-5", "0", "1.5"]) {
+      const mem = memoryIo([["spec.json", spec]]);
+      await expect(
+        runCli(["stream-check", "spec.json", "--max-buffered-bytes", cap], mem),
+        cap,
+      ).rejects.toThrow(/--max-buffered-bytes must be a positive integer/);
+    }
+  });
+
   it("compile-schema rejects an unknown --dialect with a usage error", async () => {
     const mem = memoryIo([], [["schema.json", "{}"]]);
     await expect(
