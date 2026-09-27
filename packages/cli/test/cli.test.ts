@@ -230,24 +230,26 @@ describe("buildProgram: argv-level", () => {
     expect(out.stdout).not.toContain("required");
   });
 
-  it("validate --status refuses a value that is not an integer", async () => {
-    const mem = memoryIo([["spec.json", spec]], [["body.json", "{}"]]);
-    const out = await runCli(
-      [
-        "validate",
-        "spec.json",
-        "--path",
-        "POST /pets",
-        "--body",
-        "body.json",
-        "--response",
-        "--status",
-        "201abc",
-      ],
-      mem,
-    );
-    expect(out.exitCode).toBe(3);
-    expect(out.stderr).toContain("--status must be an integer");
+  it("validate --status refuses anything but a positive integer", async () => {
+    for (const status of ["201abc", "0", "-1", "2.5"]) {
+      const mem = memoryIo([["spec.json", spec]], [["body.json", "{}"]]);
+      const out = await runCli(
+        [
+          "validate",
+          "spec.json",
+          "--path",
+          "POST /pets",
+          "--body",
+          "body.json",
+          "--response",
+          "--status",
+          status,
+        ],
+        mem,
+      );
+      expect(out.exitCode, status).toBe(3);
+      expect(out.stderr, status).toContain("--status must be a positive integer");
+    }
   });
 
   it("stream-check --max-buffered-bytes refuses anything but a positive integer", async () => {

@@ -675,10 +675,7 @@ function deriveMode(opts: {
     const path = parts[1] ?? "/";
     if (opts.response) {
       if (opts.status === undefined) throw new Error("--response requires --status");
-      const status = Number(opts.status);
-      if (opts.status.trim() === "" || !Number.isInteger(status)) {
-        throw new Error(`--status must be an integer, got ${JSON.stringify(opts.status)}`);
-      }
+      const status = parseCount("--status", opts.status, 1);
       return { kind: "responseForPath", method, path, status, body: opts.body };
     }
     return { kind: "bodyForPath", method, path, body: opts.body };
