@@ -9,25 +9,10 @@ import type { CompiledTreeSchema } from "@oaverify/internal-schema";
 import { deserialize, deserializePath, matchParsedMediaType } from "./deserialize.js";
 import { effectiveType } from "./schema-type.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast, getOwn } from "./headers.js";
-import type { OperationCache } from "./operation-cache.js";
+import { firstContentMediaType, type OperationCache } from "./operation-cache.js";
 import type { MutableRequestValues } from "./request-values.js";
 import { assembleObjectCookieParam, assembleObjectQueryParam } from "./param-assembly.js";
 import { describeParameterLocation } from "./parameter-locations.js";
-
-/**
- * Media type of the (single) entry inside a parameter's `content` map,
- * or `undefined` when `content` isn't in use. Companion to
- * `firstContentSchema`.
- *
- * @internal
- */
-function firstContentMediaType(p: ParameterObject): string | undefined {
-  if (p.content === undefined) return undefined;
-  for (const [mt, mto] of Object.entries(p.content)) {
-    if (mto.schema !== undefined) return mt;
-  }
-  return undefined;
-}
 
 /**
  * `true` for media types that imply JSON encoding (`application/json`
