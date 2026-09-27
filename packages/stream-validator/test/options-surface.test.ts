@@ -6,8 +6,18 @@ const enc = new TextEncoder();
 
 describe("numeric options are validated at construction (parity with @oaverify/internal-schema)", () => {
   const schema = { type: "string" } as SchemaOrBoolean;
-  for (const name of ["maxErrors", "maxDepth", "maxBufferedBytes", "maxTotalBytes"] as const) {
-    for (const bad of [0, -1, 1.5]) {
+  for (const name of [
+    "maxErrors",
+    "maxDepth",
+    "maxBufferedBytes",
+    "maxTotalBytes",
+    "maxMemberPrefixBytes",
+    "maxMemberDropBytes",
+    "maxUniqueItems",
+  ] as const) {
+    // NaN and -Infinity passed a `Number.isFinite` gate: NaN left the cap
+    // silently off, where compileSchema refuses both.
+    for (const bad of [0, -1, 1.5, Number.NaN, Number.NEGATIVE_INFINITY]) {
       it(`rejects ${name}: ${bad}`, () => {
         expect(() => createStreamValidator(schema, { [name]: bad })).toThrow(
           /must be a positive integer/,
