@@ -3,9 +3,8 @@
  * validate a code or `family/*` key against (#632).
  *
  * A mirror of codes the emitting passes own. Where they declare a union,
- * the array is pinned to it and drift is a typecheck error; the three
- * single-literal classes are hand-written and covered by
- * `test/codes.test.ts`.
+ * the array is pinned to it and drift is a typecheck error; the rest are
+ * hand-written and covered by tests at or beside their emit sites.
  *
  * @packageDocumentation
  */
@@ -13,6 +12,7 @@
 import type { BuiltInErrorParams } from "@oaverify/internal-core";
 import type { SchemaLintIssue } from "@oaverify/internal-schema";
 import type { SpecHygieneIssue } from "@oaverify/internal-spec";
+import type { ExampleIssue } from "@oaverify/internal-validator";
 
 /** Union members the array omits. `satisfies` covers the other direction. */
 type Missing<Union extends string, Listed extends string> = Exclude<Union, Listed>;
@@ -135,7 +135,19 @@ const _conformanceComplete: Missing<
     ] = true;
 
 /** Examples-class codes. */
-export const EXAMPLES_CODES = ["example-invalid", "example-uncheckable"] as const;
+export const EXAMPLES_CODES = [
+  "example-invalid",
+  "example-uncheckable",
+] as const satisfies readonly ExampleIssue["code"][];
+const _examplesComplete: Missing<
+  ExampleIssue["code"],
+  (typeof EXAMPLES_CODES)[number]
+> extends never
+  ? true
+  : [
+      "missing from EXAMPLES_CODES",
+      Missing<ExampleIssue["code"], (typeof EXAMPLES_CODES)[number]>,
+    ] = true;
 
 /** ReDoS-class codes. */
 export const REDOS_CODES = ["ambiguous-pattern"] as const;
@@ -144,10 +156,10 @@ export const REDOS_CODES = ["ambiguous-pattern"] as const;
 export const MALFORMED_CODES = ["malformed-schema"] as const;
 
 /**
- * Schema-class codes the CLI emits itself, so outside the union above.
- * `format-not-validated` is a document walk `check` owns (#644).
+ * Schema-class codes `check` emits from its own document walks, so
+ * outside the union above.
  */
-const CLI_SCHEMA_CODES = ["format-not-validated", "unsupported-schema-dialect"] as const;
+const CHECK_SCHEMA_CODES = ["format-not-validated", "unsupported-schema-dialect"] as const;
 
 /**
  * Hygiene codes `check` owns rather than reading off a
@@ -165,7 +177,7 @@ const CHECK_HYGIENE_CODES = ["unserved-parameter-location", "unsupported-openapi
 /** Every code, by the class that emits it. */
 export const CODES_BY_CLASS = {
   hygiene: [...HYGIENE_CODES, ...CHECK_HYGIENE_CODES],
-  schema: [...SCHEMA_CODES, ...CLI_SCHEMA_CODES],
+  schema: [...SCHEMA_CODES, ...CHECK_SCHEMA_CODES],
   conformance: CONFORMANCE_CODES,
   examples: EXAMPLES_CODES,
   redos: REDOS_CODES,

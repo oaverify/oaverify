@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CheckCode } from "../src/codes.js";
-import {
-  CHECK_CODES,
-  CHECK_FAMILIES,
-  CODES_BY_CLASS,
-  EXAMPLES_CODES,
-  MALFORMED_CODES,
-} from "../src/codes.js";
+import { CHECK_CODES, CHECK_FAMILIES, CODES_BY_CLASS, MALFORMED_CODES } from "../src/codes.js";
 import { CHECK_CLASSES } from "../src/finding.js";
 
 // The union-pinned slices fail the typecheck on drift. The rest are
@@ -14,9 +8,8 @@ import { CHECK_CLASSES } from "../src/finding.js";
 // The redos slice is asserted against its emit site in
 // `redos-check.test.ts`, which is where that pass lives.
 describe("the hand-written slices still match their emit sites", () => {
-  // Both need a compiled validator to produce, which `check` owns.
-  it("lists the codes each of examples and malformed emits", () => {
-    expect([...EXAMPLES_CODES]).toEqual(["example-invalid", "example-uncheckable"]);
+  // Needs a compiled validator to produce, which `check` owns.
+  it("lists the codes malformed emits", () => {
     expect([...MALFORMED_CODES]).toEqual(["malformed-schema"]);
   });
 });
