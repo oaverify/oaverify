@@ -540,7 +540,10 @@ function applyDocumentMetadata(doc: OpenAPIDocument, overlay: SpecOverlay): Open
   if (overlay.tags !== undefined) {
     next.tags = [...overlay.tags];
   }
-  if (overlay.extendTags || overlay.replaceTags || overlay.removeTags) {
+  if (
+    (overlay.extendTags || overlay.replaceTags || overlay.removeTags) &&
+    (next.tags == null || Array.isArray(next.tags))
+  ) {
     next.tags = applyTagOps(next.tags ?? [], overlay);
   }
 
@@ -577,7 +580,10 @@ function applyDocumentMetadata(doc: OpenAPIDocument, overlay: SpecOverlay): Open
 }
 
 function applyTagOps(tags: TagObject[], overlay: SpecOverlay): TagObject[] {
-  const byName = new Map(tags.map((t) => [t.name, t]));
+  // An entry without a string name (`- ` alone is `null`) matches no
+  // operation and keeps its place in the list.
+  const readable = (t: TagObject): boolean => isObjectEntry(t) && typeof t.name === "string";
+  const byName = new Map(tags.filter(readable).map((t) => [t.name, t]));
 
   for (const entry of overlay.extendTags ?? []) {
     const existing = byName.get(entry.name);
@@ -593,7 +599,19 @@ function applyTagOps(tags: TagObject[], overlay: SpecOverlay): TagObject[] {
     byName.delete(name);
   }
 
-  return Array.from(byName.values());
+  const out: TagObject[] = [];
+  for (const t of tags) {
+    if (!readable(t)) {
+      out.push(t);
+      continue;
+    }
+    const current = byName.get(t.name);
+    if (current !== undefined) {
+      out.push(current);
+      byName.delete(t.name);
+    }
+  }
+  return [...out, ...byName.values()];
 }
 
 function applyDocumentPaths(doc: OpenAPIDocument, overlay: SpecOverlay): OpenAPIDocument {
@@ -628,6 +646,7 @@ function applyDocumentPaths(doc: OpenAPIDocument, overlay: SpecOverlay): OpenAPI
         if (item === undefined) {
           throw new Error(`overlay override targets unknown path ${path}`);
         }
+        if (!isObjectEntry(item)) continue;
         setSpecKey(paths, path, applyPathOverride(item, override));
       }
     }
@@ -1152,7 +1171,7 @@ function applyPathOverride(item: PathItem, override: PathOverride): PathItem {
       const opOverride = override.operations[method] ?? override.operations["*"];
       if (opOverride === undefined) continue;
       const op = next[method];
-      if (op === undefined) continue;
+      if (!isObjectEntry(op)) continue;
       next[method] = applyOperationOverride(op, opOverride);
     }
   }
@@ -1356,6 +1375,7 @@ function applyResponseOverride(
         setSpecKey(content, mediaType, patch);
         continue;
       }
+      if (!isObjectEntry(existing)) continue;
       const merged: MediaTypeObject = { ...existing, ...patch };
       if (patch.schema !== undefined && existing.schema !== undefined) {
         merged.schema = { allOf: [existing.schema, patch.schema] };
@@ -1368,9 +1388,9 @@ function applyResponseOverride(
 }
 
 /**
- * A readable Path Item, Operation, Parameter or Response entry: a
- * mapping, not a list and not `null`. Anything else matches nothing and
- * is left as written, for the conformance pass to report.
+ * Whether an entry the overlay walks is readable: a mapping, not `null`
+ * and not an array. An unreadable entry matches nothing and is left as
+ * written, for the conformance pass to report.
  */
 function isObjectEntry<T>(v: T): v is T & object {
   return v !== null && typeof v === "object" && !Array.isArray(v);
