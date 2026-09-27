@@ -9,10 +9,12 @@ import { markLowercaseKeys, type HttpRequest } from "@oaverify/internal-core";
  * (which run before `preValidation`).
  *
  * Fastify normally supplies lowercase header keys; they are normalized
- * defensively while copying. The path is copied from `request.url` up to
- * the first `?`, preserving its path segments. An absolute `http://` or
- * `https://` request target has its scheme and authority removed first.
- * `query` comes from Fastify's parsed `request.query`.
+ * defensively while copying. The path is read from `request.url` by the
+ * rule Fastify's router applies before matching: an absolute `http://` or
+ * `https://` target loses its scheme and authority, and the path ends at the
+ * first `?` or `#`. Path segments are kept as sent, with no dot-segment or
+ * duplicate-slash normalization. `query` comes from Fastify's parsed
+ * `request.query`.
  *
  * Cookies are read from `request.cookies` if `@fastify/cookie` has
  * populated them, otherwise omitted.
@@ -27,9 +29,13 @@ import { markLowercaseKeys, type HttpRequest } from "@oaverify/internal-core";
  * @public
  */
 export function httpRequestFromFastify(request: FastifyRequest): HttpRequest {
-  // URL parsing would treat `//admin/users` as host `admin` and path `/users`.
-  const target = request.url.replace(/^https?:\/\/[^/?#]+\//, "/");
-  const queryIndex = target.indexOf("?");
+  // Copies find-my-way's absolute-target rule so the validated path is the
+  // one Fastify routed. URL parsing would read `//admin/users` as host
+  // `admin` and path `/users`.
+  const target = request.url.startsWith("/")
+    ? request.url
+    : request.url.replace(/^https?:\/\/.*?\//, "/");
+  const end = target.search(/[?#]/);
   // Keys are lowercased below, which earns the mark: the validator's
   // header lookups skip their case-insensitive fallback scan on a miss.
   const headers = markLowercaseKeys<Record<string, string | string[]>>({});
@@ -39,7 +45,7 @@ export function httpRequestFromFastify(request: FastifyRequest): HttpRequest {
 
   const result: HttpRequest = {
     method: request.method.toUpperCase(),
-    path: queryIndex === -1 ? target : target.slice(0, queryIndex),
+    path: end === -1 ? target : target.slice(0, end),
     headers,
   };
 

@@ -42,6 +42,9 @@ describe("httpRequestFromFastify", () => {
     ["http://example.test/admin/users?token=x", "/admin/users"],
     ["https://example.test//admin/users?token=x", "//admin/users"],
     ["http://example.test/admin/../users", "/admin/../users"],
+    ["/admin/users#frag", "/admin/users"],
+    ["http://example.test?x/admin/users", "/admin/users"],
+    ["http://example.test#x/admin/users", "/admin/users"],
   ])("preserves the request path in %s", (url, path) => {
     const query = { token: "abc?def" };
     const got = httpRequestFromFastify(fakeReq({ method: "GET", url, query, headers: {} }));
