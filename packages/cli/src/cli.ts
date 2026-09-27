@@ -92,7 +92,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const program = new Command();
   program
     .name("oaverify")
-    .description("OpenAPI 3.1 HTTP request/response validator")
+    .description(
+      "OpenAPI 3.0/3.1/3.2 validator: check specs, validate traffic and examples, compile validators",
+    )
     .exitOverride();
   // A wrapper recording which engine produced a result reaches for this
   // first; without it they record the path to the binary instead (#518).
@@ -182,7 +184,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .option(
       "--format <shape>",
-      "'text' (default; one finding per line), 'json' ({ findings }), or 'sarif' (SARIF 2.1.0)",
+      "'text' (default; a block per finding), 'json' ({ findings }), or 'sarif' (SARIF 2.1.0)",
       (value: string): "text" | "json" | "sarif" => {
         if (value !== "text" && value !== "json" && value !== "sarif") {
           throw new Error(`unknown format: ${value} (expected "text", "json" or "sarif")`);
@@ -554,7 +556,6 @@ function readerFlagsOf(opts: { remoteRefs?: RemoteRefsMode; untrusted?: boolean 
   };
 }
 
-/** Fold the reader flags into a command's shared options object. */
 /**
  * Fold the reader-posture flags into a command's options.
  *

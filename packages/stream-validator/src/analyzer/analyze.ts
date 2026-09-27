@@ -238,7 +238,8 @@ function sizeOfType(
       const item = arrayItemSchema(node);
       const itemSize = materialize(item, root, seen);
       if (itemSize.size === "unbounded") return itemSize;
-      // brackets + maxItems items + (maxItems-1) commas.
+      // brackets + maxItems items + one comma per item. The exact count
+      // is maxItems-1 commas, so this over-counts by one byte.
       const size = 2 * PUNCT_BYTES + node.maxItems * (itemSize.size + PUNCT_BYTES);
       return { size };
     }
@@ -350,10 +351,10 @@ function hasComplexValueEquality(node: SchemaObject): boolean {
 
 // The runtime buffer/tee/stream decision, mirroring the spine's
 // `computeKind` (spine.ts): the classifier's strategy, plus the triggers
-// the classifier marks `scalar`/forward but the spine still materializes
-// (`contains`, asserting `format`, `uniqueItems`, complex `enum`/`const`).
-// Relying on the classifier's `strategyOf` alone would miss these and
-// under-report buffering.
+// the spine materializes on its own account where the classifier reports
+// a forward strategy (asserting `format` is one). `computeKind` is the
+// list; relying on the classifier's `strategyOf` alone would miss those
+// and under-report buffering.
 //
 // Exported for `test/analyzer-spine-drift.test.ts`, which pins the
 // agreement with the spine. Not re-exported from the package entry

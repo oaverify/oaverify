@@ -31,8 +31,3 @@ const BY_RANK: Strategy[] = ["stream", "tee", "buffer", "reject"];
 export function joinStrategy(a: Strategy, b: Strategy): Strategy {
   return BY_RANK[Math.max(RANK[a], RANK[b])] as Strategy;
 }
-
-/** True when a strategy can run on the forward spine (stream or tee). */
-export function isForward(s: Strategy): boolean {
-  return s === "stream" || s === "tee";
-}

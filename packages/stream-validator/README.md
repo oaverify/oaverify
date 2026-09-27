@@ -19,8 +19,8 @@ This is a second engine, not a mode of the in-memory validator.
 `@oaverify/core`'s compiler is pull-based over a fully-parsed value; this engine
 is push-based over a token stream. It reuses `@oaverify/core`'s in-memory
 validator for the subtrees a compile-time classifier marks BUFFER (so
-`format` assertion runs in that delegate, against the formats you register
-through the `formats` option; no format library is bundled by default),
+`format` assertion runs in that delegate, against the built-in formats
+plus any you add or override through the `formats` option),
 and reuses its flat error model.
 
 It bundles nothing from `@oaverify/core`, declaring it as a regular

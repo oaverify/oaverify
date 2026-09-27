@@ -1,25 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { CheckCode } from "../src/codes.js";
-import {
-  CHECK_CODES,
-  CHECK_FAMILIES,
-  CODES_BY_CLASS,
-  EXAMPLES_CODES,
-  MALFORMED_CODES,
-} from "../src/codes.js";
+import { CHECK_CODES, CHECK_FAMILIES, CODES_BY_CLASS } from "../src/codes.js";
 import { CHECK_CLASSES } from "../src/finding.js";
 
 // The union-pinned slices fail the typecheck on drift. The rest are
-// hand-written against a literal at an emit site, so they need a test.
-// The redos slice is asserted against its emit site in
-// `redos-check.test.ts`, which is where that pass lives.
-describe("the hand-written slices still match their emit sites", () => {
-  // Both need a compiled validator to produce, which `check` owns.
-  it("lists the codes each of examples and malformed emits", () => {
-    expect([...EXAMPLES_CODES]).toEqual(["example-invalid", "example-uncheckable"]);
-    expect([...MALFORMED_CODES]).toEqual(["malformed-schema"]);
-  });
-});
+// hand-written against a literal at an emit site and are asserted where
+// that pass is tested: redos in `redos-check.test.ts`, malformed in
+// `partial-document.test.ts`.
 
 describe("the registry covers the classes it claims to", () => {
   it("has an entry for every selectable class, plus malformed", () => {

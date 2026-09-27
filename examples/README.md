@@ -23,8 +23,7 @@ translates 1:1. `resolveSpec`, `loadSpec`, and the readers live at
 
 The streaming examples import from `packages/stream-validator/src`, which
 translates to `@oaverify/stream`. That is a separate
-package (not part of the `oaverify` / `@oaverify/core` re-export), versioned
-independently on its own version line:
+package, versioned together with `@oaverify/core`:
 
 ```bash
 npm install @oaverify/stream

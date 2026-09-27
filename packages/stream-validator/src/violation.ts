@@ -46,7 +46,6 @@ const STREAM_CODE_MESSAGE: Record<string, string> = {
   dependencies: "a dependency property is missing",
   minItems: "array has too few items",
   maxItems: "array has too many items",
-  uniqueItems: "array items are not unique",
   propertyNames: "a property name is not allowed",
   depth: "value is nested too deeply",
   composition: "value does not satisfy the schema composition",

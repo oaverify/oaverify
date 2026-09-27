@@ -106,8 +106,8 @@ const compiled = new Map<MetaschemaVersion, CompiledTreeSchema>();
  * around. In practice it costs little: every real-world 3.0 spec in
  * `conformance/real-world` reports no conformance findings at all, so
  * the duplication only appears on a 3.0 document that is already broken
- * in a way the compiler also refuses. Deduplicating properly needs both
- * passes to address findings the same way, which is #517.
+ * in a way the compiler also refuses. The two passes' findings are not
+ * deduplicated against each other.
  */
 
 function compiledFor(version: MetaschemaVersion): CompiledTreeSchema {

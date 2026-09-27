@@ -644,11 +644,15 @@ export interface KeywordDefinition {
   /**
    * Declares that this keyword contributes to evaluated-properties /
    * evaluated-items tracking, the bookkeeping `unevaluatedProperties`
-   * and `unevaluatedItems` consume. Set the relevant sub-flag for any
-   * keyword that "evaluates" object members or array positions
-   * (`properties`, `patternProperties`, `items`, `contains`, …). A
-   * missed flag silently breaks `unevaluated*` siblings, which will
-   * then see members as unevaluated and reject valid data.
+   * and `unevaluatedItems` consume.
+   *
+   * Descriptive metadata, surfaced through `keywordDefinitions()`. The
+   * compiler does not read it: whether a generated function allocates
+   * evaluated-key sets is decided by keyword name, in `needsPropTracking`
+   * and `needsItemTracking` (`compiler/compiler.ts`). A custom keyword
+   * that adds to `ctx.evaluatedPropertiesVar` or
+   * `ctx.evaluatedItemsVar` receives a set only where one of those
+   * functions asks for it.
    */
   evaluates?: { properties?: boolean; items?: boolean };
   /**

@@ -227,9 +227,9 @@ publishing rebuilds via each `prepack`). `scripts/check-release-lists.mjs`
 `packages/oav/package.json` and asserts the build script matches, and
 asserts `release.yml`'s three hand-maintained package lists (dispatch
 tag validator, Pack loop, publish ORDER) against
-`release-please-config.json`. The
-standalone-tsup packages (`oaverify`, `stream-validator`, `check`, the three adapters)
-set `emitDeclarationOnly: true` in their `tsconfig.json`: their `dist/` is
+`release-please-config.json`. Every
+package with its own `tsup.config.ts` sets `emitDeclarationOnly: true`
+in its `tsconfig.json`: its `dist/` is
 the tsup-built runtime artifact, and without this `tsc -b` (typecheck)
 would emit per-file `.js` over the tsup bundle, breaking the built CLI
 until the next `pnpm build`. Leave it in place. (The `@oaverify/internal-*`
@@ -370,11 +370,10 @@ in the meantime.
   peak-buffer budget (`"unbounded"` where a structural bound is
   missing), and `analyzeSpec(doc)` rolls that up per operation. Two
   constraints hold it together. It mirrors the spine's `computeKind`
-  rather than the classifier's `strategyOf` alone, because `strategyOf`
-  marks `contains`, asserting `format`, `uniqueItems`, and complex
-  `enum`/`const` as forward/scalar while the spine still materializes
-  them, so `strategyOf` alone under-reports buffering (`nodeKind` in
-  `analyzer/analyze.ts`). And it is engine-free, calling neither the
+  rather than the classifier's `strategyOf` alone, because `computeKind`
+  materializes some schemas the classifier reports as forward (asserting
+  `format` is one), so `strategyOf` alone under-reports buffering
+  (`nodeKind` in `analyzer/analyze.ts`). And it is engine-free, calling neither the
   spine nor `createStreamValidator`, so importing only the analyzer does
   not pull the engine; body extraction therefore lives in the shared
   `openapi/body-schema.ts`.
@@ -649,10 +648,11 @@ are in [docs/extending.md](./docs/extending.md); the
 (`packages/schema/src/keywords/types.ts`), per "Type as canonical
 contract". Three rules that fail silently when you get them wrong:
 
-- **Keyword flags drive specialization.** `applicator`, `annotation`,
-  and `evaluates` on a `KeywordDefinition` change codegen paths; a wrong
-  flag mis-fires correctness or perf with no error. See their TSDoc for
-  what each breaks.
+- **Keyword flags drive specialization.** `applicator` and `annotation`
+  on a `KeywordDefinition` change codegen paths; a wrong flag mis-fires
+  correctness or perf with no error. See their TSDoc for what each
+  breaks. `evaluates` is metadata only: evaluated-key tracking is keyed
+  on keyword names, and its TSDoc says where.
 - **New error codes need a `BuiltInErrorParams` entry** in
   `packages/core/src/errors.ts`. Errors are emitted through generated
   JS source, so the compiler cannot check the `code`/`params` contract;

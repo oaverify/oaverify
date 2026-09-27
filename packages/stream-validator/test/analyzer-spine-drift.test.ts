@@ -10,11 +10,10 @@ import { SpineValidator } from "../src/spine/spine.js";
  * The reported peak-buffer budget is only trustworthy if the analyzer
  * decides stream/tee/buffer exactly as the engine does. The analyzer
  * mirrors the spine's `computeKind` rather than reading the classifier's
- * `strategyOf` alone, because `strategyOf` marks `contains`, asserting
- * `format`, `uniqueItems`, and complex `enum` / `const` as forward or
- * scalar while the spine still materializes them. Using `strategyOf`
- * alone under-reports buffering, and under-reporting a buffer budget is
- * the failure that matters.
+ * `strategyOf` alone, because `computeKind` materializes some schemas the
+ * classifier reports as forward (asserting `format` is one). Using
+ * `strategyOf` alone under-reports buffering, and under-reporting a
+ * buffer budget is the failure that matters.
  *
  * Nothing structural keeps the two in step, so this enumerates a schema
  * per trigger and asserts they agree. Changing one fails here until the
@@ -46,11 +45,9 @@ function kinds(schema: SchemaObject, formatAsserts: boolean): { analyzer: string
   };
 }
 
-// One representative schema per kind trigger. The four the analyzer
-// documents as strategyOf-invisible (contains, asserting format,
-// uniqueItems, complex enum/const) are the load-bearing rows; the rest
-// pin the surrounding cases so a change that fixes one by breaking
-// another still fails.
+// One representative schema per kind trigger in `computeKind`, plus the
+// surrounding cases, so a change that fixes one by breaking another
+// still fails.
 const FIXTURES: ReadonlyArray<{
   label: string;
   schema: SchemaObject;
@@ -174,8 +171,9 @@ describe("analyzer/spine kind agreement", () => {
   }
 
   it("covers every buffer trigger the spine names", () => {
-    // Guard against a new trigger landing in computeKind with no fixture
-    // here. Bump this list (and add a fixture) when the spine grows one.
+    // Keeps a fixture for each trigger listed here from being deleted.
+    // This list is hand-kept, so it cannot notice a trigger added to
+    // computeKind: add the label and a fixture when the spine grows one.
     const covered = new Set(FIXTURES.map((f) => f.label));
     for (const required of [
       "contains",

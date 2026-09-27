@@ -3,18 +3,9 @@ import { workspaceAliases } from "./workspace-aliases.js";
 
 /**
  * Build config for the publishable `@oaverify/core`, the lean
- * validator tarball with zero runtime dependencies. Each entry
- * becomes a subpath:
- *
- *   src/index.ts               -> "@oaverify/core"
- *   src/schema.ts              -> "@oaverify/core/schema"
- *   src/schema-internals.ts    -> "@oaverify/core/schema/internals"
- *   src/spec.ts                -> "@oaverify/core/spec"
- *   src/spec-internals.ts      -> "@oaverify/core/spec/internals"
- *   src/overlay-spec.ts        -> "@oaverify/core/overlay-spec"
- *   src/formats.ts             -> "@oaverify/core/formats"
- *   src/core.ts                -> "@oaverify/core/core"
- *   src/validator-internals.ts -> "@oaverify/core/validator/internals"
+ * validator tarball with zero runtime dependencies. Each `entry` below
+ * becomes a subpath, mapped in `package.json`'s `exports` (for example
+ * `src/schema-internals.ts` -> `@oaverify/core/schema/internals`).
  *
  * The internal `@oaverify/internal-*` workspace packages are redirected to their
  * source via the esbuild `alias` option, then bundled in as normal

@@ -141,8 +141,8 @@ export function classify(root: SchemaOrBoolean, options: ClassifyOptions = {}): 
   const customKeywords = new Set(options.customKeywords ?? []);
 
   // Keywords folded into another via `implements` (then/else into if;
-  // minContains/maxContains into contains). These have no table entry of
-  // their own, so the unknown-keyword check must not flag them. Note: a
+  // minContains/maxContains into contains). The unknown-keyword check
+  // must not flag them. Note: a
   // dispatching keyword that is registered but missing from
   // KEYWORD_CATEGORY is deliberately NOT in this set, so it falls through
   // to REJECT (the runtime backstop for a consumer on a newer

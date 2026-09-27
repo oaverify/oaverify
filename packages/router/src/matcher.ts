@@ -1,10 +1,10 @@
 import {
+  HTTP_METHODS,
   setSpecKey,
   type HttpMethod,
   type OperationObject,
   type PathItem,
 } from "@oaverify/internal-core";
-import { HTTP_METHODS } from "@oaverify/internal-core";
 
 /**
  * Decode a single path token, tolerating malformed percent-encoding.
@@ -183,19 +183,6 @@ export interface Router {
    */
   routes(): readonly RouteInfo[];
 }
-
-// HTTP methods to scan on a `PathItem` when collecting `allowed` for a
-// 405 response, and the set a request method must be a member of to
-// route at all. Mirrors the `HttpMethod` union in
-// @oaverify/internal-core; kept local here to avoid pulling an extra
-// symbol across the package boundary for a constant array.
-//
-// `as const satisfies` catches a member this array holds and the union
-// does not; `_allMethodsComplete` below catches the other direction,
-// which is the one that bites: adding a method to core without adding
-// it here stops the router enumerating it in `routes()` and in the 405
-// `allowed` set, silently. Same idiom as `@oaverify/check`'s code
-// tables (#855).
 
 // Membership test for the request method. `match` lower-cased the
 // method and cast the result, and `operationOn` guards only "is there

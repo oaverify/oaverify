@@ -9,7 +9,6 @@ export default defineConfig({
     include: ["packages/*/test/**/*.test.ts", "packages/*/src/**/*.test.ts", "test/**/*.test.ts"],
     environment: "node",
     globals: false,
-    passWithNoTests: true,
     // Persist transformed modules to disk so they survive between runs.
     // Transform is the largest share of a cold run here, and `pnpm test`
     // is part of the PR gate, so every local run was repeating it. Run
