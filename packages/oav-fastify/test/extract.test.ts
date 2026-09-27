@@ -32,6 +32,26 @@ describe("httpRequestFromFastify", () => {
     expect(got.path).not.toContain("?");
   });
 
+  it.each([
+    ["//admin/users", "//admin/users"],
+    ["//admin/users?token=abc?def", "//admin/users"],
+    ["///admin/users", "///admin/users"],
+    ["/admin/../users", "/admin/../users"],
+    ["/pets/%2E%2E/users?token=x", "/pets/%2E%2E/users"],
+    ["/pets/a%3Fb?token=x", "/pets/a%3Fb"],
+    ["http://example.test/admin/users?token=x", "/admin/users"],
+    ["https://example.test//admin/users?token=x", "//admin/users"],
+    ["http://example.test/admin/../users", "/admin/../users"],
+    ["/admin/users#frag", "/admin/users"],
+    ["http://example.test?x/admin/users", "/admin/users"],
+    ["http://example.test#x/admin/users", "/admin/users"],
+  ])("preserves the request path in %s", (url, path) => {
+    const query = { token: "abc?def" };
+    const got = httpRequestFromFastify(fakeReq({ method: "GET", url, query, headers: {} }));
+    expect(got.path).toBe(path);
+    expect(got.query).toBe(query);
+  });
+
   it("lowercases header keys defensively", () => {
     const got = httpRequestFromFastify(
       fakeReq({
