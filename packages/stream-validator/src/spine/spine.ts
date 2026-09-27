@@ -901,10 +901,6 @@ export class SpineValidator implements JsonEventHandler {
     }
   }
 
-  // Whether a single schema must be materialized + delegated (BUFFER): a
-  // keyword the spine cannot stream forward. Composition is NOT here (it
-  // is handled by TEE unless a branch itself buffers, which the classifier
-  // folds into `strategyOf === "buffer"`).
   // The handling a single schema node needs, memoized per node. Computing
   // it touches a dozen `key in schemaObject` checks across objects of
   // varying shape (megamorphic, and the dominant cost in profiling); the

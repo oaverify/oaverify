@@ -6,4 +6,4 @@ export {
   type ClassifyOptions,
 } from "./classify.js";
 export { KEYWORD_CATEGORY, type KeywordCategory } from "./keyword-table.js";
-export { isForward, joinStrategy, type Strategy } from "./strategy.js";
+export { joinStrategy, type Strategy } from "./strategy.js";

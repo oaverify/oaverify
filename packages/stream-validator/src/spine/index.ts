@@ -12,4 +12,3 @@ export {
   type StreamVerdict,
   type SchemaViolation,
 } from "./spine.js";
-export { ValueBuilder } from "./value-builder.js";

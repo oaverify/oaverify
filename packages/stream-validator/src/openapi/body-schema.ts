@@ -6,8 +6,7 @@
  *
  * Kept separate from `operation.ts` (which builds a `StreamValidator` and so
  * imports the engine) so the analyzer can reuse the same extraction without
- * pulling the streaming engine into its dependency subgraph. See the
- * `./analyzer` subpath export.
+ * pulling the streaming engine into its dependency subgraph.
  *
  * @packageDocumentation
  */
@@ -32,7 +31,7 @@ export function versionFromDoc(openapi: string): StreamValidatorOptions["openApi
   return undefined;
 }
 
-export function isObjectSchema(s: unknown): s is SchemaObject {
+function isObjectSchema(s: unknown): s is SchemaObject {
   return typeof s === "object" && s !== null && !Array.isArray(s);
 }
 
