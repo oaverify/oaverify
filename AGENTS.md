@@ -227,9 +227,9 @@ publishing rebuilds via each `prepack`). `scripts/check-release-lists.mjs`
 `packages/oav/package.json` and asserts the build script matches, and
 asserts `release.yml`'s three hand-maintained package lists (dispatch
 tag validator, Pack loop, publish ORDER) against
-`release-please-config.json`. The
-standalone-tsup packages (`oaverify`, `stream-validator`, `check`, the three adapters)
-set `emitDeclarationOnly: true` in their `tsconfig.json`: their `dist/` is
+`release-please-config.json`. Every
+package with its own `tsup.config.ts` sets `emitDeclarationOnly: true`
+in its `tsconfig.json`: its `dist/` is
 the tsup-built runtime artifact, and without this `tsc -b` (typecheck)
 would emit per-file `.js` over the tsup bundle, breaking the built CLI
 until the next `pnpm build`. Leave it in place. (The `@oaverify/internal-*`

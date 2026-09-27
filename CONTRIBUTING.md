@@ -77,13 +77,13 @@ directory, so the same command means the same kind of thing everywhere.
 | `conformance/`     | Upstream JSON Schema / JSON-parse / Overlay suites, plus OpenAPI request/response cases | `pnpm install && pnpm corpora` | typecheck + all five runners against their baselines (~5s) | yes, all five |
 | `framework-tests/` | Real Express 4 / 5 and Fastify servers against the adapters                             | `pnpm install`                 | typecheck + test (~2s)                                     | yes           |
 | `performance/`     | Compile and validate benchmarks vs ajv, and memory vs express-openapi-validator         | `pnpm install`                 | typecheck + the smallest cross-library benchmark (~30s)    | no            |
-| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches                                | `pnpm install`                 | typecheck only, see below (~1s)                            | no            |
+| `detection/`       | Labelled corpus: which OpenAPI defects each tool catches                                | `pnpm install`                 | typecheck + report tests, see below (~1s)                  | no            |
 
 Two of those need explaining. `performance/` takes ~30 seconds for one
 schema at the minimum budget because tinybench warms up every task and
 ajv's compile is milliseconds per operation, so warmup dominates
 whatever budget you set. The figure is host-dependent: ~2.7ms on an
-M3 Ultra, ~9ms on the c7i.large that docs/comparison.md is stamped to. And `detection/`'s `check` is typecheck only because
+M3 Ultra, ~9ms on the c7i.large that docs/comparison.md is stamped to. And `detection/`'s `check` runs its report tests but not `pnpm detect`, because
 `pnpm detect` rewrites `results/audit.md`, `results/matrix.md` and
 `results/raw.json`, which are committed; a command called `check` should
 not leave you with a dirty working tree.
