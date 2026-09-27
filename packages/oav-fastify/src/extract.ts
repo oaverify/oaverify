@@ -9,9 +9,10 @@ import { markLowercaseKeys, type HttpRequest } from "@oaverify/internal-core";
  * (which run before `preValidation`).
  *
  * Fastify normally supplies lowercase header keys; they are normalized
- * defensively while copying. The path is extracted from `request.url`
- * (which includes the query string); query string is dropped from the
- * `path` field and routed to `query` separately.
+ * defensively while copying. The path is copied from `request.url` up to
+ * the first `?`, preserving its path segments. An absolute `http://` or
+ * `https://` request target has its scheme and authority removed first.
+ * `query` comes from Fastify's parsed `request.query`.
  *
  * Cookies are read from `request.cookies` if `@fastify/cookie` has
  * populated them, otherwise omitted.
@@ -26,8 +27,9 @@ import { markLowercaseKeys, type HttpRequest } from "@oaverify/internal-core";
  * @public
  */
 export function httpRequestFromFastify(request: FastifyRequest): HttpRequest {
-  // request.url is /path?query; extract pathname.
-  const url = new URL(request.url, "http://localhost");
+  // URL parsing would treat `//admin/users` as host `admin` and path `/users`.
+  const target = request.url.replace(/^https?:\/\/[^/?#]+\//, "/");
+  const queryIndex = target.indexOf("?");
   // Keys are lowercased below, which earns the mark: the validator's
   // header lookups skip their case-insensitive fallback scan on a miss.
   const headers = markLowercaseKeys<Record<string, string | string[]>>({});
@@ -37,7 +39,7 @@ export function httpRequestFromFastify(request: FastifyRequest): HttpRequest {
 
   const result: HttpRequest = {
     method: request.method.toUpperCase(),
-    path: url.pathname,
+    path: queryIndex === -1 ? target : target.slice(0, queryIndex),
     headers,
   };
 
