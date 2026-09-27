@@ -1171,8 +1171,11 @@ function applyPathOverride(item: PathItem, override: PathOverride): PathItem {
       const opOverride = override.operations[method] ?? override.operations["*"];
       if (opOverride === undefined) continue;
       const op = next[method];
-      if (!isObjectEntry(op)) continue;
-      next[method] = applyOperationOverride(op, opOverride);
+      if (op === undefined) continue;
+      // A wholesale `replace` reads nothing from the original, so it
+      // applies even over an unreadable entry and can repair one.
+      if (!isObjectEntry(op) && opOverride.replace === undefined) continue;
+      next[method] = applyOperationOverride(op as OperationObject, opOverride);
     }
   }
   return next;

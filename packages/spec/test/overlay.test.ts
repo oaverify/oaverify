@@ -1386,6 +1386,19 @@ describe("an unreadable entry the overlay walks past", () => {
     }
   });
 
+  it("overrides replace an unreadable operation wholesale", () => {
+    // `replace` reads nothing from the original, so it repairs one.
+    const replacement = { responses: { "200": { description: "ok" } } };
+    for (const original of [null, [], "x"]) {
+      const doc = docWith({});
+      (doc.paths!["/t"] as Record<string, unknown>).get = original;
+      const out = applyOverlays(doc, [
+        { overrides: { "/t": { operations: { get: { replace: replacement } } } } },
+      ]);
+      expect(out.paths!["/t"]!.get, JSON.stringify(original)).toEqual(replacement);
+    }
+  });
+
   it("overrides leave a null path item as written", () => {
     // The override spread the null into `{}` and wrote that back.
     for (const target of ["/null", "*"]) {
