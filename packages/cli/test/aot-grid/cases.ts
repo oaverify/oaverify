@@ -373,8 +373,9 @@ function requestsFor(location: Location, path: string): Declaration["requests"] 
  * The `content` sub-axis: JSON against valid, invalid and
  * schema-invalid payloads, plus a non-JSON media type that passes the
  * raw string through. That is the branch structure of
- * `firstContentMediaType` + `isJsonMediaType` in `validate-step.ts`,
- * which the emitted module does not implement at all (#903).
+ * `firstContentMediaType` in `operation-cache.ts` and `isJsonMediaType`
+ * in `validate-step.ts`, which the emitted module does not implement at
+ * all (#903).
  */
 const CONTENT_VARIANTS: Array<{
   id: string;

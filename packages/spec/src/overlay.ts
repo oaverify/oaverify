@@ -540,7 +540,10 @@ function applyDocumentMetadata(doc: OpenAPIDocument, overlay: SpecOverlay): Open
   if (overlay.tags !== undefined) {
     next.tags = [...overlay.tags];
   }
-  if (overlay.extendTags || overlay.replaceTags || overlay.removeTags) {
+  if (
+    (overlay.extendTags || overlay.replaceTags || overlay.removeTags) &&
+    (next.tags == null || Array.isArray(next.tags))
+  ) {
     next.tags = applyTagOps(next.tags ?? [], overlay);
   }
 
@@ -577,7 +580,10 @@ function applyDocumentMetadata(doc: OpenAPIDocument, overlay: SpecOverlay): Open
 }
 
 function applyTagOps(tags: TagObject[], overlay: SpecOverlay): TagObject[] {
-  const byName = new Map(tags.map((t) => [t.name, t]));
+  // An entry without a string name (`- ` alone is `null`) matches no
+  // operation and keeps its place in the list.
+  const readable = (t: TagObject): boolean => isObjectEntry(t) && typeof t.name === "string";
+  const byName = new Map(tags.filter(readable).map((t) => [t.name, t]));
 
   for (const entry of overlay.extendTags ?? []) {
     const existing = byName.get(entry.name);
@@ -593,7 +599,19 @@ function applyTagOps(tags: TagObject[], overlay: SpecOverlay): TagObject[] {
     byName.delete(name);
   }
 
-  return Array.from(byName.values());
+  const out: TagObject[] = [];
+  for (const t of tags) {
+    if (!readable(t)) {
+      out.push(t);
+      continue;
+    }
+    const current = byName.get(t.name);
+    if (current !== undefined) {
+      out.push(current);
+      byName.delete(t.name);
+    }
+  }
+  return [...out, ...byName.values()];
 }
 
 function applyDocumentPaths(doc: OpenAPIDocument, overlay: SpecOverlay): OpenAPIDocument {
@@ -628,6 +646,7 @@ function applyDocumentPaths(doc: OpenAPIDocument, overlay: SpecOverlay): OpenAPI
         if (item === undefined) {
           throw new Error(`overlay override targets unknown path ${path}`);
         }
+        if (!isObjectEntry(item)) continue;
         setSpecKey(paths, path, applyPathOverride(item, override));
       }
     }
@@ -713,7 +732,7 @@ function walkWebhooksForModify(
 ): Record<string, PathItem | ReferenceObject> {
   const out: Record<string, PathItem | ReferenceObject> = {};
   for (const [name, item] of Object.entries(webhooks)) {
-    if ("$ref" in item) {
+    if (!isObjectEntry(item) || "$ref" in item) {
       setSpecKey(out, name, item);
       continue;
     }
@@ -727,6 +746,7 @@ function applyOpModifyToPathItem(
   item: PathItem,
   entry: ModifyOperationsEntry,
 ): PathItem {
+  if (!isObjectEntry(item)) return item;
   if (entry.where?.pathPattern && !stablePatternTest(entry.where.pathPattern, pathOrName)) {
     return item;
   }
@@ -734,7 +754,7 @@ function applyOpModifyToPathItem(
   let changed = false;
   for (const method of HTTP_METHODS) {
     const op = next[method];
-    if (op === undefined) continue;
+    if (!isObjectEntry(op)) continue;
     if (entry.where?.methods && !entry.where.methods.includes(method)) continue;
     if (entry.where?.tags && !operationHasAnyTag(op, entry.where.tags)) continue;
     next[method] = applyOperationOverride(op, entry.apply);
@@ -744,7 +764,7 @@ function applyOpModifyToPathItem(
 }
 
 function operationHasAnyTag(op: OperationObject, tags: string[]): boolean {
-  if (!op.tags) return false;
+  if (!Array.isArray(op.tags)) return false;
   return op.tags.some((t) => tags.includes(t));
 }
 
@@ -763,7 +783,7 @@ function applyModifyParameters(
   if (doc.webhooks) {
     const webhooks: Record<string, PathItem | ReferenceObject> = {};
     for (const [name, item] of Object.entries(doc.webhooks)) {
-      if ("$ref" in item) {
+      if (!isObjectEntry(item) || "$ref" in item) {
         setSpecKey(webhooks, name, item);
         continue;
       }
@@ -791,6 +811,7 @@ function asParameterList(parameters: unknown): NonNullable<PathItem["parameters"
 }
 
 function applyParamModifyToPathItem(item: PathItem, entry: ModifyParametersEntry): PathItem {
+  if (!isObjectEntry(item)) return item;
   const next: PathItem = { ...item };
   // `Array.isArray`, not a presence check: an unreadable `parameters` is
   // left exactly as written. Mapping it would assign the empty list
@@ -801,7 +822,7 @@ function applyParamModifyToPathItem(item: PathItem, entry: ModifyParametersEntry
   }
   for (const method of HTTP_METHODS) {
     const op = next[method];
-    if (op === undefined) continue;
+    if (!isObjectEntry(op)) continue;
     if (Array.isArray(op.parameters)) {
       next[method] = {
         ...op,
@@ -816,7 +837,7 @@ function mergeParamIfMatch(
   param: ParameterObject | ReferenceObject,
   entry: ModifyParametersEntry,
 ): ParameterObject | ReferenceObject {
-  if (!("name" in param)) return param;
+  if (!isObjectEntry(param) || !("name" in param)) return param;
   if (entry.where?.in && param.in !== entry.where.in) return param;
   if (entry.where?.nameMatches && !stablePatternTest(entry.where.nameMatches, param.name)) {
     return param;
@@ -1151,7 +1172,10 @@ function applyPathOverride(item: PathItem, override: PathOverride): PathItem {
       if (opOverride === undefined) continue;
       const op = next[method];
       if (op === undefined) continue;
-      next[method] = applyOperationOverride(op, opOverride);
+      // A wholesale `replace` reads nothing from the original, so it
+      // applies even over an unreadable entry and can repair one.
+      if (!isObjectEntry(op) && opOverride.replace === undefined) continue;
+      next[method] = applyOperationOverride(op as OperationObject, opOverride);
     }
   }
   return next;
@@ -1220,7 +1244,7 @@ function applyOperationOverride(op: OperationObject, override: OperationOverride
       // so we just skip matching against refs and append / overwrite
       // against concrete entries.
       const idx = existing.findIndex(
-        (p) => "name" in p && p.name === newParam.name && p.in === newParam.in,
+        (p) => isObjectEntry(p) && "name" in p && p.name === newParam.name && p.in === newParam.in,
       );
       if (idx >= 0) existing[idx] = newParam;
       else existing.push(newParam);
@@ -1231,6 +1255,7 @@ function applyOperationOverride(op: OperationObject, override: OperationOverride
     const existing = asParameterList(next.parameters ?? op.parameters);
     const filtered = existing.filter(
       (p) =>
+        !isObjectEntry(p) ||
         !("name" in p) ||
         !override.removeParameters!.some((r) => r.name === p.name && r.in === p.in),
     );
@@ -1252,6 +1277,8 @@ function applyOperationOverride(op: OperationObject, override: OperationOverride
         setSpecKey(responses, status, applyResponseOverride({}, patch));
         continue;
       }
+      // `'200':` with nothing under it is `null`: left as written.
+      if (!isObjectEntry(existing)) continue;
       if ("$ref" in existing) {
         throw new Error(
           `overlay patchResponses cannot patch reference-object response (status ${status})`,
@@ -1276,7 +1303,12 @@ function applyOperationOverride(op: OperationObject, override: OperationOverride
 
   if (override.tags !== undefined) {
     next.tags = [...override.tags];
-  } else if (override.addTags || override.removeTags) {
+  } else if (
+    (override.addTags || override.removeTags) &&
+    (op.tags == null || Array.isArray(op.tags))
+  ) {
+    // An unreadable `tags` is left as written: `new Set("pets")` would
+    // split a string into its characters.
     const existing = new Set(op.tags ?? []);
     for (const t of override.addTags ?? []) existing.add(t);
     for (const t of override.removeTags ?? []) existing.delete(t);
@@ -1346,6 +1378,7 @@ function applyResponseOverride(
         setSpecKey(content, mediaType, patch);
         continue;
       }
+      if (!isObjectEntry(existing)) continue;
       const merged: MediaTypeObject = { ...existing, ...patch };
       if (patch.schema !== undefined && existing.schema !== undefined) {
         merged.schema = { allOf: [existing.schema, patch.schema] };
@@ -1355,6 +1388,15 @@ function applyResponseOverride(
     next.content = content;
   }
   return next;
+}
+
+/**
+ * Whether an entry the overlay walks is readable: a mapping, not `null`
+ * and not an array. An unreadable entry matches nothing and is left as
+ * written, for the conformance pass to report.
+ */
+function isObjectEntry<T>(v: T): v is T & object {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
 /** A Security Requirement Object: a mapping, not a list and not `null`. */

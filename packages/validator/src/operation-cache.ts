@@ -1,5 +1,6 @@
 import type {
   HeaderObject,
+  MediaTypeObject,
   ParameterObject,
   ReferenceObject,
   RequestBodyObject,
@@ -380,6 +381,17 @@ export function originOfResolved(
 }
 
 /**
+ * Whether a `content` map entry carries a schema. An entry with nothing
+ * under it (`application/json:` in YAML) is `null`; it declares the media
+ * type and constrains nothing, the same as `{}`.
+ */
+function hasSchema(
+  mto: MediaTypeObject | null,
+): mto is MediaTypeObject & { schema: SchemaOrBoolean } {
+  return mto !== null && typeof mto === "object" && mto.schema !== undefined;
+}
+
+/**
  * Media type of the entry {@link firstContentSchema} picks, so a caller
  * addressing that schema can name the `content` key it sits under.
  *
@@ -388,7 +400,7 @@ export function originOfResolved(
 export function firstContentMediaType(p: ParameterObject): string | undefined {
   if (p.content === undefined) return undefined;
   for (const [name, mto] of Object.entries(p.content)) {
-    if (mto.schema !== undefined) return name;
+    if (hasSchema(mto)) return name;
   }
   return undefined;
 }
@@ -404,7 +416,7 @@ export function firstContentMediaType(p: ParameterObject): string | undefined {
 export function firstContentSchema(p: ParameterObject): SchemaOrBoolean | undefined {
   if (p.content === undefined) return undefined;
   for (const mto of Object.values(p.content)) {
-    if (mto.schema !== undefined) return mto.schema;
+    if (hasSchema(mto)) return mto.schema;
   }
   return undefined;
 }
@@ -608,7 +620,11 @@ export function buildOperationCache(
   }
 
   const bodyValidators = new Map<string, CompiledTreeSchema>();
-  const requestBody = deps.resolveRef<RequestBodyObject>(pathMatch.operation.requestBody);
+  const rawRequestBody = deps.resolveRef<RequestBodyObject>(pathMatch.operation.requestBody);
+  // `requestBody:` with nothing under it is `null`; read it as absent,
+  // the way a null Response is skipped below.
+  const requestBody =
+    rawRequestBody !== null && typeof rawRequestBody === "object" ? rawRequestBody : undefined;
   const requestBodyOrigin =
     deps.originOf?.(pathMatch.operation.requestBody, {
       pointer: opPointer === undefined ? undefined : `${opPointer}/requestBody`,
@@ -618,8 +634,8 @@ export function buildOperationCache(
   if (requestBody?.content) {
     for (const [mt, mto] of Object.entries(requestBody.content)) {
       declaredRequestMediaTypes.push(mt);
-      const schema = mto.schema;
-      if (schema !== undefined) {
+      if (hasSchema(mto)) {
+        const schema = mto.schema;
         const context = `${operation} request body (${mt})`;
         const pointer =
           requestBodyOrigin.pointer === undefined
@@ -661,11 +677,13 @@ export function buildOperationCache(
     const declaredResponseMediaTypes: string[] = [];
     for (const [mt, mto] of Object.entries(response.content ?? {})) {
       declaredResponseMediaTypes.push(mt);
-      if (mto.schema !== undefined) bodySchemas.set(mt, mto.schema);
+      if (hasSchema(mto)) bodySchemas.set(mt, mto.schema);
     }
     for (const [name, rawHdr] of Object.entries(response.headers ?? {})) {
       const hdr = deps.resolveRef<HeaderObject>(rawHdr);
-      if (hdr === undefined) continue;
+      // `X-Rate:` with nothing under it is `null`; same rule as a null
+      // Response above.
+      if (hdr === null || typeof hdr !== "object") continue;
       const lower = name.toLowerCase();
       if (isObjectPrototypePropertyName(lower)) headerReadsRequireOwnProperties = true;
       headersResolved.set(lower, {

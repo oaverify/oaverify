@@ -262,7 +262,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       },
       "text" as OutputFormat,
     )
-    .option("--depth <n>", "truncate error tree depth", (v: string) => Number.parseInt(v, 10))
+    .option("--depth <n>", "truncate error tree depth", (v: string) => parseCount("--depth", v, 0))
     .option("-o, --output <file>", "write output to a file instead of stdout")
     .option("--quiet", "print nothing; exit code only", false)
     .option(
@@ -330,7 +330,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option(
       "--max-buffered-bytes <n>",
       "buffer cap to compute the effective peak against",
-      (v: string) => Number.parseInt(v, 10),
+      (v: string) => parseCount("--max-buffered-bytes", v, 1),
     )
     .option("--fail-on-unbounded", "exit non-zero if any body has an unbounded peak buffer", false)
     .option(
@@ -623,6 +623,20 @@ function parseOutputMode(value: string): "flat" | "tree" | "predicate" {
   return value;
 }
 
+/**
+ * An integer flag with a lower bound. `Number`, not `parseInt`: `parseInt`
+ * reads `2x` as 2 and `abc` as NaN, and either reached the command as a
+ * silently wrong setting.
+ */
+function parseCount(flag: string, value: string, min: 0 | 1): number {
+  const n = Number(value);
+  if (value.trim() === "" || !Number.isInteger(n) || n < min) {
+    const kind = min === 0 ? "a non-negative integer" : "a positive integer";
+    throw new Error(`${flag} must be ${kind}, got ${JSON.stringify(value)}`);
+  }
+  return n;
+}
+
 function parseMaxErrors(value: string): number {
   if (value === "all" || value === "infinity") return Number.POSITIVE_INFINITY;
   const n = Number(value);
@@ -660,8 +674,8 @@ function deriveMode(opts: {
     const method = (parts[0] ?? "GET").toUpperCase();
     const path = parts[1] ?? "/";
     if (opts.response) {
-      const status = opts.status !== undefined ? Number.parseInt(opts.status, 10) : Number.NaN;
-      if (!Number.isFinite(status)) throw new Error("--response requires --status");
+      if (opts.status === undefined) throw new Error("--response requires --status");
+      const status = parseCount("--status", opts.status, 1);
       return { kind: "responseForPath", method, path, status, body: opts.body };
     }
     return { kind: "bodyForPath", method, path, body: opts.body };

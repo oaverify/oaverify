@@ -196,6 +196,32 @@ describe("an empty parameters entry", () => {
   });
 });
 
+describe("an empty media type, header, request body or response entry", () => {
+  it("is skipped rather than crashing the emit, as the runtime skips it", () => {
+    // `application/json:` or `X-Rate:` with nothing under it is `null`.
+    const operation = (op: Record<string, unknown>) => ({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: { "/t": { post: op } },
+    });
+    const ok = { "200": { description: "ok" } };
+    const cases: Record<string, unknown>[] = [
+      { requestBody: null, responses: ok },
+      { requestBody: { content: { "application/json": null } }, responses: ok },
+      {
+        parameters: [{ name: "q", in: "query", content: { "application/json": null } }],
+        responses: ok,
+      },
+      { responses: { "200": null } },
+      { responses: { "200": { description: "ok", content: { "application/json": null } } } },
+      { responses: { "200": { description: "ok", headers: { "X-Rate": null } } } },
+    ];
+    for (const op of cases) {
+      expect(() => emitSpec(operation(op) as never), JSON.stringify(op)).not.toThrow();
+    }
+  });
+});
+
 describe("an entry that is not a parameter object", () => {
   it("is skipped, as the runtime skips it", () => {
     // Refusing it reported "an unnamed parameter with no in field",

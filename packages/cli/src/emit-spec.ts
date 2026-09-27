@@ -53,6 +53,7 @@ import {
 } from "@oaverify/internal-core/prototype-properties";
 import type {
   HeaderObject,
+  MediaTypeObject,
   OpenAPIDocument,
   OperationObject,
   ParameterObject,
@@ -664,11 +665,14 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // 415 where `createValidator` answers 200 (#849).
   const declaredBodyMediaTypes: string[] = [];
   let requestBodyRequired = false;
-  if (requestBody !== undefined) {
+  // `requestBody:` with nothing under it is `null`; read it as absent,
+  // as the runtime's operation cache does.
+  const hasRequestBody = requestBody !== null && typeof requestBody === "object";
+  if (hasRequestBody) {
     requestBodyRequired = requestBody.required === true;
     for (const [mediaType, media] of Object.entries(requestBody.content ?? {})) {
       declaredBodyMediaTypes.push(mediaType);
-      if (media.schema !== undefined) {
+      if (hasSchema(media)) {
         setSpecKey(bodyValidators, mediaType, named(media.schema));
       }
     }
@@ -689,12 +693,12 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   if (!requestsOnly) {
     for (const [statusKey, respRaw] of Object.entries(operation.responses ?? {})) {
       const resp = resolveRef<ResponseObject>(respRaw as ResponseObject | ReferenceObject);
-      if (resp === undefined) continue;
+      if (resp === null || typeof resp !== "object") continue;
       const bodyVs: Record<string, string> = {};
       const declaredMediaTypes: string[] = [];
       for (const [mediaType, media] of Object.entries(resp.content ?? {})) {
         declaredMediaTypes.push(mediaType);
-        if (media.schema !== undefined) {
+        if (hasSchema(media)) {
           setSpecKey(bodyVs, mediaType, named(media.schema));
         }
       }
@@ -704,7 +708,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
       > = {};
       for (const [headerName, hdrRaw] of Object.entries(resp.headers ?? {})) {
         const hdr = resolveRef<HeaderObject>(hdrRaw as HeaderObject | ReferenceObject);
-        if (hdr === undefined) continue;
+        if (hdr === null || typeof hdr !== "object") continue;
         const schema = (hdr.schema ?? firstContentSchema(hdr)) as SchemaOrBoolean | undefined;
         setSpecKey(headers, headerName, {
           readOwn: isHeaderObjectPrototypePropertyName(headerName),
@@ -778,7 +782,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
             __validator: paramValidatorName(combined, p, named),
           })),
         requestBodyRequired,
-        hasRequestBody: requestBody !== undefined,
+        hasRequestBody,
         bodyValidators: toPlaceholderMap(bodyValidators),
         bodyMediaTypes: compileMediaTypePatterns(declaredBodyMediaTypes),
         responses: mapResponsesToPlaceholders(responses),
@@ -828,12 +832,13 @@ function paramValidatorName(
  * Both decisions are made here rather than in the emitted module
  * because both are properties of the document: which media type carries
  * the value, and whether that media type implies JSON. Mirrors
- * `firstContentMediaType` and `isJsonMediaType` in validate-step.ts.
+ * `firstContentMediaType` in operation-cache.ts and `isJsonMediaType` in
+ * validate-step.ts.
  */
 function contentFields(p: ParameterObject): { __contentMediaType?: string; __contentJson?: true } {
   if (p.content === undefined) return {};
   for (const [mediaType, mto] of Object.entries(p.content)) {
-    if (mto.schema === undefined) continue;
+    if (!hasSchema(mto)) continue;
     const base = mediaType.split(";")[0]?.trim().toLowerCase() ?? "";
     const json = base === "application/json" || base.endsWith("+json");
     return { __contentMediaType: mediaType, ...(json ? { __contentJson: true as const } : {}) };
@@ -841,11 +846,22 @@ function contentFields(p: ParameterObject): { __contentMediaType?: string; __con
   return {};
 }
 
+/**
+ * Whether a `content` map entry carries a schema. An entry with nothing
+ * under it is `null`, and declares its media type without constraining
+ * it, as the runtime's operation cache reads it.
+ */
+function hasSchema(
+  mto: MediaTypeObject | null,
+): mto is MediaTypeObject & { schema: SchemaOrBoolean } {
+  return mto !== null && typeof mto === "object" && mto.schema !== undefined;
+}
+
 function firstContentSchema(p: ParameterObject | HeaderObject): SchemaOrBoolean | undefined {
   const content = (p as ParameterObject).content;
   if (content === undefined) return undefined;
   for (const media of Object.values(content)) {
-    if (media.schema !== undefined) return media.schema;
+    if (hasSchema(media)) return media.schema;
   }
   return undefined;
 }

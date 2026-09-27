@@ -248,13 +248,23 @@ function buildDelegate(
 }
 
 // Reject a numeric option that would silently misconfigure the run (0,
-// negative, or a non-integer). `Infinity` is the explicit "uncapped"
+// negative, NaN or a non-integer). `Infinity` is the explicit "uncapped"
 // value and is accepted. Mirrors compileSchema / createValidator so a
 // migration sees the same contract. Throws at construction, not mid-stream.
-function assertPositiveIntOption(name: string, value: number | undefined, hint: string): void {
-  if (value !== undefined && Number.isFinite(value) && (!Number.isInteger(value) || value < 1)) {
+function assertPositiveIntOption(
+  name: string,
+  value: number | undefined,
+  hint: string,
+  min: 0 | 1 = 1,
+): void {
+  if (
+    value !== undefined &&
+    value !== Number.POSITIVE_INFINITY &&
+    (!Number.isInteger(value) || value < min)
+  ) {
+    const kind = min === 0 ? "a non-negative integer" : "a positive integer";
     throw new Error(
-      `createStreamValidator: \`${name}\` must be a positive integer (got ${String(value)}). ${hint}`,
+      `createStreamValidator: \`${name}\` must be ${kind} (got ${String(value)}). ${hint}`,
     );
   }
 }
@@ -355,6 +365,14 @@ export class StreamValidator extends Transform {
       "maxMemberDropBytes",
       options.maxMemberDropBytes,
       "Omit it to use the default member-drop cap.",
+    );
+    // 0 was accepted before this check existed and has a coherent
+    // meaning: only an empty uniqueItems array passes.
+    assertPositiveIntOption(
+      "maxUniqueItems",
+      options.maxUniqueItems,
+      "Omit the option for no uniqueItems length cap.",
+      0,
     );
     this.maxMemberPrefixBytes = options.maxMemberPrefixBytes ?? DEFAULT_MAX_MEMBER_PREFIX_BYTES;
     this.maxMemberDropBytes = options.maxMemberDropBytes ?? DEFAULT_MAX_CAPTURE_BYTES;

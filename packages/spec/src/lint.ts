@@ -420,8 +420,16 @@ function parseComponentRef(ref: string): string | null {
 // unused-tag
 // ---------------------------------------------------------------------------
 
+function isNamedTag(tag: unknown): tag is TagObject {
+  return (
+    tag !== null && typeof tag === "object" && typeof (tag as { name?: unknown }).name === "string"
+  );
+}
+
 function findUnusedTags(document: OpenAPIDocument): SpecHygieneIssue[] {
-  const declared: TagObject[] = document.tags ?? [];
+  // Unreadable lists and entries (`tags:\n  -` is `[null]`) contribute
+  // nothing; conformance reports their shape.
+  const declared: readonly unknown[] = Array.isArray(document.tags) ? document.tags : [];
   if (declared.length === 0) return [];
   const used = new Set<string>();
   const collect = (op: OperationObject | undefined): void => {
@@ -439,8 +447,8 @@ function findUnusedTags(document: OpenAPIDocument): SpecHygieneIssue[] {
 
   const issues: SpecHygieneIssue[] = [];
   for (let i = 0; i < declared.length; i += 1) {
-    const tag = declared[i]!;
-    if (used.has(tag.name)) continue;
+    const tag = declared[i];
+    if (!isNamedTag(tag) || used.has(tag.name)) continue;
     issues.push({
       code: "unused-tag",
       pointer: `/tags/${i}`,

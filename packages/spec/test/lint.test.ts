@@ -163,6 +163,21 @@ describe("lintResolvedSpec: unused-tag", () => {
     });
     expect(lintResolvedSpec(spec)).toEqual([]);
   });
+
+  it("skips an unreadable tags list or entry, which conformance reports", () => {
+    // `tags:\n  -` with nothing under the dash is `[null]`. Reading
+    // `.name` off it threw and exited `oaverify check` with 3.
+    for (const tags of [[null], [{}], [42], "Pets", { name: "Pets" }]) {
+      const spec = minimalSpec({ tags } as never);
+      expect(() => lintResolvedSpec(spec), JSON.stringify(tags)).not.toThrow();
+      expect(lintResolvedSpec(spec), JSON.stringify(tags)).toEqual([]);
+    }
+  });
+
+  it("still flags a readable unused tag next to an unreadable one", () => {
+    const spec = minimalSpec({ tags: [null, { name: "Internal" }] } as never);
+    expect(lintResolvedSpec(spec)).toMatchObject([{ code: "unused-tag", pointer: "/tags/1" }]);
+  });
 });
 
 describe("lintResolvedSpec: unreachable-defs", () => {
