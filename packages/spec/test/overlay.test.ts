@@ -1288,3 +1288,103 @@ describe("a security field that is not a list (#883)", () => {
     expect(out.security).toEqual([{ k: [] }]);
   });
 });
+
+describe("an unreadable entry the overlay walks past", () => {
+  // A list item or map value written with nothing under it parses as
+  // `null`. The walkers read `"name" in param`, `"$ref" in item` or
+  // `op.tags.some` off it and threw a TypeError out of `applyOverlays`,
+  // which the CLI reported as exit 3. An unreadable entry matches
+  // nothing and is left exactly as written, the rule
+  // `securityRequirementEquals` already follows (#883); the conformance
+  // pass reports its shape.
+  const docWith = (extra: Record<string, unknown>): OpenAPIDocument =>
+    ({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            parameters: [null, { name: "a", in: "query" }],
+            responses: { "200": null, "201": { description: "ok" } },
+          },
+        },
+      },
+      ...extra,
+    }) as unknown as OpenAPIDocument;
+  const op = (out: OpenAPIDocument): Record<string, unknown> =>
+    (out.paths!["/t"] as Record<string, Record<string, unknown>>).get!;
+
+  it("modifyParameters keeps a null parameter and still modifies its neighbour", () => {
+    const out = applyOverlays(docWith({}), [
+      { modifyParameters: [{ where: { in: "query" }, apply: { description: "x" } }] },
+    ]);
+    expect(op(out).parameters).toEqual([null, { name: "a", in: "query", description: "x" }]);
+  });
+
+  it("upsertParameters keeps a null parameter", () => {
+    const out = applyOverlays(docWith({}), [
+      {
+        overrides: {
+          "/t": { operations: { get: { upsertParameters: [{ name: "a", in: "query" }] } } },
+        },
+      },
+    ]);
+    expect(op(out).parameters).toEqual([null, { name: "a", in: "query" }]);
+  });
+
+  it("removeParameters keeps a null parameter and removes the match", () => {
+    const out = applyOverlays(docWith({}), [
+      {
+        overrides: {
+          "/t": { operations: { get: { removeParameters: [{ name: "a", in: "query" }] } } },
+        },
+      },
+    ]);
+    expect(op(out).parameters).toEqual([null]);
+  });
+
+  it("patchResponses leaves a null response as written", () => {
+    const out = applyOverlays(docWith({}), [
+      {
+        overrides: {
+          "/t": {
+            operations: { get: { patchResponses: { "200": { description: "patched" } } } },
+          },
+        },
+      },
+    ]);
+    expect((op(out).responses as Record<string, unknown>)["200"]).toBeNull();
+  });
+
+  it("modifyOperations and modifyParameters keep a null webhook and path item", () => {
+    const doc = docWith({ webhooks: { w: null } });
+    (doc.paths as Record<string, unknown>)["/null"] = null;
+    for (const overlay of [
+      { modifyOperations: [{ apply: { addTags: ["traced"] } }] },
+      { modifyParameters: [{ where: { in: "query" }, apply: { description: "x" } }] },
+    ] as SpecOverlay[]) {
+      const out = applyOverlays(doc, [overlay]);
+      expect(out.webhooks).toEqual({ w: null });
+      expect(out.paths?.["/null"]).toBeNull();
+    }
+  });
+
+  it("modifyOperations where.tags does not match an operation whose tags is not a list", () => {
+    const doc = docWith({});
+    op(doc).tags = "pets";
+    const out = applyOverlays(doc, [
+      { modifyOperations: [{ where: { tags: ["pets"] }, apply: { description: "x" } }] },
+    ]);
+    expect(op(out).description).toBeUndefined();
+  });
+
+  it("addTags leaves a tags field that is not a list as written", () => {
+    // `new Set("pets")` split the string into its characters.
+    const doc = docWith({});
+    op(doc).tags = "pets";
+    const out = applyOverlays(doc, [
+      { overrides: { "/t": { operations: { get: { addTags: ["v2"] } } } } },
+    ]);
+    expect(op(out).tags).toBe("pets");
+  });
+});
