@@ -10,7 +10,13 @@
  * allowlist without `redirects: "error"` does not survive a redirect.
  */
 import { dirname, resolve as resolvePath } from "node:path";
-import type { DocumentReader, FileReaderOptions, HttpReaderOptions } from "@oaverify/internal-spec";
+import {
+  STDIN_URI,
+  type DocumentReader,
+  type FileReaderOptions,
+  type HttpReaderOptions,
+} from "@oaverify/internal-spec";
+import { decodeFilePath } from "@oaverify/internal-spec/internals";
 
 /**
  * How the CLI treats http(s) reads.
@@ -207,8 +213,11 @@ export function allowsUri(policy: ReaderPolicy, uri: string): boolean {
  * `specs/specs/openapi.json`).
  */
 export function confineRootFor(policy: ReaderPolicy): string | undefined {
-  if (!policy.untrusted || isHttpUri(policy.entry) || policy.entry === "-") return undefined;
-  return dirname(resolvePath(policy.entry));
+  if (!policy.untrusted || isHttpUri(policy.entry) || policy.entry === STDIN_URI) return undefined;
+  // A `file:` URL names an absolute path; decode it the way the file
+  // reader will, or `resolvePath` reads the scheme as a relative path.
+  const path = isFileUrl(policy.entry) ? decodeFilePath(policy.entry) : policy.entry;
+  return dirname(resolvePath(path));
 }
 
 /**
@@ -218,7 +227,12 @@ export function confineRootFor(policy: ReaderPolicy): string | undefined {
  * otherwise, so ordinary runs keep reporting the path as typed.
  */
 export function confinedEntry(policy: ReaderPolicy): string {
-  return confineRootFor(policy) === undefined ? policy.entry : resolvePath(policy.entry);
+  if (confineRootFor(policy) === undefined || isFileUrl(policy.entry)) return policy.entry;
+  return resolvePath(policy.entry);
+}
+
+function isFileUrl(uri: string): boolean {
+  return uri.startsWith("file://");
 }
 
 /**

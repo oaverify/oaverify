@@ -5,6 +5,7 @@ import {
   DEFAULT_REMOTE_REFS,
   UNTRUSTED_MAX_BYTES,
   confineRootFor,
+  confinedEntry,
   entryRefusal,
   fileOptionsFor,
   httpOptionsFor,
@@ -153,6 +154,15 @@ describe("fileOptionsFor and confineRootFor", () => {
     const p = policy({ entry: "/tmp/specs/openapi.yaml", untrusted: true });
     expect(fileOptionsFor(p).confine).toBe(true);
     expect(confineRootFor(p)).toBe("/tmp/specs");
+  });
+
+  it("confines a file: URL entry to the directory it names", () => {
+    // resolvePath read `file:///tmp/...` as a relative path under the
+    // working directory, so every --untrusted run with a file: URL entry
+    // failed to read its own spec.
+    const p = policy({ entry: "file:///tmp/my%20specs/openapi.yaml", untrusted: true });
+    expect(confineRootFor(p)).toBe("/tmp/my specs");
+    expect(confinedEntry(p)).toBe("file:///tmp/my%20specs/openapi.yaml");
   });
 
   it("has no confine root for a remote or stdin entry", () => {
