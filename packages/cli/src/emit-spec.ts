@@ -665,7 +665,10 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // 415 where `createValidator` answers 200 (#849).
   const declaredBodyMediaTypes: string[] = [];
   let requestBodyRequired = false;
-  if (requestBody !== null && typeof requestBody === "object") {
+  // `requestBody:` with nothing under it is `null`; read it as absent,
+  // as the runtime's operation cache does.
+  const hasRequestBody = requestBody !== null && typeof requestBody === "object";
+  if (hasRequestBody) {
     requestBodyRequired = requestBody.required === true;
     for (const [mediaType, media] of Object.entries(requestBody.content ?? {})) {
       declaredBodyMediaTypes.push(mediaType);
@@ -779,7 +782,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
             __validator: paramValidatorName(combined, p, named),
           })),
         requestBodyRequired,
-        hasRequestBody: requestBody !== undefined,
+        hasRequestBody,
         bodyValidators: toPlaceholderMap(bodyValidators),
         bodyMediaTypes: compileMediaTypePatterns(declaredBodyMediaTypes),
         responses: mapResponsesToPlaceholders(responses),
