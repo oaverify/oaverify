@@ -56,11 +56,9 @@ export {
   type DocumentWalkHooks,
 } from "./document-walk.js";
 
-// The served-location rule and its message, so the AOT emitter refuses
-// the same documents in the same words rather than carrying a second
-// copy of the list (#829). `assertServedParameterLocations` is the
-// whole gate; the other two are for a caller applying the rule to one
-// parameter at a time.
+// The served-location rule and its messages, so the AOT emitter and
+// `check` refuse the same documents in the same words rather than
+// carrying a second copy of the list (#829).
 export {
   assertServedParameterLocations,
   describeParameterLocation,
@@ -72,9 +70,8 @@ export {
 } from "./parameter-locations.js";
 
 // Body extraction from a Web Standards `Request` / `Response`. The
-// `httpRequestFromFetch` / `httpResponseFromFetch` wrappers around it
-// are emit-side (./codegen-runtime.js); this half is reached directly
-// only by tests and adapters.
+// package root exports it too, as the reader a custom
+// `FetchRequestOptions.readBody` delegates to.
 export { readBodyFromFetch } from "./from-fetch.js";
 
 // The `maxTotalBytes` allow-list, so every surface that accepts the
