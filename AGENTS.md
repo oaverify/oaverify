@@ -648,10 +648,11 @@ are in [docs/extending.md](./docs/extending.md); the
 (`packages/schema/src/keywords/types.ts`), per "Type as canonical
 contract". Three rules that fail silently when you get them wrong:
 
-- **Keyword flags drive specialization.** `applicator`, `annotation`,
-  and `evaluates` on a `KeywordDefinition` change codegen paths; a wrong
-  flag mis-fires correctness or perf with no error. See their TSDoc for
-  what each breaks.
+- **Keyword flags drive specialization.** `applicator` and `annotation`
+  on a `KeywordDefinition` change codegen paths; a wrong flag mis-fires
+  correctness or perf with no error. See their TSDoc for what each
+  breaks. `evaluates` is metadata only: evaluated-key tracking is keyed
+  on keyword names, and its TSDoc says where.
 - **New error codes need a `BuiltInErrorParams` entry** in
   `packages/core/src/errors.ts`. Errors are emitted through generated
   JS source, so the compiler cannot check the `code`/`params` contract;

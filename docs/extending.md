@@ -8,11 +8,12 @@ the relevant type; this page is the worked procedure.
 
 1. Create `packages/schema/src/keywords/<area>.ts` exporting a
    [`KeywordDefinition`](../packages/schema/src/keywords/types.ts) with
-   `keyword`, `vocabulary`, and `compile(ctx)`. The flags on the
-   definition drive compiler specialization; set them correctly or
-   optimizations silently mis-fire. See the TSDoc on `applicator`,
-   `annotation`, and `evaluates` for what each does and what breaks
-   when it's wrong.
+   `keyword`, `vocabulary`, and `compile(ctx)`. The `applicator` and
+   `annotation` flags drive compiler specialization; set them correctly
+   or optimizations silently mis-fire. See their TSDoc for what each
+   does and what breaks when it's wrong. `evaluates` is descriptive
+   metadata the compiler does not read; see its TSDoc for what decides
+   evaluated-key tracking.
 2. Add it to the vocabulary's `keywords` array in `vocabulary.ts`.
 3. Re-export from `keywords/index.ts` and top-level `src/index.ts`.
 4. Add `test/keyword-<name>.test.ts` that compiles a schema, validates
