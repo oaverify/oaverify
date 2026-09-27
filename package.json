@@ -183,12 +183,12 @@
     "prepublishOnly": "pnpm test"
   },
   "devDependencies": {
-    "@types/node": "26.5.1",
+    "@types/node": "26.6.2",
     "@vitest/coverage-v8": "5.0.1",
     "commander": "15.0.0",
     "esbuild": "0.28.2",
-    "oxfmt": "0.68.0",
-    "oxlint": "1.83.0",
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0",
     "oxlint-tsgolint": "^7.0.2001",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
