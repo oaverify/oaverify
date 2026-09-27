@@ -233,12 +233,18 @@ it comes back in the form that argument was given in: `oaverify check
 ./openapi.yaml` reports `./schemas/order.yaml`, and an absolute path
 reports absolute paths.
 
-**Two more fields appear where they apply.** `occurrences` counts how
-many operations reported the same defect, when more than one; a
-component reached from several operations is one defect and one edit.
-`reasons` carries the validator's leaf errors for a rejected value, on
-`examples` findings only, so a consumer reads `params.allowed` and
-`params.actual` rather than parsing them out of `message`. No two
+**More fields appear where they apply.** `occurrences` counts how
+many schema entries reported the same defect, when more than one. Each
+authored schema root is checked on its own, components included, so a
+component reached from a single operation can already count 2; it is
+still one defect and one edit. `contributors` addresses the `enum` and
+`const` declarations behind a composed finite-value finding, each in
+the same form as `target`. `reasons` carries the validator's leaf
+errors for a rejected value, on `examples` findings only, so a consumer
+reads `params.allowed` and `params.actual` rather than parsing them out
+of `message`. `reasonSources` gives the source position of each located
+reason, keyed by its index in `reasons`, and is absent where `source`
+would be. No two
 entries are equal on all four fields, so counting the array counts
 distinct defects; a composition that rejects one position twice with
 different detail still gives two entries. Each error `code` has a

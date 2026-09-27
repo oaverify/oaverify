@@ -113,13 +113,16 @@ export function artifactLocation(uri: string, base: string): { uri: string; uriB
 }
 
 /**
- * A stable identity for a finding, across commits and file moves.
+ * An identity for a finding that survives reformatting.
  *
  * Code scanning uses `partialFingerprints` to decide whether a result
  * in this run is the same one it saw before. Its default keys on the
- * content of the line, which churns whenever a file is reformatted or
- * moved. `code` plus the source pointer is stable under both, and stays
- * meaningful when a `region` arrives later.
+ * content of the line, which churns whenever a file is reformatted.
+ * This key is `code` plus the source URI and pointer, so it survives
+ * reformatting and stays meaningful when a `region` arrives later. The
+ * URI echoes the spec argument as given, so moving or renaming the
+ * file, or spelling the argument differently (`./spec.json` against
+ * `spec.json`), changes the fingerprint.
  *
  * Falls back to the resolved pointer, then to the message, so the field
  * is always present: a result with no fingerprint gets the churning
