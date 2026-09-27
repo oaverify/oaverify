@@ -370,11 +370,10 @@ in the meantime.
   peak-buffer budget (`"unbounded"` where a structural bound is
   missing), and `analyzeSpec(doc)` rolls that up per operation. Two
   constraints hold it together. It mirrors the spine's `computeKind`
-  rather than the classifier's `strategyOf` alone, because `strategyOf`
-  marks `contains`, asserting `format`, `uniqueItems`, and complex
-  `enum`/`const` as forward/scalar while the spine still materializes
-  them, so `strategyOf` alone under-reports buffering (`nodeKind` in
-  `analyzer/analyze.ts`). And it is engine-free, calling neither the
+  rather than the classifier's `strategyOf` alone, because `computeKind`
+  materializes some schemas the classifier reports as forward (asserting
+  `format` is one), so `strategyOf` alone under-reports buffering
+  (`nodeKind` in `analyzer/analyze.ts`). And it is engine-free, calling neither the
   spine nor `createStreamValidator`, so importing only the analyzer does
   not pull the engine; body extraction therefore lives in the shared
   `openapi/body-schema.ts`.
