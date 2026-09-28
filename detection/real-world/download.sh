@@ -3,26 +3,12 @@
 # Specs are gitignored: they are large, sometimes licensed, and this
 # script regenerates them.
 #
-# Three sources, in order of how much is known about them:
-#   1. $OAV_AUDITED_SPECS -- a local directory of already-audited specs
-#      (ground truth known; used to sanity-check the harness). Skipped
-#      when unset or absent.
-#   2. the seven large public specs conformance/real-world already uses.
-#   3. an apis.guru sample chosen by select-guru.mjs.
+# Two sources:
+#   1. the seven large public specs conformance/real-world already uses.
+#   2. an apis.guru sample chosen by select-guru.mjs.
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p specs
-
-AUDITED="${OAV_AUDITED_SPECS:-$HOME/Desktop/oav-learnings-repro/specs}"
-if [ -d "$AUDITED" ]; then
-  for f in "$AUDITED"/*.yaml "$AUDITED"/*.json; do
-    [ -e "$f" ] || continue
-    cp "$f" "specs/audited-$(basename "$f")"
-  done
-  echo "audited: $(ls specs/audited-* 2>/dev/null | wc -l | tr -d ' ') copied"
-else
-  echo "audited: $AUDITED not present, skipped"
-fi
 
 fetch() { curl -sSfL --max-time 180 -o "specs/$1" "$2" || echo "FAILED $1" >&2; }
 

@@ -386,17 +386,13 @@ writeFileSync(
  * measured, and that nothing gates on it.
  */
 function provenance(specCount) {
-  const audited = specs.filter((f) => f.startsWith("audited-")).length;
   return [
     "> Measured against " + specCount + " specs on " + STAMP + ".",
     ">",
     "> Not a baseline. `specs/` is gitignored and `download.sh` re-selects",
     "> from live upstreams, so a later run measures a different population",
     "> and no CI job gates on these numbers. A count that moved may mean the",
-    "> corpus moved. " +
-      (audited > 0
-        ? audited + " local `audited-*` specs are included, which nobody else has."
-        : "No `audited-*` specs were present, so this is the public corpus alone."),
+    "> corpus moved.",
     "",
   ];
 }
