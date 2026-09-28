@@ -33,24 +33,13 @@ two minutes, which is the loop worth using while chasing something.
 `download.sh` writes to `./specs/`, which is gitignored: the specs are
 large, sometimes licensed, and this script regenerates them.
 
-| source               | count | why                                                     |
-| -------------------- | ----- | ------------------------------------------------------- |
-| `$OAV_AUDITED_SPECS` | 13    | already audited, ground truth known. **Local only**     |
-| large public specs   | 7     | GitHub, Stripe, Twilio, Box, Asana, DigitalOcean, Adyen |
-| apis.guru            | ~293  | volume and variety                                      |
+| source             | count | why                                                     |
+| ------------------ | ----- | ------------------------------------------------------- |
+| large public specs | 7     | GitHub, Stripe, Twilio, Box, Asana, DigitalOcean, Adyen |
+| apis.guru          | ~293  | volume and variety                                      |
 
-Only the last two are fetchable, so the corpus is about 300 specs on a
-machine without the audited set and about 313 on the one that has it.
-Counts in `results/` differ accordingly, which is the first thing to
-check when a number moves.
-
-The audited set is the harness's own test. It is expected to produce
-exactly 5 `required-not-in-properties` findings and 3 exit-2 rejections,
-2 of which carry no location ([#504] and the `policyinquiry` case in
-[#512]). A run that disagrees means the harness broke, and that is worth
-knowing before reading anything else.
-It is skipped when `$OAV_AUDITED_SPECS` is unset and the default path is
-absent, in which case the rest still runs.
+The corpus is about 300 specs. Nothing in it has known answers, so the
+harness has no self-test.
 
 `select-guru.mjs` picks the apis.guru sample: every 3.1 entry it has
 (96, since 3.1 is where the interesting shapes are and apis.guru holds
@@ -62,8 +51,6 @@ Selection is deterministic given the same apis.guru index, so a finding
 survives a re-run on an unchanged upstream. The index itself changes as
 providers come and go, so two runs weeks apart measure different
 populations and neither is wrong.
-
-[#504]: https://github.com/oaverify/oaverify/issues/504
 
 ## Output
 
@@ -126,6 +113,7 @@ directions. The Ajv column in particular is dominated by
 probe rather than anything about the specs. `results/triage.md` records
 which leads were followed and where each one stopped.
 
+[#504]: https://github.com/oaverify/oaverify/issues/504
 [#510]: https://github.com/oaverify/oaverify/issues/510
 
 ## What this pass found

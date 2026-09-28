@@ -4,7 +4,8 @@ Everything here was looked at and not turned into an issue. Each entry
 says what was seen and why it stopped there. Nothing in this file is a
 claim that oaverify is wrong.
 
-Corpus: 313 specs, base commit `76c42f9`. Generated leads are in
+Corpus: 313 specs at base commit `76c42f9`, of which 13 were local
+specs that are no longer part of the corpus. Generated leads are in
 `leads.md` and `crashes.md`; this file is hand-written.
 
 ## Comparator findings that are the comparator's bug
@@ -22,7 +23,7 @@ hand-written 20-line spec with a percent-encoded pointer, where
 `allOf: [$ref PartialVLanConfigDot1Q, {required: [vlan, vlan_type]}]`
 and `vlan` is declared in the ref target. Redocly does not follow the
 ref across the `allOf`; oaverify's #503 model does, and stays correctly
-silent. Redocly raises the same shape on 8 of the audited specs.
+silent.
 
 **Ajv "can't resolve reference #/components/schemas/X" (many thousands).**
 An artifact of `../ajv-probe.mjs`, which compiles each schema standalone

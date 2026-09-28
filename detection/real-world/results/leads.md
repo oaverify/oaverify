@@ -5,7 +5,7 @@
 > Not a baseline. `specs/` is gitignored and `download.sh` re-selects
 > from live upstreams, so a later run measures a different population
 > and no CI job gates on these numbers. A count that moved may mean the
-> corpus moved. No `audited-*` specs were present, so this is the public corpus alone.
+> corpus moved.
 
 Noisy by construction. Nothing here is a finding until it has been
 minimized to a hand-written document; the filters below are keyword
