@@ -313,8 +313,9 @@ export class StreamValidator extends Transform {
   // non-null `bytes` with `start < end` is a replacement (rename), and
   // `start === end` is an insertion (an `editClose` append). Held bytes are
   // bounded by the pending member prefix, so the bounded-heap property
-  // holds; a dropped member is deleted as it streams, never held. Held chunks are concatenated only by a flush that emits some of
-  // them, so a long pending span is not re-copied on every write.
+  // holds; a dropped member is deleted as it streams, never held. Held
+  // chunks are concatenated only by a flush that emits some of them, so a
+  // long pending span is not re-copied on every write.
   private pendingEdits: Array<{ start: number; end: number; bytes: Buffer | null }> = [];
   private heldChunks: Buffer[] = [];
   private heldLength = 0;
@@ -488,6 +489,7 @@ export class StreamValidator extends Transform {
         this.pendingEdits.push({ start, end, bytes: Buffer.from(bytes, "utf8") }),
       emitDelete: (start, end) => this.pendingEdits.push({ start, end, bytes: null }),
       maxMemberPrefixBytes: this.maxMemberPrefixBytes,
+      deferBudgetForEdits: options.policy === "detach",
     });
     this.tokenizer = new JsonTokenizer(this.spine, { utf8: options.utf8 });
     this.result = new Promise<StreamVerdict>((resolve, reject) => {
@@ -588,8 +590,9 @@ export class StreamValidator extends Transform {
    * at the member's value start (after its key, before the value), so it
    * can decide `keep` / `rename` / `drop` with the value type known.
    * `rename` rewrites the key token only and streams the value verbatim
-   * (no value buffering, any value size); `drop` suppresses the member
-   * and one delimiter. Register before piping. The matched member's
+   * (no value buffering, any value size); `drop` removes the member and
+   * the whitespace around it, as `MemberEdit` describes. Register
+   * before piping. The matched member's
    * value is still validated against the input schema (a `drop` removes
    * it from the output, not from the verdict). Return `null` for a no-op.
    *
@@ -667,8 +670,8 @@ export class StreamValidator extends Transform {
   // Emit held bytes up to `limit` (absolute), splicing in any pending edit
   // fully resolved within that range. Edits past `limit` and bytes at or
   // past `limit` stay held for a later flush. Edits are applied in offset
-  // order; overlapping deletions (a trailing drop that re-covers an earlier
-  // following-comma delete) merge via the running cursor.
+  // order; overlapping deletions (an open discard deleted up to one write's
+  // limit, then again in full when it closes) merge via the running cursor.
   private flushEdits(limit: number): void {
     if (limit <= this.heldBase) return;
     const ready: Array<{ start: number; end: number; bytes: Buffer | null }> = [];

@@ -380,6 +380,46 @@ describe("editMember drop on generated documents", () => {
   });
 });
 
+describe("editMember drop under a detach seal", () => {
+  // The seal waits until no member edit is in flight, so the edited output
+  // and the raw-copied tail join into valid JSON.
+  it.each<[SchemaOrBoolean, string, string]>([
+    [{ type: "object", properties: { d: { type: "string" } } }, '{"d":5,"b":2}', '{"b":2}'],
+    [{ type: "object", maxProperties: 1 }, '{"d":1,"b":2}', '{"b":2}'],
+    [
+      { type: "object", properties: { d: { maxLength: 2 } } },
+      '{"a":1,"d":"xxxxxxxx","b":2}',
+      '{"a":1,"b":2}',
+    ],
+    [{ type: "object", properties: { d: { type: "string" } } }, '{"a":1, "d":5 }', '{"a":1}'],
+  ])("%j over %s", async (schema, input, expected) => {
+    for (const chunkSize of [0, 1, 3, 4]) {
+      const r = await run(
+        schema,
+        input,
+        (v) => v.editMember(["d"], drop),
+        {
+          policy: "detach",
+          maxErrors: 1,
+        },
+        chunkSize,
+      );
+      expect(r.err, `chunk ${chunkSize}`).toBeUndefined();
+      expect(r.valid).toBe(false);
+      expect(r.output, `chunk ${chunkSize}`).toBe(expected);
+    }
+  });
+
+  it("copies the tail unchanged once no edit is in flight", async () => {
+    const schema = { type: "object", properties: { a: { type: "string" } } };
+    const r = await run(schema, '{"a":1,"d":2,"b":3}', (v) => v.editMember(["d"], drop), {
+      policy: "detach",
+      maxErrors: 1,
+    });
+    expect(r.output).toBe('{"a":1,"d":2,"b":3}');
+  });
+});
+
 describe("editMember rename + drop together", () => {
   it("renames one member and drops another", async () => {
     const schema = { type: "object", properties: { ids: { type: "array" } } };
@@ -480,6 +520,18 @@ describe("editMember caps", () => {
     expect(r.output.length).toBe("{}".length);
     expect(r.output).toBe("{}");
     expect(r.peakBufferedBytes).toBeLessThan(FILL_CHUNK);
+  });
+
+  it("caps whitespace in an empty object the same way whatever the chunking", async () => {
+    const input = `{${" ".repeat(100)}}`;
+    const edit = (v: StreamValidator) => v.editMember(["x"], drop);
+    for (const chunkSize of [0, 10]) {
+      const r = await run({ type: "object" }, input, edit, { maxMemberPrefixBytes: 50 }, chunkSize);
+      expect(r.err?.name, `chunk ${chunkSize}`).toBe("MemberEditError");
+      expect((r.err as MemberEditError).byteOffset).toBe(51);
+    }
+    const within = await run({ type: "object" }, input, edit, { maxMemberPrefixBytes: 100 }, 10);
+    expect(within.err).toBeUndefined();
   });
 
   it("refuses oversized whitespace between a comma and the next key", async () => {

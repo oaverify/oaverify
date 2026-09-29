@@ -90,7 +90,10 @@ export interface StreamValidatorOptions {
    *   - `"terminate"` (default): destroy the stream on the budget-th
    *     violation; `pipeline` rejects with `ValidationFailedError`.
    *   - `"detach"`: stop validating, seal the verdict, raw-copy the tail
-   *     of the input to output unchanged.
+   *     of the input to output unchanged. With `editMember` hooks, the
+   *     seal waits until no member edit is in flight (a member being
+   *     dropped, or one whose hook has not run yet), so the edited output
+   *     and the raw tail join into valid JSON.
    *
    * A parse error is always terminal regardless of policy.
    */

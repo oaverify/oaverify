@@ -136,10 +136,7 @@ export class MemberEditError extends Error {
  * message omits the key, which may itself be the oversized part.
  */
 export function memberPrefixError(cap: number, start: number): MemberEditError {
-  return new MemberEditError(
-    `member key-to-value span exceeded maxMemberPrefixBytes=${cap}`,
-    start + cap,
-  );
+  return new MemberEditError(`member prefix exceeded maxMemberPrefixBytes=${cap}`, start + cap);
 }
 
 /** Validates a materialized island value against schemas; returns flat violations. */
@@ -295,12 +292,20 @@ export interface SpineOptions {
   emitDelete?: (start: number, end: number) => void;
   /** Cap on a held member prefix (separator, key, colon and whitespace); over-cap is fatal. */
   maxMemberPrefixBytes?: number;
+  /**
+   * Hold {@link BudgetReached} while a member edit is in flight (a member
+   * prefix awaiting its decision, or a dropped member being discarded),
+   * and throw it once none is. Set under the `detach` policy, where the
+   * input after the throw is copied unedited: throwing mid-edit would join
+   * a partly removed member to its raw remainder.
+   */
+  deferBudgetForEdits?: boolean;
 }
 
 /**
  * A resolved member-edit decision (engine-resolved from the registered
  * hooks). `keep` passes through; `rename` rewrites the key token and
- * streams the value; `drop` suppresses the member.
+ * streams the value; `drop` removes the member as `MemberEdit` describes.
  */
 export type MemberDecision = { kind: "keep" } | { kind: "rename"; key: string } | { kind: "drop" };
 
@@ -484,6 +489,10 @@ export class SpineValidator implements JsonEventHandler {
   // with no hooks pays nothing.
   private memberEditActive = false;
   private readonly maxMemberPrefixBytes: number;
+  private readonly deferBudgetForEdits: boolean;
+  // The budget was reached while a member edit was in flight; see
+  // `deferBudgetForEdits`.
+  private budgetDeferred = false;
   // Verdict-only mode (TEE branch sub-spines): track a single invalid flag
   // instead of retaining a violation per failure, so a branch over a huge
   // array stays O(1) memory. The parent only reads `verdict().valid`.
@@ -569,6 +578,7 @@ export class SpineValidator implements JsonEventHandler {
     this.emitReplace = options.emitReplace;
     this.emitDelete = options.emitDelete;
     this.maxMemberPrefixBytes = options.maxMemberPrefixBytes ?? Number.POSITIVE_INFINITY;
+    this.deferBudgetForEdits = options.deferBudgetForEdits ?? false;
   }
 
   /**
@@ -673,6 +683,7 @@ export class SpineValidator implements JsonEventHandler {
       this.recordOutputKey(top, decision.key, true);
       this.emitReplace!(top.pendingKeyStart, top.pendingKeyEnd, JSON.stringify(decision.key));
     }
+    this.settleBudget();
   }
 
   // The enclosing object member's key, when the value about to / just
@@ -770,9 +781,26 @@ export class SpineValidator implements JsonEventHandler {
       this.invalid = true;
       return;
     }
+    if (this.budgetDeferred) return;
     this.violations.push(violation);
     this.onViolation?.(violation);
-    if (this.violations.length >= this.maxErrors) throw new BudgetReached();
+    if (this.violations.length >= this.maxErrors) {
+      if (this.deferBudgetForEdits && this.memberEditInFlight()) this.budgetDeferred = true;
+      else throw new BudgetReached();
+    }
+  }
+
+  private memberEditInFlight(): boolean {
+    return (
+      this.memberPrefixStart !== Number.POSITIVE_INFINITY ||
+      this.openDiscardStart !== Number.POSITIVE_INFINITY
+    );
+  }
+
+  // Throw a deferred BudgetReached once no member edit is in flight. Called
+  // where an edit settles: a member kept or renamed, or an object closed.
+  private settleBudget(): void {
+    if (this.budgetDeferred && !this.memberEditInFlight()) throw new BudgetReached();
   }
 
   private regex(pattern: string): { test(s: string): boolean } {
@@ -1283,6 +1311,10 @@ export class SpineValidator implements JsonEventHandler {
       // it, ends at the `}`.
       this.emitDelete!(frame.discardStart, offset);
       frame.discardStart = Number.POSITIVE_INFINITY;
+    } else if (offset - frame.prefixStart > this.maxMemberPrefixBytes) {
+      // An empty object's whitespace was held as a prefix for a first member
+      // that never came; cap it here as a write boundary inside it would.
+      throw memberPrefixError(this.maxMemberPrefixBytes, frame.prefixStart);
     }
     for (const s of frame.schemas) {
       if (Array.isArray(s.required)) {
@@ -1327,6 +1359,7 @@ export class SpineValidator implements JsonEventHandler {
     });
     this.popSegment();
     this.advance();
+    this.settleBudget();
   }
 
   onStartArray(offset: number): void {
