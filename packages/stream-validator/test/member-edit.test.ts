@@ -410,6 +410,26 @@ describe("editMember drop under a detach seal", () => {
     }
   });
 
+  it.each<[string, SchemaOrBoolean, string, (v: StreamValidator) => void, string]>([
+    [
+      "a hook error",
+      { type: "object", maxProperties: 1 },
+      '{"a":1,"b":2}',
+      (v) => v.editMember(["b"], rename("a")),
+      "MemberEditError",
+    ],
+    [
+      "a parse error",
+      { type: "object", properties: { d: { type: "string" } } },
+      '{"d":5 x}',
+      (v) => v.editMember(["d"], drop),
+      "JsonParseError",
+    ],
+  ])("fails on %s before the seal settles", async (_name, schema, input, setup, errName) => {
+    const r = await run(schema, input, setup, { policy: "detach", maxErrors: 1 });
+    expect(r.err?.name).toBe(errName);
+  });
+
   it("copies the tail unchanged once no edit is in flight", async () => {
     const schema = { type: "object", properties: { a: { type: "string" } } };
     const r = await run(schema, '{"a":1,"d":2,"b":3}', (v) => v.editMember(["d"], drop), {

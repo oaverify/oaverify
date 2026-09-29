@@ -93,7 +93,9 @@ export interface StreamValidatorOptions {
    *     of the input to output unchanged. With `editMember` hooks, the
    *     seal waits until no member edit is in flight (a member being
    *     dropped, or one whose hook has not run yet), so the edited output
-   *     and the raw tail join into valid JSON.
+   *     and the raw tail join into valid JSON. Until then the input is
+   *     still parsed and hooks keep firing, so a hook error (such as a
+   *     rename collision) is fatal there as it is before the budget.
    *
    * A parse error is always terminal regardless of policy.
    */

@@ -591,10 +591,10 @@ export class StreamValidator extends Transform {
    * can decide `keep` / `rename` / `drop` with the value type known.
    * `rename` rewrites the key token only and streams the value verbatim
    * (no value buffering, any value size); `drop` removes the member and
-   * the whitespace around it, as `MemberEdit` describes. Register
-   * before piping. The matched member's
-   * value is still validated against the input schema (a `drop` removes
-   * it from the output, not from the verdict). Return `null` for a no-op.
+   * the whitespace around it, as `MemberEdit` describes. Register before
+   * piping. The matched member's value is still validated against the
+   * input schema (a `drop` removes it from the output, not from the
+   * verdict). Return `null` for a no-op.
    *
    * A rename whose target collides with another key in the same object,
    * and two hooks returning conflicting edits for one member, are both
