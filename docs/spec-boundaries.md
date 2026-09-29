@@ -321,7 +321,7 @@ JavaScript calculates `0.3 / 0.1` as `2.9999999999999996` instead of `3`.
 
 ### packages/stream-validator
 
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:894](../packages/stream-validator/src/engine/stream-validator.ts#L894))
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:895](../packages/stream-validator/src/engine/stream-validator.ts#L895))
 
 Against RFC 8259 section 8.1 (<https://www.rfc-editor.org/rfc/rfc8259#section-8.1>).
 
@@ -661,7 +661,7 @@ to the original files (#561).
 
 ### packages/stream-validator
 
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:894](../packages/stream-validator/src/engine/stream-validator.ts#L894))
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:895](../packages/stream-validator/src/engine/stream-validator.ts#L895))
 
 Against RFC 8259 section 4 (<https://www.rfc-editor.org/rfc/rfc8259#section-4>).
 
@@ -704,7 +704,7 @@ containing file (#1088).
 
 ### packages/stream-validator
 
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:894](../packages/stream-validator/src/engine/stream-validator.ts#L894))
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:895](../packages/stream-validator/src/engine/stream-validator.ts#L895))
 
 Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3.2>).
 

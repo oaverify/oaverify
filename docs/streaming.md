@@ -92,8 +92,8 @@ validator.editMember(["legacy_field"], () => ({ action: "drop" }));
 `at` matches the member's full path (the enclosing scope plus the key),
 the same coordinate `valueEvents.at` uses. Validation is pre-edit: a
 dropped member is still validated, and the edit only changes the output.
-Dropping a container-valued member is not supported on the stream path;
-rename works for any value type. Collisions, conflicting hooks and
+Both actions work for any value type, and `editMember` hooks do not fire
+for members inside a dropped one. Collisions, conflicting hooks and
 `maxMemberPrefixBytes`, the cap on a member's held prefix, are fatal
 where they apply; see `StreamValidatorOptions` for the limit.
 

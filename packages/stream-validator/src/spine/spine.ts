@@ -113,9 +113,7 @@ export class UniqueItemsLimitError extends Error {
  *
  * Covers the member-edit failure modes:
  *   - the held member prefix exceeded `maxMemberPrefixBytes`;
- *   - a rename produced a duplicate key in the same object;
- *   - a `drop` targeted a container value (not supported on the stream
- *     path yet).
+ *   - a rename produced a duplicate key in the same object.
  */
 export class MemberEditError extends Error {
   /**
@@ -362,9 +360,6 @@ interface ObjectFrame {
   // comma.
   prefixStart: number;
   prefixIsComma: boolean;
-  // Start of a dropped member's discard, which runs to the next comma or the
-  // closing `}`. `+Infinity` when no member is being dropped.
-  discardStart: number;
 }
 
 interface ArrayFrame {
@@ -493,6 +488,10 @@ export class SpineValidator implements JsonEventHandler {
   // The budget was reached while a member edit was in flight; see
   // `deferBudgetForEdits`.
   private budgetDeferred = false;
+  // A dropped member being discarded: from `start` (its prefix start)
+  // through the next comma or `}` of the object at `frames[depth - 1]`.
+  // Nothing inside it is edited, so there is at most one.
+  private discard: { start: number; depth: number } | null = null;
   // Verdict-only mode (TEE branch sub-spines): track a single invalid flag
   // instead of retaining a violation per failure, so a branch over a huge
   // array stays O(1) memory. The parent only reads `verdict().valid`.
@@ -609,24 +608,23 @@ export class SpineValidator implements JsonEventHandler {
    * closing `}` ends the span. `+Infinity` when nothing is being dropped.
    */
   get openDiscardStart(): number {
-    const top = this.frames[this.frames.length - 1];
-    return this.memberEditActive && top !== undefined && top.kind === "object"
-      ? top.discardStart
-      : Number.POSITIVE_INFINITY;
+    return this.discard !== null ? this.discard.start : Number.POSITIVE_INFINITY;
   }
 
   /**
    * A comma between members of the innermost object, reported by the
-   * tokenizer once member edits are on. It ends an open discard and starts
+   * tokenizer once member edits are on. A comma of the object whose member
+   * is being dropped ends the discard; any comma outside a discard starts
    * the next member's held prefix.
    */
   onMemberComma(offset: number): void {
     if (this.tee !== null || this.island !== null) return;
-    const top = this.frames[this.frames.length - 1] as ObjectFrame;
-    if (top.discardStart !== Number.POSITIVE_INFINITY) {
-      this.emitDelete!(top.discardStart, offset);
-      top.discardStart = Number.POSITIVE_INFINITY;
+    if (this.discard !== null) {
+      if (this.frames.length !== this.discard.depth) return;
+      this.emitDelete!(this.discard.start, offset);
+      this.discard = null;
     }
+    const top = this.frames[this.frames.length - 1] as ObjectFrame;
     top.prefixStart = offset;
     top.prefixIsComma = true;
   }
@@ -651,13 +649,15 @@ export class SpineValidator implements JsonEventHandler {
   // prefix cap, consult the engine, apply collision rules, and emit the
   // edits. A kept member's comma survives only when an earlier member of
   // the object was kept; a drop discards from the prefix start onward. A
-  // no-op when member edits are off or this is not an object member.
+  // no-op when member edits are off, inside a dropped member, or when this
+  // is not an object member.
   private decideMember(
     valueType: "object" | "array" | "string" | "number" | "boolean" | "null",
     valueStart: number,
   ): void {
     const top = this.frames[this.frames.length - 1];
-    if (!this.memberEditActive || top === undefined || top.kind !== "object") return;
+    if (!this.memberEditActive || this.discard !== null) return;
+    if (top === undefined || top.kind !== "object") return;
     const start = top.prefixStart;
     top.prefixStart = Number.POSITIVE_INFINITY;
     const key = top.pendingKey as string;
@@ -666,13 +666,7 @@ export class SpineValidator implements JsonEventHandler {
     }
     const decision = this.memberEdit!(this.path, key, valueType) ?? { kind: "keep" };
     if (decision.kind === "drop") {
-      if (valueType === "object" || valueType === "array") {
-        throw new MemberEditError(
-          `dropping a container-valued member (${JSON.stringify(key)}) is not supported on the stream path`,
-          valueStart,
-        );
-      }
-      top.discardStart = start;
+      this.discard = { start, depth: this.frames.length };
       return;
     }
     const outputKeys = top.outputKeys as Map<string, boolean>;
@@ -1287,9 +1281,9 @@ export class SpineValidator implements JsonEventHandler {
       pendingKeyStart: 0,
       pendingKeyEnd: 0,
       outputKeys: this.memberEditActive ? new Map() : null,
-      prefixStart: this.memberEditActive ? offset + 1 : Number.POSITIVE_INFINITY,
+      prefixStart:
+        this.memberEditActive && this.discard === null ? offset + 1 : Number.POSITIVE_INFINITY,
       prefixIsComma: false,
-      discardStart: Number.POSITIVE_INFINITY,
     });
   }
 
@@ -1306,11 +1300,11 @@ export class SpineValidator implements JsonEventHandler {
       return;
     }
     const frame = this.frames.pop() as ObjectFrame;
-    if (frame.discardStart !== Number.POSITIVE_INFINITY) {
+    if (this.discard !== null && this.discard.depth === this.frames.length + 1) {
       // A dropped last member: its discard, which began at the comma before
       // it, ends at the `}`.
-      this.emitDelete!(frame.discardStart, offset);
-      frame.discardStart = Number.POSITIVE_INFINITY;
+      this.emitDelete!(this.discard.start, offset);
+      this.discard = null;
     } else if (offset - frame.prefixStart > this.maxMemberPrefixBytes) {
       // An empty object's whitespace was held as a prefix for a first member
       // that never came; cap it here as a write boundary inside it would.
@@ -1375,7 +1369,7 @@ export class SpineValidator implements JsonEventHandler {
       return;
     }
     // Renaming an array-valued member rewrites only its key; the array
-    // streams unbuffered (the headline case). A container drop is unsupported.
+    // streams unbuffered (the headline case).
     if (this.memberEditActive) this.decideMember("array", offset);
     const app = this.schemasForValue();
     if (this.needsIsland(app)) {

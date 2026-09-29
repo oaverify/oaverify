@@ -139,8 +139,9 @@ export interface MemberContext {
  *     sides of it, up to the neighbouring comma or brace. Output keeps one
  *     comma between kept members, so dropping the last member of
  *     `{"a": 1, "d": 2}` gives `{"a": 1}`, and formatting next to a
- *     dropped member is not preserved. The member's bytes are discarded as
- *     they stream, never held. Its value is still validated.
+ *     dropped member is not preserved. The value may be of any type. Its
+ *     bytes are discarded as they stream, never held, and it is still
+ *     validated. `editMember` hooks do not fire for members inside it.
  *
  * A rename whose target collides with another key in the same object, and
  * two hooks returning conflicting edits for one member, are both fatal.

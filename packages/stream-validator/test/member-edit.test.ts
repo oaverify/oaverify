@@ -277,7 +277,7 @@ describe("editMember drop", () => {
 });
 
 describe("editMember drop removes the member's whitespace and one comma", () => {
-  it.each<[string, string[][], string]>([
+  it.each<[string, (string | number)[][], string]>([
     ['{"k":1,"d":2}', [["d"]], '{"k":1}'],
     ['{"k":1 , "d":2}', [["d"]], '{"k":1 }'],
     ['{"k":[1],"d":2}', [["d"]], '{"k":[1]}'],
@@ -289,10 +289,22 @@ describe("editMember drop removes the member's whitespace and one comma", () => 
     ['{"a":1,"d":2,"e":3,"b":4}', [["d"], ["e"]], '{"a":1,"b":4}'],
     ['{"d":1,"e":2,"b":3}', [["d"], ["e"]], '{"b":3}'],
     ['{"o":{"d":1, "k":2}, "d":3}', [["o", "d"], ["d"]], '{"o":{ "k":2}}'],
+    ['{"k":1,"d":{"x":[1,{"y":2}],"z":3},"b":2}', [["d"]], '{"k":1,"b":2}'],
+    ['{"d":[1, 2] , "b":2}', [["d"]], '{ "b":2}'],
+    ['{"a":1, "d":{"p":{}} }', [["d"]], '{"a":1}'],
+    ['{"d":{"e":1,"k":2},"b":1}', [["d"], ["d", "e"]], '{"b":1}'],
+    [
+      '[{"d":{"x":1},"k":1},{"d":[]}]',
+      [
+        [0, "d"],
+        [1, "d"],
+      ],
+      '[{"k":1},{}]',
+    ],
   ])("%j dropping %j", async (input, paths, expected) => {
     for (const chunkSize of [0, 1, 2, 3, 7]) {
       const r = await run(
-        { type: "object" },
+        true,
         input,
         (v) => {
           for (const p of paths) v.editMember(p, drop);
@@ -302,6 +314,41 @@ describe("editMember drop removes the member's whitespace and one comma", () => 
       );
       expect(r.err).toBeUndefined();
       expect(r.output, `chunk ${chunkSize}`).toBe(expected);
+    }
+  });
+
+  it("never fires editMember inside a dropped member", async () => {
+    const seen: string[] = [];
+    const r = await run({ type: "object" }, '{"d":{"a":1,"b":{"c":2}},"k":3}', (v) => {
+      v.editMember(
+        (path) => {
+          seen.push(path.join("."));
+          return true;
+        },
+        (ctx) => (ctx.key === "d" ? { action: "drop" } : { action: "rename", key: "a" }),
+      );
+    });
+    expect(r.err).toBeUndefined();
+    expect(r.output).toBe('{"a":3}');
+    expect(seen).toEqual(["d", "k"]);
+  });
+
+  it.each<[string, SchemaOrBoolean]>([
+    ["oneOf", { oneOf: [{ type: "object" }, { type: "array" }] }],
+    ["uniqueItems", { type: "array", uniqueItems: true }],
+    ["const", { const: [1, { x: 2 }] }],
+  ])("drops a container routed through %s", async (_name, d) => {
+    const schema = { type: "object", properties: { d } };
+    for (const chunkSize of [0, 1, 3]) {
+      const r = await run(
+        schema,
+        '{"a":1, "d":[1, {"x":2}] , "b":2}',
+        (v) => v.editMember(["d"], drop),
+        {},
+        chunkSize,
+      );
+      expect(r.err, `chunk ${chunkSize}`).toBeUndefined();
+      expect(r.output, `chunk ${chunkSize}`).toBe('{"a":1, "b":2}');
     }
   });
 
@@ -324,8 +371,8 @@ describe("editMember drop removes the member's whitespace and one comma", () => 
 
 describe("editMember drop on generated documents", () => {
   // Seeded, so a failure reproduces. Each document mixes whitespace, nesting
-  // and arrays; members named `d<n>` hold scalars and are dropped at any
-  // depth.
+  // and arrays; members named `d<n>` are dropped at any depth, whatever
+  // their value.
   let seed = 1;
   const rand = (n: number) => {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
@@ -349,9 +396,7 @@ describe("editMember drop on generated documents", () => {
       const count = rand(5);
       for (let i = 0; i < count; i++) {
         const dropped = rand(5) < 2;
-        const value = dropped
-          ? { text: JSON.stringify(scalars[rand(7)]), kept: 0 }
-          : gen(depth + 1);
+        const value = gen(depth + 1);
         const key = `${dropped ? "d" : "k"}${i}`;
         members.push(`${ws()}"${key}"${ws()}:${ws()}${value.text}${ws()}`);
         if (!dropped) kept[key] = value.kept;
@@ -392,6 +437,11 @@ describe("editMember drop under a detach seal", () => {
       '{"a":1,"b":2}',
     ],
     [{ type: "object", properties: { d: { type: "string" } } }, '{"a":1, "d":5 }', '{"a":1}'],
+    [
+      { type: "object", properties: { d: { properties: { x: { type: "integer" } } } } },
+      '{"a":1,"d":{"x":"s","y":[1,2]},"b":2}',
+      '{"a":1,"b":2}',
+    ],
   ])("%j over %s", async (schema, input, expected) => {
     for (const chunkSize of [0, 1, 3, 4]) {
       const r = await run(
@@ -627,10 +677,13 @@ describe("editMember caps", () => {
     }
   });
 
-  it("rejects a container drop as unsupported", async () => {
-    const schema = { type: "object", properties: { obj: { type: "object" } } };
-    const r = await run(schema, '{"obj":{"x":1}}', (v) => v.editMember(["obj"], drop));
-    expect(r.err?.name).toBe("MemberEditError");
+  it("discards a large dropped array as it streams", async () => {
+    const r = await runOversized('{"o":[', "1,", '1],"b":2}', (v) => v.editMember(["o"], drop));
+    expect(r.err).toBeUndefined();
+    // Length first: a failing toBe on a 4 MiB string builds a slow diff.
+    expect(r.output.length).toBe('{"b":2}'.length);
+    expect(r.output).toBe('{"b":2}');
+    expect(r.peakBufferedBytes).toBeLessThan(FILL_CHUNK);
   });
 });
 

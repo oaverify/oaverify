@@ -594,7 +594,8 @@ export class StreamValidator extends Transform {
    * the whitespace around it, as `MemberEdit` describes. Register before
    * piping. The matched member's value is still validated against the
    * input schema (a `drop` removes it from the output, not from the
-   * verdict). Return `null` for a no-op.
+   * verdict), and hooks do not fire for members inside a dropped one.
+   * Return `null` for a no-op.
    *
    * A rename whose target collides with another key in the same object,
    * and two hooks returning conflicting edits for one member, are both
