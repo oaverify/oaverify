@@ -424,10 +424,15 @@ describe("editMember drop on generated documents", () => {
   const ws = () => ["", " ", "\n  ", "\t"][rand(4)] as string;
   const scalars = [0, -1.5, true, false, null, "s", 'q"\\u00e9'];
 
-  function gen(depth: number): { text: string; kept: unknown } {
+  // `inScope(depth)` says whether members of an object at that depth may be
+  // dropped; the object at depth 0 is the value of the input's `k`.
+  function gen(
+    depth: number,
+    inScope: (depth: number) => boolean = () => true,
+  ): { text: string; kept: unknown } {
     const kind = depth >= 2 ? 0 : rand(3);
     if (kind === 1) {
-      const items = Array.from({ length: rand(3) }, () => gen(depth + 1));
+      const items = Array.from({ length: rand(3) }, () => gen(depth + 1, inScope));
       return {
         text: `[${ws()}${items.map((i) => i.text).join(`${ws()},${ws()}`)}${ws()}]`,
         kept: items.map((i) => i.kept),
@@ -438,11 +443,11 @@ describe("editMember drop on generated documents", () => {
       const kept: Record<string, unknown> = {};
       const count = rand(5);
       for (let i = 0; i < count; i++) {
-        const dropped = rand(5) < 2;
-        const value = gen(depth + 1);
-        const key = `${dropped ? "d" : "k"}${i}`;
+        const named = rand(5) < 2;
+        const value = gen(depth + 1, inScope);
+        const key = `${named ? "d" : "k"}${i}`;
         members.push(`${ws()}"${key}"${ws()}:${ws()}${value.text}${ws()}`);
-        if (!dropped) kept[key] = value.kept;
+        if (!(named && inScope(depth))) kept[key] = value.kept;
       }
       return { text: `{${members.join(",")}}`, kept };
     }
@@ -464,6 +469,35 @@ describe("editMember drop on generated documents", () => {
       }
       expect(outputs.size, input).toBe(1);
       expect(JSON.parse([...outputs][0] as string), input).toEqual({ k: root.kept });
+    }
+  });
+
+  it("drops only in scoped objects, with a drop limit that never trips", async () => {
+    // Objects at odd path lengths are in scope: depth 0 (`["k"]`), depth 2
+    // (members of members of it, or elements of arrays in it), and so on.
+    // The root object, at path length 0, is not, so its `d` is kept.
+    const scoped = (depth: number) => depth % 2 === 0;
+    const dropD = (v: StreamValidator) =>
+      v.editMember((path) => String(path[path.length - 1]).startsWith("d"), drop, {
+        scope: (path) => path.length % 2 === 1,
+      });
+    for (let doc = 0; doc < 200; doc++) {
+      const root = gen(0, scoped);
+      const input = `${ws()}{${ws()}"k":${root.text}${ws()},${ws()}"d":1${ws()}}${ws()}`;
+      const outputs = new Set<string>();
+      for (const chunkSize of [0, 1, 3]) {
+        const r = await run(
+          { type: "object" },
+          input,
+          dropD,
+          { maxMemberDropBytes: 1 << 20 },
+          chunkSize,
+        );
+        expect(r.err, input).toBeUndefined();
+        outputs.add(r.output);
+      }
+      expect(outputs.size, input).toBe(1);
+      expect(JSON.parse([...outputs][0] as string), input).toEqual({ k: root.kept, d: 1 });
     }
   });
 });
