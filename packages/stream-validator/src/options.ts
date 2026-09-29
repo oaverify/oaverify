@@ -286,8 +286,8 @@ export interface StreamValidatorOptions {
    * edit target. Unlike the schema-bound resource
    * limits above, this defaults *finite*
    * ({@link DEFAULT_MAX_MEMBER_PREFIX_BYTES}, 4 KB), because it bounds a
-   * buffer the edit itself introduces. Raise it only for unusually
-   * whitespace-heavy input.
+   * buffer the edit itself introduces. Raise it for keys, or runs of
+   * whitespace around the colon, longer than that.
    */
   maxMemberPrefixBytes?: number;
 

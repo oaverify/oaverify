@@ -351,7 +351,7 @@ describe("editMember caps", () => {
     );
     expect(r.err?.name).toBe("MemberEditError");
     expect(r.err?.message).toContain("maxMemberDropBytes");
-    expect(r.err?.byteOffset).toBeLessThanOrEqual(CAP + FILL_CHUNK);
+    expect(r.err?.byteOffset).toBe(1 + CAP);
     expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
   });
 
@@ -359,7 +359,7 @@ describe("editMember caps", () => {
     const r = await runOversized('{"', "k", '":1}', (v) => v.editMember(["a"], rename("z")));
     expect(r.err?.name).toBe("MemberEditError");
     expect(r.err?.message).toContain("maxMemberPrefixBytes");
-    expect(r.err?.byteOffset).toBeLessThanOrEqual(CAP + FILL_CHUNK);
+    expect(r.err?.byteOffset).toBe(1 + CAP);
     expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
   });
 
@@ -367,7 +367,7 @@ describe("editMember caps", () => {
     const r = await runOversized('{"a":', " ", "1}", (v) => v.editMember(["a"], rename("z")));
     expect(r.err?.name).toBe("MemberEditError");
     expect(r.err?.message).toContain("maxMemberPrefixBytes");
-    expect(r.err?.byteOffset).toBeLessThanOrEqual(CAP + FILL_CHUNK);
+    expect(r.err?.byteOffset).toBe(1 + CAP);
     expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
   });
 
@@ -392,17 +392,45 @@ describe("editMember caps", () => {
     },
   );
 
-  it("accepts a chunked dropped string whose span is exactly maxMemberDropBytes", async () => {
-    const member = String.raw`"a":"\néé-\"x"`;
-    const r = await run(
-      { type: "object" },
-      `{${member},"b":2}`,
-      (v) => v.editMember(["a"], drop),
-      { maxMemberDropBytes: enc.encode(member).length },
-      3,
+  it.each([1, 3])(
+    "accepts a dropped string whose span is exactly maxMemberDropBytes (chunk %i)",
+    async (chunkSize) => {
+      const member = String.raw`"a":"\n\u00e9é-\"x"`;
+      const r = await run(
+        { type: "object" },
+        `{${member},"b":2}`,
+        (v) => v.editMember(["a"], drop),
+        { maxMemberDropBytes: enc.encode(member).length },
+        chunkSize,
+      );
+      expect(r.err).toBeUndefined();
+      expect(r.output).toBe('{"b":2}');
+    },
+  );
+
+  it.each<[string, SchemaOrBoolean, (inner: string) => string]>([
+    ["const", { const: { k: 1 } }, (inner: string) => inner],
+    ["oneOf", { oneOf: [{ type: "object" }, { type: "string" }] }, (inner: string) => inner],
+    ["uniqueItems", { type: "array", uniqueItems: true }, (inner: string) => `[${inner}]`],
+  ])("caps a key inside a %s value the same way whatever the chunking", async (_name, a, wrap) => {
+    const key = "k".repeat(5000);
+    const input = `{"a":${wrap(`{"${key}":1}`)}}`;
+    const schema = { type: "object", properties: { a } };
+    const edit = (v: StreamValidator) => v.editMember(["zzz"], rename("y"));
+    const whole = await run(schema, input, edit);
+    const split = await run(schema, input, edit, {}, 1000);
+    expect(whole.err?.name).toBe("MemberEditError");
+    expect(split.err?.name).toBe("MemberEditError");
+    expect((whole.err as MemberEditError).byteOffset).toBe(
+      (split.err as MemberEditError).byteOffset,
     );
-    expect(r.err).toBeUndefined();
-    expect(r.output).toBe('{"b":2}');
+    // A quoted key exactly at the default 4096-byte cap is accepted either
+    // way (the schema may still reject the value).
+    const atCap = `{"a":${wrap(`{"${"k".repeat(4094)}":1}`)}}`;
+    for (const chunkSize of [0, 1000]) {
+      const r = await run(schema, atCap, edit, {}, chunkSize);
+      expect(r.err?.name).not.toBe("MemberEditError");
+    }
   });
 
   it("rejects a container drop as unsupported", async () => {

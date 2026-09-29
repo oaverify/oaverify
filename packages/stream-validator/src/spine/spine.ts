@@ -119,13 +119,28 @@ export class UniqueItemsLimitError extends Error {
  *     path yet).
  */
 export class MemberEditError extends Error {
-  /** Stream-absolute byte offset at which the failure was detected. */
+  /**
+   * Stream-absolute byte offset at which the failure was detected. For an
+   * exceeded cap, the first byte past it (the span's start plus the cap),
+   * whatever the input's chunking.
+   */
   readonly byteOffset: number;
   constructor(message: string, byteOffset: number) {
     super(message);
     this.name = "MemberEditError";
     this.byteOffset = byteOffset;
   }
+}
+
+/**
+ * The `maxMemberPrefixBytes` failure for a prefix starting at `start`. The
+ * message omits the key, which may itself be the oversized part.
+ */
+export function memberPrefixError(cap: number, start: number): MemberEditError {
+  return new MemberEditError(
+    `member key-to-value span exceeded maxMemberPrefixBytes=${cap}`,
+    start + cap,
+  );
 }
 
 /** Validates a materialized island value against schemas; returns flat violations. */
@@ -633,10 +648,7 @@ export class SpineValidator implements JsonEventHandler {
     }
     const key = top.pendingKey as string;
     if (valueStart - top.pendingKeyStart > this.maxMemberPrefixBytes) {
-      throw new MemberEditError(
-        `member ${JSON.stringify(key)} key-to-value span exceeded maxMemberPrefixBytes=${this.maxMemberPrefixBytes}`,
-        valueStart,
-      );
+      throw memberPrefixError(this.maxMemberPrefixBytes, top.pendingKeyStart);
     }
     const decision = this.memberEdit!(this.path, key, valueType) ?? { kind: "keep" };
     switch (decision.kind) {
@@ -684,7 +696,7 @@ export class SpineValidator implements JsonEventHandler {
       // `pendingDrop` was opened at the decision (value start) to hold the
       // value's bytes; fill in its end and enforce the span cap.
       if (valueEnd - top.pendingKeyStart > this.maxMemberDropBytes) {
-        throw this.dropSpanError(top, valueEnd);
+        throw this.dropSpanError(top);
       }
       if (top.pendingDrop !== null) top.pendingDrop.valueEnd = valueEnd;
     } else {
@@ -692,10 +704,10 @@ export class SpineValidator implements JsonEventHandler {
     }
   }
 
-  private dropSpanError(top: ObjectFrame, at: number): MemberEditError {
+  private dropSpanError(top: ObjectFrame): MemberEditError {
     return new MemberEditError(
       `dropped member ${JSON.stringify(top.pendingKey)} span exceeded maxMemberDropBytes=${this.maxMemberDropBytes}`,
-      at,
+      top.pendingKeyStart + this.maxMemberDropBytes,
     );
   }
 
@@ -1442,6 +1454,13 @@ export class SpineValidator implements JsonEventHandler {
 
   onKey(value: string, codePoints: number, startOffset: number, endOffset = startOffset): void {
     this.curOffset = startOffset;
+    // The editing echo holds every key while it parses, including one inside
+    // a tee'd or island value that no edit can target, so the key alone is
+    // capped here. A member key's prefix is checked in full at its value
+    // start.
+    if (this.memberEditActive && endOffset - startOffset > this.maxMemberPrefixBytes) {
+      throw memberPrefixError(this.maxMemberPrefixBytes, startOffset);
+    }
     if (this.tee !== null) {
       this.teeFeed((s) => s.onKey(value, codePoints, startOffset));
       return;
@@ -1566,14 +1585,15 @@ export class SpineValidator implements JsonEventHandler {
   onStringChunk(chunk: string, offset: number, codePoints: number): void {
     this.curOffset = offset;
     // The editing echo holds a dropped member's bytes until its value ends,
-    // so enforce the span cap as the value streams. `chunk.length` (UTF-16
-    // units) never exceeds the chunk's source bytes, so this end is a lower
-    // bound and the check cannot fire early; onStringEnd applies the exact
-    // span.
+    // so enforce the span cap as the value streams. Decoded UTF-16 units
+    // never outnumber the source bytes through the closing quote, so
+    // `offset + chunk.length` never passes the value end and the check
+    // cannot fire early; onStringEnd applies the exact span.
     if (this.pendingStringDecision?.kind === "drop") {
       const top = this.frames[this.frames.length - 1] as ObjectFrame;
-      const end = offset + chunk.length;
-      if (end - top.pendingKeyStart > this.maxMemberDropBytes) throw this.dropSpanError(top, end);
+      if (offset + chunk.length - top.pendingKeyStart > this.maxMemberDropBytes) {
+        throw this.dropSpanError(top);
+      }
     }
     if (this.tee !== null) {
       this.teeFeed((s) => s.onStringChunk(chunk, offset, codePoints));

@@ -55,6 +55,7 @@ import {
   type IslandDelegate,
   type MemberDecision,
   MemberEditError,
+  memberPrefixError,
   type ScopeClose,
   SpineValidator,
   type StreamVerdict,
@@ -724,10 +725,7 @@ export class StreamValidator extends Transform {
     const start = Math.min(this.spine.memberPrefixStart, this.tokenizer.editHoldOffset());
     const end = Math.min(this.tokenizer.pendingScalarOffset(), this.totalBytes);
     if (end - start > this.maxMemberPrefixBytes) {
-      throw new MemberEditError(
-        `member key-to-value span exceeded maxMemberPrefixBytes=${this.maxMemberPrefixBytes}`,
-        start + this.maxMemberPrefixBytes,
-      );
+      throw memberPrefixError(this.maxMemberPrefixBytes, start);
     }
   }
 
