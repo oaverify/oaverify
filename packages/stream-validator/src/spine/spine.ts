@@ -119,13 +119,28 @@ export class UniqueItemsLimitError extends Error {
  *     path yet).
  */
 export class MemberEditError extends Error {
-  /** Stream-absolute byte offset at which the failure was detected. */
+  /**
+   * Stream-absolute byte offset at which the failure was detected. For an
+   * exceeded cap, the first byte past it (the span's start plus the cap),
+   * whatever the input's chunking.
+   */
   readonly byteOffset: number;
   constructor(message: string, byteOffset: number) {
     super(message);
     this.name = "MemberEditError";
     this.byteOffset = byteOffset;
   }
+}
+
+/**
+ * The `maxMemberPrefixBytes` failure for a prefix starting at `start`. The
+ * message omits the key, which may itself be the oversized part.
+ */
+export function memberPrefixError(cap: number, start: number): MemberEditError {
+  return new MemberEditError(
+    `member key-to-value span exceeded maxMemberPrefixBytes=${cap}`,
+    start + cap,
+  );
 }
 
 /** Validates a materialized island value against schemas; returns flat violations. */
@@ -591,6 +606,15 @@ export class SpineValidator implements JsonEventHandler {
     return s;
   }
 
+  /**
+   * Start offset of a key whose member-edit decision is still pending (its
+   * value has not started), or `+Infinity`. The held span from here is the
+   * member prefix that `maxMemberPrefixBytes` bounds.
+   */
+  get memberPrefixStart(): number {
+    return this.pendingDecisionKeyStart;
+  }
+
   // Record a member's effective output name, making a rename-induced
   // duplicate within the same object fatal. A pre-existing input duplicate
   // (two kept members with the same key) is left alone; we only police
@@ -623,11 +647,8 @@ export class SpineValidator implements JsonEventHandler {
       return { kind: "keep" };
     }
     const key = top.pendingKey as string;
-    if (valueStart - top.pendingKeyEnd > this.maxMemberPrefixBytes) {
-      throw new MemberEditError(
-        `member ${JSON.stringify(key)} key-to-value span exceeded maxMemberPrefixBytes=${this.maxMemberPrefixBytes}`,
-        valueStart,
-      );
+    if (valueStart - top.pendingKeyStart > this.maxMemberPrefixBytes) {
+      throw memberPrefixError(this.maxMemberPrefixBytes, top.pendingKeyStart);
     }
     const decision = this.memberEdit!(this.path, key, valueType) ?? { kind: "keep" };
     switch (decision.kind) {
@@ -675,15 +696,19 @@ export class SpineValidator implements JsonEventHandler {
       // `pendingDrop` was opened at the decision (value start) to hold the
       // value's bytes; fill in its end and enforce the span cap.
       if (valueEnd - top.pendingKeyStart > this.maxMemberDropBytes) {
-        throw new MemberEditError(
-          `dropped member ${JSON.stringify(top.pendingKey)} span exceeded maxMemberDropBytes=${this.maxMemberDropBytes}`,
-          valueEnd,
-        );
+        throw this.dropSpanError(top);
       }
       if (top.pendingDrop !== null) top.pendingDrop.valueEnd = valueEnd;
     } else {
       top.lastKeptValueEnd = valueEnd;
     }
+  }
+
+  private dropSpanError(top: ObjectFrame): MemberEditError {
+    return new MemberEditError(
+      `dropped member ${JSON.stringify(top.pendingKey)} span exceeded maxMemberDropBytes=${this.maxMemberDropBytes}`,
+      top.pendingKeyStart + this.maxMemberDropBytes,
+    );
   }
 
   // The enclosing object member's key, when the value about to / just
@@ -1429,6 +1454,13 @@ export class SpineValidator implements JsonEventHandler {
 
   onKey(value: string, codePoints: number, startOffset: number, endOffset = startOffset): void {
     this.curOffset = startOffset;
+    // The editing echo holds every key while it parses, including one inside
+    // a tee'd or island value that no edit can target, so the key alone is
+    // capped here. A member key's prefix is checked in full at its value
+    // start.
+    if (this.memberEditActive && endOffset - startOffset > this.maxMemberPrefixBytes) {
+      throw memberPrefixError(this.maxMemberPrefixBytes, startOffset);
+    }
     if (this.tee !== null) {
       this.teeFeed((s) => s.onKey(value, codePoints, startOffset));
       return;
@@ -1552,6 +1584,17 @@ export class SpineValidator implements JsonEventHandler {
 
   onStringChunk(chunk: string, offset: number, codePoints: number): void {
     this.curOffset = offset;
+    // The editing echo holds a dropped member's bytes until its value ends,
+    // so enforce the span cap as the value streams. Decoded UTF-16 units
+    // never outnumber the source bytes through the closing quote, so
+    // `offset + chunk.length` never passes the value end and the check
+    // cannot fire early; onStringEnd applies the exact span.
+    if (this.pendingStringDecision?.kind === "drop") {
+      const top = this.frames[this.frames.length - 1] as ObjectFrame;
+      if (offset + chunk.length - top.pendingKeyStart > this.maxMemberDropBytes) {
+        throw this.dropSpanError(top);
+      }
+    }
     if (this.tee !== null) {
       this.teeFeed((s) => s.onStringChunk(chunk, offset, codePoints));
       return;

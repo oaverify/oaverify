@@ -5,6 +5,7 @@ export {
   SpineUnsupportedError,
   SpineValidator,
   UniqueItemsLimitError,
+  memberPrefixError,
   type IslandDelegate,
   type MemberDecision,
   type ScopeClose,
