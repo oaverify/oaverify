@@ -612,6 +612,122 @@ describe("editMember drop under a detach seal", () => {
   });
 });
 
+describe("member-edit caps at the exact byte", () => {
+  const chunkings = [0, 1, 2, 3];
+  const keepAll = (v: StreamValidator) =>
+    v.editMember(
+      () => true,
+      () => null,
+    );
+  const dropD = (v: StreamValidator) => v.editMember(["d"], drop);
+
+  async function outcome(
+    input: string,
+    setup: (v: StreamValidator) => void,
+    opts: Record<string, unknown>,
+    schema: SchemaOrBoolean = true,
+  ): Promise<string[]> {
+    const seen: string[] = [];
+    for (const chunkSize of chunkings) {
+      const r = await run(schema, input, setup, opts, chunkSize);
+      const offset = (r.err as { byteOffset?: number } | undefined)?.byteOffset;
+      const at = offset === undefined ? "" : `@${offset}`;
+      seen.push(`${r.err?.name ?? "ok"}${at}`);
+    }
+    return seen;
+  }
+  const every = (x: string) => chunkings.map(() => x);
+
+  // Each case: input, the cap that passes, and where one less fails. At
+  // the passing cap the byte at the limit is the one named, which is not
+  // counted.
+  it.each<[string, string, number, number]>([
+    // comma, 3 spaces (quote at 10 passes), then the colon at 13
+    ["a key's opening quote", '{"a":1,   "b":1}', 5, 13],
+    ["a number value's first byte", '{"b" :  1}', 4, 7],
+    ["a string value's first byte", '{"b":  "s"}', 3, 6],
+    ["an object value's first byte", '{"b":  {}}', 3, 6],
+    ["a literal value's first byte", '{"b":  true}', 3, 6],
+    ["an empty object's closing brace", "{    }", 4, 4],
+    // comma, 2 spaces, a 16-byte key (not counted), space, colon at 26
+    ["an escaped, multi-byte key", String.raw`{"a":1,  "é\"😀\u00e9" :1}`, 5, 26],
+  ])("stops counting a prefix at %s", async (_name, input, cap, overAt) => {
+    expect(await outcome(input, keepAll, { maxMemberPrefixBytes: cap })).toEqual(every("ok"));
+    expect(await outcome(input, keepAll, { maxMemberPrefixBytes: cap - 1 })).toEqual(
+      every(`MemberEditError@${overAt}`),
+    );
+  });
+
+  it("refuses a dropped string at the exact byte, with multi-byte characters split", async () => {
+    const member = '"d":"aé😀\\"b"';
+    const input = `{${member},"k":1}`;
+    const span = enc.encode(member).length;
+    for (let cap = 6; cap <= span; cap++) {
+      const expected = cap >= span ? "ok" : `MemberEditError@${1 + cap}`;
+      expect(await outcome(input, dropD, { maxMemberDropBytes: cap }), `cap ${cap}`).toEqual(
+        every(expected),
+      );
+    }
+  });
+
+  it("counts the keys inside a dropped container", async () => {
+    const input = '{"d":{"kkkkkkkk":1},"k":1}';
+    // The inner key runs from offset 6 to 16.
+    expect(await outcome(input, dropD, { maxMemberDropBytes: 10 })).toEqual(
+      every("MemberEditError@11"),
+    );
+    expect(await outcome(input, dropD, { maxMemberDropBytes: 18 })).toEqual(every("ok"));
+  });
+
+  it("lets the cap win a tie with a syntax error in a dropped value", async () => {
+    // The `x` is at offset 8.
+    expect(await outcome('{"d":[1,x]}', dropD, { maxMemberDropBytes: 7 })).toEqual(
+      every("MemberEditError@8"),
+    );
+    expect(await outcome('{"d":[1,x]}', dropD, { maxMemberDropBytes: 8 })).toEqual(
+      every("JsonParseError@8"),
+    );
+  });
+
+  it("lets a syntax error win at the byte a prefix does not count", async () => {
+    // comma at 6, spaces at 7 and 8, `x` at 9.
+    expect(await outcome('{"a":1,  x}', keepAll, { maxMemberPrefixBytes: 3 })).toEqual(
+      every("JsonParseError@9"),
+    );
+    expect(await outcome('{"a":1,  x}', keepAll, { maxMemberPrefixBytes: 2 })).toEqual(
+      every("MemberEditError@8"),
+    );
+  });
+
+  it("keeps terminate immediate when a below-limit drop also turns malformed", async () => {
+    const schema = { type: "object", properties: { d: { items: { type: "string" } } } };
+    for (const input of ['{"d":[0, invalid],"k":1}', '{"d":[0,1,2']) {
+      expect(await outcome(input, dropD, { maxMemberDropBytes: 1000 }, schema), input).toEqual(
+        every("ValidationFailedError"),
+      );
+    }
+  });
+
+  it("emits no key event for a key past the prefix cap, whatever the chunking", async () => {
+    const input = `{"a":1,${" ".repeat(30)}"x":1}`;
+    for (const chunkSize of chunkings) {
+      const keys: string[] = [];
+      const r = await run(
+        true,
+        input,
+        (v) => {
+          keepAll(v);
+          v.on("key", (e: { key: string }) => keys.push(e.key));
+        },
+        { maxMemberPrefixBytes: 16, keyEvents: true },
+        chunkSize,
+      );
+      expect(r.err?.name).toBe("MemberEditError");
+      expect(keys, `chunk ${chunkSize}`).toEqual(["a"]);
+    }
+  });
+});
+
 describe("editMember scope", () => {
   const chunkings = [0, 1, 3];
 

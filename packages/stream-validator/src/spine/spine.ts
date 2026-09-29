@@ -128,27 +128,7 @@ export class MemberEditError extends Error {
   }
 }
 
-/**
- * Where a member prefix read up to `end` first counts more than `cap`
- * bytes, or `null` if it does not. The prefix runs from `start`; the key
- * token `[keyStart, keyEnd)` is not counted (`+Infinity` for a bound not
- * yet seen). The result is the source offset of the first counted byte
- * past the cap, so it does not depend on write boundaries.
- */
-export function memberPrefixCrossing(
-  cap: number,
-  start: number,
-  keyStart: number,
-  keyEnd: number,
-  end: number,
-): number | null {
-  const before = Math.min(keyStart, end) - start;
-  if (before > cap) return start + cap;
-  if (end <= keyEnd) return null;
-  return before + (end - keyEnd) > cap ? keyEnd + (cap - before) : null;
-}
-
-/** The `maxMemberPrefixBytes` failure, at the offset {@link memberPrefixCrossing} found. */
+/** The `maxMemberPrefixBytes` failure, at the first byte past the cap. */
 export function memberPrefixError(cap: number, at: number): MemberEditError {
   return new MemberEditError(`member prefix exceeded maxMemberPrefixBytes=${cap}`, at);
 }
@@ -313,10 +293,16 @@ export interface SpineOptions {
    * this carries the closed spans and a comma that loses its kept neighbour.
    */
   emitDelete?: (start: number, end: number) => void;
-  /** Cap on the separators and whitespace in a held member prefix, key token excluded; over-cap is fatal. */
+  /** Cap on the separators and whitespace in a held member prefix; over-cap is fatal. */
   maxMemberPrefixBytes?: number;
   /** Cap on a dropped member's span, from its key start to its value end; over-cap is fatal. */
   maxMemberDropBytes?: number;
+  /**
+   * Set the tokenizer's byte limit (`JsonTokenizer.setByteLimit`), through
+   * which both member-edit caps are enforced at the exact byte past them.
+   * The tokenizer reports reaching it through `onByteLimit`.
+   */
+  setByteLimit?: (at: number, countsAll: boolean) => void;
   /**
    * Hold {@link BudgetReached} while a member edit is in flight (a member
    * prefix awaiting its decision, or a dropped member being discarded),
@@ -516,6 +502,9 @@ export class SpineValidator implements JsonEventHandler {
   private memberEditActive = false;
   private readonly maxMemberPrefixBytes: number;
   private readonly maxMemberDropBytes: number;
+  private readonly setByteLimit: SpineOptions["setByteLimit"];
+  // Which cap the tokenizer's byte limit currently enforces, if any.
+  private limitKind: "prefix" | "drop" | null = null;
   private readonly deferBudgetForEdits: boolean;
   // The budget was reached while a member edit was in flight; see
   // `deferBudgetForEdits`.
@@ -624,6 +613,7 @@ export class SpineValidator implements JsonEventHandler {
     this.emitDelete = options.emitDelete;
     this.maxMemberPrefixBytes = options.maxMemberPrefixBytes ?? Number.POSITIVE_INFINITY;
     this.maxMemberDropBytes = options.maxMemberDropBytes ?? Number.POSITIVE_INFINITY;
+    this.setByteLimit = options.setByteLimit;
     this.deferBudgetForEdits = options.deferBudgetForEdits ?? false;
   }
 
@@ -651,28 +641,6 @@ export class SpineValidator implements JsonEventHandler {
   }
 
   /**
-   * Enforce `maxMemberPrefixBytes` on the open member prefix, read up to
-   * `end`. `keyInProgress` is the start of a key the tokenizer is still
-   * reading, or `+Infinity`. Key bytes are not counted.
-   */
-  checkOpenPrefix(end: number, keyInProgress: number): void {
-    const top = this.frames[this.frames.length - 1];
-    if (!this.memberEditActive || top === undefined || top.kind !== "object") return;
-    const start = top.prefixStart;
-    if (start === Number.POSITIVE_INFINITY) return;
-    let keyStart = Number.POSITIVE_INFINITY;
-    let keyEnd = Number.POSITIVE_INFINITY;
-    if (top.pendingKeyStart >= start && top.pendingKey !== null) {
-      keyStart = top.pendingKeyStart;
-      keyEnd = top.pendingKeyEnd;
-    } else if (keyInProgress >= start) {
-      keyStart = keyInProgress;
-    }
-    const at = memberPrefixCrossing(this.maxMemberPrefixBytes, start, keyStart, keyEnd, end);
-    if (at !== null) throw memberPrefixError(this.maxMemberPrefixBytes, at);
-  }
-
-  /**
    * Start of an open discard: a dropped member whose bytes, and whitespace
    * after it, are deleted as they stream until the comma or `}` of the
    * object that holds it ends the span. `+Infinity` when nothing is being
@@ -683,14 +651,34 @@ export class SpineValidator implements JsonEventHandler {
   }
 
   /**
-   * Enforce `maxMemberDropBytes` on a dropped value still open at `end`.
-   * A value that ends is checked exactly where it ends.
+   * The tokenizer reached the byte limit this spine set (see
+   * `SpineOptions.setByteLimit`), at `at`: the first byte past
+   * `maxMemberPrefixBytes` in a held member prefix, or past
+   * `maxMemberDropBytes` in a dropped value.
    */
-  checkOpenDrop(end: number): void {
-    const d = this.discard;
-    if (d !== null && d.valueEnd === null && end - d.keyStart > this.maxMemberDropBytes) {
-      throw this.dropSpanError(d.keyStart);
+  onByteLimit(at: number): void {
+    if (this.limitKind === "drop") {
+      throw new MemberEditError(
+        `dropped member span exceeded maxMemberDropBytes=${this.maxMemberDropBytes}`,
+        at,
+      );
     }
+    throw memberPrefixError(this.maxMemberPrefixBytes, at);
+  }
+
+  // The tokenizer's byte limit: one at a time, since no member prefix is
+  // held inside a dropped value. A prefix counts the whitespace and colon
+  // around a key (the comma or `{` it starts at included); a drop counts
+  // every byte of its value.
+  private setLimit(kind: "prefix" | "drop", at: number): void {
+    this.limitKind = kind;
+    this.setByteLimit?.(at, kind === "drop");
+  }
+
+  private clearLimit(): void {
+    if (this.limitKind === null) return;
+    this.limitKind = null;
+    this.setByteLimit?.(Number.POSITIVE_INFINITY, false);
   }
 
   // Track the dropped value's containers: an open inside it, or a close
@@ -707,13 +695,14 @@ export class SpineValidator implements JsonEventHandler {
     if (d.nest === 0) this.endDroppedValue(end);
   }
 
+  // A string or container value was bounded by the tokenizer's byte limit
+  // as it streamed; a number or literal is reported whole, so its span is
+  // checked here.
   private endDroppedValue(end: number): void {
     const d = this.discard as NonNullable<typeof this.discard>;
     d.valueEnd = end;
+    this.clearLimit();
     if (end - d.keyStart > this.maxMemberDropBytes) throw this.dropSpanError(d.keyStart);
-    // A budget held only for the drop limit (see `dropLimitPending`) is due
-    // now; one held for detach waits for the edit to settle.
-    if (this.budgetDeferred && !this.deferBudgetForEdits) throw new BudgetReached();
   }
 
   private dropSpanError(keyStart: number): MemberEditError {
@@ -739,6 +728,7 @@ export class SpineValidator implements JsonEventHandler {
     const top = this.frames[this.frames.length - 1] as ObjectFrame;
     if (top.editHooks === null) return;
     top.prefixStart = offset;
+    this.setLimit("prefix", offset + this.maxMemberPrefixBytes);
     top.prefixIsComma = true;
   }
 
@@ -774,15 +764,8 @@ export class SpineValidator implements JsonEventHandler {
     if (top === undefined || top.kind !== "object" || top.editHooks === null) return;
     const start = top.prefixStart;
     top.prefixStart = Number.POSITIVE_INFINITY;
+    this.clearLimit();
     const key = top.pendingKey as string;
-    const at = memberPrefixCrossing(
-      this.maxMemberPrefixBytes,
-      start,
-      top.pendingKeyStart,
-      top.pendingKeyEnd,
-      valueStart,
-    );
-    if (at !== null) throw memberPrefixError(this.maxMemberPrefixBytes, at);
     const decision = this.memberEdit!(this.path, key, valueType, top.editHooks) ?? {
       kind: "keep",
     };
@@ -795,7 +778,14 @@ export class SpineValidator implements JsonEventHandler {
         valueEnd: null,
         nest: container ? 1 : 0,
       };
-      if (valueEnd !== undefined) this.endDroppedValue(valueEnd);
+      if (valueEnd !== undefined) {
+        this.endDroppedValue(valueEnd);
+      } else if (this.maxMemberDropBytes !== Number.POSITIVE_INFINITY) {
+        // The whitespace after the colon may already have passed the limit.
+        const at = top.pendingKeyStart + this.maxMemberDropBytes;
+        if (at <= valueStart) throw this.dropSpanError(top.pendingKeyStart);
+        this.setLimit("drop", at);
+      }
       return;
     }
     const outputKeys = top.outputKeys as Map<string, boolean>;
@@ -910,21 +900,8 @@ export class SpineValidator implements JsonEventHandler {
     this.onViolation?.(violation);
     if (this.violations.length >= this.maxErrors) {
       if (this.deferBudgetForEdits && this.memberEditInFlight()) this.budgetDeferred = true;
-      else if (this.dropLimitPending()) this.budgetDeferred = true;
       else throw new BudgetReached();
     }
-  }
-
-  // A dropped value still open under a finite `maxMemberDropBytes`. A budget
-  // reached inside it waits for the value's end, so an over-limit value
-  // fails as MemberEditError whatever the write boundaries; the wait is
-  // bounded by the limit.
-  private dropLimitPending(): boolean {
-    return (
-      this.discard !== null &&
-      this.discard.valueEnd === null &&
-      this.maxMemberDropBytes !== Number.POSITIVE_INFINITY
-    );
   }
 
   private memberEditInFlight(): boolean {
@@ -1436,6 +1413,7 @@ export class SpineValidator implements JsonEventHandler {
       prefixStart: editHooks !== null ? offset + 1 : Number.POSITIVE_INFINITY,
       prefixIsComma: false,
     });
+    if (editHooks !== null) this.setLimit("prefix", offset + 1 + this.maxMemberPrefixBytes);
   }
 
   onEndObject(offset: number): void {
@@ -1457,13 +1435,9 @@ export class SpineValidator implements JsonEventHandler {
       // it, ends at the `}`.
       this.emitDelete!(this.discard.start, offset);
       this.discard = null;
-    } else if (offset - frame.prefixStart > this.maxMemberPrefixBytes) {
-      // An empty object's whitespace was held as a prefix for a first member
-      // that never came; cap it here as a write boundary inside it would.
-      throw memberPrefixError(
-        this.maxMemberPrefixBytes,
-        frame.prefixStart + this.maxMemberPrefixBytes,
-      );
+    } else if (frame.prefixStart !== Number.POSITIVE_INFINITY) {
+      // An empty object: the prefix held for a first member ends unused.
+      this.clearLimit();
     }
     for (const s of frame.schemas) {
       if (Array.isArray(s.required)) {
@@ -1600,18 +1574,11 @@ export class SpineValidator implements JsonEventHandler {
     if (this.memberEditActive) {
       top.pendingKeyStart = startOffset;
       top.pendingKeyEnd = endOffset;
-      // Check the bytes held before the key now, ahead of any check on the
-      // key that could end the stream, so a prefix over the cap fails the
-      // same way whatever the write boundaries.
+      // The key's bytes are not counted: the prefix's remaining allowance
+      // resumes after it.
       if (top.prefixStart !== Number.POSITIVE_INFINITY) {
-        const at = memberPrefixCrossing(
-          this.maxMemberPrefixBytes,
-          top.prefixStart,
-          startOffset,
-          endOffset,
-          startOffset,
-        );
-        if (at !== null) throw memberPrefixError(this.maxMemberPrefixBytes, at);
+        const used = startOffset - top.prefixStart;
+        this.setLimit("prefix", endOffset + this.maxMemberPrefixBytes - used);
       }
     }
     for (const s of top.schemas) {

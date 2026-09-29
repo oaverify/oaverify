@@ -46,6 +46,11 @@ export interface JsonEventHandler {
    * only after `JsonTokenizer.enableMemberCommas()`.
    */
   onMemberComma?(offset: number): void;
+  /**
+   * Input reached the byte limit set by `JsonTokenizer.setByteLimit()`, at
+   * offset `at`, before that byte was parsed. Expected to throw.
+   */
+  onByteLimit?(at: number): void;
   /** A value string is beginning; the opening quote is at `offset`. */
   onStringStart(offset: number): void;
   /**

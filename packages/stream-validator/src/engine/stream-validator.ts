@@ -497,6 +497,7 @@ export class StreamValidator extends Transform {
         this.pendingEdits.push({ start, end, bytes: Buffer.from(bytes, "utf8") }),
       emitDelete: (start, end) => this.pendingEdits.push({ start, end, bytes: null }),
       maxMemberPrefixBytes: this.maxMemberPrefixBytes,
+      setByteLimit: (at, countsAll) => this.tokenizer.setByteLimit(at, countsAll),
       ...(options.maxMemberDropBytes === undefined
         ? {}
         : { maxMemberDropBytes: options.maxMemberDropBytes }),
@@ -747,19 +748,6 @@ export class StreamValidator extends Transform {
     this.flushEdits(limit);
   }
 
-  // Enforce `maxMemberPrefixBytes` on a prefix still streaming at the end of
-  // a write (a key not yet closed, or a closed key whose value has not
-  // started), and `maxMemberDropBytes` on a dropped value still open. The
-  // prefix ends where a number or literal the spine has not yet seen
-  // began. The spine checks a prefix that ends within the write exactly, at
-  // its value start, and a dropped value at its end.
-  private checkMemberPrefix(): void {
-    if (this.memberHooks.length === 0) return;
-    const end = Math.min(this.tokenizer.pendingScalarOffset(), this.totalBytes);
-    this.spine.checkOpenPrefix(end, this.tokenizer.pendingKeyOffset());
-    this.spine.checkOpenDrop(this.totalBytes);
-  }
-
   // Flush resolved edits, then dump any still-held tail verbatim and discard
   // unresolved edits. Used when sealing (detach budget) or finishing: no
   // further edit decisions will arrive, so the remainder echoes as-is.
@@ -802,7 +790,6 @@ export class StreamValidator extends Transform {
       let err: unknown;
       try {
         this.tokenizer.write(chunk);
-        this.checkMemberPrefix();
       } catch (e) {
         err = e;
       }

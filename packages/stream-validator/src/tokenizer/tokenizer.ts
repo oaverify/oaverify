@@ -204,6 +204,10 @@ export class JsonTokenizer {
   private tokenStart = 0;
   // Report commas between object members (see enableMemberCommas).
   private memberCommas = false;
+  // The byte at which input is refused (see setByteLimit); `Infinity` when
+  // none is set.
+  private byteLimit = Number.POSITIVE_INFINITY;
+  private limitCountsAll = false;
   private numBuf = "";
   private litExpected = "";
   private litValue: boolean | null = null;
@@ -226,28 +230,28 @@ export class JsonTokenizer {
   }
 
   /**
-   * The start offset (opening quote) of an object key currently mid-parse,
-   * else `+Infinity`. Cheap to call after {@link write}.
+   * Refuse input at the byte at offset `at`: before that byte is parsed,
+   * {@link JsonEventHandler.onByteLimit} is called, and the handler is
+   * expected to throw. Bytes before it are parsed first, including string
+   * text up to it, which is decoded as at a chunk end so a character split
+   * by the limit is held rather than flushed. With `countsAll` false, only
+   * whitespace and the colon between an object key and its value count, so
+   * a key, a value's first byte or a closing brace at the limit passes;
+   * with it true every byte counts. `Infinity` clears the limit.
    */
-  pendingKeyOffset(): number {
-    return this.stringIsKey &&
-      (this.state === ST_IN_STRING ||
-        this.state === ST_IN_STRING_ESCAPE ||
-        this.state === ST_IN_STRING_UNICODE)
-      ? this.stringStart
-      : Number.POSITIVE_INFINITY;
+  setByteLimit(at: number, countsAll: boolean): void {
+    this.byteLimit = at;
+    this.limitCountsAll = countsAll;
   }
 
-  /**
-   * The start offset of a number or `true` / `false` / `null` literal
-   * currently mid-parse, else `+Infinity`. Such a token is reported only
-   * once its end is seen, so this is where a value has already begun
-   * before its handler call. Cheap to call after {@link write}.
-   */
-  pendingScalarOffset(): number {
-    return this.state === ST_IN_NUMBER || this.state === ST_IN_LITERAL
-      ? this.tokenStart
-      : Number.POSITIVE_INFINITY;
+  // Does the byte `b`, about to be parsed in `state`, count toward the
+  // active limit?
+  private limitCounts(state: number, b: number): boolean {
+    if (this.limitCountsAll) return true;
+    if (state === ST_COLON) return isWhitespace(b) || b === 0x3a; /* : */
+    return (
+      (state === ST_KEY || state === ST_KEY_OR_END_OBJECT || state === ST_VALUE) && isWhitespace(b)
+    );
   }
 
   /**
@@ -262,6 +266,9 @@ export class JsonTokenizer {
     const n = chunk.length;
     while (i < n) {
       const state = this.state;
+      if (this.baseOffset + i >= this.byteLimit && this.limitCounts(state, chunk[i] as number)) {
+        this.handler.onByteLimit!(this.byteLimit);
+      }
       if (state === ST_IN_STRING) {
         i = this.scanStringBody(chunk, i);
         continue;
@@ -412,7 +419,7 @@ export class JsonTokenizer {
   // (escape), or the chunk end. Returns the next index.
   private scanStringBody(chunk: Uint8Array, start: number): number {
     let i = start;
-    const n = chunk.length;
+    const n = this.scanEnd(chunk);
     let nonAscii = false;
     while (i < n) {
       const b = chunk[i] as number;
@@ -632,6 +639,14 @@ export class JsonTokenizer {
     return i; // re-process the first byte in literal state
   }
 
+  // Where a batch scan of `chunk` must stop: its end, or an active limit
+  // that counts every byte, so the byte at the limit is reached in the main
+  // loop.
+  private scanEnd(chunk: Uint8Array): number {
+    if (!this.limitCountsAll || this.byteLimit === Number.POSITIVE_INFINITY) return chunk.length;
+    return Math.max(0, Math.min(chunk.length, this.byteLimit - this.baseOffset));
+  }
+
   private stepLiteral(chunk: Uint8Array, i: number): number {
     const expected = this.litExpected.charCodeAt(this.litPos);
     if ((chunk[i] as number) !== expected) {
@@ -652,7 +667,7 @@ export class JsonTokenizer {
     // one decode, rather than concatenating char by char. (latin1 == ASCII
     // for the number grammar's bytes; a Buffer view avoids a per-char loop
     // and a spread that a huge literal could overflow.)
-    const n = chunk.length;
+    const n = this.scanEnd(chunk);
     let j = i;
     while (j < n) {
       const b = chunk[j] as number;

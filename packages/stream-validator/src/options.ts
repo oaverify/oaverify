@@ -286,16 +286,22 @@ export interface StreamValidatorOptions {
   /**
    * Cap on the separators and whitespace held around an object member's
    * key for an `editMember` hook. The editing echo holds each member's
-   * prefix, from the comma before it (or the `{`) through the key and
-   * colon to the value, until the hook decides the member, since a drop
-   * removes it and a keep may remove its comma. JSON permits unbounded
-   * whitespace on both sides of the key, so those bytes are capped;
-   * over-cap is fatal. The key token itself is not counted: the cap does
-   * not bound key length or key memory, which `maxTotalBytes` bounds for
-   * the whole input. Once any `editMember` hook is registered it applies to
-   * every member an edit can reach: members of streamed objects, not those
-   * inside a dropped member or a value checked by composition or
-   * buffering. Unlike the schema-bound resource limits above, this
+   * prefix, from the comma before it (or just after the `{`) through the
+   * key and colon to the value, until the hook decides the member, since a
+   * drop removes it and a keep may remove its comma. JSON permits
+   * unbounded whitespace on both sides of the key, so those bytes are
+   * capped. The key token itself is not counted: the cap does not bound key
+   * length or key memory, which `maxTotalBytes` bounds for the whole input.
+   *
+   * Over-cap is fatal (`MemberEditError`, at the first byte past the cap).
+   * Input is refused at that byte before it is parsed, and nothing after it
+   * is processed; only whitespace and the colon count, so a key, a value
+   * or a closing `}` at that byte is parsed as usual, and a syntax error
+   * there is reported as one.
+   *
+   * It applies to every member an edit can reach: members of streamed
+   * objects in some hook's `scope`, not those inside a dropped member or a
+   * value checked by composition or buffering. Unlike the schema-bound resource limits above, this
    * defaults *finite* ({@link DEFAULT_MAX_MEMBER_PREFIX_BYTES}, 4 KB),
    * because it bounds a buffer the edit itself introduces. Raise it for
    * runs of whitespace around keys longer than that.
@@ -309,12 +315,12 @@ export interface StreamValidatorOptions {
    * at the span's start plus the cap). Unset: no limit, since a dropped
    * member is discarded as it streams and never held.
    *
-   * A string, object or array is refused while it streams, at the latest
-   * at the end of the write that carries it past the cap. A number or
-   * `true` / `false` / `null` is refused when its token ends: the tokenizer
-   * reports it whole, so the hook decides the member only then. A value
-   * over the limit fails this way even when it also fails validation: a
-   * validation failure inside a dropped value waits for the value's end.
+   * A string, object or array is refused at the first byte past the cap,
+   * before that byte is parsed: everything before it is processed, and
+   * nothing after it, so a syntax error at that byte is not reported. A
+   * number or `true` / `false` / `null` is refused when its token ends:
+   * the tokenizer reports it whole, so the hook decides the member only
+   * then.
    */
   maxMemberDropBytes?: number;
 
