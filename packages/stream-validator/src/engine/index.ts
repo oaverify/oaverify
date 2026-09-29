@@ -9,6 +9,7 @@ export type {
   Bytes,
   MemberContext,
   MemberEdit,
+  EditMemberOptions,
   MemberEditor,
   ScopeContext,
   ScopeEditor,

@@ -55,7 +55,6 @@ import {
   type IslandDelegate,
   type MemberDecision,
   MemberEditError,
-  memberPrefixError,
   type ScopeClose,
   SpineValidator,
   type StreamVerdict,
@@ -68,12 +67,19 @@ import {
   DEFAULT_MAX_MEMBER_PREFIX_BYTES,
   makeMemberContext,
   makeScopeContext,
+  type EditMemberOptions,
   type MemberEditor,
   type ScopeEditor,
   type ScopeObserver,
   toBuffer,
   type ValueEvent,
 } from "./hooks.js";
+
+interface MemberHook {
+  at: PathFilter;
+  edit: MemberEditor;
+  scope: PathFilter | undefined;
+}
 
 /** Does a path filter match this scope path + kind? */
 function matchPathFilter(
@@ -303,7 +309,7 @@ export class StreamValidator extends Transform {
   // Member-edit hooks (rename/drop a matched object member), in
   // registration order. Their presence routes a chunk through the
   // collect-then-echo path, the same as scope hooks.
-  private readonly memberHooks: Array<{ at: PathFilter; edit: MemberEditor }> = [];
+  private readonly memberHooks: MemberHook[] = [];
   private readonly maxMemberPrefixBytes: number;
 
   // The editing echo: input bytes are held from `heldBase` until the spine
@@ -367,7 +373,7 @@ export class StreamValidator extends Transform {
     assertPositiveIntOption(
       "maxMemberDropBytes",
       options.maxMemberDropBytes,
-      "It has no effect; omit it.",
+      "Omit it for no limit on a dropped member.",
     );
     // 0 was accepted before this check existed and has a coherent
     // meaning: only an empty uniqueItems array passes.
@@ -484,11 +490,17 @@ export class StreamValidator extends Transform {
       // Member edits: wired unconditionally (cheap closures), but the spine
       // ignores them until `editMember` flips it on, so a stream with no
       // member hooks pays nothing.
-      memberEdit: (scopePath, key, valueType) => this.resolveMemberEdit(scopePath, key, valueType),
+      memberEdit: (scopePath, key, valueType, hooks) =>
+        this.resolveMemberEdit(scopePath, key, valueType, hooks as MemberHook[]),
+      memberScope: (path) => this.memberHooksInScope(path),
       emitReplace: (start, end, bytes) =>
         this.pendingEdits.push({ start, end, bytes: Buffer.from(bytes, "utf8") }),
       emitDelete: (start, end) => this.pendingEdits.push({ start, end, bytes: null }),
       maxMemberPrefixBytes: this.maxMemberPrefixBytes,
+      setByteLimit: (at, countsAll) => this.tokenizer.setByteLimit(at, countsAll),
+      ...(options.maxMemberDropBytes === undefined
+        ? {}
+        : { maxMemberDropBytes: options.maxMemberDropBytes }),
       deferBudgetForEdits: options.policy === "detach",
     });
     this.tokenizer = new JsonTokenizer(this.spine, { utf8: options.utf8 });
@@ -595,18 +607,31 @@ export class StreamValidator extends Transform {
    * piping. The matched member's value is still validated against the
    * input schema (a `drop` removes it from the output, not from the
    * verdict), and hooks do not fire for members inside a dropped one.
-   * Return `null` for a no-op.
+   * Return `null` for a no-op. `options.scope` limits the objects whose
+   * members the hook may edit; see `EditMemberOptions`.
    *
    * A rename whose target collides with another key in the same object,
    * and two hooks returning conflicting edits for one member, are both
    * fatal.
    */
-  editMember(at: PathFilter, edit: MemberEditor): void {
-    this.memberHooks.push({ at, edit });
+  editMember(at: PathFilter, edit: MemberEditor, options: EditMemberOptions = {}): void {
+    this.memberHooks.push({ at, edit, scope: options.scope });
     if (this.memberHooks.length === 1) {
       this.spine.enableMemberEdits();
       this.tokenizer.enableMemberCommas();
     }
+  }
+
+  // The member hooks whose scope matches the object at `path`, or null
+  // when none does. Evaluated once per streamed object; the spine caches
+  // the result on the object's frame, so holding and resolution use the
+  // same hooks.
+  private memberHooksInScope(path: readonly PathSegment[]): MemberHook[] | null {
+    if (this.memberHooks.every((h) => h.scope === undefined)) return this.memberHooks;
+    const hooks = this.memberHooks.filter(
+      (h) => h.scope === undefined || matchPathFilter(h.scope, path, "object"),
+    );
+    return hooks.length > 0 ? hooks : null;
   }
 
   // Resolve the registered member hooks for one member into a single
@@ -618,9 +643,10 @@ export class StreamValidator extends Transform {
     scopePath: readonly PathSegment[],
     key: string,
     valueType: "object" | "array" | "string" | "number" | "boolean" | "null",
+    hooks: readonly MemberHook[],
   ): MemberDecision | null {
     let decision: MemberDecision | null = null;
-    for (const h of this.memberHooks) {
+    for (const h of hooks) {
       if (!matchValueFilter(h.at, scopePath, key)) continue;
       const r = h.edit(makeMemberContext([...scopePath, key], key, valueType));
       if (r === null || r.action === "keep") continue;
@@ -722,20 +748,6 @@ export class StreamValidator extends Transform {
     this.flushEdits(limit);
   }
 
-  // Enforce `maxMemberPrefixBytes` on a prefix still streaming at the end of
-  // a write: a key not yet closed, or a closed key whose value has not
-  // started. The prefix ends where a number or literal the spine has not
-  // yet seen began. The spine checks a prefix that ends within the write
-  // exactly, at its value start.
-  private checkMemberPrefix(): void {
-    if (this.memberHooks.length === 0) return;
-    const start = this.spine.memberPrefixStart;
-    const end = Math.min(this.tokenizer.pendingScalarOffset(), this.totalBytes);
-    if (end - start > this.maxMemberPrefixBytes) {
-      throw memberPrefixError(this.maxMemberPrefixBytes, start);
-    }
-  }
-
   // Flush resolved edits, then dump any still-held tail verbatim and discard
   // unresolved edits. Used when sealing (detach budget) or finishing: no
   // further edit decisions will arrive, so the remainder echoes as-is.
@@ -778,7 +790,6 @@ export class StreamValidator extends Transform {
       let err: unknown;
       try {
         this.tokenizer.write(chunk);
-        this.checkMemberPrefix();
       } catch (e) {
         err = e;
       }

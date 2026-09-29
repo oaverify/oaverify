@@ -6,6 +6,7 @@ import {
   createStreamValidator,
   type MemberContext,
   type MemberEditError,
+  type PathFilter,
   type MemberEdit,
   type StreamValidator,
 } from "../src/index.js";
@@ -63,7 +64,8 @@ async function run(
 
 const rename = (key: string) => (): MemberEdit => ({ action: "rename", key });
 // Streams `head`, then `fillBytes` (4 MiB unless given) of `fill` in
-// FILL_CHUNK writes, then `tail`, with `maxMemberPrefixBytes` at CAP.
+// FILL_CHUNK writes, then `tail`, with `maxMemberPrefixBytes` at CAP and
+// any other `options`.
 // `supplied` counts the bytes the source produced before the pipeline
 // stopped pulling.
 const CAP = 64 * 1024;
@@ -75,6 +77,7 @@ async function runOversized(
   tail: string,
   setup: (v: StreamValidator) => void,
   fillBytes = 4 * 1024 * 1024,
+  options: Record<string, unknown> = {},
 ): Promise<{
   err: MemberEditError | undefined;
   supplied: number;
@@ -93,7 +96,10 @@ async function runOversized(
     }
     yield Buffer.from(tail);
   }
-  const v = createStreamValidator({ type: "object" }, { maxMemberPrefixBytes: CAP });
+  const v = createStreamValidator({ type: "object" }, {
+    maxMemberPrefixBytes: CAP,
+    ...options,
+  } as never);
   setup(v);
   v.on("error", () => {});
   const out: Buffer[] = [];
@@ -367,11 +373,13 @@ describe("editMember drop removes the member's whitespace and one comma", () => 
       expect(r.err, `chunk ${chunkSize}`).toBeUndefined();
       expect(r.output, `chunk ${chunkSize}`).toBe('{"b":1}');
     }
-    // The same key in a kept member is still capped.
+    // Key bytes never count toward the cap, so the same key in a kept
+    // member passes too.
     const kept = await run({ type: "object" }, input, (v) => v.editMember(["b"], drop), {
       maxMemberPrefixBytes: 32,
     });
-    expect(kept.err?.name).toBe("MemberEditError");
+    expect(kept.err).toBeUndefined();
+    expect(kept.output).toBe(`{"d":{"${"x".repeat(100)}":1}}`);
   });
 
   it("discards what editClose appends inside a dropped member", async () => {
@@ -416,10 +424,15 @@ describe("editMember drop on generated documents", () => {
   const ws = () => ["", " ", "\n  ", "\t"][rand(4)] as string;
   const scalars = [0, -1.5, true, false, null, "s", 'q"\\u00e9'];
 
-  function gen(depth: number): { text: string; kept: unknown } {
+  // `inScope(depth)` says whether members of an object at that depth may be
+  // dropped; the object at depth 0 is the value of the input's `k`.
+  function gen(
+    depth: number,
+    inScope: (depth: number) => boolean = () => true,
+  ): { text: string; kept: unknown } {
     const kind = depth >= 2 ? 0 : rand(3);
     if (kind === 1) {
-      const items = Array.from({ length: rand(3) }, () => gen(depth + 1));
+      const items = Array.from({ length: rand(3) }, () => gen(depth + 1, inScope));
       return {
         text: `[${ws()}${items.map((i) => i.text).join(`${ws()},${ws()}`)}${ws()}]`,
         kept: items.map((i) => i.kept),
@@ -430,11 +443,11 @@ describe("editMember drop on generated documents", () => {
       const kept: Record<string, unknown> = {};
       const count = rand(5);
       for (let i = 0; i < count; i++) {
-        const dropped = rand(5) < 2;
-        const value = gen(depth + 1);
-        const key = `${dropped ? "d" : "k"}${i}`;
+        const named = rand(5) < 2;
+        const value = gen(depth + 1, inScope);
+        const key = `${named ? "d" : "k"}${i}`;
         members.push(`${ws()}"${key}"${ws()}:${ws()}${value.text}${ws()}`);
-        if (!dropped) kept[key] = value.kept;
+        if (!(named && inScope(depth))) kept[key] = value.kept;
       }
       return { text: `{${members.join(",")}}`, kept };
     }
@@ -456,6 +469,35 @@ describe("editMember drop on generated documents", () => {
       }
       expect(outputs.size, input).toBe(1);
       expect(JSON.parse([...outputs][0] as string), input).toEqual({ k: root.kept });
+    }
+  });
+
+  it("drops only in scoped objects, with a drop limit that never trips", async () => {
+    // Objects at odd path lengths are in scope: depth 0 (`["k"]`), depth 2
+    // (members of members of it, or elements of arrays in it), and so on.
+    // The root object, at path length 0, is not, so its `d` is kept.
+    const scoped = (depth: number) => depth % 2 === 0;
+    const dropD = (v: StreamValidator) =>
+      v.editMember((path) => String(path[path.length - 1]).startsWith("d"), drop, {
+        scope: (path) => path.length % 2 === 1,
+      });
+    for (let doc = 0; doc < 200; doc++) {
+      const root = gen(0, scoped);
+      const input = `${ws()}{${ws()}"k":${root.text}${ws()},${ws()}"d":1${ws()}}${ws()}`;
+      const outputs = new Set<string>();
+      for (const chunkSize of [0, 1, 3]) {
+        const r = await run(
+          { type: "object" },
+          input,
+          dropD,
+          { maxMemberDropBytes: 1 << 20 },
+          chunkSize,
+        );
+        expect(r.err, input).toBeUndefined();
+        outputs.add(r.output);
+      }
+      expect(outputs.size, input).toBe(1);
+      expect(JSON.parse([...outputs][0] as string), input).toEqual({ k: root.kept, d: 1 });
     }
   });
 });
@@ -570,6 +612,271 @@ describe("editMember drop under a detach seal", () => {
   });
 });
 
+describe("member-edit caps at the exact byte", () => {
+  const chunkings = [0, 1, 2, 3];
+  const keepAll = (v: StreamValidator) =>
+    v.editMember(
+      () => true,
+      () => null,
+    );
+  const dropD = (v: StreamValidator) => v.editMember(["d"], drop);
+
+  async function outcome(
+    input: string,
+    setup: (v: StreamValidator) => void,
+    opts: Record<string, unknown>,
+    schema: SchemaOrBoolean = true,
+  ): Promise<string[]> {
+    const seen: string[] = [];
+    for (const chunkSize of chunkings) {
+      const r = await run(schema, input, setup, opts, chunkSize);
+      const offset = (r.err as { byteOffset?: number } | undefined)?.byteOffset;
+      const at = offset === undefined ? "" : `@${offset}`;
+      seen.push(`${r.err?.name ?? "ok"}${at}`);
+    }
+    return seen;
+  }
+  const every = (x: string) => chunkings.map(() => x);
+
+  // Each case: input, the cap that passes, and where one less fails. At
+  // the passing cap the byte at the limit is the one named, which is not
+  // counted.
+  it.each<[string, string, number, number]>([
+    // comma, 3 spaces (quote at 10 passes), then the colon at 13
+    ["a key's opening quote", '{"a":1,   "b":1}', 5, 13],
+    ["a number value's first byte", '{"b" :  1}', 4, 7],
+    ["a string value's first byte", '{"b":  "s"}', 3, 6],
+    ["an object value's first byte", '{"b":  {}}', 3, 6],
+    ["a literal value's first byte", '{"b":  true}', 3, 6],
+    ["an empty object's closing brace", "{    }", 4, 4],
+    // comma, 2 spaces, a 16-byte key (not counted), space, colon at 26
+    ["an escaped, multi-byte key", String.raw`{"a":1,  "é\"😀\u00e9" :1}`, 5, 26],
+  ])("stops counting a prefix at %s", async (_name, input, cap, overAt) => {
+    expect(await outcome(input, keepAll, { maxMemberPrefixBytes: cap })).toEqual(every("ok"));
+    expect(await outcome(input, keepAll, { maxMemberPrefixBytes: cap - 1 })).toEqual(
+      every(`MemberEditError@${overAt}`),
+    );
+  });
+
+  it("refuses a dropped string at the exact byte, with multi-byte characters split", async () => {
+    const member = '"d":"aé😀\\"b"';
+    const input = `{${member},"k":1}`;
+    const span = enc.encode(member).length;
+    for (let cap = 6; cap <= span; cap++) {
+      const expected = cap >= span ? "ok" : `MemberEditError@${1 + cap}`;
+      expect(await outcome(input, dropD, { maxMemberDropBytes: cap }), `cap ${cap}`).toEqual(
+        every(expected),
+      );
+    }
+  });
+
+  it("counts the keys inside a dropped container", async () => {
+    const input = '{"d":{"kkkkkkkk":1},"k":1}';
+    // The inner key runs from offset 6 to 16.
+    expect(await outcome(input, dropD, { maxMemberDropBytes: 10 })).toEqual(
+      every("MemberEditError@11"),
+    );
+    expect(await outcome(input, dropD, { maxMemberDropBytes: 18 })).toEqual(every("ok"));
+  });
+
+  it("reads and checks the whole key when the drop limit falls inside it", async () => {
+    const schema = { type: "object", propertyNames: { maxLength: 2 } };
+    const dropAllButK = (v: StreamValidator) => v.editMember((p) => p[p.length - 1] !== "k", drop);
+    expect(
+      await outcome('{"dddd":"x","k":1}', dropAllButK, { maxMemberDropBytes: 3 }, schema),
+    ).toEqual(every("ValidationFailedError"));
+    // Without the key's own failure, the value's first byte refuses it.
+    expect(await outcome('{"dddd":"x","k":1}', dropAllButK, { maxMemberDropBytes: 3 })).toEqual(
+      every("MemberEditError@4"),
+    );
+  });
+
+  it("does not validate a number that ends just before the refusing byte", async () => {
+    const schema = { type: "object", properties: { d: { items: { type: "string" } } } };
+    // `1` ends at 7, where the limit falls; `true` ends at 10, before it.
+    expect(await outcome('{"d":[1,"x"],"k":1}', dropD, { maxMemberDropBytes: 6 }, schema)).toEqual(
+      every("MemberEditError@7"),
+    );
+    expect(
+      await outcome('{"d":[true,"x"],"k":1}', dropD, { maxMemberDropBytes: 9 }, schema),
+    ).toEqual(every("ValidationFailedError"));
+  });
+
+  it("lets the cap win a tie with a syntax error in a dropped value", async () => {
+    // The `x` is at offset 8.
+    expect(await outcome('{"d":[1,x]}', dropD, { maxMemberDropBytes: 7 })).toEqual(
+      every("MemberEditError@8"),
+    );
+    expect(await outcome('{"d":[1,x]}', dropD, { maxMemberDropBytes: 8 })).toEqual(
+      every("JsonParseError@8"),
+    );
+  });
+
+  it("lets a syntax error win at the byte a prefix does not count", async () => {
+    // comma at 6, spaces at 7 and 8, `x` at 9.
+    expect(await outcome('{"a":1,  x}', keepAll, { maxMemberPrefixBytes: 3 })).toEqual(
+      every("JsonParseError@9"),
+    );
+    expect(await outcome('{"a":1,  x}', keepAll, { maxMemberPrefixBytes: 2 })).toEqual(
+      every("MemberEditError@8"),
+    );
+  });
+
+  it("keeps terminate immediate when a below-limit drop also turns malformed", async () => {
+    const schema = { type: "object", properties: { d: { items: { type: "string" } } } };
+    for (const input of ['{"d":[0, invalid],"k":1}', '{"d":[0,1,2']) {
+      expect(await outcome(input, dropD, { maxMemberDropBytes: 1000 }, schema), input).toEqual(
+        every("ValidationFailedError"),
+      );
+    }
+  });
+
+  it("emits no key event for a key past the prefix cap, whatever the chunking", async () => {
+    const input = `{"a":1,${" ".repeat(30)}"x":1}`;
+    for (const chunkSize of chunkings) {
+      const keys: string[] = [];
+      const r = await run(
+        true,
+        input,
+        (v) => {
+          keepAll(v);
+          v.on("key", (e: { key: string }) => keys.push(e.key));
+        },
+        { maxMemberPrefixBytes: 16, keyEvents: true },
+        chunkSize,
+      );
+      expect(r.err?.name).toBe("MemberEditError");
+      expect(keys, `chunk ${chunkSize}`).toEqual(["a"]);
+    }
+  });
+});
+
+describe("editMember scope", () => {
+  const chunkings = [0, 1, 3];
+
+  it("holds nothing in an object outside the scope", async () => {
+    const input = `{"a":{${" ".repeat(5000)}"b":1}}`;
+    const keepTop = (v: StreamValidator, scope?: PathFilter) =>
+      v.editMember(
+        (path) => path.length === 1,
+        () => null,
+        scope ? { scope } : undefined,
+      );
+    for (const chunkSize of chunkings) {
+      const scoped = await run({ type: "object" }, input, (v) => keepTop(v, []), {}, chunkSize);
+      expect(scoped.err, `chunk ${chunkSize}`).toBeUndefined();
+      expect(scoped.output).toBe(input);
+    }
+    // Without a scope, the inner object's whitespace is held and capped.
+    const unscoped = await run({ type: "object" }, input, (v) => keepTop(v));
+    expect(unscoped.err?.name).toBe("MemberEditError");
+  });
+
+  it("fires the hook only for members of objects in scope", async () => {
+    for (const chunkSize of chunkings) {
+      const seen: string[] = [];
+      const r = await run(
+        true,
+        '{"k":1,"o":{"k":2,"x":{"k":3}}}',
+        (v) =>
+          v.editMember(
+            () => true,
+            (ctx) => {
+              seen.push(ctx.path.join("."));
+              return ctx.key === "k" ? { action: "rename", key: "z" } : null;
+            },
+            { scope: ["o"] },
+          ),
+        {},
+        chunkSize,
+      );
+      expect(r.output, `chunk ${chunkSize}`).toBe('{"k":1,"o":{"z":2,"x":{"k":3}}}');
+      expect(seen).toEqual(["o.k", "o.x"]);
+    }
+  });
+
+  it("does not exclude objects nested inside an object out of scope", async () => {
+    for (const chunkSize of chunkings) {
+      const r = await run(
+        true,
+        '{"d":0, "o":{ "inner":{"d":1, "k":2}}}',
+        (v) =>
+          v.editMember((path) => path[path.length - 1] === "d", drop, {
+            scope: (path) => path[path.length - 1] === "inner",
+          }),
+        {},
+        chunkSize,
+      );
+      expect(r.err, `chunk ${chunkSize}`).toBeUndefined();
+      expect(r.output, `chunk ${chunkSize}`).toBe('{"d":0, "o":{ "inner":{ "k":2}}}');
+    }
+  });
+
+  it("scopes objects inside arrays by their path", async () => {
+    for (const chunkSize of chunkings) {
+      const r = await run(
+        true,
+        '[{"d":1,"k":1},{"d":{"x":1}}]',
+        (v) =>
+          v.editMember((path) => path[path.length - 1] === "d", drop, {
+            scope: (path) => path.length === 1,
+          }),
+        {},
+        chunkSize,
+      );
+      expect(r.output, `chunk ${chunkSize}`).toBe('[{"k":1},{}]');
+    }
+  });
+
+  it("resolves each member against the hooks in scope only", async () => {
+    // Both hooks match every `k`; without scopes they would conflict.
+    for (const chunkSize of chunkings) {
+      const r = await run(
+        true,
+        '{"k":1,"o":{"k":2}}',
+        (v) => {
+          v.editMember((p) => p[p.length - 1] === "k", rename("a"), { scope: [] });
+          v.editMember((p) => p[p.length - 1] === "k", rename("b"), { scope: ["o"] });
+        },
+        {},
+        chunkSize,
+      );
+      expect(r.err, `chunk ${chunkSize}`).toBeUndefined();
+      expect(r.output, `chunk ${chunkSize}`).toBe('{"a":1,"o":{"b":2}}');
+    }
+  });
+
+  it("gives each scope call its own copy of the object's path", async () => {
+    const paths: unknown[] = [];
+    await run({ type: "object" }, '{"a":{"b":{}}}', (v) =>
+      v.editMember(["x"], drop, {
+        scope: (path) => {
+          paths.push(path);
+          return true;
+        },
+      }),
+    );
+    expect(paths).toEqual([[], ["a"], ["a", "b"]]);
+  });
+
+  it("counts no output members for an object inside a dropped member", async () => {
+    const fields: string[] = [];
+    await run({ type: "object" }, '{"d":{"x":1},"k":1}', (v) => {
+      v.editMember(["d"], drop);
+      v.onScopeClose(["d"], (ctx) => fields.push(String(ctx.field("q", 0))));
+    });
+    expect(fields).toEqual(['"q":0']);
+  });
+
+  it("appends an editClose field with its comma in an object out of scope", async () => {
+    const r = await run({ type: "object" }, '{"o":{"a":1}}', (v) => {
+      v.editMember(["d"], drop, { scope: [] });
+      v.editClose(["o"], (ctx) => ctx.field("x", 1));
+    });
+    expect(r.output).toBe('{"o":{"a":1,"x":1}}');
+  });
+});
+
 describe("editMember rename + drop together", () => {
   it("renames one member and drops another", async () => {
     const schema = { type: "object", properties: { ids: { type: "array" } } };
@@ -639,17 +946,169 @@ describe("editMember caps", () => {
     expect(r.err?.name).toBe("MemberEditError");
   });
 
-  it("ignores maxMemberDropBytes: a dropped member is not held", async () => {
-    const big = "x".repeat(200);
+  it("does not limit a dropped member unless maxMemberDropBytes is set", async () => {
     const r = await run(
       { type: "object" },
-      `{"a":"${big}","b":2}`,
+      `{"a":"${"x".repeat(200)}","b":2}`,
       (v) => v.editMember(["a"], drop),
-      { maxMemberDropBytes: 32 },
+      {},
       16,
     );
     expect(r.err).toBeUndefined();
     expect(r.output).toBe('{"b":2}');
+  });
+
+  it.each<[string, string, number]>([
+    ["a string", `{"d":"${"x".repeat(100)}","k":1}`, 16],
+    ["a number", `{"d":${"1".repeat(100)},"k":1}`, 16],
+    ["a literal", '{"d":  true,"k":1}', 7],
+    ["an object", '{"d":{"a":[1,2,3],"b":"xyz"},"k":1}', 10],
+    ["an array", '{"d":[1, 2, 3, 4, 5, 6],"k":1}', 12],
+  ])("refuses %s dropped past maxMemberDropBytes", async (_name, input, cap) => {
+    for (const chunkSize of [0, 1, 7]) {
+      const r = await run(
+        { type: "object" },
+        input,
+        (v) => v.editMember(["d"], drop),
+        { maxMemberDropBytes: cap },
+        chunkSize,
+      );
+      expect(r.err?.name, `chunk ${chunkSize}`).toBe("MemberEditError");
+      expect(r.err?.message).toContain("maxMemberDropBytes");
+      // The span starts at the key, offset 1.
+      expect((r.err as MemberEditError).byteOffset, `chunk ${chunkSize}`).toBe(1 + cap);
+    }
+  });
+
+  it.each<[string, SchemaOrBoolean, string, number, string]>([
+    [
+      "a string over the limit",
+      { type: "object", properties: { d: { maxLength: 50 } } },
+      `{"d":"${"x".repeat(100)}","k":1}`,
+      16,
+      "MemberEditError",
+    ],
+    [
+      "an array over the limit",
+      { type: "object", properties: { d: { items: { type: "number" } } } },
+      '{"d":[1,2,3,4,5,6,7,8,9,"x"],"k":1}',
+      16,
+      "MemberEditError",
+    ],
+    [
+      "a string within the limit",
+      { type: "object", properties: { d: { maxLength: 2 } } },
+      '{"d":"abcdef","k":1}',
+      100,
+      "ValidationFailedError",
+    ],
+  ])(
+    "reports the same error for %s that also fails validation, whatever the chunking",
+    async (_name, schema, input, cap, errName) => {
+      for (const chunkSize of [0, 1, 7, 16, 20]) {
+        const r = await run(
+          schema,
+          input,
+          (v) => v.editMember(["d"], drop),
+          { maxMemberDropBytes: cap },
+          chunkSize,
+        );
+        expect(r.err?.name, `chunk ${chunkSize}`).toBe(errName);
+        if (errName === "MemberEditError") {
+          expect((r.err as MemberEditError).byteOffset, `chunk ${chunkSize}`).toBe(1 + cap);
+        }
+      }
+    },
+  );
+
+  it("measures a dropped container to its own close, not an inner one", async () => {
+    // The inner array closes 13 bytes after the key; the object runs on.
+    const input = `{"d":{"a":[1],"b":"${"x".repeat(20)}"},"k":1}`;
+    for (const chunkSize of [0, 1, 5]) {
+      const r = await run(
+        { type: "object" },
+        input,
+        (v) => v.editMember(["d"], drop),
+        { maxMemberDropBytes: 14 },
+        chunkSize,
+      );
+      expect(r.err?.name, `chunk ${chunkSize}`).toBe("MemberEditError");
+      expect((r.err as MemberEditError).byteOffset).toBe(1 + 14);
+    }
+  });
+
+  it.each([1, 3])(
+    "measures from the key to the value's end, excluding whitespace after it (chunk %i)",
+    async (chunkSize) => {
+      const member = String.raw`"d":  "\n\u00e9é-\"x"`;
+      const input = `{"a":1,${member}    ,"b":2}`;
+      const cap = enc.encode(member).length;
+      const edit = (v: StreamValidator) => v.editMember(["d"], drop);
+      const atCap = await run(
+        { type: "object" },
+        input,
+        edit,
+        { maxMemberDropBytes: cap },
+        chunkSize,
+      );
+      expect(atCap.err).toBeUndefined();
+      expect(atCap.output).toBe('{"a":1,"b":2}');
+      const over = await run(
+        { type: "object" },
+        input,
+        edit,
+        { maxMemberDropBytes: cap - 1 },
+        chunkSize,
+      );
+      expect(over.err?.name).toBe("MemberEditError");
+    },
+  );
+
+  it.each<[string, SchemaOrBoolean]>([
+    ["oneOf", { oneOf: [{ type: "object" }, { type: "array" }] }],
+    ["uniqueItems", { type: "array", uniqueItems: true }],
+  ])("refuses a dropped value routed through %s at the same offset", async (_name, d) => {
+    const schema = { type: "object", properties: { d } };
+    const input = '{"k":1,"d":[1, {"x":2}, 3, 4, 5],"b":2}';
+    for (const chunkSize of [0, 1, 4]) {
+      const r = await run(
+        schema,
+        input,
+        (v) => v.editMember(["d"], drop),
+        { maxMemberDropBytes: 12 },
+        chunkSize,
+      );
+      expect(r.err?.name, `chunk ${chunkSize}`).toBe("MemberEditError");
+      expect((r.err as MemberEditError).byteOffset).toBe(7 + 12);
+    }
+  });
+
+  it("refuses a large dropped array while it is still streaming", async () => {
+    const r = await runOversized(
+      '{"o":[',
+      "1,",
+      '1],"b":2}',
+      (v) => v.editMember(["o"], drop),
+      512 * 1024,
+      { maxMemberDropBytes: CAP },
+    );
+    expect(r.err?.name).toBe("MemberEditError");
+    expect(r.err?.byteOffset).toBe(1 + CAP);
+    expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
+  });
+
+  it("refuses a large dropped string while it is still streaming", async () => {
+    const r = await runOversized(
+      '{"surprise":"',
+      "x",
+      '","b":2}',
+      (v) => v.editMember(["surprise"], drop),
+      undefined,
+      { maxMemberDropBytes: CAP },
+    );
+    expect(r.err?.name).toBe("MemberEditError");
+    expect(r.err?.byteOffset).toBe(1 + CAP);
+    expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
   });
 
   it("discards a large dropped string as it streams", async () => {
@@ -692,19 +1151,37 @@ describe("editMember caps", () => {
     expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
   });
 
-  it("refuses an oversized key while it is still streaming", async () => {
+  it("does not count a long key toward maxMemberPrefixBytes", async () => {
     const r = await runOversized('{"', "k", '":1}', (v) => v.editMember(["a"], rename("z")));
-    expect(r.err?.name).toBe("MemberEditError");
-    expect(r.err?.message).toContain("maxMemberPrefixBytes");
-    expect(r.err?.byteOffset).toBe(1 + CAP);
-    expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
+    expect(r.err).toBeUndefined();
+    expect(r.output.length).toBe(4 * 1024 * 1024 + '{"":1}'.length);
+  });
+
+  it("accepts a long key two levels below the members a hook edits", async () => {
+    const input = `{"a":[{"${"k".repeat(5000)}":1}]}`;
+    for (const chunkSize of [0, 1000]) {
+      const r = await run(
+        { type: "object" },
+        input,
+        (v) =>
+          v.editMember(
+            (path) => path.length === 1,
+            () => null,
+          ),
+        {},
+        chunkSize,
+      );
+      expect(r.err, `chunk ${chunkSize}`).toBeUndefined();
+      expect(r.output).toBe(input);
+    }
   });
 
   it("refuses oversized key-to-value whitespace while it is still streaming", async () => {
     const r = await runOversized('{"a":', " ", "1}", (v) => v.editMember(["a"], rename("z")));
     expect(r.err?.name).toBe("MemberEditError");
     expect(r.err?.message).toContain("maxMemberPrefixBytes");
-    expect(r.err?.byteOffset).toBe(1 + CAP);
+    // Counting resumes after the key `"a"`, which ends at offset 4.
+    expect(r.err?.byteOffset).toBe(4 + CAP);
     expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
   });
 
@@ -712,25 +1189,64 @@ describe("editMember caps", () => {
     ["1", "", '"abc" :  '],
     ["true", "", '"abc" :  '],
     ["1", '"x":0', ', "abc" :  '],
-  ])(
-    "counts the key bytes toward maxMemberPrefixBytes (value %s after %j)",
-    async (value, before, prefix) => {
-      const input = `{${before}${prefix}${value}}`;
-      const edit = (v: StreamValidator) => v.editMember(["abc"], rename("z"));
-      const cap = prefix.length;
-      const atCap = await run({ type: "object" }, input, edit, { maxMemberPrefixBytes: cap }, 1);
-      expect(atCap.err).toBeUndefined();
-      expect(atCap.output).toBe(`{${before}${prefix.replace('"abc"', '"z"')}${value}}`);
-      const overCap = await run(
+  ])("counts only the bytes around the key (value %s after %j)", async (value, before, prefix) => {
+    const input = `{${before}${prefix}${value}}`;
+    const edit = (v: StreamValidator) => v.editMember(["abc"], rename("z"));
+    const cap = prefix.length - '"abc"'.length;
+    const atCap = await run({ type: "object" }, input, edit, { maxMemberPrefixBytes: cap }, 1);
+    expect(atCap.err).toBeUndefined();
+    expect(atCap.output).toBe(`{${before}${prefix.replace('"abc"', '"z"')}${value}}`);
+    const overCap = await run(
+      { type: "object" },
+      input,
+      edit,
+      { maxMemberPrefixBytes: cap - 1 },
+      1,
+    );
+    expect(overCap.err?.name).toBe("MemberEditError");
+  });
+
+  it("reports a prefix over the cap before a failure at its key, whatever the chunking", async () => {
+    // maxProperties fails at the key "x"; the whitespace before it passes
+    // the cap first.
+    const input = `{"a":1,${" ".repeat(30)}"x":1}`;
+    for (const chunkSize of [0, 1, 7, 40]) {
+      const r = await run(
+        { type: "object", maxProperties: 1 },
+        input,
+        (v) =>
+          v.editMember(
+            () => true,
+            () => null,
+          ),
+        { maxMemberPrefixBytes: 16 },
+        chunkSize,
+      );
+      expect(r.err?.name, `chunk ${chunkSize}`).toBe("MemberEditError");
+      expect((r.err as MemberEditError).byteOffset, `chunk ${chunkSize}`).toBe(6 + 16);
+    }
+  });
+
+  it.each([
+    // 3 counted bytes (comma, two spaces) before the key, 3 after it.
+    [2, 6 + 2],
+    [3, 14 + 0],
+    [4, 14 + 1],
+  ])("reports where the counted bytes cross a cap of %i", async (cap, offset) => {
+    const input = '{"x":0,  "abc" : 1}';
+    const edit = (v: StreamValidator) => v.editMember(["abc"], rename("z"));
+    for (const chunkSize of [0, 1, 2, 3, 5, 9]) {
+      const r = await run(
         { type: "object" },
         input,
         edit,
-        { maxMemberPrefixBytes: cap - 1 },
-        1,
+        { maxMemberPrefixBytes: cap },
+        chunkSize,
       );
-      expect(overCap.err?.name).toBe("MemberEditError");
-    },
-  );
+      expect(r.err?.name, `chunk ${chunkSize}`).toBe("MemberEditError");
+      expect((r.err as MemberEditError).byteOffset, `chunk ${chunkSize}`).toBe(offset);
+    }
+  });
 
   it.each<[string, SchemaOrBoolean, (inner: string) => string]>([
     ["const", { const: { k: 1 } }, (inner: string) => inner],

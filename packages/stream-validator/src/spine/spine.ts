@@ -128,12 +128,9 @@ export class MemberEditError extends Error {
   }
 }
 
-/**
- * The `maxMemberPrefixBytes` failure for a prefix starting at `start`. The
- * message omits the key, which may itself be the oversized part.
- */
-export function memberPrefixError(cap: number, start: number): MemberEditError {
-  return new MemberEditError(`member prefix exceeded maxMemberPrefixBytes=${cap}`, start + cap);
+/** The `maxMemberPrefixBytes` failure, at the first byte past the cap. */
+export function memberPrefixError(cap: number, at: number): MemberEditError {
+  return new MemberEditError(`member prefix exceeded maxMemberPrefixBytes=${cap}`, at);
 }
 
 /** Validates a materialized island value against schemas; returns flat violations. */
@@ -278,7 +275,16 @@ export interface SpineOptions {
     scopePath: readonly PathSegment[],
     key: string,
     valueType: "object" | "array" | "string" | "number" | "boolean" | "null",
+    hooks: unknown,
   ) => MemberDecision | null;
+  /**
+   * The member hooks that can edit members of the object at `path`, called
+   * once when a streamed object opens; `null` when none can. The spine
+   * holds no member prefix in an object without hooks, and passes the
+   * returned value back to `memberEdit` for that object's members. Unset:
+   * no object's members are edited.
+   */
+  memberScope?: (path: readonly PathSegment[]) => unknown;
   /** Emit a key-token replacement (rename): replace input `[start, end)` with `bytes`. */
   emitReplace?: (start: number, end: number, bytes: string) => void;
   /**
@@ -287,8 +293,16 @@ export interface SpineOptions {
    * this carries the closed spans and a comma that loses its kept neighbour.
    */
   emitDelete?: (start: number, end: number) => void;
-  /** Cap on a held member prefix (separator, key, colon and whitespace); over-cap is fatal. */
+  /** Cap on the separators and whitespace in a held member prefix; over-cap is fatal. */
   maxMemberPrefixBytes?: number;
+  /** Cap on a dropped member's span, from its key start to its value end; over-cap is fatal. */
+  maxMemberDropBytes?: number;
+  /**
+   * Set the tokenizer's byte limit (`JsonTokenizer.setByteLimit`), through
+   * which both member-edit caps are enforced at the exact byte past them.
+   * The tokenizer reports reaching it through `onByteLimit`.
+   */
+  setByteLimit?: (at: number, countsAll: boolean) => void;
   /**
    * Hold {@link BudgetReached} while a member edit is in flight (a member
    * prefix awaiting its decision, or a dropped member being discarded),
@@ -353,6 +367,9 @@ interface ObjectFrame {
   // came from a rename, to make a rename-induced duplicate key fatal while
   // leaving a pre-existing input duplicate alone.
   outputKeys: Map<string, boolean> | null;
+  // The member hooks for this object (see `SpineOptions.memberScope`), or
+  // null when no edit can reach its members.
+  editHooks: unknown;
   // Start of the held prefix of the member not yet decided: just past `{`,
   // or the comma before it. `+Infinity` once that member is decided. The
   // prefix is held because a drop removes it and a keep may remove its
@@ -477,12 +494,17 @@ export class SpineValidator implements JsonEventHandler {
   private readonly maxCaptureBytes: number | undefined;
   private readonly onScopeClose: ((close: ScopeClose) => void) | undefined;
   private readonly memberEdit: SpineOptions["memberEdit"];
+  private readonly memberScope: SpineOptions["memberScope"];
   private readonly emitReplace: SpineOptions["emitReplace"];
   private readonly emitDelete: SpineOptions["emitDelete"];
   // Off until `enableMemberEdits()`; gates all member-edit work so a stream
   // with no hooks pays nothing.
   private memberEditActive = false;
   private readonly maxMemberPrefixBytes: number;
+  private readonly maxMemberDropBytes: number;
+  private readonly setByteLimit: SpineOptions["setByteLimit"];
+  // Which cap the tokenizer's byte limit currently enforces, if any.
+  private limitKind: "prefix" | "drop" | null = null;
   private readonly deferBudgetForEdits: boolean;
   // The budget was reached while a member edit was in flight; see
   // `deferBudgetForEdits`.
@@ -494,8 +516,16 @@ export class SpineValidator implements JsonEventHandler {
   private failures = 0;
   // A dropped member being discarded: from `start` (its prefix start)
   // through the next comma or `}` of the object at `frames[depth - 1]`.
-  // Nothing inside it is edited, so there is at most one.
-  private discard: { start: number; depth: number } | null = null;
+  // Nothing inside it is edited, so there is at most one. `keyStart` and
+  // `valueEnd` bound the span `maxMemberDropBytes` measures; `valueEnd` is
+  // null while the value is open, and `nest` counts its open containers.
+  private discard: {
+    start: number;
+    depth: number;
+    keyStart: number;
+    valueEnd: number | null;
+    nest: number;
+  } | null = null;
   // Verdict-only mode (TEE branch sub-spines): track a single invalid flag
   // instead of retaining a violation per failure, so a branch over a huge
   // array stays O(1) memory. The parent only reads `verdict().valid`.
@@ -578,9 +608,12 @@ export class SpineValidator implements JsonEventHandler {
     this.maxCaptureBytes = options.maxCaptureBytes;
     this.onScopeClose = options.onScopeClose;
     this.memberEdit = options.memberEdit;
+    this.memberScope = options.memberScope;
     this.emitReplace = options.emitReplace;
     this.emitDelete = options.emitDelete;
     this.maxMemberPrefixBytes = options.maxMemberPrefixBytes ?? Number.POSITIVE_INFINITY;
+    this.maxMemberDropBytes = options.maxMemberDropBytes ?? Number.POSITIVE_INFINITY;
+    this.setByteLimit = options.setByteLimit;
     this.deferBudgetForEdits = options.deferBudgetForEdits ?? false;
   }
 
@@ -597,7 +630,8 @@ export class SpineValidator implements JsonEventHandler {
   /**
    * Start of the held prefix of an object member not yet decided (just past
    * `{`, or the comma before it), or `+Infinity`. The editing echo holds
-   * input from here, and `maxMemberPrefixBytes` bounds the span.
+   * input from here; `maxMemberPrefixBytes` bounds the span minus the key
+   * token.
    */
   get memberPrefixStart(): number {
     const top = this.frames[this.frames.length - 1];
@@ -617,6 +651,68 @@ export class SpineValidator implements JsonEventHandler {
   }
 
   /**
+   * The tokenizer reached the byte limit this spine set (see
+   * `SpineOptions.setByteLimit`), at `at`: the first byte past
+   * `maxMemberPrefixBytes` in a held member prefix, or past
+   * `maxMemberDropBytes` in a dropped value.
+   */
+  onByteLimit(at: number): void {
+    if (this.limitKind === "drop") {
+      throw new MemberEditError(
+        `dropped member span exceeded maxMemberDropBytes=${this.maxMemberDropBytes}`,
+        at,
+      );
+    }
+    throw memberPrefixError(this.maxMemberPrefixBytes, at);
+  }
+
+  // The tokenizer's byte limit: one at a time, since no member prefix is
+  // held inside a dropped value. A prefix counts the comma it starts at (a
+  // first member's starts just after the `{`) and the whitespace and colon
+  // around its key; a drop counts every byte of its value.
+  private setLimit(kind: "prefix" | "drop", at: number): void {
+    this.limitKind = kind;
+    this.setByteLimit?.(at, kind === "drop");
+  }
+
+  private clearLimit(): void {
+    if (this.limitKind === null) return;
+    this.limitKind = null;
+    this.setByteLimit?.(Number.POSITIVE_INFINITY, false);
+  }
+
+  // Track the dropped value's containers: an open inside it, or a close
+  // that may end it. Runs first in each container handler, since a dropped
+  // value may be tee'd or buffered.
+  private noteDropOpen(): void {
+    if (this.discard !== null && this.discard.valueEnd === null) this.discard.nest += 1;
+  }
+
+  private noteDropClose(end: number): void {
+    const d = this.discard;
+    if (d === null || d.valueEnd !== null) return;
+    d.nest -= 1;
+    if (d.nest === 0) this.endDroppedValue(end);
+  }
+
+  // A string or container value was bounded by the tokenizer's byte limit
+  // as it streamed; a number or literal is reported whole, so its span is
+  // checked here.
+  private endDroppedValue(end: number): void {
+    const d = this.discard as NonNullable<typeof this.discard>;
+    d.valueEnd = end;
+    this.clearLimit();
+    if (end - d.keyStart > this.maxMemberDropBytes) throw this.dropSpanError(d.keyStart);
+  }
+
+  private dropSpanError(keyStart: number): MemberEditError {
+    return new MemberEditError(
+      `dropped member span exceeded maxMemberDropBytes=${this.maxMemberDropBytes}`,
+      keyStart + this.maxMemberDropBytes,
+    );
+  }
+
+  /**
    * A comma between members of the innermost object, reported by the
    * tokenizer once member edits are on. A comma of the object whose member
    * is being dropped ends the discard; any comma outside a discard starts
@@ -630,7 +726,9 @@ export class SpineValidator implements JsonEventHandler {
       this.discard = null;
     }
     const top = this.frames[this.frames.length - 1] as ObjectFrame;
+    if (top.editHooks === null) return;
     top.prefixStart = offset;
+    this.setLimit("prefix", offset + this.maxMemberPrefixBytes);
     top.prefixIsComma = true;
   }
 
@@ -659,19 +757,35 @@ export class SpineValidator implements JsonEventHandler {
   private decideMember(
     valueType: "object" | "array" | "string" | "number" | "boolean" | "null",
     valueStart: number,
+    valueEnd?: number,
   ): void {
     const top = this.frames[this.frames.length - 1];
     if (!this.memberEditActive || this.discard !== null) return;
-    if (top === undefined || top.kind !== "object") return;
+    if (top === undefined || top.kind !== "object" || top.editHooks === null) return;
     const start = top.prefixStart;
     top.prefixStart = Number.POSITIVE_INFINITY;
+    this.clearLimit();
     const key = top.pendingKey as string;
-    if (valueStart - start > this.maxMemberPrefixBytes) {
-      throw memberPrefixError(this.maxMemberPrefixBytes, start);
-    }
-    const decision = this.memberEdit!(this.path, key, valueType) ?? { kind: "keep" };
+    const decision = this.memberEdit!(this.path, key, valueType, top.editHooks) ?? {
+      kind: "keep",
+    };
     if (decision.kind === "drop") {
-      this.discard = { start, depth: this.frames.length };
+      const container = valueType === "object" || valueType === "array";
+      this.discard = {
+        start,
+        depth: this.frames.length,
+        keyStart: top.pendingKeyStart,
+        valueEnd: null,
+        nest: container ? 1 : 0,
+      };
+      if (valueEnd !== undefined) {
+        this.endDroppedValue(valueEnd);
+      } else if (this.maxMemberDropBytes !== Number.POSITIVE_INFINITY) {
+        // The whitespace after the colon may already have passed the limit.
+        const at = top.pendingKeyStart + this.maxMemberDropBytes;
+        if (at <= valueStart) throw this.dropSpanError(top.pendingKeyStart);
+        this.setLimit("drop", at);
+      }
       return;
     }
     const outputKeys = top.outputKeys as Map<string, boolean>;
@@ -1245,6 +1359,7 @@ export class SpineValidator implements JsonEventHandler {
 
   onStartObject(offset: number): void {
     this.curOffset = offset;
+    this.noteDropOpen();
     if (this.tee !== null) {
       this.teeFeed((s) => s.onStartObject(offset));
       this.tee.depth += 1;
@@ -1277,6 +1392,11 @@ export class SpineValidator implements JsonEventHandler {
     if (app.hasFalse) this.fail("false");
     this.checkType(app.schemas, "object");
     this.checkContainerEquality(app.schemas);
+    // Members of an object inside a dropped member are never edited.
+    let editHooks: unknown = null;
+    if (this.memberEditActive && this.discard === null) {
+      editHooks = this.memberScope !== undefined ? this.memberScope([...this.path]) : null;
+    }
     this.frames.push({
       kind: "object",
       schemas: app.schemas,
@@ -1286,15 +1406,19 @@ export class SpineValidator implements JsonEventHandler {
       failuresAtOpen: this.failures,
       pendingKeyStart: 0,
       pendingKeyEnd: 0,
-      outputKeys: this.memberEditActive ? new Map() : null,
-      prefixStart:
-        this.memberEditActive && this.discard === null ? offset + 1 : Number.POSITIVE_INFINITY,
+      // Inside a dropped member no key reaches the output, so its objects
+      // count no output members.
+      outputKeys: editHooks !== null || this.discard !== null ? new Map() : null,
+      editHooks,
+      prefixStart: editHooks !== null ? offset + 1 : Number.POSITIVE_INFINITY,
       prefixIsComma: false,
     });
+    if (editHooks !== null) this.setLimit("prefix", offset + 1 + this.maxMemberPrefixBytes);
   }
 
   onEndObject(offset: number): void {
     this.curOffset = offset;
+    this.noteDropClose(offset + 1);
     if (this.tee !== null) {
       this.teeFeed((s) => s.onEndObject(offset));
       this.tee.depth -= 1;
@@ -1311,10 +1435,9 @@ export class SpineValidator implements JsonEventHandler {
       // it, ends at the `}`.
       this.emitDelete!(this.discard.start, offset);
       this.discard = null;
-    } else if (offset - frame.prefixStart > this.maxMemberPrefixBytes) {
-      // An empty object's whitespace was held as a prefix for a first member
-      // that never came; cap it here as a write boundary inside it would.
-      throw memberPrefixError(this.maxMemberPrefixBytes, frame.prefixStart);
+    } else if (frame.prefixStart !== Number.POSITIVE_INFINITY) {
+      // An empty object: the prefix held for a first member ends unused.
+      this.clearLimit();
     }
     for (const s of frame.schemas) {
       if (Array.isArray(s.required)) {
@@ -1364,6 +1487,7 @@ export class SpineValidator implements JsonEventHandler {
 
   onStartArray(offset: number): void {
     this.curOffset = offset;
+    this.noteDropOpen();
     if (this.tee !== null) {
       this.teeFeed((s) => s.onStartArray(offset));
       this.tee.depth += 1;
@@ -1405,6 +1529,7 @@ export class SpineValidator implements JsonEventHandler {
 
   onEndArray(offset: number): void {
     this.curOffset = offset;
+    this.noteDropClose(offset + 1);
     if (this.tee !== null) {
       this.teeFeed((s) => s.onEndArray(offset));
       this.tee.depth -= 1;
@@ -1449,6 +1574,12 @@ export class SpineValidator implements JsonEventHandler {
     if (this.memberEditActive) {
       top.pendingKeyStart = startOffset;
       top.pendingKeyEnd = endOffset;
+      // The key's bytes are not counted: the prefix's remaining allowance
+      // resumes after it.
+      if (top.prefixStart !== Number.POSITIVE_INFINITY) {
+        const used = startOffset - top.prefixStart;
+        this.setLimit("prefix", endOffset + this.maxMemberPrefixBytes - used);
+      }
     }
     for (const s of top.schemas) {
       if (s.propertyNames !== undefined) this.checkPropertyName(s.propertyNames, value, codePoints);
@@ -1616,6 +1747,9 @@ export class SpineValidator implements JsonEventHandler {
 
   onStringEnd(codePoints: number, startOffset: number, endOffset: number): void {
     this.curOffset = endOffset;
+    if (this.discard !== null && this.discard.valueEnd === null && this.discard.nest === 0) {
+      this.endDroppedValue(endOffset);
+    }
     if (this.tee !== null) {
       this.teeFeed((s) => s.onStringEnd(codePoints, startOffset, endOffset));
       this.tee.inString = false;
@@ -1692,7 +1826,7 @@ export class SpineValidator implements JsonEventHandler {
       this.forwardIsland((b) => b.onNumber(value));
       return;
     }
-    if (this.memberEditActive) this.decideMember("number", startOffset);
+    if (this.memberEditActive) this.decideMember("number", startOffset, endOffset);
     const app = this.schemasForValue();
     const type = Number.isInteger(value) ? "integer" : "number";
     if (this.needsTee(app)) {
@@ -1716,7 +1850,7 @@ export class SpineValidator implements JsonEventHandler {
       this.forwardIsland((b) => b.onBoolean(value));
       return;
     }
-    if (this.memberEditActive) this.decideMember("boolean", startOffset);
+    if (this.memberEditActive) this.decideMember("boolean", startOffset, endOffset);
     const app = this.schemasForValue();
     if (this.needsTee(app)) {
       this.teeScalar(app, (s) => s.onBoolean(value, startOffset, endOffset));
@@ -1739,7 +1873,7 @@ export class SpineValidator implements JsonEventHandler {
       this.forwardIsland((b) => b.onNull());
       return;
     }
-    if (this.memberEditActive) this.decideMember("null", startOffset);
+    if (this.memberEditActive) this.decideMember("null", startOffset, endOffset);
     const app = this.schemasForValue();
     if (this.needsTee(app)) {
       this.teeScalar(app, (s) => s.onNull(startOffset, endOffset));

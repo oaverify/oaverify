@@ -15,6 +15,7 @@
  */
 
 import type { JsonValue, PathSegment } from "@oaverify/internal-core";
+import type { PathFilter } from "../options.js";
 
 /**
  * Default cap on a captured scalar's source-byte span, applied when
@@ -97,14 +98,15 @@ export type ScopeObserver = (ctx: ScopeContext) => void;
 export type ScopeEditor = (ctx: ScopeContext) => Bytes | null;
 
 /**
- * Default cap on a member's held prefix (the comma or `{` before it, the
- * key, the colon, and the whitespace between) for an `editMember` hook,
- * applied when `maxMemberPrefixBytes` is unset. JSON allows unbounded
- * whitespace around the key, so this span needs its own bound: a
- * legitimate key plus even deep pretty-print indentation is well under
- * this, while a whitespace-padding attack trips it. Unlike the schema-bound resource limits
- * (`maxBufferedBytes`, ...), this defaults finite, because it bounds a
- * buffer the edit itself introduces. Over-cap is fatal.
+ * Default cap on the separators and whitespace held around a member's key
+ * (the comma before it, the colon, and the whitespace between; the key
+ * token and an opening `{` are not counted) for an `editMember` hook, applied when
+ * `maxMemberPrefixBytes` is unset. JSON allows unbounded whitespace around
+ * the key, so these bytes need their own bound: even deep pretty-print
+ * indentation is well under this, while a whitespace-padding attack trips
+ * it. Unlike the schema-bound resource limits (`maxBufferedBytes`, ...),
+ * this defaults finite, because it bounds a buffer the edit itself
+ * introduces. Over-cap is fatal.
  */
 export const DEFAULT_MAX_MEMBER_PREFIX_BYTES = 4096;
 
@@ -162,6 +164,26 @@ export type MemberEdit =
  * @public
  */
 export type MemberEditor = (member: MemberContext) => MemberEdit | null;
+
+/**
+ * Options for `StreamValidator.editMember`.
+ *
+ * @public
+ */
+export interface EditMemberOptions {
+  /**
+   * The objects whose members the hook may edit, matched against each
+   * streamed object's own path when it opens (`kind` is always
+   * `"object"`). In an object that no hook's scope matches, no hook fires
+   * and no member prefix is held, so `maxMemberPrefixBytes` does not apply
+   * there. A non-matching scope does not exclude the objects nested inside
+   * it. Omitted: every object.
+   *
+   * The hook's `at` filter still decides which members of an in-scope
+   * object it sees; `scope` is not inferred from it.
+   */
+  scope?: PathFilter;
+}
 
 /** Build the {@link MemberContext} for a member at its value start. */
 export function makeMemberContext(

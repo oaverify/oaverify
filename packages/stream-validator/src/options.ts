@@ -50,11 +50,12 @@ export type PathFilter = JsonPath | ((path: JsonPath, kind: "object" | "array") 
  *     `maxTotalBytes`, `maxUniqueItems`, `enforceBounds`): all default off
  *     (unset = zero overhead). They bound the dimensions a
  *     forward-decidable schema leaves open.
- *   - **Member-edit caps** (`maxMemberPrefixBytes`, deprecated `maxMemberDropBytes`):
- *     the exception to the line above. `maxMemberPrefixBytes` defaults
- *     *finite*, because it bounds a buffer the edit itself introduces
- *     rather than one the schema left open, so there is no "unset costs
- *     nothing" version of it.
+ *   - **Member-edit caps** (`maxMemberPrefixBytes`, `maxMemberDropBytes`):
+ *     `maxMemberPrefixBytes` is the exception to the line above. It
+ *     defaults *finite*, because it bounds a buffer the edit itself
+ *     introduces rather than one the schema left open, so there is no
+ *     "unset costs nothing" version of it. `maxMemberDropBytes` is a
+ *     policy limit and defaults off.
  *
  * @public
  */
@@ -283,29 +284,49 @@ export interface StreamValidatorOptions {
   maxUniqueItems?: number;
 
   /**
-   * Cap on the held prefix of an object member for an `editMember` hook:
-   * from the comma before it (or the `{`), through the key and colon, to
-   * the value. The editing echo holds the prefix until the hook decides
-   * the member, since a drop removes it and a keep may remove its comma.
-   * JSON permits unbounded whitespace on both sides of the key, so the
-   * span is bounded; over-cap is fatal. Once any `editMember` hook is
-   * registered it applies to every member an edit can reach, since any of
-   * their keys may be a target: members of streamed objects, not those
-   * inside a dropped member or a value checked by composition or
-   * buffering. Unlike the schema-bound resource
-   * limits above, this defaults *finite*
+   * Cap on the separators and whitespace held around an object member's
+   * key for an `editMember` hook. The editing echo holds each member's
+   * prefix, from the comma before it (or just after the `{`) through the
+   * key and colon to the value, until the hook decides the member, since a
+   * drop removes it and a keep may remove its comma. JSON permits
+   * unbounded whitespace on both sides of the key, so those bytes are
+   * capped. The key token itself is not counted: the cap does not bound key
+   * length or key memory, which `maxTotalBytes` bounds for the whole input.
+   *
+   * Over-cap is fatal (`MemberEditError`, at the first byte past the cap).
+   * Input is refused at that byte before it is parsed, and nothing after it
+   * is processed. Only the comma, whitespace and the colon count, so a key,
+   * a value or a closing `}` at that byte is parsed as usual, and a syntax
+   * error there is reported as one.
+   *
+   * It applies to every member an edit can reach: members of streamed
+   * objects in some hook's `scope`, not those inside a dropped member or a
+   * value checked by composition or buffering. Unlike the schema-bound
+   * resource limits above, this defaults *finite*
    * ({@link DEFAULT_MAX_MEMBER_PREFIX_BYTES}, 4 KB), because it bounds a
-   * buffer the edit itself introduces. Raise it for keys, or runs of
-   * whitespace around them, longer than that.
+   * buffer the edit itself introduces. Raise it for runs of whitespace
+   * around keys longer than that.
    */
   maxMemberPrefixBytes?: number;
 
   /**
-   * Has no effect. A dropped member is deleted as it streams and never
-   * held, so there is no span to cap. The value is still checked to be a
-   * positive integer.
+   * Refuse a member an `editMember` hook drops when its span, from the key's
+   * opening quote to the value's end, exceeds this many bytes. Whitespace
+   * after the value does not count. Over-cap is fatal (`MemberEditError`,
+   * at the span's start plus the cap). Unset: no limit, since a dropped
+   * member is discarded as it streams and never held.
    *
-   * @deprecated Omit it.
+   * The hook decides a member once its value begins, so the limit takes
+   * effect there. A string, object or array is refused at the first byte
+   * past the cap, before that byte is parsed, or at its first byte if the
+   * cap falls earlier, in the key or before the value; the key has then
+   * been read and checked in full. Everything before the refusing byte is
+   * processed and nothing after it, so a syntax error at that byte is not
+   * reported. A number is complete only at the byte after it, so a number
+   * that ends just before the refusing byte is not validated. A number or
+   * `true` / `false` / `null` dropped as the member's value is refused when
+   * its token ends: the tokenizer reports it whole, so the hook decides the
+   * member only then.
    */
   maxMemberDropBytes?: number;
 
