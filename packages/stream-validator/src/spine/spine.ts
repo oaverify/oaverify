@@ -1600,6 +1600,19 @@ export class SpineValidator implements JsonEventHandler {
     if (this.memberEditActive) {
       top.pendingKeyStart = startOffset;
       top.pendingKeyEnd = endOffset;
+      // Check the bytes held before the key now, ahead of any check on the
+      // key that could end the stream, so a prefix over the cap fails the
+      // same way whatever the write boundaries.
+      if (top.prefixStart !== Number.POSITIVE_INFINITY) {
+        const at = memberPrefixCrossing(
+          this.maxMemberPrefixBytes,
+          top.prefixStart,
+          startOffset,
+          endOffset,
+          startOffset,
+        );
+        if (at !== null) throw memberPrefixError(this.maxMemberPrefixBytes, at);
+      }
     }
     for (const s of top.schemas) {
       if (s.propertyNames !== undefined) this.checkPropertyName(s.propertyNames, value, codePoints);

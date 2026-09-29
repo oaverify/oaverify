@@ -1067,6 +1067,27 @@ describe("editMember caps", () => {
     expect(overCap.err?.name).toBe("MemberEditError");
   });
 
+  it("reports a prefix over the cap before a failure at its key, whatever the chunking", async () => {
+    // maxProperties fails at the key "x"; the whitespace before it passes
+    // the cap first.
+    const input = `{"a":1,${" ".repeat(30)}"x":1}`;
+    for (const chunkSize of [0, 1, 7, 40]) {
+      const r = await run(
+        { type: "object", maxProperties: 1 },
+        input,
+        (v) =>
+          v.editMember(
+            () => true,
+            () => null,
+          ),
+        { maxMemberPrefixBytes: 16 },
+        chunkSize,
+      );
+      expect(r.err?.name, `chunk ${chunkSize}`).toBe("MemberEditError");
+      expect((r.err as MemberEditError).byteOffset, `chunk ${chunkSize}`).toBe(6 + 16);
+    }
+  });
+
   it.each([
     // 3 counted bytes (comma, two spaces) before the key, 3 after it.
     [2, 6 + 2],
