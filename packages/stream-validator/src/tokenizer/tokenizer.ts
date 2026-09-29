@@ -202,6 +202,8 @@ export class JsonTokenizer {
 
   // Number / literal accumulation.
   private tokenStart = 0;
+  // Report commas between object members (see enableMemberCommas).
+  private memberCommas = false;
   private numBuf = "";
   private litExpected = "";
   private litValue: boolean | null = null;
@@ -231,6 +233,16 @@ export class JsonTokenizer {
       return this.stringStart;
     }
     return Number.POSITIVE_INFINITY;
+  }
+
+  /**
+   * Report each comma between object members through
+   * {@link JsonEventHandler.onMemberComma}, which the handler must then
+   * implement. Off by default, so a stream that edits no members pays no
+   * call per member.
+   */
+  enableMemberCommas(): void {
+    this.memberCommas = true;
   }
 
   /**
@@ -298,6 +310,7 @@ export class JsonTokenizer {
         case ST_COMMA_OR_END_OBJECT:
           if (isWhitespace(b)) i += 1;
           else if (b === 0x2c /* , */) {
+            if (this.memberCommas) this.handler.onMemberComma!(this.pos(i));
             this.state = ST_KEY;
             i += 1;
           } else if (b === 0x7d /* } */) i = this.closeObject(i);

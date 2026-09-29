@@ -41,6 +41,11 @@ export interface JsonEventHandler {
    * @param endOffset - Byte offset just past the closing quote.
    */
   onKey(value: string, codePoints: number, startOffset: number, endOffset: number): void;
+  /**
+   * A comma between members of the innermost object, at `offset`. Called
+   * only after `JsonTokenizer.enableMemberCommas()`.
+   */
+  onMemberComma?(offset: number): void;
   /** A value string is beginning; the opening quote is at `offset`. */
   onStringStart(offset: number): void;
   /**

@@ -50,11 +50,11 @@ export type PathFilter = JsonPath | ((path: JsonPath, kind: "object" | "array") 
  *     `maxTotalBytes`, `maxUniqueItems`, `enforceBounds`): all default off
  *     (unset = zero overhead). They bound the dimensions a
  *     forward-decidable schema leaves open.
- *   - **Member-edit caps** (`maxMemberPrefixBytes`, `maxMemberDropBytes`):
- *     the exception to the line above. Both default *finite*, because
- *     they bound a buffer the edit itself introduces rather than one the
- *     schema left open, so there is no "unset costs nothing" version of
- *     them. Each names its default on the field.
+ *   - **Member-edit caps** (`maxMemberPrefixBytes`, deprecated `maxMemberDropBytes`):
+ *     the exception to the line above. `maxMemberPrefixBytes` defaults
+ *     *finite*, because it bounds a buffer the edit itself introduces
+ *     rather than one the schema left open, so there is no "unset costs
+ *     nothing" version of it.
  *
  * @public
  */
@@ -278,29 +278,27 @@ export interface StreamValidatorOptions {
   maxUniqueItems?: number;
 
   /**
-   * Cap on the held key-to-value span (key bytes + colon + whitespace)
-   * for an `editMember` hook. JSON permits unbounded whitespace between
-   * the colon and the value, so this span is bounded separately from the
-   * value itself; over-cap is fatal. It applies to every object member
+   * Cap on the held prefix of an object member for an `editMember` hook:
+   * from the comma before it (or the `{`), through the key and colon, to
+   * the value. The editing echo holds the prefix until the hook decides
+   * the member, since a drop removes it and a keep may remove its comma.
+   * JSON permits unbounded whitespace on both sides of the key, so the
+   * span is bounded; over-cap is fatal. It applies to every object member
    * once any `editMember` hook is registered, since any key may be an
    * edit target. Unlike the schema-bound resource
    * limits above, this defaults *finite*
    * ({@link DEFAULT_MAX_MEMBER_PREFIX_BYTES}, 4 KB), because it bounds a
    * buffer the edit itself introduces. Raise it for keys, or runs of
-   * whitespace around the colon, longer than that.
+   * whitespace around them, longer than that.
    */
   maxMemberPrefixBytes?: number;
 
   /**
-   * Cap on the withheld span of a dropped member (key + value +
-   * delimiter), for an `editMember` hook that returns `drop`. A member
-   * whose span exceeds the cap fails the stream fatally rather than
-   * buffering unbounded. Defaults *finite* ({@link
-   * DEFAULT_MAX_CAPTURE_BYTES}, 64 KB), the same "small member" size as
-   * scalar capture but an independent knob: raise it to drop a larger
-   * (still bounded) scalar member. Dropping a container-valued member is
-   * not supported on the stream path (it throws `MemberEditError`), so
-   * this cap only ever bounds a scalar span.
+   * Has no effect. A dropped member is deleted as it streams and never
+   * held, so there is no span to cap. The value is still checked to be a
+   * positive integer.
+   *
+   * @deprecated Omit it.
    */
   maxMemberDropBytes?: number;
 

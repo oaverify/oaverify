@@ -305,7 +305,6 @@ export class StreamValidator extends Transform {
   // collect-then-echo path, the same as scope hooks.
   private readonly memberHooks: Array<{ at: PathFilter; edit: MemberEditor }> = [];
   private readonly maxMemberPrefixBytes: number;
-  private readonly maxMemberDropBytes: number;
 
   // The editing echo: input bytes are held from `heldBase` until the spine
   // resolves any edit that could touch them, then flushed (verbatim or with
@@ -313,16 +312,16 @@ export class StreamValidator extends Transform {
   // absolute input offsets: `bytes === null` is a deletion (drop), a
   // non-null `bytes` with `start < end` is a replacement (rename), and
   // `start === end` is an insertion (an `editClose` append). Held bytes are
-  // bounded by the pending key / drop span, so the bounded-heap property
-  // holds. Held chunks are concatenated only by a flush that emits some of
+  // bounded by the pending member prefix, so the bounded-heap property
+  // holds; a dropped member is deleted as it streams, never held. Held chunks are concatenated only by a flush that emits some of
   // them, so a long pending span is not re-copied on every write.
   private pendingEdits: Array<{ start: number; end: number; bytes: Buffer | null }> = [];
   private heldChunks: Buffer[] = [];
   private heldLength = 0;
   private heldBase = 0;
   // High-water mark of the edit-retention echo: the residual held across
-  // `_transform` calls (a member-prefix / drop / cross-chunk span awaiting an
-  // edit decision). Folded into the spine's buffered-byte peak on the verdict.
+  // `_transform` calls (a member prefix or cross-chunk key awaiting an edit
+  // decision). Folded into the spine's buffered-byte peak on the verdict.
   private peakHeldBytes = 0;
 
   /** Resolves with the final verdict (rejects on a fatal parse / I/O error). */
@@ -367,7 +366,7 @@ export class StreamValidator extends Transform {
     assertPositiveIntOption(
       "maxMemberDropBytes",
       options.maxMemberDropBytes,
-      "Omit it to use the default member-drop cap.",
+      "It has no effect; omit it.",
     );
     // 0 was accepted before this check existed and has a coherent
     // meaning: only an empty uniqueItems array passes.
@@ -378,7 +377,6 @@ export class StreamValidator extends Transform {
       0,
     );
     this.maxMemberPrefixBytes = options.maxMemberPrefixBytes ?? DEFAULT_MAX_MEMBER_PREFIX_BYTES;
-    this.maxMemberDropBytes = options.maxMemberDropBytes ?? DEFAULT_MAX_CAPTURE_BYTES;
     this.maxErrors = options.maxErrors ?? 1;
     this.policy = options.policy ?? "terminate";
     this.maxTotalBytes = options.maxTotalBytes;
@@ -490,7 +488,6 @@ export class StreamValidator extends Transform {
         this.pendingEdits.push({ start, end, bytes: Buffer.from(bytes, "utf8") }),
       emitDelete: (start, end) => this.pendingEdits.push({ start, end, bytes: null }),
       maxMemberPrefixBytes: this.maxMemberPrefixBytes,
-      maxMemberDropBytes: this.maxMemberDropBytes,
     });
     this.tokenizer = new JsonTokenizer(this.spine, { utf8: options.utf8 });
     this.result = new Promise<StreamVerdict>((resolve, reject) => {
@@ -602,7 +599,10 @@ export class StreamValidator extends Transform {
    */
   editMember(at: PathFilter, edit: MemberEditor): void {
     this.memberHooks.push({ at, edit });
-    if (this.memberHooks.length === 1) this.spine.enableMemberEdits();
+    if (this.memberHooks.length === 1) {
+      this.spine.enableMemberEdits();
+      this.tokenizer.enableMemberCommas();
+    }
   }
 
   // Resolve the registered member hooks for one member into a single
@@ -701,8 +701,8 @@ export class StreamValidator extends Transform {
   }
 
   // The highest offset safe to emit now: nothing held past here is subject
-  // to a still-pending edit decision (a key onKey'd but undecided, a mid-key
-  // token, or a dropped member awaiting delimiter resolution).
+  // to a still-pending edit decision (an undecided member prefix, or a
+  // mid-key token).
   //
   // The tokenizer's mid-key hold only matters when a rename can rewrite the
   // key, so it is folded in only when member hooks are registered. With
@@ -712,7 +712,18 @@ export class StreamValidator extends Transform {
   private editSafeLimit(): number {
     const keyHold =
       this.memberHooks.length > 0 ? this.tokenizer.editHoldOffset() : Number.POSITIVE_INFINITY;
-    return Math.min(this.spine.editSafeOffset, keyHold, this.totalBytes);
+    return Math.min(this.spine.memberPrefixStart, keyHold, this.totalBytes);
+  }
+
+  // Flush everything no pending decision can still change. An open discard
+  // (a member being dropped) is deleted up to the limit first, so its bytes
+  // are released as they arrive; the spine emits the same span again, closed,
+  // at the next comma or `}`, and overlapping deletes merge in flushEdits.
+  private flushResolved(): void {
+    const limit = this.editSafeLimit();
+    const discard = this.spine.openDiscardStart;
+    if (discard < limit) this.pendingEdits.push({ start: discard, end: limit, bytes: null });
+    this.flushEdits(limit);
   }
 
   // Enforce `maxMemberPrefixBytes` on a prefix still streaming at the end of
@@ -733,7 +744,7 @@ export class StreamValidator extends Transform {
   // unresolved edits. Used when sealing (detach budget) or finishing: no
   // further edit decisions will arrive, so the remainder echoes as-is.
   private flushHeldVerbatim(): void {
-    this.flushEdits(this.editSafeLimit());
+    this.flushResolved();
     if (this.heldLength > 0) {
       for (const c of this.heldChunks) this.push(c);
       this.heldBase += this.heldLength;
@@ -776,7 +787,7 @@ export class StreamValidator extends Transform {
         err = e;
       }
       if (err === undefined) {
-        this.flushEdits(this.editSafeLimit());
+        this.flushResolved();
         this.noteHeldPeak();
         cb();
       } else if (err instanceof BudgetReached) {

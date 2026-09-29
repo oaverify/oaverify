@@ -97,14 +97,14 @@ export type ScopeObserver = (ctx: ScopeContext) => void;
 export type ScopeEditor = (ctx: ScopeContext) => Bytes | null;
 
 /**
- * Default cap on the held key-to-value span (key bytes + colon +
- * whitespace) for an `editMember` hook, applied when `maxMemberPrefixBytes`
- * is unset. JSON allows unbounded whitespace between the colon and the
- * value, so this span needs its own bound: a legitimate key plus even
+ * Default cap on a member's held prefix (the comma or `{` before it, the
+ * key, the colon, and the whitespace between) for an `editMember` hook,
+ * applied when `maxMemberPrefixBytes` is unset. JSON allows unbounded
+ * whitespace around the key, so this span needs its own bound: a legitimate key plus even
  * deep pretty-print indentation is well under this, while a whitespace-
  * padding attack trips it. Unlike the schema-bound resource limits
- * (`maxBufferedBytes`, ...), the edit caps default finite, because they
- * bound buffers the edit itself introduces. Over-cap is fatal.
+ * (`maxBufferedBytes`, ...), this defaults finite, because it bounds a
+ * buffer the edit itself introduces. Over-cap is fatal.
  */
 export const DEFAULT_MAX_MEMBER_PREFIX_BYTES = 4096;
 
@@ -135,7 +135,12 @@ export interface MemberContext {
  *   - `keep`: pass the member through unchanged (also the `null` no-op).
  *   - `rename`: substitute the key token (`JSON.stringify(key)`); the
  *     value streams verbatim, so a rename never buffers the value.
- *   - `drop`: suppress the member (key + value + one delimiter).
+ *   - `drop`: remove the member together with the whitespace on both
+ *     sides of it, up to the neighbouring comma or brace. Output keeps one
+ *     comma between kept members, so dropping the last member of
+ *     `{"a": 1, "d": 2}` gives `{"a": 1}`, and formatting next to a
+ *     dropped member is not preserved. The member's bytes are discarded as
+ *     they stream, never held. Its value is still validated.
  *
  * A rename whose target collides with another key in the same object, and
  * two hooks returning conflicting edits for one member, are both fatal.

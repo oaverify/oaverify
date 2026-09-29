@@ -76,8 +76,10 @@ member's value start, so it knows the value type, and returns
 `{ action: "rename", key }`, `{ action: "drop" }`, or
 `{ action: "keep" }` (or `null`). A `rename` rewrites the key token only
 and streams the value verbatim, so renaming a key in front of a multi-GB
-array never buffers the array. A `drop` suppresses the member and absorbs
-one delimiter, leaving valid JSON.
+array never buffers the array. A `drop` removes the member with the
+whitespace around it and keeps one comma between the members that
+remain, so formatting next to a dropped member is not preserved; see
+`MemberEdit` for the rule. A dropped value is discarded as it streams.
 
 ```ts
 const validator = createStreamValidator(bodySchema);
@@ -91,9 +93,9 @@ validator.editMember(["legacy_field"], () => ({ action: "drop" }));
 the same coordinate `valueEvents.at` uses. Validation is pre-edit: a
 dropped member is still validated, and the edit only changes the output.
 Dropping a container-valued member is not supported on the stream path;
-rename works for any value type. Collisions, conflicting hooks and the
-two buffering caps (`maxMemberPrefixBytes`, `maxMemberDropBytes`) are
-fatal where they apply; see `StreamValidatorOptions` for the limits.
+rename works for any value type. Collisions, conflicting hooks and
+`maxMemberPrefixBytes`, the cap on a member's held prefix, are fatal
+where they apply; see `StreamValidatorOptions` for the limit.
 
 ### Recovering Scalars
 
