@@ -50,11 +50,12 @@ export type PathFilter = JsonPath | ((path: JsonPath, kind: "object" | "array") 
  *     `maxTotalBytes`, `maxUniqueItems`, `enforceBounds`): all default off
  *     (unset = zero overhead). They bound the dimensions a
  *     forward-decidable schema leaves open.
- *   - **Member-edit caps** (`maxMemberPrefixBytes`, deprecated `maxMemberDropBytes`):
- *     the exception to the line above. `maxMemberPrefixBytes` defaults
- *     *finite*, because it bounds a buffer the edit itself introduces
- *     rather than one the schema left open, so there is no "unset costs
- *     nothing" version of it.
+ *   - **Member-edit caps** (`maxMemberPrefixBytes`, `maxMemberDropBytes`):
+ *     `maxMemberPrefixBytes` is the exception to the line above. It
+ *     defaults *finite*, because it bounds a buffer the edit itself
+ *     introduces rather than one the schema left open, so there is no
+ *     "unset costs nothing" version of it. `maxMemberDropBytes` is a
+ *     policy limit and defaults off.
  *
  * @public
  */
@@ -302,11 +303,16 @@ export interface StreamValidatorOptions {
   maxMemberPrefixBytes?: number;
 
   /**
-   * Has no effect. A dropped member is deleted as it streams and never
-   * held, so there is no span to cap. The value is still checked to be a
-   * positive integer.
+   * Refuse a member an `editMember` hook drops when its span, from the key's
+   * opening quote to the value's end, exceeds this many bytes. Whitespace
+   * after the value does not count. Over-cap is fatal (`MemberEditError`,
+   * at the span's start plus the cap). Unset: no limit, since a dropped
+   * member is discarded as it streams and never held.
    *
-   * @deprecated Omit it.
+   * A string, object or array is refused while it streams, at the latest
+   * at the end of the write that carries it past the cap. A number or
+   * `true` / `false` / `null` is refused when its token ends: the tokenizer
+   * reports it whole, so the hook decides the member only then.
    */
   maxMemberDropBytes?: number;
 

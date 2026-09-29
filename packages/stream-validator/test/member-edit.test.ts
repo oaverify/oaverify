@@ -64,7 +64,8 @@ async function run(
 
 const rename = (key: string) => (): MemberEdit => ({ action: "rename", key });
 // Streams `head`, then `fillBytes` (4 MiB unless given) of `fill` in
-// FILL_CHUNK writes, then `tail`, with `maxMemberPrefixBytes` at CAP.
+// FILL_CHUNK writes, then `tail`, with `maxMemberPrefixBytes` at CAP and
+// any other `options`.
 // `supplied` counts the bytes the source produced before the pipeline
 // stopped pulling.
 const CAP = 64 * 1024;
@@ -76,6 +77,7 @@ async function runOversized(
   tail: string,
   setup: (v: StreamValidator) => void,
   fillBytes = 4 * 1024 * 1024,
+  options: Record<string, unknown> = {},
 ): Promise<{
   err: MemberEditError | undefined;
   supplied: number;
@@ -94,7 +96,10 @@ async function runOversized(
     }
     yield Buffer.from(tail);
   }
-  const v = createStreamValidator({ type: "object" }, { maxMemberPrefixBytes: CAP });
+  const v = createStreamValidator({ type: "object" }, {
+    maxMemberPrefixBytes: CAP,
+    ...options,
+  } as never);
   setup(v);
   v.on("error", () => {});
   const out: Buffer[] = [];
@@ -746,17 +751,128 @@ describe("editMember caps", () => {
     expect(r.err?.name).toBe("MemberEditError");
   });
 
-  it("ignores maxMemberDropBytes: a dropped member is not held", async () => {
-    const big = "x".repeat(200);
+  it("does not limit a dropped member unless maxMemberDropBytes is set", async () => {
     const r = await run(
       { type: "object" },
-      `{"a":"${big}","b":2}`,
+      `{"a":"${"x".repeat(200)}","b":2}`,
       (v) => v.editMember(["a"], drop),
-      { maxMemberDropBytes: 32 },
+      {},
       16,
     );
     expect(r.err).toBeUndefined();
     expect(r.output).toBe('{"b":2}');
+  });
+
+  it.each<[string, string, number]>([
+    ["a string", `{"d":"${"x".repeat(100)}","k":1}`, 16],
+    ["a number", `{"d":${"1".repeat(100)},"k":1}`, 16],
+    ["a literal", '{"d":  true,"k":1}', 7],
+    ["an object", '{"d":{"a":[1,2,3],"b":"xyz"},"k":1}', 10],
+    ["an array", '{"d":[1, 2, 3, 4, 5, 6],"k":1}', 12],
+  ])("refuses %s dropped past maxMemberDropBytes", async (_name, input, cap) => {
+    for (const chunkSize of [0, 1, 7]) {
+      const r = await run(
+        { type: "object" },
+        input,
+        (v) => v.editMember(["d"], drop),
+        { maxMemberDropBytes: cap },
+        chunkSize,
+      );
+      expect(r.err?.name, `chunk ${chunkSize}`).toBe("MemberEditError");
+      expect(r.err?.message).toContain("maxMemberDropBytes");
+      // The span starts at the key, offset 1.
+      expect((r.err as MemberEditError).byteOffset, `chunk ${chunkSize}`).toBe(1 + cap);
+    }
+  });
+
+  it("measures a dropped container to its own close, not an inner one", async () => {
+    // The inner array closes 13 bytes after the key; the object runs on.
+    const input = `{"d":{"a":[1],"b":"${"x".repeat(20)}"},"k":1}`;
+    for (const chunkSize of [0, 1, 5]) {
+      const r = await run(
+        { type: "object" },
+        input,
+        (v) => v.editMember(["d"], drop),
+        { maxMemberDropBytes: 14 },
+        chunkSize,
+      );
+      expect(r.err?.name, `chunk ${chunkSize}`).toBe("MemberEditError");
+      expect((r.err as MemberEditError).byteOffset).toBe(1 + 14);
+    }
+  });
+
+  it.each([1, 3])(
+    "measures from the key to the value's end, excluding whitespace after it (chunk %i)",
+    async (chunkSize) => {
+      const member = String.raw`"d":  "\n\u00e9é-\"x"`;
+      const input = `{"a":1,${member}    ,"b":2}`;
+      const cap = enc.encode(member).length;
+      const edit = (v: StreamValidator) => v.editMember(["d"], drop);
+      const atCap = await run(
+        { type: "object" },
+        input,
+        edit,
+        { maxMemberDropBytes: cap },
+        chunkSize,
+      );
+      expect(atCap.err).toBeUndefined();
+      expect(atCap.output).toBe('{"a":1,"b":2}');
+      const over = await run(
+        { type: "object" },
+        input,
+        edit,
+        { maxMemberDropBytes: cap - 1 },
+        chunkSize,
+      );
+      expect(over.err?.name).toBe("MemberEditError");
+    },
+  );
+
+  it.each<[string, SchemaOrBoolean]>([
+    ["oneOf", { oneOf: [{ type: "object" }, { type: "array" }] }],
+    ["uniqueItems", { type: "array", uniqueItems: true }],
+  ])("refuses a dropped value routed through %s at the same offset", async (_name, d) => {
+    const schema = { type: "object", properties: { d } };
+    const input = '{"k":1,"d":[1, {"x":2}, 3, 4, 5],"b":2}';
+    for (const chunkSize of [0, 1, 4]) {
+      const r = await run(
+        schema,
+        input,
+        (v) => v.editMember(["d"], drop),
+        { maxMemberDropBytes: 12 },
+        chunkSize,
+      );
+      expect(r.err?.name, `chunk ${chunkSize}`).toBe("MemberEditError");
+      expect((r.err as MemberEditError).byteOffset).toBe(7 + 12);
+    }
+  });
+
+  it("refuses a large dropped array while it is still streaming", async () => {
+    const r = await runOversized(
+      '{"o":[',
+      "1,",
+      '1],"b":2}',
+      (v) => v.editMember(["o"], drop),
+      512 * 1024,
+      { maxMemberDropBytes: CAP },
+    );
+    expect(r.err?.name).toBe("MemberEditError");
+    expect(r.err?.byteOffset).toBe(1 + CAP);
+    expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
+  });
+
+  it("refuses a large dropped string while it is still streaming", async () => {
+    const r = await runOversized(
+      '{"surprise":"',
+      "x",
+      '","b":2}',
+      (v) => v.editMember(["surprise"], drop),
+      undefined,
+      { maxMemberDropBytes: CAP },
+    );
+    expect(r.err?.name).toBe("MemberEditError");
+    expect(r.err?.byteOffset).toBe(1 + CAP);
+    expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
   });
 
   it("discards a large dropped string as it streams", async () => {

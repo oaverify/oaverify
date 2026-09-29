@@ -95,7 +95,9 @@ dropped member is still validated, and the edit only changes the output.
 Both actions work for any value type, and `editMember` hooks do not fire
 for members inside a dropped one. Collisions, conflicting hooks and
 `maxMemberPrefixBytes`, the cap on a member's held prefix, are fatal
-where they apply; see `StreamValidatorOptions` for the limit.
+where they apply. A dropped member is discarded as it streams whatever
+its size; set `maxMemberDropBytes` to refuse one past a size instead.
+See `StreamValidatorOptions` for both limits.
 
 While any `editMember` hook is registered, each member's leading comma,
 key and surrounding whitespace are held until the hook decides it, in

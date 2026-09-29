@@ -373,7 +373,7 @@ export class StreamValidator extends Transform {
     assertPositiveIntOption(
       "maxMemberDropBytes",
       options.maxMemberDropBytes,
-      "It has no effect; omit it.",
+      "Omit it for no limit on a dropped member.",
     );
     // 0 was accepted before this check existed and has a coherent
     // meaning: only an empty uniqueItems array passes.
@@ -497,6 +497,9 @@ export class StreamValidator extends Transform {
         this.pendingEdits.push({ start, end, bytes: Buffer.from(bytes, "utf8") }),
       emitDelete: (start, end) => this.pendingEdits.push({ start, end, bytes: null }),
       maxMemberPrefixBytes: this.maxMemberPrefixBytes,
+      ...(options.maxMemberDropBytes === undefined
+        ? {}
+        : { maxMemberDropBytes: options.maxMemberDropBytes }),
       deferBudgetForEdits: options.policy === "detach",
     });
     this.tokenizer = new JsonTokenizer(this.spine, { utf8: options.utf8 });
@@ -744,14 +747,15 @@ export class StreamValidator extends Transform {
   }
 
   // Enforce `maxMemberPrefixBytes` on a prefix still streaming at the end of
-  // a write: a key not yet closed, or a closed key whose value has not
-  // started. The prefix ends where a number or literal the spine has not
+  // a write (a key not yet closed, or a closed key whose value has not
+  // started), and `maxMemberDropBytes` on a dropped value still open. The prefix ends where a number or literal the spine has not
   // yet seen began. The spine checks a prefix that ends within the write
   // exactly, at its value start.
   private checkMemberPrefix(): void {
     if (this.memberHooks.length === 0) return;
     const end = Math.min(this.tokenizer.pendingScalarOffset(), this.totalBytes);
     this.spine.checkOpenPrefix(end, this.tokenizer.pendingKeyOffset());
+    this.spine.checkOpenDrop(this.totalBytes);
   }
 
   // Flush resolved edits, then dump any still-held tail verbatim and discard
