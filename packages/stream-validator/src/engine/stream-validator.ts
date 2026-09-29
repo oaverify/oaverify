@@ -313,9 +313,11 @@ export class StreamValidator extends Transform {
   // non-null `bytes` with `start < end` is a replacement (rename), and
   // `start === end` is an insertion (an `editClose` append). Held bytes are
   // bounded by the pending key / drop span, so the bounded-heap property
-  // holds.
+  // holds. Held chunks are concatenated only by a flush that emits some of
+  // them, so a long pending span is not re-copied on every write.
   private pendingEdits: Array<{ start: number; end: number; bytes: Buffer | null }> = [];
-  private heldBytes: Buffer = Buffer.alloc(0);
+  private heldChunks: Buffer[] = [];
+  private heldLength = 0;
   private heldBase = 0;
   // High-water mark of the edit-retention echo: the residual held across
   // `_transform` calls (a member-prefix / drop / cross-chunk span awaiting an
@@ -504,7 +506,7 @@ export class StreamValidator extends Transform {
   // for a pending edit decision); its high-water across `_transform` calls is
   // the edit-retention cost.
   private noteHeldPeak(): void {
-    if (this.heldBytes.length > this.peakHeldBytes) this.peakHeldBytes = this.heldBytes.length;
+    if (this.heldLength > this.peakHeldBytes) this.peakHeldBytes = this.heldLength;
   }
 
   // The spine's verdict with the engine's edit-retention high-water folded
@@ -674,7 +676,10 @@ export class StreamValidator extends Transform {
     this.pendingEdits = rest;
     ready.sort((a, b) => a.start - b.start || b.end - a.end);
     const base = this.heldBase;
-    const buf = this.heldBytes;
+    const buf =
+      this.heldChunks.length === 1
+        ? (this.heldChunks[0] as Buffer)
+        : Buffer.concat(this.heldChunks, this.heldLength);
     let cur = base;
     for (const e of ready) {
       if (e.start < cur) {
@@ -688,7 +693,9 @@ export class StreamValidator extends Transform {
       cur = Math.max(cur, e.end);
     }
     if (cur < limit) this.push(buf.subarray(cur - base, limit - base));
-    this.heldBytes = buf.subarray(limit - base);
+    const tail = buf.subarray(limit - base);
+    this.heldChunks = tail.length > 0 ? [tail] : [];
+    this.heldLength = tail.length;
     this.heldBase = limit;
   }
 
@@ -712,10 +719,11 @@ export class StreamValidator extends Transform {
   // further edit decisions will arrive, so the remainder echoes as-is.
   private flushHeldVerbatim(): void {
     this.flushEdits(this.editSafeLimit());
-    if (this.heldBytes.length > 0) {
-      this.push(this.heldBytes);
-      this.heldBase += this.heldBytes.length;
-      this.heldBytes = Buffer.alloc(0);
+    if (this.heldLength > 0) {
+      for (const c of this.heldChunks) this.push(c);
+      this.heldBase += this.heldLength;
+      this.heldChunks = [];
+      this.heldLength = 0;
     }
     this.pendingEdits = [];
   }
@@ -742,8 +750,9 @@ export class StreamValidator extends Transform {
     // then flush the bytes the spine has cleared, with edits spliced in.
     // Without hooks, echo verbatim up front (the fast path).
     if (this.editsActive) {
-      this.heldBytes = this.heldBytes.length === 0 ? chunk : Buffer.concat([this.heldBytes, chunk]);
-      if (this.heldBytes.length === chunk.length) this.heldBase = base;
+      if (this.heldLength === 0) this.heldBase = base;
+      this.heldChunks.push(chunk);
+      this.heldLength += chunk.length;
       let err: unknown;
       try {
         this.tokenizer.write(chunk);
