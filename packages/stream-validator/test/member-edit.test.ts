@@ -534,6 +534,30 @@ describe("editMember drop under a detach seal", () => {
     expect(r.err?.name).toBe(errName);
   });
 
+  it("reports scope verdicts accurately while the seal settles", async () => {
+    const schema = {
+      type: "object",
+      properties: { d: { items: { properties: { x: { type: "integer" } } } } },
+    };
+    for (const chunkSize of [0, 1, 3]) {
+      const verdicts: string[] = [];
+      await run(
+        schema,
+        '{"d":[{"x":"bad"},{"x":"bad"},{"x":1}],"k":1}',
+        (v) => {
+          v.editMember(["d"], drop);
+          v.onScopeClose(
+            (path) => path.length === 2,
+            (ctx) => verdicts.push(`${ctx.path.join(".")}:${ctx.verdict}`),
+          );
+        },
+        { policy: "detach", maxErrors: 1 },
+        chunkSize,
+      );
+      expect(verdicts, `chunk ${chunkSize}`).toEqual(["d.0:invalid", "d.1:invalid", "d.2:valid"]);
+    }
+  });
+
   it("copies the tail unchanged once no edit is in flight", async () => {
     const schema = { type: "object", properties: { a: { type: "string" } } };
     const r = await run(schema, '{"a":1,"d":2,"b":3}', (v) => v.editMember(["d"], drop), {

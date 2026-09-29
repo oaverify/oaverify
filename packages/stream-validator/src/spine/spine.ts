@@ -344,7 +344,7 @@ interface ObjectFrame {
   seen: Set<string>;
   count: number;
   pendingKey: string | null;
-  violationsAtOpen: number;
+  failuresAtOpen: number;
   // Member-edit bookkeeping (set only when member edits are active).
   // Byte span of the pending key's token, for a rename replacement.
   pendingKeyStart: number;
@@ -365,7 +365,7 @@ interface ArrayFrame {
   kind: "array";
   schemas: SchemaObject[];
   count: number;
-  violationsAtOpen: number;
+  failuresAtOpen: number;
 }
 
 // The combinator obligations a TEE value must satisfy. Each sub-spine
@@ -487,6 +487,11 @@ export class SpineValidator implements JsonEventHandler {
   // The budget was reached while a member edit was in flight; see
   // `deferBudgetForEdits`.
   private budgetDeferred = false;
+  // Every failure recorded, including those past the budget that the
+  // capped `violations` list leaves out. A scope's verdict compares this
+  // at its open and close, so it stays accurate while a deferred budget
+  // settles.
+  private failures = 0;
   // A dropped member being discarded: from `start` (its prefix start)
   // through the next comma or `}` of the object at `frames[depth - 1]`.
   // Nothing inside it is edited, so there is at most one.
@@ -775,6 +780,7 @@ export class SpineValidator implements JsonEventHandler {
       this.invalid = true;
       return;
     }
+    this.failures += 1;
     if (this.budgetDeferred) return;
     this.violations.push(violation);
     this.onViolation?.(violation);
@@ -1277,7 +1283,7 @@ export class SpineValidator implements JsonEventHandler {
       seen: new Set(),
       count: 0,
       pendingKey: null,
-      violationsAtOpen: this.violations.length,
+      failuresAtOpen: this.failures,
       pendingKeyStart: 0,
       pendingKeyEnd: 0,
       outputKeys: this.memberEditActive ? new Map() : null,
@@ -1344,7 +1350,7 @@ export class SpineValidator implements JsonEventHandler {
     this.onScopeClose?.({
       path: [...this.path],
       kind: "object",
-      valid: this.violations.length === frame.violationsAtOpen,
+      valid: this.failures === frame.failuresAtOpen,
       memberCount: frame.count,
       // Surviving output members: kept + renamed (a drop never enters
       // `outputKeys`). Null when member edits are off, where output == input.
@@ -1393,7 +1399,7 @@ export class SpineValidator implements JsonEventHandler {
       kind: "array",
       schemas: app.schemas,
       count: 0,
-      violationsAtOpen: this.violations.length,
+      failuresAtOpen: this.failures,
     });
   }
 
@@ -1418,7 +1424,7 @@ export class SpineValidator implements JsonEventHandler {
     this.onScopeClose?.({
       path: [...this.path],
       kind: "array",
-      valid: this.violations.length === frame.violationsAtOpen,
+      valid: this.failures === frame.failuresAtOpen,
       memberCount: frame.count,
       // Array elements are never member-dropped, so output == input.
       outputMemberCount: frame.count,
