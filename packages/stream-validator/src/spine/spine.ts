@@ -591,6 +591,15 @@ export class SpineValidator implements JsonEventHandler {
     return s;
   }
 
+  /**
+   * Start offset of a key whose member-edit decision is still pending (its
+   * value has not started), or `+Infinity`. The held span from here is the
+   * member prefix that `maxMemberPrefixBytes` bounds.
+   */
+  get memberPrefixStart(): number {
+    return this.pendingDecisionKeyStart;
+  }
+
   // Record a member's effective output name, making a rename-induced
   // duplicate within the same object fatal. A pre-existing input duplicate
   // (two kept members with the same key) is left alone; we only police
@@ -623,7 +632,7 @@ export class SpineValidator implements JsonEventHandler {
       return { kind: "keep" };
     }
     const key = top.pendingKey as string;
-    if (valueStart - top.pendingKeyEnd > this.maxMemberPrefixBytes) {
+    if (valueStart - top.pendingKeyStart > this.maxMemberPrefixBytes) {
       throw new MemberEditError(
         `member ${JSON.stringify(key)} key-to-value span exceeded maxMemberPrefixBytes=${this.maxMemberPrefixBytes}`,
         valueStart,

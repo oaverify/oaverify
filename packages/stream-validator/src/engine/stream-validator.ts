@@ -714,6 +714,23 @@ export class StreamValidator extends Transform {
     return Math.min(this.spine.editSafeOffset, keyHold, this.totalBytes);
   }
 
+  // Enforce `maxMemberPrefixBytes` on a prefix still streaming at the end of
+  // a write: a key not yet closed, or a closed key whose value has not
+  // started. The prefix ends where a number or literal the spine has not
+  // yet seen began. The spine checks a prefix that ends within the write
+  // exactly, at its value start.
+  private checkMemberPrefix(): void {
+    if (this.memberHooks.length === 0) return;
+    const start = Math.min(this.spine.memberPrefixStart, this.tokenizer.editHoldOffset());
+    const end = Math.min(this.tokenizer.pendingScalarOffset(), this.totalBytes);
+    if (end - start > this.maxMemberPrefixBytes) {
+      throw new MemberEditError(
+        `member key-to-value span exceeded maxMemberPrefixBytes=${this.maxMemberPrefixBytes}`,
+        start + this.maxMemberPrefixBytes,
+      );
+    }
+  }
+
   // Flush resolved edits, then dump any still-held tail verbatim and discard
   // unresolved edits. Used when sealing (detach budget) or finishing: no
   // further edit decisions will arrive, so the remainder echoes as-is.
@@ -756,6 +773,7 @@ export class StreamValidator extends Transform {
       let err: unknown;
       try {
         this.tokenizer.write(chunk);
+        this.checkMemberPrefix();
       } catch (e) {
         err = e;
       }

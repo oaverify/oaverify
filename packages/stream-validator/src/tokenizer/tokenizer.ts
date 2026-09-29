@@ -234,6 +234,18 @@ export class JsonTokenizer {
   }
 
   /**
+   * The start offset of a number or `true` / `false` / `null` literal
+   * currently mid-parse, else `+Infinity`. Such a token is reported only
+   * once its end is seen, so this is where a value has already begun
+   * before its handler call. Cheap to call after {@link write}.
+   */
+  pendingScalarOffset(): number {
+    return this.state === ST_IN_NUMBER || this.state === ST_IN_LITERAL
+      ? this.tokenStart
+      : Number.POSITIVE_INFINITY;
+  }
+
+  /**
    * Feed the next chunk of input bytes. The per-byte state dispatch is
    * inlined here (rather than a per-byte method call) because it is the
    * hot loop; the string body, numbers, and escapes batch in their own

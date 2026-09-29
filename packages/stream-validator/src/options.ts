@@ -281,7 +281,9 @@ export interface StreamValidatorOptions {
    * Cap on the held key-to-value span (key bytes + colon + whitespace)
    * for an `editMember` hook. JSON permits unbounded whitespace between
    * the colon and the value, so this span is bounded separately from the
-   * value itself; over-cap is fatal. Unlike the schema-bound resource
+   * value itself; over-cap is fatal. It applies to every object member
+   * once any `editMember` hook is registered, since any key may be an
+   * edit target. Unlike the schema-bound resource
    * limits above, this defaults *finite*
    * ({@link DEFAULT_MAX_MEMBER_PREFIX_BYTES}, 4 KB), because it bounds a
    * buffer the edit itself introduces. Raise it only for unusually

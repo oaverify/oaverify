@@ -62,6 +62,44 @@ async function run(
 }
 
 const rename = (key: string) => (): MemberEdit => ({ action: "rename", key });
+// Streams `head`, then 4 MiB of `fill` in FILL_CHUNK writes, then `tail`,
+// with both member-edit caps at CAP. `supplied` counts the bytes the source
+// produced before the pipeline stopped pulling.
+const CAP = 64 * 1024;
+const FILL_CHUNK = 16 * 1024;
+
+async function runOversized(
+  head: string,
+  fill: string,
+  tail: string,
+  setup: (v: StreamValidator) => void,
+): Promise<{ err: MemberEditError | undefined; supplied: number }> {
+  let supplied = 0;
+  async function* body() {
+    const first = Buffer.from(head);
+    supplied += first.length;
+    yield first;
+    const filler = Buffer.alloc(FILL_CHUNK, fill);
+    for (let sent = 0; sent < 4 * 1024 * 1024; sent += FILL_CHUNK) {
+      supplied += filler.length;
+      yield filler;
+    }
+    yield Buffer.from(tail);
+  }
+  const v = createStreamValidator(
+    { type: "object" },
+    { maxMemberDropBytes: CAP, maxMemberPrefixBytes: CAP },
+  );
+  setup(v);
+  v.on("error", () => {});
+  const sink = new Writable({ write: (_c, _e, cb) => cb() });
+  const err = await pipeline(Readable.from(body()), v, sink).then(
+    () => undefined,
+    (e: MemberEditError) => e,
+  );
+  return { err, supplied };
+}
+
 const drop = (): MemberEdit => ({ action: "drop" });
 
 describe("editMember rename", () => {
@@ -308,33 +346,51 @@ describe("editMember caps", () => {
   });
 
   it("refuses an oversized dropped string while it is still streaming", async () => {
-    const cap = 64 * 1024;
-    const chunkSize = 16 * 1024;
-    const valueBytes = 4 * 1024 * 1024;
-    let supplied = 0;
-    async function* body() {
-      const head = Buffer.from('{"surprise":"');
-      supplied += head.length;
-      yield head;
-      const filler = Buffer.alloc(chunkSize, "x");
-      for (let sent = 0; sent < valueBytes; sent += chunkSize) {
-        supplied += filler.length;
-        yield filler;
-      }
-      yield Buffer.from('","b":2}');
-    }
-    const v = createStreamValidator({ type: "object" }, { maxMemberDropBytes: cap });
-    v.editMember(["surprise"], drop);
-    v.on("error", () => {});
-    const sink = new Writable({ write: (_c, _e, cb) => cb() });
-    const err = await pipeline(Readable.from(body()), v, sink).then(
-      () => undefined,
-      (e: Error) => e,
+    const r = await runOversized('{"surprise":"', "x", '","b":2}', (v) =>
+      v.editMember(["surprise"], drop),
     );
-    expect(err?.name).toBe("MemberEditError");
-    expect((err as MemberEditError).byteOffset).toBeLessThanOrEqual(cap + chunkSize);
-    expect(supplied).toBeLessThan(cap + 8 * chunkSize);
+    expect(r.err?.name).toBe("MemberEditError");
+    expect(r.err?.message).toContain("maxMemberDropBytes");
+    expect(r.err?.byteOffset).toBeLessThanOrEqual(CAP + FILL_CHUNK);
+    expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
   });
+
+  it("refuses an oversized key while it is still streaming", async () => {
+    const r = await runOversized('{"', "k", '":1}', (v) => v.editMember(["a"], rename("z")));
+    expect(r.err?.name).toBe("MemberEditError");
+    expect(r.err?.message).toContain("maxMemberPrefixBytes");
+    expect(r.err?.byteOffset).toBeLessThanOrEqual(CAP + FILL_CHUNK);
+    expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
+  });
+
+  it("refuses oversized key-to-value whitespace while it is still streaming", async () => {
+    const r = await runOversized('{"a":', " ", "1}", (v) => v.editMember(["a"], rename("z")));
+    expect(r.err?.name).toBe("MemberEditError");
+    expect(r.err?.message).toContain("maxMemberPrefixBytes");
+    expect(r.err?.byteOffset).toBeLessThanOrEqual(CAP + FILL_CHUNK);
+    expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
+  });
+
+  it.each(["1", "true"])(
+    "counts the key bytes toward maxMemberPrefixBytes (value %s)",
+    async (value) => {
+      const prefix = '"abc" :  ';
+      const input = `{${prefix}${value}}`;
+      const edit = (v: StreamValidator) => v.editMember(["abc"], rename("z"));
+      const cap = prefix.length;
+      const atCap = await run({ type: "object" }, input, edit, { maxMemberPrefixBytes: cap }, 1);
+      expect(atCap.err).toBeUndefined();
+      expect(atCap.output).toBe(`{"z" :  ${value}}`);
+      const overCap = await run(
+        { type: "object" },
+        input,
+        edit,
+        { maxMemberPrefixBytes: cap - 1 },
+        1,
+      );
+      expect(overCap.err?.name).toBe("MemberEditError");
+    },
+  );
 
   it("accepts a chunked dropped string whose span is exactly maxMemberDropBytes", async () => {
     const member = String.raw`"a":"\néé-\"x"`;
