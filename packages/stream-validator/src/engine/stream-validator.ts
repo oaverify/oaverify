@@ -75,13 +75,13 @@ import {
   type ValueEvent,
 } from "./hooks.js";
 
-/** Does a path filter match this scope path + kind? */
 interface MemberHook {
   at: PathFilter;
   edit: MemberEditor;
   scope: PathFilter | undefined;
 }
 
+/** Does a path filter match this scope path + kind? */
 function matchPathFilter(
   filter: PathFilter,
   path: readonly PathSegment[],
@@ -626,6 +626,7 @@ export class StreamValidator extends Transform {
   // the result on the object's frame, so holding and resolution use the
   // same hooks.
   private memberHooksInScope(path: readonly PathSegment[]): MemberHook[] | null {
+    if (this.memberHooks.every((h) => h.scope === undefined)) return this.memberHooks;
     const hooks = this.memberHooks.filter(
       (h) => h.scope === undefined || matchPathFilter(h.scope, path, "object"),
     );
@@ -748,9 +749,10 @@ export class StreamValidator extends Transform {
 
   // Enforce `maxMemberPrefixBytes` on a prefix still streaming at the end of
   // a write (a key not yet closed, or a closed key whose value has not
-  // started), and `maxMemberDropBytes` on a dropped value still open. The prefix ends where a number or literal the spine has not
-  // yet seen began. The spine checks a prefix that ends within the write
-  // exactly, at its value start.
+  // started), and `maxMemberDropBytes` on a dropped value still open. The
+  // prefix ends where a number or literal the spine has not yet seen
+  // began. The spine checks a prefix that ends within the write exactly, at
+  // its value start, and a dropped value at its end.
   private checkMemberPrefix(): void {
     if (this.memberHooks.length === 0) return;
     const end = Math.min(this.tokenizer.pendingScalarOffset(), this.totalBytes);

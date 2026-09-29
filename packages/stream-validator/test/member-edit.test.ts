@@ -707,6 +707,28 @@ describe("editMember scope", () => {
     }
   });
 
+  it("gives each scope call its own copy of the object's path", async () => {
+    const paths: unknown[] = [];
+    await run({ type: "object" }, '{"a":{"b":{}}}', (v) =>
+      v.editMember(["x"], drop, {
+        scope: (path) => {
+          paths.push(path);
+          return true;
+        },
+      }),
+    );
+    expect(paths).toEqual([[], ["a"], ["a", "b"]]);
+  });
+
+  it("counts no output members for an object inside a dropped member", async () => {
+    const fields: string[] = [];
+    await run({ type: "object" }, '{"d":{"x":1},"k":1}', (v) => {
+      v.editMember(["d"], drop);
+      v.onScopeClose(["d"], (ctx) => fields.push(String(ctx.field("q", 0))));
+    });
+    expect(fields).toEqual(['"q":0']);
+  });
+
   it("appends an editClose field with its comma in an object out of scope", async () => {
     const r = await run({ type: "object" }, '{"o":{"a":1}}', (v) => {
       v.editMember(["d"], drop, { scope: [] });
@@ -818,6 +840,47 @@ describe("editMember caps", () => {
       expect((r.err as MemberEditError).byteOffset, `chunk ${chunkSize}`).toBe(1 + cap);
     }
   });
+
+  it.each<[string, SchemaOrBoolean, string, number, string]>([
+    [
+      "a string over the limit",
+      { type: "object", properties: { d: { maxLength: 50 } } },
+      `{"d":"${"x".repeat(100)}","k":1}`,
+      16,
+      "MemberEditError",
+    ],
+    [
+      "an array over the limit",
+      { type: "object", properties: { d: { items: { type: "number" } } } },
+      '{"d":[1,2,3,4,5,6,7,8,9,"x"],"k":1}',
+      16,
+      "MemberEditError",
+    ],
+    [
+      "a string within the limit",
+      { type: "object", properties: { d: { maxLength: 2 } } },
+      '{"d":"abcdef","k":1}',
+      100,
+      "ValidationFailedError",
+    ],
+  ])(
+    "reports the same error for %s that also fails validation, whatever the chunking",
+    async (_name, schema, input, cap, errName) => {
+      for (const chunkSize of [0, 1, 7, 16, 20]) {
+        const r = await run(
+          schema,
+          input,
+          (v) => v.editMember(["d"], drop),
+          { maxMemberDropBytes: cap },
+          chunkSize,
+        );
+        expect(r.err?.name, `chunk ${chunkSize}`).toBe(errName);
+        if (errName === "MemberEditError") {
+          expect((r.err as MemberEditError).byteOffset, `chunk ${chunkSize}`).toBe(1 + cap);
+        }
+      }
+    },
+  );
 
   it("measures a dropped container to its own close, not an inner one", async () => {
     // The inner array closes 13 bytes after the key; the object runs on.

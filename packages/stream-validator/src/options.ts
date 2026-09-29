@@ -312,7 +312,9 @@ export interface StreamValidatorOptions {
    * A string, object or array is refused while it streams, at the latest
    * at the end of the write that carries it past the cap. A number or
    * `true` / `false` / `null` is refused when its token ends: the tokenizer
-   * reports it whole, so the hook decides the member only then.
+   * reports it whole, so the hook decides the member only then. A value
+   * over the limit fails this way even when it also fails validation: a
+   * validation failure inside a dropped value waits for the value's end.
    */
   maxMemberDropBytes?: number;
 

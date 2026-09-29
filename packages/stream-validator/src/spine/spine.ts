@@ -313,7 +313,7 @@ export interface SpineOptions {
    * this carries the closed spans and a comma that loses its kept neighbour.
    */
   emitDelete?: (start: number, end: number) => void;
-  /** Cap on a held member prefix (separator, key, colon and whitespace); over-cap is fatal. */
+  /** Cap on the separators and whitespace in a held member prefix, key token excluded; over-cap is fatal. */
   maxMemberPrefixBytes?: number;
   /** Cap on a dropped member's span, from its key start to its value end; over-cap is fatal. */
   maxMemberDropBytes?: number;
@@ -640,7 +640,8 @@ export class SpineValidator implements JsonEventHandler {
   /**
    * Start of the held prefix of an object member not yet decided (just past
    * `{`, or the comma before it), or `+Infinity`. The editing echo holds
-   * input from here, and `maxMemberPrefixBytes` bounds the span.
+   * input from here; `maxMemberPrefixBytes` bounds the span minus the key
+   * token.
    */
   get memberPrefixStart(): number {
     const top = this.frames[this.frames.length - 1];
@@ -710,6 +711,9 @@ export class SpineValidator implements JsonEventHandler {
     const d = this.discard as NonNullable<typeof this.discard>;
     d.valueEnd = end;
     if (end - d.keyStart > this.maxMemberDropBytes) throw this.dropSpanError(d.keyStart);
+    // A budget held only for the drop limit (see `dropLimitPending`) is due
+    // now; one held for detach waits for the edit to settle.
+    if (this.budgetDeferred && !this.deferBudgetForEdits) throw new BudgetReached();
   }
 
   private dropSpanError(keyStart: number): MemberEditError {
@@ -906,8 +910,21 @@ export class SpineValidator implements JsonEventHandler {
     this.onViolation?.(violation);
     if (this.violations.length >= this.maxErrors) {
       if (this.deferBudgetForEdits && this.memberEditInFlight()) this.budgetDeferred = true;
+      else if (this.dropLimitPending()) this.budgetDeferred = true;
       else throw new BudgetReached();
     }
+  }
+
+  // A dropped value still open under a finite `maxMemberDropBytes`. A budget
+  // reached inside it waits for the value's end, so an over-limit value
+  // fails as MemberEditError whatever the write boundaries; the wait is
+  // bounded by the limit.
+  private dropLimitPending(): boolean {
+    return (
+      this.discard !== null &&
+      this.discard.valueEnd === null &&
+      this.maxMemberDropBytes !== Number.POSITIVE_INFINITY
+    );
   }
 
   private memberEditInFlight(): boolean {
@@ -1401,7 +1418,7 @@ export class SpineValidator implements JsonEventHandler {
     // Members of an object inside a dropped member are never edited.
     let editHooks: unknown = null;
     if (this.memberEditActive && this.discard === null) {
-      editHooks = this.memberScope !== undefined ? this.memberScope(this.path) : true;
+      editHooks = this.memberScope !== undefined ? this.memberScope([...this.path]) : true;
     }
     this.frames.push({
       kind: "object",
@@ -1412,7 +1429,9 @@ export class SpineValidator implements JsonEventHandler {
       failuresAtOpen: this.failures,
       pendingKeyStart: 0,
       pendingKeyEnd: 0,
-      outputKeys: editHooks !== null ? new Map() : null,
+      // Inside a dropped member no key reaches the output, so its objects
+      // count no output members.
+      outputKeys: editHooks !== null || this.discard !== null ? new Map() : null,
       editHooks,
       prefixStart: editHooks !== null ? offset + 1 : Number.POSITIVE_INFINITY,
       prefixIsComma: false,
