@@ -202,6 +202,8 @@ export class JsonTokenizer {
 
   // Number / literal accumulation.
   private tokenStart = 0;
+  // Report commas between object members (see enableMemberCommas).
+  private memberCommas = false;
   private numBuf = "";
   private litExpected = "";
   private litValue: boolean | null = null;
@@ -214,23 +216,13 @@ export class JsonTokenizer {
   }
 
   /**
-   * The lowest input-byte offset whose emission must wait for a member-edit
-   * decision: the start of an object key currently mid-parse (so a key that
-   * straddles a chunk boundary is not echoed before a rename can rewrite it),
-   * else `+Infinity`. The editing echo holds bytes at or past this offset.
-   * Values are never held here (only keys are edit targets), so a large value
-   * streams regardless. Cheap to call after {@link write}.
+   * Report each comma between object members through
+   * {@link JsonEventHandler.onMemberComma}, which the handler must then
+   * implement. Off by default, so a stream that edits no members pays no
+   * call per member.
    */
-  editHoldOffset(): number {
-    if (
-      this.stringIsKey &&
-      (this.state === ST_IN_STRING ||
-        this.state === ST_IN_STRING_ESCAPE ||
-        this.state === ST_IN_STRING_UNICODE)
-    ) {
-      return this.stringStart;
-    }
-    return Number.POSITIVE_INFINITY;
+  enableMemberCommas(): void {
+    this.memberCommas = true;
   }
 
   /**
@@ -298,6 +290,7 @@ export class JsonTokenizer {
         case ST_COMMA_OR_END_OBJECT:
           if (isWhitespace(b)) i += 1;
           else if (b === 0x2c /* , */) {
+            if (this.memberCommas) this.handler.onMemberComma!(this.pos(i));
             this.state = ST_KEY;
             i += 1;
           } else if (b === 0x7d /* } */) i = this.closeObject(i);

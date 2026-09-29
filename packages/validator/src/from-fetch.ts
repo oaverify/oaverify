@@ -26,7 +26,7 @@ import { getOwn, markLowercaseKeys, setSpecKey } from "@oaverify/internal-core";
  * schema asks for; this one bounds a buffer the reader introduces by
  * draining a socket into a string, which is the category
  * `@oaverify/stream` already defaults finite
- * (`maxMemberPrefixBytes`, `maxMemberDropBytes`).
+ * (`maxMemberPrefixBytes`).
  *
  * @public
  */

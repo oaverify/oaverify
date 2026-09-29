@@ -125,7 +125,7 @@ describe("peakBufferedBytes: edit-retention is bounded and folded in", () => {
     expect(await streamPeak(schema, '{"ids":[1,2,3,4,5]}', () => {}, {}, 3)).toBe(0);
   });
 
-  it("dropping a scalar counts the withheld drop span", async () => {
+  it("a member-edit hook counts held member prefixes", async () => {
     const schema = { type: "object" };
     const peak = await streamPeak(
       schema,
@@ -134,8 +134,9 @@ describe("peakBufferedBytes: edit-retention is bounded and folded in", () => {
       {},
       4,
     );
-    // The dropped member's span is held until the delete resolves at the next
-    // sibling key; it is non-zero and bounded by the member's own size.
+    // Each member's prefix (comma, key, colon) is held until its edit is
+    // decided, so 4-byte writes leave a non-zero residual bounded by the
+    // prefix size. The dropped value itself is never held.
     expect(peak).toBeGreaterThan(0);
     expect(peak).toBeLessThan(100);
   });
@@ -159,7 +160,7 @@ describe("peakBufferedBytes: edit-retention is bounded and folded in", () => {
     const combined = await streamPeak(islandSchema, json, dropDeprecated, {}, 4);
 
     expect(islandAlone).toBeGreaterThan(0); // the uniqueItems array islands
-    expect(dropAlone).toBeGreaterThan(0); // the dropped member is held
+    expect(dropAlone).toBeGreaterThan(0); // member prefixes are held
     // Sum, not max: the combined peak is strictly larger than either site
     // alone, and equals their sum.
     expect(combined).toBe(islandAlone + dropAlone);
@@ -167,17 +168,17 @@ describe("peakBufferedBytes: edit-retention is bounded and folded in", () => {
   });
 
   it("records edit-retention even when the validation budget trips while held", async () => {
-    // The budget trips at object close (a `required` miss) while the sole
-    // dropped member is still held pending its delete. The retention peak for
-    // that final chunk must reach the verdict, not be discarded by the
-    // budget-path flush before it is recorded.
+    // The budget trips at object close (a `required` miss) while the chunk
+    // is still held for the edit pass. The retention peak for that final
+    // chunk must reach the verdict, not be discarded by the budget-path
+    // flush before it is recorded.
     const peak = await streamPeak(
       { type: "object", required: ["missing"] },
       '{"drop_me":"some value"}',
       (v) => v.editMember(["drop_me"], drop),
       { policy: "detach", maxErrors: 1 },
     );
-    // The whole held member span is counted; without the fix this is 0.
+    // The held chunk is counted; without the fix this is 0.
     expect(peak).toBeGreaterThan(10);
   });
 });
