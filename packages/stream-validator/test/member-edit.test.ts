@@ -5,6 +5,7 @@ import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import {
   createStreamValidator,
   type MemberContext,
+  type MemberEditError,
   type MemberEdit,
   type StreamValidator,
 } from "../src/index.js";
@@ -304,6 +305,48 @@ describe("editMember caps", () => {
       },
     );
     expect(r.err?.name).toBe("MemberEditError");
+  });
+
+  it("refuses an oversized dropped string while it is still streaming", async () => {
+    const cap = 64 * 1024;
+    const chunkSize = 16 * 1024;
+    const valueBytes = 4 * 1024 * 1024;
+    let supplied = 0;
+    async function* body() {
+      const head = Buffer.from('{"surprise":"');
+      supplied += head.length;
+      yield head;
+      const filler = Buffer.alloc(chunkSize, "x");
+      for (let sent = 0; sent < valueBytes; sent += chunkSize) {
+        supplied += filler.length;
+        yield filler;
+      }
+      yield Buffer.from('","b":2}');
+    }
+    const v = createStreamValidator({ type: "object" }, { maxMemberDropBytes: cap });
+    v.editMember(["surprise"], drop);
+    v.on("error", () => {});
+    const sink = new Writable({ write: (_c, _e, cb) => cb() });
+    const err = await pipeline(Readable.from(body()), v, sink).then(
+      () => undefined,
+      (e: Error) => e,
+    );
+    expect(err?.name).toBe("MemberEditError");
+    expect((err as MemberEditError).byteOffset).toBeLessThanOrEqual(cap + chunkSize);
+    expect(supplied).toBeLessThan(cap + 8 * chunkSize);
+  });
+
+  it("accepts a chunked dropped string whose span is exactly maxMemberDropBytes", async () => {
+    const member = String.raw`"a":"\néé-\"x"`;
+    const r = await run(
+      { type: "object" },
+      `{${member},"b":2}`,
+      (v) => v.editMember(["a"], drop),
+      { maxMemberDropBytes: enc.encode(member).length },
+      3,
+    );
+    expect(r.err).toBeUndefined();
+    expect(r.output).toBe('{"b":2}');
   });
 
   it("rejects a container drop as unsupported", async () => {
