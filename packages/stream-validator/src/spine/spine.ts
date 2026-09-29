@@ -129,11 +129,28 @@ export class MemberEditError extends Error {
 }
 
 /**
- * The `maxMemberPrefixBytes` failure for a prefix starting at `start`. The
- * message omits the key, which may itself be the oversized part.
+ * Where a member prefix read up to `end` first counts more than `cap`
+ * bytes, or `null` if it does not. The prefix runs from `start`; the key
+ * token `[keyStart, keyEnd)` is not counted (`+Infinity` for a bound not
+ * yet seen). The result is the source offset of the first counted byte
+ * past the cap, so it does not depend on write boundaries.
  */
-export function memberPrefixError(cap: number, start: number): MemberEditError {
-  return new MemberEditError(`member prefix exceeded maxMemberPrefixBytes=${cap}`, start + cap);
+export function memberPrefixCrossing(
+  cap: number,
+  start: number,
+  keyStart: number,
+  keyEnd: number,
+  end: number,
+): number | null {
+  const before = Math.min(keyStart, end) - start;
+  if (before > cap) return start + cap;
+  if (end <= keyEnd) return null;
+  return before + (end - keyEnd) > cap ? keyEnd + (cap - before) : null;
+}
+
+/** The `maxMemberPrefixBytes` failure, at the offset {@link memberPrefixCrossing} found. */
+export function memberPrefixError(cap: number, at: number): MemberEditError {
+  return new MemberEditError(`member prefix exceeded maxMemberPrefixBytes=${cap}`, at);
 }
 
 /** Validates a materialized island value against schemas; returns flat violations. */
@@ -607,6 +624,28 @@ export class SpineValidator implements JsonEventHandler {
   }
 
   /**
+   * Enforce `maxMemberPrefixBytes` on the open member prefix, read up to
+   * `end`. `keyInProgress` is the start of a key the tokenizer is still
+   * reading, or `+Infinity`. Key bytes are not counted.
+   */
+  checkOpenPrefix(end: number, keyInProgress: number): void {
+    const top = this.frames[this.frames.length - 1];
+    if (!this.memberEditActive || top === undefined || top.kind !== "object") return;
+    const start = top.prefixStart;
+    if (start === Number.POSITIVE_INFINITY) return;
+    let keyStart = Number.POSITIVE_INFINITY;
+    let keyEnd = Number.POSITIVE_INFINITY;
+    if (top.pendingKeyStart >= start && top.pendingKey !== null) {
+      keyStart = top.pendingKeyStart;
+      keyEnd = top.pendingKeyEnd;
+    } else if (keyInProgress >= start) {
+      keyStart = keyInProgress;
+    }
+    const at = memberPrefixCrossing(this.maxMemberPrefixBytes, start, keyStart, keyEnd, end);
+    if (at !== null) throw memberPrefixError(this.maxMemberPrefixBytes, at);
+  }
+
+  /**
    * Start of an open discard: a dropped member whose bytes, and whitespace
    * after it, are deleted as they stream until the comma or `}` of the
    * object that holds it ends the span. `+Infinity` when nothing is being
@@ -666,9 +705,14 @@ export class SpineValidator implements JsonEventHandler {
     const start = top.prefixStart;
     top.prefixStart = Number.POSITIVE_INFINITY;
     const key = top.pendingKey as string;
-    if (valueStart - start > this.maxMemberPrefixBytes) {
-      throw memberPrefixError(this.maxMemberPrefixBytes, start);
-    }
+    const at = memberPrefixCrossing(
+      this.maxMemberPrefixBytes,
+      start,
+      top.pendingKeyStart,
+      top.pendingKeyEnd,
+      valueStart,
+    );
+    if (at !== null) throw memberPrefixError(this.maxMemberPrefixBytes, at);
     const decision = this.memberEdit!(this.path, key, valueType) ?? { kind: "keep" };
     if (decision.kind === "drop") {
       this.discard = { start, depth: this.frames.length };
@@ -1314,7 +1358,10 @@ export class SpineValidator implements JsonEventHandler {
     } else if (offset - frame.prefixStart > this.maxMemberPrefixBytes) {
       // An empty object's whitespace was held as a prefix for a first member
       // that never came; cap it here as a write boundary inside it would.
-      throw memberPrefixError(this.maxMemberPrefixBytes, frame.prefixStart);
+      throw memberPrefixError(
+        this.maxMemberPrefixBytes,
+        frame.prefixStart + this.maxMemberPrefixBytes,
+      );
     }
     for (const s of frame.schemas) {
       if (Array.isArray(s.required)) {

@@ -55,7 +55,6 @@ import {
   type IslandDelegate,
   type MemberDecision,
   MemberEditError,
-  memberPrefixError,
   type ScopeClose,
   SpineValidator,
   type StreamVerdict,
@@ -729,11 +728,8 @@ export class StreamValidator extends Transform {
   // exactly, at its value start.
   private checkMemberPrefix(): void {
     if (this.memberHooks.length === 0) return;
-    const start = this.spine.memberPrefixStart;
     const end = Math.min(this.tokenizer.pendingScalarOffset(), this.totalBytes);
-    if (end - start > this.maxMemberPrefixBytes) {
-      throw memberPrefixError(this.maxMemberPrefixBytes, start);
-    }
+    this.spine.checkOpenPrefix(end, this.tokenizer.pendingKeyOffset());
   }
 
   // Flush resolved edits, then dump any still-held tail verbatim and discard

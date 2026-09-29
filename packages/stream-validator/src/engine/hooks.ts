@@ -97,14 +97,15 @@ export type ScopeObserver = (ctx: ScopeContext) => void;
 export type ScopeEditor = (ctx: ScopeContext) => Bytes | null;
 
 /**
- * Default cap on a member's held prefix (the comma or `{` before it, the
- * key, the colon, and the whitespace between) for an `editMember` hook,
- * applied when `maxMemberPrefixBytes` is unset. JSON allows unbounded
- * whitespace around the key, so this span needs its own bound: a
- * legitimate key plus even deep pretty-print indentation is well under
- * this, while a whitespace-padding attack trips it. Unlike the schema-bound resource limits
- * (`maxBufferedBytes`, ...), this defaults finite, because it bounds a
- * buffer the edit itself introduces. Over-cap is fatal.
+ * Default cap on the separators and whitespace held around a member's key
+ * (the comma or `{` before it, the colon, and the whitespace between; the
+ * key token is not counted) for an `editMember` hook, applied when
+ * `maxMemberPrefixBytes` is unset. JSON allows unbounded whitespace around
+ * the key, so these bytes need their own bound: even deep pretty-print
+ * indentation is well under this, while a whitespace-padding attack trips
+ * it. Unlike the schema-bound resource limits (`maxBufferedBytes`, ...),
+ * this defaults finite, because it bounds a buffer the edit itself
+ * introduces. Over-cap is fatal.
  */
 export const DEFAULT_MAX_MEMBER_PREFIX_BYTES = 4096;
 

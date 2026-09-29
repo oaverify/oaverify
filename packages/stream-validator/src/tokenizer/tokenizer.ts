@@ -226,6 +226,19 @@ export class JsonTokenizer {
   }
 
   /**
+   * The start offset (opening quote) of an object key currently mid-parse,
+   * else `+Infinity`. Cheap to call after {@link write}.
+   */
+  pendingKeyOffset(): number {
+    return this.stringIsKey &&
+      (this.state === ST_IN_STRING ||
+        this.state === ST_IN_STRING_ESCAPE ||
+        this.state === ST_IN_STRING_UNICODE)
+      ? this.stringStart
+      : Number.POSITIVE_INFINITY;
+  }
+
+  /**
    * The start offset of a number or `true` / `false` / `null` literal
    * currently mid-parse, else `+Infinity`. Such a token is reported only
    * once its end is seen, so this is where a value has already begun

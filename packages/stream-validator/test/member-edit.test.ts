@@ -367,11 +367,13 @@ describe("editMember drop removes the member's whitespace and one comma", () => 
       expect(r.err, `chunk ${chunkSize}`).toBeUndefined();
       expect(r.output, `chunk ${chunkSize}`).toBe('{"b":1}');
     }
-    // The same key in a kept member is still capped.
+    // Key bytes never count toward the cap, so the same key in a kept
+    // member passes too.
     const kept = await run({ type: "object" }, input, (v) => v.editMember(["b"], drop), {
       maxMemberPrefixBytes: 32,
     });
-    expect(kept.err?.name).toBe("MemberEditError");
+    expect(kept.err).toBeUndefined();
+    expect(kept.output).toBe(`{"d":{"${"x".repeat(100)}":1}}`);
   });
 
   it("discards what editClose appends inside a dropped member", async () => {
@@ -692,19 +694,37 @@ describe("editMember caps", () => {
     expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
   });
 
-  it("refuses an oversized key while it is still streaming", async () => {
+  it("does not count a long key toward maxMemberPrefixBytes", async () => {
     const r = await runOversized('{"', "k", '":1}', (v) => v.editMember(["a"], rename("z")));
-    expect(r.err?.name).toBe("MemberEditError");
-    expect(r.err?.message).toContain("maxMemberPrefixBytes");
-    expect(r.err?.byteOffset).toBe(1 + CAP);
-    expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
+    expect(r.err).toBeUndefined();
+    expect(r.output.length).toBe(4 * 1024 * 1024 + '{"":1}'.length);
+  });
+
+  it("accepts a long key two levels below the members a hook edits", async () => {
+    const input = `{"a":[{"${"k".repeat(5000)}":1}]}`;
+    for (const chunkSize of [0, 1000]) {
+      const r = await run(
+        { type: "object" },
+        input,
+        (v) =>
+          v.editMember(
+            (path) => path.length === 1,
+            () => null,
+          ),
+        {},
+        chunkSize,
+      );
+      expect(r.err, `chunk ${chunkSize}`).toBeUndefined();
+      expect(r.output).toBe(input);
+    }
   });
 
   it("refuses oversized key-to-value whitespace while it is still streaming", async () => {
     const r = await runOversized('{"a":', " ", "1}", (v) => v.editMember(["a"], rename("z")));
     expect(r.err?.name).toBe("MemberEditError");
     expect(r.err?.message).toContain("maxMemberPrefixBytes");
-    expect(r.err?.byteOffset).toBe(1 + CAP);
+    // Counting resumes after the key `"a"`, which ends at offset 4.
+    expect(r.err?.byteOffset).toBe(4 + CAP);
     expect(r.supplied).toBeLessThan(CAP + 8 * FILL_CHUNK);
   });
 
@@ -712,25 +732,43 @@ describe("editMember caps", () => {
     ["1", "", '"abc" :  '],
     ["true", "", '"abc" :  '],
     ["1", '"x":0', ', "abc" :  '],
-  ])(
-    "counts the key bytes toward maxMemberPrefixBytes (value %s after %j)",
-    async (value, before, prefix) => {
-      const input = `{${before}${prefix}${value}}`;
-      const edit = (v: StreamValidator) => v.editMember(["abc"], rename("z"));
-      const cap = prefix.length;
-      const atCap = await run({ type: "object" }, input, edit, { maxMemberPrefixBytes: cap }, 1);
-      expect(atCap.err).toBeUndefined();
-      expect(atCap.output).toBe(`{${before}${prefix.replace('"abc"', '"z"')}${value}}`);
-      const overCap = await run(
+  ])("counts only the bytes around the key (value %s after %j)", async (value, before, prefix) => {
+    const input = `{${before}${prefix}${value}}`;
+    const edit = (v: StreamValidator) => v.editMember(["abc"], rename("z"));
+    const cap = prefix.length - '"abc"'.length;
+    const atCap = await run({ type: "object" }, input, edit, { maxMemberPrefixBytes: cap }, 1);
+    expect(atCap.err).toBeUndefined();
+    expect(atCap.output).toBe(`{${before}${prefix.replace('"abc"', '"z"')}${value}}`);
+    const overCap = await run(
+      { type: "object" },
+      input,
+      edit,
+      { maxMemberPrefixBytes: cap - 1 },
+      1,
+    );
+    expect(overCap.err?.name).toBe("MemberEditError");
+  });
+
+  it.each([
+    // 3 counted bytes (comma, two spaces) before the key, 3 after it.
+    [2, 6 + 2],
+    [3, 14 + 0],
+    [4, 14 + 1],
+  ])("reports where the counted bytes cross a cap of %i", async (cap, offset) => {
+    const input = '{"x":0,  "abc" : 1}';
+    const edit = (v: StreamValidator) => v.editMember(["abc"], rename("z"));
+    for (const chunkSize of [0, 1, 2, 3, 5, 9]) {
+      const r = await run(
         { type: "object" },
         input,
         edit,
-        { maxMemberPrefixBytes: cap - 1 },
-        1,
+        { maxMemberPrefixBytes: cap },
+        chunkSize,
       );
-      expect(overCap.err?.name).toBe("MemberEditError");
-    },
-  );
+      expect(r.err?.name, `chunk ${chunkSize}`).toBe("MemberEditError");
+      expect((r.err as MemberEditError).byteOffset, `chunk ${chunkSize}`).toBe(offset);
+    }
+  });
 
   it.each<[string, SchemaOrBoolean, (inner: string) => string]>([
     ["const", { const: { k: 1 } }, (inner: string) => inner],

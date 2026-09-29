@@ -283,20 +283,21 @@ export interface StreamValidatorOptions {
   maxUniqueItems?: number;
 
   /**
-   * Cap on the held prefix of an object member for an `editMember` hook:
-   * from the comma before it (or the `{`), through the key and colon, to
-   * the value. The editing echo holds the prefix until the hook decides
-   * the member, since a drop removes it and a keep may remove its comma.
-   * JSON permits unbounded whitespace on both sides of the key, so the
-   * span is bounded; over-cap is fatal. Once any `editMember` hook is
-   * registered it applies to every member an edit can reach, since any of
-   * their keys may be a target: members of streamed objects, not those
+   * Cap on the separators and whitespace held around an object member's
+   * key for an `editMember` hook. The editing echo holds each member's
+   * prefix, from the comma before it (or the `{`) through the key and
+   * colon to the value, until the hook decides the member, since a drop
+   * removes it and a keep may remove its comma. JSON permits unbounded
+   * whitespace on both sides of the key, so those bytes are capped;
+   * over-cap is fatal. The key token itself is not counted: the cap does
+   * not bound key length or key memory, which `maxTotalBytes` bounds for
+   * the whole input. Once any `editMember` hook is registered it applies to
+   * every member an edit can reach: members of streamed objects, not those
    * inside a dropped member or a value checked by composition or
-   * buffering. Unlike the schema-bound resource
-   * limits above, this defaults *finite*
-   * ({@link DEFAULT_MAX_MEMBER_PREFIX_BYTES}, 4 KB), because it bounds a
-   * buffer the edit itself introduces. Raise it for keys, or runs of
-   * whitespace around them, longer than that.
+   * buffering. Unlike the schema-bound resource limits above, this
+   * defaults *finite* ({@link DEFAULT_MAX_MEMBER_PREFIX_BYTES}, 4 KB),
+   * because it bounds a buffer the edit itself introduces. Raise it for
+   * runs of whitespace around keys longer than that.
    */
   maxMemberPrefixBytes?: number;
 
