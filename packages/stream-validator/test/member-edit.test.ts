@@ -62,9 +62,10 @@ async function run(
 }
 
 const rename = (key: string) => (): MemberEdit => ({ action: "rename", key });
-// Streams `head`, then 4 MiB of `fill` in FILL_CHUNK writes, then `tail`,
-// with `maxMemberPrefixBytes` at CAP. `supplied` counts the bytes the source
-// produced before the pipeline stopped pulling.
+// Streams `head`, then `fillBytes` (4 MiB unless given) of `fill` in
+// FILL_CHUNK writes, then `tail`, with `maxMemberPrefixBytes` at CAP.
+// `supplied` counts the bytes the source produced before the pipeline
+// stopped pulling.
 const CAP = 64 * 1024;
 const FILL_CHUNK = 16 * 1024;
 
@@ -73,6 +74,7 @@ async function runOversized(
   fill: string,
   tail: string,
   setup: (v: StreamValidator) => void,
+  fillBytes = 4 * 1024 * 1024,
 ): Promise<{
   err: MemberEditError | undefined;
   supplied: number;
@@ -85,7 +87,7 @@ async function runOversized(
     supplied += first.length;
     yield first;
     const filler = Buffer.alloc(FILL_CHUNK, fill);
-    for (let sent = 0; sent < 4 * 1024 * 1024; sent += FILL_CHUNK) {
+    for (let sent = 0; sent < fillBytes; sent += FILL_CHUNK) {
       supplied += filler.length;
       yield filler;
     }
@@ -750,7 +752,15 @@ describe("editMember caps", () => {
   });
 
   it("discards a large dropped array as it streams", async () => {
-    const r = await runOversized('{"o":[', "1,", '1],"b":2}', (v) => v.editMember(["o"], drop));
+    // 512 KiB, 32 FILL_CHUNKs: an array costs a token per element, and 4 MiB
+    // of them outruns the test timeout under coverage.
+    const r = await runOversized(
+      '{"o":[',
+      "1,",
+      '1],"b":2}',
+      (v) => v.editMember(["o"], drop),
+      512 * 1024,
+    );
     expect(r.err).toBeUndefined();
     // Length first: a failing toBe on a 4 MiB string builds a slow diff.
     expect(r.output.length).toBe('{"b":2}'.length);
