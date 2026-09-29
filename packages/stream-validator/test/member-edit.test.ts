@@ -6,6 +6,7 @@ import {
   createStreamValidator,
   type MemberContext,
   type MemberEditError,
+  type PathFilter,
   type MemberEdit,
   type StreamValidator,
 } from "../src/index.js";
@@ -569,6 +570,110 @@ describe("editMember drop under a detach seal", () => {
       maxErrors: 1,
     });
     expect(r.output).toBe('{"a":1,"d":2,"b":3}');
+  });
+});
+
+describe("editMember scope", () => {
+  const chunkings = [0, 1, 3];
+
+  it("holds nothing in an object outside the scope", async () => {
+    const input = `{"a":{${" ".repeat(5000)}"b":1}}`;
+    const keepTop = (v: StreamValidator, scope?: PathFilter) =>
+      v.editMember(
+        (path) => path.length === 1,
+        () => null,
+        scope ? { scope } : undefined,
+      );
+    for (const chunkSize of chunkings) {
+      const scoped = await run({ type: "object" }, input, (v) => keepTop(v, []), {}, chunkSize);
+      expect(scoped.err, `chunk ${chunkSize}`).toBeUndefined();
+      expect(scoped.output).toBe(input);
+    }
+    // Without a scope, the inner object's whitespace is held and capped.
+    const unscoped = await run({ type: "object" }, input, (v) => keepTop(v));
+    expect(unscoped.err?.name).toBe("MemberEditError");
+  });
+
+  it("fires the hook only for members of objects in scope", async () => {
+    for (const chunkSize of chunkings) {
+      const seen: string[] = [];
+      const r = await run(
+        true,
+        '{"k":1,"o":{"k":2,"x":{"k":3}}}',
+        (v) =>
+          v.editMember(
+            () => true,
+            (ctx) => {
+              seen.push(ctx.path.join("."));
+              return ctx.key === "k" ? { action: "rename", key: "z" } : null;
+            },
+            { scope: ["o"] },
+          ),
+        {},
+        chunkSize,
+      );
+      expect(r.output, `chunk ${chunkSize}`).toBe('{"k":1,"o":{"z":2,"x":{"k":3}}}');
+      expect(seen).toEqual(["o.k", "o.x"]);
+    }
+  });
+
+  it("does not exclude objects nested inside an object out of scope", async () => {
+    for (const chunkSize of chunkings) {
+      const r = await run(
+        true,
+        '{"d":0, "o":{ "inner":{"d":1, "k":2}}}',
+        (v) =>
+          v.editMember((path) => path[path.length - 1] === "d", drop, {
+            scope: (path) => path[path.length - 1] === "inner",
+          }),
+        {},
+        chunkSize,
+      );
+      expect(r.err, `chunk ${chunkSize}`).toBeUndefined();
+      expect(r.output, `chunk ${chunkSize}`).toBe('{"d":0, "o":{ "inner":{ "k":2}}}');
+    }
+  });
+
+  it("scopes objects inside arrays by their path", async () => {
+    for (const chunkSize of chunkings) {
+      const r = await run(
+        true,
+        '[{"d":1,"k":1},{"d":{"x":1}}]',
+        (v) =>
+          v.editMember((path) => path[path.length - 1] === "d", drop, {
+            scope: (path) => path.length === 1,
+          }),
+        {},
+        chunkSize,
+      );
+      expect(r.output, `chunk ${chunkSize}`).toBe('[{"k":1},{}]');
+    }
+  });
+
+  it("resolves each member against the hooks in scope only", async () => {
+    // Both hooks match every `k`; without scopes they would conflict.
+    for (const chunkSize of chunkings) {
+      const r = await run(
+        true,
+        '{"k":1,"o":{"k":2}}',
+        (v) => {
+          v.editMember((p) => p[p.length - 1] === "k", rename("a"), { scope: [] });
+          v.editMember((p) => p[p.length - 1] === "k", rename("b"), { scope: ["o"] });
+        },
+        {},
+        chunkSize,
+      );
+      expect(r.err, `chunk ${chunkSize}`).toBeUndefined();
+      expect(r.output, `chunk ${chunkSize}`).toBe('{"a":1,"o":{"b":2}}');
+    }
+  });
+
+  it("appends an editClose field with its comma in an object out of scope", async () => {
+    const r = await run({ type: "object" }, '{"o":{"a":1}}', (v) => {
+      v.editMember(["d"], drop, { scope: [] });
+      v.editClose(["o"], (ctx) => ctx.field("x", 1));
+    });
+    expect(r.output).toBe('{"o":{"a":1,"x":1}}');
   });
 });
 

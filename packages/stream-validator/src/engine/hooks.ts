@@ -15,6 +15,7 @@
  */
 
 import type { JsonValue, PathSegment } from "@oaverify/internal-core";
+import type { PathFilter } from "../options.js";
 
 /**
  * Default cap on a captured scalar's source-byte span, applied when
@@ -163,6 +164,26 @@ export type MemberEdit =
  * @public
  */
 export type MemberEditor = (member: MemberContext) => MemberEdit | null;
+
+/**
+ * Options for `StreamValidator.editMember`.
+ *
+ * @public
+ */
+export interface EditMemberOptions {
+  /**
+   * The objects whose members the hook may edit, matched against each
+   * streamed object's own path when it opens (`kind` is always
+   * `"object"`). In an object that no hook's scope matches, no hook fires
+   * and no member prefix is held, so `maxMemberPrefixBytes` does not apply
+   * there. A non-matching scope does not exclude the objects nested inside
+   * it. Omitted: every object.
+   *
+   * The hook's `at` filter still decides which members of an in-scope
+   * object it sees; `scope` is not inferred from it.
+   */
+  scope?: PathFilter;
+}
 
 /** Build the {@link MemberContext} for a member at its value start. */
 export function makeMemberContext(

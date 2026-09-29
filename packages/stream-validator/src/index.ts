@@ -27,6 +27,7 @@ export {
   type Bytes,
   type MemberContext,
   type MemberEdit,
+  type EditMemberOptions,
   type MemberEditor,
   type ScopeContext,
   type ScopeEditor,

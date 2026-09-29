@@ -295,7 +295,16 @@ export interface SpineOptions {
     scopePath: readonly PathSegment[],
     key: string,
     valueType: "object" | "array" | "string" | "number" | "boolean" | "null",
+    hooks: unknown,
   ) => MemberDecision | null;
+  /**
+   * The member hooks that can edit members of the object at `path`, called
+   * once when a streamed object opens; `null` when none can. The spine
+   * holds no member prefix in an object without hooks, and passes the
+   * returned value back to `memberEdit` for that object's members. Unset:
+   * every object has hooks.
+   */
+  memberScope?: (path: readonly PathSegment[]) => unknown;
   /** Emit a key-token replacement (rename): replace input `[start, end)` with `bytes`. */
   emitReplace?: (start: number, end: number, bytes: string) => void;
   /**
@@ -370,6 +379,9 @@ interface ObjectFrame {
   // came from a rename, to make a rename-induced duplicate key fatal while
   // leaving a pre-existing input duplicate alone.
   outputKeys: Map<string, boolean> | null;
+  // The member hooks for this object (see `SpineOptions.memberScope`), or
+  // null when no edit can reach its members.
+  editHooks: unknown;
   // Start of the held prefix of the member not yet decided: just past `{`,
   // or the comma before it. `+Infinity` once that member is decided. The
   // prefix is held because a drop removes it and a keep may remove its
@@ -494,6 +506,7 @@ export class SpineValidator implements JsonEventHandler {
   private readonly maxCaptureBytes: number | undefined;
   private readonly onScopeClose: ((close: ScopeClose) => void) | undefined;
   private readonly memberEdit: SpineOptions["memberEdit"];
+  private readonly memberScope: SpineOptions["memberScope"];
   private readonly emitReplace: SpineOptions["emitReplace"];
   private readonly emitDelete: SpineOptions["emitDelete"];
   // Off until `enableMemberEdits()`; gates all member-edit work so a stream
@@ -595,6 +608,7 @@ export class SpineValidator implements JsonEventHandler {
     this.maxCaptureBytes = options.maxCaptureBytes;
     this.onScopeClose = options.onScopeClose;
     this.memberEdit = options.memberEdit;
+    this.memberScope = options.memberScope;
     this.emitReplace = options.emitReplace;
     this.emitDelete = options.emitDelete;
     this.maxMemberPrefixBytes = options.maxMemberPrefixBytes ?? Number.POSITIVE_INFINITY;
@@ -669,6 +683,7 @@ export class SpineValidator implements JsonEventHandler {
       this.discard = null;
     }
     const top = this.frames[this.frames.length - 1] as ObjectFrame;
+    if (top.editHooks === null) return;
     top.prefixStart = offset;
     top.prefixIsComma = true;
   }
@@ -701,7 +716,7 @@ export class SpineValidator implements JsonEventHandler {
   ): void {
     const top = this.frames[this.frames.length - 1];
     if (!this.memberEditActive || this.discard !== null) return;
-    if (top === undefined || top.kind !== "object") return;
+    if (top === undefined || top.kind !== "object" || top.editHooks === null) return;
     const start = top.prefixStart;
     top.prefixStart = Number.POSITIVE_INFINITY;
     const key = top.pendingKey as string;
@@ -713,7 +728,9 @@ export class SpineValidator implements JsonEventHandler {
       valueStart,
     );
     if (at !== null) throw memberPrefixError(this.maxMemberPrefixBytes, at);
-    const decision = this.memberEdit!(this.path, key, valueType) ?? { kind: "keep" };
+    const decision = this.memberEdit!(this.path, key, valueType, top.editHooks) ?? {
+      kind: "keep",
+    };
     if (decision.kind === "drop") {
       this.discard = { start, depth: this.frames.length };
       return;
@@ -1321,6 +1338,11 @@ export class SpineValidator implements JsonEventHandler {
     if (app.hasFalse) this.fail("false");
     this.checkType(app.schemas, "object");
     this.checkContainerEquality(app.schemas);
+    // Members of an object inside a dropped member are never edited.
+    let editHooks: unknown = null;
+    if (this.memberEditActive && this.discard === null) {
+      editHooks = this.memberScope !== undefined ? this.memberScope(this.path) : true;
+    }
     this.frames.push({
       kind: "object",
       schemas: app.schemas,
@@ -1330,9 +1352,9 @@ export class SpineValidator implements JsonEventHandler {
       failuresAtOpen: this.failures,
       pendingKeyStart: 0,
       pendingKeyEnd: 0,
-      outputKeys: this.memberEditActive ? new Map() : null,
-      prefixStart:
-        this.memberEditActive && this.discard === null ? offset + 1 : Number.POSITIVE_INFINITY,
+      outputKeys: editHooks !== null ? new Map() : null,
+      editHooks,
+      prefixStart: editHooks !== null ? offset + 1 : Number.POSITIVE_INFINITY,
       prefixIsComma: false,
     });
   }

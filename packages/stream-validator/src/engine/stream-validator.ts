@@ -67,6 +67,7 @@ import {
   DEFAULT_MAX_MEMBER_PREFIX_BYTES,
   makeMemberContext,
   makeScopeContext,
+  type EditMemberOptions,
   type MemberEditor,
   type ScopeEditor,
   type ScopeObserver,
@@ -75,6 +76,12 @@ import {
 } from "./hooks.js";
 
 /** Does a path filter match this scope path + kind? */
+interface MemberHook {
+  at: PathFilter;
+  edit: MemberEditor;
+  scope: PathFilter | undefined;
+}
+
 function matchPathFilter(
   filter: PathFilter,
   path: readonly PathSegment[],
@@ -302,7 +309,7 @@ export class StreamValidator extends Transform {
   // Member-edit hooks (rename/drop a matched object member), in
   // registration order. Their presence routes a chunk through the
   // collect-then-echo path, the same as scope hooks.
-  private readonly memberHooks: Array<{ at: PathFilter; edit: MemberEditor }> = [];
+  private readonly memberHooks: MemberHook[] = [];
   private readonly maxMemberPrefixBytes: number;
 
   // The editing echo: input bytes are held from `heldBase` until the spine
@@ -483,7 +490,9 @@ export class StreamValidator extends Transform {
       // Member edits: wired unconditionally (cheap closures), but the spine
       // ignores them until `editMember` flips it on, so a stream with no
       // member hooks pays nothing.
-      memberEdit: (scopePath, key, valueType) => this.resolveMemberEdit(scopePath, key, valueType),
+      memberEdit: (scopePath, key, valueType, hooks) =>
+        this.resolveMemberEdit(scopePath, key, valueType, hooks as MemberHook[]),
+      memberScope: (path) => this.memberHooksInScope(path),
       emitReplace: (start, end, bytes) =>
         this.pendingEdits.push({ start, end, bytes: Buffer.from(bytes, "utf8") }),
       emitDelete: (start, end) => this.pendingEdits.push({ start, end, bytes: null }),
@@ -594,18 +603,30 @@ export class StreamValidator extends Transform {
    * piping. The matched member's value is still validated against the
    * input schema (a `drop` removes it from the output, not from the
    * verdict), and hooks do not fire for members inside a dropped one.
-   * Return `null` for a no-op.
+   * Return `null` for a no-op. `options.scope` limits the objects whose
+   * members the hook may edit; see `EditMemberOptions`.
    *
    * A rename whose target collides with another key in the same object,
    * and two hooks returning conflicting edits for one member, are both
    * fatal.
    */
-  editMember(at: PathFilter, edit: MemberEditor): void {
-    this.memberHooks.push({ at, edit });
+  editMember(at: PathFilter, edit: MemberEditor, options: EditMemberOptions = {}): void {
+    this.memberHooks.push({ at, edit, scope: options.scope });
     if (this.memberHooks.length === 1) {
       this.spine.enableMemberEdits();
       this.tokenizer.enableMemberCommas();
     }
+  }
+
+  // The member hooks whose scope matches the object at `path`, or null
+  // when none does. Evaluated once per streamed object; the spine caches
+  // the result on the object's frame, so holding and resolution use the
+  // same hooks.
+  private memberHooksInScope(path: readonly PathSegment[]): MemberHook[] | null {
+    const hooks = this.memberHooks.filter(
+      (h) => h.scope === undefined || matchPathFilter(h.scope, path, "object"),
+    );
+    return hooks.length > 0 ? hooks : null;
   }
 
   // Resolve the registered member hooks for one member into a single
@@ -617,9 +638,10 @@ export class StreamValidator extends Transform {
     scopePath: readonly PathSegment[],
     key: string,
     valueType: "object" | "array" | "string" | "number" | "boolean" | "null",
+    hooks: readonly MemberHook[],
   ): MemberDecision | null {
     let decision: MemberDecision | null = null;
-    for (const h of this.memberHooks) {
+    for (const h of hooks) {
       if (!matchValueFilter(h.at, scopePath, key)) continue;
       const r = h.edit(makeMemberContext([...scopePath, key], key, valueType));
       if (r === null || r.action === "keep") continue;
