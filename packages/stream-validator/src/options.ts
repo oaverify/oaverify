@@ -295,16 +295,17 @@ export interface StreamValidatorOptions {
    *
    * Over-cap is fatal (`MemberEditError`, at the first byte past the cap).
    * Input is refused at that byte before it is parsed, and nothing after it
-   * is processed; only whitespace and the colon count, so a key, a value
-   * or a closing `}` at that byte is parsed as usual, and a syntax error
-   * there is reported as one.
+   * is processed. Only the comma, whitespace and the colon count, so a key,
+   * a value or a closing `}` at that byte is parsed as usual, and a syntax
+   * error there is reported as one.
    *
    * It applies to every member an edit can reach: members of streamed
    * objects in some hook's `scope`, not those inside a dropped member or a
-   * value checked by composition or buffering. Unlike the schema-bound resource limits above, this
-   * defaults *finite* ({@link DEFAULT_MAX_MEMBER_PREFIX_BYTES}, 4 KB),
-   * because it bounds a buffer the edit itself introduces. Raise it for
-   * runs of whitespace around keys longer than that.
+   * value checked by composition or buffering. Unlike the schema-bound
+   * resource limits above, this defaults *finite*
+   * ({@link DEFAULT_MAX_MEMBER_PREFIX_BYTES}, 4 KB), because it bounds a
+   * buffer the edit itself introduces. Raise it for runs of whitespace
+   * around keys longer than that.
    */
   maxMemberPrefixBytes?: number;
 
@@ -315,12 +316,17 @@ export interface StreamValidatorOptions {
    * at the span's start plus the cap). Unset: no limit, since a dropped
    * member is discarded as it streams and never held.
    *
-   * A string, object or array is refused at the first byte past the cap,
-   * before that byte is parsed: everything before it is processed, and
-   * nothing after it, so a syntax error at that byte is not reported. A
-   * number or `true` / `false` / `null` is refused when its token ends:
-   * the tokenizer reports it whole, so the hook decides the member only
-   * then.
+   * The hook decides a member once its value begins, so the limit takes
+   * effect there. A string, object or array is refused at the first byte
+   * past the cap, before that byte is parsed, or at its first byte if the
+   * cap falls earlier, in the key or before the value; the key has then
+   * been read and checked in full. Everything before the refusing byte is
+   * processed and nothing after it, so a syntax error at that byte is not
+   * reported. A number is complete only at the byte after it, so a number
+   * that ends just before the refusing byte is not validated. A number or
+   * `true` / `false` / `null` dropped as the member's value is refused when
+   * its token ends: the tokenizer reports it whole, so the hook decides the
+   * member only then.
    */
   maxMemberDropBytes?: number;
 

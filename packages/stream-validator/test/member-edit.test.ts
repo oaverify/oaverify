@@ -679,6 +679,29 @@ describe("member-edit caps at the exact byte", () => {
     expect(await outcome(input, dropD, { maxMemberDropBytes: 18 })).toEqual(every("ok"));
   });
 
+  it("reads and checks the whole key when the drop limit falls inside it", async () => {
+    const schema = { type: "object", propertyNames: { maxLength: 2 } };
+    const dropAllButK = (v: StreamValidator) => v.editMember((p) => p[p.length - 1] !== "k", drop);
+    expect(
+      await outcome('{"dddd":"x","k":1}', dropAllButK, { maxMemberDropBytes: 3 }, schema),
+    ).toEqual(every("ValidationFailedError"));
+    // Without the key's own failure, the value's first byte refuses it.
+    expect(await outcome('{"dddd":"x","k":1}', dropAllButK, { maxMemberDropBytes: 3 })).toEqual(
+      every("MemberEditError@4"),
+    );
+  });
+
+  it("does not validate a number that ends just before the refusing byte", async () => {
+    const schema = { type: "object", properties: { d: { items: { type: "string" } } } };
+    // `1` ends at 7, where the limit falls; `true` ends at 10, before it.
+    expect(await outcome('{"d":[1,"x"],"k":1}', dropD, { maxMemberDropBytes: 6 }, schema)).toEqual(
+      every("MemberEditError@7"),
+    );
+    expect(
+      await outcome('{"d":[true,"x"],"k":1}', dropD, { maxMemberDropBytes: 9 }, schema),
+    ).toEqual(every("ValidationFailedError"));
+  });
+
   it("lets the cap win a tie with a syntax error in a dropped value", async () => {
     // The `x` is at offset 8.
     expect(await outcome('{"d":[1,x]}', dropD, { maxMemberDropBytes: 7 })).toEqual(

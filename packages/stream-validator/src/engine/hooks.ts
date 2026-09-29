@@ -99,8 +99,8 @@ export type ScopeEditor = (ctx: ScopeContext) => Bytes | null;
 
 /**
  * Default cap on the separators and whitespace held around a member's key
- * (the comma or `{` before it, the colon, and the whitespace between; the
- * key token is not counted) for an `editMember` hook, applied when
+ * (the comma before it, the colon, and the whitespace between; the key
+ * token and an opening `{` are not counted) for an `editMember` hook, applied when
  * `maxMemberPrefixBytes` is unset. JSON allows unbounded whitespace around
  * the key, so these bytes need their own bound: even deep pretty-print
  * indentation is well under this, while a whitespace-padding attack trips

@@ -282,7 +282,7 @@ export interface SpineOptions {
    * once when a streamed object opens; `null` when none can. The spine
    * holds no member prefix in an object without hooks, and passes the
    * returned value back to `memberEdit` for that object's members. Unset:
-   * every object has hooks.
+   * no object's members are edited.
    */
   memberScope?: (path: readonly PathSegment[]) => unknown;
   /** Emit a key-token replacement (rename): replace input `[start, end)` with `bytes`. */
@@ -667,9 +667,9 @@ export class SpineValidator implements JsonEventHandler {
   }
 
   // The tokenizer's byte limit: one at a time, since no member prefix is
-  // held inside a dropped value. A prefix counts the whitespace and colon
-  // around a key (the comma or `{` it starts at included); a drop counts
-  // every byte of its value.
+  // held inside a dropped value. A prefix counts the comma it starts at (a
+  // first member's starts just after the `{`) and the whitespace and colon
+  // around its key; a drop counts every byte of its value.
   private setLimit(kind: "prefix" | "drop", at: number): void {
     this.limitKind = kind;
     this.setByteLimit?.(at, kind === "drop");
@@ -1395,7 +1395,7 @@ export class SpineValidator implements JsonEventHandler {
     // Members of an object inside a dropped member are never edited.
     let editHooks: unknown = null;
     if (this.memberEditActive && this.discard === null) {
-      editHooks = this.memberScope !== undefined ? this.memberScope([...this.path]) : true;
+      editHooks = this.memberScope !== undefined ? this.memberScope([...this.path]) : null;
     }
     this.frames.push({
       kind: "object",
