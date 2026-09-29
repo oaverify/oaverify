@@ -111,9 +111,8 @@ export class UniqueItemsLimitError extends Error {
  * from a {@link SchemaViolation}: the input may be valid, but the requested
  * rename/drop cannot be carried out safely or unambiguously.
  *
- * Covers the member-edit failure modes:
- *   - the held member prefix exceeded `maxMemberPrefixBytes`;
- *   - a rename produced a duplicate key in the same object.
+ * For example, a held member prefix over `maxMemberPrefixBytes`, or a
+ * rename that duplicates a key in its object.
  */
 export class MemberEditError extends Error {
   /**
@@ -604,8 +603,9 @@ export class SpineValidator implements JsonEventHandler {
 
   /**
    * Start of an open discard: a dropped member whose bytes, and whitespace
-   * after it, are deleted as they stream until the next comma or the
-   * closing `}` ends the span. `+Infinity` when nothing is being dropped.
+   * after it, are deleted as they stream until the comma or `}` of the
+   * object that holds it ends the span. `+Infinity` when nothing is being
+   * dropped.
    */
   get openDiscardStart(): number {
     return this.discard !== null ? this.discard.start : Number.POSITIVE_INFINITY;
@@ -1250,8 +1250,8 @@ export class SpineValidator implements JsonEventHandler {
       return;
     }
     // A rename of this object-valued member rewrites only its key (the value
-    // streams); a drop of a container value is not supported on the stream
-    // path. Decided before the value's own classification.
+    // streams); a drop discards it as it streams. Decided before the value's
+    // own classification.
     if (this.memberEditActive) this.decideMember("object", offset);
     const app = this.schemasForValue();
     if (this.needsIsland(app)) {
@@ -1433,8 +1433,12 @@ export class SpineValidator implements JsonEventHandler {
     // The editing echo holds every key while it parses, including one inside
     // a tee'd or island value that no edit can target, so the key alone is
     // capped here. A member key's prefix is checked in full at its value
-    // start.
-    if (this.memberEditActive && endOffset - startOffset > this.maxMemberPrefixBytes) {
+    // start. A key inside a dropped member is deleted, never held.
+    if (
+      this.memberEditActive &&
+      this.discard === null &&
+      endOffset - startOffset > this.maxMemberPrefixBytes
+    ) {
       throw memberPrefixError(this.maxMemberPrefixBytes, startOffset);
     }
     if (this.tee !== null) {

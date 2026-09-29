@@ -141,7 +141,9 @@ export interface MemberContext {
  *     `{"a": 1, "d": 2}` gives `{"a": 1}`, and formatting next to a
  *     dropped member is not preserved. The value may be of any type. Its
  *     bytes are discarded as they stream, never held, and it is still
- *     validated. `editMember` hooks do not fire for members inside it.
+ *     validated. `editMember` hooks do not fire for members inside it;
+ *     `editClose` and `onScopeClose` hooks still fire for scopes inside
+ *     it, and what `editClose` appends there is discarded with it.
  *
  * A rename whose target collides with another key in the same object, and
  * two hooks returning conflicting edits for one member, are both fatal.

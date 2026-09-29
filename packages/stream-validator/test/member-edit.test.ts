@@ -352,6 +352,39 @@ describe("editMember drop removes the member's whitespace and one comma", () => 
     }
   });
 
+  it("does not cap or hold a long key inside a dropped member", async () => {
+    const input = `{"d":{"${"x".repeat(100)}":1},"b":1}`;
+    for (const chunkSize of [0, 7]) {
+      const r = await run(
+        { type: "object" },
+        input,
+        (v) => v.editMember(["d"], drop),
+        { maxMemberPrefixBytes: 32 },
+        chunkSize,
+      );
+      expect(r.err, `chunk ${chunkSize}`).toBeUndefined();
+      expect(r.output, `chunk ${chunkSize}`).toBe('{"b":1}');
+    }
+    // The same key in a kept member is still capped.
+    const kept = await run({ type: "object" }, input, (v) => v.editMember(["b"], drop), {
+      maxMemberPrefixBytes: 32,
+    });
+    expect(kept.err?.name).toBe("MemberEditError");
+  });
+
+  it("discards what editClose appends inside a dropped member", async () => {
+    const closed: string[] = [];
+    const r = await run({ type: "object" }, '{"d":{"a":1},"b":1}', (v) => {
+      v.editMember(["d"], drop);
+      v.editClose(["d"], (ctx) => {
+        closed.push(ctx.path.join("."));
+        return ctx.field("x", 1);
+      });
+    });
+    expect(r.output).toBe('{"b":1}');
+    expect(closed).toEqual(["d"]);
+  });
+
   it("appends an editClose field after a dropped last member", async () => {
     for (const chunkSize of [0, 1, 3]) {
       const r = await run(
@@ -442,12 +475,33 @@ describe("editMember drop under a detach seal", () => {
       '{"a":1,"d":{"x":"s","y":[1,2]},"b":2}',
       '{"a":1,"b":2}',
     ],
+    [
+      { patternProperties: { "^d": { items: { properties: { x: { type: "integer" } } } } } },
+      '{"d":[{"x":"s"},{"x":"t"}],"d2":[1],"b":2}',
+      '{"b":2}',
+    ],
+    [
+      { items: { properties: { d: { properties: { x: { type: "integer" } } } } } },
+      '[{"d":{"x":"s"}},{"d":1,"k":1}]',
+      '[{},{"d":1,"k":1}]',
+    ],
+    [
+      {
+        properties: {
+          a: { properties: { d: { items: { properties: { x: { type: "integer" } } } } } },
+        },
+      },
+      '{"a":{"d":[{"x":"s"}]},"b":1}',
+      '{"a":{},"b":1}',
+    ],
   ])("%j over %s", async (schema, input, expected) => {
+    const dropD = (v: StreamValidator) =>
+      v.editMember((path) => String(path[path.length - 1]).startsWith("d"), drop);
     for (const chunkSize of [0, 1, 3, 4]) {
       const r = await run(
         schema,
         input,
-        (v) => v.editMember(["d"], drop),
+        dropD,
         {
           policy: "detach",
           maxErrors: 1,

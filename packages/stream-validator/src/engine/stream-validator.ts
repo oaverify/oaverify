@@ -714,9 +714,16 @@ export class StreamValidator extends Transform {
   // key must not be held (it would buffer to its closing quote with no
   // member-prefix cap, regressing the append-only path's memory behavior).
   private editSafeLimit(): number {
-    const keyHold =
-      this.memberHooks.length > 0 ? this.tokenizer.editHoldOffset() : Number.POSITIVE_INFINITY;
-    return Math.min(this.spine.memberPrefixStart, keyHold, this.totalBytes);
+    return Math.min(this.spine.memberPrefixStart, this.keyHoldOffset(), this.totalBytes);
+  }
+
+  // The start of a key the tokenizer is mid-way through, when a rename could
+  // still rewrite it: member hooks are registered and no drop is open. While
+  // one is, any key being parsed is inside the dropped member.
+  private keyHoldOffset(): number {
+    if (this.memberHooks.length === 0) return Number.POSITIVE_INFINITY;
+    if (this.spine.openDiscardStart !== Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
+    return this.tokenizer.editHoldOffset();
   }
 
   // Flush everything no pending decision can still change. An open discard
@@ -737,7 +744,7 @@ export class StreamValidator extends Transform {
   // exactly, at its value start.
   private checkMemberPrefix(): void {
     if (this.memberHooks.length === 0) return;
-    const start = Math.min(this.spine.memberPrefixStart, this.tokenizer.editHoldOffset());
+    const start = Math.min(this.spine.memberPrefixStart, this.keyHoldOffset());
     const end = Math.min(this.tokenizer.pendingScalarOffset(), this.totalBytes);
     if (end - start > this.maxMemberPrefixBytes) {
       throw memberPrefixError(this.maxMemberPrefixBytes, start);
