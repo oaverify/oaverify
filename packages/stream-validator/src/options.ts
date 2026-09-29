@@ -288,9 +288,11 @@ export interface StreamValidatorOptions {
    * the value. The editing echo holds the prefix until the hook decides
    * the member, since a drop removes it and a keep may remove its comma.
    * JSON permits unbounded whitespace on both sides of the key, so the
-   * span is bounded; over-cap is fatal. It applies to every object member
-   * once any `editMember` hook is registered, since any key may be an
-   * edit target. Unlike the schema-bound resource
+   * span is bounded; over-cap is fatal. Once any `editMember` hook is
+   * registered it applies to every member an edit can reach, since any of
+   * their keys may be a target: members of streamed objects, not those
+   * inside a dropped member or a value checked by composition or
+   * buffering. Unlike the schema-bound resource
    * limits above, this defaults *finite*
    * ({@link DEFAULT_MAX_MEMBER_PREFIX_BYTES}, 4 KB), because it bounds a
    * buffer the edit itself introduces. Raise it for keys, or runs of

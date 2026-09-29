@@ -216,26 +216,6 @@ export class JsonTokenizer {
   }
 
   /**
-   * The lowest input-byte offset whose emission must wait for a member-edit
-   * decision: the start of an object key currently mid-parse (so a key that
-   * straddles a chunk boundary is not echoed before a rename can rewrite it),
-   * else `+Infinity`. The editing echo holds bytes at or past this offset.
-   * Values are never held here (only keys are edit targets), so a large value
-   * streams regardless. Cheap to call after {@link write}.
-   */
-  editHoldOffset(): number {
-    if (
-      this.stringIsKey &&
-      (this.state === ST_IN_STRING ||
-        this.state === ST_IN_STRING_ESCAPE ||
-        this.state === ST_IN_STRING_UNICODE)
-    ) {
-      return this.stringStart;
-    }
-    return Number.POSITIVE_INFINITY;
-  }
-
-  /**
    * Report each comma between object members through
    * {@link JsonEventHandler.onMemberComma}, which the handler must then
    * implement. Off by default, so a stream that edits no members pays no

@@ -1430,17 +1430,6 @@ export class SpineValidator implements JsonEventHandler {
 
   onKey(value: string, codePoints: number, startOffset: number, endOffset = startOffset): void {
     this.curOffset = startOffset;
-    // The editing echo holds every key while it parses, including one inside
-    // a tee'd or island value that no edit can target, so the key alone is
-    // capped here. A member key's prefix is checked in full at its value
-    // start. A key inside a dropped member is deleted, never held.
-    if (
-      this.memberEditActive &&
-      this.discard === null &&
-      endOffset - startOffset > this.maxMemberPrefixBytes
-    ) {
-      throw memberPrefixError(this.maxMemberPrefixBytes, startOffset);
-    }
     if (this.tee !== null) {
       this.teeFeed((s) => s.onKey(value, codePoints, startOffset));
       return;

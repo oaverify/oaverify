@@ -704,26 +704,11 @@ export class StreamValidator extends Transform {
     this.heldBase = limit;
   }
 
-  // The highest offset safe to emit now: nothing held past here is subject
-  // to a still-pending edit decision (an undecided member prefix, or a
-  // mid-key token).
-  //
-  // The tokenizer's mid-key hold only matters when a rename can rewrite the
-  // key, so it is folded in only when member hooks are registered. With
-  // scope-only `editClose` there is no key rewrite, so a chunk-straddling
-  // key must not be held (it would buffer to its closing quote with no
-  // member-prefix cap, regressing the append-only path's memory behavior).
+  // The highest offset safe to emit now: the start of an undecided member
+  // prefix, which covers any key a rename could still rewrite. Keys no edit
+  // can reach (inside a tee'd, island or dropped value) are not held.
   private editSafeLimit(): number {
-    return Math.min(this.spine.memberPrefixStart, this.keyHoldOffset(), this.totalBytes);
-  }
-
-  // The start of a key the tokenizer is mid-way through, when a rename could
-  // still rewrite it: member hooks are registered and no drop is open. While
-  // one is, any key being parsed is inside the dropped member.
-  private keyHoldOffset(): number {
-    if (this.memberHooks.length === 0) return Number.POSITIVE_INFINITY;
-    if (this.spine.openDiscardStart !== Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
-    return this.tokenizer.editHoldOffset();
+    return Math.min(this.spine.memberPrefixStart, this.totalBytes);
   }
 
   // Flush everything no pending decision can still change. An open discard
@@ -744,7 +729,7 @@ export class StreamValidator extends Transform {
   // exactly, at its value start.
   private checkMemberPrefix(): void {
     if (this.memberHooks.length === 0) return;
-    const start = Math.min(this.spine.memberPrefixStart, this.keyHoldOffset());
+    const start = this.spine.memberPrefixStart;
     const end = Math.min(this.tokenizer.pendingScalarOffset(), this.totalBytes);
     if (end - start > this.maxMemberPrefixBytes) {
       throw memberPrefixError(this.maxMemberPrefixBytes, start);

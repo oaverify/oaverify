@@ -710,25 +710,19 @@ describe("editMember caps", () => {
     ["const", { const: { k: 1 } }, (inner: string) => inner],
     ["oneOf", { oneOf: [{ type: "object" }, { type: "string" }] }, (inner: string) => inner],
     ["uniqueItems", { type: "array", uniqueItems: true }, (inner: string) => `[${inner}]`],
-  ])("caps a key inside a %s value the same way whatever the chunking", async (_name, a, wrap) => {
+  ])("does not hold or cap a key inside a %s value", async (_name, a, wrap) => {
+    // No edit can reach a key inside a tee'd or island value, so the echo
+    // does not hold it and maxMemberPrefixBytes does not apply.
     const key = "k".repeat(5000);
     const input = `{"a":${wrap(`{"${key}":1}`)}}`;
     const schema = { type: "object", properties: { a } };
     const edit = (v: StreamValidator) => v.editMember(["zzz"], rename("y"));
     const whole = await run(schema, input, edit);
     const split = await run(schema, input, edit, {}, 1000);
-    expect(whole.err?.name).toBe("MemberEditError");
-    expect(split.err?.name).toBe("MemberEditError");
-    expect((whole.err as MemberEditError).byteOffset).toBe(
-      (split.err as MemberEditError).byteOffset,
-    );
-    // A quoted key exactly at the default 4096-byte cap is accepted either
-    // way (the schema may still reject the value).
-    const atCap = `{"a":${wrap(`{"${"k".repeat(4094)}":1}`)}}`;
-    for (const chunkSize of [0, 1000]) {
-      const r = await run(schema, atCap, edit, {}, chunkSize);
-      expect(r.err?.name).not.toBe("MemberEditError");
-    }
+    expect(whole.err?.name).not.toBe("MemberEditError");
+    expect(split.err?.name).not.toBe("MemberEditError");
+    expect(split.output).toBe(whole.output);
+    expect(split.valid).toBe(whole.valid);
   });
 
   it("discards a large dropped array as it streams", async () => {
@@ -947,8 +941,8 @@ describe("editMember + editClose interaction (cross-hook output-member count)", 
 });
 
 describe("scope-only editClose does not hold a chunk-split key", () => {
-  // The tokenizer mid-key hold exists for rename safety. With only `editClose`
-  // registered (no member hooks), there is no key rewrite, so a key straddling
+  // Only member prefixes are held, and only with `editMember` hooks. With
+  // only `editClose` registered there is no key rewrite, so a key straddling
   // a chunk boundary must not be held: it would buffer to its closing quote
   // with no member-prefix cap, regressing the append-only path. Observed
   // directly: after a chunk that ends mid-key, the bytes preceding the key are
