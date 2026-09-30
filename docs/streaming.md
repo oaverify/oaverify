@@ -4,7 +4,7 @@
 to a downstream sink and reporting validation on a side channel. The
 package README covers the adoption question: when streaming helps, what
 schemas can stream, and how to read the buffer-budget analyzer. This file
-carries the operation-helper recipe and the stream hook reference.
+carries usage recipes and the stream hook reference.
 
 ## OpenAPI Operation Helper
 
@@ -55,6 +55,99 @@ Already echoed bytes remain downstream, including malformed bytes in the
 chunk that failed. When storing output, use a staging location and promote
 it only after the pipeline completes and `validator.result` resolves valid.
 Abort or discard stored output when validation fails.
+
+## Stripping Whitespace
+
+The validator echoes input verbatim. To store a compact body, pipe its
+output through a transform that drops insignificant whitespace:
+
+```ts
+await pipeline(request, validator, new StripJsonWhitespace(), sink);
+```
+
+Keep it after the validator. Violation offsets and `value` spans are input
+offsets (see `SchemaViolation.byteOffset`), so they still point into the
+original body.
+
+The transform below drops space, tab, LF and CR outside strings and
+passes every other byte through unchanged. It assumes well-formed JSON:
+the validator fails the pipeline on anything else, but `editClose`
+appends are not validated, so keep them well-formed. It adds one pass
+over the bytes and forwards a chunk with nothing to drop without copying.
+
+```ts
+import { Transform, type TransformCallback } from "node:stream";
+
+const QUOTE = 0x22;
+const BACKSLASH = 0x5c;
+
+function isWhitespace(byte: number): boolean {
+  return byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d;
+}
+
+/**
+ * Drops insignificant whitespace from well-formed JSON. String and escape
+ * state carry across chunk boundaries. UTF-8 multi-byte sequences are all
+ * >= 0x80, so they never match a quote, backslash or whitespace byte.
+ */
+export class StripJsonWhitespace extends Transform {
+  private isInString = false;
+  private isEscaped = false;
+
+  override _transform(chunk: Buffer, _encoding: BufferEncoding, callback: TransformCallback): void {
+    const length = chunk.length;
+    let output: Buffer | undefined;
+    let written = 0;
+    let runStart = 0;
+    let index = 0;
+    // Positions of the next backslash and quote at or after `index`, found
+    // with Buffer.indexOf; -1 = none left in this chunk, -2 = not searched
+    // yet. Both are cached so a string dense with escapes scans the chunk
+    // once rather than once per escape.
+    let nextBackslash = -2;
+    let nextQuote = -2;
+    while (index < length) {
+      if (this.isInString) {
+        if (this.isEscaped) {
+          this.isEscaped = false;
+          index++;
+          continue;
+        }
+        if (nextBackslash !== -1 && nextBackslash < index) {
+          nextBackslash = chunk.indexOf(BACKSLASH, index);
+        }
+        if (nextQuote !== -1 && nextQuote < index) nextQuote = chunk.indexOf(QUOTE, index);
+        if (nextBackslash !== -1 && (nextQuote === -1 || nextBackslash < nextQuote)) {
+          this.isEscaped = true;
+          index = nextBackslash + 1;
+          continue;
+        }
+        if (nextQuote === -1) break;
+        this.isInString = false;
+        index = nextQuote + 1;
+        continue;
+      }
+      const byte = chunk[index] as number;
+      if (isWhitespace(byte)) {
+        output ??= Buffer.allocUnsafe(length);
+        written += chunk.copy(output, written, runStart, index);
+        index++;
+        while (index < length && isWhitespace(chunk[index] as number)) index++;
+        runStart = index;
+        continue;
+      }
+      if (byte === QUOTE) this.isInString = true;
+      index++;
+    }
+    if (output === undefined) {
+      callback(null, chunk);
+      return;
+    }
+    written += chunk.copy(output, written, runStart);
+    callback(null, output.subarray(0, written));
+  }
+}
+```
 
 ## Hooks
 
