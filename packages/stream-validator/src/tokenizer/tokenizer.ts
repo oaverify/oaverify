@@ -34,6 +34,7 @@
  */
 
 import type { JsonEventHandler } from "./handler.js";
+import { KeyLimitError, NumberLimitError, tokenByteLimit } from "./limits.js";
 
 /**
  * Thrown on malformed JSON. `byteOffset` is the stream-absolute offset
@@ -132,6 +133,10 @@ function firstIllFormedUtf8(bytes: Uint8Array): number {
 export interface JsonTokenizerOptions {
   /** See `StreamValidatorOptions.utf8`. Defaults to `"reject"`. */
   utf8?: "reject" | "replace";
+  /** See `StreamValidatorOptions.maxKeyBytes`. */
+  maxKeyBytes?: number;
+  /** See `StreamValidatorOptions.maxNumberBytes`. */
+  maxNumberBytes?: number;
 }
 
 function isWhitespace(b: number): boolean {
@@ -140,6 +145,10 @@ function isWhitespace(b: number): boolean {
 
 function isDigit(b: number): boolean {
   return b >= 0x30 && b <= 0x39;
+}
+
+function isNumberByte(b: number): boolean {
+  return isDigit(b) || b === 0x2d || b === 0x2b || b === 0x2e || b === 0x65 || b === 0x45;
 }
 
 function hexValue(b: number): number {
@@ -177,6 +186,8 @@ export class JsonTokenizer {
   // escape (#851). Fatal decoding also checks the input encoding.
   private readonly decoder: TextDecoder;
   private readonly strictUtf8: boolean;
+  private readonly maxKeyBytes: number;
+  private readonly maxNumberBytes: number;
   private readonly utf8Pending = new Uint8Array(3);
   private utf8PendingLength = 0;
   private utf8PendingOffset = 0;
@@ -185,6 +196,7 @@ export class JsonTokenizer {
   private readonly stack: number[] = [];
   private sawRootValue = false;
   private ended = false;
+  private disposed = false;
 
   // Stream-absolute offset of chunk[0] for the chunk currently being
   // processed. `pos(i)` derives the absolute offset of chunk[i].
@@ -215,6 +227,8 @@ export class JsonTokenizer {
 
   constructor(handler: JsonEventHandler, options: JsonTokenizerOptions = {}) {
     this.handler = handler;
+    this.maxKeyBytes = tokenByteLimit("maxKeyBytes", options.maxKeyBytes);
+    this.maxNumberBytes = tokenByteLimit("maxNumberBytes", options.maxNumberBytes);
     this.strictUtf8 = options.utf8 !== "replace";
     this.decoder = new TextDecoder("utf-8", { ignoreBOM: true, fatal: this.strictUtf8 });
   }
@@ -264,10 +278,25 @@ export class JsonTokenizer {
     if (this.ended) throw new JsonParseError("write after end", this.baseOffset);
     let i = 0;
     const n = chunk.length;
-    while (i < n) {
+    while (i < n && !this.disposed) {
       const state = this.state;
       if (this.baseOffset + i >= this.byteLimit && this.limitCounts(state, chunk[i] as number)) {
         this.handler.onByteLimit!(this.byteLimit);
+      }
+      if (
+        this.stringIsKey &&
+        state >= ST_IN_STRING &&
+        state <= ST_IN_STRING_UNICODE &&
+        this.pos(i) - this.stringStart >= this.maxKeyBytes
+      ) {
+        throw new KeyLimitError(this.maxKeyBytes, this.pos(i), this.stringStart);
+      }
+      if (
+        state === ST_IN_NUMBER &&
+        this.pos(i) - this.tokenStart >= this.maxNumberBytes &&
+        isNumberByte(chunk[i] as number)
+      ) {
+        throw new NumberLimitError(this.maxNumberBytes, this.pos(i), this.tokenStart);
       }
       if (state === ST_IN_STRING) {
         i = this.scanStringBody(chunk, i);
@@ -347,6 +376,7 @@ export class JsonTokenizer {
     // delimiter, so finalize an in-progress number here.
     if (this.state === ST_IN_NUMBER) {
       this.finishNumber(this.baseOffset);
+      if (this.disposed) return;
       // finishNumber moves to a post-value state; fall through to checks.
     }
     if (
@@ -368,6 +398,22 @@ export class JsonTokenizer {
     // state is ST_END (or a post-value root state) -> clean finish.
   }
 
+  /** Release input retained by a completed, detached or destroyed parser. */
+  dispose(): void {
+    this.disposed = true;
+    this.ended = true;
+    this.keyBuf = "";
+    this.numBuf = "";
+    this.stack.length = 0;
+    this.utf8PendingLength = 0;
+    // Flushing resets the decoder even when an incomplete sequence is fatal.
+    try {
+      this.decoder.decode();
+    } catch {
+      // The stream has already settled; cleanup must preserve its outcome.
+    }
+  }
+
   private pos(i: number): number {
     return this.baseOffset + i;
   }
@@ -381,12 +427,14 @@ export class JsonTokenizer {
     if (b === CH_QUOTE) return this.beginString(i, false);
     if (b === 0x7b /* { */) {
       this.handler.onStartObject(this.pos(i));
+      if (this.disposed) return i + 1;
       this.stack.push(CTX_OBJECT);
       this.state = ST_KEY_OR_END_OBJECT;
       return i + 1;
     }
     if (b === 0x5b /* [ */) {
       this.handler.onStartArray(this.pos(i));
+      if (this.disposed) return i + 1;
       this.stack.push(CTX_ARRAY);
       this.state = ST_VALUE_OR_END_ARRAY;
       return i + 1;
@@ -404,6 +452,7 @@ export class JsonTokenizer {
   }
 
   private beginString(i: number, isKey: boolean): number {
+    if (isKey && this.maxKeyBytes === 0) throw new KeyLimitError(0, this.pos(i), this.pos(i));
     this.stringIsKey = isKey;
     this.stringStart = this.pos(i);
     this.strCodePoints = 0;
@@ -419,7 +468,16 @@ export class JsonTokenizer {
   // (escape), or the chunk end. Returns the next index.
   private scanStringBody(chunk: Uint8Array, start: number): number {
     let i = start;
-    const n = this.scanEnd(chunk);
+    // Stop before decoding an over-cap run. Batches also keep temporary
+    // decoded strings small when a caller chooses a large finite allowance.
+    const n =
+      this.stringIsKey && this.maxKeyBytes !== Number.POSITIVE_INFINITY
+        ? Math.min(
+            this.scanEnd(chunk),
+            this.maxKeyBytes - (this.baseOffset - this.stringStart),
+            start + 16384,
+          )
+        : this.scanEnd(chunk);
     let nonAscii = false;
     while (i < n) {
       const b = chunk[i] as number;
@@ -458,7 +516,7 @@ export class JsonTokenizer {
         !nonAscii && text.length === i - start ? text.length : countCodePoints(text);
       if (text.length > 0) this.emitStringText(text, this.pos(start));
     }
-    if (i >= n) return i; // chunk exhausted mid-string
+    if (i >= n || this.disposed) return i;
     const b = chunk[i] as number;
     // A non-empty run ending at this delimiter already decoded with
     // `stream: false`. Otherwise a partial from an earlier write still
@@ -618,6 +676,7 @@ export class JsonTokenizer {
 
   private finishString(i: number, needsFlush: boolean): number {
     if (needsFlush) this.flushHeldPartial(this.pos(i));
+    if (this.disposed) return i + 1;
     const endOffset = this.pos(i) + 1; // past the closing quote
     if (this.stringIsKey) {
       this.handler.onKey(this.keyBuf, this.strCodePoints, this.stringStart, endOffset);
@@ -667,18 +726,12 @@ export class JsonTokenizer {
     // one decode, rather than concatenating char by char. (latin1 == ASCII
     // for the number grammar's bytes; a Buffer view avoids a per-char loop
     // and a spread that a huge literal could overflow.)
-    const n = this.scanEnd(chunk);
+    const editEnd = this.scanEnd(chunk);
+    const n = Math.min(editEnd, this.maxNumberBytes - (this.baseOffset - this.tokenStart));
     let j = i;
     while (j < n) {
       const b = chunk[j] as number;
-      if (
-        isDigit(b) ||
-        b === 0x2d /* - */ ||
-        b === 0x2b /* + */ ||
-        b === 0x2e /* . */ ||
-        b === 0x65 /* e */ ||
-        b === 0x45 /* E */
-      ) {
+      if (isNumberByte(b)) {
         j += 1;
       } else break;
     }
@@ -690,7 +743,7 @@ export class JsonTokenizer {
       for (let k = i; k < j; k++) run += String.fromCharCode(chunk[k] as number);
       this.numBuf += run;
     }
-    if (j < n) {
+    if (j < n || (j === n && j < editEnd && !isNumberByte(chunk[j] as number))) {
       // A non-number byte ends the literal; re-process it after finishing.
       this.finishNumber(this.pos(j));
     }

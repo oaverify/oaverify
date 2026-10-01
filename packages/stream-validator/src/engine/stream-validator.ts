@@ -8,7 +8,7 @@
  *   - the **output byte stream**: input bytes, verbatim (invariant 1);
  *   - **`violation`** events: a well-formed value that failed the schema,
  *     non-fatal, up to `maxErrors`, each carrying a byte offset;
- *   - **`error`** (Node's terminal channel): a fatal parse / I/O failure;
+ *   - **`error`** (Node's terminal channel): a fatal parse / resource / I/O failure;
  *   - **`verdict`** events + the {@link StreamValidator.result} promise:
  *     the final valid/invalid result, delivered as both.
  *
@@ -16,7 +16,7 @@
  * default is `terminate` with `maxErrors: 1` (the budget-th violation
  * destroys the stream with {@link ValidationFailedError}, so a
  * `pipeline` rejects); `detach` instead seals the verdict and raw-copies
- * the tail. A parse error is always terminal.
+ * the tail. Parse errors and resource refusals are always terminal.
  *
  * STREAM-classified values validate on the forward spine. Forward
  * composition is TEE'd; other non-stream subtrees (composition with a
@@ -25,9 +25,9 @@
  * asserting dialect) are materialized and delegated to
  * `@oaverify/internal-schema`'s in-memory engine. Only a
  * REJECT keyword (`unevaluated*`), an unknown keyword, or an unresolvable
- * `$ref` fails fast at construction (invariant 2). `maxBufferedBytes` /
- * `maxDepth` / `maxTotalBytes` bound memory; `regexCompiler` hardens
- * `pattern` against ReDoS.
+ * `$ref` fails fast at construction (invariant 2). Resource policies govern
+ * their documented dimensions without promising an overall memory ceiling;
+ * `regexCompiler` hardens `pattern` against ReDoS.
  *
  * @packageDocumentation
  */
@@ -318,10 +318,9 @@ export class StreamValidator extends Transform {
   // absolute input offsets: `bytes === null` is a deletion (drop), a
   // non-null `bytes` with `start < end` is a replacement (rename), and
   // `start === end` is an insertion (an `editClose` append). Held bytes are
-  // bounded by the pending member prefix, so the bounded-heap property
-  // holds; a dropped member is deleted as it streams, never held. Held
-  // chunks are concatenated only by a flush that emits some of them, so a
-  // long pending span is not re-copied on every write.
+  // retained until the pending member decision; token and prefix caps
+  // bound different parts of that span. Completed regions are emitted or
+  // skipped without concatenating the input chunks.
   private pendingEdits: Array<{ start: number; end: number; bytes: Buffer | null }> = [];
   private heldChunks: Buffer[] = [];
   private heldLength = 0;
@@ -503,7 +502,11 @@ export class StreamValidator extends Transform {
         : { maxMemberDropBytes: options.maxMemberDropBytes }),
       deferBudgetForEdits: options.policy === "detach",
     });
-    this.tokenizer = new JsonTokenizer(this.spine, { utf8: options.utf8 });
+    this.tokenizer = new JsonTokenizer(this.spine, {
+      utf8: options.utf8,
+      maxKeyBytes: options.maxKeyBytes,
+      maxNumberBytes: options.maxNumberBytes,
+    });
     this.result = new Promise<StreamVerdict>((resolve, reject) => {
       this.resolveResult = resolve;
       this.rejectResult = reject;
@@ -707,27 +710,55 @@ export class StreamValidator extends Transform {
     this.pendingEdits = rest;
     ready.sort((a, b) => a.start - b.start || b.end - a.end);
     const base = this.heldBase;
-    const buf =
-      this.heldChunks.length === 1
-        ? (this.heldChunks[0] as Buffer)
-        : Buffer.concat(this.heldChunks, this.heldLength);
     let cur = base;
+    let index = 0;
+    let offset = 0;
+    const consume = (until: number, emit: boolean): boolean => {
+      while (cur < until) {
+        const chunk = this.heldChunks[index]!;
+        const end = Math.min(chunk.length, offset + until - cur);
+        if (emit && end > offset) this.push(chunk.subarray(offset, end));
+        if (this.destroyed) return false;
+        cur += end - offset;
+        offset = end;
+        if (offset === chunk.length) {
+          index++;
+          offset = 0;
+        }
+      }
+      return true;
+    };
     for (const e of ready) {
       if (e.start < cur) {
         // Overlapped by an earlier (wider) edit: extend the cursor for a
         // delete/replace, drop an insertion that fell inside a deleted span.
-        if (e.end > cur) cur = e.end;
+        if (e.end > cur && !consume(e.end, false)) return;
         continue;
       }
-      if (e.start > cur) this.push(buf.subarray(cur - base, e.start - base));
+      if (e.start > cur && !consume(e.start, true)) return;
       if (e.bytes !== null) this.push(e.bytes);
-      cur = Math.max(cur, e.end);
+      if (this.destroyed) return;
+      if (e.end > cur && !consume(e.end, false)) return;
     }
-    if (cur < limit) this.push(buf.subarray(cur - base, limit - base));
-    const tail = buf.subarray(limit - base);
-    this.heldChunks = tail.length > 0 ? [tail] : [];
-    this.heldLength = tail.length;
+    if (!consume(limit, true)) return;
+    this.heldChunks = this.heldChunks.slice(index);
+    if (offset > 0) this.heldChunks[0] = this.heldChunks[0]!.subarray(offset);
+    this.heldLength -= limit - base;
     this.heldBase = limit;
+  }
+
+  // Keep backing storage within twice the retained span. Copy small tails
+  // into unpooled storage; mostly retained buffers avoid the copy.
+  private compactHeld(): void {
+    // Interior chunks already satisfy the ratio checked on arrival.
+    const last = this.heldChunks.length - 1;
+    for (const i of last > 0 ? [0, last] : last === 0 ? [0] : []) {
+      const chunk = this.heldChunks[i]!;
+      if (chunk.byteLength >= chunk.buffer.byteLength / 2) continue;
+      const owned = Buffer.allocUnsafeSlow(chunk.length);
+      chunk.copy(owned);
+      this.heldChunks[i] = owned;
+    }
   }
 
   // The highest offset safe to emit now: the start of an undecided member
@@ -753,8 +784,12 @@ export class StreamValidator extends Transform {
   // further edit decisions will arrive, so the remainder echoes as-is.
   private flushHeldVerbatim(): void {
     this.flushResolved();
+    if (this.destroyed) return;
     if (this.heldLength > 0) {
-      for (const c of this.heldChunks) this.push(c);
+      for (const c of this.heldChunks) {
+        this.push(c);
+        if (this.destroyed) return;
+      }
       this.heldBase += this.heldLength;
       this.heldChunks = [];
       this.heldLength = 0;
@@ -793,8 +828,14 @@ export class StreamValidator extends Transform {
       } catch (e) {
         err = e;
       }
+      if (this.destroyed) {
+        this.releaseInput();
+        cb();
+        return;
+      }
       if (err === undefined) {
         this.flushResolved();
+        this.compactHeld();
         this.noteHeldPeak();
         cb();
       } else if (err instanceof BudgetReached) {
@@ -814,9 +855,18 @@ export class StreamValidator extends Transform {
 
     // Echo first: output is the verbatim input byte stream (invariant 1).
     this.push(chunk);
+    if (this.destroyed) {
+      cb();
+      return;
+    }
     try {
       this.tokenizer.write(chunk);
     } catch (err) {
+      if (this.destroyed) {
+        this.releaseInput();
+        cb();
+        return;
+      }
       if (err instanceof BudgetReached) {
         // The budget was hit mid-chunk: apply the terminal policy.
         this.applyBudget(cb);
@@ -829,6 +879,7 @@ export class StreamValidator extends Transform {
       cb(err as Error);
       return;
     }
+    if (this.destroyed) this.releaseInput();
     cb();
   }
 
@@ -840,10 +891,20 @@ export class StreamValidator extends Transform {
     if (!this.sealed) {
       try {
         this.tokenizer.end();
+        if (this.destroyed) {
+          this.releaseInput();
+          cb();
+          return;
+        }
         // End of input: all scopes closed, so every edit is resolved. Flush
         // the held tail with edits spliced in.
         if (this.editsActive) this.flushEdits(this.totalBytes);
       } catch (err) {
+        if (this.destroyed) {
+          this.releaseInput();
+          cb();
+          return;
+        }
         // BudgetReached at close just finalizes (below); other throws are fatal.
         if (!(err instanceof BudgetReached)) {
           this.finished = true;
@@ -852,6 +913,10 @@ export class StreamValidator extends Transform {
           return;
         }
       }
+    }
+    if (this.destroyed) {
+      cb();
+      return;
     }
     const verdict = this.sealedVerdict();
     this.finished = true;
@@ -869,6 +934,10 @@ export class StreamValidator extends Transform {
   // The validation budget was reached mid-write: under `terminate`, fail
   // the stream now; under `detach`, seal the verdict and echo the tail.
   private applyBudget(cb: TransformCallback): void {
+    if (this.destroyed) {
+      cb();
+      return;
+    }
     const verdict = this.sealedVerdict();
     if (this.policy === "terminate") {
       this.finished = true;
@@ -880,18 +949,30 @@ export class StreamValidator extends Transform {
     }
     // detach: stop validating, keep echoing.
     this.sealed = true;
+    this.tokenizer.dispose();
+    this.spine.dispose();
     cb();
   }
 
-  // Cleanup on every exit path, including consumer abort (the most
-  // leaked). Settle the result so an awaiter never hangs; engine state is
-  // heap-only and reclaimed once this instance is unreferenced.
+  // Settle awaiters and release retained input even when the application
+  // keeps the destroyed stream instance.
   override _destroy(err: Error | null, cb: (error: Error | null) => void): void {
     if (!this.finished) {
       this.finished = true;
       this.rejectResult(err ?? new Error("stream-validator: destroyed before completion"));
     }
+    this.releaseInput();
     cb(err);
+  }
+
+  // A hook can destroy during a parser callback. Run cleanup again after
+  // that callback unwinds so its remaining work cannot retain input.
+  private releaseInput(): void {
+    this.tokenizer.dispose();
+    this.spine.dispose();
+    this.heldChunks = [];
+    this.heldLength = 0;
+    this.pendingEdits = [];
   }
 }
 

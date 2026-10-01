@@ -148,10 +148,13 @@ makes sense for your API.
   See the [CLI README](../packages/cli/README.md#compile-spec-output).
 - **Streaming validation of large bodies.** The separate
   [`@oaverify/stream`](../packages/stream-validator/README.md)
-  package validates a JSON body as it streams, with bounded memory,
+  package validates a JSON body as it streams, with configurable token
+  limits and per-region materialization caps,
   and `oaverify stream-check spec.yaml` reports which of a spec's bodies
   can stream and which must buffer. eov (like Ajv) validates a
-  fully-parsed value only.
+  fully-parsed value only. Streaming limits and reports cover specific
+  retention categories; total memory also depends on retained names,
+  captures and stream queues. See the package README for their scope.
 
 ## Format-shape note
 

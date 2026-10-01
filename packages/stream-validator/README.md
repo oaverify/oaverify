@@ -4,15 +4,14 @@ A streaming JSON Schema 2020-12 validator for
 [`@oaverify/core`](https://www.npmjs.com/package/@oaverify/core). It
 validates a JSON document against a resolved schema **as it streams**,
 echoing the input bytes through unchanged while reporting violations on a
-side channel. Memory is bounded for forward-decidable schemas with
-structural bounds (or configured caps), so multi-GB request bodies
-validate without materializing in heap.
+side channel. Forward validation avoids materializing the whole body.
+Token accumulators, retained object names and edits still consume memory;
+configure resource policies for the input your application accepts.
 
 The trade-off is throughput: on a body that turns out valid,
 streaming validation is slower than buffering the whole document and
-validating it in memory. What it buys is the bounded footprint and
-early rejection: memory stays flat regardless of body size, and an
-invalid body can be refused before its tail arrives. If your bodies
+validating it in memory. It can release completed values as input arrives
+and refuse invalid input before its tail arrives. If your bodies
 fit comfortably in heap, the in-memory validator is the faster tool.
 
 This is a second engine, not a mode of the in-memory validator.
@@ -84,6 +83,21 @@ it reports at the closing delimiter. The verdict is identical either way;
 eager enforcement only moves _when_ the violation surfaces (and its byte
 offset points at the cause rather than the delimiter).
 
+### Input token policies
+
+Set `maxKeyBytes` and `maxNumberBytes` to refuse excessively long input tokens
+before accumulating them, including inside nested objects, buffered subtrees
+and dropped values. Both default off and work with OpenAPI 3.0 as well as 3.1.
+They limit input spelling independently of schema: quotes and escapes count
+for keys; sign, fraction and exponent count for numbers. See
+`StreamValidatorOptions.maxKeyBytes` and `StreamValidatorOptions.maxNumberBytes`
+for the contract, and the [recipe](../../docs/streaming.md#input-token-limits).
+
+Refusal throws `KeyLimitError` or `NumberLimitError`, errors the stream and
+rejects `result`, regardless of validation budget or policy. After detach
+has sealed validation, its unparsed tail is outside these checks. These
+policies do not bound total heap or the number of retained names.
+
 ### Supported schemas
 
 The STREAM keyword set (`type`, scalar/string/number constraints,
@@ -96,8 +110,10 @@ streams without materializing. Everything that genuinely needs the whole
 value (object/array `enum` / `const`, `dependentSchemas`, `discriminator`,
 `contains`, `uniqueItems`, a composition with a non-forward branch, or
 `format` under an OpenAPI dialect) is a **BUFFER island**: the subtree is
-materialized and delegated to `@oaverify/core/schema`'s in-memory validator,
-bounded by `maxBufferedBytes`. Only a REJECT keyword
+materialized and delegated to `@oaverify/core/schema`'s in-memory validator.
+`maxBufferedBytes` is checked on parser events; it can be exceeded while an
+unfinished token is arriving. Use the input token policies below to limit
+keys and number spellings. Only a REJECT keyword
 (`unevaluatedProperties` / `unevaluatedItems`), an unknown keyword, or an
 unresolvable `$ref` fails fast at construction.
 
@@ -123,16 +139,16 @@ rules, see the
 
 `analyzeStreamability(schema, options)` is the design-time companion to the
 runtime engine: it classifies a resolved schema and reports where it
-buffers and how much, without reading a byte. The same classification the
-engine runs on, turned into a peak-buffer budget you check before deploy.
+materializes subtrees and estimates their source spans, without reading a byte.
+Its classifications and numbers do not cover all retained memory.
 
 ```ts
 import { analyzeStreamability } from "@oaverify/stream";
 
 const report = analyzeStreamability(bodySchema, { openApiVersion: "3.1" });
 report.classification; // "streamable" | "tee" | "buffer"
-report.peakBytes; // schema-intrinsic peak in wire bytes, or "unbounded"
-report.effectivePeakBytes; // peak under maxBufferedBytes (passes clamp to the cap)
+report.peakBytes; // materialization estimate in wire bytes, or "unbounded"
+report.effectivePeakBytes; // estimate after applying the per-region cap
 
 // The punch list: positions with no structural bound fall back to the cap.
 for (const p of report.positions.filter((p) => p.maxBytes === "unbounded")) {
@@ -140,24 +156,23 @@ for (const p of report.positions.filter((p) => p.maxBytes === "unbounded")) {
 }
 ```
 
-A peak is computable because the engine holds one materialized island at a
-time: sequential positions (array items, object properties) buffer one at a
-time, so the peak across siblings is a **max**, while a TEE's concurrent
-sub-spines **sum**. A BUFFER island is bounded by its subtree's structural
-keywords (`maxLength` / `maxItems` / `const` / `enum`, and a closed
-object's properties), and `"unbounded"` where one is missing (an open
-object is unbounded regardless of `maxProperties`). Sizes are an upper-bound estimate
-in the same UTF-8 wire bytes `maxBufferedBytes` caps (heavy `\uXXXX`
-escaping can exceed the per-character assumption), so treat the number as a
-capacity-planning figure, not a runtime meter. An unstreamable schema
-throws the same `ClassifierError` `createStreamValidator` raises.
+The model takes the maximum over sequential materialized values and sums
+concurrent TEE branch peaks. It estimates a BUFFER island from its subtree's
+structural keywords (`maxLength` / `maxItems` / `const` / `enum`, and a closed
+object's properties), returning `"unbounded"` when a required bound is missing.
+An open object is `"unbounded"` regardless of `maxProperties`, which the byte
+model does not yet use. Estimates currently undercount JSON escaping,
+whitespace and number spellings, so finite numbers are not conservative
+bounds. `maxKeyBytes` and `maxNumberBytes` do not change these estimates.
+An unstreamable schema throws the same `ClassifierError` as the runtime.
 
-The runtime meter is `verdict.peakBufferedBytes` on `validator.result`: the
-high-water buffered wire bytes an actual stream reached, in the same model
-(`0` when nothing buffered, a single island exact, sibling buffers maxed, a
-TEE's branches summed, plus any edit-hook retention). Compare it to this
-report's `peakBytes` to see how close real traffic came to the predicted
-peak. The analyzer bounds the schema; `peakBufferedBytes` reports the input.
+`verdict.peakBufferedBytes` measures materialized source spans plus edit-hook
+retention. Zero means those measured categories contributed zero. Token
+accumulators, completed-name sets, captures and stream queues are excluded.
+Source spans also differ from heap: whitespace increases the former without
+necessarily increasing the latter. Neither the analyzer nor this runtime
+metric establishes an overall memory ceiling. See `StreamabilityReport` and
+`StreamVerdict.peakBufferedBytes` for the contracts.
 
 `analyzeSpec(document, options)` rolls this up over a whole resolved
 OpenAPI document: one budget per operation, for the request body and each

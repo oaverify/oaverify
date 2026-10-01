@@ -1005,7 +1005,7 @@ needs the full payload before `validateRequest` can check it.
 `validateRequest` accepts an already-buffered 10 GB document; the
 memory cost is the caller's. For a body too large to buffer, the
 separate [`@oaverify/stream`](../packages/stream-validator/README.md)
-package validates it as it streams, with bounded memory, and
+package validates it as it streams without materializing the whole body, and
 `oaverify stream-check spec.yaml` reports which of a spec's bodies can
 stream at all. For spec-level opt-out, declare the body as
 `format: binary` and let the opaque-body bypass accept whatever the
