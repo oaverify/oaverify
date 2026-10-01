@@ -1,5 +1,34 @@
 # Changelog
 
+## [7.3.0](https://github.com/oaverify/oaverify/compare/stream-v7.2.2...stream-v7.3.0) (2026-10-01)
+
+
+### Features
+
+* **stream:** cap input key and number tokens ([#1222](https://github.com/oaverify/oaverify/issues/1222)) ([080cba3](https://github.com/oaverify/oaverify/commit/080cba36346c7f863c30b501a874b43e219914fa))
+* **stream:** discard dropped members as they stream, including objects and arrays ([#1209](https://github.com/oaverify/oaverify/issues/1209)) ([619d517](https://github.com/oaverify/oaverify/commit/619d517ee4cdddb2c2f65d445b0b55d426faa067)), closes [#1207](https://github.com/oaverify/oaverify/issues/1207)
+* **stream:** repair member-edit regressions before 7.3.0 ([#1215](https://github.com/oaverify/oaverify/issues/1215)) ([0fb03bc](https://github.com/oaverify/oaverify/commit/0fb03bc912335852744dac82598f85b9c718eacf)), closes [#1214](https://github.com/oaverify/oaverify/issues/1214)
+
+
+### Bug Fixes
+
+* **cli:** show bounded buffering positions in stream-check verbose output ([#1164](https://github.com/oaverify/oaverify/issues/1164)) ([9118ae6](https://github.com/oaverify/oaverify/commit/9118ae6f7ef5ef8f75bac6b68594054ea31106af))
+* guard malformed spec entries and CLI numeric flags ([#1194](https://github.com/oaverify/oaverify/issues/1194)) ([298a576](https://github.com/oaverify/oaverify/commit/298a576f1588246907fcd61b3423288e3511f86d))
+* **schema:** check unused definition values ([#1065](https://github.com/oaverify/oaverify/issues/1065)) ([533a5c6](https://github.com/oaverify/oaverify/commit/533a5c6201297957b75b041b85ba031e995d120d))
+* **stream:** enforce co-located reference targets ([#1127](https://github.com/oaverify/oaverify/issues/1127)) ([520c0f7](https://github.com/oaverify/oaverify/commit/520c0f75cebab188df431b8afd1b10dbfe38f827))
+* **stream:** enforce member-edit caps while the held span streams ([#1206](https://github.com/oaverify/oaverify/issues/1206)) ([c8ddfdf](https://github.com/oaverify/oaverify/commit/c8ddfdf3e64d21c4bd2870adeb2438c4e32f7484))
+* **stream:** match core regex compilation fallback ([#1129](https://github.com/oaverify/oaverify/issues/1129)) ([c43133a](https://github.com/oaverify/oaverify/commit/c43133a9b05540b26b200877fd25f562087e0168))
+* **stream:** reject malformed UTF-8 input ([#1161](https://github.com/oaverify/oaverify/issues/1161)) ([712b34c](https://github.com/oaverify/oaverify/commit/712b34cf3319b76d55cfe48887385610cec181c9))
+* **stream:** retain body schema reference siblings ([#1132](https://github.com/oaverify/oaverify/issues/1132)) ([95505f6](https://github.com/oaverify/oaverify/commit/95505f6f4c68261ce194b3752dc5d065b4b180d5))
+* **stream:** retain only schema-checked names in object frames ([#1225](https://github.com/oaverify/oaverify/issues/1225)) ([f5f6cda](https://github.com/oaverify/oaverify/commit/f5f6cdafdf1e4d0fc65a73c9ff87ba8c9e4580e5)), closes [#1223](https://github.com/oaverify/oaverify/issues/1223)
+
+
+### Documentation
+
+* correct API contracts and maintenance guidance ([#1143](https://github.com/oaverify/oaverify/issues/1143)) ([a5643b5](https://github.com/oaverify/oaverify/commit/a5643b5b9502b7b74ac9fedbab436150b772bfe2))
+* say what unknownFormats counts as registered ([#1020](https://github.com/oaverify/oaverify/issues/1020)) ([ed40c58](https://github.com/oaverify/oaverify/commit/ed40c58973308f10ad01d0c2e27eb47b4e1bbc4c))
+* **tooling:** track specification boundaries and generate their inventory ([#1095](https://github.com/oaverify/oaverify/issues/1095)) ([2e5f824](https://github.com/oaverify/oaverify/commit/2e5f8249aa40686fe4fa876d5651c97f268744e6))
+
 ## [7.2.2](https://github.com/oaverify/oaverify/compare/stream-v7.2.1...stream-v7.2.2) (2026-09-09)
 
 

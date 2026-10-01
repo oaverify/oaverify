@@ -1,6 +1,6 @@
 {
   "name": "@oaverify/stream",
-  "version": "7.2.2",
+  "version": "7.3.0",
   "description": "Streaming OpenAPI / JSON Schema 2020-12 validator. Validates a JSON body as it streams, echoing bytes through while reporting violations on a side channel. Supports configurable input token limits and member editing. Built on @oaverify/core.",
   "keywords": [
     "json-schema",
