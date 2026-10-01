@@ -354,7 +354,11 @@ interface Applicable {
 interface ObjectFrame {
   kind: "object";
   schemas: SchemaObject[];
+  // Input names this object holds for the presence checks at its close. A
+  // name outside `presence` is counted but not retained, so `seen` is
+  // bounded by the schemas rather than by the input.
   seen: Set<string>;
+  presence: ReadonlySet<string> | null;
   count: number;
   pendingKey: string | null;
   failuresAtOpen: number;
@@ -460,6 +464,8 @@ export class SpineValidator implements JsonEventHandler {
   private readonly refCache = new Map<string, SchemaOrBoolean | undefined>();
   // Memoized per-node stream/tee/buffer decision (see nodeKind).
   private readonly kindCache = new Map<SchemaObject, "stream" | "tee" | "buffer">();
+  // Per schema, its `presenceNames`; null when it names none.
+  private readonly presenceCache = new Map<SchemaObject, ReadonlySet<string> | null>();
   private readonly onViolation: ((violation: SchemaViolation) => void) | undefined;
   private readonly strategyOf: (node: SchemaOrBoolean) => Strategy;
   private readonly delegate: IslandDelegate | undefined;
@@ -1410,6 +1416,7 @@ export class SpineValidator implements JsonEventHandler {
       kind: "object",
       schemas: app.schemas,
       seen: new Set(),
+      presence: this.presenceFor(app.schemas),
       count: 0,
       pendingKey: null,
       failuresAtOpen: this.failures,
@@ -1423,6 +1430,29 @@ export class SpineValidator implements JsonEventHandler {
       prefixIsComma: false,
     });
     if (editHooks !== null) this.setLimit("prefix", offset + 1 + this.maxMemberPrefixBytes);
+  }
+
+  // The union of `presenceNames` over an object's schemas. With one
+  // contributing schema the frame shares that schema's cached set.
+  private presenceFor(schemas: SchemaObject[]): ReadonlySet<string> | null {
+    let union: ReadonlySet<string> | null = null;
+    let owned: Set<string> | null = null;
+    for (const s of schemas) {
+      let names = this.presenceCache.get(s);
+      if (names === undefined) {
+        names = presenceNames(s);
+        this.presenceCache.set(s, names);
+      }
+      if (names === null) continue;
+      if (union === null) {
+        union = names;
+        continue;
+      }
+      owned ??= new Set(union);
+      for (const n of names) owned.add(n);
+      union = owned;
+    }
+    return union;
   }
 
   onEndObject(offset: number): void {
@@ -1448,6 +1478,8 @@ export class SpineValidator implements JsonEventHandler {
       // An empty object: the prefix held for a first member ends unused.
       this.clearLimit();
     }
+    // `seen` holds only the names `presenceNames` lists; a lookup added here
+    // must be added there.
     for (const s of frame.schemas) {
       if (Array.isArray(s.required)) {
         for (const r of s.required) if (!frame.seen.has(r)) this.fail("required");
@@ -1598,7 +1630,7 @@ export class SpineValidator implements JsonEventHandler {
       if (s.maxProperties !== undefined && top.count === s.maxProperties)
         this.fail("maxProperties");
     }
-    top.seen.add(value);
+    if (top.presence !== null && top.presence.has(value)) top.seen.add(value);
     top.count += 1;
     top.pendingKey = value;
   }
@@ -1892,6 +1924,38 @@ export class SpineValidator implements JsonEventHandler {
       this.emitScalarMember(startOffset, endOffset, "null", null, false);
     this.scalar("null", null, 0, app);
   }
+}
+
+// Every name `onEndObject` may look up in `seen` for one schema, or null
+// when it looks up none. It walks the keyword values exactly as that check
+// does, malformed ones included, since the spine does not validate them
+// (#919): a string target is iterated per character. A value the check
+// would throw on is skipped here, leaving the throw at close. Change the
+// two together.
+function presenceNames(s: SchemaObject): Set<string> | null {
+  const names = new Set<string>();
+  const addAll = (v: unknown): void => {
+    if (v === null || v === undefined) return;
+    if (typeof (v as Partial<Iterable<unknown>>)[Symbol.iterator] !== "function") return;
+    for (const n of v as Iterable<unknown>) if (typeof n === "string") names.add(n);
+  };
+  if (Array.isArray(s.required)) addAll(s.required);
+  const dep = s.dependentRequired as unknown;
+  if (dep !== undefined && dep !== null) {
+    for (const k of Object.keys(dep)) {
+      names.add(k);
+      addAll((dep as Record<string, unknown>)[k]);
+    }
+  }
+  const deps = (s as Record<string, unknown>).dependencies;
+  if (deps !== null && typeof deps === "object" && !Array.isArray(deps)) {
+    for (const [k, entry] of Object.entries(deps as Record<string, unknown>)) {
+      if (!Array.isArray(entry)) continue;
+      names.add(k);
+      addAll(entry);
+    }
+  }
+  return names.size > 0 ? names : null;
 }
 
 // The schema's own obligation after references and composition have expanded
