@@ -20,11 +20,11 @@
  *     `false`) is unbounded regardless of `maxProperties`, which the byte
  *     model does not yet read.
  *
- * Sizes are an upper bound in **UTF-8 wire bytes** (the same unit
- * `maxBufferedBytes` caps), computed from the byte model below. They are
- * an estimate, not a guaranteed ceiling: a value with heavy JSON escaping
- * (`\uXXXX`) can exceed the per-character assumption. The number is the
- * design-time capacity-planning figure, not a runtime meter.
+ * Sizes estimate materialized **UTF-8 source spans**. They currently
+ * undercount escaping, whitespace and alternative number spellings and
+ * are not conservative upper bounds. Token accumulators, completed-name
+ * sets, captures, edit retention and queues are outside this model.
+ * A finite estimate does not establish bounded validation memory.
  *
  * An unstreamable schema (a REJECT keyword such as `unevaluatedProperties`,
  * an unknown keyword, or an unresolvable `$ref`) throws
@@ -45,6 +45,7 @@ import { classify, type Classification } from "../classifier/index.js";
 import { normalizeOas30 } from "../openapi/index.js";
 import type { StreamValidatorOptions } from "../options.js";
 import { resolveRef as resolveRefLocal } from "../ref-resolve.js";
+import { tokenByteLimit } from "../tokenizer/limits.js";
 
 // --- Byte model (UTF-8 wire bytes; explicit, documented assumptions) ---
 
@@ -66,13 +67,13 @@ const NULL_BYTES = 4;
 /** One structural byte token: a comma, colon, or bracket. */
 const PUNCT_BYTES = 1;
 
-/** A wire-byte size: a finite upper bound, or `"unbounded"`. */
+/** An estimated materialized wire-byte size, or `"unbounded"`. */
 export type ByteSize = number | "unbounded";
 
 /**
  * Classification of an entire schema's streaming behavior.
  *
- *   - `streamable`: validates forward with no buffering (multi-GB safe).
+ *   - `streamable`: validates forward without materializing subtrees.
  *   - `tee`: forward composition fans events to concurrent sub-spines; no
  *     materialization, but peak is the sum over branches.
  *   - `buffer`: at least one position materializes a subtree (an island).
@@ -93,28 +94,30 @@ export interface BufferPosition {
   classification: "buffer" | "tee";
   /** The keyword forcing it (`contains`, `uniqueItems`, `oneOf`, `format`, ...). */
   keyword: string;
-  /** Max wire bytes this position can hold, or `"unbounded"`. */
+  /** Estimated materialized wire bytes; known undercounts apply, or `"unbounded"`. */
   maxBytes: ByteSize;
   /** When `maxBytes` is `"unbounded"`, the missing bound (`maxItems`, `maxLength`, ...). */
   unboundedBy?: string;
 }
 
 /**
- * The peak-buffer budget for a schema. See {@link analyzeStreamability}.
+ * Materialization classification, estimated peaks and their positions.
+ * See {@link analyzeStreamability}. Excludes tokenizer/name storage, captures,
+ * edit retention and queues. Estimates currently undercount escaping,
+ * whitespace and number spellings; a finite value is not a memory guarantee.
  *
  * @public
  */
 export interface StreamabilityReport {
   /** Overall verdict for the whole schema. */
   classification: StreamClass;
-  /** Schema-intrinsic peak buffer, in wire bytes. `"unbounded"` if any buffering position has no structural bound. */
+  /** Schema-intrinsic materialization estimate in wire bytes, or `"unbounded"`. */
   peakBytes: ByteSize;
   /**
-   * Peak buffer a successful validation reaches under the configured caps
-   * (`maxBufferedBytes`): an island larger than the cap fails at runtime,
-   * so the most a passing stream buffers is `min(intrinsic, cap)`. Equal to
-   * {@link peakBytes} when no cap is set (and then `"unbounded"` if the
-   * intrinsic peak is).
+   * Materialization estimate after applying `maxBufferedBytes` per region.
+   * Carries the same undercounts as `peakBytes`. The cap is currently checked
+   * on parser events and does not bound unfinished token accumulation.
+   * `maxKeyBytes` and `maxNumberBytes` do not change this estimate.
    */
   effectivePeakBytes: ByteSize;
   /** Every buffering / teeing position, in walk order. Empty iff `streamable`. */
@@ -581,6 +584,8 @@ function walk(
  * affect classification; `enforceBounds` escalates the classifier's
  * unbounded warnings, below). An unstreamable schema throws
  * {@link ClassifierError}, the same error `createStreamValidator` raises.
+ * Token policies (`maxKeyBytes` / `maxNumberBytes`) are validated using the
+ * runtime's option rules and leave materialization estimates unchanged.
  *
  * Static `$ref` targets and their siblings both contribute. Bounds split
  * across a reference chain can remain conservatively unbounded when their
@@ -590,8 +595,8 @@ function walk(
  * sequential object members can receive a higher budget even when forward
  * validation shares storage. It applies to schemas beyond operation bodies.
  *
- * Wire-byte sizes are an upper-bound estimate (see the module overview),
- * not a guaranteed ceiling. An `"unbounded"` position is the headline
+ * Wire-byte estimates have known escaping, whitespace and number-spelling
+ * undercounts (see the module overview). An `"unbounded"` position is the headline
  * output: a buffering position with no structural bound, which falls back
  * to `maxBufferedBytes` at runtime. Reporting these is the default; pass
  * `enforceBounds: true` to instead throw {@link ClassifierError} on the
@@ -606,6 +611,8 @@ export function analyzeStreamability(
   schema: SchemaOrBoolean,
   options: StreamValidatorOptions = {},
 ): StreamabilityReport {
+  tokenByteLimit("maxKeyBytes", options.maxKeyBytes);
+  tokenByteLimit("maxNumberBytes", options.maxNumberBytes);
   const normalized = options.openApiVersion === "3.0" ? normalizeOas30(schema) : schema;
   // Resolve the dialect exactly as the engine does, so the classifier reads
   // the same keyword set and `formatAsserts` matches the spine's runtime

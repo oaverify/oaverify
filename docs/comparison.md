@@ -349,18 +349,20 @@ Capabilities oaverify has that Ajv (alone or with
 - **Streaming body validation.** The separate
   `@oaverify/stream` package validates a JSON body
   against its operation schema as it streams, echoing the input bytes
-  through to a sink and reporting violations on a side channel. Memory
-  stays bounded for schemas with structural bounds (or configured
-  caps), so a multi-GB body validates without materializing in heap. A
+  through to a sink and reporting violations on a side channel. It
+  materializes subtrees where schema keywords require them, with configurable
+  token limits and per-region materialization caps. Total memory also depends
+  on retained names, captures, edit retention and stream queues. A
   second, push-based engine that reuses oaverify's keyword set and flat error
   model. Ajv and `express-openapi-validator` validate a fully-parsed
   value; there is no streaming path.
 - **Design-time buffer budgets.** `analyzeSpec(document)` reports, per
   operation, which request and response bodies can stream, which must
-  buffer, and how large a buffer can get (in wire bytes, or
-  `"unbounded"` where the schema has no structural cap), without reading
-  a byte of traffic. It runs the same classifier the streaming engine
-  uses, so the budget matches runtime behavior. The CLI surfaces it as
+  buffer, and estimates materialized source spans (in wire bytes, or
+  `"unbounded"` where a required structural bound is missing), without reading
+  a byte of traffic. It uses the streaming classifier; estimates have known
+  undercounts for escaping, whitespace and number spellings and exclude
+  other retained memory. The CLI surfaces it as
   `oaverify stream-check <spec>`, with `--fail-on-unbounded` as a CI gate.
   An Ajv + middleware stack can validate the parsed body, but a buffer
   budget needs the resolved (and overlaid) operation schema and the

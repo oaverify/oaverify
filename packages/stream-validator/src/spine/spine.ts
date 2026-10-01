@@ -325,22 +325,21 @@ export interface StreamVerdict {
   valid: boolean;
   violations: SchemaViolation[];
   /**
-   * High-water buffered wire bytes (UTF-8 source span), the runtime companion
-   * to `analyzeStreamability().peakBytes`. This is an upper-bound *estimate*
-   * in the analyzer's concurrency model, not an exact live-heap gauge: a
-   * single BUFFER island is exact, sibling buffers take the max, and a TEE
-   * sums its branch peaks (conservative, since branches overlap but the sum
-   * assumes full concurrency). The engine adds its edit-retention echo on top.
-   * Interpret it as the analyzer-model peak, comparable to the predicted
-   * `peakBytes`:
+   * High-water materialized source spans in wire bytes. A single BUFFER
+   * island contributes its measured span; sequential islands take the max,
+   * and a TEE sums its branch peaks. The engine adds the peak input span
+   * retained across writes for pending edits. These peaks can occur at
+   * different times. The analyzer's `peakBytes` predicts materialization
+   * spans with known undercounts; this metric measures spans from input.
    *
-   *   - `0` means no buffering happened (a fully-streamable validation with no
-   *     edit hooks).
-   *   - A non-zero value is how close real traffic came to the buffer budget
-   *     (`maxBufferedBytes`), in the same unit.
+   * Zero means these measured categories contributed zero. Token accumulators,
+   * completed-name sets, captures and stream queues are excluded. This is
+   * neither total retained memory nor a heap ceiling. The sum can exceed
+   * `maxBufferedBytes`, which limits each materialized region independently.
    *
-   * A proportional proxy for heap, not a heap figure (the materialized value
-   * is larger than its source span).
+   * Source spans and heap differ: whitespace can enlarge a span without
+   * enlarging the materialized value. Fatal refusals reject `result` without
+   * returning a final measurement.
    */
   peakBufferedBytes: number;
 }
@@ -856,6 +855,16 @@ export class SpineValidator implements JsonEventHandler {
       truncated ? undefined : decoded,
       truncated,
     );
+  }
+
+  /** Release input state after the engine stops parsing; keep the settled verdict. */
+  dispose(): void {
+    this.frames.length = 0;
+    this.path.length = 0;
+    this.island = null;
+    this.tee = null;
+    this.str = null;
+    this.discard = null;
   }
 
   /** The verdict so far (final once `end` has been called on the tokenizer). */

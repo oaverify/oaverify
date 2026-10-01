@@ -46,10 +46,10 @@ export type PathFilter = JsonPath | ((path: JsonPath, kind: "object" | "array") 
  *     bytes fails the stream.
  *   - **Observability** (`keyEvents`, `valueEvents`, `warn`): opt-in,
  *     compile-time-gated channels.
- *   - **Resource limits** (`maxBufferedBytes`, `maxDepth`,
- *     `maxTotalBytes`, `maxUniqueItems`, `enforceBounds`): all default off
- *     (unset = zero overhead). They bound the dimensions a
- *     forward-decidable schema leaves open.
+ *   - **Resource limits** (`maxBufferedBytes`, `maxDepth`, `maxKeyBytes`,
+ *     `maxNumberBytes`, `maxTotalBytes`, `maxUniqueItems`, `enforceBounds`):
+ *     all default off. Each controls its documented dimension; together
+ *     they do not define an overall heap budget.
  *   - **Member-edit caps** (`maxMemberPrefixBytes`, `maxMemberDropBytes`):
  *     `maxMemberPrefixBytes` is the exception to the line above. It
  *     defaults *finite*, because it bounds a buffer the edit itself
@@ -239,10 +239,12 @@ export interface StreamValidatorOptions {
   valueEvents?: boolean | { at: PathFilter; capture?: boolean; maxCaptureBytes?: number };
 
   /**
-   * Cap on any single internal buffer (a forced-buffer scalar or a
-   * BUFFER island), in **UTF-8 source bytes** spanned by the buffered
-   * region. A proportional proxy for heap, not an exact heap bound; size
-   * it with headroom. Default off.
+   * Cap on a materialized region (a forced-buffer scalar or a BUFFER island),
+   * in **UTF-8 source bytes**. Default off. Does not cap tokenizer key or
+   * number storage; use `maxKeyBytes` and `maxNumberBytes` for those.
+   * Currently checked on parser events, so an unfinished token can exceed
+   * this allowance before the next event refuses it. This is not a bound on
+   * memory consumed before refusal or on total heap.
    */
   maxBufferedBytes?: number;
 
@@ -266,11 +268,55 @@ export interface StreamValidatorOptions {
   maxDepth?: number;
 
   /**
-   * Refuse input larger than this many bytes regardless of validity. A
-   * policy lever; the STREAM path does not otherwise need it. Default
-   * off.
+   * Refuse an input chunk that takes the total past this many bytes during
+   * active validation, regardless of schema validity. Default off. After
+   * detach seals validation, the raw-copied tail is not checked. This limits
+   * parsed input size rather than heap or already allocated caller chunks.
    */
   maxTotalBytes?: number;
+
+  /**
+   * Maximum original UTF-8 input bytes in each object key token, including
+   * quotes and escapes. Excludes surrounding whitespace, colon and value.
+   * A lexical input policy independent of schema or internal buffering.
+   * Accepts a non-negative safe integer or Infinity; omitted or Infinity
+   * disables it. Zero refuses any key, and two permits the empty key.
+   * Protection requires explicit configuration.
+   *
+   * Applies wherever input is parsed, including nested or dropped values
+   * and buffered subtrees. Generated editor output is outside this policy.
+   * Refuses before reading the first excess byte with `KeyLimitError`,
+   * rejecting `result` and erroring the stream regardless of `maxErrors`
+   * or `policy`. No partial key event is emitted. Already emitted bytes
+   * remain visible; still-held edited output is discarded on refusal.
+   *
+   * Active during deferred detach while an edit is unresolved. After
+   * detach seals validation, the unparsed tail is copied without this check.
+   * Does not bound total memory or the number of retained names. Analyzer
+   * materialization estimates do not include this token policy.
+   */
+  maxKeyBytes?: number;
+
+  /**
+   * Maximum original input bytes in each number token, including its sign,
+   * fraction and exponent, excluding its terminator. Independent of numeric
+   * magnitude and schema. Accepts a non-negative safe integer or Infinity;
+   * omitted or Infinity disables it. Zero refuses every input number.
+   * Protection requires explicit configuration.
+   *
+   * An exactly-at-cap number completes on a delimiter or EOF; the first
+   * excess byte continuing the number throws `NumberLimitError` before
+   * accumulation. The error rejects `result` and errors the stream, with
+   * no partial number event. Incomplete or malformed input below the cap
+   * retains normal parse-error behavior.
+   *
+   * Uses the same scope, fatal-output and detach rules as `maxKeyBytes`,
+   * including numbers inside dropped values and buffered subtrees. Both
+   * `maxErrors` and `policy` are independent of this fatal resource limit.
+   * Generated editor output is outside it. This does not bound total memory
+   * and does not change analyzer materialization estimates.
+   */
+  maxNumberBytes?: number;
 
   /**
    * Cap on the element count of a `uniqueItems` array (its seen-set is

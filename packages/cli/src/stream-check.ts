@@ -153,6 +153,12 @@ export function renderStreamBudget(
       `${c.streamable} streamable, ${c.tee} tee, ${c.buffer} buffer ` +
       `(${c.unbounded} unbounded)` +
       (c.errors > 0 ? `, ${c.errors} not-streamable` : ""),
+    "Estimates cover materialized source spans. Token/name storage, captures, edits and queues are excluded.",
   );
+  if (c.buffer > 0) {
+    lines.push(
+      "Known undercounts: escaping, whitespace and number spellings. Finite estimates do not establish memory safety.",
+    );
+  }
   return lines.join("\n") + "\n";
 }

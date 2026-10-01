@@ -2,8 +2,8 @@
  * `@oaverify/stream`: a streaming JSON Schema 2020-12 validator. It
  * validates a JSON document against a resolved schema as the bytes stream,
  * echoing them through unchanged while reporting violations on a side
- * channel. Memory is bounded for forward-decidable schemas with structural
- * bounds, so multi-GB bodies validate without materializing in heap.
+ * channel. Forward validation avoids materializing entire bodies; retained
+ * tokens, object names and edit buffers still require their own bounds.
  *
  * This is a second engine, push-based over a token stream, distinct from
  * `@oaverify/internal-schema`'s pull-based compiler. It reuses `@oaverify/internal-schema`'s
@@ -55,6 +55,6 @@ export {
 export { type OperationLocator, streamValidatorForOperation } from "./operation.js";
 export { ClassifierError } from "./classifier/index.js";
 export { BufferLimitError, MemberEditError, UniqueItemsLimitError } from "./spine/index.js";
-export { JsonParseError } from "./tokenizer/index.js";
+export { JsonParseError, KeyLimitError, NumberLimitError } from "./tokenizer/index.js";
 export type { StreamVerdict, SchemaViolation } from "./spine/index.js";
 export { toValidationError } from "./violation.js";

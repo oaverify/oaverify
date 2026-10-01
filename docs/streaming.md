@@ -56,6 +56,48 @@ chunk that failed. When storing output, use a staging location and promote
 it only after the pipeline completes and `validator.result` resolves valid.
 Abort or discard stored output when validation fails.
 
+## Input Token Limits
+
+A small token allowance can coexist with a large streamed document. For
+example, set independent limits on input key and number spellings:
+
+```ts
+import { createStreamValidator, KeyLimitError, NumberLimitError } from "@oaverify/stream";
+
+const validator = createStreamValidator(schema, {
+  maxKeyBytes: 256 * 1024,
+  maxNumberBytes: 256 * 1024,
+});
+
+try {
+  await pipeline(request, validator, sink);
+} catch (error) {
+  if (error instanceof KeyLimitError || error instanceof NumberLimitError) {
+    console.error("input token refused", error.limit, error.byteOffset);
+  }
+  throw error;
+}
+```
+
+Choose allowances for your application's accepted input. Both options default
+off. A key's quotes and JSON escapes count; a number's sign, fraction and
+exponent count, but its delimiter does not. A decoded property-name limit is
+therefore a different constraint from this wire-byte policy.
+
+These resource errors are fatal during active validation, even under
+`policy: "detach"` or an unlimited error budget. They apply to nested and
+dropped input too. Once detach has sealed validation, the unparsed tail is
+copied without these checks. Already emitted output cannot be rolled back;
+still-held edited output is discarded after refusal. Use the staging-output
+approach above if partial output must not become visible to other readers.
+See `StreamValidatorOptions.maxKeyBytes`, `StreamValidatorOptions.maxNumberBytes`,
+`KeyLimitError` and `NumberLimitError` for the contracts.
+
+Neither policy is a total memory budget. Completed-name tracking, captures,
+generated edits and stream queues have separate costs. `maxBufferedBytes`
+controls materialized regions; its current event-based checks do not protect
+unfinished key or number accumulators.
+
 ## Stripping Whitespace
 
 The validator echoes input verbatim. To store a compact body, pipe its
