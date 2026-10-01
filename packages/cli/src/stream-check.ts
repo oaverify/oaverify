@@ -121,7 +121,9 @@ export function hasUnbounded(budget: SpecBudget): boolean {
  * `verbose`, each buffering position is listed under its body with its path
  * and buffering keyword. Bounded positions show estimated wire bytes;
  * unbounded positions name the missing bound. Otherwise bodies show only
- * island counts. See {@link StreamabilityReport} for the budget contract.
+ * island counts. The report always ends with a warning that the input limits
+ * the estimates assume are off by default. See {@link StreamabilityReport}
+ * for the budget contract.
  *
  * @public
  */
@@ -131,7 +133,11 @@ export function renderStreamBudget(
   options: RenderOptions = {},
 ): string {
   const title = doc.info?.title ?? "(untitled)";
-  const lines: string[] = [`${title}  (openapi ${doc.openapi})`, ""];
+  const lines: string[] = [
+    `${title}  (openapi ${doc.openapi})`,
+    "Peaks count buffered body regions, assuming keys, numbers and nesting of ordinary size.",
+    "",
+  ];
 
   // Pad the role column to the widest label so bodies align.
   const pad = Math.max(
@@ -153,12 +159,15 @@ export function renderStreamBudget(
       `${c.streamable} streamable, ${c.tee} tee, ${c.buffer} buffer ` +
       `(${c.unbounded} unbounded)` +
       (c.errors > 0 ? `, ${c.errors} not-streamable` : ""),
-    "Estimates cover materialized source spans. Token/name storage, captures, edits and queues are excluded.",
   );
   if (c.buffer > 0) {
-    lines.push(
-      "Known undercounts: escaping, whitespace and number spellings. Finite estimates do not establish memory safety.",
-    );
+    lines.push("Buffered estimates undercount JSON escaping, whitespace and number spellings.");
   }
+  lines.push(
+    "",
+    "warning: input limits are off by default. A schema-valid body with a huge key or",
+    "number, deep nesting, or no end is not bounded by the numbers above. Set",
+    "maxKeyBytes, maxNumberBytes, maxDepth and maxTotalBytes on the stream validator.",
+  );
   return lines.join("\n") + "\n";
 }
