@@ -68,6 +68,50 @@ describe("streamCheckCommand", () => {
     expect(stdout.value).toContain("summary: 2 bodies in 1 operation.");
   });
 
+  // The estimates say nothing about a huge key or number, deep nesting or
+  // an endless body, and the limits that refuse those are off by default.
+  // A streamable-only spec reports peak 0 everywhere, which is where the
+  // warning matters most, so it prints whatever the classification.
+  it.each([
+    ["a buffering body", SPEC, true],
+    [
+      "only streamable bodies",
+      {
+        ...SPEC,
+        paths: {
+          "/x": {
+            post: {
+              requestBody: { content: { "application/json": { schema: { type: "object" } } } },
+            },
+          },
+        },
+      },
+      false,
+    ],
+  ])("states the assumption and warns about input limits with %s", async (_, spec, buffers) => {
+    const { io: cmdIo, stdout } = memoryIo([["spec.json", spec]]);
+    await streamCheckCommand({ ...base, format: "text", options: textOpts }, cmdIo);
+    const lines = stdout.value.split("\n");
+    expect(lines[1]).toBe(
+      "Peaks count buffered body regions, assuming keys, numbers and nesting of ordinary size.",
+    );
+    expect(
+      stdout.value.endsWith(
+        "\nwarning: input limits are off by default. A schema-valid body with a huge key or\n" +
+          "number, deep nesting, or no end is not bounded by the numbers above. Set\n" +
+          "maxKeyBytes, maxNumberBytes, maxDepth and maxTotalBytes on the stream validator.\n",
+      ),
+    ).toBe(true);
+    expect(stdout.value.includes("Buffered estimates undercount")).toBe(buffers);
+  });
+
+  it("keeps the warning out of --format json", async () => {
+    const { io: cmdIo, stdout } = io();
+    await streamCheckCommand({ ...base, format: "json", options: textOpts }, cmdIo);
+    expect(stdout.value).not.toContain("warning:");
+    expect(() => JSON.parse(stdout.value)).not.toThrow();
+  });
+
   it("lists each unbounded position under --verbose", async () => {
     const { io: cmdIo, stdout } = io();
     await streamCheckCommand({ ...base, format: "text", verbose: true, options: textOpts }, cmdIo);
