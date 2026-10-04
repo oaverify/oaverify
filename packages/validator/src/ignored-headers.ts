@@ -52,6 +52,12 @@ const isObj = (value: unknown): value is Obj =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
 /**
+ * A specification extension key. Its value is arbitrary data, not a
+ * declaration, so it is skipped in the objects that allow extensions.
+ */
+const isExtension = (key: string): boolean => key.startsWith("x-");
+
+/**
  * Every header parameter OpenAPI says to ignore, in document order:
  * `paths`, then `webhooks`, with each operation's callbacks after it.
  * A declaration reached from several operations is listed once for each,
@@ -162,6 +168,7 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
         const callbackAt =
           callback.definitionPointer ?? `${at}/${method}/callbacks/${escapePointer(name)}`;
         for (const [expression, entry] of Object.entries(callback.target)) {
+          if (isExtension(expression)) continue;
           // Naming the reaching operation keeps findings on a shared
           // callback distinct, one per operation.
           walkPathItem(
@@ -184,6 +191,8 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
     const entries = doc[container];
     if (!isObj(entries)) continue;
     for (const [name, item] of Object.entries(entries)) {
+      // `webhooks` is a map of names, where any key is a webhook.
+      if (container === "paths" && isExtension(name)) continue;
       walkPathItem(
         item,
         `/${container}/${escapePointer(name)}`,

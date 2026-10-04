@@ -527,6 +527,30 @@ describe("checkSpec", () => {
     }
   });
 
+  it("does not read specification extensions as declarations", async () => {
+    const operation = {
+      parameters: [{ name: "Authorization", in: "header", schema: { type: "string" } }],
+      responses: { "200": { description: "ok" } },
+    };
+    const ok = { "200": { description: "ok" } };
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "x-example": { get: operation },
+        "/ok": {
+          get: { responses: ok, callbacks: { cb: { "x-example": { post: operation } } } },
+        },
+      },
+      // A webhook is named freely, so an `x-` name is still a webhook.
+      webhooks: { "x-hook": { post: operation } },
+    };
+    const ignored = checkSpec(await resolve([["entry.json", doc]])).filter(
+      (f) => f.code === "ignored-header",
+    );
+    expect(ignored.map((f) => f.location)).toEqual(["/webhooks/x-hook/post/parameters/0"]);
+  });
+
   it("reports no findings on an abort when nothing had run", async () => {
     // The common case: a document that is not OpenAPI at all aborts with
     // nothing to say beyond the abort itself.
