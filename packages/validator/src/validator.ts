@@ -93,7 +93,12 @@ import {
   queryApiKeyNamesForSecurity,
   type SecurityMode,
 } from "./security.js";
-import { matchRequestBodyMediaType, validateBody, validateParameter } from "./validate-step.js";
+import {
+  decodeContentValue,
+  matchRequestBodyMediaType,
+  validateBody,
+  validateParameter,
+} from "./validate-step.js";
 
 /**
  * Coerce {@link ValidatorOptions.validateSecurity} (enum string |
@@ -155,9 +160,19 @@ function responseHeaderOrigin(response: ResponseCompiled, key: string): SchemaOr
   return {
     // See responseBodyOrigin: the label is the response's, unchanged.
     label: response.context,
-    pointer: header?.pointer === undefined ? undefined : `${header.pointer}/schema`,
+    pointer: responseHeaderSchemaPointer(header),
     anchor: header?.anchor,
   };
+}
+
+/** Pointer to a response header's validating schema, under `content` when it came from there. */
+function responseHeaderSchemaPointer(
+  header: { pointer?: string; contentMediaType?: string } | undefined,
+): string | undefined {
+  if (header?.pointer === undefined) return undefined;
+  return header.contentMediaType === undefined
+    ? `${header.pointer}/schema`
+    : `${header.pointer}/content/${escapePointer(header.contentMediaType)}/schema`;
 }
 
 /**
@@ -1543,9 +1558,7 @@ export function createValidator(
     const header = direction === undefined ? response?.headers.get(key) : undefined;
     const pointer =
       direction === undefined
-        ? header?.pointer === undefined
-          ? undefined
-          : `${header.pointer}/schema`
+        ? responseHeaderSchemaPointer(header)
         : response?.pointer === undefined
           ? undefined
           : `${response.pointer}/content/${escapePointer(key)}/schema`;
@@ -1824,6 +1837,29 @@ export function createValidator(
               responseCompiled,
             );
             if (validator === undefined) continue;
+            if (entry.contentMediaType !== undefined) {
+              const decoded = decodeContentValue(raw, entry.contentMediaType);
+              if (decoded === undefined) continue;
+              if (decoded.ok) {
+                const r = validator.validate(decoded.value, ["header", name]);
+                if (!r.valid && r.error !== undefined) children.push(r.error);
+              } else {
+                children.push(
+                  createLeafError(
+                    "header-param",
+                    ["header", name],
+                    `header "${name}" is not valid ${entry.contentMediaType}: ${decoded.message}`,
+                    {
+                      name,
+                      in: "header",
+                      mediaType: entry.contentMediaType,
+                      reason: "content-parse",
+                    },
+                  ),
+                );
+              }
+              continue;
+            }
             // Through the same view request parameters get, so a
             // response header behind a $ref coerces like one.
             const value = deserialize(

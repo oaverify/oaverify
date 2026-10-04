@@ -81,7 +81,7 @@ rejects them. OpenAPI 3.0 requires a Schema Object at these positions.
 This preserves the compiler's boolean semantics across dialects; accepting
 the schema for compilation does not establish document conformance.
 
-**`method`** ([packages/core/src/types.ts:572](../packages/core/src/types.ts#L572))
+**`method`** ([packages/core/src/types.ts:582](../packages/core/src/types.ts#L582))
 
 Against RFC 9110 section 9.1 (<https://www.rfc-editor.org/rfc/rfc9110#section-9.1>).
 
@@ -340,7 +340,7 @@ Against RFC 3986 section 2.1 (<https://www.rfc-editor.org/rfc/rfc3986#section-2.
 Malformed percent escapes such as `%ZZ` are passed through to schema
 validation unchanged. RFC 3986 requires two hexadecimal digits after `%`.
 
-**`maxFormatLength`** ([packages/validator/src/validator.ts:846](../packages/validator/src/validator.ts#L846))
+**`maxFormatLength`** ([packages/validator/src/validator.ts:861](../packages/validator/src/validator.ts#L861))
 
 Against JSON Schema 2020-12 validation section 7 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7>).
 
@@ -468,7 +468,7 @@ resource use.
 
 ### packages/validator
 
-**`maxDepth`** ([packages/validator/src/validator.ts:820](../packages/validator/src/validator.ts#L820))
+**`maxDepth`** ([packages/validator/src/validator.ts:835](../packages/validator/src/validator.ts#L835))
 
 Against JSON Schema 2020-12 core section 8.2.3 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3>).
 
@@ -484,7 +484,7 @@ Changes the value handed on, which can affect subsequent validation.
 
 ### packages/core
 
-**`cookies`** ([packages/core/src/types.ts:601](../packages/core/src/types.ts#L601))
+**`cookies`** ([packages/core/src/types.ts:611](../packages/core/src/types.ts#L611))
 
 Against OpenAPI 3.2 style values (<https://spec.openapis.org/oas/v3.2.0#style-values>).
 

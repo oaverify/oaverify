@@ -229,3 +229,34 @@ describe("precompile onMalformed", () => {
     expect(failure?.anchor).toBe("node");
   });
 });
+
+describe("precompile: content-based response headers (#1148)", () => {
+  it("addresses the schema under the header's content entry", () => {
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/x": {
+          get: {
+            responses: {
+              "200": {
+                description: "ok",
+                headers: {
+                  "X-Test": {
+                    content: { "application/json": { schema: { type: "array", items: [1] } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const [failure] = createValidator(doc as unknown as OpenAPIDocument).precompile({
+      onMalformed: "collect",
+    });
+    expect(failure?.pointer).toBe(
+      "/paths/~1x/get/responses/200/headers/X-Test/content/application~1json/schema",
+    );
+  });
+});

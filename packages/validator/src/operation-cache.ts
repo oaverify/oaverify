@@ -120,7 +120,18 @@ export interface ResponseCompiled {
    */
   headers: Map<
     string,
-    { name: string; object: HeaderObject; pointer?: string; anchor?: "node" | "definition" }
+    {
+      name: string;
+      object: HeaderObject;
+      pointer?: string;
+      anchor?: "node" | "definition";
+      /**
+       * The `content` key whose schema validates the header, when
+       * `content` supplied it. The value is decoded as this media type
+       * before validation, and the schema is addressed under it.
+       */
+      contentMediaType?: string;
+    }
   >;
   /**
    * Response body schemas, keyed by media type. Each is compiled lazily
@@ -397,7 +408,7 @@ function hasSchema(
  *
  * @internal
  */
-export function firstContentMediaType(p: ParameterObject): string | undefined {
+export function firstContentMediaType(p: ParameterObject | HeaderObject): string | undefined {
   if (p.content === undefined) return undefined;
   for (const [name, mto] of Object.entries(p.content)) {
     if (hasSchema(mto)) return name;
@@ -406,14 +417,13 @@ export function firstContentMediaType(p: ParameterObject): string | undefined {
 }
 
 /**
- * First schema found inside a parameter's `content` map (OAS 3.x spec
- * permits exactly one entry, but the API is keyed by media type).
- * Split out so both the cache builder and the per-request parameter
- * step can agree on the lookup rule.
+ * First schema found inside a parameter's or header's `content` map
+ * (OAS 3.x permits exactly one entry, but the API is keyed by media
+ * type). The one lookup rule for every caller.
  *
  * @internal
  */
-export function firstContentSchema(p: ParameterObject): SchemaOrBoolean | undefined {
+export function firstContentSchema(p: ParameterObject | HeaderObject): SchemaOrBoolean | undefined {
   if (p.content === undefined) return undefined;
   for (const mto of Object.values(p.content)) {
     if (hasSchema(mto)) return mto.schema;
@@ -669,10 +679,7 @@ export function buildOperationCache(
       }) ?? {};
     const bodySchemas = new Map<string, SchemaOrBoolean>();
     const headerSchemas = new Map<string, SchemaOrBoolean>();
-    const headersResolved = new Map<
-      string,
-      { name: string; object: HeaderObject; pointer?: string; anchor?: "node" | "definition" }
-    >();
+    const headersResolved: ResponseCompiled["headers"] = new Map();
     let headerReadsRequireOwnProperties = false;
     const declaredResponseMediaTypes: string[] = [];
     for (const [mt, mto] of Object.entries(response.content ?? {})) {
@@ -686,9 +693,13 @@ export function buildOperationCache(
       if (hdr === null || typeof hdr !== "object") continue;
       const lower = name.toLowerCase();
       if (isObjectPrototypePropertyName(lower)) headerReadsRequireOwnProperties = true;
+      // `content` takes precedence over `schema`, as for a parameter.
+      const contentSchema = firstContentSchema(hdr);
+      const schema = contentSchema ?? hdr.schema;
       headersResolved.set(lower, {
         name,
         object: hdr,
+        ...(contentSchema === undefined ? {} : { contentMediaType: firstContentMediaType(hdr) }),
         // The response's anchor is the base, so a header written inline
         // inside a `$ref`'d Response is still shared text.
         ...deps.originOf?.(rawHdr, {
@@ -699,7 +710,7 @@ export function buildOperationCache(
           anchor: responseOrigin.anchor,
         }),
       });
-      if (hdr.schema !== undefined) headerSchemas.set(lower, hdr.schema);
+      if (schema !== undefined) headerSchemas.set(lower, schema);
     }
     responses.set(status, {
       object: response,

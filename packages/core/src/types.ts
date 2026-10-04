@@ -553,11 +553,21 @@ export interface HeaderObject {
   /**
    * Schema for a supplied header value. `false` rejects every supplied value
    * and `true` accepts any value. See {@link SchemaOrBoolean} for version
-   * constraints and malformed values. Omitting the schema
-   * leaves the value unconstrained; {@link HeaderObject.required} controls
-   * whether the header must be present.
+   * constraints and malformed values. Omitting both this and
+   * {@link HeaderObject.content} leaves the value unconstrained;
+   * {@link HeaderObject.required} controls whether the header must be
+   * present.
    */
   schema?: SchemaOrBoolean;
+  /**
+   * The header's value as a media type, in place of `schema`. The first
+   * entry carrying a schema is used, and it takes precedence over
+   * `schema` when both are declared. A JSON media type (`application/json`
+   * or a `+json` suffix) is parsed before the schema runs, and a value that
+   * does not parse is reported as a `header-param` error; any other media
+   * type reaches the schema as the raw string. A repeated header uses its
+   * first value.
+   */
   content?: Record<string, MediaTypeObject>;
 }
 

@@ -386,6 +386,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   );
   const usesOwnHelper = opsEmitted.some((op) => op.usesOwnHelper);
   const usesContentParameters = opsEmitted.some((op) => op.usesContentParameters);
+  const usesContentResponseHeaders = opsEmitted.some((op) => op.usesContentResponseHeaders);
   const usesHeaderHelper = opsEmitted.some((op) => op.usesHeaderHelper);
   const usesHeaderFastHelper = opsEmitted.some((op) => op.usesHeaderFastHelper);
 
@@ -505,7 +506,9 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     ...(usesHeaderFastHelper ? [renderHeaderFastHelper(), ""] : []),
     renderValidateRequestTree(returnValues, usesContentParameters, checksSecurity),
     "",
-    options.requestsOnly === true ? renderValidateResponseTreeNoop() : renderValidateResponseTree(),
+    options.requestsOnly === true
+      ? renderValidateResponseTreeNoop()
+      : renderValidateResponseTree(usesContentResponseHeaders),
     "",
     renderPublicValidators(returnValues),
     "",
@@ -524,6 +527,8 @@ interface EmittedOp {
   usesHeaderFastHelper: boolean;
   /** Any parameter carrying its value in a `content` media type. */
   usesContentParameters: boolean;
+  /** Any response header carrying its value in a `content` media type. */
+  usesContentResponseHeaders: boolean;
   /** The JSON-stringified state object for `ops[key]`. */
   stateLiteral: string;
   /**
@@ -684,10 +689,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     {
       bodyValidators: Record<string, string>;
       declaredMediaTypes: string[];
-      headers: Record<
-        string,
-        { readOwn: boolean; required: boolean; schema: unknown; validator: string | null }
-      >;
+      headers: Record<string, EmittedResponseHeader>;
     }
   > = {};
   if (!requestsOnly) {
@@ -702,17 +704,16 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
           setSpecKey(bodyVs, mediaType, named(media.schema));
         }
       }
-      const headers: Record<
-        string,
-        { readOwn: boolean; required: boolean; schema: unknown; validator: string | null }
-      > = {};
+      const headers: Record<string, EmittedResponseHeader> = {};
       for (const [headerName, hdrRaw] of Object.entries(resp.headers ?? {})) {
         const hdr = resolveRef<HeaderObject>(hdrRaw as HeaderObject | ReferenceObject);
         if (hdr === null || typeof hdr !== "object") continue;
-        const schema = (hdr.schema ?? firstContentSchema(hdr)) as SchemaOrBoolean | undefined;
+        // `content` takes precedence over `schema`, as in operation-cache.ts.
+        const schema = (firstContentSchema(hdr) ?? hdr.schema) as SchemaOrBoolean | undefined;
         setSpecKey(headers, headerName, {
           readOwn: isHeaderObjectPrototypePropertyName(headerName),
           required: hdr.required === true,
+          ...contentFields(hdr),
           schema: coercionView(
             { name: headerName, in: "header", schema: hdr.schema },
             resolveSchemaRef,
@@ -733,6 +734,9 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   );
   const hasFastResponseHeaders = Object.values(responses).some((response) =>
     Object.values(response.headers).some((header) => !header.readOwn),
+  );
+  const hasContentResponseHeaders = Object.values(responses).some((response) =>
+    Object.values(response.headers).some((header) => header.__contentMediaType !== undefined),
   );
 
   const security = operation.security ?? null;
@@ -808,6 +812,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     method,
     usesOwnHelper: hasOwnReadParameters,
     usesContentParameters: hasContentParameters,
+    usesContentResponseHeaders: hasContentResponseHeaders,
     usesHeaderHelper: hasGuardedHeaderParameters || hasGuardedResponseHeaders,
     usesHeaderFastHelper: hasFastHeaderParameters || hasFastResponseHeaders,
     stateLiteral,
@@ -826,8 +831,8 @@ function paramValidatorName(
 }
 
 /**
- * The `content` fields a parameter contributes to the emitted table, or
- * nothing when it declares `schema`.
+ * The `content` fields a parameter or header contributes to the emitted
+ * table, or nothing when no `content` entry carries a schema.
  *
  * Both decisions are made here rather than in the emitted module
  * because both are properties of the document: which media type carries
@@ -835,7 +840,10 @@ function paramValidatorName(
  * `firstContentMediaType` in operation-cache.ts and `isJsonMediaType` in
  * validate-step.ts.
  */
-function contentFields(p: ParameterObject): { __contentMediaType?: string; __contentJson?: true } {
+function contentFields(p: ParameterObject | HeaderObject): {
+  __contentMediaType?: string;
+  __contentJson?: true;
+} {
   if (p.content === undefined) return {};
   for (const [mediaType, mto] of Object.entries(p.content)) {
     if (!hasSchema(mto)) continue;
@@ -872,29 +880,36 @@ function toPlaceholderMap(m: Record<string, string>): Record<string, string> {
   return out;
 }
 
+/** One response header's row before validator names become placeholders. */
+interface EmittedResponseHeader {
+  readOwn: boolean;
+  required: boolean;
+  /** Present when `content` supplies the validator; see `contentFields`. */
+  __contentMediaType?: string;
+  __contentJson?: true;
+  schema: unknown;
+  validator: string | null;
+}
+
 function mapResponsesToPlaceholders(
   responses: Record<
     string,
     {
       bodyValidators: Record<string, string>;
       declaredMediaTypes: string[];
-      headers: Record<
-        string,
-        { readOwn: boolean; required: boolean; schema: unknown; validator: string | null }
-      >;
+      headers: Record<string, EmittedResponseHeader>;
     }
   >,
 ): unknown {
   const out: Record<string, unknown> = {};
   for (const [status, r] of Object.entries(responses)) {
-    const headerOut: Record<
-      string,
-      { __readOwn: boolean; required: boolean; schema: unknown; __validator: string }
-    > = {};
+    const headerOut: Record<string, unknown> = {};
     for (const [name, h] of Object.entries(r.headers)) {
       setSpecKey(headerOut, name, {
         __readOwn: h.readOwn,
         required: h.required,
+        ...(h.__contentMediaType === undefined ? {} : { __contentMediaType: h.__contentMediaType }),
+        ...(h.__contentJson === true ? { __contentJson: true } : {}),
         schema: h.schema,
         __validator: h.validator === null ? "__NULL__" : `__REF:${h.validator}__`,
       });
@@ -1397,7 +1412,30 @@ function renderValidateResponseTreeNoop(): string {
 `;
 }
 
-function renderValidateResponseTree(): string {
+function renderValidateResponseTree(contentHeaders: boolean): string {
+  // Emitted only when some response header declares `content`, as the
+  // request side's content branch is.
+  const contentHeaderBranch = contentHeaders
+    ? `          // A \`content\` header is decoded as its media type rather than
+          // deserialized by style. Mirrors decodeContentValue in validate-step.ts.
+          if (hdr.__contentMediaType !== undefined) {
+            const rawStr = Array.isArray(raw) ? raw[0] : raw;
+            if (typeof rawStr !== "string") continue;
+            let parsed = rawStr;
+            if (hdr.__contentJson === true) {
+              try {
+                parsed = JSON.parse(rawStr);
+              } catch (err) {
+                children.push(createLeafError("header-param", ["header", name], \`header "\${name}" is not valid \${hdr.__contentMediaType}: \${err.message}\`, { name, in: "header", mediaType: hdr.__contentMediaType, reason: "content-parse" }));
+                continue;
+              }
+            }
+            const r = hdr.__validator.validate(parsed, ["header", name]);
+            if (!r.valid && r.error !== undefined) children.push(r.error);
+            continue;
+          }
+`
+    : "";
   return `function __validateResponseTree(req, res) {
   const method = (req.method ?? "GET").toUpperCase();
   const match = router.match(method, req.path);
@@ -1436,7 +1474,7 @@ function renderValidateResponseTree(): string {
           }
           if (raw === undefined) continue;
           if (hdr.__validator === null) continue;
-          const value = deserialize(raw, { name, in: "header", schema: hdr.schema, style: undefined, explode: undefined });
+${contentHeaderBranch}          const value = deserialize(raw, { name, in: "header", schema: hdr.schema, style: undefined, explode: undefined });
           const r = hdr.__validator.validate(value, ["header", name]);
           if (!r.valid && r.error !== undefined) children.push(r.error);
         }
