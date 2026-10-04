@@ -1814,7 +1814,7 @@ export function createValidator(
             const raw = responseCompiled.headerReadsRequireOwnProperties
               ? getHeaderValue(headers, name)
               : getHeaderValueFast(headers, name);
-            if (hdr.required && (raw === undefined || raw === "")) {
+            if (hdr.required && raw === undefined) {
               children.push(
                 createLeafError(
                   "header-param",

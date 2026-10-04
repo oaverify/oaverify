@@ -1468,7 +1468,7 @@ function renderValidateResponseTree(contentHeaders: boolean): string {
       if (resp.headers !== undefined) {
         for (const [name, hdr] of Object.entries(resp.headers)) {
           const raw = hdr.__readOwn ? __readHeader(res.headers, name) : __readHeaderFast(res.headers, name);
-          if (hdr.required && (raw === undefined || raw === "")) {
+          if (hdr.required && raw === undefined) {
             children.push(createLeafError("header-param", ["header", name], \`missing required header "\${name}"\`, { name, in: "header" }));
             continue;
           }

@@ -79,6 +79,13 @@ describe("validateResponse", () => {
     );
     expect(leafAt(invalid, "header.X-Count")).toBeDefined();
 
+    // An empty value is present and fails the schema, not the required check.
+    const empty = sv.validateResponse(
+      { method: "GET", path: "/items" },
+      { status: 200, headers: { "x-count": "" } },
+    );
+    expect(leafAt(empty, "header.X-Count")?.code).toBe("type");
+
     const mixedCase = sv.validateResponse(
       { method: "GET", path: "/items" },
       { status: 200, headers: { "X-COUNT": "1" } },
