@@ -20,6 +20,14 @@ import {
  * - header: `simple` (default)
  * - cookie: `form` (default), `cookie` (OpenAPI 3.2 and later)
  *
+ * A `simple` header array or object given as one string is an HTTP
+ * list, so space and tab around each comma-separated member are
+ * dropped: `1, 2` reads as `[1, 2]`, which is how a client joining
+ * repeated header lines writes it. Other whitespace is kept: inside a
+ * member, around an exploded object's `=`, and any character other than
+ * space or tab. A header value given as an array is one element per
+ * entry, neither split nor trimmed.
+ *
  * @param raw - The value(s) provided for this parameter, already URL-decoded
  * where required by the location. This function does no percent-decoding.
  * Path captures that retain wire encoding use {@link deserializePath}.
@@ -53,6 +61,14 @@ import {
  * // [1, 2, 3]. Without `items`, they stay strings.
  * ```
  *
+ * @specCites RFC 9110 section 5.6.1, https://www.rfc-editor.org/rfc/rfc9110#section-5.6.1
+ * @specBoundary transforms https://www.rfc-editor.org/rfc/rfc9110#section-5.6.1.2
+ * Empty members of a `simple` header list are kept as empty strings.
+ * RFC 9110 has a recipient ignore them, so `1, ,2` is the list `1, 2`;
+ * here it reads as `[1, "", 2]`, which an integer array then rejects
+ * and a string array accepts with an extra `""` element. OpenAPI's
+ * `simple` style can carry an empty string as an element, so dropping
+ * empty members would lose values a client meant to send.
  * @public
  */
 export function deserialize(
@@ -110,6 +126,10 @@ function deserializeValue(
   const explode = parameter.explode ?? defaultExplode(style);
   const schema = parameter.schema;
   const type = effectiveType(schema);
+  // Applied to each list member after splitting; simple-style headers
+  // drop HTTP optional whitespace.
+  const normalizeMember =
+    parameter.in === "header" && style === "simple" ? trimHttpWhitespace : identity;
 
   if (Array.isArray(raw)) {
     if (type === "array") {
@@ -175,7 +195,9 @@ function deserializeValue(
       return [coerceScalar(decode(raw), items)];
     }
     const separator = arraySeparator(style, explode);
-    return raw.split(separator).map((v) => coerceScalar(decode(stripStyle(v, style)), items));
+    return raw
+      .split(separator)
+      .map((v) => coerceScalar(decode(stripStyle(normalizeMember(v), style)), items));
   }
 
   if (type === "object") {
@@ -207,7 +229,8 @@ function deserializeValue(
     const props = propertySchemas(schema);
     const out: Record<string, unknown> = {};
     if (explode) {
-      for (const kv of body.split(separator)) {
+      for (const pair of body.split(separator)) {
+        const kv = normalizeMember(pair);
         // Split at the first "=" only: the value may carry more of them
         // (base64 padding, a nested pair), and `kv.split("=")[1]` was
         // silently truncating "token=a=b" to "a".
@@ -217,7 +240,7 @@ function deserializeValue(
       }
       return out;
     }
-    const parts = body.split(separator);
+    const parts = body.split(separator).map(normalizeMember);
     for (let i = 0; i < parts.length; i += 2) {
       // An odd part count is malformed serialization; giving the
       // trailing key an empty value keeps the defect visible to schema
@@ -529,6 +552,24 @@ function objectSeparator(style: ParameterStyle, explode: boolean): string {
   if (style === "cookie") return explode ? "; " : ",";
   // `form`, in query and cookie, and any style not named above.
   return explode ? "&" : ",";
+}
+
+/**
+ * Drop RFC 9110 section 5.6.3 optional whitespace (space and horizontal
+ * tab, and only those) from both ends of a list member.
+ * `String.prototype.trim` would also drop characters HTTP does not treat
+ * as list whitespace.
+ */
+function trimHttpWhitespace(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && (value[start] === " " || value[start] === "\t")) start++;
+  while (end > start && (value[end - 1] === " " || value[end - 1] === "\t")) end--;
+  return start === 0 && end === value.length ? value : value.slice(start, end);
+}
+
+function identity(value: string): string {
+  return value;
 }
 
 function stripStyle(value: string, style: ParameterStyle): string {

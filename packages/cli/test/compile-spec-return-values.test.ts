@@ -557,3 +557,130 @@ describe.each(["3.0.4", "3.1.0", "3.2.0"])("encoded path parity (%s)", (openapi)
     },
   );
 });
+
+describe("compile-spec: HTTP whitespace in simple-style header lists (#1198)", () => {
+  const strings = { type: "object", properties: { a: { type: "string" }, b: { type: "string" } } };
+  const ints = { type: "object", properties: { a: { type: "integer" }, b: { type: "integer" } } };
+  const header = (name: string, schema: object, extra: object = {}) => ({
+    name,
+    in: "header",
+    schema,
+    ...extra,
+  });
+  const doc = {
+    openapi: "3.1.0",
+    info: { title: "Header lists", version: "1" },
+    paths: {
+      "/h": {
+        get: {
+          parameters: [
+            header("X-Ints", { type: "array", items: { type: "integer" } }),
+            header("X-Strings", { type: "array", items: { type: "string" } }, { style: "simple" }),
+            header("X-Flat", ints),
+            header("X-Flat-Strings", strings, { explode: false }),
+            header("X-Exploded", strings, { explode: true }),
+            header("X-Scalar", { type: "string" }),
+          ],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  } as unknown as OpenAPIDocument;
+
+  async function values(headers: Record<string, string>): Promise<RequestValueBag | undefined> {
+    const aot = await buildAot(doc, { returnValues: true });
+    const runtime = createValidator(doc, { returnValues: true });
+    const req = { method: "GET", path: "/h", headers };
+    const want = runtime.validateRequest(req);
+    expect(aot.validateRequest(req)).toEqual(want);
+    expect(want.valid).toBe(true);
+    return valueOf(want as { value?: RequestValueBag });
+  }
+
+  it("drops space and tab at list member boundaries", async () => {
+    expect(
+      await values({
+        "x-ints": "1, 2,\t3 ",
+        "x-strings": "a b , c",
+        "x-flat": "a, 1, b ,2",
+        "x-flat-strings": "a, x y ,b,\tz",
+        "x-exploded": "a=x y , b=z",
+      }),
+    ).toMatchObject({
+      headers: {
+        "X-Ints": [1, 2, 3],
+        "X-Strings": ["a b", "c"],
+        "X-Flat": { a: 1, b: 2 },
+        "X-Flat-Strings": { a: "x y", b: "z" },
+        "X-Exploded": { a: "x y", b: "z" },
+      },
+    });
+  });
+
+  it("keeps whitespace around '=' and other whitespace characters", async () => {
+    expect(
+      await values({
+        "x-strings": "a,\u00a0b,\nc",
+        "x-exploded": "a = x, b= y",
+        "x-scalar": "a, b",
+      }),
+    ).toMatchObject({
+      headers: {
+        "X-Strings": ["a", "\u00a0b", "\nc"],
+        "X-Exploded": { "a ": " x", b: " y" },
+        "X-Scalar": "a, b",
+      },
+    });
+  });
+
+  it("reads Fetch's comma-space join of repeated header lines", async () => {
+    const aot = await buildAot(doc, { returnValues: true });
+    const runtime = createValidator(doc, { returnValues: true });
+    const make = () => {
+      const headers = new Headers();
+      headers.append("X-Ints", "1");
+      headers.append("X-Ints", "2");
+      return new Request("https://example.test/h", { headers });
+    };
+    const want = (await runtime.validateFetchRequest(make())) as {
+      ok: boolean;
+      value: RequestValueBag;
+    };
+    expect(want.ok).toBe(true);
+    expect(want.value.headers).toEqual({ "X-Ints": [1, 2] });
+    expect((await aot.validateFetchRequest(make())).value).toEqual(want.value);
+  });
+
+  it("leaves other parameter locations alone", async () => {
+    // Each of these also splits a list on ",".
+    const list = { type: "array", items: { type: "string" } };
+    const others = {
+      ...doc,
+      paths: {
+        "/o/{p}": {
+          get: {
+            parameters: [
+              { name: "p", in: "path", required: true, schema: list },
+              { name: "q", in: "query", explode: false, schema: list },
+              { name: "c", in: "cookie", explode: false, schema: list },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const runtime = createValidator(others, { returnValues: true });
+    const aot = await buildAot(others, { returnValues: true });
+    const req = {
+      method: "GET",
+      path: "/o/a,%20b",
+      query: { q: "a, b" },
+      cookies: { c: "a, b" },
+    };
+    const want = runtime.validateRequest(req);
+    expect(want).toMatchObject({
+      value: { path: { p: ["a", " b"] }, query: { q: ["a", " b"] }, cookies: { c: ["a", " b"] } },
+    });
+    expect(aot.validateRequest(req)).toEqual(want);
+  });
+});

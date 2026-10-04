@@ -6,6 +6,7 @@ import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import {
   coercionView,
   deserialize,
+  deserializePath,
   matchMediaType,
   matchResponseKey,
   schemaRefResolverFor,
@@ -541,6 +542,52 @@ describe("deserialize", () => {
       schema: { type: "array", items: { type: "string" } },
     });
     expect(out).toEqual(["foo"]);
+  });
+});
+
+describe("deserialize: HTTP whitespace in simple-style header lists (#1198)", () => {
+  const strings: SchemaObject = { type: "array", items: { type: "string" } };
+  const ints: SchemaObject = { type: "array", items: { type: "integer" } };
+  const object: SchemaObject = {
+    type: "object",
+    properties: { a: { type: "integer" }, b: { type: "string" } },
+  };
+  const header = (schema: SchemaObject, extra: Partial<ParameterObject> = {}): ParameterObject => ({
+    name: "p",
+    in: "header",
+    schema,
+    ...extra,
+  });
+
+  it.each<[string, string | string[], ParameterObject, unknown]>([
+    ["integer array", "1, 2,\t3 ", header(ints), [1, 2, 3]],
+    ["string array", " a b ,c", header(strings, { style: "simple" }), ["a b", "c"]],
+    ["flat object", "a, 1 ,b,\tx y", header(object), { a: 1, b: "x y" }],
+    ["exploded object", "a=1 , b=x y", header(object, { explode: true }), { a: 1, b: "x y" }],
+    ["around '='", "a = 1,b= x", header(object, { explode: true }), { "a ": " 1", b: " x" }],
+    ["non-HTTP whitespace", "a,\u00a0b,\nc", header(strings), ["a", "\u00a0b", "\nc"]],
+    ["an empty member", "1, ,2", header(ints), [1, "", 2]],
+    ["a scalar", " a, b ", header({ type: "string" }), " a, b "],
+    ["an array value", [" 1", "2 "], header(ints), [" 1", "2 "]],
+  ])("%s: %j", (_, raw, p, expected) => {
+    expect(deserialize(raw, p)).toEqual(expected);
+  });
+
+  it.each<[string, ParameterObject]>([
+    ["path", { name: "p", in: "path", schema: strings }],
+    ["query", { name: "p", in: "query", explode: false, schema: strings }],
+    ["cookie", { name: "p", in: "cookie", explode: false, schema: strings }],
+    ["header, label style", { name: "p", in: "header", style: "label", schema: strings }],
+  ])("leaves %s lists alone", (_, p) => {
+    const raw = p.style === "label" ? ".a, b" : "a, b";
+    expect(deserialize(raw, p)).toEqual(["a", " b"]);
+  });
+
+  it("leaves a path capture alone", () => {
+    expect(deserializePath("a,%20b", { name: "p", in: "path", schema: strings })).toEqual([
+      "a",
+      " b",
+    ]);
   });
 });
 

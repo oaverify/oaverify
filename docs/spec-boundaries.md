@@ -35,12 +35,12 @@ conforming implementation choice.
 | ---- | ------- | ----- |
 | [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 29 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
-| [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 3 |
+| [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 4 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 9 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 2 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 5 |
 
-59 documented entries across 31 files.
+60 documented entries across 31 files.
 
 ## under-asserts
 
@@ -333,7 +333,7 @@ permits the replacement text. The default, `utf8: "reject"`, rejects it.
 
 ### packages/validator
 
-**`deserializePath`** ([packages/validator/src/deserialize.ts:65](../packages/validator/src/deserialize.ts#L65))
+**`deserializePath`** ([packages/validator/src/deserialize.ts:81](../packages/validator/src/deserialize.ts#L81))
 
 Against RFC 3986 section 2.1 (<https://www.rfc-editor.org/rfc/rfc3986#section-2.1>).
 
@@ -523,6 +523,19 @@ The generated component name can differ from the original. OpenAPI
 specifies which schema a reference identifies but leaves the resolved
 document's layout to tooling. Keeping shared references preserves
 discriminator matching (#553) and recursive schemas (#556).
+
+### packages/validator
+
+**`deserialize`** ([packages/validator/src/deserialize.ts:12](../packages/validator/src/deserialize.ts#L12))
+
+Against RFC 9110 section 5.6.1.2 (<https://www.rfc-editor.org/rfc/rfc9110#section-5.6.1.2>).
+
+Empty members of a `simple` header list are kept as empty strings.
+RFC 9110 has a recipient ignore them, so `1, ,2` is the list `1, 2`;
+here it reads as `[1, "", 2]`, which an integer array then rejects
+and a string array accepts with an extra `""` element. OpenAPI's
+`simple` style can carry an empty string as an element, so dropping
+empty members would lose values a client meant to send.
 
 ## chooses
 
