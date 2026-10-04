@@ -57,6 +57,7 @@ import type {
   OpenAPIDocument,
   OperationObject,
   ParameterObject,
+  ParameterStyle,
   PathItem,
   ReferenceObject,
   RequestBodyObject,
@@ -714,6 +715,9 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
           readOwn: isHeaderObjectPrototypePropertyName(headerName),
           required: hdr.required === true,
           ...contentFields(hdr),
+          // Spread so an unset field adds nothing to the emitted table.
+          ...(hdr.style === undefined ? {} : { style: hdr.style }),
+          ...(hdr.explode === undefined ? {} : { explode: hdr.explode }),
           schema: coercionView(
             { name: headerName, in: "header", schema: hdr.schema },
             resolveSchemaRef,
@@ -880,13 +884,19 @@ function toPlaceholderMap(m: Record<string, string>): Record<string, string> {
   return out;
 }
 
-/** One response header's row before validator names become placeholders. */
+/**
+ * One response header's row before validator names become placeholders.
+ * `style` and `explode` are as declared, and absent when the Header
+ * Object leaves them unset.
+ */
 interface EmittedResponseHeader {
   readOwn: boolean;
   required: boolean;
   /** Present when `content` supplies the validator; see `contentFields`. */
   __contentMediaType?: string;
   __contentJson?: true;
+  style?: ParameterStyle;
+  explode?: boolean;
   schema: unknown;
   validator: string | null;
 }
@@ -903,13 +913,21 @@ function mapResponsesToPlaceholders(
 ): unknown {
   const out: Record<string, unknown> = {};
   for (const [status, r] of Object.entries(responses)) {
-    const headerOut: Record<string, unknown> = {};
+    const headerOut: Record<
+      string,
+      Omit<EmittedResponseHeader, "readOwn" | "validator"> & {
+        __readOwn: boolean;
+        __validator: string;
+      }
+    > = {};
     for (const [name, h] of Object.entries(r.headers)) {
       setSpecKey(headerOut, name, {
         __readOwn: h.readOwn,
         required: h.required,
         ...(h.__contentMediaType === undefined ? {} : { __contentMediaType: h.__contentMediaType }),
         ...(h.__contentJson === true ? { __contentJson: true } : {}),
+        ...(h.style === undefined ? {} : { style: h.style }),
+        ...(h.explode === undefined ? {} : { explode: h.explode }),
         schema: h.schema,
         __validator: h.validator === null ? "__NULL__" : `__REF:${h.validator}__`,
       });
@@ -1474,7 +1492,7 @@ function renderValidateResponseTree(contentHeaders: boolean): string {
           }
           if (raw === undefined) continue;
           if (hdr.__validator === null) continue;
-${contentHeaderBranch}          const value = deserialize(raw, { name, in: "header", schema: hdr.schema, style: undefined, explode: undefined });
+${contentHeaderBranch}          const value = deserialize(raw, { name, in: "header", schema: hdr.schema, style: hdr.style, explode: hdr.explode });
           const r = hdr.__validator.validate(value, ["header", name]);
           if (!r.valid && r.error !== undefined) children.push(r.error);
         }

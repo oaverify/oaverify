@@ -2574,3 +2574,88 @@ describe("compile-spec: empty response header values (#1191)", () => {
     },
   );
 });
+
+describe("compile-spec: response header serialization (#1147)", () => {
+  const object: SchemaOrBoolean = {
+    type: "object",
+    required: ["a"],
+    properties: { a: { type: "integer" }, b: { type: "integer" } },
+  };
+  const spec: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "Response headers", version: "1" },
+    paths: {
+      "/x": {
+        get: {
+          responses: {
+            "200": {
+              description: "ok",
+              headers: {
+                "X-Unset": { schema: object },
+                "X-Simple": { style: "simple", schema: object },
+                "X-Flat": { explode: false, schema: object },
+                "X-Exploded": { explode: true, schema: object },
+                "X-Simple-Exploded": { style: "simple", explode: true, schema: object },
+                "X-Ref": { $ref: "#/components/headers/Exploded" },
+              },
+            },
+          },
+        },
+      },
+    },
+    components: { headers: { Exploded: { explode: true, schema: object } } },
+  };
+  const request = { method: "GET", path: "/x" } as const;
+  const flat = ["x-unset", "x-simple", "x-flat"];
+  const exploded = ["x-exploded", "x-simple-exploded", "x-ref"];
+
+  async function check(header: string, wire: string): Promise<AotResult[]> {
+    const results = [];
+    for (const validator of [createValidator(spec), await buildAot(spec)]) {
+      results.push(
+        validator.validateResponse(request, { status: 200, headers: { [header]: wire } }),
+      );
+    }
+    return results;
+  }
+
+  it.each(flat)("%s reads a,1,b,2 as an object", async (header) => {
+    for (const result of await check(header, "a,1,b,2")) expect(result).toEqual({ valid: true });
+  });
+
+  it.each(exploded)("%s reads a=1,b=2 as an object", async (header) => {
+    for (const result of await check(header, "a=1,b=2")) expect(result).toEqual({ valid: true });
+  });
+
+  const declared = (header: string): string =>
+    header.replace(/(^|-)([a-z])/g, (_, dash: string, c: string) => dash + c.toUpperCase());
+
+  // Non-exploded, "a=1" is one key named "a=1", so "a" is missing.
+  it.each(flat)("%s reads a=1 as a key, not a pair", async (header) => {
+    for (const result of await check(header, "a=1")) {
+      expect(flatErrors(result)).toMatchObject([
+        { code: "required", path: ["header", declared(header), "a"], params: { missing: "a" } },
+      ]);
+    }
+  });
+
+  // Exploded, "a,1" is two members with no "=", so "a" is the empty string.
+  it.each(exploded)("%s reads a,1 as two keys, not a pair", async (header) => {
+    for (const result of await check(header, "a,1")) {
+      expect(flatErrors(result)).toMatchObject([
+        { code: "type", path: ["header", declared(header), "a"] },
+      ]);
+    }
+  });
+
+  it.each([
+    ["x-flat", "a,x"],
+    ["x-exploded", "a=x"],
+  ])("%s reports %s failing the property schema", async (header, wire) => {
+    for (const result of await check(header, wire)) {
+      expect(flatErrors(result)).toMatchObject([
+        { code: "type", path: ["header", declared(header), "a"] },
+      ]);
+    }
+  });
+});
