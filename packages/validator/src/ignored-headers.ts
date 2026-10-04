@@ -138,6 +138,7 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
   ): void => {
     if (!isObj(responses)) return;
     for (const [status, raw] of Object.entries(responses)) {
+      if (isExtension(status)) continue;
       const response = follow(raw);
       if (!isObj(response.target)) continue;
       const headers = response.target["headers"];

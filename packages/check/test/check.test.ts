@@ -539,7 +539,16 @@ describe("checkSpec", () => {
       paths: {
         "x-example": { get: operation },
         "/ok": {
-          get: { responses: ok, callbacks: { cb: { "x-example": { post: operation } } } },
+          get: {
+            responses: {
+              ...ok,
+              "x-example": {
+                description: "ok",
+                headers: { "Content-Type": { schema: { type: "string" } } },
+              },
+            },
+            callbacks: { cb: { "x-example": { post: operation } } },
+          },
         },
       },
       // A webhook is named freely, so an `x-` name is still a webhook.
