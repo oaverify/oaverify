@@ -29,6 +29,7 @@ import {
   effectiveType,
   isBinaryStringSchema,
   isIgnoredHeaderParameter,
+  isIgnoredResponseHeader,
   joinsFieldLines,
   isServedParameterLocation,
   isValidMaxTotalBytes,
@@ -772,6 +773,8 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
       }
       const headers: Record<string, EmittedResponseHeader> = {};
       for (const [headerName, hdrRaw] of Object.entries(resp.headers ?? {})) {
+        // Dropped, as in the runtime's operation cache.
+        if (isIgnoredResponseHeader(headerName)) continue;
         const hdr = resolveRef<HeaderObject>(hdrRaw as HeaderObject | ReferenceObject);
         if (hdr === null || typeof hdr !== "object") continue;
         // `content` takes precedence over `schema`, as in operation-cache.ts.

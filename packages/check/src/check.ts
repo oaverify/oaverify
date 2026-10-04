@@ -22,6 +22,7 @@ import {
 import { createValidator } from "@oaverify/internal-validator";
 import {
   listIgnoredHeaders,
+  type IgnoredHeader,
   listUnservedParameterLocations,
   unservedParameterLocationMessage,
   checkDocumentExamplesInContext,
@@ -320,7 +321,7 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
         severity: defaultSeverityFor("hygiene", "ignored-header"),
         code: "ignored-header",
         location: ignored.pointer,
-        message: ignoredHeaderParameterMessage(ignored.where, ignored.name),
+        message: ignoredHeaderMessage(ignored),
         target:
           ignored.definitionPointer === undefined
             ? { pointer: ignored.pointer, anchor: "node" }
@@ -636,12 +637,19 @@ function addSchemaFinding(into: Map<string, CheckFinding>, finding: CheckFinding
 }
 
 /**
- * The `ignored-header` message for a header parameter: what is ignored,
- * and where the header's meaning is declared instead.
+ * The `ignored-header` message: what is ignored, and where the header's
+ * meaning is declared instead.
  */
-function ignoredHeaderParameterMessage(where: string, name: string): string {
+function ignoredHeaderMessage(ignored: IgnoredHeader): string {
+  const { where, name } = ignored;
+  const ignoredText = "which OpenAPI says to ignore; it has no effect on validation.";
+  if (ignored.kind === "response") {
+    const response =
+      ignored.status === "default" ? "the default response" : `status ${ignored.status}`;
+    return `${where} declares response header "${name}" for ${response}, ${ignoredText} Declare response media types under the response's content.`;
+  }
   const instead = IGNORED_HEADER_ALTERNATIVES.get(name.toLowerCase());
-  return `${where} declares header parameter "${name}", which OpenAPI says to ignore; it has no effect on validation.${instead === undefined ? "" : ` ${instead}`}`;
+  return `${where} declares header parameter "${name}", ${ignoredText}${instead === undefined ? "" : ` ${instead}`}`;
 }
 
 /** Where each ignored header's meaning is declared instead, by lowercased name. */

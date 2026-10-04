@@ -3135,3 +3135,70 @@ describe("compile-spec: reserved header parameter names (#1084)", () => {
     }
   });
 });
+
+describe("compile-spec: response Content-Type header definitions (#1092)", () => {
+  const integer = { type: "integer" } as const;
+  const spec: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    components: {
+      responses: {
+        Shared: {
+          description: "ok",
+          headers: { "CONTENT-TYPE": { required: true, schema: integer } },
+          content: { "text/plain": { schema: { type: "string" } } },
+        },
+      },
+    },
+    paths: {
+      "/t": {
+        get: {
+          responses: {
+            "200": {
+              description: "ok",
+              headers: {
+                "Content-Type": { required: true, schema: integer },
+                "X-Count": { schema: integer },
+              },
+              content: { "application/json": { schema: { type: "object" } } },
+            },
+            "201": { $ref: "#/components/responses/Shared" },
+          },
+        },
+      },
+    },
+  };
+  const request = { method: "GET", path: "/t" } as const;
+
+  it("ignores the definition, whatever the header's case", async () => {
+    for (const v of [createValidator(spec), await buildAot(spec)]) {
+      for (const status of [200, 201]) {
+        expect(v.validateResponse(request, { status })).toEqual({ valid: true });
+        expect(
+          v.validateResponse(request, { status, headers: { "content-type": "not-a-number" } }),
+        ).toEqual({ valid: true });
+      }
+    }
+  });
+
+  it("still validates other response headers and selects the body by content type", async () => {
+    for (const v of [createValidator(spec), await buildAot(spec)]) {
+      expect(
+        flatErrors(v.validateResponse(request, { status: 200, headers: { "x-count": "x" } })),
+      ).toMatchObject([{ code: "type", path: ["header", "X-Count"] }]);
+      expect(
+        v.validateResponse(request, {
+          status: 200,
+          contentType: "application/json",
+          headers: { "content-type": "application/json" },
+          body: {},
+        }),
+      ).toEqual({ valid: true });
+      expect(
+        flatErrors(
+          v.validateResponse(request, { status: 200, contentType: "text/plain", body: "x" }),
+        ),
+      ).toMatchObject([{ code: "content-type" }]);
+    }
+  });
+});

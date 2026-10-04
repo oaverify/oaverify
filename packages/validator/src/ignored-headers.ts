@@ -19,15 +19,25 @@ import {
   type OpenAPIDocument,
 } from "@oaverify/internal-core";
 import { escapePointer, METHODS } from "./document-walk.js";
-import { isIgnoredHeaderParameter } from "./headers.js";
+import { isIgnoredHeaderParameter, isIgnoredResponseHeader } from "./headers.js";
 import { REF_CHAIN_MAX_HOPS } from "./operation-cache.js";
 
 /**
- * One ignored header declaration, located.
+ * One ignored header declaration, located: a header parameter
+ * ({@link isIgnoredHeaderParameter}), or a Response Object `headers`
+ * entry ({@link isIgnoredResponseHeader}) with its response's status key.
  *
  * @internal
  */
-export interface IgnoredHeader {
+export type IgnoredHeader = IgnoredHeaderLocation &
+  ({ readonly kind: "parameter" } | { readonly kind: "response"; readonly status: string });
+
+/**
+ * Where an {@link IgnoredHeader} is, and what reached it.
+ *
+ * @internal
+ */
+export interface IgnoredHeaderLocation {
   /** JSON pointer to the declaration as the reaching operation reads it. */
   readonly pointer: string;
   /**
@@ -58,7 +68,7 @@ const isObj = (value: unknown): value is Obj =>
 const isExtension = (key: string): boolean => key.startsWith("x-");
 
 /**
- * Every header parameter OpenAPI says to ignore, in document order:
+ * Every header declaration OpenAPI says to ignore, in document order:
  * `paths`, then `webhooks`, with each operation's callbacks after it.
  * A declaration reached from several operations is listed once for each,
  * and a Path Item's own parameter once for that Path Item.
@@ -115,7 +125,37 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
             : {}),
         where,
         name: target["name"] as string,
+        kind: "parameter",
       });
+    }
+  };
+
+  const collectResponseHeaders = (
+    responses: unknown,
+    base: string,
+    where: string,
+    shared: boolean,
+  ): void => {
+    if (!isObj(responses)) return;
+    for (const [status, raw] of Object.entries(responses)) {
+      const response = follow(raw);
+      if (!isObj(response.target)) continue;
+      const headers = response.target["headers"];
+      if (!isObj(headers)) continue;
+      const at = response.definitionPointer ?? `${base}/responses/${escapePointer(status)}`;
+      const viaRef = shared || response.definitionPointer !== undefined;
+      for (const name of Object.keys(headers)) {
+        if (!isIgnoredResponseHeader(name)) continue;
+        const pointer = `${at}/headers/${escapePointer(name)}`;
+        found.push({
+          pointer,
+          ...(viaRef ? { definitionPointer: pointer } : {}),
+          where,
+          name,
+          kind: "response",
+          status,
+        });
+      }
     }
   };
 
@@ -160,6 +200,7 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
       const operation = item[method] as Obj;
       const where = `${method.toUpperCase()} ${label}`;
       collectParameters(operation["parameters"], `${at}/${method}`, where, viaRef);
+      collectResponseHeaders(operation["responses"], `${at}/${method}`, where, viaRef);
       const callbacks = operation["callbacks"];
       if (!isObj(callbacks)) continue;
       for (const [name, rawCallback] of Object.entries(callbacks)) {

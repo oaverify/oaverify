@@ -71,7 +71,7 @@ export {
 
 // The one rule for header parameters OpenAPI says to ignore, and the
 // walk that locates them for a report.
-export { isIgnoredHeaderParameter } from "./headers.js";
+export { isIgnoredHeaderParameter, isIgnoredResponseHeader } from "./headers.js";
 export { listIgnoredHeaders, type IgnoredHeader } from "./ignored-headers.js";
 
 // Body extraction from a Web Standards `Request` / `Response`. The

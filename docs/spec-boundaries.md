@@ -48,7 +48,7 @@ Accepts what the cited spec forbids.
 
 ### packages/check
 
-**`checkSpec`** ([packages/check/src/check.ts:163](../packages/check/src/check.ts#L163))
+**`checkSpec`** ([packages/check/src/check.ts:164](../packages/check/src/check.ts#L164))
 
 Against OpenAPI 3.1 Schema Object (<https://spec.openapis.org/oas/v3.1.0#schema-object>).
 
@@ -59,7 +59,7 @@ OpenAPI documents), which leave these fields unchecked. The pass checks
 them in OpenAPI 3.0 documents. Other passes still check schema validation
 rules.
 
-**`checkSpec`** ([packages/check/src/check.ts:163](../packages/check/src/check.ts#L163))
+**`checkSpec`** ([packages/check/src/check.ts:164](../packages/check/src/check.ts#L164))
 
 Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.1.1>).
 
