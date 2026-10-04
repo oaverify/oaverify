@@ -171,8 +171,14 @@ const CHECK_SCHEMA_CODES = ["format-not-validated", "unsupported-schema-dialect"
  * `querystring`) and still be one `createValidator` refuses to build
  * for. `@oaverify/internal-spec` has no business knowing that, so the
  * code is emitted here from the rule the validator publishes.
+ * `ignored-header` is emitted the same way, from the set of declarations
+ * the validator drops.
  */
-const CHECK_HYGIENE_CODES = ["unserved-parameter-location", "unsupported-openapi-version"] as const;
+const CHECK_HYGIENE_CODES = [
+  "unserved-parameter-location",
+  "unsupported-openapi-version",
+  "ignored-header",
+] as const;
 
 /** Every code, by the class that emits it. */
 export const CODES_BY_CLASS = {

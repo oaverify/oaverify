@@ -69,6 +69,7 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
   "unserved-parameter-location": {
     title: "a parameter location this validator cannot read a value for",
   },
+  "ignored-header": { title: "a header declaration OpenAPI says to ignore" },
 
   "unsupported-openapi-version": {
     title: "an OpenAPI version this checker does not support",

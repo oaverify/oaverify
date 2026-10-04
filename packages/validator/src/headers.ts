@@ -99,3 +99,31 @@ export function contentTypeErrorMessage(
   const field = subject === "request" ? "HttpRequest" : "HttpResponse";
   return `${base} (set ${field}.contentType; the "content-type" header is not read)`;
 }
+
+/** Header parameter names OpenAPI says to ignore, lowercased. */
+const IGNORED_HEADER_PARAMETERS: ReadonlySet<string> = new Set([
+  "accept",
+  "content-type",
+  "authorization",
+]);
+
+/**
+ * `true` for a header parameter whose definition OpenAPI says to
+ * ignore: `Accept`, `Content-Type` or `Authorization`, matched
+ * case-insensitively as HTTP field names are. Content negotiation, the
+ * request body's media type and security schemes govern those headers
+ * instead.
+ *
+ * A matching declaration is dropped before compiling, so it can neither
+ * reject a request nor require the header.
+ *
+ * @specCites OpenAPI 3.1 Parameter Object, https://spec.openapis.org/oas/v3.1.0#parameter-object
+ * @internal
+ */
+export function isIgnoredHeaderParameter(parameter: { name?: unknown; in?: unknown }): boolean {
+  return (
+    parameter.in === "header" &&
+    typeof parameter.name === "string" &&
+    IGNORED_HEADER_PARAMETERS.has(parameter.name.toLowerCase())
+  );
+}

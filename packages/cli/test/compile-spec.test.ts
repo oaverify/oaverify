@@ -3071,3 +3071,67 @@ describe("compile-spec: format binary in bodies", () => {
     expect(refuses(document)).toThrow(/format not in the built-in set: "binary"/);
   });
 });
+
+describe("compile-spec: reserved header parameter names (#1084)", () => {
+  const strictInteger = { type: "integer" } as const;
+  const spec: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    components: {
+      parameters: {
+        Auth: { name: "Authorization", in: "header", required: true, schema: strictInteger },
+      },
+    },
+    paths: {
+      "/t": {
+        parameters: [{ name: "content-type", in: "header", required: true, schema: strictInteger }],
+        get: {
+          parameters: [
+            { name: "Accept", in: "header", required: true, schema: strictInteger },
+            { $ref: "#/components/parameters/Auth" },
+            // Overrides the path-level entry, and is ignored as well.
+            {
+              name: "Content-Type",
+              in: "header",
+              required: true,
+              content: { "application/json": { schema: strictInteger } },
+            },
+            { name: "X-Count", in: "header", schema: strictInteger },
+            // Same names in other locations are ordinary parameters.
+            { name: "accept", in: "query", schema: strictInteger },
+          ],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+
+  it("ignores Accept, Content-Type and Authorization header parameters", async () => {
+    const sent = {
+      method: "GET",
+      path: "/t",
+      headers: { accept: "text/html", "Content-Type": "text/plain", authorization: "Bearer x" },
+    };
+    for (const v of [createValidator(spec), await buildAot(spec)]) {
+      expect(v.validateRequest({ method: "GET", path: "/t", headers: {} })).toEqual({
+        valid: true,
+      });
+      expect(v.validateRequest(sent)).toEqual({ valid: true });
+    }
+    // Never read, so never handed to the handler.
+    expect(createValidator(spec, { returnValues: true }).validateRequest(sent)).toMatchObject({
+      value: { headers: {} },
+    });
+  });
+
+  it("still validates other header parameters and same-named query parameters", async () => {
+    for (const v of [createValidator(spec), await buildAot(spec)]) {
+      expect(
+        flatErrors(v.validateRequest({ method: "GET", path: "/t", headers: { "x-count": "x" } })),
+      ).toMatchObject([{ code: "type", path: ["header", "X-Count"] }]);
+      expect(
+        flatErrors(v.validateRequest({ method: "GET", path: "/t", query: { accept: "x" } })),
+      ).toMatchObject([{ code: "type", path: ["query", "accept"] }]);
+    }
+  });
+});

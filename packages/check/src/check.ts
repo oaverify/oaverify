@@ -21,6 +21,7 @@ import {
 } from "@oaverify/internal-spec";
 import { createValidator } from "@oaverify/internal-validator";
 import {
+  listIgnoredHeaders,
   listUnservedParameterLocations,
   unservedParameterLocationMessage,
   checkDocumentExamplesInContext,
@@ -308,6 +309,22 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
           unserved.definitionPointer === undefined
             ? { pointer: unserved.pointer, anchor: "node" }
             : { pointer: unserved.definitionPointer, anchor: "scoped-definition" },
+      });
+    }
+    // A declaration the validator drops, reported so the author is not
+    // left wondering why it has no effect. Located like the finding
+    // above, for the same reasons.
+    for (const ignored of listIgnoredHeaders(document)) {
+      findings.push({
+        class: "hygiene",
+        severity: defaultSeverityFor("hygiene", "ignored-header"),
+        code: "ignored-header",
+        location: ignored.pointer,
+        message: ignoredHeaderParameterMessage(ignored.where, ignored.name),
+        target:
+          ignored.definitionPointer === undefined
+            ? { pointer: ignored.pointer, anchor: "node" }
+            : { pointer: ignored.definitionPointer, anchor: "scoped-definition" },
       });
     }
   }
@@ -617,3 +634,19 @@ function addSchemaFinding(into: Map<string, CheckFinding>, finding: CheckFinding
   }
   already.occurrences = (already.occurrences ?? 1) + 1;
 }
+
+/**
+ * The `ignored-header` message for a header parameter: what is ignored,
+ * and where the header's meaning is declared instead.
+ */
+function ignoredHeaderParameterMessage(where: string, name: string): string {
+  const instead = IGNORED_HEADER_ALTERNATIVES.get(name.toLowerCase());
+  return `${where} declares header parameter "${name}", which OpenAPI says to ignore; it has no effect on validation.${instead === undefined ? "" : ` ${instead}`}`;
+}
+
+/** Where each ignored header's meaning is declared instead, by lowercased name. */
+const IGNORED_HEADER_ALTERNATIVES: ReadonlyMap<string, string> = new Map([
+  ["accept", "Declare response media types under responses content."],
+  ["content-type", "Declare request media types under requestBody content."],
+  ["authorization", "Declare authentication with a security scheme."],
+]);

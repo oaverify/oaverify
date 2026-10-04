@@ -69,6 +69,11 @@ export {
   type UnservedParameterLocation,
 } from "./parameter-locations.js";
 
+// The one rule for header parameters OpenAPI says to ignore, and the
+// walk that locates them for a report.
+export { isIgnoredHeaderParameter } from "./headers.js";
+export { listIgnoredHeaders, type IgnoredHeader } from "./ignored-headers.js";
+
 // Body extraction from a Web Standards `Request` / `Response`. The
 // package root exports it too, as the reader a custom
 // `FetchRequestOptions.readBody` delegates to.
