@@ -132,6 +132,7 @@ async function buildAot(
     validateSecurity?: "off" | "shape" | "strict";
     maxErrors?: number;
     maxTotalBytes?: number;
+    unknownFormats?: "ignore" | "error";
   } = {},
 ): Promise<AotValidator> {
   const mem = memoryIo([["spec.json", document]]);
@@ -148,6 +149,7 @@ async function buildAot(
       validateSecurity: extra.validateSecurity,
       maxErrors: extra.maxErrors,
       maxTotalBytes: extra.maxTotalBytes,
+      unknownFormats: extra.unknownFormats,
     },
     mem.io,
   );
@@ -1061,6 +1063,179 @@ describe("compile-spec: OAS 3.0 $ref sibling body-direction parity", () => {
       "type",
     );
     expect(flatErrors(aot.validateRequest(request as never)).map((e) => e.code)).toContain("type");
+  });
+});
+
+describe("compile-spec: body readOnly/writeOnly projection (#1145)", () => {
+  // One component on both legs, reached directly and through allOf, so
+  // a projection cached for one direction cannot serve the other.
+  const spec: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    components: {
+      schemas: {
+        User: {
+          type: "object",
+          required: ["id", "secret", "name"],
+          properties: {
+            id: { type: "integer", readOnly: true },
+            secret: { type: "string", writeOnly: true },
+            name: { type: "string" },
+          },
+        },
+        Stamped: {
+          allOf: [
+            { $ref: "#/components/schemas/User" },
+            { type: "object", properties: { file: { type: "string", format: "binary" } } },
+          ],
+        },
+      },
+    },
+    paths: {
+      "/u": {
+        post: {
+          requestBody: {
+            content: { "application/json": { schema: { $ref: "#/components/schemas/User" } } },
+          },
+          responses: {
+            "200": {
+              description: "ok",
+              content: { "application/json": { schema: { $ref: "#/components/schemas/User" } } },
+            },
+          },
+        },
+      },
+      "/s": {
+        post: {
+          requestBody: {
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/Stamped" } },
+            },
+          },
+          responses: {
+            "200": {
+              description: "ok",
+              content: {
+                "application/json": { schema: { $ref: "#/components/schemas/Stamped" } },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+
+  async function both() {
+    // compile-spec refuses `format: binary` as an unknown format unless told not to.
+    return [createValidator(spec), await buildAot(spec, { unknownFormats: "ignore" })] as const;
+  }
+  const request = (path: string, body: unknown) => ({
+    method: "POST",
+    path,
+    contentType: "application/json",
+    body,
+  });
+  const response = (body: unknown) => ({ status: 200, contentType: "application/json", body });
+
+  it.each(["/u", "/s"])("%s: a request omits readOnly and carries writeOnly", async (path) => {
+    for (const v of await both()) {
+      expect(v.validateRequest(request(path, { secret: "s", name: "n" }))).toMatchObject({
+        valid: true,
+      });
+      expect(
+        flatErrors(v.validateRequest(request(path, { id: 1, secret: "s", name: "n" }))),
+      ).toMatchObject([{ path: ["body", "id"] }]);
+      expect(
+        flatErrors(v.validateRequest(request(path, { name: "n" }))).map((e) => e.code),
+      ).toEqual(["required"]);
+    }
+  });
+
+  it.each(["/u", "/s"])("%s: a response omits writeOnly and carries readOnly", async (path) => {
+    for (const v of await both()) {
+      const req = request(path, { secret: "s", name: "n" });
+      expect(v.validateResponse(req, response({ id: 1, name: "n" }))).toMatchObject({
+        valid: true,
+      });
+      expect(
+        flatErrors(v.validateResponse(req, response({ id: 1, secret: "s", name: "n" }))),
+      ).toMatchObject([{ path: ["body", "secret"] }]);
+      expect(
+        flatErrors(v.validateResponse(req, response({ name: "n" }))).map((e) => e.code),
+      ).toEqual(["required"]);
+    }
+  });
+
+  it("accepts any value for a binary property on both legs", async () => {
+    for (const v of await both()) {
+      const req = request("/s", { secret: "s", name: "n", file: 1 });
+      expect(v.validateRequest(req)).toMatchObject({ valid: true });
+      expect(v.validateResponse(req, response({ id: 1, name: "n", file: 1 }))).toMatchObject({
+        valid: true,
+      });
+    }
+  });
+
+  it("projects an OAS 3.0 readOnly that is not a $ref sibling", async () => {
+    const spec30 = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/u": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: ["id"],
+                    properties: { id: { type: "integer", readOnly: true } },
+                  },
+                },
+              },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    for (const v of [createValidator(spec30), await buildAot(spec30)]) {
+      expect(v.validateRequest(request("/u", {}))).toMatchObject({ valid: true });
+      expect(flatErrors(v.validateRequest(request("/u", { id: 1 })))).toMatchObject([
+        { path: ["body", "id"] },
+      ]);
+    }
+  });
+
+  it("leaves parameters direction-agnostic", async () => {
+    const withParam: OpenAPIDocument = {
+      ...spec,
+      paths: {
+        "/p": {
+          get: {
+            parameters: [
+              {
+                name: "q",
+                in: "query",
+                style: "deepObject",
+                explode: true,
+                schema: { $ref: "#/components/schemas/User" },
+              },
+            ],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const runtime = createValidator(withParam);
+    const emitted = await buildAot(withParam, { unknownFormats: "ignore" });
+    const req = {
+      method: "GET",
+      path: "/p",
+      query: { "q[id]": "1", "q[secret]": "s", "q[name]": "n" },
+    };
+    expect(runtime.validateRequest(req)).toMatchObject({ valid: true });
+    expect(emitted.validateRequest(req)).toEqual(runtime.validateRequest(req));
   });
 });
 
