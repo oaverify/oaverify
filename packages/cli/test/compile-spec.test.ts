@@ -3405,3 +3405,52 @@ describe("compile-spec: objects behind a chain of references", () => {
     );
   });
 });
+
+describe("compile-spec: tables keyed by a document name", () => {
+  it("validates a response header named __proto__, as createValidator does (#1236)", async () => {
+    // Built with JSON.parse so the key is an own property.
+    const document = JSON.parse(`{
+      "openapi": "3.1.0", "info": { "title": "t", "version": "1" },
+      "paths": { "/h": { "get": { "responses": { "200": {
+        "description": "ok",
+        "headers": { "__proto__": { "schema": { "type": "integer" } } }
+      } } } } }
+    }`) as OpenAPIDocument;
+    const req = { method: "GET", path: "/h" };
+    const res = { status: 200, headers: JSON.parse('{"__proto__":"x"}') as Record<string, string> };
+    const aot = await buildAot(document);
+    const runtime = createValidator(document);
+    const verdict = (r: AotResult) => flatErrors(r).map((e) => [e.code, e.path]);
+    expect(verdict(aot.validateResponse(req, res))).toEqual([["type", ["header", "__proto__"]]]);
+    expect(verdict(aot.validateResponse(req, res))).toEqual(
+      verdict(runtime.validateResponse(req, res) as AotResult),
+    );
+    const introspected = aot.getOperation(req)?.operation as {
+      responses: Record<string, { headers: object }>;
+    };
+    expect(Object.hasOwn(introspected.responses["200"]!.headers, "__proto__")).toBe(true);
+  });
+
+  it("checks a security scheme named __proto__, as createValidator does", async () => {
+    const document = JSON.parse(`{
+      "openapi": "3.1.0", "info": { "title": "t", "version": "1" },
+      "components": { "securitySchemes": {
+        "__proto__": { "type": "apiKey", "in": "header", "name": "X-Key" }
+      } },
+      "security": [{ "__proto__": [] }],
+      "paths": { "/s": { "get": { "responses": { "200": { "description": "ok" } } } } }
+    }`) as OpenAPIDocument;
+    const aot = await buildAot(document, { validateSecurity: "shape" });
+    const runtime = createValidator(document, { validateSecurity: "shape" });
+    const codes = (r: AotResult) => flatErrors(r).map((e) => e.code);
+    for (const req of [
+      { method: "GET", path: "/s" },
+      { method: "GET", path: "/s", headers: { "x-key": "k" } },
+    ]) {
+      expect(codes(aot.validateRequest(req))).toEqual(
+        codes(runtime.validateRequest(req) as AotResult),
+      );
+    }
+    expect(codes(aot.validateRequest({ method: "GET", path: "/s" }))).toEqual(["security"]);
+  });
+});
