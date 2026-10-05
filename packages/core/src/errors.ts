@@ -177,11 +177,23 @@ export interface BuiltInErrorParams {
   "content-type": { contentType: string | undefined; accepted?: string[]; declared?: string[] };
   /** No declared response matches the status. */
   status: { status: number; declared?: string[] };
-  /** Parameter validation failures, scoped by `in`. */
-  "path-param": { name: string; in: "path" };
-  "query-param": { name: string; in: "query" };
-  "header-param": { name: string; in: "header" };
-  "cookie-param": { name: string; in: "cookie" };
+  /**
+   * Parameter validation failures, scoped by `in`. A response header
+   * failure is reported as `header-param` too.
+   *
+   * `mediaType` and `reason` are present together when the parameter is
+   * declared with `content` and its value does not parse as that media
+   * type: `mediaType` is the declared key, such as `application/json`,
+   * and `reason` is `"content-parse"`. A value that parses and then fails
+   * its schema is reported by the schema's own code instead.
+   */
+  "path-param": { name: string; in: "path"; mediaType?: string; reason?: "content-parse" };
+  /** A query parameter failure. `mediaType` and `reason`: see `path-param`. */
+  "query-param": { name: string; in: "query"; mediaType?: string; reason?: "content-parse" };
+  /** A header failure, request or response. `mediaType` and `reason`: see `path-param`. */
+  "header-param": { name: string; in: "header"; mediaType?: string; reason?: "content-parse" };
+  /** A cookie parameter failure. `mediaType` and `reason`: see `path-param`. */
+  "cookie-param": { name: string; in: "cookie"; mediaType?: string; reason?: "content-parse" };
   /**
    * No declared security requirement was satisfied by the request
    * (shape-only check: presence / format of the declared credential

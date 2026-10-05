@@ -165,6 +165,19 @@ describe("BuiltInErrorParams", () => {
     expectTypeOf<ErrorParams<"my-custom-code">>().toEqualTypeOf<CustomErrorParams>();
   });
 
+  it("declares the content-parse fields on the four parameter codes (#1235)", () => {
+    expectTypeOf<ErrorParams<"query-param">>().toEqualTypeOf<{
+      name: string;
+      in: "query";
+      mediaType?: string;
+      reason?: "content-parse";
+    }>();
+    for (const code of ["path-param", "header-param", "cookie-param"] as const) {
+      expectTypeOf<ErrorParams<typeof code>>().toHaveProperty("mediaType");
+      expectTypeOf<ErrorParams<typeof code>>().toHaveProperty("reason");
+    }
+  });
+
   it("demonstrates the read-side narrowing pattern", () => {
     const err: ValidationError = createLeafError("required", ["body"], "missing", {
       missing: "name",
