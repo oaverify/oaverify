@@ -3295,3 +3295,113 @@ describe("compile-spec: the response tree node", () => {
     expect(emitted?.params).toEqual({ status: 200 });
   });
 });
+
+describe("compile-spec: objects behind a chain of references", () => {
+  // Each object is two hops from its use site: use -> X2 -> X1.
+  const document = {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    components: {
+      headers: {
+        H1: { schema: { type: "integer" } },
+        H2: { $ref: "#/components/headers/H1" },
+      },
+      parameters: {
+        P1: { name: "n", in: "query", required: true, schema: { type: "integer" } },
+        P2: { $ref: "#/components/parameters/P1" },
+      },
+      requestBodies: {
+        B1: {
+          required: true,
+          content: { "application/json": { schema: { type: "object", required: ["id"] } } },
+        },
+        B2: { $ref: "#/components/requestBodies/B1" },
+      },
+      responses: {
+        R1: {
+          description: "ok",
+          headers: { "X-Chain": { $ref: "#/components/headers/H2" } },
+          content: { "application/json": { schema: { type: "integer" } } },
+        },
+        R2: { $ref: "#/components/responses/R1" },
+      },
+    },
+    // A Path Item reference is left out: createValidator does not route
+    // through one at all yet (#1059).
+    paths: {
+      "/h": {
+        post: {
+          parameters: [{ $ref: "#/components/parameters/P2" }],
+          requestBody: { $ref: "#/components/requestBodies/B2" },
+          responses: { "200": { $ref: "#/components/responses/R2" } },
+        },
+      },
+    },
+  } as unknown as OpenAPIDocument;
+  const json = "application/json";
+  const good = {
+    method: "POST",
+    path: "/h",
+    query: { n: "1" },
+    contentType: json,
+    body: { id: 1 },
+  };
+
+  it("follows the chain at each position, as createValidator does (#1238)", async () => {
+    const aot = await buildAot(document);
+    const runtime = createValidator(document);
+    const requests = [
+      good,
+      { ...good, query: { n: "x" } },
+      { ...good, query: {} },
+      { ...good, body: {} },
+    ];
+    const responses = [
+      { status: 200, contentType: json, headers: { "x-chain": "1" }, body: 1 },
+      { status: 200, contentType: json, headers: { "x-chain": "x" }, body: 1 },
+      { status: 200, contentType: json, headers: { "x-chain": "1" }, body: "x" },
+    ];
+    const verdicts = (r: AotResult) => flatErrors(r).map((e) => [e.code, e.path]);
+    for (const req of requests) {
+      expect(verdicts(aot.validateRequest(req))).toEqual(
+        verdicts(runtime.validateRequest(req) as AotResult),
+      );
+    }
+    for (const res of responses) {
+      expect(verdicts(aot.validateResponse(good, res))).toEqual(
+        verdicts(runtime.validateResponse(good, res) as AotResult),
+      );
+    }
+    expect(verdicts(aot.validateRequest(requests[1]!))).toEqual([["type", ["query", "n"]]]);
+    expect(verdicts(aot.validateResponse(good, responses[1]!))).toEqual([
+      ["type", ["header", "X-Chain"]],
+    ]);
+  });
+
+  it("refuses a reference cycle, as createValidator does on first use", () => {
+    const cyclic = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      components: {
+        headers: {
+          A: { $ref: "#/components/headers/B" },
+          B: { $ref: "#/components/headers/A" },
+        },
+      },
+      paths: {
+        "/h": {
+          get: {
+            responses: {
+              "200": { description: "ok", headers: { X: { $ref: "#/components/headers/A" } } },
+            },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    expect(() => emitSpec(cyclic)).toThrow("$ref chain exceeded 32 hops (possible cycle)");
+    const runtime = createValidator(cyclic);
+    expect(() => runtime.validateResponse({ method: "GET", path: "/h" }, { status: 200 })).toThrow(
+      "$ref chain exceeded 32 hops",
+    );
+  });
+});

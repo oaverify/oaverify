@@ -35,6 +35,7 @@ import {
   isValidMaxTotalBytes,
   maxTotalBytesErrorMessage,
   recordDocumentRefSiblingSuppression,
+  resolveOperationRef,
   schemaRefResolverFor,
   transformBodySchemaForDirection,
   unservedParameterLocationMessage,
@@ -254,21 +255,14 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   }
 
   // One `$ref` hop for the coercion views, bound the way createValidator
-  // binds it. `resolveRef` below reaches the same resolver, so the
-  // difference here is not the resolver but the base URI and the chain:
-  // that one resolves a single hop, so the emitted module stopped
-  // following a ref chain that the runtime followed.
+  // binds it.
   const resolveSchemaRef = schemaRefResolverFor(refResolver, graph);
 
-  // Anything passed through resolveRef comes back with `{ $ref }`
-  // followed; the schema registry handles internal refs transparently.
-  const resolveRef = <T>(v: T | ReferenceObject | undefined): T | undefined => {
-    if (v === undefined) return undefined;
-    if (typeof v !== "object" || v === null) return v as T;
-    const ref = (v as { $ref?: unknown }).$ref;
-    if (typeof ref !== "string") return v as T;
-    return refResolver.resolve(ref) as T | undefined;
-  };
+  // Non-schema objects reached through `$ref`, followed to the end of a
+  // chain by the function createValidator uses, so both read the same
+  // Path Item, Parameter, Response or Header.
+  const resolveRef = <T>(v: T | ReferenceObject | undefined): T | undefined =>
+    resolveOperationRef<T>(document, v);
 
   // Collect every compiled schema, de-duplicated by identity. Each
   // unique source schema gets one emitted IIFE per projection (see
