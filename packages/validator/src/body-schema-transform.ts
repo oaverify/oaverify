@@ -285,7 +285,15 @@ function transformInner(
   return clone as unknown as SchemaOrBoolean;
 }
 
-function isBinaryStringSchema(schema: SchemaOrBoolean): boolean {
+/**
+ * Whether the body projection replaces this schema with `{}`, read from
+ * its `format` and `type` alone. The projection also requires that
+ * `format` is not a discarded `$ref` sibling; a caller reading the
+ * schema some other way has to apply that rule itself.
+ *
+ * @internal
+ */
+export function isBinaryStringSchema(schema: SchemaOrBoolean): boolean {
   if (typeof schema !== "object" || schema === null || Array.isArray(schema)) return false;
   const s = schema as Record<string, unknown>;
   if (s.format !== "binary") return false;

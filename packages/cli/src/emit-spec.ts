@@ -27,6 +27,7 @@ import {
   compileMediaTypePatterns,
   createDirectionResolver,
   effectiveType,
+  isBinaryStringSchema,
   joinsFieldLines,
   isServedParameterLocation,
   isValidMaxTotalBytes,
@@ -40,6 +41,7 @@ import {
   type SchemaRefResolver,
 } from "@oaverify/internal-validator/internals";
 import { isUnknownFormat } from "./emit-standalone.js";
+import { forEachSubschema, refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
 import {
   compileSchema,
   createRefResolver,
@@ -221,13 +223,19 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   const warnings: string[] = [];
   const dialect = resolveDialect(document, options.dialect, warnings);
 
+  const graph = resolve(document as unknown as SchemaOrBoolean, {
+    refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
+  });
+  recordDocumentRefSiblingSuppression(document, graph);
+  const refResolver: RefResolver = createRefResolver(graph);
+
   // Formats outside the built-in set, before any compile work so the
   // error mode fails fast. The walk is document-level rather than
   // per-compiled-schema, because compilation follows $refs into
   // component schemas where a plain subschema walk does not; the cost
   // is that an operation dropped by `only` still counts, which errs in
   // the conservative direction (#660).
-  const unknownNames = collectDocumentUnknownFormats(document, dialect);
+  const unknownNames = collectDocumentUnknownFormats(document, dialect, refResolver);
   if (unknownNames.length > 0) {
     const list = unknownNames.map((f) => `"${f}"`).join(", ");
     if ((options.unknownFormats ?? "error") === "error") {
@@ -242,12 +250,6 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     }
     options.onUnknownFormats?.(unknownNames);
   }
-
-  const graph = resolve(document as unknown as SchemaOrBoolean, {
-    refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
-  });
-  recordDocumentRefSiblingSuppression(document, graph);
-  const refResolver: RefResolver = createRefResolver(graph);
 
   // One `$ref` hop for the coercion views, bound the way createValidator
   // binds it. `resolveRef` below reaches the same resolver, so the
@@ -1724,17 +1726,108 @@ function renderGetOperation(): string {
 /**
  * Every `format` name in the document's schema positions with no
  * validator behind it, sorted. Shares the walk `check`'s
- * format-not-validated pass uses, so the two commands and the finding
- * see the same positions.
+ * format-not-validated pass uses, so the two read the same positions.
+ *
+ * One difference: a `format: binary` string the body projection
+ * replaces with `{}` is never compiled, so it is skipped here when a
+ * request or response body reaches it and no parameter or header does
+ * (#1239). A file upload therefore compiles by default. A `binary`
+ * reached from a parameter or header, or from nothing this walk can
+ * see, is refused as before. `check` still reports the body one, which
+ * is accurate: the format is not asserted there either.
  */
-function collectDocumentUnknownFormats(document: OpenAPIDocument, dialect: Dialect): string[] {
+function collectDocumentUnknownFormats(
+  document: OpenAPIDocument,
+  dialect: Dialect,
+  refResolver: RefResolver,
+): string[] {
+  const refSuppressesSiblings = dialect.rules.refSuppressesSiblings;
+  const { body, other } = schemaUses(document, refResolver, refSuppressesSiblings);
   const found = new Set<string>();
   walkDocumentSchemas(document, {
-    refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
+    refSuppressesSiblings,
     onSchemaNode: (schema) => {
       const format = schema["format"];
-      if (typeof format === "string" && isUnknownFormat(format)) found.add(format);
+      if (typeof format !== "string" || !isUnknownFormat(format)) return;
+      const bodyOnly = body.has(schema) && !other.has(schema);
+      if (bodyOnly && isBinaryStringSchema(schema as SchemaOrBoolean)) return;
+      found.add(format);
     },
   });
   return [...found].sort();
+}
+
+/** A Media Type Object under a Parameter or Header, rather than a body. */
+const PARAMETER_LIKE_MEDIA_TYPE = /\/(?:parameters|headers)\/[^/]+\/content\/[^/]+$/;
+
+/**
+ * The schema objects body Media Types reach (`body`) and the ones
+ * Parameter and Header Objects reach (`other`), following `$ref` and
+ * `$dynamicRef` targets and subschemas. A Parameter or Header given as a
+ * reference is followed to its target first. The body projection applies
+ * only on the body side, so only a schema in `body` and not in `other` is
+ * certain to be projected away.
+ */
+function schemaUses(
+  document: OpenAPIDocument,
+  refResolver: RefResolver,
+  refSuppressesSiblings: boolean,
+): { body: WeakSet<object>; other: WeakSet<object> } {
+  const resolve = (ref: unknown): unknown => {
+    if (typeof ref !== "string") return undefined;
+    try {
+      return refResolver.resolve(ref);
+    } catch {
+      // An unresolvable ref fails the compile with its own message.
+      return undefined;
+    }
+  };
+  const visitInto =
+    (reached: WeakSet<object>) =>
+    (node: unknown): void => {
+      const visit = visitInto(reached);
+      if (typeof node !== "object" || node === null || Array.isArray(node)) return;
+      if (reached.has(node)) return;
+      reached.add(node);
+      const obj = node as Record<string, unknown>;
+      visit(resolve(obj["$ref"]));
+      visit(resolve(obj["$dynamicRef"]));
+      forEachSubschema(obj, (sub, key) => {
+        if (!refSiblingIsDiscarded(obj, key, refSuppressesSiblings)) visit(sub);
+      });
+    };
+  const body = new WeakSet<object>();
+  const other = new WeakSet<object>();
+  const visitBody = visitInto(body);
+  const visitOther = visitInto(other);
+  walkDocumentSchemas(document, {
+    refSuppressesSiblings,
+    onMediaType: (mediaType, pointer) => {
+      if (PARAMETER_LIKE_MEDIA_TYPE.test(pointer)) return;
+      visitBody(mediaType["schema"]);
+      visitBody(mediaType["itemSchema"]);
+    },
+    onParameterLike: (raw) => {
+      let param: unknown = raw;
+      for (
+        let hops = 0;
+        hops < 32 && typeof (param as { $ref?: unknown }).$ref === "string";
+        hops++
+      ) {
+        const target = resolve((param as { $ref: string }).$ref);
+        if (typeof target !== "object" || target === null) return;
+        param = target;
+      }
+      const obj = param as Record<string, unknown>;
+      visitOther(obj["schema"]);
+      const content = obj["content"];
+      if (typeof content !== "object" || content === null) return;
+      for (const media of Object.values(content as Record<string, unknown>)) {
+        if (typeof media === "object" && media !== null) {
+          visitOther((media as Record<string, unknown>)["schema"]);
+        }
+      }
+    },
+  });
+  return { body, other };
 }
