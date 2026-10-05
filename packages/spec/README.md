@@ -186,6 +186,9 @@ authoring mistakes the structural validation can't catch:
   `/a%zz-{id}`, where the run beside the placeholder is literal text
   too). The router keeps such a run raw, so the route only matches a
   request repeating the same broken escape.
+- `duplicate-parameter`: a Path Item or Operation `parameters` list
+  declaring the same `name` and `in` twice. An operation-level parameter
+  overriding a path-level one is legal and not reported.
 
 ```ts
 const { document, specHygieneIssues } = await loadSpec({ reader, entry, lint: true });

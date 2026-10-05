@@ -47,6 +47,7 @@ export const HYGIENE_CODES = [
   "path-param-undeclared",
   "path-param-unused",
   "path-template-malformed",
+  "duplicate-parameter",
 ] as const satisfies readonly SpecHygieneIssue["code"][];
 const _hygieneComplete: Missing<
   SpecHygieneIssue["code"],

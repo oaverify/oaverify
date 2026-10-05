@@ -619,3 +619,133 @@ describe("a security field that is not a list (#883)", () => {
     expect(issues.map((i) => i.code)).toContain("unused-component");
   });
 });
+
+describe("lintResolvedSpec: duplicate-parameter", () => {
+  const ok = { "200": { description: "ok" } };
+  const q = (type: string) => ({ name: "q", in: "query" as const, schema: { type } });
+  const duplicates = (spec: OpenAPIDocument) =>
+    lintResolvedSpec(spec)
+      .filter((i) => i.code === "duplicate-parameter")
+      .map((i) => i.pointer);
+
+  it("reports the repeat of a name and location within an operation's list (#1054)", () => {
+    const spec = minimalSpec({
+      paths: { "/a": { get: { parameters: [q("string"), q("integer")], responses: ok } } },
+    });
+    expect(lintResolvedSpec(spec)).toEqual([
+      {
+        code: "duplicate-parameter",
+        pointer: "/paths/~1a/get/parameters/1",
+        message:
+          'query parameter "q" is declared again at index 1 of a list that declares it at index 0; a parameter list must not repeat a name and location',
+      },
+    ]);
+  });
+
+  it("accepts an operation-level parameter overriding a path-level one", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/a": { parameters: [q("string")], get: { parameters: [q("integer")], responses: ok } },
+      },
+    });
+    expect(duplicates(spec)).toEqual([]);
+  });
+
+  it("keys on the location too, and compares names exactly", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/a": {
+          get: {
+            parameters: [
+              { name: "q", in: "query" },
+              { name: "q", in: "header" },
+              { name: "X-Id", in: "header" },
+              { name: "x-id", in: "header" },
+            ],
+            responses: ok,
+          },
+        },
+      },
+    });
+    expect(duplicates(spec)).toEqual([]);
+  });
+
+  it("reads a Parameter reference, and reports the repeat at its own index", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/a": {
+          parameters: [{ $ref: "#/components/parameters/Q" }, q("string"), q("string")],
+          get: { responses: ok },
+        },
+      },
+      components: { parameters: { Q: q("integer") } },
+    });
+    expect(duplicates(spec)).toEqual(["/paths/~1a/parameters/1", "/paths/~1a/parameters/2"]);
+  });
+
+  it("checks webhooks, callbacks and components.pathItems where they are written", () => {
+    // A fresh object per position: one object reached twice is one definition.
+    const dup = () => ({ post: { parameters: [q("string"), q("string")], responses: ok } });
+    const spec = minimalSpec({
+      paths: {
+        "/a": {
+          get: {
+            callbacks: { onEvent: { "{$request.query.cb}": dup() } },
+            responses: ok,
+          },
+        },
+        // A Path Item reference is checked at its target, once.
+        "/b": { $ref: "#/components/pathItems/Shared" },
+        "/c": { $ref: "#/components/pathItems/Shared" },
+      },
+      webhooks: { hook: dup() },
+      components: {
+        pathItems: { Shared: dup() },
+        callbacks: { Reused: { "{$request.query.cb}": dup() } },
+      },
+    } as Partial<OpenAPIDocument>);
+    expect(duplicates(spec)).toEqual([
+      "/paths/~1a/get/callbacks/onEvent/{$request.query.cb}/post/parameters/1",
+      "/webhooks/hook/post/parameters/1",
+      "/components/pathItems/Shared/post/parameters/1",
+      "/components/callbacks/Reused/{$request.query.cb}/post/parameters/1",
+    ]);
+  });
+
+  it("reads past unreadable lists and entries", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/a": {
+          parameters: { name: "q", in: "query" },
+          get: {
+            parameters: [null, "q", { $ref: "#/nowhere" }, { name: "q" }, q("string")],
+            responses: ok,
+          },
+        },
+      },
+    } as unknown as Partial<OpenAPIDocument>);
+    expect(duplicates(spec)).toEqual([]);
+  });
+
+  it("follows a reference chain to the parameter", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/q": {
+          get: { parameters: [{ $ref: "#/components/parameters/A" }, q("string")], responses: ok },
+        },
+      },
+      components: {
+        parameters: { A: { $ref: "#/components/parameters/B" }, B: q("string") },
+      },
+    } as Partial<OpenAPIDocument>);
+    expect(duplicates(spec)).toEqual(["/paths/~1q/get/parameters/1"]);
+  });
+
+  it("checks a referenced Path Item written outside the named containers, at its own pointer", () => {
+    const spec = minimalSpec({
+      paths: { "/q": { $ref: "#/x-item" } },
+      "x-item": { get: { parameters: [q("string"), q("string")], responses: ok } },
+    } as unknown as Partial<OpenAPIDocument>);
+    expect(duplicates(spec)).toEqual(["/x-item/get/parameters/1"]);
+  });
+});

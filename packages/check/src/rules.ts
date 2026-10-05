@@ -66,6 +66,7 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
   "path-param-undeclared": { title: "a path template placeholder with no parameter declaring it" },
   "path-param-unused": { title: "a path parameter the path template does not name" },
   "path-template-malformed": { title: "a path template that does not parse" },
+  "duplicate-parameter": { title: "a parameter list declaring one name and location twice" },
   "unserved-parameter-location": {
     title: "a parameter location this validator cannot read a value for",
   },
