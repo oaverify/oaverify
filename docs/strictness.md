@@ -807,10 +807,11 @@ validated at runtime, which is a library setting.
   clean run means the document is well-shaped, not that every name in it
   resolves.
 - _"I want to be told my `$ref` points at nothing, or my `operationId`s
-  collide."_ → `hygiene` covers some of it (undeclared path parameters,
-  unused components); [conformance](#document-conformance) covers none
-  of it, for the reason given there. For the rest, pair with
-  `redocly lint` or `vacuum`.
+  collide."_ → `hygiene`, which checks that what the document names is
+  declared where OpenAPI says it must be, colliding `operationId`s
+  included; [conformance](#document-conformance) covers none of it, for
+  the reason given there. For anything `hygiene` does not report, pair
+  with `redocly lint` or `vacuum`.
 
 ## For contributors: naming
 

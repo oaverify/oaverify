@@ -21,6 +21,8 @@ const SPEC = `openapi: 3.1.0
 paths:
   /orders/{id}:
     get:
+      security:
+        - missing: []
       responses:
         "200":
           description: ok
@@ -146,6 +148,7 @@ describe("every code on the key list can resolve a key", () => {
     "unreachable-defs": "/components/schemas/Order/$defs/Dead",
     "path-template-malformed": "/paths/~1orders~1{id}",
     "unknown-keyword": "/components/schemas/Order/nullable",
+    "security-scheme-undeclared": "/paths/~1orders~1{id}/get/security/0/missing",
   };
 
   it.each(Object.entries(KEY_CODE_FIXTURES))("%s resolves a key", (code, pointer) => {

@@ -109,7 +109,7 @@
 - **redocly**: operation-operationId: Operation object should contain `operationId` field. [#/paths/~1things/get/operationId]
 
 ## `style/duplicate-operationid` (style)
-- oaverify: no matching finding (0 raised)
+- **oaverify**: duplicate-operation-id: operationId "sameId" is already used at /paths/~1things/get/operationId; an operationId must be unique among all operations [/paths/~1others/get/operationId]
 - ajv: no matching finding (0 raised)
 - **spectral**: operation-operationId-unique: Every operation must have unique "operationId". [paths//others/get/operationId]
 - **redocly**: operation-operationId-unique: Every operation must have a unique `operationId`. [#/paths/~1others/get/sameId]
@@ -127,7 +127,7 @@
 - **redocly**: operation-summary: Operation object should contain `summary` field. [#/paths/~1things~1{thingId}/get/summary]
 
 ## `style/undefined-security-scheme` (style)
-- oaverify: no matching finding (0 raised)
+- **oaverify**: security-scheme-undeclared: security requirement names "notDefinedAnywhere", which components.securitySchemes does not declare [/paths/~1things/get/security/0/notDefinedAnywhere]
 - ajv: no matching finding (0 raised)
 - **spectral**: oas3-operation-security-defined: Operation "security" values must match a scheme defined in the "components.securitySchemes" object. [paths//things/get/security/0/notDefinedAnywhere]
 - **redocly**: security-defined: There is no `notDefinedAnywhere` security scheme defined. [#/paths/~1things/get/security/0/notDefinedAnywhere]
@@ -175,7 +175,7 @@
 - **redocly**: no-unresolved-refs: Can't resolve $ref [#/paths/~1things/get/responses/200/content/application~1json/schema/discriminator/mapping/dog]
 
 ## `structural/undeclared-server-variable` (structural)
-- oaverify: no matching finding (0 raised)
+- **oaverify**: server-variable-undeclared: server url "https://{region}.example.com" uses "{region}" but the server's variables do not declare "region", so it has no value to substitute [/servers/0/url]
 - ajv: no matching finding (0 raised)
 - **spectral**: oas3-server-variables: Not all server's variables are described with "variables" object. Missed: region. [servers/0]
 - **redocly**: no-undefined-server-variable: The `region` variable is not defined in the `variables` objects. [#/servers/0/url]

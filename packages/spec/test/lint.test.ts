@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { lintResolvedSpec } from "../src/lint.js";
+import { createMemoryReader } from "../src/reader.js";
+import { resolveSpec } from "../src/resolver.js";
+import { resolveSpecSync } from "../src/resolver-sync.js";
+import { loadSpec, loadSpecSync } from "../src/load.js";
 
 function minimalSpec(overrides: Partial<OpenAPIDocument> = {}): OpenAPIDocument {
   return {
@@ -747,5 +751,366 @@ describe("lintResolvedSpec: duplicate-parameter", () => {
       "x-item": { get: { parameters: [q("string"), q("string")], responses: ok } },
     } as unknown as Partial<OpenAPIDocument>);
     expect(duplicates(spec)).toEqual(["/x-item/get/parameters/1"]);
+  });
+});
+
+describe("lintResolvedSpec: duplicate-operation-id", () => {
+  const ok = { "200": { description: "ok" } };
+  const op = (operationId: string) => ({ operationId, responses: ok });
+  const findings = (spec: OpenAPIDocument) =>
+    lintResolvedSpec(spec).filter((i) => i.code === "duplicate-operation-id");
+
+  it("reports a second operation carrying an operationId already used (#809)", () => {
+    const spec = minimalSpec({
+      paths: { "/a": { get: op("listPets") }, "/b": { get: op("listPets"), post: op("other") } },
+    });
+    expect(findings(spec)).toEqual([
+      {
+        code: "duplicate-operation-id",
+        pointer: "/paths/~1b/get/operationId",
+        message:
+          'operationId "listPets" is already used at /paths/~1a/get/operationId; an operationId must be unique among all operations',
+      },
+    ]);
+  });
+
+  it("compares exactly, and reads webhooks, callbacks and components.pathItems", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/a": {
+          get: {
+            ...op("x"),
+            callbacks: { cb: { "{$request.query.u}": { post: op("x") } } },
+          },
+          put: op("X"),
+        },
+      },
+      webhooks: { hook: { post: op("x") } },
+      components: { pathItems: { Item: { get: op("x") } } },
+    } as Partial<OpenAPIDocument>);
+    expect(findings(spec).map((i) => i.pointer)).toEqual([
+      "/paths/~1a/get/callbacks/cb/{$request.query.u}/post/operationId",
+      "/webhooks/hook/post/operationId",
+      "/components/pathItems/Item/get/operationId",
+    ]);
+  });
+
+  it("counts one definition once, however many places reach it", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/a": { $ref: "#/components/pathItems/Shared" },
+        "/b": { $ref: "#/components/pathItems/Shared" },
+        "/c": {
+          get: { ...op("c"), callbacks: { cb: { $ref: "#/components/callbacks/Cb" } } },
+          put: { ...op("d"), callbacks: { cb: { $ref: "#/components/callbacks/Cb" } } },
+        },
+      },
+      components: {
+        pathItems: { Shared: { get: op("shared") } },
+        callbacks: { Cb: { "{$request.query.u}": { post: op("onEvent") } } },
+      },
+    } as Partial<OpenAPIDocument>);
+    expect(findings(spec)).toEqual([]);
+  });
+
+  // Resolution inlines an external Path Item at each use site; the
+  // regions are what say the two copies are one definition.
+  const sources = new Map<string, unknown>([
+    [
+      "main.json",
+      {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/a": { $ref: "item.json" },
+          "/b": { $ref: "item.json" },
+          "/c": { get: op("shared") },
+        },
+      },
+    ],
+    ["item.json", { get: op("shared") }],
+  ]);
+  const external = () => createMemoryReader(sources);
+  const externalSync = { read: (uri: string) => sources.get(uri), canRead: () => true };
+
+  it("recognises copies of one external definition through the resolver's regions", async () => {
+    for (const { specHygieneIssues } of [
+      await resolveSpec({ reader: external(), entry: "main.json", lint: true }),
+      resolveSpecSync({ reader: externalSync, entry: "main.json", lint: true }),
+    ]) {
+      expect(
+        specHygieneIssues.filter((i) => i.code === "duplicate-operation-id").map((i) => i.pointer),
+      ).toEqual(["/paths/~1c/get/operationId"]);
+    }
+  });
+
+  it("reports the copies when it is not given the regions", async () => {
+    const { document } = await resolveSpec({ reader: external(), entry: "main.json" });
+    expect(findings(document).map((i) => i.pointer)).toEqual([
+      "/paths/~1b/get/operationId",
+      "/paths/~1c/get/operationId",
+    ]);
+  });
+});
+
+describe("lintResolvedSpec: security-scheme-undeclared", () => {
+  const ok = { "200": { description: "ok" } };
+  const pointers = (spec: OpenAPIDocument) =>
+    lintResolvedSpec(spec)
+      .filter((i) => i.code === "security-scheme-undeclared")
+      .map((i) => i.pointer);
+
+  it("reports a requirement naming no declared scheme (#809)", () => {
+    const spec = minimalSpec({
+      security: [{ apiKey: [] }, {}],
+      paths: {
+        "/a": { get: { security: [{ apiKey: [], notDefinedAnywhere: [] }], responses: ok } },
+      },
+      components: { securitySchemes: { apiKey: { type: "apiKey", in: "header", name: "k" } } },
+    });
+    expect(lintResolvedSpec(spec)).toEqual([
+      {
+        code: "security-scheme-undeclared",
+        pointer: "/paths/~1a/get/security/0/notDefinedAnywhere",
+        message:
+          'security requirement names "notDefinedAnywhere", which components.securitySchemes does not declare',
+      },
+    ]);
+  });
+
+  it("reads the document level, webhooks and callbacks, and needs an own key", () => {
+    const spec = minimalSpec({
+      security: [{ toString: [] }],
+      webhooks: { hook: { post: { security: [{ missing: [] }], responses: ok } } },
+    } as Partial<OpenAPIDocument>);
+    expect(pointers(spec)).toEqual([
+      "/security/0/toString",
+      "/webhooks/hook/post/security/0/missing",
+    ]);
+  });
+
+  it("in 3.2, resolves a fragment name and leaves any other unmatched name to the URI rules", () => {
+    const spec = minimalSpec({
+      openapi: "3.2.0",
+      security: [
+        { "#/components/securitySchemes/key": [] },
+        { "#/components/securitySchemes/gone": [] },
+        { "./other.yaml#/key": [] },
+        { bare: [] },
+      ],
+      components: { securitySchemes: { key: { type: "http", scheme: "bearer" } } },
+    });
+    expect(pointers(spec)).toEqual(["/security/1/#~1components~1securitySchemes~1gone"]);
+  });
+
+  it("reads past unreadable security lists and requirements", () => {
+    const spec = minimalSpec({
+      security: { apiKey: [] },
+      paths: { "/a": { get: { security: [null, "x"], responses: ok } } },
+    } as unknown as Partial<OpenAPIDocument>);
+    expect(pointers(spec)).toEqual([]);
+  });
+
+  it("checks definitions reached through references outside the named containers", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/q": { $ref: "#/x-item" },
+        "/other": { get: { operationId: "same", responses: ok } },
+        "/l": {
+          get: {
+            responses: { "200": { description: "ok", links: { next: { $ref: "#/x-link" } } } },
+          },
+        },
+      },
+      "x-item": {
+        get: { operationId: "same", security: [{ missing: [] }], responses: ok },
+        servers: [{ url: "https://{missing}" }],
+      },
+      "x-link": { operationId: "same", server: { url: "https://{gone}" } },
+    } as unknown as Partial<OpenAPIDocument>);
+    expect(lintResolvedSpec(spec).map((i) => [i.code, i.pointer])).toEqual([
+      ["duplicate-operation-id", "/x-item/get/operationId"],
+      ["security-scheme-undeclared", "/x-item/get/security/0/missing"],
+      // The link is read where it is referenced; the referenced Path Item
+      // is walked after the named containers.
+      ["server-variable-undeclared", "/x-link/server/url"],
+      ["server-variable-undeclared", "/x-item/servers/0/url"],
+    ]);
+  });
+
+  it("checks a 3.2 fragment name an overlay added", async () => {
+    const document = {
+      openapi: "3.2.0",
+      info: { title: "t", version: "1" },
+      paths: { "/q": { get: { responses: ok } } },
+    };
+    const { specHygieneIssues } = await loadSpec({
+      reader: createMemoryReader(new Map<string, unknown>([["main.json", document]])),
+      entry: "main.json",
+      provenance: true,
+      lint: true,
+      overlays: [
+        { overrides: { "/q": { operations: { get: { security: [{ "#/missing": [] }] } } } } },
+      ],
+    } as Parameters<typeof loadSpec>[0]);
+    expect(
+      specHygieneIssues
+        .filter((i) => i.code === "security-scheme-undeclared")
+        .map((i) => i.pointer),
+    ).toEqual(["/paths/~1q/get/security/0/#~1missing"]);
+  });
+});
+
+describe("lintResolvedSpec: server-variable-undeclared", () => {
+  const ok = { "200": { description: "ok" } };
+  const pointers = (spec: OpenAPIDocument) =>
+    lintResolvedSpec(spec)
+      .filter((i) => i.code === "server-variable-undeclared")
+      .map((i) => i.pointer);
+
+  it("reports a URL placeholder the server's variables do not declare (#809)", () => {
+    const spec = minimalSpec({
+      servers: [
+        {
+          url: "https://{region}.example.com/{version}/{region}",
+          variables: { version: { default: "v1" } },
+        },
+      ],
+    } as unknown as Partial<OpenAPIDocument>);
+    expect(lintResolvedSpec(spec)).toEqual([
+      {
+        code: "server-variable-undeclared",
+        pointer: "/servers/0/url",
+        message:
+          'server url "https://{region}.example.com/{version}/{region}" uses "{region}" but the server\'s variables do not declare "region", so it has no value to substitute',
+      },
+    ]);
+  });
+
+  it("reads every place a Server Object occurs", () => {
+    const server = { url: "https://{host}" };
+    const spec = minimalSpec({
+      paths: {
+        "/a": {
+          servers: [server],
+          get: {
+            servers: [server],
+            responses: { "200": { description: "ok", links: { next: { server } } } },
+          },
+        },
+      },
+      webhooks: { hook: { post: { servers: [server], responses: ok } } },
+      components: {
+        responses: { R: { description: "r", links: { l: { server } } } },
+        links: { L: { server } },
+      },
+    } as Partial<OpenAPIDocument>);
+    expect(pointers(spec)).toEqual([
+      "/paths/~1a/servers/0/url",
+      "/paths/~1a/get/servers/0/url",
+      "/paths/~1a/get/responses/200/links/next/server/url",
+      "/webhooks/hook/post/servers/0/url",
+      "/components/responses/R/links/l/server/url",
+      "/components/links/L/server/url",
+    ]);
+  });
+
+  it("stays quiet on declared variables and unreadable servers", () => {
+    const spec = minimalSpec({
+      servers: [
+        { url: "https://{host}", variables: { host: { default: "h" } } },
+        { url: "https://{host}", variables: [] },
+        { url: 7 },
+        null,
+        { url: "https://example.com/{constructor}", variables: {} },
+      ],
+    } as unknown as Partial<OpenAPIDocument>);
+    expect(pointers(spec)).toEqual(["/servers/4/url"]);
+  });
+});
+
+describe("loadSpec lint: duplicate-operation-id across inlined copies", () => {
+  const ok = { "200": { description: "ok" } };
+  const sources = new Map<string, unknown>([
+    [
+      "main.json",
+      {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: { "/a": { $ref: "item.json" }, "/b": { $ref: "item.json" } },
+      },
+    ],
+    ["item.json", { get: { operationId: "shared", responses: ok } }],
+  ]);
+
+  it("does not report copies, and returns regions only when asked", async () => {
+    const plain = await loadSpec({
+      reader: createMemoryReader(sources),
+      entry: "main.json",
+      lint: true,
+    });
+    expect(plain.specHygieneIssues).toEqual([]);
+    expect(plain.regions).toBeUndefined();
+    const sync = loadSpecSync({
+      reader: { read: (uri: string) => sources.get(uri), canRead: () => true },
+      entry: "main.json",
+      lint: true,
+    });
+    expect(sync.specHygieneIssues).toEqual([]);
+    expect(sync.regions).toBeUndefined();
+  });
+});
+
+describe("lint under loadSpec and resolveSpec, review follow-ups", () => {
+  const ok = { "200": { description: "ok" } };
+
+  it("leaves unresolved via empty when lint is on without provenance", async () => {
+    const reader = createMemoryReader(
+      new Map<string, unknown>([
+        [
+          "main.json",
+          {
+            openapi: "3.1.0",
+            info: { title: "t", version: "1" },
+            paths: { "/a": { get: { responses: { "200": { $ref: "missing.json#/r" } } } } },
+          },
+        ],
+      ]),
+    );
+    const out = await loadSpec({ reader, entry: "main.json", lint: true, onUnresolved: "record" });
+    expect(out.unresolved?.map((u) => u.via)).toEqual([[]]);
+  });
+
+  it("does not look a 3.2 fragment name up in the entry when another file wrote it", async () => {
+    const sources = new Map<string, unknown>([
+      [
+        "main.json",
+        {
+          openapi: "3.2.0",
+          info: { title: "t", version: "1" },
+          paths: {
+            "/a": { $ref: "common.json#/item" },
+            "/b": { get: { security: [{ "#/gone": [] }], responses: ok } },
+          },
+        },
+      ],
+      [
+        "common.json",
+        {
+          item: { get: { security: [{ "#/components/securitySchemes/k": [] }], responses: ok } },
+          components: { securitySchemes: { k: { type: "http", scheme: "bearer" } } },
+        },
+      ],
+    ]);
+    const { specHygieneIssues } = await loadSpec({
+      reader: createMemoryReader(sources),
+      entry: "main.json",
+      lint: true,
+    });
+    expect(
+      specHygieneIssues
+        .filter((i) => i.code === "security-scheme-undeclared")
+        .map((i) => i.pointer),
+    ).toEqual(["/paths/~1b/get/security/0/#~1gone"]);
   });
 });

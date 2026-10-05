@@ -1,9 +1,9 @@
-Run 2026-09-15 against:
+Run 2026-10-05 against:
 
 - oaverify 7.2.2
 - ajv 8.20.0
 - spectral 6.16.3
-- redocly 2.52.0
+- redocly 2.54.2
 
 | case | class | oaverify | ajv | spectral | redocly |
 | --- | --- | --- | --- | --- | --- |
@@ -25,10 +25,10 @@ Run 2026-09-15 against:
 | `lint/prefixitems-in-30` | lint | yes | yes | yes | yes |
 | `lint/catastrophic-pattern` | lint | yes | - | - | - |
 | `style/missing-operationid` | style | - | - | yes | yes |
-| `style/duplicate-operationid` | style | - | - | yes | yes |
+| `style/duplicate-operationid` | style | yes | - | yes | yes |
 | `style/unused-component` | style | yes | - | yes | yes |
 | `style/undeclared-path-param` | style | yes | - | yes | yes |
-| `style/undefined-security-scheme` | style | - | - | yes | yes |
+| `style/undefined-security-scheme` | style | yes | - | yes | yes |
 | `style/example-contradicts-schema` | style | yes | - | yes | yes |
 | `structural/missing-info-version` | structural | yes | - | yes | yes |
 | `structural/response-missing-description` | structural | yes | - | yes | yes |
@@ -36,7 +36,7 @@ Run 2026-09-15 against:
 | `structural/license-identifier-and-url` | structural | yes | - | yes | - |
 | `structural/path-param-not-required` | structural | yes | - | yes | - |
 | `structural/dangling-discriminator-mapping` | structural | yes | yes | - | yes |
-| `structural/undeclared-server-variable` | structural | - | - | yes | yes |
+| `structural/undeclared-server-variable` | structural | yes | - | yes | yes |
 | `structural/dangling-ref` | structural | yes | yes | yes | yes |
 | `control/clean` | control | - | - | - | - |
 | `control/required-on-sibling` | control | - | - | - | - |
@@ -47,8 +47,8 @@ Run 2026-09-15 against:
 | --- | --- | --- | --- | --- |
 | malformed (6) | 6/6 | 4/6 | 6/6 | 5/6 |
 | lint (11) | 11/11 | 5/11 | 4/11 | 7/11 |
-| structural (8) | 7/8 | 2/8 | 7/8 | 5/8 |
-| style (6) | 3/6 | 0/6 | 6/6 | 6/6 |
+| structural (8) | 8/8 | 2/8 | 7/8 | 5/8 |
+| style (6) | 5/6 | 0/6 | 6/6 | 6/6 |
 | control false positives (4) | 0 | 0 | 0 | 0 |
-| total findings raised | 28 | 20 | 205 | 209 |
+| total findings raised | 31 | 20 | 205 | 209 |
 | fatal runs | 0 | 0 | 0 | 0 |

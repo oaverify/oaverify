@@ -57,11 +57,13 @@ source attribution and declaration reachability depend on information
 retained during resolution. The document alone cannot reconstruct which
 declarations an external reference reached before the resolver redirected it.
 
-Without `provenance: true` the check still runs and finds exactly the
-same defects, but every finding's `target.source` is absent and SARIF
-output carries no `locations`. See the TSDoc on `FindingTarget.source`
-for how to tell that case from a finding whose node genuinely has no
-source.
+Without `provenance: true` the check still runs, but every finding's
+`target.source` is absent and SARIF output carries no `locations`. See
+the TSDoc on `FindingTarget.source` for how to tell that case from a
+finding whose node genuinely has no source. The hygiene class cannot
+tell which file a node was copied from either, so an operation in
+another file referenced from two paths is reported as a duplicate
+`operationId`.
 
 ## What it finds
 

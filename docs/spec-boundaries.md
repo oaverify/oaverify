@@ -33,14 +33,14 @@ conforming implementation choice.
 
 | kind | meaning | entries |
 | ---- | ------- | ----- |
-| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 29 |
+| [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 30 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 5 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 9 |
-| [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 2 |
+| [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 4 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 4 |
 
-60 documented entries across 30 files.
+63 documented entries across 31 files.
 
 ## under-asserts
 
@@ -319,6 +319,28 @@ Schema requires exact divisibility, but the validator allows a small
 rounding tolerance. This avoids rejecting ordinary decimal multiples:
 JavaScript calculates `0.3 / 0.1` as `2.9999999999999996` instead of `3`.
 
+### packages/spec
+
+**`findUndeclaredSecuritySchemes`** ([packages/spec/src/lint.ts:1168](../packages/spec/src/lint.ts#L1168))
+
+Against OpenAPI 3.2.0 Security Requirement Object (<https://spec.openapis.org/oas/v3.2.0.html#security-requirement-object>).
+
+In an OpenAPI 3.2 document, `check` reports a security requirement
+name that is not a component name only when it starts with `#`.
+OpenAPI 3.2 lets a requirement name a scheme by URI instead of by
+component name, so such a name may be legal. A name starting with `#`
+is read as a location in the same document: it is reported when it is
+not a JSON Pointer, as in `#key`, or when the pointer reaches nothing,
+and accepted when it reaches any object, even one that is not a
+Security Scheme. A `#` name written in a separate file that resolution
+copied into this document refers to that file, so it is not checked
+either. Any other name, such as `./other.yaml#/key` or a bare `key`
+matching no component, is not checked, because `check` does not
+retrieve the documents a URI names. Earlier OpenAPI versions allow
+component names only, and every unmatched name is reported there. The
+request validator also reads component names only, so a request to an
+operation requiring a scheme named by URI fails its security check.
+
 ### packages/stream-validator
 
 **`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:979](../packages/stream-validator/src/engine/stream-validator.ts#L979))
@@ -444,7 +466,7 @@ it does not limit all JSON nesting. The default is uncapped.
 
 ### packages/spec
 
-**`resolveSpec`** ([packages/spec/src/resolver.ts:238](../packages/spec/src/resolver.ts#L238))
+**`resolveSpec`** ([packages/spec/src/resolver.ts:250](../packages/spec/src/resolver.ts#L250))
 
 Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.2>).
 
@@ -513,7 +535,7 @@ meta-schemas are used unchanged.
 
 ### packages/spec
 
-**`resolveSpec`** ([packages/spec/src/resolver.ts:238](../packages/spec/src/resolver.ts#L238))
+**`resolveSpec`** ([packages/spec/src/resolver.ts:250](../packages/spec/src/resolver.ts#L250))
 
 Against OpenAPI 3.1 section 4.6 (<https://spec.openapis.org/oas/v3.1.0#relative-references-in-uris>).
 
@@ -685,6 +707,34 @@ specify how to handle an unusable mapping. oaverify reports
 unused mapping. This can happen when a bundled document retains mappings
 to the original files (#561).
 
+### packages/spec
+
+**`findDuplicateOperationIds`** ([packages/spec/src/lint.ts:1115](../packages/spec/src/lint.ts#L1115))
+
+Against OpenAPI 3.2.0 Operation Object (<https://spec.openapis.org/oas/v3.2.0.html#operation-object>).
+
+OpenAPI says an `operationId` "MUST be unique among all operations
+described in the API" and does not say whether one Operation Object
+reached from several places describes one operation or several. This
+check counts it as one. Two paths whose Path Item is the same `$ref`
+target, such as `/v1/pets` and `/pets` both referencing
+`#/components/pathItems/Pets`, expose one `operationId` on two routes
+and are not reported. Two Operation Objects written separately with
+the same `operationId` are reported, even when their content is
+identical.
+
+**`findUndeclaredServerVariables`** ([packages/spec/src/lint.ts:1253](../packages/spec/src/lint.ts#L1253))
+
+Against OpenAPI 3.2.0 Server Object (<https://spec.openapis.org/oas/v3.2.0.html#server-object>).
+
+A server URL such as `https://{region}.example.com` whose server
+declares no `region` under `variables` is reported as an error.
+OpenAPI says substitutions are made for variables named in braces and
+that each Server Variable carries the default to substitute, but no
+version states a requirement that every placeholder be declared. The
+check reads that as one: an undeclared placeholder has no value, so
+the URL cannot be built.
+
 ### packages/stream-validator
 
 **`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:979](../packages/stream-validator/src/engine/stream-validator.ts#L979))
@@ -717,7 +767,7 @@ Support is tracked in #396.
 
 ### packages/spec
 
-**`resolveSpec`** ([packages/spec/src/resolver.ts:238](../packages/spec/src/resolver.ts#L238))
+**`resolveSpec`** ([packages/spec/src/resolver.ts:250](../packages/spec/src/resolver.ts#L250))
 
 Against OpenAPI 3.1 section 4.6 (<https://spec.openapis.org/oas/v3.1.0#relative-references-in-uris>).
 

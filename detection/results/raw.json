@@ -1807,7 +1807,14 @@
   },
   "style/duplicate-operationid": {
     "oaverify": {
-      "findings": []
+      "findings": [
+        {
+          "rule": "duplicate-operation-id",
+          "message": "operationId \"sameId\" is already used at /paths/~1things/get/operationId; an operationId must be unique among all operations",
+          "location": "/paths/~1others/get/operationId",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": []
@@ -2115,7 +2122,14 @@
   },
   "style/undefined-security-scheme": {
     "oaverify": {
-      "findings": []
+      "findings": [
+        {
+          "rule": "security-scheme-undeclared",
+          "message": "security requirement names \"notDefinedAnywhere\", which components.securitySchemes does not declare",
+          "location": "/paths/~1things/get/security/0/notDefinedAnywhere",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": []
@@ -2851,7 +2865,14 @@
   },
   "structural/undeclared-server-variable": {
     "oaverify": {
-      "findings": []
+      "findings": [
+        {
+          "rule": "server-variable-undeclared",
+          "message": "server url \"https://{region}.example.com\" uses \"{region}\" but the server's variables do not declare \"region\", so it has no value to substitute",
+          "location": "/servers/0/url",
+          "severity": "warn"
+        }
+      ]
     },
     "ajv": {
       "findings": []

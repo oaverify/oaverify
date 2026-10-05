@@ -173,8 +173,7 @@ export const CASES: readonly DetectionCase[] = [
     class: "style",
     defect: "two operations share an operationId",
     signals: ["operationid"],
-    oaverify: "misses",
-    note: "Does not change how any request validates.",
+    oaverify: "catches",
   },
   {
     id: "style/unused-component",
@@ -197,8 +196,7 @@ export const CASES: readonly DetectionCase[] = [
     class: "style",
     defect: "operation requires a security scheme that components never defines",
     signals: ["notdefinedanywhere", "security scheme"],
-    oaverify: "misses",
-    note: "In scope when validateSecurity is on; not reported by `check`.",
+    oaverify: "catches",
   },
   {
     id: "style/example-contradicts-schema",
@@ -259,8 +257,7 @@ export const CASES: readonly DetectionCase[] = [
     class: "structural",
     defect: "a server URL template references a variable the server never declares",
     signals: ["region", "variable"],
-    oaverify: "misses",
-    note: "Same reason as the discriminator mapping: cross-reference, not shape.",
+    oaverify: "catches",
   },
   {
     id: "structural/dangling-ref",

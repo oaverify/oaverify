@@ -11,7 +11,7 @@ import {
 } from "@oaverify/internal-core";
 import type { SyncDocumentReader } from "./reader.js";
 import { lintResolvedSpec } from "./lint.js";
-import type { ResolvedSpec } from "./resolver.js";
+import type { ResolvedSpec, TrackedResolution } from "./resolver.js";
 import {
   assertEntryDocument,
   baseDirOf,
@@ -98,6 +98,16 @@ export interface ResolveSpecSyncOptions {
  * @public
  */
 export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
+  return resolveSpecSyncTracked(options).resolved;
+}
+
+/**
+ * {@link resolveSpecSync}, also returning the regions the walk recorded whether
+ * or not `provenance` was requested. The loaders lint with them.
+ *
+ * @internal
+ */
+export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): TrackedResolution {
   const { reader } = options;
   const baseDir = options.baseUri ?? baseDirOf(options.entry);
   const entryUri = entryIdentity(options.entry);
@@ -643,16 +653,23 @@ export function resolveSpecSync(options: ResolveSpecSyncOptions): ResolvedSpec {
   const inlined = [...inlinedComponents];
   const hoistedSchemaCopies = collectHoistedSchemaCopies(resolved, trail.regions, hoistedTargets);
   const specHygieneIssues = options.lint
-    ? lintResolvedSpec(resolved, { inlinedComponents: inlined, hoistedSchemaCopies })
+    ? lintResolvedSpec(resolved, {
+        inlinedComponents: inlined,
+        hoistedSchemaCopies,
+        regions: trail.regions,
+      })
     : [];
   return {
-    document: resolved,
-    sources: [...sources],
-    specHygieneIssues,
-    inlinedComponents: inlined,
-    hoistedSchemaCopies,
-    ...(options.provenance === true && { regions: trail.regions }),
-    ...(holes !== null && { unresolved: holes.entries() }),
+    resolved: {
+      document: resolved,
+      sources: [...sources],
+      specHygieneIssues,
+      inlinedComponents: inlined,
+      hoistedSchemaCopies,
+      ...(options.provenance === true && { regions: trail.regions }),
+      ...(holes !== null && { unresolved: holes.entries() }),
+    },
+    regions: trail.regions,
   };
 }
 
