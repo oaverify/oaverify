@@ -70,6 +70,12 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
   "duplicate-operation-id": { title: "an operationId two operations share" },
   "security-scheme-undeclared": { title: "a security requirement naming no declared scheme" },
   "server-variable-undeclared": { title: "a server URL placeholder with no declared variable" },
+  "server-variable-default-not-in-enum": {
+    title: "a server variable default its enum does not list",
+  },
+  "server-variable-default-not-in-enum-oas30": {
+    title: "a server variable default its enum does not list, in OpenAPI 3.0",
+  },
   "unserved-parameter-location": {
     title: "a parameter location this validator cannot read a value for",
   },

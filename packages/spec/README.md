@@ -196,6 +196,10 @@ authoring mistakes the structural validation can't catch:
   `components.securitySchemes` does not declare.
 - `server-variable-undeclared`: a `{name}` in a server URL with no entry
   in that server's `variables`.
+- `server-variable-default-not-in-enum`: a server variable `default`
+  that its `enum` does not list. In an OpenAPI 3.0 document, where the
+  specification only recommends it, the code is
+  `server-variable-default-not-in-enum-oas30`.
 
 ```ts
 const { document, specHygieneIssues } = await loadSpec({ reader, entry, lint: true });
