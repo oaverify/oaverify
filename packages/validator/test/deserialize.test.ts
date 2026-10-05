@@ -568,7 +568,19 @@ describe("deserialize: HTTP whitespace in simple-style header lists (#1198)", ()
     ["non-HTTP whitespace", "a,\u00a0b,\nc", header(strings), ["a", "\u00a0b", "\nc"]],
     ["an empty member", "1, ,2", header(ints), [1, "", 2]],
     ["a scalar", " a, b ", header({ type: "string" }), " a, b "],
-    ["an array value", [" 1", "2 "], header(ints), [" 1", "2 "]],
+    // Field lines given as an array read as their comma-join (#1240).
+    ["an array value", [" 1", "2 "], header(ints), [1, 2]],
+    ["lines carrying lists", ["1,2", "3"], header(ints), [1, 2, 3]],
+    ["object lines", ["a=1", " b=x"], header(object, { explode: true }), { a: 1, b: "x" }],
+    ["no lines", [], header(ints), []],
+    ["scalar lines", ["a", "b"], header({ type: "string" }), "a"],
+    ["one empty line", [""], header(strings), []],
+    [
+      "Set-Cookie lines",
+      ["a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT", "b=2"],
+      header(strings, { name: "Set-Cookie" }),
+      ["a=1; Expires=Wed, 21 Oct 2026 07:28:00 GMT", "b=2"],
+    ],
   ])("%s: %j", (_, raw, p, expected) => {
     expect(deserialize(raw, p)).toEqual(expected);
   });
@@ -581,6 +593,19 @@ describe("deserialize: HTTP whitespace in simple-style header lists (#1198)", ()
   ])("leaves %s lists alone", (_, p) => {
     const raw = p.style === "label" ? ".a, b" : "a, b";
     expect(deserialize(raw, p)).toEqual(["a", " b"]);
+  });
+
+  it("leaves a cookie array value one element per entry", () => {
+    expect(
+      deserialize(["a,b", "c"], { name: "p", in: "cookie", explode: false, schema: strings }),
+    ).toEqual(["a,b", "c"]);
+  });
+
+  it("leaves a query array value one element per entry", () => {
+    expect(deserialize(["a,b", "c"], { name: "p", in: "query", schema: strings })).toEqual([
+      "a,b",
+      "c",
+    ]);
   });
 
   it("leaves a path capture alone", () => {

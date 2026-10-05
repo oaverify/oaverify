@@ -2701,3 +2701,59 @@ describe("compile-spec: HTTP whitespace in response header arrays (#1198)", () =
     }
   });
 });
+
+describe("compile-spec: a simple header array given as field lines", () => {
+  it("reads string[] as its comma-join on both engines, request and response (#1240)", async () => {
+    const ids = { type: "array", items: { type: "integer" } };
+    const document = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/h": {
+          get: {
+            parameters: [{ name: "X-Ids", in: "header", schema: ids }],
+            responses: { "200": { description: "ok", headers: { "X-Ids": { schema: ids } } } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const aot = await buildAot(document);
+    const runtime = createValidator(document);
+    for (const value of ["1, 2,3", ["1, 2", "3"]]) {
+      const req = { method: "GET", path: "/h", headers: { "x-ids": value } };
+      const res = { status: 200, headers: { "x-ids": value } };
+      expect(flatErrors(aot.validateRequest(req))).toEqual([]);
+      expect(flatErrors(runtime.validateRequest(req) as AotResult)).toEqual([]);
+      expect(flatErrors(aot.validateResponse(req, res))).toEqual([]);
+      expect(flatErrors(runtime.validateResponse(req, res) as AotResult)).toEqual([]);
+    }
+  });
+
+  it("reads object field lines as one value on both engines, request and response", async () => {
+    const obj = {
+      type: "object",
+      properties: { a: { type: "integer" }, b: { type: "string" } },
+    };
+    const header = { schema: obj, explode: true };
+    const document = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/o": {
+          get: {
+            parameters: [{ name: "X-O", in: "header", ...header }],
+            responses: { "200": { description: "ok", headers: { "X-O": header } } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const aot = await buildAot(document);
+    const runtime = createValidator(document);
+    const req = { method: "GET", path: "/o", headers: { "x-o": ["a=1", "b=x"] } };
+    const res = { status: 200, headers: { "x-o": ["a=1", "b=x"] } };
+    expect(flatErrors(aot.validateRequest(req))).toEqual([]);
+    expect(flatErrors(runtime.validateRequest(req) as AotResult)).toEqual([]);
+    expect(flatErrors(aot.validateResponse(req, res))).toEqual([]);
+    expect(flatErrors(runtime.validateResponse(req, res) as AotResult)).toEqual([]);
+  });
+});

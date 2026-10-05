@@ -26,6 +26,7 @@ import {
   coercionView,
   compileMediaTypePatterns,
   effectiveType,
+  joinsFieldLines,
   isServedParameterLocation,
   isValidMaxTotalBytes,
   maxTotalBytesErrorMessage,
@@ -779,7 +780,9 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
             // computed in the emitted module, which would need
             // `effectiveType` in the codegen runtime for a fact that is
             // static in the document (#889).
-            ...(effectiveType(p.schema) === "object" ? { __objectTyped: true } : {}),
+            ...(effectiveType(p.schema) === "object" && !joinsFieldLines(p)
+              ? { __objectTyped: true }
+              : {}),
             // Same spread reasoning as `allowEmptyValue`: absent on
             // every parameter that declares `schema`, which is almost
             // all of them. `firstContentMediaType` picks the entry
@@ -1361,7 +1364,8 @@ function __validateParameter(p, req, match${sinkParam}) {
 ${contentBranch}  // Mirrors validateParameter in validate-step.ts: a repeated name is
   // not how a style carries an object, and reading raw[0] handed the
   // schema a string, so the failure read "must be object" about a value
-  // the caller never sent (#889). __objectTyped is baked at emit time.
+  // the caller never sent (#889). __objectTyped is baked at emit time,
+  // and left off a simple header, whose field lines are one value.
   if (Array.isArray(raw) && raw.length > 1 && p.__objectTyped) {
     return createLeafError(
       ${PARAM_CODE_EXPR},
