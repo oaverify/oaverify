@@ -3259,3 +3259,39 @@ describe("compile-spec: a parameter declaring both schema and content", () => {
     },
   );
 });
+
+describe("compile-spec: the response tree node", () => {
+  it("carries { status } only, as the contract and createValidator do (#1237)", async () => {
+    const document = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/b": {
+          post: {
+            responses: {
+              "200": {
+                description: "ok",
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      required: ["id"],
+                      properties: { id: { type: "integer" } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const req = { method: "POST", path: "/b", headers: {} };
+    const res = { status: 200, headers: { "content-type": "application/json" }, body: {} };
+    const aot = await buildAot(document, { outputMode: "tree" });
+    const runtime = createValidator(document, { output: "tree" });
+    const emitted = treeOf(aot.validateResponse(req, res));
+    expect(emitted).toEqual(treeOf(runtime.validateResponse(req, res) as AotResult));
+    expect(emitted?.params).toEqual({ status: 200 });
+  });
+});

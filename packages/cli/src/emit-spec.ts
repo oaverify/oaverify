@@ -1591,7 +1591,7 @@ ${contentHeaderBranch}          const value = deserialize(raw, { name, in: "head
     "response", [],
     \`\${method} \${match.pathPattern}: response validation failed\`,
     children,
-    { method, pathPattern: match.pathPattern, status: res.status },
+    { status: res.status },
   );
 }
 `;
