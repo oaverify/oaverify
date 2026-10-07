@@ -12,7 +12,7 @@
     "@oaverify/core": "link:../..",
     "@oaverify/syntax": "link:../../packages/syntax",
     "@types/express": "^5.0.6",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "express": "^4.22.3",
     "express-openapi-validator": "^5.5.9",
     "typescript": "^7.0.2"
