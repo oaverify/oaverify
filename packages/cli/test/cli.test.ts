@@ -277,6 +277,29 @@ describe("buildProgram: argv-level", () => {
     expect(out.stderr).toBe("");
   });
 
+  it("validate --request keeps a brace-led text/plain body as a string (#1190)", async () => {
+    const textSpec = {
+      openapi: "3.1.0",
+      info: { title: "x", version: "1" },
+      paths: {
+        "/notes": {
+          post: {
+            requestBody: {
+              required: true,
+              content: { "text/plain": { schema: { type: "string", maxLength: 100 } } },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const httpFile = 'POST /notes\nContent-Type: text/plain\n\n{"looks":"like json"}';
+    const mem = memoryIo([["spec.json", textSpec]], [["req.http", httpFile]]);
+    const out = await runCli(["validate", "spec.json", "--request", "req.http"], mem);
+    expect(out.stdout).toBe("");
+    expect(out.exitCode).toBe(0);
+  });
+
   it("validate --request surfaces validation errors with exit 1", async () => {
     const httpFile =
       "POST /pets HTTP/1.1\nContent-Type: application/json\n\n" + '{"wrong":"field"}';

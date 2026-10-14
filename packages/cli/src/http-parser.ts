@@ -89,9 +89,14 @@ export function parseHttpFile(text: string): HttpRequest {
           { cause: err },
         );
       }
-    } else if (bodyText.startsWith("{") || bodyText.startsWith("[")) {
+    } else if (
+      contentType === undefined &&
+      (bodyText.startsWith("{") || bodyText.startsWith("["))
+    ) {
       // No declared type; the brace is a guess, so a parse failure
       // falls back to the raw string rather than rejecting the file.
+      // A declared non-JSON type is taken at its word: a text/plain body
+      // that starts with a brace is still text.
       try {
         body = JSON.parse(bodyText) as JsonValue;
       } catch {
