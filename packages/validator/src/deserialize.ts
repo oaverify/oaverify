@@ -25,8 +25,9 @@ import {
  * dropped: `1, 2` reads as `[1, 2]`, which is how a client joining
  * repeated header lines writes it. Other whitespace is kept: inside a
  * member, around an exploded object's `=`, and any character other than
- * space or tab. A header value given as an array is one element per
- * entry, neither split nor trimmed.
+ * space or tab. A `simple` header array or object given as an array of
+ * strings, one per field line, is read as those lines joined with
+ * commas, so `["1, 2", "3"]` reads as `[1, 2, 3]` like `"1, 2, 3"`.
  *
  * @param raw - The value(s) provided for this parameter, already URL-decoded
  * where required by the location. This function does no percent-decoding.
@@ -62,6 +63,7 @@ import {
  * ```
  *
  * @specCites RFC 9110 section 5.6.1, https://www.rfc-editor.org/rfc/rfc9110#section-5.6.1
+ * @specCites RFC 9110 section 5.3, https://www.rfc-editor.org/rfc/rfc9110#section-5.3
  * @specBoundary transforms https://www.rfc-editor.org/rfc/rfc9110#section-5.6.1.2
  * Empty members of a `simple` header list are kept as empty strings.
  * RFC 9110 has a recipient ignore them, so `1, ,2` is the list `1, 2`;
@@ -69,6 +71,15 @@ import {
  * and a string array accepts with an extra `""` element. OpenAPI's
  * `simple` style can carry an empty string as an element, so dropping
  * empty members would lose values a client meant to send.
+ * @specBoundary transforms https://www.rfc-editor.org/rfc/rfc9110#section-5.3
+ * A `simple` header array or object given as an array of strings, one
+ * per field line, is read as those lines joined with commas. RFC 9110
+ * lets a recipient combine field lines only for a field defined as a
+ * comma-separated list. This join is applied to any header the schema
+ * types as an array or object, so a field whose value may itself
+ * contain a comma is split there too: `["a, b"]` for a string array
+ * reads as `["a", "b"]`. Set-Cookie, which RFC 9110 names as the field
+ * that must not be combined, keeps one element per line.
  * @public
  */
 export function deserialize(
@@ -116,6 +127,21 @@ function decodePathValue(value: string): string {
   }
 }
 
+/**
+ * Whether a value given as an array of strings, one per field line, is
+ * read as those lines joined with commas: a `simple` style header other
+ * than Set-Cookie, whose lines RFC 9110 section 5.3 says are never
+ * combined.
+ *
+ * @internal
+ */
+export function joinsFieldLines(parameter: ParameterObject): boolean {
+  const style = parameter.style ?? defaultStyle(parameter.in);
+  return (
+    parameter.in === "header" && style === "simple" && parameter.name.toLowerCase() !== "set-cookie"
+  );
+}
+
 function deserializeValue(
   raw: string | string[] | undefined,
   parameter: ParameterObject,
@@ -128,8 +154,20 @@ function deserializeValue(
   const type = effectiveType(schema);
   // Applied to each list member after splitting; simple-style headers
   // drop HTTP optional whitespace.
-  const normalizeMember =
-    parameter.in === "header" && style === "simple" ? trimHttpWhitespace : identity;
+  const simpleHeader = parameter.in === "header" && style === "simple";
+  const normalizeMember = simpleHeader ? trimHttpWhitespace : identity;
+
+  // Field lines given as an array read as their comma-joined form, so a
+  // list-valued simple header given as `["1, 2", "3"]` is read as
+  // `"1, 2,3"` and split like it.
+  if (
+    Array.isArray(raw) &&
+    raw.length > 0 &&
+    joinsFieldLines(parameter) &&
+    (type === "array" || type === "object")
+  ) {
+    return deserializeValue(raw.join(","), parameter, decode);
+  }
 
   if (Array.isArray(raw)) {
     if (type === "array") {

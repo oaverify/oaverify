@@ -85,4 +85,8 @@ export { isValidMaxTotalBytes, maxTotalBytesErrorMessage } from "./from-fetch.js
 // codegen runtime gaining a symbol.
 export { effectiveType } from "./schema-type.js";
 
+// Baked onto each emitted parameter the same way, so the emitted module
+// reads a simple header's field lines as createValidator does (#1240).
+export { joinsFieldLines } from "./deserialize.js";
+
 export { checkDocumentExamplesInContext } from "./example-check.js";

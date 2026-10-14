@@ -6,7 +6,12 @@ import {
 } from "@oaverify/internal-core";
 import type { RouteMatch } from "@oaverify/internal-router";
 import type { CompiledTreeSchema } from "@oaverify/internal-schema";
-import { deserialize, deserializePath, matchParsedMediaType } from "./deserialize.js";
+import {
+  deserialize,
+  deserializePath,
+  joinsFieldLines,
+  matchParsedMediaType,
+} from "./deserialize.js";
 import { effectiveType } from "./schema-type.js";
 import { contentTypeErrorMessage, getHeaderValue, getHeaderValueFast, getOwn } from "./headers.js";
 import { firstContentMediaType, type OperationCache } from "./operation-cache.js";
@@ -305,8 +310,14 @@ export function validateParameter(
   // and the message is what improves. Reachable for a cookie since #826
   // let `HttpRequest.cookies` carry an array, and for a query parameter
   // whose name repeats; the query shapes that DO spread an object across
-  // keys are assembled above and never reach here.
-  if (Array.isArray(raw) && raw.length > 1 && effectiveType(p.schema) === "object") {
+  // keys are assembled above and never reach here. A simple header's
+  // field lines are one value joined with commas (`joinsFieldLines`).
+  if (
+    Array.isArray(raw) &&
+    raw.length > 1 &&
+    effectiveType(p.schema) === "object" &&
+    !joinsFieldLines(p)
+  ) {
     return createLeafError(
       code,
       pathPrefix,

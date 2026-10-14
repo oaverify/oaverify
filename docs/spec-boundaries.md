@@ -35,12 +35,12 @@ conforming implementation choice.
 | ---- | ------- | ----- |
 | [`under-asserts`](#under-asserts) | accepts what the cited spec forbids | 29 |
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
-| [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 4 |
+| [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 5 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 9 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 2 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 5 |
 
-60 documented entries across 31 files.
+61 documented entries across 31 files.
 
 ## under-asserts
 
@@ -333,7 +333,7 @@ permits the replacement text. The default, `utf8: "reject"`, rejects it.
 
 ### packages/validator
 
-**`deserializePath`** ([packages/validator/src/deserialize.ts:81](../packages/validator/src/deserialize.ts#L81))
+**`deserializePath`** ([packages/validator/src/deserialize.ts:92](../packages/validator/src/deserialize.ts#L92))
 
 Against RFC 3986 section 2.1 (<https://www.rfc-editor.org/rfc/rfc3986#section-2.1>).
 
@@ -536,6 +536,19 @@ here it reads as `[1, "", 2]`, which an integer array then rejects
 and a string array accepts with an extra `""` element. OpenAPI's
 `simple` style can carry an empty string as an element, so dropping
 empty members would lose values a client meant to send.
+
+**`deserialize`** ([packages/validator/src/deserialize.ts:12](../packages/validator/src/deserialize.ts#L12))
+
+Against RFC 9110 section 5.3 (<https://www.rfc-editor.org/rfc/rfc9110#section-5.3>).
+
+A `simple` header array or object given as an array of strings, one
+per field line, is read as those lines joined with commas. RFC 9110
+lets a recipient combine field lines only for a field defined as a
+comma-separated list. This join is applied to any header the schema
+types as an array or object, so a field whose value may itself
+contain a comma is split there too: `["a, b"]` for a string array
+reads as `["a", "b"]`. Set-Cookie, which RFC 9110 names as the field
+that must not be combined, keeps one element per line.
 
 ## chooses
 
