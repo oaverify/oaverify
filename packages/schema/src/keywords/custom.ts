@@ -1,4 +1,4 @@
-import { NAMES, quoteString } from "../codegen/index.js";
+import { NAMES, ownKeyLiteral, quoteString } from "../codegen/index.js";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 
 /**
@@ -64,7 +64,9 @@ export function createCustomKeywordDefinition(keyword: string): KeywordDefinitio
     keyword,
     vocabulary: customKeywordVocabulary,
     compile(ctx: KeywordCompileContext): void {
-      const schemaValueJson = JSON.stringify(ctx.schema);
+      // A fresh literal per call, own `__proto__` keys kept, so a callback
+      // that mutates its argument cannot affect a later call.
+      const schemaValueJson = ownKeyLiteral(ctx.schema, 0);
       const resultVar = ctx.gen.scope.name("custom");
       ctx.gen.line(
         `const ${resultVar} = ${NAMES.DEPS}.customKeywords.get(${keywordLit})(${ctx.data}, ${schemaValueJson}, ${ctx.effectivePathExpr});`,

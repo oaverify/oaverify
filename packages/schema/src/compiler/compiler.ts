@@ -860,8 +860,6 @@ export interface SchemaLintIssue {
    * property names collected from the conjunction. Alternative arms inherit
    * unconditional assertions, but inherited-only evidence is not repeated;
    * another unexpanded alternative group makes crossing evidence incomplete.
-   * Values with an own __proto__ key are withheld because runtime literal
-   * serialization does not preserve that authored value.
    *
    * Pattern matching is not executed by this analysis. Other assertions,
    * including composed type and range constraints, may reject values surviving

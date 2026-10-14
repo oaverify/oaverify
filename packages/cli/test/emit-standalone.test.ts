@@ -258,3 +258,34 @@ describe("emitStandalone", () => {
     }
   });
 });
+
+describe("emitStandalone: own __proto__ keys in const and enum (#1201)", () => {
+  it("compares the authored value, nested and among mixed enum candidates", async () => {
+    const schema = JSON.parse(
+      '{"properties":{' +
+        '"c":{"const":{"__proto__":{"a":1}}},' +
+        '"n":{"const":{"k":[{"__proto__":"x"}]}},' +
+        '"m":{"enum":[1,"x",{"__proto__":"x"},[{"__proto__":{"b":null}}]]}}}',
+    ) as SchemaOrBoolean;
+    const { validate, dir } = await compileModule(schema);
+    const ok = (text: string): boolean => validate(JSON.parse(text)).valid;
+    try {
+      expect(
+        ok('{"c":{"__proto__":{"a":1}},"n":{"k":[{"__proto__":"x"}]},"m":{"__proto__":"x"}}'),
+      ).toBe(true);
+      expect(ok('{"m":[{"__proto__":{"b":null}}]}')).toBe(true);
+      expect(ok('{"m":"x"}')).toBe(true);
+      for (const bad of [
+        '{"c":{}}',
+        '{"n":{"k":[{}]}}',
+        '{"n":{"k":[{"__proto__":"y"}]}}',
+        '{"m":{}}',
+        '{"m":[{}]}',
+      ]) {
+        expect(ok(bad), bad).toBe(false);
+      }
+    } finally {
+      await rm(dir, { recursive: true });
+    }
+  });
+});

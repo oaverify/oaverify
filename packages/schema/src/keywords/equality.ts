@@ -1,4 +1,4 @@
-import { NAMES, quoteString } from "../codegen/index.js";
+import { NAMES, ownKeyLiteral, quoteString } from "../codegen/index.js";
 import type { JsonValue } from "@oaverify/internal-core";
 import type { KeywordCompileContext, KeywordDefinition } from "./types.js";
 import { CORE_VALIDATION_VOCAB } from "./vocabulary-uris.js";
@@ -38,7 +38,9 @@ export const enumKeyword: KeywordDefinition = {
   validateKeywordValue: (value) => checkEnumValues(value),
   compile(ctx: KeywordCompileContext): void {
     const values = parseEnumValues(ctx.schema);
-    const valuesLit = JSON.stringify(values);
+    // Every literal of a JSON value goes through ownKeyLiteral: as a plain
+    // object literal an own `__proto__` key would set a prototype instead.
+    const valuesLit = ownKeyLiteral(values, 0);
     const prims = values.filter(isJsonPrimitive);
     const objs = values.filter((v) => !isJsonPrimitive(v));
 
@@ -60,7 +62,7 @@ export const enumKeyword: KeywordDefinition = {
     }
 
     const matched = ctx.gen.scope.name("matched");
-    const objsVar = ctx.hoistConstant(JSON.stringify(objs), "enumObjs");
+    const objsVar = ctx.hoistConstant(ownKeyLiteral(objs, 0), "enumObjs");
     const loopBody = (g: typeof ctx.gen) => {
       g.forOf("candidate", objsVar, (gi) => {
         gi.if(`${NAMES.DEPS}.deepEqual(${ctx.data}, candidate)`, (gii) => {
@@ -92,7 +94,8 @@ export const constKeyword: KeywordDefinition = {
   vocabulary: CORE_VALIDATION_VOCAB,
   compile(ctx: KeywordCompileContext): void {
     const value = ctx.schema as JsonValue;
-    const valueLit = JSON.stringify(value);
+    // See enum: an own `__proto__` key must survive into the literal.
+    const valueLit = ownKeyLiteral(value, 0);
     const checkExpr = isJsonPrimitive(value)
       ? `${ctx.data} !== ${valueLit}`
       : `!${NAMES.DEPS}.deepEqual(${ctx.data}, ${valueLit})`;

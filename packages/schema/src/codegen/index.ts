@@ -15,4 +15,5 @@ export {
 } from "./codegen.js";
 export type { CodeEmitter, NameGenerator, PathSegmentLike, RawExpression } from "./codegen.js";
 export { NAMES } from "./names.js";
+export { ownKeyLiteral } from "./own-key-literal.js";
 export { Scope } from "./scope.js";

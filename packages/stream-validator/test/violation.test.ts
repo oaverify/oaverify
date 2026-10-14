@@ -113,3 +113,45 @@ describe("numeric bound codes (#1199)", () => {
     for (const v of seen) expect(BUILT_IN_ERROR_CODES).toContain(v.code);
   });
 });
+
+describe("own __proto__ keys on the buffered equality path (#1201)", () => {
+  const schema = JSON.parse(
+    '{"properties":{' +
+      '"c":{"const":{"__proto__":{"a":1}}},' +
+      '"n":{"const":{"k":[{"__proto__":"x"}]}},' +
+      '"m":{"enum":[1,"x",{"__proto__":"x"},[{"__proto__":{"b":null}}]]}}}',
+  ) as SchemaOrBoolean;
+  const bytes = (text: string) => enc.encode(text);
+
+  async function verdict(text: string): Promise<boolean> {
+    const validator = createStreamValidator(schema, {
+      policy: "detach",
+      maxErrors: Number.POSITIVE_INFINITY,
+    });
+    validator.on("error", () => {});
+    validator.resume();
+    const result = validator.result;
+    validator.end(Buffer.from(bytes(text)));
+    return (await result).valid;
+  }
+
+  it("accepts equal values, nested and among mixed enum candidates, and rejects others", async () => {
+    expect(
+      await verdict(
+        '{"c":{"__proto__":{"a":1}},"n":{"k":[{"__proto__":"x"}]},"m":{"__proto__":"x"}}',
+      ),
+    ).toBe(true);
+    expect(await verdict('{"m":[{"__proto__":{"b":null}}]}')).toBe(true);
+    expect(await verdict('{"m":"x"}')).toBe(true);
+    for (const bad of [
+      '{"c":{}}',
+      '{"c":{"__proto__":{"a":2}}}',
+      '{"n":{"k":[{}]}}',
+      '{"n":{"k":[{"__proto__":"y"}]}}',
+      '{"m":{}}',
+      '{"m":[{}]}',
+    ]) {
+      expect(await verdict(bad), bad).toBe(false);
+    }
+  });
+});
