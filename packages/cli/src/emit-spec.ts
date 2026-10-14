@@ -25,6 +25,7 @@ import { builtInFormats } from "@oaverify/internal-formats";
 import {
   coercionView,
   compileMediaTypePatterns,
+  createDirectionResolver,
   effectiveType,
   joinsFieldLines,
   isServedParameterLocation,
@@ -32,8 +33,10 @@ import {
   maxTotalBytesErrorMessage,
   recordDocumentRefSiblingSuppression,
   schemaRefResolverFor,
+  transformBodySchemaForDirection,
   unservedParameterLocationMessage,
   walkDocumentSchemas,
+  type BodyDirection,
   type SchemaRefResolver,
 } from "@oaverify/internal-validator/internals";
 import { isUnknownFormat } from "./emit-standalone.js";
@@ -264,22 +267,20 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   };
 
   // Collect every compiled schema, de-duplicated by identity. Each
-  // unique source schema gets one emitted IIFE; positions reference
-  // it by generated name. The dedup key is the source `SchemaOrBoolean`
+  // unique source schema gets one emitted IIFE per projection (see
+  // `namedBody`); positions reference it by generated name. The dedup
+  // key is the source `SchemaOrBoolean`
   // object: `compileSchema` returns a fresh `CompiledSchema` per call,
   // so keying on its result would never hit and would recompile +
   // re-emit the same schema once per reference.
   const compiled: Array<{ name: string; source: string }> = [];
-  const schemaNames = new Map<SchemaOrBoolean, string>();
-  const named = (schema: SchemaOrBoolean): string => {
-    const existing = schemaNames.get(schema);
-    if (existing !== undefined) return existing;
+  const emitCompiled = (schema: SchemaOrBoolean, resolver: RefResolver): string => {
     // Mirror @oaverify/internal-validator's runtime contract: the emitted module nests
     // per-location error subtrees, so each schema compiles in tree mode
     // with uncapped errors, independent of the v3 flat/maxErrors:1 default.
     const c = compileSchema(schema, {
       dialect,
-      refResolver,
+      refResolver: resolver,
       formats: builtInFormats,
       output: "tree",
       maxErrors: Number.POSITIVE_INFINITY,
@@ -290,7 +291,60 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
     });
     const name = `S${compiled.length}`;
     compiled.push({ name, source: c.source });
+    return name;
+  };
+  const schemaNames = new Map<SchemaOrBoolean, string>();
+  const named = (schema: SchemaOrBoolean): string => {
+    const existing = schemaNames.get(schema);
+    if (existing !== undefined) return existing;
+    const name = emitCompiled(schema, refResolver);
     schemaNames.set(schema, name);
+    return name;
+  };
+
+  // Bodies compile through the HTTP projection createValidator applies
+  // (`compileForDirection` in validator.ts): readOnly and writeOnly
+  // properties by direction, and opaque binary properties. One name per
+  // source schema and direction, since a component on both legs
+  // projects differently on each.
+  const directionOptions = { refSuppressesSiblings: dialect.rules.refSuppressesSiblings };
+  const bodyDirections = {
+    request: {
+      cache: new Map<SchemaOrBoolean, SchemaOrBoolean>(),
+      names: new Map<SchemaOrBoolean, string>(),
+    },
+    response: {
+      cache: new Map<SchemaOrBoolean, SchemaOrBoolean>(),
+      names: new Map<SchemaOrBoolean, string>(),
+    },
+  };
+  const directionResolvers: Record<BodyDirection, RefResolver> = {
+    request: createDirectionResolver(
+      refResolver,
+      "request",
+      bodyDirections.request.cache,
+      directionOptions,
+    ),
+    response: createDirectionResolver(
+      refResolver,
+      "response",
+      bodyDirections.response.cache,
+      directionOptions,
+    ),
+  };
+  const namedBody = (schema: SchemaOrBoolean, direction: BodyDirection): string => {
+    const { cache, names } = bodyDirections[direction];
+    const existing = names.get(schema);
+    if (existing !== undefined) return existing;
+    const projected = transformBodySchemaForDirection(
+      schema,
+      direction,
+      refResolver,
+      cache,
+      directionOptions,
+    );
+    const name = emitCompiled(projected, directionResolvers[direction]);
+    names.set(schema, name);
     return name;
   };
 
@@ -358,6 +412,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
           resolveSchemaRef,
           refSuppressesSiblings: dialect.rules.refSuppressesSiblings,
           named,
+          namedBody,
           requestsOnly: options.requestsOnly === true,
         }),
       );
@@ -557,6 +612,8 @@ interface BuildEmittedOpArgs {
    */
   refSuppressesSiblings: boolean;
   named: (schema: SchemaOrBoolean) => string;
+  /** `named` for a body, through the projection for `direction`. */
+  namedBody: (schema: SchemaOrBoolean, direction: BodyDirection) => string;
   requestsOnly: boolean;
 }
 
@@ -570,6 +627,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     resolveSchemaRef,
     refSuppressesSiblings,
     named,
+    namedBody,
     requestsOnly,
   } = args;
 
@@ -680,7 +738,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     for (const [mediaType, media] of Object.entries(requestBody.content ?? {})) {
       declaredBodyMediaTypes.push(mediaType);
       if (hasSchema(media)) {
-        setSpecKey(bodyValidators, mediaType, named(media.schema));
+        setSpecKey(bodyValidators, mediaType, namedBody(media.schema, "request"));
       }
     }
   }
@@ -703,7 +761,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
       for (const [mediaType, media] of Object.entries(resp.content ?? {})) {
         declaredMediaTypes.push(mediaType);
         if (hasSchema(media)) {
-          setSpecKey(bodyVs, mediaType, named(media.schema));
+          setSpecKey(bodyVs, mediaType, namedBody(media.schema, "response"));
         }
       }
       const headers: Record<string, EmittedResponseHeader> = {};

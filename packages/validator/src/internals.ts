@@ -90,3 +90,12 @@ export { effectiveType } from "./schema-type.js";
 export { joinsFieldLines } from "./deserialize.js";
 
 export { checkDocumentExamplesInContext } from "./example-check.js";
+
+// The HTTP body projection (readOnly/writeOnly by direction, opaque
+// binary properties), so the AOT emitter compiles bodies the way
+// `createValidator` does.
+export {
+  type BodyDirection,
+  createDirectionResolver,
+  transformBodySchemaForDirection,
+} from "./body-schema-transform.js";

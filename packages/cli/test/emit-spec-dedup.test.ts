@@ -45,4 +45,32 @@ describe("emitSpec schema dedup", () => {
     const iifeCount = (source.match(/= \(function \(deps\) \{/g) ?? []).length;
     expect(iifeCount).toBe(1);
   });
+
+  it("emits one IIFE per direction for a body schema on both legs (#1145)", () => {
+    // A YAML anchor gives both legs this one object. Each leg projects
+    // readOnly/writeOnly differently, so sharing a name would hand the
+    // response the request's projection.
+    const shared: SchemaOrBoolean = {
+      type: "object",
+      properties: { id: { type: "string", readOnly: true } },
+    };
+    const document = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/a": {
+          post: {
+            requestBody: { content: { "application/json": { schema: shared } } },
+            responses: {
+              "200": { description: "ok", content: { "application/json": { schema: shared } } },
+            },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+
+    const source = emitSpec(document);
+    const iifeCount = (source.match(/= \(function \(deps\) \{/g) ?? []).length;
+    expect(iifeCount).toBe(2);
+  });
 });
