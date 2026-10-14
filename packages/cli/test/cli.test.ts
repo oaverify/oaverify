@@ -124,6 +124,39 @@ describe("buildProgram: argv-level", () => {
     for (const f of payload.findings) expect(f.class).toBeTruthy();
   });
 
+  it("check --findings examples discloses an example whose schema cannot compile (#1131)", async () => {
+    const broken = {
+      openapi: "3.1.0",
+      info: { title: "Example compilation", version: "1" },
+      paths: {},
+      components: { schemas: { Broken: { type: "nonsense", example: 1 } } },
+    };
+    const mem = memoryIo([["spec.json", broken]]);
+    const out = await runCli(
+      ["check", "spec.json", "--findings", "examples", "--format", "json"],
+      mem,
+    );
+    expect(out.exitCode).toBe(0);
+    const payload = JSON.parse(out.stdout) as { findings: { code: string; location: string }[] };
+    expect(payload.findings.map((f) => [f.code, f.location])).toEqual([
+      ["example-uncheckable", "/components/schemas/Broken/example"],
+    ]);
+    const strict = await runCli(
+      ["check", "spec.json", "--findings", "examples", "--fail-on", "warning"],
+      memoryIo([["spec.json", broken]]),
+    );
+    expect(strict.exitCode).toBe(1);
+    // With the schema pass, the malformed schema is reported once, as before.
+    const full = await runCli(
+      ["check", "spec.json", "--findings", "schema,examples", "--format", "json"],
+      memoryIo([["spec.json", broken]]),
+    );
+    expect(full.exitCode).toBe(4);
+    expect(
+      (JSON.parse(full.stdout) as { findings: { code: string }[] }).findings.map((f) => f.code),
+    ).toEqual(["malformed-schema"]);
+  });
+
   it("check no longer accepts --only or --skip", async () => {
     // Replaced by `--findings`, which spells both polarities. Commander
     // rejects the unknown option, so a stale CI invocation fails loudly
