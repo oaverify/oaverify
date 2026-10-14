@@ -332,3 +332,135 @@ describe("analyzeStreamability: peakBytes is a sound upper bound on real bufferi
     expect((await runWithCap(schema, value, 4))?.message).toMatch(/maxBufferedBytes/);
   });
 });
+
+describe("analyzeStreamability follows $dynamicRef as the engine does (#1123)", () => {
+  const B = { $dynamicAnchor: "B", type: "string", pattern: "^a+$" };
+  const viaRef = (schema: object) => analyze({ ...schema, $defs: { B } } as SchemaObject);
+
+  it("reports a dynamic reference's buffering exactly as the static one", () => {
+    const dynamic = viaRef({ $dynamicRef: "#B" });
+    expect(dynamic).toEqual(viaRef({ $ref: "#/$defs/B" }));
+    expect(dynamic.classification).toBe("buffer");
+    expect(dynamic.peakBytes).toBe("unbounded");
+    expect(dynamic.positions).toEqual([
+      {
+        path: "",
+        classification: "buffer",
+        keyword: "pattern",
+        maxBytes: "unbounded",
+        unboundedBy: "maxLength",
+      },
+    ]);
+  });
+
+  it("sizes a finite target and a nested member island", () => {
+    const finite = { $dynamicAnchor: "F", type: "string", maxLength: 10, pattern: "^a+$" };
+    const r = analyze({
+      type: "object",
+      properties: { k: { $dynamicRef: "#F" } },
+      $defs: { F: finite },
+    } as SchemaObject);
+    expect(r.peakBytes).toBe(str(10));
+    expect(r.positions).toEqual([
+      { path: "k", classification: "buffer", keyword: "pattern", maxBytes: str(10) },
+    ]);
+  });
+
+  it("applies a co-located $ref and $dynamicRef together", () => {
+    const r = analyze({
+      $ref: "#/$defs/Short",
+      $dynamicRef: "#B",
+      $defs: { Short: { maxLength: 5 }, B },
+    } as SchemaObject);
+    expect(r.peakBytes).toBe(str(5));
+  });
+
+  it("reaches a target through composition and caps an unbounded estimate", () => {
+    const r = analyze(
+      { anyOf: [{ $dynamicRef: "#B" }, { type: "integer" }], $defs: { B } } as SchemaObject,
+      { maxBufferedBytes: 100 },
+    );
+    expect(r.positions.map((p) => [p.path, p.classification])).toEqual([
+      ["", "tee"],
+      ["anyOf.0", "buffer"],
+    ]);
+    expect(r.peakBytes).toBe("unbounded");
+    expect(r.effectivePeakBytes).toBe(100);
+  });
+
+  it("terminates on a recursive dynamic reference", () => {
+    const tree = {
+      $dynamicAnchor: "T",
+      type: "object",
+      properties: {
+        v: { type: "string", pattern: "^x$" },
+        kids: { type: "array", items: { $dynamicRef: "#T" } },
+      },
+    };
+    const r = analyze({ $ref: "#/$defs/T", $defs: { T: tree } } as SchemaObject);
+    expect(r.positions.map((p) => p.path)).toContain("v");
+  });
+
+  async function runtimePeak(schema: SchemaObject, value: unknown): Promise<number> {
+    const validator = createStreamValidator(schema, { maxErrors: Number.POSITIVE_INFINITY });
+    validator.on("error", () => {});
+    validator.resume();
+    const result = validator.result;
+    validator.end(Buffer.from(new TextEncoder().encode(JSON.stringify(value))));
+    const { valid, peakBufferedBytes } = await result;
+    expect(valid).toBe(true);
+    return peakBufferedBytes;
+  }
+
+  // A reference cycle back to the node collects it twice, as the spine's
+  // expand does, and the tee then runs both copies concurrently.
+  it.each(["$dynamicRef", "$ref"] as const)(
+    "bounds a %s cycle back to the node by what the engine buffers",
+    async (keyword) => {
+      const schema = {
+        $dynamicAnchor: "R",
+        [keyword]: keyword === "$ref" ? "#" : "#R",
+        type: "object",
+        properties: { v: { type: "string", maxLength: 10, pattern: ".*" } },
+        allOf: [true],
+      } as SchemaObject;
+      const peak = analyze(schema).peakBytes;
+      expect(peak).toBe(2 * str(10));
+      expect(await runtimePeak(schema, { v: "\u{1F600}".repeat(10) })).toBeLessThanOrEqual(
+        peak as number,
+      );
+    },
+  );
+
+  it("sizes a uniqueItems island reached through $dynamicRef", async () => {
+    const schema = {
+      $dynamicRef: "#U",
+      $defs: {
+        U: {
+          $dynamicAnchor: "U",
+          type: "array",
+          uniqueItems: true,
+          maxItems: 3,
+          items: { type: "string", maxLength: 5 },
+        },
+      },
+    } as SchemaObject;
+    const peak = analyze(schema).peakBytes;
+    expect(peak).toBe(uniqueArray(3, str(5)));
+    expect(await runtimePeak(schema, ["abcde", "fghij", "klmno"])).toBeLessThanOrEqual(
+      peak as number,
+    );
+  });
+
+  it("matches what the engine buffers for the same input", async () => {
+    const schema = { $dynamicRef: "#B", $defs: { B } } as SchemaObject;
+    const validator = createStreamValidator(schema, { maxErrors: Number.POSITIVE_INFINITY });
+    validator.on("error", () => {});
+    validator.resume();
+    const result = validator.result;
+    validator.end(Buffer.from(new TextEncoder().encode(JSON.stringify("a".repeat(1000)))));
+    const { peakBufferedBytes } = await result;
+    expect(peakBufferedBytes).toBeGreaterThan(1000);
+    expect(analyze(schema).peakBytes).toBe("unbounded");
+  });
+});
