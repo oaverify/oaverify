@@ -27,6 +27,11 @@ describe("what oaverify grades by default", () => {
     expect(defaultSeverityFor("hygiene", "duplicate-operation-id")).toBe("error");
     expect(defaultSeverityFor("hygiene", "security-scheme-undeclared")).toBe("error");
     expect(defaultSeverityFor("hygiene", "server-variable-undeclared")).toBe("error");
+    expect(defaultSeverityFor("hygiene", "server-variable-default-not-in-enum")).toBe("error");
+    // 3.0 says SHOULD.
+    expect(defaultSeverityFor("hygiene", "server-variable-default-not-in-enum-oas30")).toBe(
+      "warning",
+    );
     // Legal and merely dead.
     expect(defaultSeverityFor("hygiene", "unused-component")).toBe("warning");
   });

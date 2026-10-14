@@ -51,6 +51,8 @@ export const HYGIENE_CODES = [
   "duplicate-operation-id",
   "security-scheme-undeclared",
   "server-variable-undeclared",
+  "server-variable-default-not-in-enum",
+  "server-variable-default-not-in-enum-oas30",
 ] as const satisfies readonly SpecHygieneIssue["code"][];
 const _hygieneComplete: Missing<
   SpecHygieneIssue["code"],

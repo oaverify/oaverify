@@ -52,15 +52,14 @@ export const DEFAULT_SEVERITY: Readonly<Record<CheckClass, CheckSeverity>> = {
 
 /**
  * Hygiene codes that are specification violations rather than
- * housekeeping. OpenAPI requires every path-template placeholder to have
- * a matching parameter declaration, forbids a parameter list repeating a
- * name and location, requires `operationId` to be unique and a security
- * requirement to name a declared scheme, and makes a path template a URI
- * path, so a percent escape in one has to decode; these are not a matter
- * of taste. A server URL placeholder with no declared variable has no
- * value to substitute, so the URL cannot be built. The rest
- * of the hygiene codes (unused components, tags, `$defs`) name things
- * that are legal and merely dead.
+ * housekeeping. A code belongs here when the document breaks a rule
+ * OpenAPI states, such as a path-template placeholder no parameter
+ * declares, or leaves a value undefined that the document cannot be used
+ * without, such as a server URL placeholder with no variable. The rest of
+ * the hygiene codes name things that are legal and merely dead, such as
+ * an unused component. A rule that one OpenAPI version only recommends is
+ * reported there under a separate code outside this set, as
+ * `server-variable-default-not-in-enum-oas30` is.
  */
 export const HYGIENE_ERRORS: ReadonlySet<string> = new Set([
   "path-param-undeclared",
@@ -70,6 +69,7 @@ export const HYGIENE_ERRORS: ReadonlySet<string> = new Set([
   "duplicate-operation-id",
   "security-scheme-undeclared",
   "server-variable-undeclared",
+  "server-variable-default-not-in-enum",
 ] satisfies SpecHygieneIssue["code"][]);
 
 /**

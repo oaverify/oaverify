@@ -59,6 +59,12 @@ export interface SpecHygieneIssue {
    * - `"server-variable-undeclared"`: a `{name}` in a server URL that the
    *   server's `variables` does not declare, which leaves the URL with no
    *   value to substitute.
+   * - `"server-variable-default-not-in-enum"`: a Server Variable whose
+   *   `default` is not one of its `enum` values, which OpenAPI 3.1 and
+   *   later forbid.
+   * - `"server-variable-default-not-in-enum-oas30"`: the same in an
+   *   OpenAPI 3.0 document, where the specification says the default
+   *   SHOULD be one of the values rather than MUST.
    */
   code:
     | "unused-component"
@@ -70,7 +76,9 @@ export interface SpecHygieneIssue {
     | "duplicate-parameter"
     | "duplicate-operation-id"
     | "security-scheme-undeclared"
-    | "server-variable-undeclared";
+    | "server-variable-undeclared"
+    | "server-variable-default-not-in-enum"
+    | "server-variable-default-not-in-enum-oas30";
   /** RFC 6901 JSON Pointer to the offending node in the resolved document. */
   pointer: string;
   /** Human-readable explanation. */
@@ -181,6 +189,9 @@ const PLACEHOLDER_RE = /^\{[^{}]+\}$/;
  *   security requirement naming no declared scheme.
  * - **server-variable-undeclared**: a server URL placeholder with no
  *   entry in that server's `variables`, wherever a Server Object occurs.
+ * - **server-variable-default-not-in-enum** (and its `-oas30` sibling):
+ *   a Server Variable `default` that its `enum` does not list, in the
+ *   same Server Objects.
  *
  * @param document - The resolved document to grade.
  * @param options - What the document alone cannot say. See
@@ -204,6 +215,7 @@ export function lintResolvedSpec(
   issues.push(...findDuplicateOperationIds(document, options.regions));
   issues.push(...findUndeclaredSecuritySchemes(document, options.regions));
   issues.push(...findUndeclaredServerVariables(document));
+  issues.push(...findServerVariableDefaultsOutsideEnum(document));
   return issues;
 }
 
@@ -1282,6 +1294,40 @@ function findUndeclaredServerVariables(document: OpenAPIDocument): SpecHygieneIs
         code: "server-variable-undeclared",
         pointer: `${pointer}/url`,
         message: `server url "${url}" uses "{${name}}" but the server's variables do not declare "${name}", so it has no value to substitute`,
+      });
+    }
+  }
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// server-variable-default-not-in-enum
+// ---------------------------------------------------------------------------
+
+/**
+ * Server Variables whose `default` their `enum` does not list. Only a
+ * string `default` and an array `enum` are compared; any other shape is
+ * the conformance pass's finding. Values compare exactly. OpenAPI 3.0
+ * says the default SHOULD be listed and later versions say MUST, so 3.0
+ * documents get the `-oas30` code, which `check` grades as a warning.
+ */
+function findServerVariableDefaultsOutsideEnum(document: OpenAPIDocument): SpecHygieneIssue[] {
+  const code =
+    detectOpenAPIVersion(document) === "3.0"
+      ? "server-variable-default-not-in-enum-oas30"
+      : "server-variable-default-not-in-enum";
+  const issues: SpecHygieneIssue[] = [];
+  for (const [pointer, server] of definedServers(document)) {
+    if (!isObject(server.variables)) continue;
+    for (const [name, variable] of Object.entries(server.variables)) {
+      if (!isObject(variable)) continue;
+      const { default: value, enum: values } = variable;
+      if (typeof value !== "string" || !Array.isArray(values)) continue;
+      if (values.includes(value)) continue;
+      issues.push({
+        code,
+        pointer: `${pointer}/variables/${escapePointerSegment(name)}/default`,
+        message: `server variable "${name}" has default "${value}", which its enum does not list`,
       });
     }
   }

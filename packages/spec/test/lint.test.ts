@@ -1114,3 +1114,85 @@ describe("lint under loadSpec and resolveSpec, review follow-ups", () => {
     ).toEqual(["/paths/~1b/get/security/0/#~1gone"]);
   });
 });
+
+describe("lintResolvedSpec: server-variable-default-not-in-enum", () => {
+  const withServers = (openapi: string, servers: unknown[]) =>
+    minimalSpec({ openapi, servers } as unknown as Partial<OpenAPIDocument>);
+  const outside = (spec: OpenAPIDocument) =>
+    lintResolvedSpec(spec).filter((i) => i.code.startsWith("server-variable-default"));
+
+  it("reports a default its enum does not list (#1055)", () => {
+    const spec = withServers("3.1.0", [
+      {
+        url: "https://example.org/{version}",
+        variables: { version: { default: "v2", enum: ["v1"] } },
+      },
+    ]);
+    expect(lintResolvedSpec(spec)).toEqual([
+      {
+        code: "server-variable-default-not-in-enum",
+        pointer: "/servers/0/variables/version/default",
+        message: 'server variable "version" has default "v2", which its enum does not list',
+      },
+    ]);
+  });
+
+  it("uses the -oas30 code where 3.0 only recommends it, and the MUST code in 3.2", () => {
+    const servers = [{ url: "https://{v}", variables: { v: { default: "b", enum: ["a"] } } }];
+    expect(outside(withServers("3.0.3", servers)).map((i) => i.code)).toEqual([
+      "server-variable-default-not-in-enum-oas30",
+    ]);
+    expect(outside(withServers("3.2.0", servers)).map((i) => i.code)).toEqual([
+      "server-variable-default-not-in-enum",
+    ]);
+  });
+
+  it("reads Link Object servers and accepts listed or unconstrained defaults", () => {
+    const spec = minimalSpec({
+      servers: [
+        { url: "https://{a}", variables: { a: { default: "x", enum: ["x", "y"] } } },
+        { url: "https://{a}", variables: { a: { default: "x" } } },
+      ],
+      components: {
+        links: {
+          L: { server: { url: "https://{a}", variables: { a: { default: "X", enum: ["x"] } } } },
+        },
+      },
+    } as unknown as Partial<OpenAPIDocument>);
+    expect(outside(spec).map((i) => i.pointer)).toEqual([
+      "/components/links/L/server/variables/a/default",
+    ]);
+  });
+
+  it("compares only a string default against an array enum", () => {
+    const spec = withServers("3.1.0", [
+      {
+        url: "https://{a}{b}{c}{d}",
+        variables: {
+          a: { default: 1, enum: ["1"] },
+          b: { default: "x", enum: "x" },
+          c: null,
+          d: { enum: ["x"] },
+        },
+      },
+      { url: "https://{a}", variables: [{ default: "x", enum: [] }] },
+    ]);
+    expect(outside(spec)).toEqual([]);
+  });
+
+  it("reads a Link Object reached through a reference outside components", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/l": {
+          get: {
+            responses: { "200": { description: "ok", links: { next: { $ref: "#/x-link" } } } },
+          },
+        },
+      },
+      "x-link": {
+        server: { url: "https://{v}", variables: { v: { default: "bad", enum: ["good"] } } },
+      },
+    } as unknown as Partial<OpenAPIDocument>);
+    expect(outside(spec).map((i) => i.pointer)).toEqual(["/x-link/server/variables/v/default"]);
+  });
+});
