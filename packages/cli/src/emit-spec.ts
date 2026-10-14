@@ -28,6 +28,7 @@ import {
   createDirectionResolver,
   effectiveType,
   isBinaryStringSchema,
+  isIgnoredHeaderParameter,
   joinsFieldLines,
   isServedParameterLocation,
   isValidMaxTotalBytes,
@@ -658,13 +659,16 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // validator, the hygiene lint and the overlay reader all read the
   // same shape as no parameters now, so the conformance pass is what
   // names it (#837).
-  for (const p of asParameterList(pathItem.parameters)) {
+  // A header parameter OpenAPI says to ignore is dropped, as in the
+  // runtime's operation cache.
+  for (const p of [
+    ...asParameterList(pathItem.parameters),
+    ...asParameterList(operation.parameters),
+  ]) {
     const resolved = resolveRef<ParameterObject>(p);
-    if (resolved != null) combined.set(`${resolved.name}::${resolved.in}`, resolved);
-  }
-  for (const p of asParameterList(operation.parameters)) {
-    const resolved = resolveRef<ParameterObject>(p);
-    if (resolved != null) combined.set(`${resolved.name}::${resolved.in}`, resolved);
+    if (resolved != null && !isIgnoredHeaderParameter(resolved)) {
+      combined.set(`${resolved.name}::${resolved.in}`, resolved);
+    }
   }
   const parameters = [...combined.values()];
 

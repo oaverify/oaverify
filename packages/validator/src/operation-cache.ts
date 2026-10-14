@@ -27,6 +27,7 @@ import {
   type SchemaRefResolver,
 } from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
+import { isIgnoredHeaderParameter } from "./headers.js";
 import { effectiveType } from "./schema-type.js";
 import type { CompiledSecurity } from "./security.js";
 
@@ -40,15 +41,6 @@ import type { CompiledSecurity } from "./security.js";
 export interface OperationCache {
   pathParamValidators: Map<string, CompiledTreeSchema>;
   queryParamValidators: Map<string, CompiledTreeSchema>;
-  /**
-   * @specCites OpenAPI 3.1 Parameter Object, https://spec.openapis.org/oas/v3.1.0#parameter-object
-   * @specBoundary defers
-   * A request can be rejected for omitting a required header parameter
-   * named `Accept`, `Content-Type`, or `Authorization`. OpenAPI says to
-   * ignore Parameter Object definitions with these names, but oaverify
-   * currently enforces them like other header parameters. Correcting this
-   * is tracked in #1084.
-   */
   headerParamValidators: Map<string, CompiledTreeSchema>;
   cookieParamValidators: Map<string, CompiledTreeSchema>;
   parameters: ParameterObject[];
@@ -335,8 +327,10 @@ export function operationPointer(pathMatch: RouteMatch): string | undefined {
  * How far a `$ref` chain is followed before it is called a cycle. Shared
  * with {@link resolveOperationRef} so the address and the object it
  * addresses can never come from different numbers of hops.
+ *
+ * @internal
  */
-const REF_CHAIN_MAX_HOPS = 32;
+export const REF_CHAIN_MAX_HOPS = 32;
 
 /**
  * Where a spec object that may have been reached through `$ref` sits,
@@ -510,6 +504,8 @@ export function buildOperationCache(
     // Skipped for the same reason the router skips a null Operation; the
     // conformance pass locates it. See operationOn in the router.
     if (resolved === null || typeof resolved !== "object") continue;
+    // Never compiled or read; `check` reports it as `ignored-header`.
+    if (isIgnoredHeaderParameter(resolved)) continue;
     byKey.set(`${resolved.in}\0${resolved.name}`, {
       object: resolved,
       ...deps.originOf?.(raw, { pointer, anchor: "node" }),

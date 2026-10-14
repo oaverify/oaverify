@@ -38,9 +38,9 @@ conforming implementation choice.
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 5 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 9 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 2 |
-| [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 5 |
+| [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 4 |
 
-61 documented entries across 31 files.
+60 documented entries across 30 files.
 
 ## under-asserts
 
@@ -48,7 +48,7 @@ Accepts what the cited spec forbids.
 
 ### packages/check
 
-**`checkSpec`** ([packages/check/src/check.ts:162](../packages/check/src/check.ts#L162))
+**`checkSpec`** ([packages/check/src/check.ts:163](../packages/check/src/check.ts#L163))
 
 Against OpenAPI 3.1 Schema Object (<https://spec.openapis.org/oas/v3.1.0#schema-object>).
 
@@ -59,7 +59,7 @@ OpenAPI documents), which leave these fields unchecked. The pass checks
 them in OpenAPI 3.0 documents. Other passes still check schema validation
 rules.
 
-**`checkSpec`** ([packages/check/src/check.ts:162](../packages/check/src/check.ts#L162))
+**`checkSpec`** ([packages/check/src/check.ts:163](../packages/check/src/check.ts#L163))
 
 Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.1.1>).
 
@@ -743,16 +743,6 @@ target to depend on the schema being applied, also ignores that context
 ignored instead of rejected (#919).
 
 ### packages/validator
-
-**`headerParamValidators`** ([packages/validator/src/operation-cache.ts:43](../packages/validator/src/operation-cache.ts#L43))
-
-Against OpenAPI 3.1 Parameter Object (<https://spec.openapis.org/oas/v3.1.0#parameter-object>).
-
-A request can be rejected for omitting a required header parameter
-named `Accept`, `Content-Type`, or `Authorization`. OpenAPI says to
-ignore Parameter Object definitions with these names, but oaverify
-currently enforces them like other header parameters. Correcting this
-is tracked in #1084.
 
 **`UNIMPLEMENTED_LOCATIONS`** ([packages/validator/src/parameter-locations.ts:85](../packages/validator/src/parameter-locations.ts#L85))
 

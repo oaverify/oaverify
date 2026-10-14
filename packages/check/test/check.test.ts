@@ -1,3 +1,4 @@
+import { resolveJsonPointer } from "@oaverify/internal-core";
 import { createMemoryReader, loadSpec, type ResolvedSpec } from "@oaverify/internal-spec";
 import { describe, expect, it, vi } from "vitest";
 import { CheckAbortedError, checkSpec } from "../src/check.js";
@@ -377,6 +378,177 @@ describe("checkSpec", () => {
       findings: resolveFindingSelection(parseFindingTerms("conformance")),
     });
     expect(findings.filter((f) => f.code === "unserved-parameter-location")).toEqual([]);
+  });
+
+  it("warns that a reserved header parameter has no effect (#1084)", async () => {
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          parameters: [{ name: "content-type", in: "header", schema: { type: "string" } }],
+          get: {
+            parameters: [
+              { name: "Accept", in: "header", schema: { type: "string" } },
+              { $ref: "#/components/parameters/Auth" },
+              { name: "X-Count", in: "header", schema: { type: "integer" } },
+              { name: "accept", in: "query", schema: { type: "string" } },
+            ],
+            responses: { "200": { description: "ok" } },
+            callbacks: {
+              onEvent: {
+                "{$request.query.url}": {
+                  post: {
+                    parameters: [{ name: "ACCEPT", in: "header", schema: { type: "string" } }],
+                    responses: { "200": { description: "ok" } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      webhooks: {
+        newPet: {
+          post: {
+            parameters: [{ $ref: "#/components/parameters/Auth" }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: {
+        parameters: { Auth: { name: "Authorization", in: "header", schema: { type: "string" } } },
+      },
+    };
+    const ignored = checkSpec(await resolve([["entry.json", doc]])).filter(
+      (f) => f.code === "ignored-header",
+    );
+    expect(ignored.map((f) => [f.location, f.severity, f.class])).toEqual([
+      ["/paths/~1t/parameters/0", "warning", "hygiene"],
+      ["/paths/~1t/get/parameters/0", "warning", "hygiene"],
+      ["/paths/~1t/get/parameters/1", "warning", "hygiene"],
+      [
+        "/paths/~1t/get/callbacks/onEvent/{$request.query.url}/post/parameters/0",
+        "warning",
+        "hygiene",
+      ],
+      ["/webhooks/newPet/post/parameters/0", "warning", "hygiene"],
+    ]);
+    expect(ignored.map((f) => f.message.split(" declares")[0])).toEqual([
+      "path item /t",
+      "GET /t",
+      "GET /t",
+      "POST callback onEvent {$request.query.url} of GET /t",
+      "POST webhook newPet",
+    ]);
+    expect(ignored[1]?.message).toBe(
+      'GET /t declares header parameter "Accept", which OpenAPI says to ignore; it has no effect on validation. Declare response media types under responses content.',
+    );
+    // A `$ref` use site is anchored at the shared definition.
+    expect(ignored[2]?.target).toMatchObject({
+      pointer: "/components/parameters/Auth",
+      anchor: "scoped-definition",
+    });
+  });
+
+  it("reads a $ref'd Path Item's sibling methods and names each callback's reaching operation", async () => {
+    const accept = { name: "Accept", in: "header", schema: { type: "string" } };
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        // The router routes `post` from the entry itself, beside the `$ref`.
+        "/a": {
+          $ref: "#/components/pathItems/A",
+          post: {
+            parameters: [accept, { $ref: "#/components/parameters/P1" }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+        "/b": {
+          get: {
+            callbacks: { cb: { $ref: "#/components/callbacks/CB" } },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+        "/c": {
+          get: {
+            callbacks: { cb: { $ref: "#/components/callbacks/CB" } },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+        "/d": { $ref: "#/components/pathItems/D" },
+      },
+      components: {
+        parameters: {
+          P1: { $ref: "#/components/parameters/P2" },
+          P2: { name: "Authorization", in: "header", schema: { type: "string" } },
+        },
+        pathItems: {
+          A: { get: { parameters: [accept], responses: { "200": { description: "ok" } } } },
+          D: { $ref: "#/components/pathItems/A" },
+        },
+        callbacks: {
+          CB: {
+            "{$request.body#/u}": {
+              post: { parameters: [accept], responses: { "200": { description: "ok" } } },
+            },
+          },
+        },
+      },
+    };
+    const ignored = checkSpec(await resolve([["entry.json", doc]])).filter(
+      (f) => f.code === "ignored-header",
+    );
+    expect(ignored.map((f) => [f.location, f.message.split(" declares")[0]])).toEqual([
+      ["/paths/~1a/post/parameters/0", "POST /a"],
+      ["/paths/~1a/post/parameters/1", "POST /a"],
+      ["/components/pathItems/A/get/parameters/0", "GET /a"],
+      [
+        "/components/callbacks/CB/{$request.body#~1u}/post/parameters/0",
+        "POST callback cb {$request.body#/u} of GET /b",
+      ],
+      [
+        "/components/callbacks/CB/{$request.body#~1u}/post/parameters/0",
+        "POST callback cb {$request.body#/u} of GET /c",
+      ],
+      // A chain of Path Item refs: located at its end.
+      ["/components/pathItems/A/get/parameters/0", "GET /d"],
+    ]);
+    // A chain of parameter refs anchors at its end, the definition.
+    expect(ignored[1]?.target).toMatchObject({
+      pointer: "/components/parameters/P2",
+      anchor: "scoped-definition",
+    });
+    // Every location and target addresses something in the document.
+    for (const f of ignored) {
+      expect(() => resolveJsonPointer(doc, f.location)).not.toThrow();
+      expect(() => resolveJsonPointer(doc, f.target!.pointer)).not.toThrow();
+    }
+  });
+
+  it("does not read specification extensions as declarations", async () => {
+    const operation = {
+      parameters: [{ name: "Authorization", in: "header", schema: { type: "string" } }],
+      responses: { "200": { description: "ok" } },
+    };
+    const ok = { "200": { description: "ok" } };
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "x-example": { get: operation },
+        "/ok": {
+          get: { responses: ok, callbacks: { cb: { "x-example": { post: operation } } } },
+        },
+      },
+      // A webhook is named freely, so an `x-` name is still a webhook.
+      webhooks: { "x-hook": { post: operation } },
+    };
+    const ignored = checkSpec(await resolve([["entry.json", doc]])).filter(
+      (f) => f.code === "ignored-header",
+    );
+    expect(ignored.map((f) => f.location)).toEqual(["/webhooks/x-hook/post/parameters/0"]);
   });
 
   it("reports no findings on an abort when nothing had run", async () => {
