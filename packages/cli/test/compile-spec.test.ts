@@ -10,7 +10,12 @@
 import { describe, expect, it } from "vitest";
 import { resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { OpenAPIDocument, SchemaOrBoolean, ValidationError } from "@oaverify/internal-core";
+import type {
+  HttpRequest,
+  OpenAPIDocument,
+  SchemaOrBoolean,
+  ValidationError,
+} from "@oaverify/internal-core";
 import { createValidator } from "@oaverify/internal-validator";
 import { compileSpecCommand } from "../src/commands.js";
 import { emitSpec } from "../src/emit-spec.js";
@@ -3201,4 +3206,56 @@ describe("compile-spec: response Content-Type header definitions (#1092)", () =>
       ).toMatchObject([{ code: "content-type" }]);
     }
   });
+});
+
+describe("compile-spec: a parameter declaring both schema and content", () => {
+  // Malformed (a parameter declares one of the two), and conformance
+  // reports it; the two engines must still agree on it.
+  it.each(["query", "header", "cookie", "path"] as const)(
+    "validates a %s parameter against content, as createValidator does (#1234)",
+    async (location) => {
+      const document = {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/q/{q}": {
+            get: {
+              parameters: [
+                {
+                  name: "q",
+                  in: location,
+                  required: true,
+                  schema: { type: "string" },
+                  content: { "application/json": { schema: { type: "integer" } } },
+                },
+                ...(location === "path"
+                  ? []
+                  : [{ name: "q", in: "path", required: true, schema: { type: "string" } }]),
+              ],
+              responses: { "200": { description: "ok" } },
+            },
+          },
+        },
+      } as unknown as OpenAPIDocument;
+      const request = (value: string): HttpRequest => {
+        const encoded = encodeURIComponent(value);
+        return {
+          method: "GET",
+          path: `/q/${location === "path" ? encoded : "x"}`,
+          query: location === "query" ? { q: value } : {},
+          headers: location === "header" ? { q: value } : {},
+          cookies: location === "cookie" ? { q: value } : {},
+        };
+      };
+      const aot = await buildAot(document);
+      const runtime = createValidator(document);
+      for (const value of ["1", '"a"']) {
+        const emitted = aot.validateRequest(request(value));
+        const expected = runtime.validateRequest(request(value));
+        expect(flatErrors(emitted)).toEqual(flatErrors(expected as AotResult));
+      }
+      expect(flatErrors(aot.validateRequest(request("1")))).toEqual([]);
+      expect(flatErrors(aot.validateRequest(request('"a"'))).map((e) => e.code)).toEqual(["type"]);
+    },
+  );
 });

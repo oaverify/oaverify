@@ -899,7 +899,9 @@ function paramValidatorName(
   p: ParameterObject,
   named: (schema: SchemaOrBoolean) => string,
 ): string {
-  const schema = (p.schema ?? firstContentSchema(p)) as SchemaOrBoolean | undefined;
+  // `content` takes precedence over `schema`, as in operation-cache.ts;
+  // `contentFields` marks the value as content-encoded on the same test.
+  const schema = (firstContentSchema(p) ?? p.schema) as SchemaOrBoolean | undefined;
   if (schema === undefined) return "__NULL__";
   return `__REF:${named(schema)}__`;
 }
