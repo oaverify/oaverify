@@ -603,7 +603,7 @@ register their own validators.
 
 ### packages/metaschema
 
-**`checkDocumentConformance`** ([packages/metaschema/src/conformance.ts:220](../packages/metaschema/src/conformance.ts#L220))
+**`checkDocumentConformance`** ([packages/metaschema/src/conformance.ts:263](../packages/metaschema/src/conformance.ts#L263))
 
 Against JSON Schema 2020-12 validation section 7.2.1 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.1>).
 

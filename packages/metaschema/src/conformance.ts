@@ -203,18 +203,61 @@ function reportableChildren(error: ValidationError): readonly ValidationError[] 
  * location, which is honest but much less useful than the `type` and
  * `required` leaves that make up almost all real findings.
  */
-function collectLeaves(error: ValidationError, into: ConformanceIssue[]): void {
+function collectLeaves(
+  error: ValidationError,
+  into: ConformanceIssue[],
+  alternatives?: readonly string[],
+): void {
   const children = reportableChildren(error);
   if (children.length > 0) {
-    for (const child of children) collectLeaves(child, into);
+    const names = error.code === "anyOf" ? requiredAlternatives(children) : undefined;
+    for (const child of children) collectLeaves(child, into, names);
     return;
   }
   const pointer = toPointer(error.path as readonly (string | number)[]);
   into.push({
     code: error.code,
     pointer,
-    message: error.message,
+    message: messageFor(error, alternatives),
   });
+}
+
+/**
+ * The property names an `anyOf` asks for when every branch failed only
+ * for want of one, as in a 3.1 document with none of `paths`,
+ * `components` or `webhooks`. Undefined for any other shape. Read from
+ * the error tree alone, so it says what the meta-schema said.
+ */
+function requiredAlternatives(children: readonly ValidationError[]): string[] | undefined {
+  if (children.length < 2) return undefined;
+  const names: string[] = [];
+  for (const child of children) {
+    const missing = child.params["missing"];
+    if (child.code !== "required" || (child.children ?? []).length > 0) return undefined;
+    if (typeof missing !== "string") return undefined;
+    names.push(missing);
+  }
+  return names;
+}
+
+/**
+ * A leaf's message, reworded where the compiler's wording misleads in a
+ * document: each of several alternative `required` failures names the
+ * others, so they do not read as all being required, and an
+ * `unevaluatedProperties` failure names the property instead of the
+ * keyword's mechanics. The code and pointer are never changed.
+ */
+function messageFor(error: ValidationError, alternatives: readonly string[] | undefined): string {
+  if (alternatives !== undefined && error.code === "required") {
+    const quoted = alternatives.map((name) => JSON.stringify(name));
+    const list = `${quoted.slice(0, -1).join(", ")} or ${quoted[quoted.length - 1]}`;
+    return `must have one of the properties ${list}`;
+  }
+  const unexpected = error.params["unexpected"];
+  if (error.code === "unevaluatedProperties" && typeof unexpected === "string") {
+    return `${JSON.stringify(unexpected)} is not a field this object allows`;
+  }
+  return error.message;
 }
 
 /**
