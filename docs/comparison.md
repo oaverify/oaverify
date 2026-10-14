@@ -401,8 +401,8 @@ Capabilities oaverify has that Ajv (alone or with
   `ajv-draft-04` (draft-04 handles boolean `exclusiveMaximum` and
   `$ref`-suppresses-siblings natively) and preprocessing `nullable`
   out of the schema before compile (rewriting `{ nullable: true,
-type: "string" }` to `{ type: ["string", "number", "boolean",
-"object", "array"] }` with an `x-eov-type` side channel to narrow
+  type: "string" }` to `{ type: ["string", "number", "boolean",
+  "object", "array"] }` with an `x-eov-type` side channel to narrow
   back). Different mechanism, equivalent behavior.
 - **First-class overlays.** `applyOverlays` rewrites an
   externally-owned base spec at load time (add a required header to

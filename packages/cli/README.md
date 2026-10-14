@@ -367,7 +367,7 @@ Same limits as `compile-schema`, plus:
   if you need them.
 - **External `$ref`s**: internal refs within the document compile
   fine; multi-file external refs must be pre-inlined via `oaverify
-resolve` or `resolveSpec` before running `compile-spec`.
+  resolve` or `resolveSpec` before running `compile-spec`.
 - **Validator options with no counterpart**: the emitted module
   compiles one configuration, and it is `createValidator`'s default.
   Some options survive into the artifact, each through a flag in the

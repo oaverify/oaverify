@@ -82,7 +82,7 @@ Detail:
 - **`formatSummary(err, { select?, path? })`**: render the tree as a
   string. Default picks one leaf and renders it as
   `<dotted-path> <message>` (e.g. `"body.users[0].email must match
-format \"email\""`). `select` chooses which leaves
+  format \"email\""`). `select` chooses which leaves
   (`"first"` | `"deepest"` | `"all"` | `{ byCode }`); the policy for
   each is on `FormatSummaryOptions.select`.
 
