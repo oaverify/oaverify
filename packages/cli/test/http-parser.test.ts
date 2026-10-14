@@ -75,4 +75,18 @@ describe("parseHttpFile", () => {
     const req = parseHttpFile("POST /p HTTP/1.1\n\n{oops");
     expect(req.body).toBe("{oops");
   });
+
+  it("parses a brace-led body as JSON when no Content-Type is declared", () => {
+    expect(parseHttpFile('POST /p HTTP/1.1\n\n{"a":1}').body).toEqual({ a: 1 });
+    expect(parseHttpFile("POST /p HTTP/1.1\n\n[1,2]").body).toEqual([1, 2]);
+  });
+
+  it("keeps a brace-led body as text under a declared non-JSON type (#1190)", () => {
+    for (const type of ["text/plain", "text/plain; charset=utf-8", "application/xml"]) {
+      for (const body of ['{"looks":"like json"}', "[1,2]"]) {
+        const req = parseHttpFile(`POST /p HTTP/1.1\nContent-Type: ${type}\n\n${body}`);
+        expect(req.body, `${type} ${body}`).toBe(body);
+      }
+    }
+  });
 });
