@@ -327,11 +327,25 @@ function headersToRecord(h: Headers): Record<string, string | string[]> {
   return out;
 }
 
+/**
+ * One entry per name: the value, or every value in order when the name
+ * repeats. One pass over the entries, as `objectFromHeaders` does;
+ * `getAll` per distinct name rescans the whole list each time, which is
+ * quadratic in the number of names.
+ */
 function objectFromSearchParams(params: URLSearchParams): Record<string, string | string[]> {
   const out: Record<string, string | string[]> = {};
-  for (const key of new Set(params.keys())) {
-    const values = params.getAll(key);
-    setSpecKey(out, key, values.length === 1 ? (values[0] ?? "") : values);
+  for (const [key, value] of params) {
+    // Own-property read and write, so a name such as "constructor" or
+    // "__proto__" is a field rather than an inherited member.
+    const prior = getOwn(out, key);
+    if (prior === undefined) {
+      setSpecKey(out, key, value);
+    } else if (Array.isArray(prior)) {
+      prior.push(value);
+    } else {
+      setSpecKey(out, key, [prior, value]);
+    }
   }
   return out;
 }
