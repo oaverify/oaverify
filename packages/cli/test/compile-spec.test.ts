@@ -2658,4 +2658,46 @@ describe("compile-spec: response header serialization (#1147)", () => {
       ]);
     }
   });
+
+  // HTTP list whitespace at member boundaries (#1198).
+  it.each([
+    ...flat.map((header) => [header, "b, 2,\t a ,1"]),
+    ...exploded.map((header) => [header, "b=2, \ta=1 "]),
+  ])("%s reads %j with space and tab around members", async (header, wire) => {
+    for (const result of await check(header, wire)) expect(result).toEqual({ valid: true });
+  });
+
+  it("keeps whitespace HTTP does not drop", async () => {
+    for (const result of await check("x-flat", "a,\u00a01")) {
+      expect(flatErrors(result)).toMatchObject([{ code: "type", path: ["header", "X-Flat", "a"] }]);
+    }
+  });
+});
+
+describe("compile-spec: HTTP whitespace in response header arrays (#1198)", () => {
+  const spec: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "Response headers", version: "1" },
+    paths: {
+      "/x": {
+        get: {
+          responses: {
+            "200": {
+              description: "ok",
+              headers: { "X-Ids": { schema: { type: "array", items: { type: "integer" } } } },
+            },
+          },
+        },
+      },
+    },
+  };
+  const request = { method: "GET", path: "/x" } as const;
+
+  it.each(["1,2", "1, 2", "1,\t2", " 1 , 2 "])("accepts %j", async (wire) => {
+    for (const validator of [createValidator(spec), await buildAot(spec)]) {
+      expect(
+        validator.validateResponse(request, { status: 200, headers: { "x-ids": wire } }),
+      ).toEqual({ valid: true });
+    }
+  });
 });
