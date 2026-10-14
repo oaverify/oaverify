@@ -395,3 +395,54 @@ describe("exact duplicate conformance leaves (#1058)", () => {
     expect(new Set(issues.map((issue) => issue.message)).size).toBe(issues.length);
   });
 });
+
+describe("conformance messages a reader can act on (#1057)", () => {
+  const info = { title: "t", version: "1" };
+  const issues = (document: unknown) =>
+    checkDocumentConformance(document).issues.map((i) => [i.code, i.pointer, i.message]);
+
+  it("names the alternatives when one of several properties is required", () => {
+    expect(issues({ openapi: "3.1.0", info })).toEqual([
+      ["required", "/paths", 'must have one of the properties "paths", "components" or "webhooks"'],
+      [
+        "required",
+        "/components",
+        'must have one of the properties "paths", "components" or "webhooks"',
+      ],
+      [
+        "required",
+        "/webhooks",
+        'must have one of the properties "paths", "components" or "webhooks"',
+      ],
+    ]);
+  });
+
+  it("names a property the object does not allow", () => {
+    expect(issues({ openapi: "3.1.0", info, paths: { pets: {} } })).toEqual([
+      ["unevaluatedProperties", "/paths/pets", '"pets" is not a field this object allows'],
+    ]);
+  });
+
+  it("leaves other wording, codes and pointers as the compiler gave them", () => {
+    // `default` is required here by an if/then, not as one of several
+    // alternatives, so its message is unchanged.
+    expect(
+      issues({
+        openapi: "3.1.0",
+        info,
+        paths: { "/p": { get: { responses: { "999": { description: "x" } } } } },
+      }),
+    ).toEqual([
+      ["required", "/paths/~1p/get/responses/default", 'must have required property "default"'],
+      [
+        "unevaluatedProperties",
+        "/paths/~1p/get/responses/999",
+        '"999" is not a field this object allows',
+      ],
+    ]);
+    // 3.0 rejects the same path key through additionalProperties.
+    expect(issues({ openapi: "3.0.3", info, paths: { pets: {} } })).toEqual([
+      ["additionalProperties", "/paths/pets", 'additional property "pets" is not allowed'],
+    ]);
+  });
+});
