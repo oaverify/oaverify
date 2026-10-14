@@ -45,6 +45,7 @@ import {
 } from "@oaverify/internal-validator/internals";
 import { isUnknownFormat } from "./emit-standalone.js";
 import { forEachSubschema, refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
+import { ownKeyLiteral } from "./own-key-literal.js";
 import {
   compileSchema,
   createRefResolver,
@@ -478,7 +479,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
       ? [
           "// ---- security schemes (for per-op security compile at module load) ----",
           `const __securitySchemes = ${stringifySecuritySchemes(document, resolveRef)};`,
-          `const __documentSecurity = ${JSON.stringify(document.security ?? [])};`,
+          `const __documentSecurity = ${ownKeyLiteral(document.security ?? [], 0)};`,
           "const __identityResolver = (v) => v;",
           "",
         ]
@@ -808,64 +809,61 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   const security = operation.security ?? null;
 
   // Hand-serialise because we need to splice in unquoted references to
-  // the compiled validator names (S0, S1, …). JSON.stringify then
-  // string-replace the sentinel placeholders.
+  // the compiled validator names (S0, S1, …). Serialize, then
+  // string-replace the sentinel placeholders. The table is keyed by
+  // document names (headers, media types), so it keeps own `__proto__`.
   const stateLiteral = hydrateValidatorRefs(
-    JSON.stringify(
-      {
-        pathPattern,
-        method,
-        // The emitted module carries the schema it will coerce against,
-        // so it carries the resolved view. Skip this and the compiled
-        // validator coerces against an unresolved `$ref` while
-        // createValidator coerces against the target (#714).
-        parameters: parameters
-          .map((raw) => coercionView(raw, resolveSchemaRef, { refSuppressesSiblings }))
-          .map((p) => ({
-            name: p.name,
-            in: p.in,
-            __readOwn:
-              p.in === "header"
-                ? isHeaderObjectPrototypePropertyName(p.name)
-                : isObjectPrototypePropertyName(p.name),
-            required: p.required === true,
-            style: p.style,
-            explode: p.explode,
-            // Spread rather than a plain field: emitting
-            // `allowEmptyValue: false` on every parameter would change
-            // the output of every document for the sake of the few
-            // that declare it. Absent means false, which is what
-            // `__validateParameter` tests for.
-            ...(p.allowEmptyValue === true ? { allowEmptyValue: true } : {}),
-            // Same spread reasoning again. Baked here rather than
-            // computed in the emitted module, which would need
-            // `effectiveType` in the codegen runtime for a fact that is
-            // static in the document (#889).
-            ...(effectiveType(p.schema) === "object" && !joinsFieldLines(p)
-              ? { __objectTyped: true }
-              : {}),
-            // Same spread reasoning as `allowEmptyValue`: absent on
-            // every parameter that declares `schema`, which is almost
-            // all of them. `firstContentMediaType` picks the entry
-            // `firstContentSchema` picked, so the media type and the
-            // validator describe the same encoding.
-            ...contentFields(p),
-            schema: p.schema ?? undefined,
-            __validator: paramValidatorName(combined, p, named),
-          })),
-        requestBodyRequired,
-        hasRequestBody,
-        bodyValidators: toPlaceholderMap(bodyValidators),
-        bodyMediaTypes: compileMediaTypePatterns(declaredBodyMediaTypes),
-        responses: mapResponsesToPlaceholders(responses),
-        // Read only by the load-time fold, which is emitted only when
-        // the mode is on. Carrying it otherwise puts a document's
-        // security requirements into a module that never looks at them.
-        ...(args.checksSecurity ? { __security: security } : {}),
-      },
-      null,
-      2,
-    ),
+    ownKeyLiteral({
+      pathPattern,
+      method,
+      // The emitted module carries the schema it will coerce against,
+      // so it carries the resolved view. Skip this and the compiled
+      // validator coerces against an unresolved `$ref` while
+      // createValidator coerces against the target (#714).
+      parameters: parameters
+        .map((raw) => coercionView(raw, resolveSchemaRef, { refSuppressesSiblings }))
+        .map((p) => ({
+          name: p.name,
+          in: p.in,
+          __readOwn:
+            p.in === "header"
+              ? isHeaderObjectPrototypePropertyName(p.name)
+              : isObjectPrototypePropertyName(p.name),
+          required: p.required === true,
+          style: p.style,
+          explode: p.explode,
+          // Spread rather than a plain field: emitting
+          // `allowEmptyValue: false` on every parameter would change
+          // the output of every document for the sake of the few
+          // that declare it. Absent means false, which is what
+          // `__validateParameter` tests for.
+          ...(p.allowEmptyValue === true ? { allowEmptyValue: true } : {}),
+          // Same spread reasoning again. Baked here rather than
+          // computed in the emitted module, which would need
+          // `effectiveType` in the codegen runtime for a fact that is
+          // static in the document (#889).
+          ...(effectiveType(p.schema) === "object" && !joinsFieldLines(p)
+            ? { __objectTyped: true }
+            : {}),
+          // Same spread reasoning as `allowEmptyValue`: absent on
+          // every parameter that declares `schema`, which is almost
+          // all of them. `firstContentMediaType` picks the entry
+          // `firstContentSchema` picked, so the media type and the
+          // validator describe the same encoding.
+          ...contentFields(p),
+          schema: p.schema ?? undefined,
+          __validator: paramValidatorName(combined, p, named),
+        })),
+      requestBodyRequired,
+      hasRequestBody,
+      bodyValidators: toPlaceholderMap(bodyValidators),
+      bodyMediaTypes: compileMediaTypePatterns(declaredBodyMediaTypes),
+      responses: mapResponsesToPlaceholders(responses),
+      // Read only by the load-time fold, which is emitted only when
+      // the mode is on. Carrying it otherwise puts a document's
+      // security requirements into a module that never looks at them.
+      ...(args.checksSecurity ? { __security: security } : {}),
+    }),
   );
 
   // Introspection payload for `getOperation`. Matches the runtime's
@@ -873,7 +871,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // top-level objects from the document. Nested `$ref`s (e.g. inside a
   // `requestBody` or `responses[status]`) are left intact, same as
   // runtime.
-  const introspectionLiteral = JSON.stringify({ pathItem, operation }, null, 2);
+  const introspectionLiteral = ownKeyLiteral({ pathItem, operation });
 
   return {
     pathPattern,
@@ -1089,7 +1087,7 @@ function stringifySecuritySchemes(
     const s = resolveRef<SecuritySchemeObject>(r as SecuritySchemeObject | ReferenceObject);
     if (s !== undefined) setSpecKey(resolved, name, s);
   }
-  return JSON.stringify(resolved, null, 2);
+  return ownKeyLiteral(resolved);
 }
 
 // ----- filter -----
