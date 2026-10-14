@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ownKeyLiteral } from "../src/own-key-literal.js";
+import { ownKeyLiteral } from "../src/codegen/own-key-literal.js";
 
 // Loaded as a module, the way the emitted output is.
 const evaluate = async (source: string): Promise<unknown> =>

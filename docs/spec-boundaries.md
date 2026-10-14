@@ -291,7 +291,7 @@ only when they share a method.
 
 ### packages/schema
 
-**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1271](../packages/schema/src/compiler/compiler.ts#L1271))
+**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1269](../packages/schema/src/compiler/compiler.ts#L1269))
 
 Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7.2.3>).
 
@@ -454,7 +454,7 @@ trailing slashes.
 
 ### packages/schema
 
-**`maxDepth`** ([packages/schema/src/compiler/compiler.ts:1181](../packages/schema/src/compiler/compiler.ts#L1181))
+**`maxDepth`** ([packages/schema/src/compiler/compiler.ts:1179](../packages/schema/src/compiler/compiler.ts#L1179))
 
 Against JSON Schema 2020-12 core section 8.2.3 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3>).
 
@@ -667,7 +667,7 @@ explicitly lets tooling decide how to resolve ambiguous matches.
 
 ### packages/schema
 
-**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1271](../packages/schema/src/compiler/compiler.ts#L1271))
+**`unknownFormats`** ([packages/schema/src/compiler/compiler.ts:1269](../packages/schema/src/compiler/compiler.ts#L1269))
 
 Against JSON Schema 2020-12 validation section 7 (<https://json-schema.org/draft/2020-12/json-schema-validation.html#section-7>).
 

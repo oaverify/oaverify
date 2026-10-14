@@ -292,12 +292,14 @@ describe("fresh review regressions", () => {
       lint({ allOf: [{ anyOf: [{ const: "B" }] }, { anyOf: [{ allOf: crossing }] }] }),
     ).toEqual([]);
   });
-  it("does not diagnose authored values changed by runtime literal serialization", () => {
+  it("diagnoses values with an own __proto__ key as the runtime compares them (#1201)", () => {
     const schema = JSON.parse(
       '{"allOf":[{"enum":[{"__proto__":"A"}]},{"enum":[{"__proto__":"B"}]}]}',
     );
-    expect(compileSchema(schema, { dialect: openapi31Dialect }).validate({}).valid).toBe(true);
-    expect(lint(schema)).toEqual([]);
+    const compiled = compileSchema(schema, { dialect: openapi31Dialect });
+    expect(compiled.validate({}).valid).toBe(false);
+    expect(compiled.validate(JSON.parse('{"__proto__":"A"}')).valid).toBe(false);
+    expect(lint(schema)).toHaveLength(1);
   });
   it("budgets property joins as well as schema visits", () => {
     let calls = 0;

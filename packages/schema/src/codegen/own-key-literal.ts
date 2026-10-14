@@ -2,11 +2,11 @@
  * JSON-shaped JavaScript source that keeps an own `__proto__` key.
  *
  * A JSON document can hold an own `__proto__` key: `JSON.parse` creates
- * one, and a spec may name a header or a scheme that way. Written into a
- * module as an object literal, `"__proto__": value` sets the object's
- * prototype instead of creating a property, so the emitted table loses
- * the entry. The computed form `["__proto__"]: value` creates the
- * property.
+ * one, a spec may name a header or a scheme that way, and a schema may
+ * carry one inside a `const` or `enum` value. Written into generated
+ * source as an object literal, `"__proto__": value` sets the object's
+ * prototype instead of creating a property, so the value loses the key.
+ * The computed form `["__proto__"]: value` creates the property.
  *
  * @packageDocumentation
  */

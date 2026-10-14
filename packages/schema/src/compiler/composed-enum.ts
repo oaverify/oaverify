@@ -98,8 +98,6 @@ export function collectComposedEnumIssues(root: unknown, options: Options): Sche
     }
     if (typeof value === "number") return Number.isFinite(value) ? 1 : undefined;
     if (typeof value !== "object" || ancestors.has(value)) return undefined;
-    // Generated enum/const literals do not preserve this authored own key.
-    if (Object.hasOwn(value, "__proto__")) return undefined;
     if (
       !Array.isArray(value) &&
       Object.getPrototypeOf(value) !== Object.prototype &&

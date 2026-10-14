@@ -44,8 +44,11 @@ import {
   type SchemaRefResolver,
 } from "@oaverify/internal-validator/internals";
 import { isUnknownFormat } from "./emit-standalone.js";
-import { forEachSubschema, refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
-import { ownKeyLiteral } from "./own-key-literal.js";
+import {
+  forEachSubschema,
+  ownKeyLiteral,
+  refSiblingIsDiscarded,
+} from "@oaverify/internal-schema/internals";
 import {
   compileSchema,
   createRefResolver,

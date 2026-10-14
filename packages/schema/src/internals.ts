@@ -88,3 +88,8 @@ export {
 
 export { compileSchemaInContext, type SchemaCompileContext } from "./compiler/compiler.js";
 export { schemaErrorPointer } from "./compiler/well-formed.js";
+
+// JSON values written into generated source with own `__proto__` keys
+// kept. The compiler's const/enum/custom-keyword codegen and the CLI's
+// emitted tables share it, so the two cannot disagree on a value.
+export { ownKeyLiteral } from "./codegen/own-key-literal.js";
