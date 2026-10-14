@@ -2529,3 +2529,48 @@ describe("compile-spec: content-based response headers (#1148)", () => {
     expect(emitSpec(schemaOnly)).not.toContain("__contentMediaType");
   });
 });
+
+describe("compile-spec: empty response header values (#1191)", () => {
+  function document(required: boolean, schema: SchemaOrBoolean): OpenAPIDocument {
+    return {
+      openapi: "3.1.0",
+      info: { title: "Response headers", version: "1" },
+      paths: {
+        "/x": {
+          get: {
+            responses: {
+              "200": { description: "ok", headers: { "X-Test": { required, schema } } },
+            },
+          },
+        },
+      },
+    };
+  }
+  const request = { method: "GET", path: "/x" } as const;
+  const empty = { status: 200, headers: { "x-test": "" } };
+
+  // An empty value is present, so it is validated rather than reported missing.
+  it.each([true, false])("accepts an empty value the schema allows (required: %s)", async (r) => {
+    const spec = document(r, { type: "string" });
+    for (const validator of [createValidator(spec), await buildAot(spec)]) {
+      expect(validator.validateResponse(request, empty)).toEqual({ valid: true });
+    }
+  });
+
+  it.each([
+    [true, { type: "string", minLength: 1 }, "minLength"],
+    [false, { type: "string", minLength: 1 }, "minLength"],
+    [true, { type: "integer" }, "type"],
+    [true, { type: "array", items: { type: "string" }, minItems: 1 }, "minItems"],
+  ] as const)(
+    "reports the schema's error for an empty value it rejects (required: %s, %j)",
+    async (r, schema, code) => {
+      const spec = document(r, schema);
+      for (const validator of [createValidator(spec), await buildAot(spec)]) {
+        expect(flatErrors(validator.validateResponse(request, empty))).toMatchObject([
+          { code, path: ["header", "X-Test"] },
+        ]);
+      }
+    },
+  );
+});
