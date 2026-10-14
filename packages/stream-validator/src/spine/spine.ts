@@ -42,6 +42,7 @@ import type { RegexCompiler } from "@oaverify/internal-schema";
 import type { Strategy } from "../classifier/strategy.js";
 import type { JsonEventHandler } from "../tokenizer/index.js";
 import { resolveRef } from "../ref-resolve.js";
+import { longestStringCandidate } from "../scalar-equality.js";
 import { ValueBuilder } from "./value-builder.js";
 
 /** A construct the spine cannot handle without a delegate (no classification wired). */
@@ -570,6 +571,17 @@ export class SpineValidator implements JsonEventHandler {
     maxLen: number | undefined;
     cp: number;
     lenFailed: boolean;
+    // Scalar-equality retention bound. Set when only `enum` / `const` need
+    // the text: the longest string candidate (UTF-16 units, the unit
+    // chunks arrive in), or -1 when no candidate is a string. Past it the
+    // text equals no candidate, so `eqMissed` is set, the text is dropped
+    // and `eqHeld` keeps the source span that was held, for the peak.
+    eqLimit: number | undefined;
+    eqMissed: boolean;
+    eqHeld: number;
+    // Source offset just past the last slice appended to `text` while it
+    // was held for validation.
+    heldEnd: number;
   } | null = null;
 
   // An open BUFFER island being materialized for delegation.
@@ -1329,11 +1341,13 @@ export class SpineValidator implements JsonEventHandler {
     actual: JsonType,
     value: string | number | boolean | null,
     codePoints: number,
+    eqMissed = false,
   ): void {
     for (const s of schemas) {
-      if ("enum" in s && Array.isArray(s.enum) && !s.enum.some((e) => e === value))
+      if ("enum" in s && Array.isArray(s.enum) && (eqMissed || !s.enum.some((e) => e === value)))
         this.fail("enum");
-      if ("const" in s && (s as { const?: unknown }).const !== value) this.fail("const");
+      if ("const" in s && (eqMissed || (s as { const?: unknown }).const !== value))
+        this.fail("const");
       if (actual === "string") {
         const str = value as string;
         // `maxLength` is enforced eagerly during streaming (see
@@ -1354,11 +1368,14 @@ export class SpineValidator implements JsonEventHandler {
   }
 
   // A scalar value (number / boolean / null, or a finished string).
+  // `eqMissed`: a string held only for `enum` / `const` outgrew every string
+  // candidate, so its text was dropped and every equality check fails.
   private scalar(
     actual: JsonType,
     value: string | number | boolean | null,
     codePoints: number,
     app: Applicable,
+    eqMissed = false,
   ): void {
     if (this.needsIsland(app)) {
       this.delegateScalar(app, value);
@@ -1367,7 +1384,7 @@ export class SpineValidator implements JsonEventHandler {
     this.pushSegment();
     if (app.hasFalse) this.fail("false");
     this.checkType(app.schemas, actual);
-    this.checkScalar(app.schemas, actual, value, codePoints);
+    this.checkScalar(app.schemas, actual, value, codePoints, eqMissed);
     this.popSegment();
     this.advance();
   }
@@ -1691,6 +1708,12 @@ export class SpineValidator implements JsonEventHandler {
     // const) or when the value is a BUFFER island (delegated whole).
     const needText =
       island || app.schemas.some((s) => s.pattern !== undefined || "enum" in s || "const" in s);
+    // When only scalar equality needs the text, it need be held no longer
+    // than the longest string candidate. `pattern` needs the whole string.
+    const eqLimit =
+      needText && !island && !app.schemas.some((s) => s.pattern !== undefined)
+        ? longestStringCandidate(app.schemas)
+        : undefined;
     // Capture is STREAM-member-only: an island string is delegated whole
     // and does not emit a value event, so never retain it for capture.
     let capture = false;
@@ -1707,9 +1730,12 @@ export class SpineValidator implements JsonEventHandler {
         if (s.maxLength !== undefined)
           maxLen = maxLen === undefined ? s.maxLength : Math.min(maxLen, s.maxLength);
     }
+    // With no string candidate the text can equal nothing, so it is never
+    // held, even for an empty string, which delivers no chunk.
+    const eqMissed = eqLimit === -1;
     this.str = {
       app,
-      needText,
+      needText: needText && !eqMissed,
       text: "",
       offset,
       island,
@@ -1718,13 +1744,17 @@ export class SpineValidator implements JsonEventHandler {
       maxLen,
       cp: 0,
       lenFailed: false,
+      eqLimit,
+      eqMissed,
+      eqHeld: 0,
+      heldEnd: offset,
     };
   }
 
-  onStringChunk(chunk: string, offset: number, codePoints: number): void {
+  onStringChunk(chunk: string, offset: number, codePoints: number, end: number): void {
     this.curOffset = offset;
     if (this.tee !== null) {
-      this.teeFeed((s) => s.onStringChunk(chunk, offset, codePoints));
+      this.teeFeed((s) => s.onStringChunk(chunk, offset, codePoints, end));
       return;
     }
     if (this.island !== null) {
@@ -1749,10 +1779,32 @@ export class SpineValidator implements JsonEventHandler {
         this.str.lenFailed = true;
       }
     }
+    // Past the longest string candidate the text equals none, so stop
+    // holding it for equality. A captured value keeps accumulating through
+    // the capture-only path below, under its own cap.
+    if (
+      this.str !== null &&
+      this.str.eqLimit !== undefined &&
+      !this.str.eqMissed &&
+      this.str.text.length + chunk.length > this.str.eqLimit
+    ) {
+      // The source span held so far, to the end of the last held slice;
+      // nothing when no text was held yet. It was held, so it answers to
+      // the cap before the text is dropped.
+      const held = this.str.text.length === 0 ? 0 : this.str.heldEnd - this.str.offset;
+      if (this.maxBufferedBytes !== undefined && held > this.maxBufferedBytes) {
+        throw new BufferLimitError(this.maxBufferedBytes, offset);
+      }
+      this.str.eqMissed = true;
+      this.str.needText = false;
+      this.str.eqHeld = held;
+      if (!this.str.capture) this.str.text = "";
+    }
     if (this.str !== null && (this.str.needText || this.str.capture)) {
       const span = offset - this.str.offset;
       if (this.str.needText) {
         this.str.text += chunk;
+        this.str.heldEnd = end;
         // A forced-buffer scalar (pattern / enum / const) accumulates; cap
         // its source-byte span so it can't grow unbounded on hostile input.
         if (this.maxBufferedBytes !== undefined && span > this.maxBufferedBytes) {
@@ -1805,11 +1857,13 @@ export class SpineValidator implements JsonEventHandler {
     }
     const s = this.str as NonNullable<typeof this.str>;
     this.str = null;
-    // A forced-buffer scalar held its full text (`s.text`); its source span
-    // is the buffered-byte cost, known in full only now. (Capture-only
-    // retention is bounded by `maxCaptureBytes`, a separate budget, and is
-    // not counted here.)
+    // A forced-buffer scalar still holding its text held all of it
+    // (`s.text`); its source span is the buffered-byte cost, known in full
+    // only now. One that outgrew its equality bound held only `eqHeld`.
+    // (Capture-only retention is bounded by `maxCaptureBytes`, a separate
+    // budget, and is not counted here.)
     if (s.needText) this.notePeakBuffered(endOffset - s.offset);
+    else if (s.eqMissed) this.notePeakBuffered(s.eqHeld);
     // Close the single-chunk bypass: cap the forced-buffer scalar on its
     // full source-byte span, known only now.
     if (
@@ -1852,7 +1906,7 @@ export class SpineValidator implements JsonEventHandler {
     // (to gate text retention), so reuse it rather than re-run the filter.
     if (this.valueEvent !== undefined)
       this.emitScalarMember(s.offset, endOffset, "string", s.text, captureTruncated, s.capture);
-    this.scalar("string", s.needText ? s.text : "", codePoints, s.app);
+    this.scalar("string", s.needText ? s.text : "", codePoints, s.app, s.eqMissed);
   }
 
   onNumber(value: number, raw: string, startOffset: number, endOffset: number): void {

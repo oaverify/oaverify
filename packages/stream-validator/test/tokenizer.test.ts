@@ -421,3 +421,69 @@ describe("JsonTokenizer number values", () => {
     expect(rec.value).toBe(Infinity);
   });
 });
+
+describe("string slice end offsets (#1193)", () => {
+  // `end` is one past the last source byte a slice consumed, whatever
+  // produced it, so a consumer can measure the span it has held.
+  function ends(json: string, chunkSize: number): Array<[string, number]> {
+    const out: Array<[string, number]> = [];
+    const handler = new Proxy({} as JsonEventHandler, {
+      get: (_t, prop) =>
+        prop === "onStringChunk"
+          ? (chunk: string, _offset: number, _cp: number, end: number) => out.push([chunk, end])
+          : () => {},
+    });
+    const tok = new JsonTokenizer(handler);
+    const bytes = enc.encode(json);
+    const step = chunkSize > 0 ? chunkSize : bytes.length;
+    for (let i = 0; i < bytes.length; i += step) tok.write(bytes.subarray(i, i + step));
+    tok.end();
+    return out;
+  }
+
+  it("ends literal runs, escapes and unicode escapes where they end", () => {
+    // 0 " | 1 a | 2-7 b | 8 c | 9-10 \n | 11 "
+    expect(ends('"a\\u0062c\\n"', 0)).toEqual([
+      ["a", 2],
+      ["b", 8],
+      ["c", 9],
+      ["\n", 11],
+    ]);
+  });
+
+  it("reaches the closing quote under any chunking", () => {
+    const json = '"éa\\u00e9\\ud83d\\ude00\u{1F600}b"';
+    const closing = enc.encode(json).length - 1;
+    for (const chunkSize of [0, 1, 2, 3, 5]) {
+      const got = ends(json, chunkSize);
+      const offsets = got.map(([, e]) => e);
+      expect(offsets, `chunk ${chunkSize}`).toEqual([...offsets].sort((a, b) => a - b));
+      expect(offsets.at(-1), `chunk ${chunkSize}`).toBe(closing);
+      expect(got.map(([c]) => c).join("")).toBe(JSON.parse(json));
+    }
+  });
+});
+
+describe("string slice end offsets exclude decoder-held bytes (#1193)", () => {
+  it("ends a run before a character split across writes", () => {
+    for (const utf8 of ["reject", "replace"] as const) {
+      const out: Array<[string, number]> = [];
+      const handler = new Proxy({} as JsonEventHandler, {
+        get: (_t, prop) =>
+          prop === "onStringChunk"
+            ? (chunk: string, _o: number, _c: number, end: number) => out.push([chunk, end])
+            : () => {},
+      });
+      const tok = new JsonTokenizer(handler, { utf8 });
+      // `"a` + the first two bytes of U+1F600, then the rest and the quote.
+      const bytes = enc.encode('"a\u{1F600}"');
+      tok.write(bytes.subarray(0, 4));
+      tok.write(bytes.subarray(4));
+      tok.end();
+      expect(out, utf8).toEqual([
+        ["a", 2],
+        ["\u{1F600}", 6],
+      ]);
+    }
+  });
+});
