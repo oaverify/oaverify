@@ -3454,3 +3454,72 @@ describe("compile-spec: tables keyed by a document name", () => {
     expect(codes(aot.validateRequest({ method: "GET", path: "/s" }))).toEqual(["security"]);
   });
 });
+
+describe("compile-spec: numeric bound codes and params (#1199)", () => {
+  const doc = (openapi: string, props: Record<string, unknown>): OpenAPIDocument =>
+    ({
+      openapi,
+      info: { title: "bounds", version: "1" },
+      paths: {
+        "/n": {
+          post: {
+            requestBody: {
+              content: { "application/json": { schema: { type: "object", properties: props } } },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    }) as OpenAPIDocument;
+  const req = {
+    method: "POST",
+    path: "/n",
+    contentType: "application/json",
+    body: { lo: 4, hi: 6, xlo: 5, xhi: 5 },
+  };
+  const shapes = (errors: ValidationError[]) =>
+    errors
+      .map((e) => [String(e.path.at(-1)), e.code, e.params] as const)
+      .sort((a, b) => a[0].localeCompare(b[0]));
+
+  for (const [openapi, props, expected] of [
+    [
+      "3.1.0",
+      {
+        lo: { minimum: 5 },
+        hi: { maximum: 5 },
+        xlo: { exclusiveMinimum: 5 },
+        xhi: { exclusiveMaximum: 5 },
+      },
+      [
+        ["hi", "maximum", { maximum: 5, exclusive: false, actual: 6 }],
+        ["lo", "minimum", { minimum: 5, exclusive: false, actual: 4 }],
+        ["xhi", "exclusiveMaximum", { exclusiveMaximum: 5, actual: 5 }],
+        ["xlo", "exclusiveMinimum", { exclusiveMinimum: 5, actual: 5 }],
+      ],
+    ],
+    [
+      "3.0.3",
+      {
+        lo: { type: "number", minimum: 5 },
+        hi: { type: "number", maximum: 5, exclusiveMaximum: false },
+        xlo: { type: "number", minimum: 5, exclusiveMinimum: true },
+        xhi: { type: "number", maximum: 5, exclusiveMaximum: true },
+      },
+      [
+        ["hi", "maximum", { maximum: 5, exclusive: false, actual: 6 }],
+        ["lo", "minimum", { minimum: 5, exclusive: false, actual: 4 }],
+        ["xhi", "maximum", { maximum: 5, exclusive: true, actual: 5 }],
+        ["xlo", "minimum", { minimum: 5, exclusive: true, actual: 5 }],
+      ],
+    ],
+  ] as const) {
+    it(`emits the runtime's bound errors under OpenAPI ${openapi}`, async () => {
+      const document = doc(openapi, props);
+      const runtime = createValidator(document, { maxErrors: Number.POSITIVE_INFINITY });
+      const aot = await buildAot(document, { maxErrors: Number.POSITIVE_INFINITY });
+      expect(shapes(flatErrors(aot.validateRequest(req)))).toEqual(expected);
+      expect(shapes(flatErrors(runtime.validateRequest(req) as AotResult))).toEqual(expected);
+    });
+  }
+});

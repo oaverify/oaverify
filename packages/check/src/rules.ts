@@ -146,6 +146,8 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
   enum: { title: "a field outside its allowed values" },
   minimum: { title: "a number below its minimum" },
   maximum: { title: "a number above its maximum" },
+  exclusiveMinimum: { title: "a number at or below its exclusive minimum" },
+  exclusiveMaximum: { title: "a number at or above its exclusive maximum" },
   multipleOf: { title: "a number that is not a multiple of its divisor" },
   minLength: { title: "a string shorter than its minimum length" },
   maxLength: { title: "a string longer than its maximum length" },

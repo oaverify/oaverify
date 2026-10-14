@@ -711,7 +711,7 @@ and `email: "not-an-email"` (fails `format: email`), the response would be:
 `/cookie` (not `/params`, which is an `express-openapi-validator`
 quirk; see [migration-from-eov.md](./migration-from-eov.md) for the
 full diff). Each `issue.params` carries machine-readable detail
-(e.g. `{ maximum: 30, actual: 42 }` for `maximum`,
+(e.g. `{ maximum: 30, exclusive: false, actual: 42 }` for `maximum`,
 `{ format: "email", actual: "not-an-email" }` for `format`) if you
 want to surface structured details too. `BuiltInErrorParams` in
 `@oaverify/core` documents the shape per code.

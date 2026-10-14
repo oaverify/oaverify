@@ -3,6 +3,9 @@ import { createMemoryReader, loadSpec, type ResolvedSpec } from "@oaverify/inter
 import { describe, expect, it, vi } from "vitest";
 import { CheckAbortedError, checkSpec } from "../src/check.js";
 import { parseSeverityMap } from "../src/severity.js";
+import { CONFORMANCE_CODES } from "../src/codes.js";
+import { CHECK_RULES } from "../src/rules.js";
+import { renderSarif } from "../src/sarif.js";
 import type { CheckFinding } from "../src/finding.js";
 // Shared with packages/cli/test/check-golden.test.ts, which grades the
 // same documents through the CLI, so the two sides of the seam are
@@ -1104,5 +1107,34 @@ describe("unserved-parameter-location, a percent-encoded definition key", () => 
     expect(finding?.target?.pointer).toBe("/components/parameters/a b");
     // The point of addressing it correctly: a region resolves.
     expect(finding?.target?.source).toBeDefined();
+  });
+});
+
+describe("conformance reports the OAS 3.0 meta-schema's exclusive bound (#1199)", () => {
+  // The 3.0 meta-schema, converted to 2020-12, declares
+  // `multipleOf: { exclusiveMinimum: 0 }`, so a zero divisor fails with
+  // the 2020-12 code rather than `minimum`.
+  it("emits a registered exclusiveMinimum finding with its own rule", async () => {
+    const spec = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {},
+      components: { schemas: { A: { type: "number", multipleOf: 0 } } },
+    };
+    const findings = checkSpec(await resolve([["entry.json", spec]]), {
+      findings: selectionForClasses(["conformance"]),
+    });
+    const hit = findings.filter((f) => f.code === "exclusiveMinimum");
+    expect(hit.map((f) => [f.class, f.target?.pointer])).toEqual([
+      ["conformance", "/components/schemas/A/multipleOf"],
+    ]);
+    expect(CONFORMANCE_CODES).toContain("exclusiveMinimum");
+    expect(CONFORMANCE_CODES).toContain("exclusiveMaximum");
+    const sarif = JSON.parse(
+      renderSarif(hit, { version: "0", base: "/", classes: ["conformance"] }),
+    );
+    expect(sarif.runs[0].tool.driver.rules[0].shortDescription.text).toBe(
+      CHECK_RULES.exclusiveMinimum.title,
+    );
   });
 });

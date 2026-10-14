@@ -1,5 +1,86 @@
 import { describe, expect, it } from "vitest";
+import { BUILT_IN_ERROR_CODES } from "@oaverify/internal-core";
+import { jsonSchemaDialect, oas30Dialect, openapi31Dialect } from "../src/keywords/vocabulary.js";
 import { compile, failure } from "./helpers.js";
+
+describe("numeric bound error codes and params (#1199)", () => {
+  // Each case fails exactly one bound, so flat output holds one leaf and
+  // the tree's root is that leaf.
+  const cases = [
+    {
+      dialects: [jsonSchemaDialect, openapi31Dialect],
+      schema: { maximum: 5 },
+      data: 6,
+      code: "maximum",
+      params: { maximum: 5, exclusive: false, actual: 6 },
+    },
+    {
+      dialects: [jsonSchemaDialect, openapi31Dialect],
+      schema: { minimum: 5 },
+      data: 4,
+      code: "minimum",
+      params: { minimum: 5, exclusive: false, actual: 4 },
+    },
+    {
+      dialects: [jsonSchemaDialect, openapi31Dialect],
+      schema: { exclusiveMaximum: 5 },
+      data: 5,
+      code: "exclusiveMaximum",
+      params: { exclusiveMaximum: 5, actual: 5 },
+    },
+    {
+      dialects: [jsonSchemaDialect, openapi31Dialect],
+      schema: { exclusiveMinimum: 5 },
+      data: 5,
+      code: "exclusiveMinimum",
+      params: { exclusiveMinimum: 5, actual: 5 },
+    },
+    {
+      dialects: [oas30Dialect],
+      schema: { maximum: 5, exclusiveMaximum: true },
+      data: 5,
+      code: "maximum",
+      params: { maximum: 5, exclusive: true, actual: 5 },
+    },
+    {
+      dialects: [oas30Dialect],
+      schema: { maximum: 5, exclusiveMaximum: false },
+      data: 6,
+      code: "maximum",
+      params: { maximum: 5, exclusive: false, actual: 6 },
+    },
+    {
+      dialects: [oas30Dialect],
+      schema: { minimum: 5, exclusiveMinimum: true },
+      data: 5,
+      code: "minimum",
+      params: { minimum: 5, exclusive: true, actual: 5 },
+    },
+    {
+      dialects: [oas30Dialect],
+      schema: { minimum: 5 },
+      data: 4,
+      code: "minimum",
+      params: { minimum: 5, exclusive: false, actual: 4 },
+    },
+  ];
+
+  for (const c of cases) {
+    for (const dialect of c.dialects) {
+      it(`${JSON.stringify(c.schema)} rejects ${c.data} as ${c.code} under ${dialect.id}`, () => {
+        const tree = failure(compile(c.schema, { dialect }).validate(c.data));
+        expect(tree.error.code).toBe(c.code);
+        expect(tree.error.params).toEqual(c.params);
+
+        const flat = failure(compile(c.schema, { dialect, output: "flat" }).validate(c.data));
+        expect(flat.errors.map((e) => [e.code, e.params])).toEqual([[c.code, c.params]]);
+
+        expect(compile(c.schema, { dialect, output: "predicate" }).validate(c.data)).toBe(false);
+        expect(BUILT_IN_ERROR_CODES).toContain(c.code);
+      });
+    }
+  }
+});
 
 describe("numeric keywords", () => {
   it("multipleOf rejects non-multiples and passes non-numbers", () => {

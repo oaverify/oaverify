@@ -122,7 +122,7 @@ export const maximumKeyword: KeywordDefinition = {
         ctx,
         "maximum",
         `\`must be <= ${limit}\``,
-        `{ maximum: ${limit}, actual: ${ctx.data} }`,
+        `{ maximum: ${limit}, exclusive: false, actual: ${ctx.data} }`,
       );
     });
   },
@@ -166,7 +166,7 @@ export const minimumKeyword: KeywordDefinition = {
         ctx,
         "minimum",
         `\`must be >= ${limit}\``,
-        `{ minimum: ${limit}, actual: ${ctx.data} }`,
+        `{ minimum: ${limit}, exclusive: false, actual: ${ctx.data} }`,
       );
     });
   },
