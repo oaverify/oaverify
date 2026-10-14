@@ -159,13 +159,18 @@ export interface BuiltInErrorParams {
   "body-too-large": { limit: number; reason: "declared" | "read"; bytes: number };
 
   // --- HTTP-level wrappers (emitted by @oaverify/internal-validator) ---
-  /** No path template matched `path`: semantically HTTP 404. */
+  /**
+   * No path template matched `path`: semantically HTTP 404. `method` is
+   * the request method uppercased, as in the message, whatever case the
+   * request gave it.
+   */
   route: { method: string; path: string };
   /**
    * Path template matched but the requested method isn't declared on
    * it; semantically HTTP 405. `allowed` is the uppercase list of
    * methods the matched path(s) do accept, suitable for an RFC 9110
-   * `Allow` response header.
+   * `Allow` response header, and `method` is the request method
+   * uppercased, so the two compare directly.
    */
   method: { method: string; pathPattern: string; allowed: string[] };
   /**
@@ -183,6 +188,8 @@ export interface BuiltInErrorParams {
    * extraction: there is no matched template to name yet. Absent
    * rather than filled with the concrete path, because a consumer
    * reading this field expects a template and a path is not one.
+   *
+   * `method` is the request method uppercased, as in the message.
    */
   request: { method: string; pathPattern?: string };
   /** Response branch: children are status / content-type / header / body failures. */
