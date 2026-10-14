@@ -26,6 +26,29 @@ function isJsonMediaType(mediaType: string): boolean {
 }
 
 /**
+ * Decode a `content`-declared parameter or header value as its media
+ * type. A JSON media type is parsed; any other reaches the schema as the
+ * raw string. A repeated value contributes its first occurrence. Returns
+ * `undefined` when there is no string to decode (an empty array), which
+ * callers treat as nothing to validate.
+ *
+ * @internal
+ */
+export function decodeContentValue(
+  raw: string | string[],
+  mediaType: string,
+): { ok: true; value: unknown } | { ok: false; message: string } | undefined {
+  const rawStr = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof rawStr !== "string") return undefined;
+  if (!isJsonMediaType(mediaType)) return { ok: true, value: rawStr };
+  try {
+    return { ok: true, value: JSON.parse(rawStr) };
+  } catch (err) {
+    return { ok: false, message: (err as Error).message };
+  }
+}
+
+/**
  * Record an accepted parameter value into the `returnValues`
  * accumulator, under the location group matching the parameter's `in`.
  *
@@ -255,21 +278,17 @@ export function validateParameter(
   // types (text/plain, etc.) are passed through as the raw string.
   const contentMediaType = firstContentMediaType(p);
   if (contentMediaType !== undefined) {
-    const rawStr = Array.isArray(raw) ? raw[0] : raw;
-    if (typeof rawStr !== "string") return null;
-    let parsed: unknown = rawStr;
-    if (isJsonMediaType(contentMediaType)) {
-      try {
-        parsed = JSON.parse(rawStr);
-      } catch (err) {
-        return createLeafError(
-          code,
-          pathPrefix,
-          `${p.in} parameter "${p.name}" is not valid ${contentMediaType}: ${(err as Error).message}`,
-          { name: p.name, in: p.in, mediaType: contentMediaType, reason: "content-parse" },
-        );
-      }
+    const decoded = decodeContentValue(raw, contentMediaType);
+    if (decoded === undefined) return null;
+    if (!decoded.ok) {
+      return createLeafError(
+        code,
+        pathPrefix,
+        `${p.in} parameter "${p.name}" is not valid ${contentMediaType}: ${decoded.message}`,
+        { name: p.name, in: p.in, mediaType: contentMediaType, reason: "content-parse" },
+      );
     }
+    const parsed = decoded.value;
     const r = validator.validate(parsed, pathPrefix);
     if (r.valid) {
       if (sink !== undefined) recordValue(sink, p, parsed);

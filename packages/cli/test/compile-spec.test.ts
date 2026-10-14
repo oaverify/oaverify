@@ -2385,3 +2385,147 @@ describe("compile-spec: omitted response headers (#1146)", () => {
     }
   });
 });
+
+describe("compile-spec: content-based response headers (#1148)", () => {
+  const integerJson = { content: { "application/json": { schema: { type: "integer" } } } };
+  const spec: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "Response headers", version: "1" },
+    paths: {
+      "/x": {
+        get: {
+          responses: {
+            "200": {
+              description: "ok",
+              headers: {
+                "X-Json": integerJson,
+                "X-Required": { required: true, ...integerJson },
+                "X-Ref": { $ref: "#/components/headers/Count" },
+                "X-Text": {
+                  content: { "text/plain": { schema: { type: "string", pattern: "^a" } } },
+                },
+                "X-Schema": { schema: { type: "integer" } },
+                "X-Problem": {
+                  content: { "application/problem+json": { schema: { type: "object" } } },
+                },
+                // Illegal in a document, but `content` must still win.
+                "X-Both": { schema: { type: "string" }, ...integerJson },
+              },
+            },
+          },
+        },
+      },
+    },
+    components: { headers: { Count: integerJson } },
+  };
+  const request = { method: "GET", path: "/x" } as const;
+  const base = { "x-required": "1" };
+
+  async function validators() {
+    return [createValidator(spec), await buildAot(spec)];
+  }
+
+  it.each([
+    ["x-json", "1"],
+    ["x-ref", "2"],
+    ["x-text", "abc"],
+    ["x-schema", "3"],
+    ["x-problem", '{"a":1}'],
+    ["x-both", "4"],
+  ])("accepts %s: %s", async (header, wire) => {
+    for (const validator of await validators()) {
+      expect(
+        validator.validateResponse(request, { status: 200, headers: { ...base, [header]: wire } }),
+      ).toEqual({ valid: true });
+    }
+  });
+
+  it.each([
+    ["x-json", '"bad"', "X-Json", "type"],
+    ["x-json", "[1]", "X-Json", "type"],
+    ["x-ref", "1.5", "X-Ref", "type"],
+    ["x-text", "xyz", "X-Text", "pattern"],
+    ["x-schema", "abc", "X-Schema", "type"],
+    ["x-problem", "[1]", "X-Problem", "type"],
+    ["x-both", "true", "X-Both", "type"],
+  ])("reports %s: %s failing its schema", async (header, wire, name, code) => {
+    for (const validator of await validators()) {
+      const result = validator.validateResponse(request, {
+        status: 200,
+        headers: { ...base, [header]: wire },
+      });
+      expect(flatErrors(result)).toMatchObject([{ code, path: ["header", name] }]);
+    }
+  });
+
+  it("reports invalid JSON as a content-parse failure", async () => {
+    for (const validator of await validators()) {
+      const result = validator.validateResponse(request, {
+        status: 200,
+        headers: { ...base, "x-json": "{nope" },
+      });
+      expect(flatErrors(result)).toMatchObject([
+        {
+          code: "header-param",
+          path: ["header", "X-Json"],
+          message: expect.stringMatching(/^header "X-Json" is not valid application\/json: /),
+          params: {
+            name: "X-Json",
+            in: "header",
+            mediaType: "application/json",
+            reason: "content-parse",
+          },
+        },
+      ]);
+    }
+  });
+
+  it("requires X-Required and accepts absent optional headers", async () => {
+    for (const validator of await validators()) {
+      expect(
+        flatErrors(validator.validateResponse(request, { status: 200, headers: {} })),
+      ).toMatchObject([{ code: "header-param", path: ["header", "X-Required"] }]);
+      expect(validator.validateResponse(request, { status: 200, headers: base })).toEqual({
+        valid: true,
+      });
+    }
+  });
+
+  it.each(["tree", "predicate"] as const)("agrees in %s output", async (output) => {
+    const runtime = createValidator(spec, { output });
+    const emitted = await buildAot(spec, { outputMode: output });
+    for (const headers of [base, { ...base, "x-json": '"bad"' }, { ...base, "x-json": "{" }]) {
+      const expected = runtime.validateResponse(request, { status: 200, headers });
+      const actual = emitted.validateResponse(request, { status: 200, headers });
+      if (output === "predicate") {
+        expect(actual).toBe(expected);
+        expect(expected).toBe(headers === base);
+      } else {
+        // The response node's own params differ between the paths for
+        // every response failure; the header leaves are what is compared.
+        expect(treeOf(actual)?.children).toEqual(treeOf(expected)?.children);
+        expect(actual).toMatchObject({ valid: headers === base });
+      }
+    }
+  });
+
+  it("emits the decoding branch only for a document declaring a content header", () => {
+    const schemaOnly: OpenAPIDocument = {
+      ...spec,
+      paths: {
+        "/x": {
+          get: {
+            responses: {
+              "200": {
+                description: "ok",
+                headers: { "X-Schema": { schema: { type: "integer" } } },
+              },
+            },
+          },
+        },
+      },
+    };
+    expect(emitSpec(spec)).toContain("hdr.__contentMediaType");
+    expect(emitSpec(schemaOnly)).not.toContain("__contentMediaType");
+  });
+});
