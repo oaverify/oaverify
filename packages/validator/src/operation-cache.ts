@@ -27,7 +27,7 @@ import {
   type SchemaRefResolver,
 } from "./deserialize.js";
 import { escapePointer } from "./document-walk.js";
-import { isIgnoredHeaderParameter } from "./headers.js";
+import { isIgnoredHeaderParameter, isIgnoredResponseHeader } from "./headers.js";
 import { effectiveType } from "./schema-type.js";
 import type { CompiledSecurity } from "./security.js";
 
@@ -683,6 +683,8 @@ export function buildOperationCache(
       if (hasSchema(mto)) bodySchemas.set(mt, mto.schema);
     }
     for (const [name, rawHdr] of Object.entries(response.headers ?? {})) {
+      // Never compiled or read; `check` reports it as `ignored-header`.
+      if (isIgnoredResponseHeader(name)) continue;
       const hdr = deps.resolveRef<HeaderObject>(rawHdr);
       // `X-Rate:` with nothing under it is `null`; same rule as a null
       // Response above.

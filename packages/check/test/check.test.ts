@@ -539,7 +539,16 @@ describe("checkSpec", () => {
       paths: {
         "x-example": { get: operation },
         "/ok": {
-          get: { responses: ok, callbacks: { cb: { "x-example": { post: operation } } } },
+          get: {
+            responses: {
+              ...ok,
+              "x-example": {
+                description: "ok",
+                headers: { "Content-Type": { schema: { type: "string" } } },
+              },
+            },
+            callbacks: { cb: { "x-example": { post: operation } } },
+          },
         },
       },
       // A webhook is named freely, so an `x-` name is still a webhook.
@@ -549,6 +558,62 @@ describe("checkSpec", () => {
       (f) => f.code === "ignored-header",
     );
     expect(ignored.map((f) => f.location)).toEqual(["/webhooks/x-hook/post/parameters/0"]);
+  });
+
+  it("warns that a response Content-Type header definition has no effect (#1092)", async () => {
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          get: {
+            responses: {
+              "200": {
+                description: "ok",
+                headers: {
+                  "Content-Type": { schema: { type: "string" } },
+                  "X-Rate": { schema: { type: "integer" } },
+                },
+              },
+              "404": { $ref: "#/components/responses/NotFound" },
+              // A chain of Response refs: located at its end.
+              default: { $ref: "#/components/responses/Chain" },
+            },
+          },
+        },
+      },
+      webhooks: {
+        newPet: { post: { responses: { "200": { $ref: "#/components/responses/NotFound" } } } },
+      },
+      components: {
+        responses: {
+          NotFound: {
+            description: "missing",
+            headers: { "content-type": { schema: { type: "string" } } },
+          },
+          Chain: { $ref: "#/components/responses/NotFound" },
+        },
+      },
+    };
+    const ignored = checkSpec(await resolve([["entry.json", doc]])).filter(
+      (f) => f.code === "ignored-header",
+    );
+    expect(ignored.map((f) => [f.location, f.target?.anchor])).toEqual([
+      ["/paths/~1t/get/responses/200/headers/Content-Type", "node"],
+      ["/components/responses/NotFound/headers/content-type", "scoped-definition"],
+      ["/components/responses/NotFound/headers/content-type", "scoped-definition"],
+      ["/components/responses/NotFound/headers/content-type", "scoped-definition"],
+    ]);
+    expect(ignored[0]?.message).toBe(
+      'GET /t declares response header "Content-Type" for status 200, which OpenAPI says to ignore; it has no effect on validation. Declare response media types under the response\'s content.',
+    );
+    expect(ignored[2]?.message).toMatch(
+      /^GET \/t declares response header "content-type" for the default response,/,
+    );
+    expect(ignored[3]?.message).toMatch(/^POST webhook newPet declares response header/);
+    for (const f of ignored) {
+      expect(() => resolveJsonPointer(doc, f.location)).not.toThrow();
+    }
   });
 
   it("reports no findings on an abort when nothing had run", async () => {

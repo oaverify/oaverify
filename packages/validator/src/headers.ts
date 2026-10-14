@@ -127,3 +127,18 @@ export function isIgnoredHeaderParameter(parameter: { name?: unknown; in?: unkno
     IGNORED_HEADER_PARAMETERS.has(parameter.name.toLowerCase())
   );
 }
+
+/**
+ * `true` for a Response Object `headers` key OpenAPI says to ignore:
+ * `Content-Type`, matched case-insensitively. The response's `content`
+ * map governs that header instead.
+ *
+ * A matching definition is dropped before compiling, so it can neither
+ * reject a response nor require the header.
+ *
+ * @specCites OpenAPI 3.1 Response Object, https://spec.openapis.org/oas/v3.1.0#response-object
+ * @internal
+ */
+export function isIgnoredResponseHeader(name: string): boolean {
+  return name.toLowerCase() === "content-type";
+}
