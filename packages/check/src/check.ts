@@ -192,6 +192,9 @@ export class CheckAbortedError extends Error {
  * A root that fails compilation contributes a malformed finding and
  * independent roots continue. Selecting only document-walk codes skips
  * compilation (see {@link CheckOptions.findings}).
+ * An example whose schema fails to compile is withheld when that
+ * compilation runs, since the malformed finding reports the schema, and is
+ * reported as `example-uncheckable` when the selection skips it.
  *
  * For OpenAPI 3.1/3.2, `jsonSchemaDialect` sets the default and `$schema`
  * overrides it at a schema root or an embedded `$id` resource. Ordinary
@@ -472,11 +475,16 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
       }
       return verdict;
     };
+    // A schema that cannot compile is reported by the schema pass when the
+    // compile prepass runs (its `malformed` finding survives every
+    // filter), so the example is withheld then. Otherwise nothing would
+    // say the example went unchecked, and the pass reports it (#1131).
     for (const issue of checkDocumentExamplesInContext(
       document,
       { patternGuard },
       (schema) => schemas().prepare(schema),
       schemas().dialects.entries,
+      selection.compileSchemas,
     )) {
       findings.push({
         class: "examples",

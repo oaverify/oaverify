@@ -350,9 +350,12 @@ export type PrepareExampleSchema = (schema: unknown) =>
 
 /**
  * Validate examples with the document checker's resource context.
- * With `prepare`, unavailable units and compilation failures are withheld:
- * the composed checker owns their schema or dialect findings. Without it,
- * standalone compilation failures produce `example-uncheckable`.
+ * With `prepare`, an unavailable unit (`prepare` returns undefined) is
+ * withheld: the composed checker owns its dialect finding. A compilation
+ * failure is withheld too when `withholdCompileFailures` is true, which
+ * the checker sets when its schema pass runs and reports the failure
+ * itself; otherwise it produces `example-uncheckable`, as it does
+ * without `prepare`.
  * @internal
  */
 export function checkDocumentExamplesInContext(
@@ -364,6 +367,7 @@ export function checkDocumentExamplesInContext(
     pointer: string;
     dialect: Dialect | undefined;
   }>,
+  withholdCompileFailures = prepare !== undefined,
 ): ExampleIssue[] {
   const dialect = options.dialect ?? dialectForDocument(document);
   const jobs: ExampleJob[] = [];
@@ -502,6 +506,15 @@ export function checkDocumentExamplesInContext(
   // example location; `null` withholds a checker-owned unit.
   const compiled = new Map<unknown, ExampleCheck | null>();
 
+  const compileFailure = (err: unknown): ExampleCheck => {
+    const failure = uncheckable(err);
+    return () => ({ ...failure, summary: `compilation failed: ${failure.summary}` });
+  };
+  const remember = (schema: unknown, check: ExampleCheck): ExampleCheck => {
+    compiled.set(schema, check);
+    return check;
+  };
+
   const checkerFor = (schema: unknown): ExampleCheck | null => {
     const cached = compiled.get(schema);
     if (cached !== undefined) return cached;
@@ -510,8 +523,11 @@ export function checkDocumentExamplesInContext(
     if (prepare !== undefined) {
       try {
         prepared = prepare(schema);
-      } catch {
-        // The schema pass reports compilation failures at the authored schema.
+      } catch (err) {
+        // A failure to build the context is a compilation failure: the
+        // schema pass reports it when it runs, and this example says it
+        // was not checked when it does not.
+        if (!withholdCompileFailures) return remember(schema, compileFailure(err));
       }
       if (prepared === undefined) {
         compiled.set(schema, null);
@@ -573,17 +589,11 @@ export function checkDocumentExamplesInContext(
         ) as CompiledPredicate,
       };
     } catch (err) {
-      if (prepare !== undefined) {
+      if (withholdCompileFailures) {
         compiled.set(schema, null);
         return null;
       }
-      const failure = uncheckable(err);
-      const check: ExampleCheck = () => ({
-        ...failure,
-        summary: `compilation failed: ${failure.summary}`,
-      });
-      compiled.set(schema, check);
-      return check;
+      return remember(schema, compileFailure(err));
     }
 
     const detail = (): CompiledSchema => {
