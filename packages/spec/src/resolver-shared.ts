@@ -15,6 +15,7 @@ import {
   detectOpenAPIVersion,
   escapePointerSegment,
   getOwn,
+  pointerFromFragment,
   refPositionFor,
   setSpecKey,
   type OpenAPIVersion,
@@ -333,8 +334,10 @@ function contextForOpenAPIKind(kind: RefNodeKind): PointerContext {
  * legal OpenAPI field, so `check` reported the resolver's own output as
  * non-conformant on any spec that reached this path (#559).
  *
- * Only non-schema cycles land here. External *schema* targets are hoisted
- * into `components.schemas` and addressed by name.
+ * Only non-schema objects land here, each at its own pointer under its
+ * source URI's key; the rest of that document is not copied. External
+ * *schema* targets are hoisted into `components.schemas` and addressed by
+ * name.
  */
 export const EXTERNALS_FIELD = "x-oaverify-externals";
 
@@ -366,14 +369,15 @@ export function makeStitchRef(targetUri: string, fragment: string): { $ref: stri
  * Rewrite an internal `#/...` ref that was found inside an inlined
  * external subtree so it points at that external's stitched location
  * rather than at the root document. `fragmentAfterHash` is the ref
- * minus its leading `#`.
+ * minus its leading `#`. Only an empty fragment names the whole document;
+ * `/` names its empty-string key, as it does everywhere else.
  */
 export function rewriteInternalRefTarget(
   externalSourceUri: string,
   fragmentAfterHash: string,
 ): string {
   const encoded = encodeUri(externalSourceUri);
-  if (fragmentAfterHash === "" || fragmentAfterHash === "/") {
+  if (fragmentAfterHash === "") {
     return `#/${EXTERNALS_FIELD}/${encoded}`;
   }
   return `#/${EXTERNALS_FIELD}/${encoded}${fragmentAfterHash.startsWith("/") ? fragmentAfterHash : `/${fragmentAfterHash}`}`;
@@ -805,6 +809,118 @@ export function wrapFragmentError(
 /** Cycle-detection key for a (uri, fragment) pair. */
 export function cycleKey(targetUri: string, fragment: string): string {
   return targetUri + "#" + fragment;
+}
+
+/**
+ * One referenced fragment of an external document waiting to be stitched:
+ * the document, the fragment as written after `#`, and the kind of object
+ * the reference that reached it expects there.
+ */
+export interface StitchTarget {
+  readonly uri: string;
+  readonly fragment: string;
+  readonly kind: RefNodeKind;
+}
+
+/** The decoded RFC 6901 tokens of a `$ref` fragment; `[]` for the whole document. */
+export function fragmentTokens(fragment: string): string[] {
+  const pointer = fragment === "" ? "" : pointerFromFragment(fragment);
+  if (pointer === "") return [];
+  return pointer
+    .slice(1)
+    .split("/")
+    .map((s) => s.replace(/~1/g, "/").replace(/~0/g, "~"));
+}
+
+/** Whether `ancestor` is `tokens` or a prefix of it. */
+function coversFragment(ancestor: readonly string[], tokens: readonly string[]): boolean {
+  return ancestor.length <= tokens.length && ancestor.every((t, i) => t === tokens[i]);
+}
+
+/** An RFC 6901 array index token: `0`, or digits without a leading zero. */
+const ARRAY_INDEX = /^(?:0|[1-9][0-9]*)$/;
+
+/** The child at `key`, read the way `resolveJsonPointer` reads it. */
+function childAt(container: Mutable | unknown[], key: string): unknown {
+  if (Array.isArray(container)) {
+    return ARRAY_INDEX.test(key) ? container[Number(key)] : undefined;
+  }
+  return Object.hasOwn(container, key) ? container[key] : undefined;
+}
+
+/** Write the child at `key`; an array index writes the element. */
+function setChildAt(container: Mutable | unknown[], key: string, value: unknown): void {
+  if (Array.isArray(container) && ARRAY_INDEX.test(key)) container[Number(key)] = value;
+  else setSpecKey(container as Mutable, key, value);
+}
+
+/**
+ * Place a stitched fragment at its tokens under `stitched[uri]`, so the
+ * stitch `$ref` that names it resolves to it. Containers already placed
+ * (an ancestor's objects and arrays) are descended into, an array by
+ * index, so its other entries survive; a missing container is created as
+ * a plain object. An empty token list makes the value the whole entry.
+ */
+function placeStitched(
+  stitched: Mutable,
+  uri: string,
+  tokens: readonly string[],
+  value: unknown,
+): void {
+  if (tokens.length === 0) {
+    setSpecKey(stitched, uri, value);
+    return;
+  }
+  let container: Mutable | unknown[] = stitched;
+  const keys = [uri, ...tokens];
+  for (const key of keys.slice(0, -1)) {
+    const next = childAt(container, key);
+    if (typeof next === "object" && next !== null) {
+      container = next as Mutable | unknown[];
+    } else {
+      const created: Mutable = {};
+      setChildAt(container, key, created);
+      container = created;
+    }
+  }
+  setChildAt(container, keys[keys.length - 1] as string, value);
+}
+
+/**
+ * The stitched fragments of every external document, keyed by URI.
+ *
+ * Each fragment is walked as the object its own reference expects, which
+ * can differ from what an enclosing fragment's walk saw at that position:
+ * an ancestor may hold it under a field the specification does not type.
+ * So a fragment placed inside an ancestor overwrites that position, and
+ * an ancestor placed after its descendants has them put back on top.
+ */
+export class StitchedExternals {
+  readonly root: Mutable = {};
+  private readonly placed = new Map<string, Array<{ tokens: string[]; value: unknown }>>();
+
+  /** Whether exactly this fragment has been placed. */
+  has(uri: string, tokens: readonly string[]): boolean {
+    return (this.placed.get(uri) ?? []).some(
+      (p) => p.tokens.length === tokens.length && coversFragment(p.tokens, tokens),
+    );
+  }
+
+  get isEmpty(): boolean {
+    return this.placed.size === 0;
+  }
+
+  place(uri: string, tokens: string[], value: unknown): void {
+    placeStitched(this.root, uri, tokens, value);
+    const list = this.placed.get(uri) ?? [];
+    // Shallowest first, so a nested descendant lands on its own ancestor.
+    const replaced = list
+      .filter((p) => p.tokens.length > tokens.length && coversFragment(tokens, p.tokens))
+      .sort((a, b) => a.tokens.length - b.tokens.length);
+    for (const p of replaced) placeStitched(this.root, uri, p.tokens, p.value);
+    list.push({ tokens, value });
+    this.placed.set(uri, list);
+  }
 }
 
 /**

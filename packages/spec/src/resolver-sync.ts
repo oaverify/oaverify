@@ -20,6 +20,7 @@ import {
   entryIdentity,
   existingSchemaNames,
   EXTERNALS_FIELD,
+  fragmentTokens,
   hoistedRef,
   HoistNames,
   makeStitchRef,
@@ -27,6 +28,8 @@ import {
   noteInlinedComponent,
   removeComponentSchema,
   mergeStitchedExternals,
+  StitchedExternals,
+  type StitchTarget,
   type Mutable,
   noteReferrer,
   ResolutionTrail,
@@ -208,9 +211,11 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
   const version = detectOpenAPIVersion(entryDoc) ?? "3.1";
   const refSuppressesSiblings = version === "3.0";
 
-  // Keyed by URI, valued by the kind of node the reference sat at, so a
-  // stitched document is walked as the object it actually is.
-  const stitchQueue = new Map<string, RefNodeKind>();
+  // Mirrors resolveSpec: referenced fragments to stitch, by URI and fragment.
+  const stitchQueue = new Map<string, StitchTarget>();
+  const queueStitch = (uri: string, fragment: string, kind: RefNodeKind): void => {
+    stitchQueue.set(cycleKey(uri, fragment), { uri, fragment, kind });
+  };
 
   // Schema targets get a `components.schemas` name and a single hoisted
   // copy; every `$ref` to them becomes an internal ref to that name.
@@ -400,11 +405,12 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
       const stitchRef = makeStitchRef(targetUri, fragment);
       if (stitchingUri !== null && stitchingUri === targetUri) {
         noteVia(stitchVia, targetUri);
+        queueStitch(targetUri, fragment, pos.kind);
         return stitchRef;
       }
       if (visiting.has(cycleKey(targetUri, fragment))) {
         noteVia(stitchVia, targetUri);
-        stitchQueue.set(targetUri, pos.kind);
+        queueStitch(targetUri, fragment, pos.kind);
         return stitchRef;
       }
       visiting.add(cycleKey(targetUri, fragment));
@@ -475,7 +481,7 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
     ) {
       const rewritten = rewriteInternalRefTarget(externalSourceUri, ref.slice(1));
       noteVia(stitchVia, externalSourceUri);
-      stitchQueue.set(externalSourceUri, pos.kind);
+      queueStitch(externalSourceUri, ref.slice(1), pos.kind);
       const siblings: Mutable = { $ref: rewritten };
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
@@ -563,55 +569,98 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
 
   const resolved = walk(entryDoc, baseDir, null, null, DOCUMENT_POS) as OpenAPIDocument;
 
-  // Hoist every claimed schema target. Nested targets discovered while
-  // walking one are appended to the queue, so this drains transitively;
-  // a self-reference resolves to an already-claimed name rather than
-  // recursing.
+  // Mirrors resolveSpec: hoist and stitch drain each other to a fixed point.
   const hoisted: Mutable = {};
   const missingHoists = new Set<string>();
-  while (hoistQueue.size > 0) {
-    const key = hoistQueue.values().next().value as string;
-    hoistQueue.delete(key);
-    const target = targets.get(key);
-    if (target === undefined) continue;
-    const name = names.nameFor(target.uri, target.fragment);
-    if (Object.hasOwn(hoisted, name)) continue;
-    // placeholder: claims the slot before walking
-    setSpecKey(hoisted, name, true);
-    let targetDoc = docs.get(target.uri);
-    if (targetDoc === undefined) {
-      targetDoc = readDoc(target.uri, hoistVia.get(key) ?? []);
-      if (targetDoc === UNREADABLE) {
+  const drainHoists = (): void => {
+    while (hoistQueue.size > 0) {
+      const key = hoistQueue.values().next().value as string;
+      hoistQueue.delete(key);
+      const target = targets.get(key);
+      if (target === undefined) continue;
+      const name = names.nameFor(target.uri, target.fragment);
+      if (Object.hasOwn(hoisted, name)) continue;
+      // placeholder: claims the slot before walking
+      setSpecKey(hoisted, name, true);
+      let targetDoc = docs.get(target.uri);
+      if (targetDoc === undefined) {
+        targetDoc = readDoc(target.uri, hoistVia.get(key) ?? []);
+        if (targetDoc === UNREADABLE) {
+          missingHoists.add(name);
+          continue;
+        }
+        docs.set(target.uri, targetDoc);
+      }
+      const content = readFragment(
+        targetDoc,
+        target.uri,
+        target.fragment,
+        hoistVia.get(key) ?? [],
+        true,
+      );
+      if (content === UNREADABLE) {
         missingHoists.add(name);
         continue;
       }
-      docs.set(target.uri, targetDoc);
+      const mounted = trail.enterAt(
+        ["components", "schemas", name],
+        target.uri,
+        pointerFromFragment(target.fragment),
+        hoistVia.get(key) ?? [],
+      );
+      setSpecKey(hoisted, name, walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS));
+      trail.leave(mounted, true);
+      hoistedTargets.push({
+        uri: target.uri,
+        pointer: pointerFromFragment(target.fragment),
+        target: `/components/schemas/${escapePointerSegment(name)}`,
+      });
     }
-    const content = readFragment(
-      targetDoc,
-      target.uri,
-      target.fragment,
-      hoistVia.get(key) ?? [],
-      true,
-    );
-    if (content === UNREADABLE) {
-      missingHoists.add(name);
-      continue;
+  };
+
+  const stitched = new StitchedExternals();
+  const drainStitches = (): void => {
+    while (stitchQueue.size > 0) {
+      const [key, { uri, fragment, kind }] = stitchQueue.entries().next().value as [
+        string,
+        StitchTarget,
+      ];
+      stitchQueue.delete(key);
+      const tokens = fragmentTokens(fragment);
+      if (stitched.has(uri, tokens)) continue;
+      sources.add(uri);
+      let targetDoc = docs.get(uri);
+      if (targetDoc === undefined) {
+        targetDoc = readDoc(uri, stitchVia.get(uri) ?? []);
+        if (targetDoc === UNREADABLE) continue;
+        docs.set(uri, targetDoc);
+      }
+      const content = readFragment(targetDoc, uri, fragment, stitchVia.get(uri) ?? []);
+      if (content === UNREADABLE) continue;
+      if (stitched.isEmpty) {
+        trail.synthetic(`/${escapePointerSegment(EXTERNALS_FIELD)}`);
+      }
+      const savedVisiting = new Set(visiting);
+      visiting.clear();
+      const mounted = trail.enterAt(
+        [EXTERNALS_FIELD, uri, ...tokens],
+        uri,
+        pointerFromFragment(fragment),
+        stitchVia.get(uri) ?? [],
+      );
+      const inlined = walk(content, baseDirOf(uri), uri, uri, posOf(kind, true));
+      trail.leave(mounted, true);
+      visiting.clear();
+      for (const v of savedVisiting) visiting.add(v);
+      stitched.place(uri, tokens, inlined);
     }
-    const mounted = trail.enterAt(
-      ["components", "schemas", name],
-      target.uri,
-      pointerFromFragment(target.fragment),
-      hoistVia.get(key) ?? [],
-    );
-    setSpecKey(hoisted, name, walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS));
-    trail.leave(mounted, true);
-    hoistedTargets.push({
-      uri: target.uri,
-      pointer: pointerFromFragment(target.fragment),
-      target: `/components/schemas/${escapePointerSegment(name)}`,
-    });
-  }
+  };
+
+  do {
+    drainHoists();
+    drainStitches();
+  } while (hoistQueue.size > 0 || stitchQueue.size > 0);
+
   for (const name of missingHoists) {
     delete hoisted[name];
     if (boundSlots.has(name)) removeComponentSchema(resolved, name);
@@ -623,32 +672,7 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
   }
   fixUpDiscriminatorMappings();
   mergeHoistedSchemas(resolved, hoisted);
-
-  if (stitchQueue.size > 0) {
-    trail.synthetic(`/${escapePointerSegment(EXTERNALS_FIELD)}`);
-    const stitched: Mutable = {};
-    while (stitchQueue.size > 0) {
-      const [uri, kind] = stitchQueue.entries().next().value as [string, RefNodeKind];
-      stitchQueue.delete(uri);
-      if (Object.hasOwn(stitched, uri)) continue;
-      sources.add(uri);
-      let targetDoc = docs.get(uri);
-      if (targetDoc === undefined) {
-        targetDoc = readDoc(uri, stitchVia.get(uri) ?? []);
-        if (targetDoc === UNREADABLE) continue;
-        docs.set(uri, targetDoc);
-      }
-      const savedVisiting = new Set(visiting);
-      visiting.clear();
-      const mounted = trail.enterAt([EXTERNALS_FIELD, uri], uri, "", stitchVia.get(uri) ?? []);
-      const inlined = walk(targetDoc, baseDirOf(uri), uri, uri, posOf(kind, true));
-      trail.leave(mounted, true);
-      visiting.clear();
-      for (const v of savedVisiting) visiting.add(v);
-      setSpecKey(stitched, uri, inlined);
-    }
-    mergeStitchedExternals(resolved, stitched);
-  }
+  if (!stitched.isEmpty) mergeStitchedExternals(resolved, stitched.root);
 
   const inlined = [...inlinedComponents];
   const hoistedSchemaCopies = collectHoistedSchemaCopies(resolved, trail.regions, hoistedTargets);
