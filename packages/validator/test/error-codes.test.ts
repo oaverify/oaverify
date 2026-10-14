@@ -3,23 +3,27 @@ import {
   SELF_LOCATING_ERROR_CODES,
   walkErrors,
   type OpenAPIDocument,
+  type SchemaOrBoolean,
   type ValidationError,
 } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import { createValidator, leafCodes } from "./fixtures.js";
 
 /**
- * Cross-check between actual emitted error codes and the documented
- * registry {@link BUILT_IN_ERROR_CODES}. The validator and the compiler
- * emit codes through generated JS / string literals, so TypeScript
- * cannot enforce the contract. This test walks a representative fixture
- * corpus, collects every emitted code, and asserts:
+ * Cross-check between emitted error codes and the documented registry
+ * {@link BUILT_IN_ERROR_CODES}. The validator and the compiler emit
+ * codes through generated JS / string literals, so TypeScript cannot
+ * enforce the contract. These tests walk a fixture corpus, collect the
+ * codes it reaches, and assert:
  *
  *   - every observed code is documented in BUILT_IN_ERROR_CODES
- *   - every HTTP-layer named code is observed at least once
+ *   - the HTTP-layer codes a simple request can reach are observed
+ *   - the numeric bound codes carry their documented params
  *
- * Adding a new keyword or HTTP-layer wrapper should force a PR update
- * here; otherwise the `BuiltInErrorParams` contract silently drifts.
+ * The check covers only what the corpus reaches: a keyword that no
+ * fixture fails can emit an undocumented code without failing here.
+ * Adding a keyword or an HTTP-layer wrapper means adding a failing
+ * fixture for it.
  */
 
 function collectCodes(err: ValidationError | null): Set<string> {
@@ -553,5 +557,81 @@ describe("self-locating message contract (SELF_LOCATING_ERROR_CODES)", () => {
     for (const code of codes) {
       expect(SELF_LOCATING_ERROR_CODES).not.toContain(code);
     }
+  });
+});
+
+describe("numeric bound codes through createValidator (#1199)", () => {
+  function boundsSpec(
+    openapi: "3.0.3" | "3.1.0",
+    props: Record<string, SchemaOrBoolean>,
+  ): OpenAPIDocument {
+    return {
+      openapi,
+      info: { title: "bounds", version: "1" },
+      paths: {
+        "/n": {
+          post: {
+            requestBody: {
+              content: { "application/json": { schema: { type: "object", properties: props } } },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+  }
+
+  function leaves(v: ReturnType<typeof createValidator>, body: unknown): ValidationError[] {
+    const out: ValidationError[] = [];
+    const err = v.validateRequest({
+      method: "POST",
+      path: "/n",
+      contentType: "application/json",
+      body,
+    });
+    if (err !== null) {
+      walkErrors(err, (e) => {
+        if (e.children.length === 0) out.push(e);
+      });
+    }
+    return out;
+  }
+
+  it("documents and shapes every 2020-12 bound failure", () => {
+    const v = createValidator(
+      boundsSpec("3.1.0", {
+        lo: { minimum: 5 },
+        hi: { maximum: 5 },
+        xlo: { exclusiveMinimum: 5 },
+        xhi: { exclusiveMaximum: 5 },
+      }),
+    );
+    const got = leaves(v, { lo: 4, hi: 6, xlo: 5, xhi: 5 });
+    expect(got.map((e) => [e.path.at(-1), e.code, e.params])).toEqual([
+      ["lo", "minimum", { minimum: 5, exclusive: false, actual: 4 }],
+      ["hi", "maximum", { maximum: 5, exclusive: false, actual: 6 }],
+      ["xlo", "exclusiveMinimum", { exclusiveMinimum: 5, actual: 5 }],
+      ["xhi", "exclusiveMaximum", { exclusiveMaximum: 5, actual: 5 }],
+    ]);
+    for (const e of got) expect(BUILT_IN_ERROR_CODES).toContain(e.code);
+  });
+
+  it("documents and shapes every OAS 3.0 bound failure", () => {
+    const v = createValidator(
+      boundsSpec("3.0.3", {
+        lo: { type: "number", minimum: 5 },
+        hi: { type: "number", maximum: 5, exclusiveMaximum: false },
+        xlo: { type: "number", minimum: 5, exclusiveMinimum: true },
+        xhi: { type: "number", maximum: 5, exclusiveMaximum: true },
+      }),
+    );
+    const got = leaves(v, { lo: 4, hi: 6, xlo: 5, xhi: 5 });
+    expect(got.map((e) => [e.path.at(-1), e.code, e.params])).toEqual([
+      ["lo", "minimum", { minimum: 5, exclusive: false, actual: 4 }],
+      ["hi", "maximum", { maximum: 5, exclusive: false, actual: 6 }],
+      ["xlo", "minimum", { minimum: 5, exclusive: true, actual: 5 }],
+      ["xhi", "maximum", { maximum: 5, exclusive: true, actual: 5 }],
+    ]);
+    for (const e of got) expect(BUILT_IN_ERROR_CODES).toContain(e.code);
   });
 });

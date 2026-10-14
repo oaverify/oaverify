@@ -103,6 +103,8 @@ export const CONFORMANCE_CODES = [
   "enum",
   "minimum",
   "maximum",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
   "multipleOf",
   "minLength",
   "maxLength",

@@ -1,7 +1,12 @@
 import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
-import { formatSummary, formatText, toProblemDetails } from "@oaverify/internal-core";
+import {
+  BUILT_IN_ERROR_CODES,
+  formatSummary,
+  formatText,
+  toProblemDetails,
+} from "@oaverify/internal-core";
 import type { SchemaOrBoolean } from "@oaverify/internal-core";
 import { createStreamValidator, type SchemaViolation, toValidationError } from "../src/index.js";
 
@@ -84,5 +89,27 @@ describe("toValidationError", () => {
     expect(pd.status).toBe(400);
     expect(pd.issues[0]!.code).toBe("type");
     expect(pd.issues[0]!.params).toMatchObject({ byteOffset: expect.any(Number) });
+  });
+});
+
+describe("numeric bound codes (#1199)", () => {
+  it("names every bound failure with a documented code", async () => {
+    const schema = {
+      type: "object",
+      properties: {
+        lo: { minimum: 5 },
+        hi: { maximum: 5 },
+        xlo: { exclusiveMinimum: 5 },
+        xhi: { exclusiveMaximum: 5 },
+      },
+    };
+    const seen = await violationsOf(schema, { lo: 4, hi: 6, xlo: 5, xhi: 5 });
+    expect(seen.map((v) => [v.path, v.code])).toEqual([
+      [["lo"], "minimum"],
+      [["hi"], "maximum"],
+      [["xlo"], "exclusiveMinimum"],
+      [["xhi"], "exclusiveMaximum"],
+    ]);
+    for (const v of seen) expect(BUILT_IN_ERROR_CODES).toContain(v.code);
   });
 });

@@ -56,10 +56,24 @@ export interface BuiltInErrorParams {
   const: { expected: unknown; actual: unknown };
   /** `enum` mismatch. */
   enum: { allowed: unknown[]; actual: unknown };
-  /** `minimum` (optionally exclusive) violation. */
+  /**
+   * `minimum` violation. `exclusive` is `true` only for the OpenAPI 3.0
+   * form, where a boolean `exclusiveMinimum: true` sibling makes the
+   * bound exclusive; a 2020-12 exclusive bound reports
+   * `exclusiveMinimum` instead.
+   */
   minimum: { minimum: number; exclusive: boolean; actual: number };
-  /** `maximum` (optionally exclusive) violation. */
+  /**
+   * `maximum` violation. `exclusive` is `true` only for the OpenAPI 3.0
+   * form, where a boolean `exclusiveMaximum: true` sibling makes the
+   * bound exclusive; a 2020-12 exclusive bound reports
+   * `exclusiveMaximum` instead.
+   */
   maximum: { maximum: number; exclusive: boolean; actual: number };
+  /** 2020-12 numeric `exclusiveMinimum` violation: data must be greater. */
+  exclusiveMinimum: { exclusiveMinimum: number; actual: number };
+  /** 2020-12 numeric `exclusiveMaximum` violation: data must be less. */
+  exclusiveMaximum: { exclusiveMaximum: number; actual: number };
   /** `multipleOf` violation. */
   multipleOf: { multipleOf: number; actual: number };
   /** `minLength` violation. Length counted in code points. */
@@ -231,8 +245,9 @@ export type ErrorParams<Code extends string> = Code extends keyof BuiltInErrorPa
 /**
  * Runtime-visible list of every named code documented in
  * {@link BuiltInErrorParams}. Kept in-file alongside the interface so
- * the two drift together under review; cross-check tests assert that
- * the compiler / validator never emit a code outside this list.
+ * the two drift together under review. Cross-check tests assert that
+ * the codes a fixture corpus reaches are in this list; a code no
+ * fixture reaches is checked by review alone.
  *
  * @public
  */
@@ -244,6 +259,8 @@ export const BUILT_IN_ERROR_CODES = [
   "enum",
   "minimum",
   "maximum",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
   "multipleOf",
   "minLength",
   "maxLength",
