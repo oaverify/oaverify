@@ -91,6 +91,10 @@ export { joinsFieldLines } from "./deserialize.js";
 
 export { checkDocumentExamplesInContext } from "./example-check.js";
 
+// The body projection's opaque-binary rule, so compile-spec's
+// unknown-format scan skips what the projection removes (#1239).
+export { isBinaryStringSchema } from "./body-schema-transform.js";
+
 // The HTTP body projection (readOnly/writeOnly by direction, opaque
 // binary properties), so the AOT emitter compiles bodies the way
 // `createValidator` does.

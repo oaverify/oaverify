@@ -1126,8 +1126,7 @@ describe("compile-spec: body readOnly/writeOnly projection (#1145)", () => {
   };
 
   async function both() {
-    // compile-spec refuses `format: binary` as an unknown format unless told not to.
-    return [createValidator(spec), await buildAot(spec, { unknownFormats: "ignore" })] as const;
+    return [createValidator(spec), await buildAot(spec)] as const;
   }
   const request = (path: string, body: unknown) => ({
     method: "POST",
@@ -2930,5 +2929,145 @@ describe("compile-spec: a simple header array given as field lines", () => {
     expect(flatErrors(runtime.validateRequest(req) as AotResult)).toEqual([]);
     expect(flatErrors(aot.validateResponse(req, res))).toEqual([]);
     expect(flatErrors(runtime.validateResponse(req, res) as AotResult)).toEqual([]);
+  });
+});
+
+describe("compile-spec: format binary in bodies", () => {
+  const upload = { type: "object", properties: { file: { type: "string", format: "binary" } } };
+  const doc = (extra: {
+    schema?: unknown;
+    parameters?: unknown[];
+    headers?: unknown;
+    components?: unknown;
+  }) =>
+    ({
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      ...(extra.components === undefined ? {} : { components: extra.components }),
+      paths: {
+        "/u": {
+          post: {
+            ...(extra.parameters === undefined ? {} : { parameters: extra.parameters }),
+            requestBody: {
+              content: { "multipart/form-data": { schema: extra.schema ?? upload } },
+            },
+            responses: {
+              "200": {
+                description: "ok",
+                ...(extra.headers === undefined ? {} : { headers: extra.headers }),
+              },
+            },
+          },
+        },
+      },
+    }) as unknown as OpenAPIDocument;
+  const refuses = (document: OpenAPIDocument) => () => emitSpec(document);
+
+  it("compiles a file upload by default, inline or through a $ref (#1239)", async () => {
+    expect(() => emitSpec(doc({}))).not.toThrow();
+    const viaRef = doc({
+      schema: { $ref: "#/components/schemas/Upload" },
+      components: { schemas: { Upload: upload } },
+    });
+    expect(() => emitSpec(viaRef)).not.toThrow();
+    const aot = await buildAot(viaRef);
+    const req = {
+      method: "POST",
+      path: "/u",
+      contentType: "multipart/form-data",
+      body: { file: Buffer.from("x") },
+    };
+    expect(flatErrors(aot.validateRequest(req))).toEqual([]);
+  });
+
+  it.each([
+    ["no type", { format: "binary" }],
+    ["a nullable string", { type: ["string", "null"], format: "binary" }],
+  ])("skips a body binary with %s", (_, file) => {
+    expect(() => emitSpec(doc({ schema: { type: "object", properties: { file } } }))).not.toThrow();
+  });
+
+  it("skips a response body binary", () => {
+    const document = doc({}) as unknown as {
+      paths: { "/u": { post: { responses: Record<string, unknown> } } };
+    };
+    document.paths["/u"].post.responses["200"] = {
+      description: "ok",
+      content: { "application/octet-stream": { schema: { type: "string", format: "binary" } } },
+    };
+    expect(() => emitSpec(document as unknown as OpenAPIDocument)).not.toThrow();
+  });
+
+  it("still refuses another unknown format beside a skipped binary", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        file: { type: "string", format: "binary" },
+        n: { type: "string", format: "nope" },
+      },
+    };
+    expect(refuses(doc({ schema }))).toThrow(/format not in the built-in set: "nope"\./);
+  });
+
+  const binary = { type: "string", format: "binary" };
+  it.each([
+    ["a parameter", doc({ parameters: [{ name: "b", in: "query", schema: binary }] })],
+    ["a response header", doc({ headers: { "X-B": { schema: binary } } })],
+    [
+      "a schema a parameter's content shares through a chain",
+      doc({
+        schema: { $ref: "#/components/schemas/Upload" },
+        parameters: [
+          {
+            name: "b",
+            in: "query",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Alias" } } },
+          },
+        ],
+        components: { schemas: { Upload: upload, Alias: { $ref: "#/components/schemas/Upload" } } },
+      }),
+    ],
+    [
+      "a parameter behind a reference to an extension",
+      {
+        ...doc({
+          parameters: [{ $ref: "#/x-param" }],
+          components: { schemas: { Binary: binary } },
+        }),
+        "x-param": { name: "q", in: "query", schema: { $ref: "#/components/schemas/Binary" } },
+      } as unknown as OpenAPIDocument,
+    ],
+    [
+      "a parameter reaching it through $dynamicRef",
+      doc({
+        parameters: [
+          {
+            name: "q",
+            in: "query",
+            content: {
+              "application/json": { schema: { $dynamicRef: "#/components/schemas/Binary" } },
+            },
+          },
+        ],
+        components: { schemas: { Binary: binary } },
+      }),
+    ],
+    [
+      "a schema a body shares with a parameter behind a reference",
+      {
+        ...doc({
+          schema: { $ref: "#/components/schemas/Upload" },
+          parameters: [{ $ref: "#/x-param" }],
+          components: { schemas: { Upload: upload } },
+        }),
+        "x-param": {
+          name: "q",
+          in: "query",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Upload" } } },
+        },
+      } as unknown as OpenAPIDocument,
+    ],
+  ])("still refuses binary where it is compiled: %s", (_, document) => {
+    expect(refuses(document)).toThrow(/format not in the built-in set: "binary"/);
   });
 });
