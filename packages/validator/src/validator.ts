@@ -1679,7 +1679,7 @@ export function createValidator(
           "route",
           [],
           `no route matches ${req.method.toUpperCase()} ${req.path}`,
-          { method: req.method, path: req.path },
+          { method: req.method.toUpperCase(), path: req.path },
         ),
       };
     }
@@ -1690,7 +1690,11 @@ export function createValidator(
           "method",
           [],
           `method ${req.method.toUpperCase()} not allowed on ${match.pathPattern}; allowed: ${match.allowed.join(", ")}`,
-          { method: req.method, pathPattern: match.pathPattern, allowed: match.allowed },
+          {
+            method: req.method.toUpperCase(),
+            pathPattern: match.pathPattern,
+            allowed: match.allowed,
+          },
         ),
       };
     }
@@ -1728,7 +1732,7 @@ export function createValidator(
           [],
           `${req.method.toUpperCase()} ${match.pathPattern}: request validation failed`,
           [securityErr],
-          { method: req.method, pathPattern: match.pathPattern },
+          { method: req.method.toUpperCase(), pathPattern: match.pathPattern },
         );
       }
     }
@@ -1744,7 +1748,7 @@ export function createValidator(
         [],
         `${req.method.toUpperCase()} ${match.pathPattern}: request validation failed`,
         [bodyMediaTypeOrErr],
-        { method: req.method, pathPattern: match.pathPattern },
+        { method: req.method.toUpperCase(), pathPattern: match.pathPattern },
       );
     }
 
@@ -1784,7 +1788,7 @@ export function createValidator(
       [],
       `${req.method.toUpperCase()} ${match.pathPattern}: request validation failed`,
       children,
-      { method: req.method, pathPattern: match.pathPattern },
+      { method: req.method.toUpperCase(), pathPattern: match.pathPattern },
     );
   };
 

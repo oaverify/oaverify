@@ -3589,3 +3589,71 @@ describe("compile-spec: unknown formats under x-oaverify-externals (#1242)", () 
     expect(() => emitSpec(known)).not.toThrow();
   });
 });
+
+describe("compile-spec: method params are uppercase on both engines (#1241)", () => {
+  const doc: OpenAPIDocument = {
+    openapi: "3.2.0",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/q": {
+        get: {
+          parameters: [{ name: "n", in: "query", required: true, schema: { type: "integer" } }],
+          responses: { "200": { description: "ok" } },
+        },
+        query: {
+          parameters: [{ name: "n", in: "query", required: true, schema: { type: "integer" } }],
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+  };
+  type Node = { code: string; params: Record<string, unknown>; children?: Node[] };
+  const nodes = (r: AotResult): Node[] => {
+    if (typeof r === "boolean" || r.valid) return [];
+    const out: Node[] = [];
+    const walk = (e: Node) => {
+      out.push(e);
+      for (const c of e.children ?? []) walk(c);
+    };
+    for (const e of (r.errors ?? [r.error]) as unknown as Node[]) walk(e);
+    return out.filter((e) => ["route", "method", "request"].includes(e.code));
+  };
+
+  for (const outputMode of ["tree", "flat"] as const) {
+    it(`agrees on route, method and request params (${outputMode})`, async () => {
+      const runtime = createValidator(doc, {
+        output: outputMode,
+        maxErrors: Number.POSITIVE_INFINITY,
+      });
+      const aot = await buildAot(doc, { outputMode, maxErrors: Number.POSITIVE_INFINITY });
+      for (const [method, path, query, code, upper] of [
+        ["get", "/q", { n: "x" }, "request", "GET"],
+        ["Get", "/q", { n: "x" }, "request", "GET"],
+        ["GET", "/q", { n: "x" }, "request", "GET"],
+        ["get", "/nope", {}, "route", "GET"],
+        ["delete", "/q", {}, "method", "DELETE"],
+        // Nonstandard and 3.2 methods match the router case-insensitively too.
+        ["purge", "/q", {}, "method", "PURGE"],
+        ["Purge", "/q", {}, "method", "PURGE"],
+        ["purge", "/nope", {}, "route", "PURGE"],
+        ["query", "/q", { n: "x" }, "request", "QUERY"],
+        ["Query", "/q", { n: "x" }, "request", "QUERY"],
+      ] as const) {
+        const req: HttpRequest = { method, path, query: query as Record<string, string> };
+        const fromRuntime = nodes(runtime.validateRequest(req) as AotResult);
+        const fromAot = nodes(aot.validateRequest(req));
+        // Flat output carries leaves only, so a request failure has no node.
+        const expected = outputMode === "flat" && code === "request" ? [] : [code];
+        expect(
+          fromRuntime.map((e) => e.code),
+          `${method} ${path}`,
+        ).toEqual(expected);
+        expect(
+          fromAot.map((e) => e.params),
+          `${method} ${path}`,
+        ).toEqual(fromRuntime.map((e) => e.params));
+        for (const e of fromRuntime) expect(e.params.method).toBe(upper);
+      }
+    });
+  }
+});
