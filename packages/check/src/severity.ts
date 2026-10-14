@@ -53,15 +53,17 @@ export const DEFAULT_SEVERITY: Readonly<Record<CheckClass, CheckSeverity>> = {
 /**
  * Hygiene codes that are specification violations rather than
  * housekeeping. OpenAPI requires every path-template placeholder to have
- * a matching parameter declaration, and a path template is a URI path,
- * so a percent escape in one has to decode; these are not a matter of
- * taste. The rest of the hygiene codes (unused components, tags,
- * `$defs`) name things that are legal and merely dead.
+ * a matching parameter declaration, forbids a parameter list repeating a
+ * name and location, and makes a path template a URI path, so a percent
+ * escape in one has to decode; these are not a matter of taste. The rest
+ * of the hygiene codes (unused components, tags, `$defs`) name things
+ * that are legal and merely dead.
  */
 export const HYGIENE_ERRORS: ReadonlySet<string> = new Set([
   "path-param-undeclared",
   "path-param-unused",
   "path-template-malformed",
+  "duplicate-parameter",
 ] satisfies SpecHygieneIssue["code"][]);
 
 /**

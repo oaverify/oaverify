@@ -2,6 +2,7 @@ import type { HoistedSchemaCopies } from "./schema-copies.js";
 import {
   detectOpenAPIVersion,
   followsRef,
+  pointerFromRefFragment,
   refPositionFor,
   type RefNodeKind,
   escapePointerSegment,
@@ -46,6 +47,9 @@ export interface SpecHygieneIssue {
    *   trailing `%`). The router keeps such a segment in its raw form, so
    *   the route only matches a request path that repeats the same broken
    *   escape.
+   * - `"duplicate-parameter"`: a `parameters` list declaring the same
+   *   `name` and `in` twice, which OpenAPI forbids. An operation-level
+   *   parameter overriding a path-level one is legal and not reported.
    */
   code:
     | "unused-component"
@@ -53,7 +57,8 @@ export interface SpecHygieneIssue {
     | "unreachable-defs"
     | "path-param-undeclared"
     | "path-param-unused"
-    | "path-template-malformed";
+    | "path-template-malformed"
+    | "duplicate-parameter";
   /** RFC 6901 JSON Pointer to the offending node in the resolved document. */
   pointer: string;
   /** Human-readable explanation. */
@@ -129,7 +134,7 @@ const PLACEHOLDER_RE = /^\{[^{}]+\}$/;
  * reached under only one interpretation is omitted. The resolver's own
  * bookkeeping keys are skipped.
  *
- * The five checks:
+ * The checks:
  *
  * - **unused-component**: components defined but not reached from any
  *   operation, security requirement, or `discriminator.mapping`.
@@ -143,6 +148,9 @@ const PLACEHOLDER_RE = /^\{[^{}]+\}$/;
  * - **path-template-malformed**: a path template whose literal text
  *   carries a percent escape that does not decode, leaving the route
  *   matchable only by a request repeating the same broken escape.
+ * - **duplicate-parameter**: a Path Item or Operation `parameters` list
+ *   repeating a `name` and `in` pair, in every Path Item the document
+ *   defines (callbacks, webhooks and `components.pathItems` included).
  *
  * @param document - The resolved document to grade.
  * @param options - What the document alone cannot say. See
@@ -162,6 +170,7 @@ export function lintResolvedSpec(
   issues.push(...findUnreachableDefs(document, options.hoistedSchemaCopies ?? []));
   issues.push(...findPathParamMismatches(document));
   issues.push(...findMalformedPathTemplates(document));
+  issues.push(...findDuplicateParameters(document));
   return issues;
 }
 
@@ -905,6 +914,165 @@ function resolveParamRef(ref: ReferenceObject, document: OpenAPIDocument): Param
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// duplicate-parameter
+// ---------------------------------------------------------------------------
+
+/**
+ * Parameter lists repeating a `name` and `in` pair. Each list is judged
+ * on its own, so a path-level parameter that an operation redeclares is
+ * the override OpenAPI allows. Names compare exactly: the specification
+ * makes them case-sensitive, and the validator keys its merge the same
+ * way. The repeat is reported at its own index, so a list repeating one
+ * pair three times gives two findings.
+ */
+function findDuplicateParameters(document: OpenAPIDocument): SpecHygieneIssue[] {
+  const issues: SpecHygieneIssue[] = [];
+  for (const [pointer, item] of definedPathItems(document)) {
+    issues.push(...duplicatesIn(item.parameters, `${pointer}/parameters`, document));
+    for (const [suffix, op] of operationEntries(item)) {
+      issues.push(...duplicatesIn(op.parameters, `${pointer}/${suffix}/parameters`, document));
+    }
+  }
+  return issues;
+}
+
+function duplicatesIn(
+  parameters: unknown,
+  listPointer: string,
+  document: OpenAPIDocument,
+): SpecHygieneIssue[] {
+  // An unreadable list or entry declares nothing; conformance reports its shape.
+  if (!Array.isArray(parameters)) return [];
+  const issues: SpecHygieneIssue[] = [];
+  const firstIndex = new Map<string, number>();
+  for (const [index, entry] of (parameters as unknown[]).entries()) {
+    const param = followLocal(entry, document)?.target;
+    if (!isObject(param)) continue;
+    const { name, in: location } = param;
+    if (typeof name !== "string" || typeof location !== "string") continue;
+    const key = `${location}\0${name}`;
+    const earlier = firstIndex.get(key);
+    if (earlier === undefined) {
+      firstIndex.set(key, index);
+      continue;
+    }
+    issues.push({
+      code: "duplicate-parameter",
+      pointer: `${listPointer}/${index}`,
+      message: `${location} parameter "${name}" is declared again at index ${index} of a list that declares it at index ${earlier}; a parameter list must not repeat a name and location`,
+    });
+  }
+  return issues;
+}
+
+/**
+ * Every Path Item the document defines, with the pointer where it is
+ * written: `paths`, `webhooks`, `components.pathItems`,
+ * `components.callbacks`, the callbacks of every operation reached on
+ * the way, and the target of every local Path Item or Callback `$ref`
+ * among them, wherever it is written. Each object is yielded once, at
+ * the pointer it is first reached by; a `$ref` target outside the named
+ * containers is reached last, at its own pointer. Keys written beside a
+ * `$ref` are yielded with the referring object.
+ *
+ * A definition that resolution inlined from another file is a separate
+ * object at each use site, so it is yielded once per copy and a defect
+ * in it is reported at each. `duplicate-operation-id` alone reads the
+ * resolution regions to treat the copies as one.
+ */
+function* definedPathItems(
+  document: OpenAPIDocument,
+): Generator<[string, Record<string, unknown>]> {
+  const doc = document as unknown as Record<string, unknown>;
+  const components = isObject(doc.components) ? doc.components : {};
+  const seen = new Set<object>();
+  const pending: ["item" | "callback", string, unknown][] = [];
+  const follow = (ref: object, kind: "item" | "callback"): void => {
+    const resolved = followLocal(ref, document);
+    if (resolved?.pointer !== undefined) pending.push([kind, resolved.pointer, resolved.target]);
+  };
+
+  function* pathItem(item: unknown, pointer: string): Generator<[string, Record<string, unknown>]> {
+    if (!isObject(item) || seen.has(item)) return;
+    seen.add(item);
+    yield [pointer, item];
+    if (isReference(item)) follow(item, "item");
+    for (const [suffix, op] of operationEntries(item)) {
+      if (!isObject(op.callbacks)) continue;
+      for (const [name, cb] of Object.entries(op.callbacks)) {
+        yield* callback(cb, `${pointer}/${suffix}/callbacks/${escapePointerSegment(name)}`);
+      }
+    }
+  }
+
+  function* callback(
+    value: unknown,
+    pointer: string,
+  ): Generator<[string, Record<string, unknown>]> {
+    if (!isObject(value) || seen.has(value)) return;
+    seen.add(value);
+    if (isReference(value)) {
+      follow(value, "callback");
+      return;
+    }
+    for (const [expression, item] of Object.entries(value)) {
+      if (expression.startsWith("x-")) continue;
+      yield* pathItem(item, `${pointer}/${escapePointerSegment(expression)}`);
+    }
+  }
+
+  for (const [container, at] of [
+    [doc.paths, "/paths"],
+    [doc.webhooks, "/webhooks"],
+    [components.pathItems, "/components/pathItems"],
+  ] as const) {
+    if (!isObject(container)) continue;
+    for (const [name, item] of Object.entries(container)) {
+      // `webhooks` and `components.pathItems` are maps of names, where
+      // any key is an entry; under `paths` an `x-` key is an extension.
+      if (at === "/paths" && name.startsWith("x-")) continue;
+      yield* pathItem(item, `${at}/${escapePointerSegment(name)}`);
+    }
+  }
+  if (isObject(components.callbacks)) {
+    for (const [name, cb] of Object.entries(components.callbacks)) {
+      yield* callback(cb, `/components/callbacks/${escapePointerSegment(name)}`);
+    }
+  }
+  for (let next = pending.shift(); next !== undefined; next = pending.shift()) {
+    const [kind, pointer, target] = next;
+    yield* kind === "item" ? pathItem(target, pointer) : callback(target, pointer);
+  }
+}
+
+/**
+ * The value a local `$ref` chain ends at, with the pointer of its last
+ * hop, or the value itself when it is not a reference. `undefined` when
+ * a hop is not a local pointer, does not resolve, or the chain runs past
+ * 32 hops. Conformance and the resolver report those.
+ */
+function followLocal(
+  value: unknown,
+  document: OpenAPIDocument,
+): { target: unknown; pointer?: string } | undefined {
+  let current = value;
+  let pointer: string | undefined;
+  for (let hops = 0; hops <= 32; hops++) {
+    if (!isReference(current))
+      return pointer === undefined ? { target: current } : { target: current, pointer };
+    const next = pointerFromRefFragment(current.$ref);
+    if (next === undefined || hops === 32) return undefined;
+    try {
+      current = resolveJsonPointer(document, next);
+    } catch {
+      return undefined;
+    }
+    pointer = next;
+  }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
