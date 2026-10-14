@@ -158,9 +158,11 @@ Objects) are inlined. Resolving an already-resolved document is a no-op.
 
 A cycle among **non-schema** objects has no components section to be
 hoisted into, so it is materialised under the root extension field
-`x-oaverify-externals`, keyed by encoded source URI. OpenAPI allows `x-`
-fields on the root object and allows nothing else there, so resolved
-output stays conformant. Schema cycles, which is what a recursive schema
+`x-oaverify-externals`, keyed by encoded source URI. Each referenced
+object lands at its own pointer within that key, so its own references
+keep naming the document it was written in, and the rest of that file is
+not copied. OpenAPI allows `x-` fields on the root object and allows
+nothing else there, so resolved output stays conformant. Schema cycles, which is what a recursive schema
 in its own file produces and by far the common case, get an ordinary
 `components.schemas` address instead.
 

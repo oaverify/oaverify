@@ -23,6 +23,7 @@ import {
   entryIdentity,
   existingSchemaNames,
   EXTERNALS_FIELD,
+  fragmentTokens,
   hoistedRef,
   HoistNames,
   makeStitchRef,
@@ -31,6 +32,7 @@ import {
   removeComponentSchema,
   mergeStitchedExternals,
   type Mutable,
+  StitchedExternals,
   noteReferrer,
   ResolutionTrail,
   type ReferrerTrail,
@@ -38,6 +40,7 @@ import {
   resolveSchemaJsonPointer,
   rewriteInternalRefTarget,
   setSpecKey,
+  type StitchTarget,
   targetKey,
   wrapReadError,
   wrapFragmentError,
@@ -422,9 +425,13 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
   const refSuppressesSiblings = version === "3.0";
 
   const visiting = new Set<string>();
-  // Keyed by URI, valued by the kind of node the reference sat at, so a
-  // stitched document is walked as the object it actually is.
-  const stitchQueue = new Map<string, RefNodeKind>();
+  // Referenced fragments of external documents to stitch, keyed by URI and
+  // fragment, each with the kind of object its reference expects, so the
+  // fragment is walked as the object it actually is.
+  const stitchQueue = new Map<string, StitchTarget>();
+  const queueStitch = (uri: string, fragment: string, kind: RefNodeKind): void => {
+    stitchQueue.set(cycleKey(uri, fragment), { uri, fragment, kind });
+  };
 
   // Schema targets get a `components.schemas` name and a single hoisted
   // copy; every `$ref` to them becomes an internal ref to that name.
@@ -634,11 +641,12 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
       const stitchRef = makeStitchRef(targetUri, fragment);
       if (stitchingUri !== null && stitchingUri === targetUri) {
         noteVia(stitchVia, targetUri);
+        queueStitch(targetUri, fragment, pos.kind);
         return stitchRef;
       }
       if (visiting.has(cycleKey(targetUri, fragment))) {
         noteVia(stitchVia, targetUri);
-        stitchQueue.set(targetUri, pos.kind);
+        queueStitch(targetUri, fragment, pos.kind);
         return stitchRef;
       }
       visiting.add(cycleKey(targetUri, fragment));
@@ -726,7 +734,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
     ) {
       const rewritten = rewriteInternalRefTarget(externalSourceUri, ref.slice(1));
       noteVia(stitchVia, externalSourceUri);
-      stitchQueue.set(externalSourceUri, pos.kind);
+      queueStitch(externalSourceUri, ref.slice(1), pos.kind);
       const siblings: Mutable = { $ref: rewritten };
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
@@ -856,62 +864,119 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
   // in the loop, so the `hasOwn` guard above still collapses a repeat
   // instead of walking it a second time.
   const missingHoists = new Set<string>();
-  while (hoistQueue.size > 0) {
-    const key = hoistQueue.values().next().value as string;
-    hoistQueue.delete(key);
-    const target = targets.get(key);
-    if (target === undefined) continue;
-    const name = names.nameFor(target.uri, target.fragment);
-    if (Object.hasOwn(hoisted, name)) continue;
-    // placeholder: claims the slot before walking
-    setSpecKey(hoisted, name, true);
-    let targetDoc = docs.get(target.uri);
-    if (targetDoc === undefined) {
-      targetDoc = await readDoc(target.uri, hoistVia.get(key) ?? []);
-      if (targetDoc === UNREADABLE) {
-        // The use site was rewritten to `#/components/schemas/<name>`
-        // before the target was read, so leaving the slot empty leaves
-        // an internal reference to a component that is not there, which
-        // is the dangling reference the compiler already reports with a
-        // pointer at the use site.
+  const drainHoists = async (): Promise<void> => {
+    while (hoistQueue.size > 0) {
+      const key = hoistQueue.values().next().value as string;
+      hoistQueue.delete(key);
+      const target = targets.get(key);
+      if (target === undefined) continue;
+      const name = names.nameFor(target.uri, target.fragment);
+      if (Object.hasOwn(hoisted, name)) continue;
+      // placeholder: claims the slot before walking
+      setSpecKey(hoisted, name, true);
+      let targetDoc = docs.get(target.uri);
+      if (targetDoc === undefined) {
+        targetDoc = await readDoc(target.uri, hoistVia.get(key) ?? []);
+        if (targetDoc === UNREADABLE) {
+          // The use site was rewritten to `#/components/schemas/<name>`
+          // before the target was read, so leaving the slot empty leaves
+          // an internal reference to a component that is not there, which
+          // is the dangling reference the compiler already reports with a
+          // pointer at the use site.
+          missingHoists.add(name);
+          continue;
+        }
+        docs.set(target.uri, targetDoc);
+      }
+      const content = readFragment(
+        targetDoc,
+        target.uri,
+        target.fragment,
+        hoistVia.get(key) ?? [],
+        true,
+      );
+      if (content === UNREADABLE) {
         missingHoists.add(name);
         continue;
       }
-      docs.set(target.uri, targetDoc);
+      // Hoisting relocates: the target lands under a derived component
+      // name rather than where it was referenced, so the mount names
+      // where it ends up and the chain that found it is read back from
+      // where the reference was.
+      const mounted = trail.enterAt(
+        ["components", "schemas", name],
+        target.uri,
+        pointerFromFragment(target.fragment),
+        hoistVia.get(key) ?? [],
+      );
+      setSpecKey(
+        hoisted,
+        name,
+        await walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS),
+      );
+      trail.leave(mounted, true);
+      hoistedTargets.push({
+        uri: target.uri,
+        pointer: pointerFromFragment(target.fragment),
+        target: `/components/schemas/${escapePointerSegment(name)}`,
+      });
     }
-    const content = readFragment(
-      targetDoc,
-      target.uri,
-      target.fragment,
-      hoistVia.get(key) ?? [],
-      true,
-    );
-    if (content === UNREADABLE) {
-      missingHoists.add(name);
-      continue;
+  };
+
+  // Stitch every referenced fragment of an external document at its own
+  // pointer under the root extension, walked as the object its reference
+  // expects, including one inside another stitched fragment; see
+  // StitchedExternals for how the two are reconciled.
+  const stitched = new StitchedExternals();
+  const drainStitches = async (): Promise<void> => {
+    while (stitchQueue.size > 0) {
+      const [key, { uri, fragment, kind }] = stitchQueue.entries().next().value as [
+        string,
+        StitchTarget,
+      ];
+      stitchQueue.delete(key);
+      const tokens = fragmentTokens(fragment);
+      if (stitched.has(uri, tokens)) continue;
+      sources.add(uri);
+      let targetDoc = docs.get(uri);
+      if (targetDoc === undefined) {
+        targetDoc = await readDoc(uri, stitchVia.get(uri) ?? []);
+        // Same shape as an unread hoist: the references into this
+        // document were rewritten before it was read, so leaving it out
+        // leaves them dangling where they were written.
+        if (targetDoc === UNREADABLE) continue;
+        docs.set(uri, targetDoc);
+      }
+      const content = readFragment(targetDoc, uri, fragment, stitchVia.get(uri) ?? []);
+      if (content === UNREADABLE) continue;
+      // The root extension itself is the resolver's own invention; the
+      // fragments mounted underneath it are not.
+      if (stitched.isEmpty) {
+        trail.synthetic(`/${escapePointerSegment(EXTERNALS_FIELD)}`);
+      }
+      const savedVisiting = new Set(visiting);
+      visiting.clear();
+      const mounted = trail.enterAt(
+        [EXTERNALS_FIELD, uri, ...tokens],
+        uri,
+        pointerFromFragment(fragment),
+        stitchVia.get(uri) ?? [],
+      );
+      const inlined = await walk(content, baseDirOf(uri), uri, uri, posOf(kind, true));
+      trail.leave(mounted, true);
+      visiting.clear();
+      for (const v of savedVisiting) visiting.add(v);
+      stitched.place(uri, tokens, inlined);
     }
-    // Hoisting relocates: the target lands under a derived component
-    // name rather than where it was referenced, so the mount names
-    // where it ends up and the chain that found it is read back from
-    // where the reference was.
-    const mounted = trail.enterAt(
-      ["components", "schemas", name],
-      target.uri,
-      pointerFromFragment(target.fragment),
-      hoistVia.get(key) ?? [],
-    );
-    setSpecKey(
-      hoisted,
-      name,
-      await walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS),
-    );
-    trail.leave(mounted, true);
-    hoistedTargets.push({
-      uri: target.uri,
-      pointer: pointerFromFragment(target.fragment),
-      target: `/components/schemas/${escapePointerSegment(name)}`,
-    });
-  }
+  };
+
+  // Stitched content can claim schemas to hoist, so the two drain until
+  // neither finds more work.
+  do {
+    await drainHoists();
+    await drainStitches();
+  } while (hoistQueue.size > 0 || stitchQueue.size > 0);
+
   for (const name of missingHoists) {
     delete hoisted[name];
     if (boundSlots.has(name)) removeComponentSchema(resolved, name);
@@ -926,40 +991,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
   }
   fixUpDiscriminatorMappings();
   mergeHoistedSchemas(resolved, hoisted);
-
-  if (stitchQueue.size > 0) {
-    // The root extension itself is the resolver's own invention; the
-    // documents mounted underneath it are not.
-    trail.synthetic(`/${escapePointerSegment(EXTERNALS_FIELD)}`);
-    const stitched: Mutable = {};
-    while (stitchQueue.size > 0) {
-      const [uri, kind] = stitchQueue.entries().next().value as [string, RefNodeKind];
-      stitchQueue.delete(uri);
-      if (Object.hasOwn(stitched, uri)) continue;
-      sources.add(uri);
-      let targetDoc = docs.get(uri);
-      if (targetDoc === undefined) {
-        targetDoc = await readDoc(uri, stitchVia.get(uri) ?? []);
-        // Same shape as an unread hoist: the references into this
-        // document were rewritten before it was read, so leaving it out
-        // leaves them dangling where they were written.
-        if (targetDoc === UNREADABLE) continue;
-        docs.set(uri, targetDoc);
-      }
-      const savedVisiting = new Set(visiting);
-      visiting.clear();
-      // The stitched document is whatever object the reference that
-      // reached it expected, so it is walked as that kind rather than
-      // as a fresh document root.
-      const mounted = trail.enterAt([EXTERNALS_FIELD, uri], uri, "", stitchVia.get(uri) ?? []);
-      const inlined = await walk(targetDoc, baseDirOf(uri), uri, uri, posOf(kind, true));
-      trail.leave(mounted, true);
-      visiting.clear();
-      for (const v of savedVisiting) visiting.add(v);
-      setSpecKey(stitched, uri, inlined);
-    }
-    mergeStitchedExternals(resolved, stitched);
-  }
+  if (!stitched.isEmpty) mergeStitchedExternals(resolved, stitched.root);
 
   const inlined = [...inlinedComponents];
   const hoistedSchemaCopies = collectHoistedSchemaCopies(resolved, trail.regions, hoistedTargets);

@@ -411,25 +411,86 @@ describe("stitched non-schema cycles", () => {
     "q.json": { r: { $ref: "./p.json#/get/responses/200" } },
   };
 
-  it("mark the root extension and mount each stitched document under it", async () => {
+  it("mark the root extension and mount each stitched fragment at its pointer", async () => {
     const regions = await regionsOf(docs, "entry.json");
     expect(regions).toContainEqual({ kind: "synthetic", at: "/x-oaverify-externals" });
     expect(sourceOf(regions, "/x-oaverify-externals")).toBeUndefined();
     const stitched = regions.filter(
       (r) => r.kind === "mounted" && r.at.startsWith("/x-oaverify-externals/"),
     );
-    expect(stitched.length).toBeGreaterThan(0);
-    for (const region of stitched) {
-      expect(region).toMatchObject({ pointer: "" });
-    }
+    // The stitch mount; the node inlined inside it is mounted there too.
+    expect(stitched).toContainEqual(
+      expect.objectContaining({
+        at: "/x-oaverify-externals/q.json/r",
+        uri: "q.json",
+        pointer: "/r",
+      }),
+    );
+  });
+
+  it("address the node at a pure reference cycle as the innermost document's", async () => {
+    // Neither file holds an object here, only references to each other,
+    // so the stitched node is the innermost inlined one: p.json's 200.
+    const regions = await regionsOf(docs, "entry.json");
+    expect(sourceOf(regions, "/x-oaverify-externals/q.json/r")).toMatchObject({
+      uri: "p.json",
+      pointer: "/get/responses/200",
+    });
   });
 
   it("address a node inside a stitched document against that document's root", async () => {
-    const regions = await regionsOf(docs, "entry.json");
-    expect(sourceOf(regions, "/x-oaverify-externals/q.json/r")).toMatchObject({
-      uri: "q.json",
-      pointer: "/r",
+    // A Path Item reaches itself through a callback, so the whole file is
+    // stitched; a node in it names that file and its own pointer.
+    const regions = await regionsOf(
+      {
+        "entry.json": { ...openapi, paths: { "/a": { $ref: "./item.json" } } },
+        "item.json": {
+          get: {
+            operationId: "a",
+            ...ok,
+            callbacks: { cb: { "{$url}": { $ref: "./item.json" } } },
+          },
+        },
+      },
+      "entry.json",
+    );
+    expect(sourceOf(regions, "/x-oaverify-externals/item.json/get/operationId")).toMatchObject({
+      uri: "item.json",
+      pointer: "/get/operationId",
     });
+  });
+
+  it("address a node inside a stitched fragment against that document's root", async () => {
+    // The cycle runs through one Path Item of a library file, so only
+    // that fragment is stitched, at its own pointer.
+    const regions = await regionsOf(
+      {
+        "entry.json": { ...openapi, paths: { "/a": { $ref: "./lib.json#/items/A" } } },
+        "lib.json": {
+          items: {
+            A: {
+              get: {
+                operationId: "a",
+                ...ok,
+                callbacks: { cb: { "{$url}": { $ref: "#/items/A" } } },
+              },
+            },
+          },
+        },
+      },
+      "entry.json",
+    );
+    expect(
+      sourceOf(regions, "/x-oaverify-externals/lib.json/items/A/get/operationId"),
+    ).toMatchObject({ uri: "lib.json", pointer: "/items/A/get/operationId" });
+    expect(regions).toContainEqual(
+      expect.objectContaining({
+        kind: "mounted",
+        at: "/x-oaverify-externals/lib.json/items/A",
+        uri: "lib.json",
+        pointer: "/items/A",
+      }),
+    );
   });
 
   it("address the generated stitch reference to the node it replaced", async () => {
