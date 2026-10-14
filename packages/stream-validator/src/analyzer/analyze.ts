@@ -45,6 +45,7 @@ import { classify, type Classification } from "../classifier/index.js";
 import { normalizeOas30 } from "../openapi/index.js";
 import type { StreamValidatorOptions } from "../options.js";
 import { resolveRef as resolveRefLocal } from "../ref-resolve.js";
+import { longestStringCandidate } from "../scalar-equality.js";
 import { tokenByteLimit } from "../tokenizer/limits.js";
 
 // --- Byte model (UTF-8 wire bytes; explicit, documented assumptions) ---
@@ -478,15 +479,23 @@ function effectiveMaxLength(node: SchemaObject): number | undefined {
   return m;
 }
 
-// A forced-buffer scalar island for a `pattern` string (the spine buffers the
-// whole string to test the regex), bounded by the effective `maxLength`, or
-// null when the node carries no `pattern`.
+// A forced-buffer scalar island for a string the spine holds: for `pattern`
+// the whole string (to test the regex), bounded by the effective
+// `maxLength`; for scalar `enum` / `const` without a `pattern`, at most the
+// longest string candidate, past which the spine stops holding it. Null
+// when neither applies, including an `enum` with no string candidate.
 function forcedScalarIsland(
   node: SchemaObject,
   path: string,
   max: number | undefined,
 ): Contribution | null {
-  if (node.pattern === undefined) return null;
+  if (node.pattern === undefined) {
+    if (!("enum" in node) && !("const" in node)) return null;
+    const longest = longestStringCandidate([node]);
+    if (longest < 0) return null;
+    const keyword = "enum" in node ? "enum" : "const";
+    return { kind: "island", path, keyword, intrinsic: longest * BYTES_PER_CHAR + QUOTE_BYTES };
+  }
   return max === undefined
     ? { kind: "island", path, keyword: "pattern", intrinsic: "unbounded", unboundedBy: "maxLength" }
     : { kind: "island", path, keyword: "pattern", intrinsic: max * BYTES_PER_CHAR + QUOTE_BYTES };

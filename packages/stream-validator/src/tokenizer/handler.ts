@@ -77,8 +77,13 @@ export interface JsonEventHandler {
    *   text the handler has received, malformed input included: a sequence
    *   the decoder holds is flushed before an escape as well as before the
    *   closing quote, so the count never leads the delivered text (#886).
+   * @param end - Byte offset just past the last source byte this slice
+   *   consumed: the end of a literal run, one past the byte that
+   *   completes an escape, or the boundary byte for flushed replacement
+   *   text. Unlike `offset`, it is the same kind of position for every
+   *   slice, so a consumer can measure the source span it has held.
    */
-  onStringChunk(chunk: string, offset: number, codePoints: number): void;
+  onStringChunk(chunk: string, offset: number, codePoints: number, end: number): void;
   /**
    * The current value string is complete.
    *

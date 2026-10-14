@@ -514,7 +514,12 @@ export class JsonTokenizer {
       // the ASCII test alone accepts a run that a held character prefixes.
       this.strCodePoints +=
         !nonAscii && text.length === i - start ? text.length : countCodePoints(text);
-      if (text.length > 0) this.emitStringText(text, this.pos(start));
+      // The slice ends where its text does: bytes of a character the decoder
+      // still holds at the chunk end are not part of it yet.
+      if (text.length > 0) {
+        const held = atChunkEnd ? heldUtf8Prefix(chunk, start, i) : 0;
+        this.emitStringText(text, this.pos(start), this.pos(i) - held);
+      }
     }
     if (i >= n || this.disposed) return i;
     const b = chunk[i] as number;
@@ -586,7 +591,7 @@ export class JsonTokenizer {
     // Flushed text separates a `\uXXXX` high surrogate from any later
     // low one, exactly as a literal run does.
     this.pendingHighSurrogate = false;
-    this.emitStringText(tail, offset);
+    this.emitStringText(tail, offset, offset);
   }
 
   private flushStrict(): string {
@@ -599,12 +604,12 @@ export class JsonTokenizer {
     }
   }
 
-  private emitStringText(text: string, offset: number): void {
+  private emitStringText(text: string, offset: number, end: number): void {
     if (this.stringIsKey) this.keyBuf += text;
     // `strCodePoints` counts exactly what has been emitted: the literal
     // scan counts the decoded run, and both escape paths increment before
     // emitting.
-    else this.handler.onStringChunk(text, offset, this.strCodePoints);
+    else this.handler.onStringChunk(text, offset, this.strCodePoints, end);
   }
 
   private stepStringEscape(chunk: Uint8Array, i: number): number {
@@ -646,7 +651,7 @@ export class JsonTokenizer {
     // Two-char escape: one code point, breaks any pending surrogate.
     this.strCodePoints++;
     this.pendingHighSurrogate = false;
-    this.emitStringText(ch, this.pos(i));
+    this.emitStringText(ch, this.pos(i), this.pos(i) + 1);
     this.state = ST_IN_STRING;
     return i + 1;
   }
@@ -669,7 +674,7 @@ export class JsonTokenizer {
       this.pendingHighSurrogate = isHigh;
     }
     // Append the code unit (lone surrogates accepted, matching JSON.parse).
-    this.emitStringText(String.fromCharCode(unit), this.pos(i));
+    this.emitStringText(String.fromCharCode(unit), this.pos(i), this.pos(i) + 1);
     this.state = ST_IN_STRING;
     return i + 1;
   }
@@ -793,3 +798,37 @@ export class JsonTokenizer {
 // leading zeros, an optional fraction, an optional exponent. Rejects the
 // forms JSON.parse rejects (`01`, `1.`, `.5`, `1e`, `+1`).
 const NUMBER_RE = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/;
+
+/**
+ * Length of the incomplete UTF-8 sequence ending `bytes[start, end)` that a
+ * streaming decoder holds for the next write: a lead byte and the valid
+ * continuation bytes after it, short of the sequence's width. 0 when the
+ * run ends on a complete character or on bytes no decoder would hold.
+ * Second-byte ranges follow the WHATWG UTF-8 decoder, so an overlong or
+ * surrogate prefix (already replaced) is not counted as held.
+ */
+function heldUtf8Prefix(bytes: Uint8Array, start: number, end: number): number {
+  for (let i = end - 1; i >= Math.max(start, end - 3); i--) {
+    const lead = bytes[i] as number;
+    if (lead < 0x80) return 0;
+    if (lead < 0xc0) continue;
+    const width =
+      lead >= 0xc2 && lead <= 0xdf
+        ? 2
+        : lead >= 0xe0 && lead <= 0xef
+          ? 3
+          : lead >= 0xf0 && lead <= 0xf4
+            ? 4
+            : 0;
+    const length = end - i;
+    if (width === 0 || length >= width) return 0;
+    if (length > 1) {
+      const second = bytes[i + 1] as number;
+      const lo = lead === 0xe0 ? 0xa0 : lead === 0xf0 ? 0x90 : 0x80;
+      const hi = lead === 0xed ? 0x9f : lead === 0xf4 ? 0x8f : 0xbf;
+      if (second < lo || second > hi) return 0;
+    }
+    return length;
+  }
+  return 0;
+}

@@ -239,6 +239,35 @@ describe("streamCheckCommand", () => {
     expect(res.exitCode).toBe(1);
   });
 
+  it("reports a string enum as a bounded buffer that --fail-on-unbounded accepts (#1193)", async () => {
+    const spec = {
+      openapi: "3.1.0",
+      info: { title: "Enum", version: "1" },
+      paths: {
+        "/x": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: { type: "object", properties: { k: { enum: ["on", "off"] } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const { io: cmdIo, stdout } = memoryIo([["spec.json", spec]]);
+    const res = await streamCheckCommand(
+      { ...base, format: "json", failOnUnbounded: true, options: textOpts },
+      cmdIo,
+    );
+    expect(res.exitCode).toBe(0);
+    expect(JSON.parse(stdout.value).operations[0].bodies[0].report.positions).toEqual([
+      { path: "k", classification: "buffer", keyword: "enum", maxBytes: 3 * 4 + 2 },
+    ]);
+  });
+
   it("exits zero with --fail-on-unbounded when every body is bounded", async () => {
     const bounded = {
       openapi: "3.1.0",
