@@ -18,15 +18,25 @@
  * Positions inside a schema come from `core`'s subschema constants, so
  * this cannot drift from what the compiler treats as a subschema either.
  *
- * `$ref` is not followed. A target is visited at its own definition, so
- * following it would report the same defect once per reference. In a
- * resolved document every schema has a definition to be visited at.
+ * A schema `$ref` is not followed. A target is visited at its own
+ * definition, so following it would report the same defect once per
+ * reference. In a resolved document every schema has a definition to be
+ * visited at.
+ *
+ * A `$ref` on a non-schema object (Path Item, Parameter, Header, Response,
+ * Request Body, Media Type, Callback) is followed, because its target may
+ * have no definition the walk otherwise reaches: the resolver stitches a
+ * cycle among external objects under `x-oaverify-externals`, where nothing
+ * names it. The target is visited once, at its own pointer, and only when
+ * nothing reached it directly.
  *
  * @packageDocumentation
  */
 
 import {
   escapePointerSegment,
+  pointerFromRefFragment,
+  resolveJsonPointer,
   type HttpMethod,
   type OpenAPIDocument,
 } from "@oaverify/internal-core";
@@ -125,15 +135,30 @@ export interface DocumentWalkHooks {
  * Walk a resolved OpenAPI document, calling the supplied hooks.
  *
  * Reaches `paths`, `webhooks`, callbacks (on an operation and under
- * `components.callbacks`), and the `schemas` / `parameters` / `headers`
- * / `requestBodies` / `responses` / `pathItems` sections of
- * `components`.
+ * `components.callbacks`), the `schemas` / `parameters` / `headers`
+ * / `requestBodies` / `responses` / `mediaTypes` / `pathItems` sections
+ * of `components`, and then the target of every local non-schema `$ref`
+ * found on the way that none of those reached.
  *
  * @internal
  */
 export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWalkHooks): void {
   const seenSchemas = new Set<unknown>();
   const refSuppressesSiblings = hooks.refSuppressesSiblings ?? false;
+
+  // Non-schema objects visited so far, and the local `$ref` targets to
+  // visit once the named containers are done. A target something visited
+  // directly is skipped; direct visits themselves are not deduplicated.
+  const reached = new Set<object>();
+  const pending: Array<[(value: unknown, pointer: string) => void, string, unknown]> = [];
+  const enter = (
+    value: Record<string, unknown>,
+    visit: (value: unknown, pointer: string) => void,
+  ): void => {
+    reached.add(value);
+    const resolved = followLocal(value, document);
+    if (resolved !== undefined) pending.push([visit, resolved.pointer, resolved.target]);
+  };
 
   const walkSchema = (schema: unknown, pointer: string, isRoot = true): void => {
     if (isRoot) hooks.onSchemaRoot?.(schema, pointer);
@@ -178,6 +203,7 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
 
   const walkMediaType = (mediaType: unknown, pointer: string): void => {
     if (!isObj(mediaType)) return;
+    enter(mediaType, walkMediaType);
     if (mediaType["schema"] !== undefined) walkSchema(mediaType["schema"], `${pointer}/schema`);
     if (mediaType["itemSchema"] !== undefined)
       walkSchema(mediaType["itemSchema"], `${pointer}/itemSchema`);
@@ -194,6 +220,7 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
 
   const walkParameterLike = (param: unknown, pointer: string): void => {
     if (!isObj(param)) return;
+    enter(param, walkParameterLike);
     if (param["schema"] !== undefined) walkSchema(param["schema"], `${pointer}/schema`);
     if (param["content"] !== undefined) walkContent(param["content"], `${pointer}/content`);
     hooks.onParameterLike?.(param, pointer);
@@ -206,6 +233,7 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
 
   const walkResponse = (response: unknown, pointer: string): void => {
     if (!isObj(response)) return;
+    enter(response, walkResponse);
     if (response["content"] !== undefined) walkContent(response["content"], `${pointer}/content`);
     const headers = response["headers"];
     if (isObj(headers)) {
@@ -217,17 +245,22 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
 
   const walkRequestBody = (body: unknown, pointer: string): void => {
     if (!isObj(body)) return;
+    enter(body, walkRequestBody);
     if (body["content"] !== undefined) walkContent(body["content"], `${pointer}/content`);
+  };
+
+  const walkCallback = (callback: unknown, pointer: string): void => {
+    if (!isObj(callback)) return;
+    enter(callback, walkCallback);
+    for (const [expression, item] of Object.entries(callback)) {
+      walkPathItem(item, `${pointer}/${escapePointer(expression)}`);
+    }
   };
 
   const walkCallbacks = (callbacks: unknown, pointer: string): void => {
     if (!isObj(callbacks)) return;
     for (const [name, callback] of Object.entries(callbacks)) {
-      if (!isObj(callback)) continue;
-      const at = `${pointer}/${escapePointer(name)}`;
-      for (const [expression, item] of Object.entries(callback)) {
-        walkPathItem(item, `${at}/${escapePointer(expression)}`);
-      }
+      walkCallback(callback, `${pointer}/${escapePointer(name)}`);
     }
   };
 
@@ -248,6 +281,7 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
 
   const walkPathItem = (item: unknown, pointer: string): void => {
     if (!isObj(item)) return;
+    enter(item, walkPathItem);
     walkParameterList(item["parameters"], `${pointer}/parameters`);
     for (const method of METHODS) {
       if (item[method] !== undefined) walkOperation(item[method], `${pointer}/${method}`);
@@ -271,57 +305,84 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
   }
 
   const components = doc["components"];
-  if (!isObj(components)) return;
-
-  const schemas = components["schemas"];
-  if (isObj(schemas)) {
-    for (const [name, schema] of Object.entries(schemas)) {
-      walkSchema(schema, `/components/schemas/${escapePointer(name)}`);
+  if (isObj(components)) {
+    const schemas = components["schemas"];
+    if (isObj(schemas)) {
+      for (const [name, schema] of Object.entries(schemas)) {
+        walkSchema(schema, `/components/schemas/${escapePointer(name)}`);
+      }
     }
-  }
-  for (const section of ["parameters", "headers"] as const) {
-    const entries = components[section];
-    if (!isObj(entries)) continue;
-    for (const [name, entry] of Object.entries(entries)) {
-      walkParameterLike(entry, `/components/${section}/${escapePointer(name)}`);
+    for (const section of ["parameters", "headers"] as const) {
+      const entries = components[section];
+      if (!isObj(entries)) continue;
+      for (const [name, entry] of Object.entries(entries)) {
+        walkParameterLike(entry, `/components/${section}/${escapePointer(name)}`);
+      }
     }
-  }
-  const requestBodies = components["requestBodies"];
-  if (isObj(requestBodies)) {
-    for (const [name, entry] of Object.entries(requestBodies)) {
-      walkRequestBody(entry, `/components/requestBodies/${escapePointer(name)}`);
+    const requestBodies = components["requestBodies"];
+    if (isObj(requestBodies)) {
+      for (const [name, entry] of Object.entries(requestBodies)) {
+        walkRequestBody(entry, `/components/requestBodies/${escapePointer(name)}`);
+      }
     }
-  }
-  const responses = components["responses"];
-  if (isObj(responses)) {
-    for (const [name, entry] of Object.entries(responses)) {
-      walkResponse(entry, `/components/responses/${escapePointer(name)}`);
+    const responses = components["responses"];
+    if (isObj(responses)) {
+      for (const [name, entry] of Object.entries(responses)) {
+        walkResponse(entry, `/components/responses/${escapePointer(name)}`);
+      }
     }
-  }
-  const mediaTypes = components["mediaTypes"];
-  if (isObj(mediaTypes)) {
-    for (const [name, entry] of Object.entries(mediaTypes)) {
-      walkMediaType(entry, `/components/mediaTypes/${escapePointer(name)}`);
+    const mediaTypes = components["mediaTypes"];
+    if (isObj(mediaTypes)) {
+      for (const [name, entry] of Object.entries(mediaTypes)) {
+        walkMediaType(entry, `/components/mediaTypes/${escapePointer(name)}`);
+      }
     }
-  }
-  const pathItems = components["pathItems"];
-  if (isObj(pathItems)) {
-    for (const [name, entry] of Object.entries(pathItems)) {
-      walkPathItem(entry, `/components/pathItems/${escapePointer(name)}`);
+    const pathItems = components["pathItems"];
+    if (isObj(pathItems)) {
+      for (const [name, entry] of Object.entries(pathItems)) {
+        walkPathItem(entry, `/components/pathItems/${escapePointer(name)}`);
+      }
     }
-  }
-  const callbacks = components["callbacks"];
-  if (isObj(callbacks)) {
-    for (const [name, entry] of Object.entries(callbacks)) {
-      if (!isObj(entry)) continue;
-      for (const [expression, item] of Object.entries(entry)) {
-        walkPathItem(
-          item,
-          `/components/callbacks/${escapePointer(name)}/${escapePointer(expression)}`,
-        );
+    const callbacks = components["callbacks"];
+    if (isObj(callbacks)) {
+      for (const [name, entry] of Object.entries(callbacks)) {
+        walkCallback(entry, `/components/callbacks/${escapePointer(name)}`);
       }
     }
   }
+
+  for (let next = pending.shift(); next !== undefined; next = pending.shift()) {
+    const [visit, pointer, target] = next;
+    if (isObj(target) && !reached.has(target)) visit(target, pointer);
+  }
+}
+
+/**
+ * The value a local `$ref` chain ends at, with the pointer of its last
+ * hop. `undefined` when `value` is not a reference, or when a hop is not
+ * a local pointer, does not resolve, or the chain runs past 32 hops:
+ * conformance and the resolver report those, and the walk skips them.
+ */
+function followLocal(
+  value: Record<string, unknown>,
+  document: OpenAPIDocument,
+): { target: unknown; pointer: string } | undefined {
+  let current: unknown = value;
+  let pointer: string | undefined;
+  for (let hops = 0; hops <= 32; hops++) {
+    if (!isObj(current) || typeof current["$ref"] !== "string") {
+      return pointer === undefined ? undefined : { target: current, pointer };
+    }
+    const next = hops === 32 ? undefined : pointerFromRefFragment(current["$ref"]);
+    if (next === undefined) return undefined;
+    try {
+      current = resolveJsonPointer(document, next);
+    } catch {
+      return undefined;
+    }
+    pointer = next;
+  }
+  return undefined;
 }
 
 /**

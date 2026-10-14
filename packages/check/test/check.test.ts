@@ -1138,3 +1138,62 @@ describe("conformance reports the OAS 3.0 meta-schema's exclusive bound (#1199)"
     );
   });
 });
+
+describe("format-not-validated reaches objects stitched under x-oaverify-externals (#1242)", () => {
+  it("reports a format reached only through a stitched reference", async () => {
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/h": {
+          get: {
+            responses: {
+              "200": {
+                description: "ok",
+                headers: { X: { $ref: "#/x-oaverify-externals/ext.json" } },
+              },
+            },
+          },
+        },
+      },
+      "x-oaverify-externals": { "ext.json": { schema: { type: "string", format: "nope" } } },
+    };
+    const findings = checkSpec(await resolve([["entry.json", doc]])).filter(
+      (f) => f.code === "format-not-validated",
+    );
+    expect(findings.map((f) => f.target?.pointer)).toEqual([
+      "/x-oaverify-externals/ext.json/schema/format",
+    ]);
+  });
+
+  // The resolver inlines the first pass through this cycle under `paths`
+  // and stitches the back-edge, so the walk now also reaches the stitched
+  // copy. The finding must still be reported once, where it is written.
+  it("reports a format inside a resolved cycle once, located in its source file", async () => {
+    const resolved = await resolve([
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "X", version: "1" },
+          paths: { "/a": { $ref: "path-item.json" } },
+        },
+      ],
+      [
+        "path-item.json",
+        {
+          get: {
+            responses: { "200": { $ref: "resp.json" } },
+            callbacks: { onEvent: { $ref: "callback.json" } },
+          },
+        },
+      ],
+      ["callback.json", { "{$request.body#/url}": { $ref: "path-item.json" } }],
+      ["resp.json", { description: "a", headers: { "X-B": { $ref: "header.json" } } }],
+      ["header.json", { schema: { type: "string", format: "nope" } }],
+    ]);
+    const findings = checkSpec(resolved).filter((f) => f.code === "format-not-validated");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.target?.source?.uri).toBe("header.json");
+  });
+});

@@ -16,6 +16,7 @@ import type {
   SchemaOrBoolean,
   ValidationError,
 } from "@oaverify/internal-core";
+import { createMemoryReader, resolveSpec } from "@oaverify/internal-spec";
 import { createValidator } from "@oaverify/internal-validator";
 import { compileSpecCommand } from "../src/commands.js";
 import { emitSpec } from "../src/emit-spec.js";
@@ -3522,4 +3523,69 @@ describe("compile-spec: numeric bound codes and params (#1199)", () => {
       expect(shapes(flatErrors(runtime.validateRequest(req) as AotResult))).toEqual(expected);
     });
   }
+});
+
+describe("compile-spec: unknown formats under x-oaverify-externals (#1242)", () => {
+  // The resolver stitches a cycle among external non-schema objects under
+  // x-oaverify-externals: here Path Item -> Operation -> Callback -> Path
+  // Item, with a response header schema inside the cycle.
+  const cyclic = (format: string) =>
+    createMemoryReader(
+      new Map<string, unknown>([
+        [
+          "main.json",
+          {
+            openapi: "3.1.0",
+            info: { title: "X", version: "1" },
+            paths: { "/a": { $ref: "path-item.json" } },
+          },
+        ],
+        [
+          "path-item.json",
+          {
+            get: {
+              responses: { "200": { $ref: "resp.json" } },
+              callbacks: { onEvent: { $ref: "callback.json" } },
+            },
+          },
+        ],
+        ["callback.json", { "{$request.body#/url}": { $ref: "path-item.json" } }],
+        ["resp.json", { description: "a", headers: { "X-B": { $ref: "header.json" } } }],
+        ["header.json", { schema: { type: "string", format } }],
+      ]),
+    );
+
+  it("refuses the issue's document, as createValidator does", () => {
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/h": {
+          get: {
+            responses: {
+              "200": {
+                description: "ok",
+                headers: { X: { $ref: "#/x-oaverify-externals/ext.json" } },
+              },
+            },
+          },
+        },
+      },
+      "x-oaverify-externals": { "ext.json": { schema: { type: "string", format: "nope" } } },
+    } as unknown as OpenAPIDocument;
+    expect(() => createValidator(doc, { unknownFormats: "error" }).precompile()).toThrow(/"nope"/);
+    expect(() => emitSpec(doc)).toThrow(/format not in the built-in set: "nope"/);
+  });
+
+  it("terminates on a resolved cycle, refusing and compiling as the runtime does", async () => {
+    const unknown = (await resolveSpec({ reader: cyclic("nope"), entry: "main.json" })).document;
+    expect(JSON.stringify(unknown)).toContain('"x-oaverify-externals"');
+    expect(() => createValidator(unknown, { unknownFormats: "error" }).precompile()).toThrow(
+      /"nope"/,
+    );
+    expect(() => emitSpec(unknown)).toThrow(/format not in the built-in set: "nope"/);
+
+    const known = (await resolveSpec({ reader: cyclic("uuid"), entry: "main.json" })).document;
+    expect(() => emitSpec(known)).not.toThrow();
+  });
 });
