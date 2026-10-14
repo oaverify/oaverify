@@ -307,8 +307,11 @@ function materialize(node: SchemaOrBoolean, root: SchemaObject, seen: Set<Schema
     for (const t of types) result = maxSized(result, sizeOfType(node, t, root, next));
   }
 
-  if (typeof node.$ref === "string") {
-    const target = resolveRefLocal(root, node.$ref);
+  // Both references apply to the same value, so each target tightens the
+  // bound. `$dynamicRef` resolves statically, as the spine resolves it.
+  for (const ref of [node.$ref, node.$dynamicRef]) {
+    if (typeof ref !== "string") continue;
+    const target = resolveRefLocal(root, ref);
     if (target !== undefined) result = minSized(result, materialize(target, root, next));
   }
 
@@ -489,16 +492,32 @@ function forcedScalarIsland(
     : { kind: "island", path, keyword: "pattern", intrinsic: max * BYTES_PER_CHAR + QUOTE_BYTES };
 }
 
-/** The schemas applying to the same value through a static reference chain. */
+/**
+ * The schemas applying to the same value: `node` and, recursively, the
+ * targets of its `$ref` and `$dynamicRef`. This mirrors the spine's
+ * `expand` (spine.ts) in order and in multiplicity: the cycle guard holds
+ * reference targets only, so a reference cycle back to `node` collects
+ * it a second time, and the spine then runs each copy's obligations
+ * (a tee among them) concurrently. Collapsing the copies would
+ * under-report that buffering. `$dynamicRef` resolves statically, as the
+ * spine resolves it; resource-scoped rebinding is a separate stream
+ * limitation.
+ */
 function refSchemas(node: SchemaObject, root: SchemaObject): SchemaObject[] {
   const out: SchemaObject[] = [];
-  const seen = new Set<SchemaObject>();
-  let current: SchemaOrBoolean | undefined = node;
-  while (isObjectSchema(current) && !seen.has(current)) {
-    seen.add(current);
-    out.push(current);
-    current = typeof current.$ref === "string" ? resolveRefLocal(root, current.$ref) : undefined;
-  }
+  const expand = (s: SchemaObject, seen?: Set<SchemaObject>): void => {
+    out.push(s);
+    let guard = seen;
+    for (const ref of [s.$ref, s.$dynamicRef]) {
+      if (typeof ref !== "string") continue;
+      const target = resolveRefLocal(root, ref);
+      if (!isObjectSchema(target) || guard?.has(target)) continue;
+      guard ??= new Set<SchemaObject>();
+      guard.add(target);
+      expand(target, guard);
+    }
+  };
+  expand(node);
   return out;
 }
 
@@ -587,7 +606,8 @@ function walk(
  * Token policies (`maxKeyBytes` / `maxNumberBytes`) are validated using the
  * runtime's option rules and leave materialization estimates unchanged.
  *
- * Static `$ref` targets and their siblings both contribute. Bounds split
+ * Static `$ref` and `$dynamicRef` targets and their siblings all contribute;
+ * `$dynamicRef` resolves statically, as the stream engine resolves it. Bounds split
  * across a reference chain can remain conservatively unbounded when their
  * structural intersection is not modeled. Separate ref obligations are
  * summed conservatively because overlapping members can tee concurrently.
