@@ -90,6 +90,7 @@ const KEY_CODES: ReadonlySet<string> = new Set([
   "unreachable-defs",
   "path-template-malformed",
   "unknown-keyword",
+  "security-scheme-undeclared",
 ]);
 
 /**

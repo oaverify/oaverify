@@ -189,6 +189,13 @@ authoring mistakes the structural validation can't catch:
 - `duplicate-parameter`: a Path Item or Operation `parameters` list
   declaring the same `name` and `in` twice. An operation-level parameter
   overriding a path-level one is legal and not reported.
+- `duplicate-operation-id`: two operation definitions sharing an
+  `operationId`. One definition reached from several paths or callbacks
+  is not a duplicate.
+- `security-scheme-undeclared`: a security requirement naming a scheme
+  `components.securitySchemes` does not declare.
+- `server-variable-undeclared`: a `{name}` in a server URL with no entry
+  in that server's `variables`.
 
 ```ts
 const { document, specHygieneIssues } = await loadSpec({ reader, entry, lint: true });
@@ -205,8 +212,12 @@ an external definition may now point at a hoisted copy. Pass the resolver's
 metadata when linting its document directly:
 
 ```ts
-const { document, inlinedComponents, hoistedSchemaCopies } = await resolveSpec({ reader, entry });
-const issues = lintResolvedSpec(document, { inlinedComponents, hoistedSchemaCopies });
+const { document, inlinedComponents, hoistedSchemaCopies, regions } = await resolveSpec({
+  reader,
+  entry,
+  provenance: true,
+});
+const issues = lintResolvedSpec(document, { inlinedComponents, hoistedSchemaCopies, regions });
 ```
 
 `loadSpec` and `resolveSpec` do this for you under `lint: true`, and

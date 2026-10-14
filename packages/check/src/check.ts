@@ -171,12 +171,15 @@ export class CheckAbortedError extends Error {
  * reconstruct which declarations an external reference reached before
  * the resolver redirected it.
  *
- * **Load with `provenance: true` for source attribution.** Without it
- * `ResolvedSpec.regions` is absent, every finding's `target.source` is
- * absent with it, and SARIF output carries no `locations`. That is the
- * same contract `sourceOf` states: a caller distinguishes "no source
- * node corresponds to this" from "no regions were recorded" by whether
- * regions were handed over at all.
+ * **Load with `provenance: true`.** Without it `ResolvedSpec.regions`
+ * is absent, every finding's `target.source` is absent with it, and
+ * SARIF output carries no `locations`. That is the same contract
+ * `sourceOf` states: a caller distinguishes "no source node corresponds
+ * to this" from "no regions were recorded" by whether regions were
+ * handed over at all. The hygiene class also reads the regions to know
+ * which file a node was copied from (see `LintOptions.regions`), so
+ * without them an external operation referenced from two paths is
+ * reported as a duplicate `operationId`.
  *
  * Synchronous, because every pass is. Loading is the only asynchronous
  * part of a `check` run and it belongs to the caller, which is what
@@ -258,6 +261,7 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
       specHygieneIssues = lintResolvedSpec(document, {
         inlinedComponents: resolved.inlinedComponents ?? [],
         hoistedSchemaCopies: resolved.hoistedSchemaCopies ?? [],
+        ...(resolved.regions !== undefined && { regions: resolved.regions }),
       });
     } catch (err) {
       // Held rather than swallowed. If the gate below rejects the

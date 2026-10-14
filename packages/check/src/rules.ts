@@ -67,6 +67,9 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
   "path-param-unused": { title: "a path parameter the path template does not name" },
   "path-template-malformed": { title: "a path template that does not parse" },
   "duplicate-parameter": { title: "a parameter list declaring one name and location twice" },
+  "duplicate-operation-id": { title: "an operationId two operations share" },
+  "security-scheme-undeclared": { title: "a security requirement naming no declared scheme" },
+  "server-variable-undeclared": { title: "a server URL placeholder with no declared variable" },
   "unserved-parameter-location": {
     title: "a parameter location this validator cannot read a value for",
   },

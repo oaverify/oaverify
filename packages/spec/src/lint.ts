@@ -1,4 +1,5 @@
 import type { HoistedSchemaCopies } from "./schema-copies.js";
+import { sourceOf, type SpecRegion } from "./provenance.js";
 import {
   detectOpenAPIVersion,
   followsRef,
@@ -50,6 +51,14 @@ export interface SpecHygieneIssue {
    * - `"duplicate-parameter"`: a `parameters` list declaring the same
    *   `name` and `in` twice, which OpenAPI forbids. An operation-level
    *   parameter overriding a path-level one is legal and not reported.
+   * - `"duplicate-operation-id"`: two Operation Objects carrying the same
+   *   `operationId`, which OpenAPI requires to be unique. One definition
+   *   reached from several places is one operation and is not reported.
+   * - `"security-scheme-undeclared"`: a security requirement naming a
+   *   scheme that `components.securitySchemes` does not declare.
+   * - `"server-variable-undeclared"`: a `{name}` in a server URL that the
+   *   server's `variables` does not declare, which leaves the URL with no
+   *   value to substitute.
    */
   code:
     | "unused-component"
@@ -58,7 +67,10 @@ export interface SpecHygieneIssue {
     | "path-param-undeclared"
     | "path-param-unused"
     | "path-template-malformed"
-    | "duplicate-parameter";
+    | "duplicate-parameter"
+    | "duplicate-operation-id"
+    | "security-scheme-undeclared"
+    | "server-variable-undeclared";
   /** RFC 6901 JSON Pointer to the offending node in the resolved document. */
   pointer: string;
   /** Human-readable explanation. */
@@ -88,6 +100,18 @@ export interface LintOptions {
    * Omit it to grade only references visible in the document.
    */
   hoistedSchemaCopies?: readonly HoistedSchemaCopies[];
+  /**
+   * Pass `regions` returned by the resolver, which it returns under
+   * `provenance: true`. Resolution inlines a copy of an external
+   * non-schema definition at each use site, and the regions say which
+   * file each copy came from. `duplicate-operation-id` reads them to
+   * tell copies of one definition from two definitions, and
+   * `security-scheme-undeclared` to skip an OpenAPI 3.2 `#` name written
+   * in another file. Omit it and copies of one external operation are
+   * reported as duplicates, and such a name is looked up in this
+   * document.
+   */
+  regions?: readonly SpecRegion[];
 }
 
 const COMPONENT_CATEGORIES = [
@@ -151,6 +175,12 @@ const PLACEHOLDER_RE = /^\{[^{}]+\}$/;
  * - **duplicate-parameter**: a Path Item or Operation `parameters` list
  *   repeating a `name` and `in` pair, in every Path Item the document
  *   defines (callbacks, webhooks and `components.pathItems` included).
+ * - **duplicate-operation-id**: two operation definitions sharing an
+ *   `operationId`, across the Path Items `duplicate-parameter` reads.
+ * - **security-scheme-undeclared**: a document- or operation-level
+ *   security requirement naming no declared scheme.
+ * - **server-variable-undeclared**: a server URL placeholder with no
+ *   entry in that server's `variables`, wherever a Server Object occurs.
  *
  * @param document - The resolved document to grade.
  * @param options - What the document alone cannot say. See
@@ -171,6 +201,9 @@ export function lintResolvedSpec(
   issues.push(...findPathParamMismatches(document));
   issues.push(...findMalformedPathTemplates(document));
   issues.push(...findDuplicateParameters(document));
+  issues.push(...findDuplicateOperationIds(document, options.regions));
+  issues.push(...findUndeclaredSecuritySchemes(document, options.regions));
+  issues.push(...findUndeclaredServerVariables(document));
   return issues;
 }
 
@@ -1073,6 +1106,268 @@ function followLocal(
     pointer = next;
   }
   return undefined;
+}
+
+// ---------------------------------------------------------------------------
+// duplicate-operation-id
+// ---------------------------------------------------------------------------
+
+/**
+ * Operation definitions sharing an `operationId`. Each definition counts
+ * once wherever it is reached from: two paths referencing one Path Item,
+ * or two operations referencing one callback, reuse a definition rather
+ * than repeat an id. With `regions`, copies the resolver inlined from
+ * one external definition are recognised as that one definition too.
+ * Ids compare exactly, as the specification makes them case-sensitive.
+ *
+ * @specCites OpenAPI 3.2.0 Operation Object, https://spec.openapis.org/oas/v3.2.0.html#operation-object
+ * @specBoundary resolves https://spec.openapis.org/oas/v3.2.0.html#operation-object
+ * OpenAPI says an `operationId` "MUST be unique among all operations
+ * described in the API" and does not say whether one Operation Object
+ * reached from several places describes one operation or several. This
+ * check counts it as one. Two paths whose Path Item is the same `$ref`
+ * target, such as `/v1/pets` and `/pets` both referencing
+ * `#/components/pathItems/Pets`, expose one `operationId` on two routes
+ * and are not reported. Two Operation Objects written separately with
+ * the same `operationId` are reported, even when their content is
+ * identical.
+ */
+function findDuplicateOperationIds(
+  document: OpenAPIDocument,
+  regions: readonly SpecRegion[] | undefined,
+): SpecHygieneIssue[] {
+  const issues: SpecHygieneIssue[] = [];
+  const firstById = new Map<string, { pointer: string; source: string }>();
+  for (const [itemPointer, item] of definedPathItems(document)) {
+    for (const [suffix, op] of operationEntries(item)) {
+      const id: unknown = op.operationId;
+      if (typeof id !== "string") continue;
+      const pointer = `${itemPointer}/${suffix}/operationId`;
+      const address = regions === undefined ? undefined : sourceOf(regions, pointer);
+      const source = address === undefined ? pointer : `${address.uri}#${address.pointer}`;
+      const first = firstById.get(id);
+      if (first === undefined) {
+        firstById.set(id, { pointer, source });
+        continue;
+      }
+      if (first.source === source) continue;
+      issues.push({
+        code: "duplicate-operation-id",
+        pointer,
+        message: `operationId "${id}" is already used at ${first.pointer}; an operationId must be unique among all operations`,
+      });
+    }
+  }
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// security-scheme-undeclared
+// ---------------------------------------------------------------------------
+
+/**
+ * Security requirements naming a scheme nothing declares. A name matches
+ * an own key of `components.securitySchemes`, whatever that entry holds.
+ *
+ * @specCites OpenAPI 3.2.0 Security Requirement Object, https://spec.openapis.org/oas/v3.2.0.html#security-requirement-object
+ * @specBoundary under-asserts https://spec.openapis.org/oas/v3.2.0.html#security-requirement-object
+ * In an OpenAPI 3.2 document, `check` reports a security requirement
+ * name that is not a component name only when it starts with `#`.
+ * OpenAPI 3.2 lets a requirement name a scheme by URI instead of by
+ * component name, so such a name may be legal. A name starting with `#`
+ * is read as a location in the same document: it is reported when it is
+ * not a JSON Pointer, as in `#key`, or when the pointer reaches nothing,
+ * and accepted when it reaches any object, even one that is not a
+ * Security Scheme. A `#` name written in a separate file that resolution
+ * copied into this document refers to that file, so it is not checked
+ * either. Any other name, such as `./other.yaml#/key` or a bare `key`
+ * matching no component, is not checked, because `check` does not
+ * retrieve the documents a URI names. Earlier OpenAPI versions allow
+ * component names only, and every unmatched name is reported there. The
+ * request validator also reads component names only, so a request to an
+ * operation requiring a scheme named by URI fails its security check.
+ */
+function findUndeclaredSecuritySchemes(
+  document: OpenAPIDocument,
+  regions: readonly SpecRegion[] | undefined,
+): SpecHygieneIssue[] {
+  const issues: SpecHygieneIssue[] = [];
+  const entryUri = regions === undefined ? undefined : sourceOf(regions, "")?.uri;
+  const declared = isObject(document.components?.securitySchemes)
+    ? document.components.securitySchemes
+    : {};
+  const byUri = detectOpenAPIVersion(document) === "3.2";
+  const check = (security: unknown, at: string): void => {
+    if (!Array.isArray(security)) return;
+    for (const [index, requirement] of (security as unknown[]).entries()) {
+      if (!isObject(requirement)) continue;
+      for (const name of Object.keys(requirement)) {
+        if (Object.hasOwn(declared, name)) continue;
+        const pointer = `${at}/security/${index}/${escapePointerSegment(name)}`;
+        if (byUri) {
+          if (!namesNothingHere(name, document)) continue;
+          // A fragment refers to the file it is written in.
+          // Skipped only when another file is known to have written it;
+          // a node without a source, such as one an overlay added, is
+          // read as this document's.
+          const written = regions === undefined ? undefined : sourceOf(regions, pointer)?.uri;
+          if (written !== undefined && written !== entryUri) continue;
+        }
+        issues.push({
+          code: "security-scheme-undeclared",
+          pointer,
+          message: `security requirement names "${name}", which components.securitySchemes does not declare`,
+        });
+      }
+    }
+  };
+  check(document.security, "");
+  for (const [itemPointer, item] of definedPathItems(document)) {
+    for (const [suffix, op] of operationEntries(item)) {
+      check(op.security, `${itemPointer}/${suffix}`);
+    }
+  }
+  return issues;
+}
+
+/**
+ * A 3.2 security requirement name that can be read as naming nothing:
+ * a fragment of this document that does not resolve to an object. A
+ * name of any other form is a URI this check does not retrieve.
+ */
+function namesNothingHere(name: string, document: OpenAPIDocument): boolean {
+  if (!name.startsWith("#")) return false;
+  const pointer = pointerFromRefFragment(name);
+  if (pointer === undefined) return true;
+  try {
+    return !isObject(resolveJsonPointer(document, pointer));
+  } catch {
+    return true;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// server-variable-undeclared
+// ---------------------------------------------------------------------------
+
+/**
+ * Server URL placeholders the server's `variables` does not declare.
+ * Each name is reported once per server, at the `url`. A `variables`
+ * that is not an object is unreadable rather than empty, so that server
+ * is skipped and conformance reports the shape.
+ *
+ * @specCites OpenAPI 3.2.0 Server Object, https://spec.openapis.org/oas/v3.2.0.html#server-object
+ * @specBoundary resolves https://spec.openapis.org/oas/v3.2.0.html#server-object
+ * A server URL such as `https://{region}.example.com` whose server
+ * declares no `region` under `variables` is reported as an error.
+ * OpenAPI says substitutions are made for variables named in braces and
+ * that each Server Variable carries the default to substitute, but no
+ * version states a requirement that every placeholder be declared. The
+ * check reads that as one: an undeclared placeholder has no value, so
+ * the URL cannot be built.
+ */
+function findUndeclaredServerVariables(document: OpenAPIDocument): SpecHygieneIssue[] {
+  const issues: SpecHygieneIssue[] = [];
+  for (const [pointer, server] of definedServers(document)) {
+    const { url, variables } = server;
+    if (typeof url !== "string") continue;
+    if (variables !== undefined && !isObject(variables)) continue;
+    const reported = new Set<string>();
+    for (const match of url.matchAll(PATH_TEMPLATE_RE)) {
+      const name = match[1]!;
+      if (reported.has(name)) continue;
+      if (variables !== undefined && Object.hasOwn(variables, name)) continue;
+      reported.add(name);
+      issues.push({
+        code: "server-variable-undeclared",
+        pointer: `${pointer}/url`,
+        message: `server url "${url}" uses "{${name}}" but the server's variables do not declare "${name}", so it has no value to substitute`,
+      });
+    }
+  }
+  return issues;
+}
+
+/**
+ * Every Server Object the document defines, with the pointer where it is
+ * written: the document's, each Path Item's and each operation's
+ * `servers`, and the `server` of each Link Object, whether written under
+ * a response or in `components.links`. A local `$ref` to a Response or
+ * Link is followed, and the definition is read once, at its own pointer.
+ * Inlined copies are read once each, as in {@link definedPathItems}.
+ */
+function* definedServers(document: OpenAPIDocument): Generator<[string, Record<string, unknown>]> {
+  const seen = new Set<object>();
+  // The definition a possibly-referenced Response or Link stands for,
+  // once per object.
+  const definition = (
+    value: unknown,
+    pointer: string,
+  ): [string, Record<string, unknown>] | undefined => {
+    const resolved = followLocal(value, document);
+    if (resolved === undefined || !isObject(resolved.target) || seen.has(resolved.target)) {
+      return undefined;
+    }
+    seen.add(resolved.target);
+    return [resolved.pointer ?? pointer, resolved.target];
+  };
+  function* linkServer(
+    link: unknown,
+    pointer: string,
+  ): Generator<[string, Record<string, unknown>]> {
+    const found = definition(link, pointer);
+    if (found === undefined || !isObject(found[1].server)) return;
+    yield [`${found[0]}/server`, found[1].server];
+  }
+  function* responseLinkServers(
+    response: unknown,
+    pointer: string,
+  ): Generator<[string, Record<string, unknown>]> {
+    const found = definition(response, pointer);
+    if (found === undefined || !isObject(found[1].links)) return;
+    for (const [name, link] of Object.entries(found[1].links)) {
+      yield* linkServer(link, `${found[0]}/links/${escapePointerSegment(name)}`);
+    }
+  }
+
+  yield* serverList(document.servers, "/servers");
+  for (const [itemPointer, item] of definedPathItems(document)) {
+    yield* serverList(item.servers, `${itemPointer}/servers`);
+    for (const [suffix, op] of operationEntries(item)) {
+      const opPointer = `${itemPointer}/${suffix}`;
+      yield* serverList(op.servers, `${opPointer}/servers`);
+      if (!isObject(op.responses)) continue;
+      for (const [status, response] of Object.entries(op.responses)) {
+        yield* responseLinkServers(
+          response,
+          `${opPointer}/responses/${escapePointerSegment(status)}`,
+        );
+      }
+    }
+  }
+  const components = isObject(document.components)
+    ? (document.components as Record<string, unknown>)
+    : {};
+  if (isObject(components.responses)) {
+    for (const [name, response] of Object.entries(components.responses)) {
+      yield* responseLinkServers(response, `/components/responses/${escapePointerSegment(name)}`);
+    }
+  }
+  if (isObject(components.links)) {
+    for (const [name, link] of Object.entries(components.links)) {
+      yield* linkServer(link, `/components/links/${escapePointerSegment(name)}`);
+    }
+  }
+}
+
+function* serverList(
+  servers: unknown,
+  pointer: string,
+): Generator<[string, Record<string, unknown>]> {
+  if (!Array.isArray(servers)) return;
+  for (const [index, server] of (servers as unknown[]).entries()) {
+    if (isObject(server)) yield [`${pointer}/${index}`, server];
+  }
 }
 
 // ---------------------------------------------------------------------------

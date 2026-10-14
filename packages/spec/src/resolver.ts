@@ -138,6 +138,18 @@ export interface ResolveSpecOptions {
 }
 
 /**
+ * A resolution with the regions its walk recorded. Returned by the
+ * tracked resolver entry points, which the loaders use so their lint can
+ * tell inlined copies apart without requesting `provenance`.
+ *
+ * @internal
+ */
+export interface TrackedResolution {
+  readonly resolved: ResolvedSpec;
+  readonly regions: readonly SpecRegion[];
+}
+
+/**
  * Output of {@link resolveSpec}: the resolved OpenAPI document plus a record
  * of every file that was read to build it, the entry included.
  *
@@ -290,6 +302,16 @@ export interface ResolvedSpec {
  * @public
  */
 export async function resolveSpec(options: ResolveSpecOptions): Promise<ResolvedSpec> {
+  return (await resolveSpecTracked(options)).resolved;
+}
+
+/**
+ * {@link resolveSpec}, also returning the regions the walk recorded whether
+ * or not `provenance` was requested. The loaders lint with them.
+ *
+ * @internal
+ */
+export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<TrackedResolution> {
   const { reader } = options;
   const baseDir = options.baseUri ?? baseDirOf(options.entry);
   const entryUri = entryIdentity(options.entry);
@@ -942,16 +964,23 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
   const inlined = [...inlinedComponents];
   const hoistedSchemaCopies = collectHoistedSchemaCopies(resolved, trail.regions, hoistedTargets);
   const specHygieneIssues = options.lint
-    ? lintResolvedSpec(resolved, { inlinedComponents: inlined, hoistedSchemaCopies })
+    ? lintResolvedSpec(resolved, {
+        inlinedComponents: inlined,
+        hoistedSchemaCopies,
+        regions: trail.regions,
+      })
     : [];
   return {
-    document: resolved,
-    sources: [...sources],
-    specHygieneIssues,
-    inlinedComponents: inlined,
-    hoistedSchemaCopies,
-    ...(options.provenance === true && { regions: trail.regions }),
-    ...(holes !== null && { unresolved: holes.entries() }),
+    resolved: {
+      document: resolved,
+      sources: [...sources],
+      specHygieneIssues,
+      inlinedComponents: inlined,
+      hoistedSchemaCopies,
+      ...(options.provenance === true && { regions: trail.regions }),
+      ...(holes !== null && { unresolved: holes.entries() }),
+    },
+    regions: trail.regions,
   };
 }
 

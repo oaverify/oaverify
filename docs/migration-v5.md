@@ -148,9 +148,9 @@ conformance.
 That changed after 5.0: `check` now has a `conformance` class that
 validates the document against the JSON Schema OpenAPI publishes for the
 version it declares. It is still structural, so it cannot follow
-references, and cross-reference defects (a dangling `$ref`, a duplicate
-`operationId`, an undeclared server variable) remain a reason to pair
-with a linter. See [the strictness guide](./strictness.md#document-conformance).
+references; cross-reference defects such as a duplicate `operationId`
+are `hygiene` findings instead. See
+[the strictness guide](./strictness.md#document-conformance).
 
 ### `stream-check --envelope` is now `--format`
 

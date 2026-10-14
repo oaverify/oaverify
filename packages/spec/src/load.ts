@@ -1,8 +1,8 @@
 import { retainHoistedSchemaCopies } from "./schema-copies.js";
 import { createFileReaderSync, type DocumentReader, type SyncDocumentReader } from "./reader.js";
 import { applyOverlays, type SpecOverlay } from "./overlay.js";
-import { resolveSpec, type ResolvedSpec } from "./resolver.js";
-import { resolveSpecSync } from "./resolver-sync.js";
+import { resolveSpecTracked, type ResolvedSpec } from "./resolver.js";
+import { resolveSpecSyncTracked } from "./resolver-sync.js";
 import { lintResolvedSpec, type LintOptions } from "./lint.js";
 import { withOverlayChanges, type SpecRegion } from "./provenance.js";
 
@@ -74,7 +74,7 @@ export async function loadSpec(options: LoadSpecOptions): Promise<ResolvedSpec> 
   // pass below can change reachability (add or remove operations,
   // components, refs). Defer the lint to after overlays are applied so
   // the findings reflect the document the consumer will actually use.
-  const resolved = await resolveSpec({
+  const { resolved, regions } = await resolveSpecTracked({
     reader: options.reader,
     entry: options.entry,
     ...(options.baseUri !== undefined && { baseUri: options.baseUri }),
@@ -85,7 +85,7 @@ export async function loadSpec(options: LoadSpecOptions): Promise<ResolvedSpec> 
     options.overlays && options.overlays.length > 0
       ? applyOverlays(resolved.document, options.overlays)
       : resolved.document;
-  const lint = lintOptionsFor(resolved, overlaid);
+  const lint = lintOptionsFor(resolved, regions, overlaid);
   const specHygieneIssues = options.lint ? lintResolvedSpec(overlaid, lint) : [];
   return {
     document: overlaid,
@@ -115,9 +115,15 @@ export async function loadSpec(options: LoadSpecOptions): Promise<ResolvedSpec> 
  * Exact schema-copy connections can be checked independently against both
  * documents, so unrelated overlay edits preserve them.
  */
-function lintOptionsFor(resolved: ResolvedSpec, overlaid: unknown): LintOptions {
+function lintOptionsFor(
+  resolved: ResolvedSpec,
+  trailRegions: readonly SpecRegion[],
+  overlaid: unknown,
+): LintOptions {
+  const regions = { regions: afterOverlays(trailRegions, resolved.document, overlaid) };
   if (resolved.document !== overlaid) {
     return {
+      ...regions,
       ...(resolved.hoistedSchemaCopies !== undefined && {
         hoistedSchemaCopies: retainHoistedSchemaCopies(
           resolved.hoistedSchemaCopies,
@@ -130,6 +136,7 @@ function lintOptionsFor(resolved: ResolvedSpec, overlaid: unknown): LintOptions 
   return {
     inlinedComponents: resolved.inlinedComponents ?? [],
     hoistedSchemaCopies: resolved.hoistedSchemaCopies ?? [],
+    ...regions,
   };
 }
 
@@ -231,7 +238,7 @@ export interface LoadSpecSyncOptions {
  */
 export function loadSpecSync(options: LoadSpecSyncOptions): ResolvedSpec {
   const reader = options.reader ?? createFileReaderSync();
-  const resolved = resolveSpecSync({
+  const { resolved, regions } = resolveSpecSyncTracked({
     reader,
     entry: options.entry,
     ...(options.baseUri !== undefined && { baseUri: options.baseUri }),
@@ -242,7 +249,7 @@ export function loadSpecSync(options: LoadSpecSyncOptions): ResolvedSpec {
     options.overlays && options.overlays.length > 0
       ? applyOverlays(resolved.document, options.overlays)
       : resolved.document;
-  const lint = lintOptionsFor(resolved, overlaid);
+  const lint = lintOptionsFor(resolved, regions, overlaid);
   const specHygieneIssues = options.lint ? lintResolvedSpec(overlaid, lint) : [];
   return {
     document: overlaid,
