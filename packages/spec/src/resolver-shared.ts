@@ -342,48 +342,6 @@ function contextForOpenAPIKind(kind: RefNodeKind): PointerContext {
 export const EXTERNALS_FIELD = "x-oaverify-externals";
 
 /**
- * Encode a URI for use as an {@link EXTERNALS_FIELD} key
- * (JSON-pointer-safe). The core escape under the name that says what
- * this call is for; see `escapePointer` in the validator's document
- * walk for why these are one function rather than copies.
- */
-export const encodeUri = escapePointerSegment;
-
-/** Strip a single leading slash from a JSON-pointer fragment. */
-export function encodeFragment(fragment: string): string {
-  return fragment.replace(/^\//, "");
-}
-
-/**
- * The internal `$ref` an external `$ref` collapses to: a pointer into
- * `#/x-oaverify-externals/<encoded-uri>` (plus the encoded fragment, if
- * any). See {@link EXTERNALS_FIELD}.
- */
-export function makeStitchRef(targetUri: string, fragment: string): { $ref: string } {
-  return {
-    $ref: `#/${EXTERNALS_FIELD}/${encodeUri(targetUri)}${fragment ? `/${encodeFragment(fragment)}` : ""}`,
-  };
-}
-
-/**
- * Rewrite an internal `#/...` ref that was found inside an inlined
- * external subtree so it points at that external's stitched location
- * rather than at the root document. `fragmentAfterHash` is the ref
- * minus its leading `#`. Only an empty fragment names the whole document;
- * `/` names its empty-string key, as it does everywhere else.
- */
-export function rewriteInternalRefTarget(
-  externalSourceUri: string,
-  fragmentAfterHash: string,
-): string {
-  const encoded = encodeUri(externalSourceUri);
-  if (fragmentAfterHash === "") {
-    return `#/${EXTERNALS_FIELD}/${encoded}`;
-  }
-  return `#/${EXTERNALS_FIELD}/${encoded}${fragmentAfterHash.startsWith("/") ? fragmentAfterHash : `/${fragmentAfterHash}`}`;
-}
-
-/**
  * Canonical identity of an external target: the URI plus its fragment.
  * Two `$ref`s spelled differently but denoting the same schema share
  * this key, which is what makes hoisting dedupe rather than duplicate.
@@ -820,6 +778,10 @@ export interface StitchTarget {
   readonly uri: string;
   readonly fragment: string;
   readonly kind: RefNodeKind;
+  readonly key: string;
+  /** Tokens below the root extension where this interpretation is stored. */
+  readonly mount: readonly string[];
+  readonly ref: string;
 }
 
 /** The decoded RFC 6901 tokens of a `$ref` fragment; `[]` for the whole document. */
@@ -855,11 +817,9 @@ function setChildAt(container: Mutable | unknown[], key: string, value: unknown)
 }
 
 /**
- * Place a stitched fragment at its tokens under `stitched[uri]`, so the
- * stitch `$ref` that names it resolves to it. Containers already placed
- * (an ancestor's objects and arrays) are descended into, an array by
- * index, so its other entries survive; a missing container is created as
- * a plain object. An empty token list makes the value the whole entry.
+ * Place a fragment at its reserved mount. Reservations keep mounted
+ * values disjoint, so shared containers are only scaffolding. An empty
+ * token list makes the value the whole bucket.
  */
 function placeStitched(
   stitched: Mutable,
@@ -887,39 +847,60 @@ function placeStitched(
 }
 
 /**
- * The stitched fragments of every external document, keyed by URI.
- *
- * Each fragment is walked as the object its own reference expects, which
- * can differ from what an enclosing fragment's walk saw at that position:
- * an ancestor may hold it under a field the specification does not type.
- * So a fragment placed inside an ancestor overwrites that position, and
- * an ancestor placed after its descendants has them put back on top.
+ * Reserve disjoint homes for independently walked external fragments.
+ * A descendant can be a Header when referenced directly and literal
+ * data inside an ancestor's schema. Neither interpretation may overwrite
+ * the other, so overlapping source pointers receive separate mounts.
+ * Reservations happen before references are emitted, keeping those
+ * references stable even when later walks discover more targets.
  */
 export class StitchedExternals {
   readonly root: Mutable = {};
-  private readonly placed = new Map<string, Array<{ tokens: string[]; value: unknown }>>();
+  private readonly targets = new Map<string, StitchTarget>();
+  private readonly mounts: (readonly string[])[];
+  private readonly placed = new Set<string>();
 
-  /** Whether exactly this fragment has been placed. */
-  has(uri: string, tokens: readonly string[]): boolean {
-    return (this.placed.get(uri) ?? []).some(
-      (p) => p.tokens.length === tokens.length && coversFragment(p.tokens, tokens),
-    );
+  constructor(existing: unknown) {
+    this.mounts =
+      existing !== null && typeof existing === "object"
+        ? Object.keys(existing).map((key) => [key])
+        : [];
+  }
+
+  target(uri: string, fragment: string, kind: RefNodeKind): StitchTarget {
+    const tokens = fragmentTokens(fragment);
+    const key = JSON.stringify([uri, tokens, kind]);
+    const previous = this.targets.get(key);
+    if (previous !== undefined) return previous;
+    const overlaps = (candidate: readonly string[]): boolean =>
+      this.mounts.some(
+        (mount) => coversFragment(mount, candidate) || coversFragment(candidate, mount),
+      );
+    let mount: readonly string[] = [uri, ...tokens];
+    if (overlaps(mount)) {
+      const stem = `${uri}#${pointerFromFragment(fragment)} (${kind})`;
+      mount = [stem];
+      for (let suffix = 2; overlaps(mount); suffix++) mount = [`${stem} ${suffix}`];
+    }
+    this.mounts.push(mount);
+    const ref = `#/${EXTERNALS_FIELD}/${mount.map((token) => encodeURIComponent(escapePointerSegment(token))).join("/")}`;
+    const target = { uri, fragment, kind, key, mount, ref };
+    this.targets.set(key, target);
+    return target;
+  }
+
+  has(target: StitchTarget): boolean {
+    return this.placed.has(target.key);
   }
 
   get isEmpty(): boolean {
     return this.placed.size === 0;
   }
 
-  place(uri: string, tokens: string[], value: unknown): void {
-    placeStitched(this.root, uri, tokens, value);
-    const list = this.placed.get(uri) ?? [];
-    // Shallowest first, so a nested descendant lands on its own ancestor.
-    const replaced = list
-      .filter((p) => p.tokens.length > tokens.length && coversFragment(tokens, p.tokens))
-      .sort((a, b) => a.tokens.length - b.tokens.length);
-    for (const p of replaced) placeStitched(this.root, uri, p.tokens, p.value);
-    list.push({ tokens, value });
-    this.placed.set(uri, list);
+  place(target: StitchTarget, value: unknown): void {
+    const [bucket, ...tokens] = target.mount;
+    placeStitched(this.root, bucket as string, tokens, value);
+    this.placed.add(target.key);
   }
 }
 

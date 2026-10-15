@@ -1,5 +1,6 @@
 import { createMemoryReader, resolveSpec, sourceOf } from "@oaverify/internal-spec";
 import { resolveSpecSync } from "@oaverify/internal-spec/internals";
+import { pointerFromFragment, resolveJsonPointer } from "@oaverify/internal-core";
 import type { OpenAPIDocument } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import { createValidator } from "./fixtures.js";
@@ -209,10 +210,9 @@ describe("fragment stitching: overlap, siblings, reachability and cycles (#1101)
       ["lib.json", lib],
     ]);
 
-  it("gives the same result whether the ancestor or the descendant is stitched first", async () => {
+  it("preserves validation and provenance in either stitch order", async () => {
     const ancestorFirst = await resolveBoth(overlap("/a"));
     const descendantFirst = await resolveBoth(overlap("/b"));
-    expect(descendantFirst.document).toEqual(ancestorFirst.document);
     for (const { document, regions } of [ancestorFirst, descendantFirst]) {
       const v = createValidator(document);
       for (const path of ["/a", "/b"]) {
@@ -221,12 +221,21 @@ describe("fragment stitching: overlap, siblings, reachability and cycles (#1101)
         expect(send("3"), path).toBe(true);
         expect(send("9"), path).toBe(false);
       }
-      expect(
-        sourceOf(
-          regions ?? [],
-          "/x-oaverify-externals/lib.json/items/A/get/responses/200/headers/X",
-        ),
-      ).toMatchObject({ uri: "lib.json", pointer: "/items/A/get/responses/200/headers/X" });
+      const headerRef = at(
+        document.paths,
+        "/b",
+        "get",
+        "responses",
+        "200",
+        "headers",
+        "X",
+        "$ref",
+      ) as string;
+      const headerPointer = pointerFromFragment(headerRef.slice(1));
+      expect(sourceOf(regions ?? [], headerPointer)).toMatchObject({
+        uri: "lib.json",
+        pointer: "/items/A/get/responses/200/headers/X",
+      });
     }
   });
 
@@ -489,7 +498,17 @@ describe("fragment stitching keeps arrays it descends through (#1101)", () => {
     it(`keeps every parameter of a stitched array (${first} first)`, async () => {
       for (const resolve of Object.values(resolvers)) {
         const { document } = await resolve(docs(first));
-        const params = at(document, "x-oaverify-externals", "lib.json", "items", "A", "parameters");
+        const itemRef = at(
+          document.paths,
+          "/a",
+          "get",
+          "callbacks",
+          "cb",
+          "{$url}",
+          "$ref",
+        ) as string;
+        const item = resolveJsonPointer(document, pointerFromFragment(itemRef.slice(1)));
+        const params = at(item, "parameters");
         expect(Array.isArray(params)).toBe(true);
         expect((params as Array<{ name: string }>).map((p) => p.name)).toEqual(["first", "second"]);
         const v = createValidator(document);
@@ -501,5 +520,169 @@ describe("fragment stitching keeps arrays it descends through (#1101)", () => {
         expect(send("/b", { first: "x" })).toBe(false);
       }
     });
+  }
+});
+
+describe("stitched interpretations preserve enclosing literal data (#1289)", () => {
+  for (const keyword of ["const", "enum", "default", "example", "examples"] as const) {
+    for (const reversed of [false, true]) {
+      it(`${keyword}, descendant first: ${reversed}`, async () => {
+        const literal = { schema: { $ref: "#/defs/Thing" } };
+        const array = keyword === "enum" || keyword === "examples";
+        const value = array ? [literal] : literal;
+        const target = `/Outer/content/application~1json/schema/${keyword}${array ? "/0" : ""}`;
+        const paths = [
+          ["/p", { get: { responses: { "200": { $ref: "b.json#/Wrap" } } } }],
+          ["/h", { get: { responses: { "200": { $ref: "b.json#/Other" } } } }],
+        ];
+        const m = new Map<string, unknown>([
+          [
+            "entry.json",
+            {
+              openapi: "3.1.0",
+              info: { title: "t", version: "1" },
+              paths: Object.fromEntries(reversed ? paths.reverse() : paths),
+            },
+          ],
+          [
+            "b.json",
+            {
+              Wrap: { $ref: "#/Outer" },
+              Outer: {
+                description: "ok",
+                content: { "application/json": { schema: { [keyword]: value } } },
+              },
+              Other: { description: "ok", headers: { H: { $ref: `#${target}` } } },
+              defs: { Thing: { type: "string", minLength: 3 } },
+            },
+          ],
+        ]);
+        for (const mode of ["async", "sync"]) {
+          const options = { entry: "entry.json", provenance: true };
+          const resolved =
+            mode === "async"
+              ? await resolveSpec({ ...options, reader: createMemoryReader(m) })
+              : resolveSpecSync({
+                  ...options,
+                  reader: {
+                    canRead: (uri) => m.has(uri),
+                    read: (uri) => structuredClone(m.get(uri)),
+                  },
+                });
+          const follow = (pointer: string): { pointer: string; value: unknown } => {
+            let value = resolveJsonPointer(resolved.document, pointer);
+            while (typeof at(value, "$ref") === "string") {
+              pointer = pointerFromFragment((at(value, "$ref") as string).slice(1));
+              value = resolveJsonPointer(resolved.document, pointer);
+            }
+            return { pointer, value };
+          };
+          const outer = follow("/paths/~1p/get/responses/200");
+          expect(at(outer.value, "content", "application/json", "schema", keyword)).toEqual(value);
+          const other = follow("/paths/~1h/get/responses/200");
+          const header = follow(`${other.pointer}/headers/H`);
+          expect(sourceOf(resolved.regions ?? [], `${header.pointer}/schema`)).toMatchObject({
+            uri: "b.json",
+            pointer: `${target}/schema`,
+          });
+          expect(
+            sourceOf(
+              resolved.regions ?? [],
+              `${outer.pointer}/content/application~1json/schema/${keyword}`,
+            ),
+          ).toMatchObject({
+            uri: "b.json",
+            pointer: `/Outer/content/application~1json/schema/${keyword}`,
+          });
+          const document = JSON.parse(JSON.stringify(resolved.document)) as OpenAPIDocument;
+          const validator = createValidator(document);
+          const request = { method: "GET", path: "/p" };
+          expect(
+            validator.validateResponse(request, {
+              status: 200,
+              contentType: "application/json",
+              body: literal,
+            }),
+          ).toBeNull();
+          if (keyword === "const" || keyword === "enum") {
+            expect(
+              validator.validateResponse(request, {
+                status: 200,
+                contentType: "application/json",
+                body: {},
+              }),
+            ).not.toBeNull();
+          }
+          expect(
+            validator.validateResponse(
+              { method: "GET", path: "/h" },
+              { status: 200, headers: { H: "external" } },
+            ),
+          ).toBeNull();
+          expect(
+            validator.validateResponse(
+              { method: "GET", path: "/h" },
+              { status: 200, headers: { H: "xx" } },
+            ),
+          ).not.toBeNull();
+        }
+      });
+    }
+  }
+});
+
+it("keeps separate interpretations of one fragment and preserves existing extension data (#1289)", async () => {
+  const literalSchema = { $ref: "#/defs/Thing" };
+  const m = new Map<string, unknown>([
+    [
+      "entry.json",
+      {
+        openapi: "3.1.0",
+        info: { title: "t", version: "1" },
+        paths: {
+          "/p": { get: { responses: { "200": { $ref: "b%25.json#/Wrap" } } } },
+          "/h": { get: { responses: { "200": { $ref: "b%25.json#/Other" } } } },
+        },
+        "x-oaverify-externals": {
+          "b%25.json": { authorData: true },
+          "b%25.json#/Outer (response)": { authorData: true },
+        },
+      },
+    ],
+    [
+      "b%25.json",
+      {
+        Wrap: { $ref: "#/Outer" },
+        Outer: { description: "ok", schema: literalSchema },
+        Other: { description: "ok", headers: { H: { $ref: "#/%4Futer" }, J: { $ref: "#/Outer" } } },
+        defs: { Thing: { type: "string", minLength: 3 } },
+      },
+    ],
+  ]);
+  for (const resolve of Object.values(resolvers)) {
+    const { document } = await resolve(m);
+    expect(at(document.paths, "/h", "get", "responses", "200", "headers", "H", "$ref")).toBe(
+      at(document.paths, "/h", "get", "responses", "200", "headers", "J", "$ref"),
+    );
+    const responseRef = at(document.paths, "/p", "get", "responses", "200", "$ref") as string;
+    const response = resolveJsonPointer(document, pointerFromFragment(responseRef.slice(1)));
+    expect(at(response, "schema")).toEqual(literalSchema);
+    expect(at(document, "x-oaverify-externals", "b%25.json")).toEqual({ authorData: true });
+    expect(at(document, "x-oaverify-externals", "b%25.json#/Outer (response)")).toEqual({
+      authorData: true,
+    });
+    const validator = createValidator(JSON.parse(JSON.stringify(document)) as OpenAPIDocument);
+    expect(
+      validator.validateResponse(
+        { method: "GET", path: "/h" },
+        { status: 200, headers: { H: "abc" } },
+      ),
+    ).toBeNull();
+    expect(
+      validator.validateResponse(
+        { method: "GET", path: "/h" },
+        { status: 200, headers: { H: "x" } },
+      ),
+    ).not.toBeNull();
   }
 });
