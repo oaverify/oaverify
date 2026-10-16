@@ -154,9 +154,10 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
   const enter = (
     value: Record<string, unknown>,
     visit: (value: unknown, pointer: string) => void,
+    oneHop = false,
   ): void => {
     reached.add(value);
-    const resolved = followLocal(value, document);
+    const resolved = followLocal(value, document, oneHop);
     if (resolved !== undefined) pending.push([visit, resolved.pointer, resolved.target]);
   };
 
@@ -281,7 +282,7 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
 
   const walkPathItem = (item: unknown, pointer: string): void => {
     if (!isObj(item)) return;
-    enter(item, walkPathItem);
+    enter(item, walkPathItem, true);
     walkParameterList(item["parameters"], `${pointer}/parameters`);
     for (const method of METHODS) {
       if (item[method] !== undefined) walkOperation(item[method], `${pointer}/${method}`);
@@ -362,10 +363,12 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
  * hop. `undefined` when `value` is not a reference, or when a hop is not
  * a local pointer, does not resolve, or the chain runs past 32 hops:
  * conformance and the resolver report those, and the walk skips them.
+ * With `oneHop`, the caller visits intermediate Path Item siblings too.
  */
 function followLocal(
   value: Record<string, unknown>,
   document: OpenAPIDocument,
+  oneHop = false,
 ): { target: unknown; pointer: string } | undefined {
   let current: unknown = value;
   let pointer: string | undefined;
@@ -381,6 +384,7 @@ function followLocal(
       return undefined;
     }
     pointer = next;
+    if (oneHop) return { target: current, pointer };
   }
   return undefined;
 }

@@ -112,3 +112,5 @@ export {
 // How a non-schema object reached through `$ref` is followed, chains
 // included, so the AOT emitter reads the objects createValidator reads.
 export { resolveOperationRef } from "./operation-cache.js";
+
+export { resolvePathItem } from "./path-item.js";

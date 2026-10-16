@@ -3657,3 +3657,90 @@ describe("compile-spec: method params are uppercase on both engines (#1241)", ()
     });
   }
 });
+
+describe("compile-spec Path Item chains (#1290)", () => {
+  const document = {
+    openapi: "3.1.0",
+    info: { title: "chain", version: "1" },
+    paths: {
+      "/p": { $ref: "#/x-items/Mid", delete: { responses: { "204": { description: "ok" } } } },
+    },
+    "x-items": {
+      Mid: {
+        $ref: "#/x-items/Final",
+        parameters: [{ name: "n", in: "query", required: true, schema: { type: "integer" } }],
+        get: {
+          operationId: "middle",
+          responses: {
+            "200": {
+              description: "ok",
+              content: { "application/json": { schema: { type: "integer" } } },
+            },
+          },
+        },
+      },
+      Final: { post: { responses: { "200": { description: "ok" } } } },
+    },
+  } as unknown as OpenAPIDocument;
+
+  it("retains each hop's operations and inherited parameters", async () => {
+    const aot = await buildAot(document);
+    for (const method of ["GET", "POST", "DELETE"]) {
+      expect(aot.validateRequest({ method, path: "/p", query: { n: "1" } })).toEqual({
+        valid: true,
+      });
+      expect(aot.validateRequest({ method, path: "/p", query: { n: "x" } })).toMatchObject({
+        valid: false,
+      });
+      expect(aot.validateRequest({ method, path: "/p" })).toMatchObject({ valid: false });
+    }
+    expect(aot.getOperation({ method: "GET", path: "/p" })?.operation).toMatchObject({
+      operationId: "middle",
+    });
+    expect(
+      aot.validateResponse(
+        { method: "GET", path: "/p" },
+        { status: 200, contentType: "application/json", body: "x" },
+      ),
+    ).toMatchObject({ valid: false });
+    expect(
+      aot.validateResponse(
+        { method: "GET", path: "/p" },
+        { status: 200, contentType: "application/json", body: 1 },
+      ),
+    ).toEqual({ valid: true });
+  });
+
+  it.each(["3.0.3", "3.1.0", "3.2.0"])(
+    "keeps nearer conflicting fields and replaces whole parameter arrays (%s)",
+    async (openapi) => {
+      const doc = structuredClone(document);
+      doc.openapi = openapi;
+      const item = doc.paths?.["/p"];
+      if (item === undefined) throw new Error("missing fixture path");
+      item.parameters = [{ name: "own", in: "query", required: true, schema: { type: "integer" } }];
+      item.get = { operationId: "nearest", responses: { "201": { description: "own" } } };
+      const aot = await buildAot(doc);
+      for (const method of ["GET", "POST"]) {
+        expect(aot.validateRequest({ method, path: "/p", query: { own: "1" } })).toEqual({
+          valid: true,
+        });
+        expect(aot.validateRequest({ method, path: "/p", query: { n: "1" } })).toMatchObject({
+          valid: false,
+        });
+      }
+      expect(aot.getOperation({ method: "GET", path: "/p" })?.operation).toMatchObject({
+        operationId: "nearest",
+      });
+    },
+  );
+
+  it("filters intermediate operations without losing the declared method set", async () => {
+    const aot = await buildAot(document, { only: [{ method: "GET", path: "/p" }] });
+    expect(aot.validateRequest({ method: "GET", path: "/p", query: { n: "1" } })).toEqual({
+      valid: true,
+    });
+    expect(flatErrors(aot.validateRequest({ method: "POST", path: "/p" }))[0]?.code).toBe("route");
+    expect(flatErrors(aot.validateRequest({ method: "PUT", path: "/p" }))[0]?.code).toBe("method");
+  });
+});
