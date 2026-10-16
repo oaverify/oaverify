@@ -20,10 +20,8 @@ import {
   entryIdentity,
   existingSchemaNames,
   EXTERNALS_FIELD,
-  fragmentTokens,
   hoistedRef,
   HoistNames,
-  makeStitchRef,
   mergeHoistedSchemas,
   noteInlinedComponent,
   removeComponentSchema,
@@ -36,7 +34,6 @@ import {
   type ReferrerTrail,
   resolveRelative,
   resolveSchemaJsonPointer,
-  rewriteInternalRefTarget,
   setSpecKey,
   targetKey,
   wrapReadError,
@@ -212,9 +209,12 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
   const refSuppressesSiblings = version === "3.0";
 
   // Mirrors resolveSpec: referenced fragments to stitch, by URI and fragment.
+  const stitched = new StitchedExternals((entryDoc as Mutable)[EXTERNALS_FIELD]);
   const stitchQueue = new Map<string, StitchTarget>();
-  const queueStitch = (uri: string, fragment: string, kind: RefNodeKind): void => {
-    stitchQueue.set(cycleKey(uri, fragment), { uri, fragment, kind });
+  const queueStitch = (uri: string, fragment: string, kind: RefNodeKind): { $ref: string } => {
+    const target = stitched.target(uri, fragment, kind);
+    if (!stitched.has(target)) stitchQueue.set(target.key, target);
+    return { $ref: target.ref };
   };
 
   // Schema targets get a `components.schemas` name and a single hoisted
@@ -402,16 +402,13 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
       noteReferrer(referrers, targetUri, externalSourceUri ?? options.entry);
       // Mirrors resolveSpec; the commentary lives there.
       if (targetUri === entryUri) noteInlinedComponent(inlinedComponents, fragment);
-      const stitchRef = makeStitchRef(targetUri, fragment);
       if (stitchingUri !== null && stitchingUri === targetUri) {
         noteVia(stitchVia, targetUri);
-        queueStitch(targetUri, fragment, pos.kind);
-        return stitchRef;
+        return queueStitch(targetUri, fragment, pos.kind);
       }
       if (visiting.has(cycleKey(targetUri, fragment))) {
         noteVia(stitchVia, targetUri);
-        queueStitch(targetUri, fragment, pos.kind);
-        return stitchRef;
+        return queueStitch(targetUri, fragment, pos.kind);
       }
       visiting.add(cycleKey(targetUri, fragment));
       sources.add(targetUri);
@@ -479,10 +476,8 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
       externalSourceUri !== null &&
       externalSourceUri !== entryUri
     ) {
-      const rewritten = rewriteInternalRefTarget(externalSourceUri, ref.slice(1));
       noteVia(stitchVia, externalSourceUri);
-      queueStitch(externalSourceUri, ref.slice(1), pos.kind);
-      const siblings: Mutable = { $ref: rewritten };
+      const siblings: Mutable = queueStitch(externalSourceUri, ref.slice(1), pos.kind);
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
         setSpecKey(
@@ -618,16 +613,12 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
     }
   };
 
-  const stitched = new StitchedExternals();
   const drainStitches = (): void => {
     while (stitchQueue.size > 0) {
-      const [key, { uri, fragment, kind }] = stitchQueue.entries().next().value as [
-        string,
-        StitchTarget,
-      ];
+      const [key, target] = stitchQueue.entries().next().value as [string, StitchTarget];
       stitchQueue.delete(key);
-      const tokens = fragmentTokens(fragment);
-      if (stitched.has(uri, tokens)) continue;
+      const { uri, fragment, kind } = target;
+      if (stitched.has(target)) continue;
       sources.add(uri);
       let targetDoc = docs.get(uri);
       if (targetDoc === undefined) {
@@ -643,7 +634,7 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
       const savedVisiting = new Set(visiting);
       visiting.clear();
       const mounted = trail.enterAt(
-        [EXTERNALS_FIELD, uri, ...tokens],
+        [EXTERNALS_FIELD, ...target.mount],
         uri,
         pointerFromFragment(fragment),
         stitchVia.get(uri) ?? [],
@@ -652,7 +643,7 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
       trail.leave(mounted, true);
       visiting.clear();
       for (const v of savedVisiting) visiting.add(v);
-      stitched.place(uri, tokens, inlined);
+      stitched.place(target, inlined);
     }
   };
 

@@ -23,10 +23,8 @@ import {
   entryIdentity,
   existingSchemaNames,
   EXTERNALS_FIELD,
-  fragmentTokens,
   hoistedRef,
   HoistNames,
-  makeStitchRef,
   mergeHoistedSchemas,
   noteInlinedComponent,
   removeComponentSchema,
@@ -38,7 +36,6 @@ import {
   type ReferrerTrail,
   resolveRelative,
   resolveSchemaJsonPointer,
-  rewriteInternalRefTarget,
   setSpecKey,
   type StitchTarget,
   targetKey,
@@ -263,8 +260,10 @@ export interface ResolvedSpec {
  * {@link entryIdentity} for exactly which spellings that recognises).
  * External refs in non-schema positions (Response, Parameter, Path Item
  * Objects) are inlined, and a cycle among those is materialized under
- * `x-oaverify-externals/<encoded-uri>` so the compiler can resolve it via
- * the identity-keyed schema cache.
+ * `x-oaverify-externals` so the compiler can resolve it via the
+ * identity-keyed schema cache. Independently referenced fragments receive
+ * separate locations when their source pointers overlap, preserving
+ * literal content inside an ancestor.
  *
  * The synchronous mirror is `resolveSpecSync` (reachable via
  * `@oaverify/core/spec/internals`); both share the pure URI / ref-rewriting helpers
@@ -428,9 +427,12 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
   // Referenced fragments of external documents to stitch, keyed by URI and
   // fragment, each with the kind of object its reference expects, so the
   // fragment is walked as the object it actually is.
+  const stitched = new StitchedExternals((entryDoc as Mutable)[EXTERNALS_FIELD]);
   const stitchQueue = new Map<string, StitchTarget>();
-  const queueStitch = (uri: string, fragment: string, kind: RefNodeKind): void => {
-    stitchQueue.set(cycleKey(uri, fragment), { uri, fragment, kind });
+  const queueStitch = (uri: string, fragment: string, kind: RefNodeKind): { $ref: string } => {
+    const target = stitched.target(uri, fragment, kind);
+    if (!stitched.has(target)) stitchQueue.set(target.key, target);
+    return { $ref: target.ref };
   };
 
   // Schema targets get a `components.schemas` name and a single hoisted
@@ -638,16 +640,13 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
       // from is about to look unreachable to anything reading the
       // resolved document alone.
       if (targetUri === entryUri) noteInlinedComponent(inlinedComponents, fragment);
-      const stitchRef = makeStitchRef(targetUri, fragment);
       if (stitchingUri !== null && stitchingUri === targetUri) {
         noteVia(stitchVia, targetUri);
-        queueStitch(targetUri, fragment, pos.kind);
-        return stitchRef;
+        return queueStitch(targetUri, fragment, pos.kind);
       }
       if (visiting.has(cycleKey(targetUri, fragment))) {
         noteVia(stitchVia, targetUri);
-        queueStitch(targetUri, fragment, pos.kind);
-        return stitchRef;
+        return queueStitch(targetUri, fragment, pos.kind);
       }
       visiting.add(cycleKey(targetUri, fragment));
       sources.add(targetUri);
@@ -732,10 +731,8 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
       externalSourceUri !== null &&
       externalSourceUri !== entryUri
     ) {
-      const rewritten = rewriteInternalRefTarget(externalSourceUri, ref.slice(1));
       noteVia(stitchVia, externalSourceUri);
-      queueStitch(externalSourceUri, ref.slice(1), pos.kind);
-      const siblings: Mutable = { $ref: rewritten };
+      const siblings: Mutable = queueStitch(externalSourceUri, ref.slice(1), pos.kind);
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
         setSpecKey(
@@ -923,20 +920,14 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
     }
   };
 
-  // Stitch every referenced fragment of an external document at its own
-  // pointer under the root extension, walked as the object its reference
-  // expects, including one inside another stitched fragment; see
-  // StitchedExternals for how the two are reconciled.
-  const stitched = new StitchedExternals();
+  // Walk each reserved fragment as the object its reference expects.
+  // Overlapping source fragments have independent mounts.
   const drainStitches = async (): Promise<void> => {
     while (stitchQueue.size > 0) {
-      const [key, { uri, fragment, kind }] = stitchQueue.entries().next().value as [
-        string,
-        StitchTarget,
-      ];
+      const [key, target] = stitchQueue.entries().next().value as [string, StitchTarget];
       stitchQueue.delete(key);
-      const tokens = fragmentTokens(fragment);
-      if (stitched.has(uri, tokens)) continue;
+      const { uri, fragment, kind } = target;
+      if (stitched.has(target)) continue;
       sources.add(uri);
       let targetDoc = docs.get(uri);
       if (targetDoc === undefined) {
@@ -957,7 +948,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
       const savedVisiting = new Set(visiting);
       visiting.clear();
       const mounted = trail.enterAt(
-        [EXTERNALS_FIELD, uri, ...tokens],
+        [EXTERNALS_FIELD, ...target.mount],
         uri,
         pointerFromFragment(fragment),
         stitchVia.get(uri) ?? [],
@@ -966,7 +957,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
       trail.leave(mounted, true);
       visiting.clear();
       for (const v of savedVisiting) visiting.add(v);
-      stitched.place(uri, tokens, inlined);
+      stitched.place(target, inlined);
     }
   };
 

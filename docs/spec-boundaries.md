@@ -466,7 +466,7 @@ it does not limit all JSON nesting. The default is uncapped.
 
 ### packages/spec
 
-**`resolveSpec`** ([packages/spec/src/resolver.ts:253](../packages/spec/src/resolver.ts#L253))
+**`resolveSpec`** ([packages/spec/src/resolver.ts:250](../packages/spec/src/resolver.ts#L250))
 
 Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.2>).
 
@@ -535,7 +535,7 @@ meta-schemas are used unchanged.
 
 ### packages/spec
 
-**`resolveSpec`** ([packages/spec/src/resolver.ts:253](../packages/spec/src/resolver.ts#L253))
+**`resolveSpec`** ([packages/spec/src/resolver.ts:250](../packages/spec/src/resolver.ts#L250))
 
 Against OpenAPI 3.1 section 4.6 (<https://spec.openapis.org/oas/v3.1.0#relative-references-in-uris>).
 
@@ -779,7 +779,7 @@ Support is tracked in #396.
 
 ### packages/spec
 
-**`resolveSpec`** ([packages/spec/src/resolver.ts:253](../packages/spec/src/resolver.ts#L253))
+**`resolveSpec`** ([packages/spec/src/resolver.ts:250](../packages/spec/src/resolver.ts#L250))
 
 Against OpenAPI 3.1 section 4.6 (<https://spec.openapis.org/oas/v3.1.0#relative-references-in-uris>).
 
