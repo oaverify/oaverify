@@ -1,5 +1,15 @@
 # Changelog
 
+## [7.3.1](https://github.com/oaverify/oaverify/compare/stream-v7.3.0...stream-v7.3.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **core:** register the exclusive bound codes and complete inclusive bound params ([#1276](https://github.com/oaverify/oaverify/issues/1276)) ([640180e](https://github.com/oaverify/oaverify/commit/640180e77ae98fcd02912410fce699868aa19cde)), closes [#1199](https://github.com/oaverify/oaverify/issues/1199)
+* **schema:** keep own __proto__ keys in generated const and enum values ([#1278](https://github.com/oaverify/oaverify/issues/1278)) ([bf6a9e3](https://github.com/oaverify/oaverify/commit/bf6a9e33a2ca1d67244b01417da308579e1b8303)), closes [#1201](https://github.com/oaverify/oaverify/issues/1201)
+* **stream:** bound the text held for scalar enum and const strings ([#1281](https://github.com/oaverify/oaverify/issues/1281)) ([acc9938](https://github.com/oaverify/oaverify/commit/acc99380196e2aab0aceca0accade327f78c56af)), closes [#1193](https://github.com/oaverify/oaverify/issues/1193)
+* **stream:** count buffering reached through $dynamicRef in the analyzer ([#1280](https://github.com/oaverify/oaverify/issues/1280)) ([5d708bd](https://github.com/oaverify/oaverify/commit/5d708bd78f108017cb03bbf7667cd7f3bfdda116)), closes [#1123](https://github.com/oaverify/oaverify/issues/1123)
+
 ## [7.3.0](https://github.com/oaverify/oaverify/compare/stream-v7.2.2...stream-v7.3.0) (2026-10-14)
 
 
