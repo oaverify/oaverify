@@ -14,8 +14,10 @@
  * other position table from here, and the alternative home, the
  * meta-schema package, would put ~100KB on every resolve.
  *
- * The tables are hand-written so they stay readable and greppable, and
- * they are pinned to the published meta-schemas by a derivation test in
+ * The tables are hand-written so they stay readable and greppable, except
+ * the Path Item operation fields, which are built from `HTTP_METHODS` and
+ * the hand-written `OPERATION_FIELD_SINCE`. The refable positions are pinned
+ * to the published meta-schemas by a derivation test in
  * `@oaverify/internal-metaschema` (that direction keeps the dependency
  * graph acyclic; the reverse would not). The test re-derives each
  * version's positions from the vendored document and asserts equality,
@@ -25,6 +27,7 @@
  */
 
 import type { OpenAPIVersion } from "./version.js";
+import { HTTP_METHODS, type HttpMethod } from "./types.js";
 
 /**
  * The kind of OpenAPI object a walk is standing on.
@@ -85,6 +88,33 @@ const array = (kind: RefNodeKind, refable = false): RefPosition => ({
   refable,
 });
 
+/**
+ * The first version whose Path Item defines each method as an operation
+ * field. Typed over {@link HttpMethod}, so a method added to
+ * `HTTP_METHODS` does not compile until it is given a version here. In an
+ * earlier version the key is not an operation field and is not walked.
+ */
+const OPERATION_FIELD_SINCE: Readonly<Record<HttpMethod, OpenAPIVersion>> = {
+  get: "3.0",
+  put: "3.0",
+  post: "3.0",
+  delete: "3.0",
+  options: "3.0",
+  head: "3.0",
+  patch: "3.0",
+  trace: "3.0",
+  query: "3.2",
+};
+const VERSION_ORDER: Readonly<Record<OpenAPIVersion, number>> = { "3.0": 0, "3.1": 1, "3.2": 2 };
+
+/** The Path Item operation fields `version` defines. */
+const operationFieldsIn = (version: OpenAPIVersion): Record<string, RefPosition> =>
+  Object.fromEntries(
+    HTTP_METHODS.filter(
+      (method) => VERSION_ORDER[OPERATION_FIELD_SINCE[method]] <= VERSION_ORDER[version],
+    ).map((method) => [method, one("operation")]),
+  );
+
 /** Positions shared by every supported version. */
 const COMMON: Partial<Record<RefNodeKind, Readonly<Record<string, RefPosition>>>> = {
   document: {
@@ -103,14 +133,6 @@ const COMMON: Partial<Record<RefNodeKind, Readonly<Record<string, RefPosition>>>
     callbacks: map("callback", true),
   },
   pathItem: {
-    get: one("operation"),
-    put: one("operation"),
-    post: one("operation"),
-    delete: one("operation"),
-    options: one("operation"),
-    head: one("operation"),
-    patch: one("operation"),
-    trace: one("operation"),
     parameters: array("parameter", true),
   },
   operation: {
@@ -165,15 +187,20 @@ const BY_VERSION: Record<
   Partial<Record<RefNodeKind, Readonly<Record<string, RefPosition>>>>
 > = {
   "3.0": {
+    pathItem: operationFieldsIn("3.0"),
     content: { "*": one("mediaType") },
   },
   "3.1": {
+    pathItem: operationFieldsIn("3.1"),
     document: { webhooks: map("pathItem") },
     components: { pathItems: map("pathItem") },
     content: { "*": one("mediaType") },
   },
   "3.2": {
-    pathItem: { additionalOperations: map("operation") },
+    pathItem: {
+      ...operationFieldsIn("3.2"),
+      additionalOperations: map("operation"),
+    },
     document: { webhooks: map("pathItem") },
     components: { pathItems: map("pathItem"), mediaTypes: map("mediaType", true) },
     content: { "*": one("mediaType", true) },
