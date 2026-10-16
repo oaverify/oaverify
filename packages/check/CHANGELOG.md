@@ -1,5 +1,20 @@
 # Changelog
 
+## [7.3.1](https://github.com/oaverify/oaverify/compare/check-v7.3.0...check-v7.3.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **check:** report a server variable default its enum does not list ([#1274](https://github.com/oaverify/oaverify/issues/1274)) ([ffda6f4](https://github.com/oaverify/oaverify/commit/ffda6f4afd29e953a680bd7720ad880df6d0dfb8)), closes [#1055](https://github.com/oaverify/oaverify/issues/1055)
+* **check:** report an example whose schema cannot compile when the schema pass is off ([#1282](https://github.com/oaverify/oaverify/issues/1282)) ([ec9a2bb](https://github.com/oaverify/oaverify/commit/ec9a2bb2d15a9af1df6c3e21e8816bba8d39c8ea)), closes [#1131](https://github.com/oaverify/oaverify/issues/1131)
+* **check:** report duplicate operationIds, undeclared security schemes and server variables ([#1273](https://github.com/oaverify/oaverify/issues/1273)) ([5b5ffd4](https://github.com/oaverify/oaverify/commit/5b5ffd4fe8807647ee9dc23454911a6b10111b4e)), closes [#809](https://github.com/oaverify/oaverify/issues/809)
+* **check:** report duplicate parameters within a parameter list ([#1272](https://github.com/oaverify/oaverify/issues/1272)) ([0de8e02](https://github.com/oaverify/oaverify/commit/0de8e023c7379568118667f1e565013cf8f2a249)), closes [#1054](https://github.com/oaverify/oaverify/issues/1054)
+* **core:** register the exclusive bound codes and complete inclusive bound params ([#1276](https://github.com/oaverify/oaverify/issues/1276)) ([640180e](https://github.com/oaverify/oaverify/commit/640180e77ae98fcd02912410fce699868aa19cde)), closes [#1199](https://github.com/oaverify/oaverify/issues/1199)
+* preserve intermediate Path Item fields across reference chains ([#1294](https://github.com/oaverify/oaverify/issues/1294)) ([83b9d74](https://github.com/oaverify/oaverify/commit/83b9d7488aba65d0e81847ce243669315a14880a))
+* **validator:** follow non-schema references in the document schema walk ([#1277](https://github.com/oaverify/oaverify/issues/1277)) ([32c89a8](https://github.com/oaverify/oaverify/commit/32c89a897be4a48f3d4c31e28bc3507de07ddb69)), closes [#1242](https://github.com/oaverify/oaverify/issues/1242)
+* **validator:** ignore Accept, Content-Type and Authorization header parameters ([#1265](https://github.com/oaverify/oaverify/issues/1265)) ([f0db71e](https://github.com/oaverify/oaverify/commit/f0db71e0adc1e3a5d252824413238c3d7775ec0f)), closes [#1084](https://github.com/oaverify/oaverify/issues/1084)
+* **validator:** ignore response header definitions named Content-Type ([#1266](https://github.com/oaverify/oaverify/issues/1266)) ([2b62b51](https://github.com/oaverify/oaverify/commit/2b62b51119e2768ddbadc514dd857b6bd4244322)), closes [#1092](https://github.com/oaverify/oaverify/issues/1092)
+
 ## [7.3.0](https://github.com/oaverify/oaverify/compare/check-v7.2.2...check-v7.3.0) (2026-10-14)
 
 
