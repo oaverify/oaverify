@@ -79,6 +79,109 @@ const valueOf = (r: { value?: RequestValueBag }): RequestValueBag | undefined =>
 
 const EMPTY = { path: {}, query: {}, headers: {}, cookies: {} };
 
+describe("effective parameter preparation", () => {
+  const document = (parameters: unknown, inherited: unknown = []): OpenAPIDocument =>
+    ({
+      openapi: "3.1.0",
+      info: { title: "Parameters", version: "1" },
+      paths: {
+        "/t": {
+          parameters: inherited,
+          get: { parameters, responses: { "200": { description: "ok" } } },
+        },
+      },
+      components: {
+        parameters: {
+          Alias: { $ref: "#/components/parameters/Limit" },
+          Limit: {
+            name: "n",
+            in: "query",
+            required: true,
+            schema: { type: "integer", minimum: 2 },
+          },
+        },
+      },
+    }) as unknown as OpenAPIDocument;
+
+  it("resolves an override chain and preserves distinct locations and exact names", async () => {
+    const doc = document(
+      [
+        { $ref: "#/components/parameters/Alias" },
+        { name: "N", in: "query", schema: { type: "string" } },
+      ],
+      [
+        { name: "n", in: "query", schema: { type: "string", const: "old" } },
+        { name: "n", in: "cookie", schema: { type: "string" } },
+      ],
+    );
+    const validators = [
+      createValidator(doc, { returnValues: true }),
+      await buildAot(doc, { returnValues: true }),
+    ];
+    for (const validator of validators) {
+      expect(
+        validator.validateRequest({
+          method: "GET",
+          path: "/t",
+          query: { n: "3", N: "upper" },
+          cookies: { n: "cookie" },
+        }),
+      ).toMatchObject({
+        valid: true,
+        value: { ...EMPTY, query: { n: 3, N: "upper" }, cookies: { n: "cookie" } },
+      });
+      expect(
+        validator.validateRequest({ method: "GET", path: "/t", query: { n: "1" } }),
+      ).toMatchObject({ valid: false });
+      expect(validator.validateRequest({ method: "GET", path: "/t" })).toMatchObject({
+        valid: false,
+      });
+    }
+  });
+
+  it.each([
+    { parameters: [null, 5, "oops", true] },
+    { parameters: { name: "n", in: "query", required: true } },
+  ])("leaves malformed parameter shapes to document conformance: %j", async ({ parameters }) => {
+    const doc = document(parameters, parameters);
+    for (const validator of [
+      createValidator(doc, { returnValues: true }),
+      await buildAot(doc, { returnValues: true }),
+    ]) {
+      expect(validator.validateRequest({ method: "GET", path: "/t" })).toMatchObject({
+        valid: true,
+        value: EMPTY,
+      });
+    }
+  });
+
+  it("ignores reserved headers and uses the first schema-bearing content entry", async () => {
+    const doc = document([
+      { name: "Accept", in: "header", required: true, schema: false },
+      { name: "CONTENT-TYPE", in: "header", required: true, schema: false },
+      { name: "Authorization", in: "header", required: true, schema: false },
+      {
+        name: "p",
+        in: "query",
+        schema: { type: "string" },
+        content: { "text/plain": null, "application/json": { schema: { type: "integer" } } },
+      },
+      { name: "q", in: "query", content: { "application/json": { schema: false } } },
+    ]);
+    for (const validator of [
+      createValidator(doc, { returnValues: true }),
+      await buildAot(doc, { returnValues: true }),
+    ]) {
+      expect(
+        validator.validateRequest({ method: "GET", path: "/t", query: { p: "3" } }),
+      ).toMatchObject({ valid: true, value: { ...EMPTY, query: { p: 3 } } });
+      expect(
+        validator.validateRequest({ method: "GET", path: "/t", query: { q: "3" } }),
+      ).toMatchObject({ valid: false });
+    }
+  });
+});
+
 /** Every location declared, plus a parameter with no schema at all. */
 const spec: OpenAPIDocument = {
   openapi: "3.1.0",

@@ -158,6 +158,30 @@ describe("schema lint pointers through the validator", () => {
     expectResolves(doc, issue?.pointer);
   });
 
+  it("keeps an inherited parameter's original index after an operation override", () => {
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/t": {
+          parameters: [
+            { name: "a", in: "query", schema: { type: "string", maxLenght: 2 } },
+            { name: "b", in: "query", schema: { type: "string", minLenght: 1 } },
+          ],
+          get: {
+            parameters: [{ name: "a", in: "query", schema: { type: "integer" } }],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    const issues = lint(doc);
+    expect(issues.filter((issue) => issue.code === "unknown-keyword")).toMatchObject([
+      { keyword: "minLenght", pointer: "/paths/~1t/parameters/1/schema" },
+    ]);
+    expectResolves(doc, issues.find((issue) => issue.keyword === "minLenght")?.pointer);
+  });
+
   it("addresses a $ref'd parameter at its component", () => {
     const doc = {
       openapi: "3.1.0",

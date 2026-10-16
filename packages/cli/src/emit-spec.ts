@@ -27,8 +27,10 @@ import {
   compileMediaTypePatterns,
   createDirectionResolver,
   effectiveType,
+  effectiveParameters,
+  firstContentSchema,
+  firstContentMediaType,
   isBinaryStringSchema,
-  isIgnoredHeaderParameter,
   isIgnoredResponseHeader,
   joinsFieldLines,
   isServedParameterLocation,
@@ -632,43 +634,9 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
     requestsOnly,
   } = args;
 
-  /**
-   * A `parameters` value as the list it is supposed to be, or empty.
-   *
-   * Anything else is a defect the conformance pass owns, and reading it here
-   * produced an error naming no path, method or parameter.
-   *
-   * @internal
-   */
-  function asParameterList(value: unknown): Array<ParameterObject | ReferenceObject> {
-    return Array.isArray(value) ? (value as Array<ParameterObject | ReferenceObject>) : [];
-  }
-
-  // Parameters: union of path-item-level + operation-level. Operation
-  // wins on `(name, in)` collision.
-  const combined = new Map<string, ParameterObject>();
-  // `!= null` rather than `!== undefined`: a `- ` list entry with
-  // nothing under it resolves to `null`, and reading `.name` off it
-  // threw a `TypeError` out of `emitSpec` where `createValidator` skips
-  // the entry and lets the conformance pass locate it. Same skip, same
-  // reason, three lines from the gate this file just gained.
-  // `Array.isArray`, not `?? []`: `parameters:` written as a mapping is
-  // not iterable, and iterating it threw `object is not iterable`. The
-  // validator, the hygiene lint and the overlay reader all read the
-  // same shape as no parameters now, so the conformance pass is what
-  // names it (#837).
-  // A header parameter OpenAPI says to ignore is dropped, as in the
-  // runtime's operation cache.
-  for (const p of [
-    ...asParameterList(pathItem.parameters),
-    ...asParameterList(operation.parameters),
-  ]) {
-    const resolved = resolveRef<ParameterObject>(p);
-    if (resolved != null && !isIgnoredHeaderParameter(resolved)) {
-      combined.set(`${resolved.name}::${resolved.in}`, resolved);
-    }
-  }
-  const parameters = [...combined.values()];
+  const parameters = effectiveParameters(pathItem.parameters, operation.parameters, resolveRef).map(
+    ({ object }) => object,
+  );
 
   // Refuse before this operation's schemas compile, for a parameter
   // location the emitted validator cannot read a value for. Same policy
@@ -697,11 +665,6 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
   // function again reads as `compile-spec: emitSpec: GET /t declares
   // ...` for the only audience that sees it.
   for (const p of parameters) {
-    // A non-object entry is not a parameter to judge. `createValidator`
-    // skips it and the conformance pass names the line; refusing here
-    // reported it as a parameter with no `in`, which points at the
-    // wrong defect and breaks the parity this gate exists to keep.
-    if (p === null || typeof p !== "object") continue;
     if (isServedParameterLocation(p.in)) continue;
     throw new Error(unservedParameterLocationMessage(`${method} ${pathPattern}`, p.name, p.in));
   }
@@ -854,7 +817,7 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
           // validator describe the same encoding.
           ...contentFields(p),
           schema: p.schema ?? undefined,
-          __validator: paramValidatorName(combined, p, named),
+          __validator: paramValidatorName(p, named),
         })),
       requestBodyRequired,
       hasRequestBody,
@@ -889,7 +852,6 @@ function buildEmittedOp(args: BuildEmittedOpArgs): EmittedOp {
 }
 
 function paramValidatorName(
-  _combined: Map<string, ParameterObject>,
   p: ParameterObject,
   named: (schema: SchemaOrBoolean) => string,
 ): string {
@@ -906,22 +868,18 @@ function paramValidatorName(
  *
  * Both decisions are made here rather than in the emitted module
  * because both are properties of the document: which media type carries
- * the value, and whether that media type implies JSON. Mirrors
- * `firstContentMediaType` in operation-cache.ts and `isJsonMediaType` in
- * validate-step.ts.
+ * the value, and whether that media type implies JSON.
+ * `isJsonMediaType` in validate-step.ts supplies the same decoding rule.
  */
 function contentFields(p: ParameterObject | HeaderObject): {
   __contentMediaType?: string;
   __contentJson?: true;
 } {
-  if (p.content === undefined) return {};
-  for (const [mediaType, mto] of Object.entries(p.content)) {
-    if (!hasSchema(mto)) continue;
-    const base = mediaType.split(";")[0]?.trim().toLowerCase() ?? "";
-    const json = base === "application/json" || base.endsWith("+json");
-    return { __contentMediaType: mediaType, ...(json ? { __contentJson: true as const } : {}) };
-  }
-  return {};
+  const mediaType = firstContentMediaType(p);
+  if (mediaType === undefined) return {};
+  const base = mediaType.split(";")[0]?.trim().toLowerCase() ?? "";
+  const json = base === "application/json" || base.endsWith("+json");
+  return { __contentMediaType: mediaType, ...(json ? { __contentJson: true as const } : {}) };
 }
 
 /**
@@ -933,15 +891,6 @@ function hasSchema(
   mto: MediaTypeObject | null,
 ): mto is MediaTypeObject & { schema: SchemaOrBoolean } {
   return mto !== null && typeof mto === "object" && mto.schema !== undefined;
-}
-
-function firstContentSchema(p: ParameterObject | HeaderObject): SchemaOrBoolean | undefined {
-  const content = (p as ParameterObject).content;
-  if (content === undefined) return undefined;
-  for (const media of Object.values(content)) {
-    if (hasSchema(media)) return media.schema;
-  }
-  return undefined;
 }
 
 function toPlaceholderMap(m: Record<string, string>): Record<string, string> {
