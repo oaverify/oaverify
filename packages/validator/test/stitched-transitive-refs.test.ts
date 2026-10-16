@@ -571,8 +571,8 @@ describe("stitched interpretations preserve enclosing literal data (#1289)", () 
                 });
           const follow = (pointer: string): { pointer: string; value: unknown } => {
             let value = resolveJsonPointer(resolved.document, pointer);
-            while (typeof at(value, "$ref") === "string") {
-              pointer = pointerFromFragment((at(value, "$ref") as string).slice(1));
+            for (let ref = at(value, "$ref"); typeof ref === "string"; ref = at(value, "$ref")) {
+              pointer = pointerFromFragment(ref.slice(1));
               value = resolveJsonPointer(resolved.document, pointer);
             }
             return { pointer, value };
