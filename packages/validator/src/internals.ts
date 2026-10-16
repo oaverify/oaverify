@@ -113,4 +113,9 @@ export {
 // included, so the AOT emitter reads the objects createValidator reads.
 export { resolveOperationRef } from "./operation-cache.js";
 
+// Which parameters an operation declares, and which `content` entry
+// carries a parameter's or header's schema, as createValidator selects them.
+export { firstContentSchema, firstContentMediaType } from "./operation-cache.js";
+export { effectiveParameters, type EffectiveParameter } from "./effective-parameters.js";
+
 export { resolvePathItem } from "./path-item.js";

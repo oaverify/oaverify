@@ -802,9 +802,6 @@ function applyModifyParameters(
  * leaves the entry as written and lets the conformance pass report
  * `must be array` at its pointer, which is what the validator and the
  * hygiene lint do with the same shape (#837).
- *
- * Pairs with `asParameterList` in `@oaverify/internal-validator`'s
- * `operation-cache.ts` and `@oaverify/internal-cli`'s `emit-spec.ts`.
  */
 function asParameterList(parameters: unknown): NonNullable<PathItem["parameters"]> {
   return Array.isArray(parameters) ? (parameters as NonNullable<PathItem["parameters"]>) : [];

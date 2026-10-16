@@ -124,6 +124,18 @@ describe("emitSpec refuses an unserved parameter location", () => {
     ).toThrow(/parameter "sid" with in: "querystring"/);
   });
 
+  it("refuses when a served name could share a joined key with an unserved one", () => {
+    // `query` + `a\0b` and `query\0a` + `b` join to the same string under a
+    // NUL separator; they are different parameters and the second is unserved.
+    const d = doc({
+      "/t": {
+        parameters: [{ name: "b", in: "query\u0000a", schema: stringSchema }],
+        get: op([{ name: "a\u0000b", in: "query", schema: stringSchema }]),
+      },
+    });
+    expect(() => emitSpec(d)).toThrow(/GET \/t declares parameter "b"/);
+  });
+
   it("emits a document whose parameters are all served", () => {
     const source = emitSpec(
       doc({
@@ -223,6 +235,12 @@ describe("an empty media type, header, request body or response entry", () => {
 });
 
 describe("an entry that is not a parameter object", () => {
+  it("emits parameter state only for object entries", () => {
+    const source = emitSpec(doc({ "/t": { get: op([5, "oops", { name: "real", in: "query" }]) } }));
+    // Each prepared parameter carries this lookup flag in the emitted state.
+    expect(source.match(/"__readOwn":/g)).toHaveLength(1);
+  });
+
   it("is skipped, as the runtime skips it", () => {
     // Refusing it reported "an unnamed parameter with no in field",
     // which names the wrong defect. The conformance pass locates the entry.
