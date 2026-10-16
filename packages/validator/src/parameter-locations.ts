@@ -64,6 +64,7 @@
  * @packageDocumentation
  */
 
+import { resolvePathItem, type ResolvedPathItem } from "./path-item.js";
 import {
   pointerFromRefFragment,
   type OpenAPIDocument,
@@ -280,13 +281,14 @@ export function listUnservedParameterLocations(
   document: OpenAPIDocument,
   options: {
     /**
-     * The caller's resolver. `createValidator` passes the one it
+     * The caller's parameter resolver. `createValidator` passes the one it
      * already built; a caller with only a document gets the same
      * resolution rather than a second reading of `$ref`.
      */
     readonly resolveRef?: <T>(value: T | ReferenceObject | undefined) => T | undefined;
     /**
-     * Whether to look inside a Path Item declared as a `$ref`.
+     * Whether to inspect the effective fields of a Path Item reference
+     * chain, with the nearest field winning as in standalone compilation.
      *
      * The gate says no: `createRouter` never matches such a path item,
      * so nothing there can reach a request, and refusing the document
@@ -318,44 +320,26 @@ export function listUnservedParameterLocations(
   const clearedRefs = new Set<string>();
   for (const [pathPattern, item] of Object.entries(paths)) {
     if (item === null || typeof item !== "object") continue;
-    // The item's own keys, always. `methodsDeclaredOn` (the router)
-    // reads them off the entry, so an entry carrying `$ref` *and*
-    // sibling method keys is routed for those methods, and skipping it
-    // let an unserved parameter reach a request. That was this walk's
-    // own hole: the request then threw from `validateParameter`, which
-    // is the failure this module exists to turn into a refusal.
+    const base = `/paths/${escapePointer(pathPattern)}`;
+    // The runtime gate keeps the entry's own methods, including `$ref` siblings.
+    let effective: ResolvedPathItem | undefined;
+    if (options.followPathItemRefs === true) {
+      try {
+        effective = resolvePathItem(document, item, base);
+      } catch {
+        // Resolution and conformance report invalid chains. Keep the
+        // entry's own declarations inspectable when its target fails.
+      }
+    }
     walkPathItem(
       found,
-      item,
+      effective?.item ?? item,
       pathPattern,
-      `/paths/${escapePointer(pathPattern)}`,
+      base,
       resolveRef,
       clearedRefs,
+      effective?.origins,
     );
-
-    // The `$ref` target's own operations are a different question. The
-    // router never matches them, because it reads methods off the entry
-    // and a `$ref` is not one, so nothing there can reach a request and
-    // the gate leaves it alone. `compile-spec` does resolve it and
-    // refuses, so a reporting caller asks for it and gets pointers into
-    // the target, where the parameters are actually written.
-    if (options.followPathItemRefs !== true) continue;
-    const ref = (item as ReferenceObject).$ref;
-    if (typeof ref !== "string") continue;
-    let target: typeof item | undefined;
-    try {
-      target = resolveRef<typeof item>(item);
-    } catch {
-      continue;
-    }
-    if (target === null || typeof target !== "object" || target === item) continue;
-    // `pointerFromRefFragment` answers `undefined` for a `$ref` into
-    // another file, which is not a position in this document. Reporting
-    // it against the entry would send a reader to the wrong file, so
-    // such a target is left to whoever can address it.
-    const targetPointer = pointerFromRefFragment(ref);
-    if (targetPointer === undefined) continue;
-    walkPathItem(found, target, pathPattern, targetPointer, resolveRef, clearedRefs, true);
   }
   return found;
 }
@@ -401,13 +385,8 @@ function walkPathItem(
   base: string,
   resolveRef: <T>(value: T | ReferenceObject | undefined) => T | undefined,
   clearedRefs: Set<string>,
-  /**
-   * Whether `base` is a `$ref` target rather than the entry under
-   * `paths`. A caller anchoring a finding needs to know: two operations
-   * can reference one Path Item, so the same pointer carries a finding
-   * per referencing operation and only the message tells them apart.
-   */
-  crossedRef = false,
+  /** Field declarations from the effective Path Item, when following references. */
+  origins?: ReadonlyMap<string, string>,
 ): void {
   // A Path Item's own parameters are read only through the operations
   // that inherit them, so an item declaring no operation this validator
@@ -419,27 +398,29 @@ function walkPathItem(
     return operation !== null && typeof operation === "object";
   });
   if (routable) {
+    const at = origins?.get("parameters") ?? base;
     collect(
       found,
       item.parameters,
       `path item ${pathPattern}`,
-      base,
+      at,
       resolveRef,
       clearedRefs,
-      crossedRef,
+      at !== base,
     );
   }
   for (const method of METHODS) {
     const operation = item[method];
     if (operation === null || typeof operation !== "object") continue;
+    const at = origins?.get(method) ?? base;
     collect(
       found,
       operation.parameters,
       `${method.toUpperCase()} ${pathPattern}`,
-      `${base}/${method}`,
+      `${at}/${method}`,
       resolveRef,
       clearedRefs,
-      crossedRef,
+      at !== base,
     );
   }
 }

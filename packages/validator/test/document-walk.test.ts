@@ -102,3 +102,24 @@ describe("walkDocumentSchemas follows non-schema references (#1242)", () => {
     ]);
   });
 });
+
+it("visits schemas beside every Path Item reference, even in a cycle (#1290)", () => {
+  const doc = {
+    ...base,
+    paths: { "/p": { $ref: "#/x-items/Mid" } },
+    "x-items": {
+      Mid: {
+        $ref: "#/x-items/Final",
+        get: { parameters: [{ name: "p", in: "query", schema: { type: "string" } }] },
+      },
+      Final: {
+        $ref: "#/x-items/Mid",
+        post: { parameters: [{ name: "p", in: "query", schema: { type: "number" } }] },
+      },
+    },
+  };
+  expect(roots(doc)).toEqual([
+    "/x-items/Mid/get/parameters/0/schema",
+    "/x-items/Final/post/parameters/0/schema",
+  ]);
+});

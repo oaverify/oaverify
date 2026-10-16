@@ -36,6 +36,7 @@ import {
   maxTotalBytesErrorMessage,
   recordDocumentRefSiblingSuppression,
   resolveOperationRef,
+  resolvePathItem,
   schemaRefResolverFor,
   transformBodySchemaForDirection,
   unservedParameterLocationMessage,
@@ -262,9 +263,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   // binds it.
   const resolveSchemaRef = schemaRefResolverFor(refResolver, graph);
 
-  // Non-schema objects reached through `$ref`, followed to the end of a
-  // chain by the function createValidator uses, so both read the same
-  // Path Item, Parameter, Response or Header.
+  // Reference Objects replace their use site with the final target.
   const resolveRef = <T>(v: T | ReferenceObject | undefined): T | undefined =>
     resolveOperationRef<T>(document, v);
 
@@ -373,7 +372,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
 
   // First pass: identify which paths have ≥ 1 included op.
   for (const [pathPattern, pathItemRaw] of Object.entries(document.paths ?? {})) {
-    const pathItem = resolveRef<PathItem>(pathItemRaw as PathItem | ReferenceObject);
+    const pathItem = resolvePathItem(document, pathItemRaw)?.item;
     if (pathItem == null) continue;
     for (const method of HTTP_METHODS) {
       const opRaw = (pathItem as Record<string, unknown>)[method];
@@ -390,7 +389,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   // (for the router) and the filtered subset (for the ops table).
   for (const [pathPattern, pathItemRaw] of Object.entries(document.paths ?? {})) {
     if (!includedPaths.has(pathPattern)) continue;
-    const pathItem = resolveRef<PathItem>(pathItemRaw as PathItem | ReferenceObject);
+    const pathItem = resolvePathItem(document, pathItemRaw)?.item;
     if (pathItem == null) continue;
 
     const allDeclared = new Set<string>();

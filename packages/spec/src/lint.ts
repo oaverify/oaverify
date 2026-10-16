@@ -1036,7 +1036,7 @@ function* definedPathItems(
   const seen = new Set<object>();
   const pending: ["item" | "callback", string, unknown][] = [];
   const follow = (ref: object, kind: "item" | "callback"): void => {
-    const resolved = followLocal(ref, document);
+    const resolved = followLocal(ref, document, kind === "item");
     if (resolved?.pointer !== undefined) pending.push([kind, resolved.pointer, resolved.target]);
   };
 
@@ -1097,11 +1097,13 @@ function* definedPathItems(
  * The value a local `$ref` chain ends at, with the pointer of its last
  * hop, or the value itself when it is not a reference. `undefined` when
  * a hop is not a local pointer, does not resolve, or the chain runs past
- * 32 hops. Conformance and the resolver report those.
+ * 32 hops. Conformance and the resolver report those. With `oneHop`,
+ * return the next target so a Path Item walk can read its sibling fields.
  */
 function followLocal(
   value: unknown,
   document: OpenAPIDocument,
+  oneHop = false,
 ): { target: unknown; pointer?: string } | undefined {
   let current = value;
   let pointer: string | undefined;
@@ -1116,6 +1118,7 @@ function followLocal(
       return undefined;
     }
     pointer = next;
+    if (oneHop) return { target: current, pointer };
   }
   return undefined;
 }

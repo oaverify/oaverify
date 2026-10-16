@@ -71,7 +71,8 @@ const isExtension = (key: string): boolean => key.startsWith("x-");
  * Every header declaration OpenAPI says to ignore, in document order:
  * `paths`, then `webhooks`, with each operation's callbacks after it.
  * A declaration reached from several operations is listed once for each,
- * and a Path Item's own parameter once for that Path Item.
+ * and a Path Item's own parameter once for that Path Item. This lists
+ * declarations, including fields shadowed during standalone compilation.
  *
  * @internal
  */
@@ -83,7 +84,10 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
   // follow is the conformance pass's finding, not this one's.
   // The pointer is the last hop's, so a path built under it addresses
   // the target and not a Reference Object partway along a chain.
-  const follow = (raw: unknown): { target?: unknown; definitionPointer?: string } => {
+  const follow = (
+    raw: unknown,
+    oneHop = false,
+  ): { target?: unknown; definitionPointer?: string } => {
     let current = raw;
     let definitionPointer: string | undefined;
     for (let hops = 0; hops <= REF_CHAIN_MAX_HOPS; hops++) {
@@ -101,6 +105,7 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
         return {};
       }
       definitionPointer = pointer;
+      if (oneHop) return { target: current, definitionPointer };
     }
     return {};
   };
@@ -160,10 +165,7 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
     }
   };
 
-  // A Path Item entry is read twice when it carries a `$ref`: its own
-  // keys, because the router routes a method written beside the `$ref`
-  // (`methodsDeclaredOn`), and the target's. Same rule as
-  // `listUnservedParameterLocations`.
+  // Visit each Path Item's own fields before following its reference.
   const walkPathItem = (
     raw: unknown,
     base: string,
@@ -171,12 +173,26 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
     shared: boolean,
     ancestors: ReadonlySet<unknown>,
   ): void => {
-    if (!isObj(raw)) return;
-    walkPathItemObject(raw, base, label, shared, ancestors);
-    if (typeof raw["$ref"] !== "string") return;
-    const { target, definitionPointer } = follow(raw);
-    if (!isObj(target) || target === raw) return;
-    walkPathItemObject(target, definitionPointer ?? base, label, true, ancestors);
+    const chain: Array<{ item: Obj; at: string; viaRef: boolean }> = [];
+    const seen = new Set(ancestors);
+    let current = raw;
+    let at = base;
+    let viaRef = shared;
+    while (isObj(current) && !seen.has(current)) {
+      seen.add(current);
+      chain.push({ item: current, at, viaRef });
+      if (typeof current["$ref"] !== "string") break;
+      const { target, definitionPointer } = follow(current, true);
+      current = target;
+      at = definitionPointer ?? at;
+      viaRef = true;
+    }
+    const hasOperations = chain.some(({ item }) => METHODS.some((method) => isObj(item[method])));
+    const traversed = new Set(ancestors);
+    for (const entry of chain) {
+      traversed.add(entry.item);
+      walkPathItemObject(entry.item, entry.at, label, entry.viaRef, traversed, hasOperations);
+    }
   };
 
   const walkPathItemObject = (
@@ -185,16 +201,12 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
     label: string,
     viaRef: boolean,
     ancestors: ReadonlySet<unknown>,
+    hasOperations: boolean,
   ): void => {
-    // A callback can reach the Path Item that declares it; once per
-    // chain is enough.
-    if (ancestors.has(item)) return;
-    const inside = new Set(ancestors).add(item);
-    // A Path Item's own parameters apply only through its operations.
-    // 3.2 `additionalOperations` are not read here, as the router does
-    // not route them.
+    // Earlier hops are in `ancestors`. A callback may still reach a
+    // later hop independently, with its own operation label.
     const operations = METHODS.filter((method) => isObj(item[method]));
-    if (operations.length > 0) {
+    if (hasOperations) {
       collectParameters(item["parameters"], at, `path item ${label}`, viaRef);
     }
     for (const method of operations) {
@@ -218,7 +230,7 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
             `${callbackAt}/${escapePointer(expression)}`,
             `callback ${name} ${expression} of ${where}`,
             viaRef || callback.definitionPointer !== undefined,
-            inside,
+            ancestors,
           );
         }
       }

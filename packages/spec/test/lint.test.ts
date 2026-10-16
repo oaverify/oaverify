@@ -1196,3 +1196,21 @@ describe("lintResolvedSpec: server-variable-default-not-in-enum", () => {
     expect(outside(spec).map((i) => i.pointer)).toEqual(["/x-link/server/variables/v/default"]);
   });
 });
+
+it("checks each Path Item hop, including cyclic intermediate siblings (#1290)", () => {
+  const document = minimalSpec({
+    paths: {
+      "/p": { $ref: "#/x-items/Mid" },
+      "/other": { get: { operationId: "dup", responses: {} } },
+    },
+    "x-items": {
+      Mid: { $ref: "#/x-items/Final", get: { operationId: "dup", responses: {} } },
+      Final: { $ref: "#/x-items/Mid", post: { operationId: "last", responses: {} } },
+    },
+  } as Partial<OpenAPIDocument>);
+  const duplicates = lintResolvedSpec(document).filter(
+    (issue) => issue.code === "duplicate-operation-id",
+  );
+  expect(duplicates).toHaveLength(1);
+  expect(duplicates[0]?.pointer).toBe("/x-items/Mid/get/operationId");
+});

@@ -37,10 +37,10 @@ conforming implementation choice.
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 5 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 9 |
-| [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 4 |
+| [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 5 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 4 |
 
-63 documented entries across 31 files.
+64 documented entries across 32 files.
 
 ## under-asserts
 
@@ -321,7 +321,7 @@ JavaScript calculates `0.3 / 0.1` as `2.9999999999999996` instead of `3`.
 
 ### packages/spec
 
-**`findUndeclaredSecuritySchemes`** ([packages/spec/src/lint.ts:1180](../packages/spec/src/lint.ts#L1180))
+**`findUndeclaredSecuritySchemes`** ([packages/spec/src/lint.ts:1183](../packages/spec/src/lint.ts#L1183))
 
 Against OpenAPI 3.2.0 Security Requirement Object (<https://spec.openapis.org/oas/v3.2.0.html#security-requirement-object>).
 
@@ -709,7 +709,7 @@ to the original files (#561).
 
 ### packages/spec
 
-**`findDuplicateOperationIds`** ([packages/spec/src/lint.ts:1127](../packages/spec/src/lint.ts#L1127))
+**`findDuplicateOperationIds`** ([packages/spec/src/lint.ts:1130](../packages/spec/src/lint.ts#L1130))
 
 Against OpenAPI 3.2.0 Operation Object (<https://spec.openapis.org/oas/v3.2.0.html#operation-object>).
 
@@ -723,7 +723,7 @@ and are not reported. Two Operation Objects written separately with
 the same `operationId` are reported, even when their content is
 identical.
 
-**`findUndeclaredServerVariables`** ([packages/spec/src/lint.ts:1265](../packages/spec/src/lint.ts#L1265))
+**`findUndeclaredServerVariables`** ([packages/spec/src/lint.ts:1268](../packages/spec/src/lint.ts#L1268))
 
 Against OpenAPI 3.2.0 Server Object (<https://spec.openapis.org/oas/v3.2.0.html#server-object>).
 
@@ -748,6 +748,18 @@ as `JSON.parse` does. The streaming validator also keeps only the last
 when the schema requires it to collect an object in memory before
 checking it. JSON recommends unique names and leaves duplicate handling
 unspecified, so the result here depends on the schema.
+
+### packages/validator
+
+**`resolvePathItem`** ([packages/validator/src/path-item.ts:20](../packages/validator/src/path-item.ts#L20))
+
+Against OpenAPI 3.1.0 Path Item Object (<https://spec.openapis.org/oas/v3.1.0.html#path-item-object>).
+
+OpenAPI leaves behavior undefined when a field appears both beside a
+Path Item `$ref` and in its target. Standalone compilation and its
+parameter-location checks keep the nearest declaration of that field;
+fields found only in a target are
+inherited. Arrays such as `parameters` are replaced as a whole.
 
 ## defers
 
@@ -794,7 +806,7 @@ ignored instead of rejected (#919).
 
 ### packages/validator
 
-**`UNIMPLEMENTED_LOCATIONS`** ([packages/validator/src/parameter-locations.ts:85](../packages/validator/src/parameter-locations.ts#L85))
+**`UNIMPLEMENTED_LOCATIONS`** ([packages/validator/src/parameter-locations.ts:86](../packages/validator/src/parameter-locations.ts#L86))
 
 Against OpenAPI 3.2 Parameter Object (<https://spec.openapis.org/oas/v3.2.0#parameter-object>).
 
