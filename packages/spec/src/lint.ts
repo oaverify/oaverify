@@ -1387,6 +1387,7 @@ function* definedServers(document: OpenAPIDocument): Generator<[string, Record<s
       yield* serverList(op.servers, `${opPointer}/servers`);
       if (!isObject(op.responses)) continue;
       for (const [status, response] of Object.entries(op.responses)) {
+        if (status.startsWith("x-")) continue;
         yield* responseLinkServers(
           response,
           `${opPointer}/responses/${escapePointerSegment(status)}`,
