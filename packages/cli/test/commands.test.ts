@@ -991,18 +991,68 @@ describe("resolveCommand", () => {
     expect(result.exitCode).toBe(4);
   });
 
-  it("check prints findings collected before an exit-2 abort", async () => {
-    // #716, the same principle as #515 applied to the router abort:
-    // running fewer checks should not report more. These templates
-    // collide once the malformed escape is taken literally, so
-    // createRouter throws; the finding naming the escape is what says
-    // why, and used to go out with it.
+  it("check reports route conflicts with exit 1 and keeps schema and example findings", async () => {
+    const operation = {
+      responses: {
+        "200": {
+          description: "ok",
+          content: {
+            "application/json": { schema: { type: "object", required: ["missing"] }, example: {} },
+          },
+        },
+      },
+    };
     const spec = {
       openapi: "3.1.0",
+      info: { title: "Routes", version: "1" },
+      paths: { "/a": { get: operation }, "/a/": { get: operation } },
+    };
+    const { io, stdout, stderr } = memoryIo([["spec.json", spec]]);
+    const result = await checkCommand(
+      { spec: "spec.json", overlays: [], format: "json", options: textOpts },
+      io,
+    );
+    expect(result.exitCode).toBe(1);
+    expect(stderr.value).not.toContain("aborted");
+    const { findings } = JSON.parse(stdout.value) as { findings: CheckFinding[] };
+    expect(findings.map((f) => f.code)).toEqual(
+      expect.arrayContaining([
+        "route-conflict",
+        "example-invalid",
+        "silent-rewrite/required-not-in-properties",
+      ]),
+    );
+    expect(findings.find((f) => f.code === "route-conflict")).toMatchObject({
+      class: "hygiene",
+      severity: "error",
+      target: { pointer: "/paths/~1a~1" },
+    });
+    const selected = memoryIo([["spec.json", spec]]);
+    const remapped = await checkCommand(
+      {
+        spec: "spec.json",
+        overlays: [],
+        format: "json",
+        findings: "route-conflict",
+        severity: ["route-conflict=warning"],
+        failOn: "error",
+        options: textOpts,
+      },
+      selected.io,
+    );
+    expect(remapped.exitCode).toBe(0);
+    expect(
+      (JSON.parse(selected.stdout.value) as { findings: CheckFinding[] }).findings,
+    ).toMatchObject([{ code: "route-conflict", severity: "warning" }]);
+  });
+
+  it("check prints findings collected before an exit-2 abort", async () => {
+    // A version category error preserves findings already collected.
+    const spec = {
+      openapi: "2.0",
       info: { title: "X", version: "1" },
       paths: {
         "/bad%zz": { get: { responses: { "200": { description: "ok" } } } },
-        "/bad%25zz": { get: { responses: { "200": { description: "ok" } } } },
       },
     };
     const { io, stderr, stdout } = memoryIo([["spec.json", spec]]);
@@ -1012,7 +1062,7 @@ describe("resolveCommand", () => {
     );
     // The abort still decides the exit code: nothing was fully graded.
     expect(result.exitCode).toBe(2);
-    expect(stderr.value).toContain("both declare GET on the same path structure");
+    expect(stderr.value).toContain("openapi");
     expect(stderr.value).toContain("1 finding(s) produced before the check was aborted");
     expect(stderr.value).toContain("path-template-malformed");
     // Partial findings never reach the report sink, so a consumer
@@ -1024,11 +1074,10 @@ describe("resolveCommand", () => {
     // The partial block stays text on stderr whatever --format says, so
     // a json consumer never parses a half report.
     const spec = {
-      openapi: "3.1.0",
+      openapi: "2.0",
       info: { title: "X", version: "1" },
       paths: {
         "/bad%zz": { get: { responses: { "200": { description: "ok" } } } },
-        "/bad%25zz": { get: { responses: { "200": { description: "ok" } } } },
       },
     };
     const { io, stderr, stdout } = memoryIo([["spec.json", spec]]);
@@ -1045,11 +1094,10 @@ describe("resolveCommand", () => {
     // A code suppressed in CI stays suppressed, or the abort path would
     // report what a clean run does not.
     const spec = {
-      openapi: "3.1.0",
+      openapi: "2.0",
       info: { title: "X", version: "1" },
       paths: {
         "/bad%zz": { get: { responses: { "200": { description: "ok" } } } },
-        "/bad%25zz": { get: { responses: { "200": { description: "ok" } } } },
       },
     };
     const { io, stderr } = memoryIo([["spec.json", spec]]);

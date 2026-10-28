@@ -51,17 +51,20 @@ export const DEFAULT_SEVERITY: Readonly<Record<CheckClass, CheckSeverity>> = {
 };
 
 /**
- * Hygiene codes that are specification violations rather than
- * housekeeping. A code belongs here when the document breaks a rule
+ * Hygiene codes that violate the specification or prevent routing.
+ * A code belongs here when the document breaks a rule
  * OpenAPI states, such as a path-template placeholder no parameter
  * declares, or leaves a value undefined that the document cannot be used
- * without, such as a server URL placeholder with no variable. The rest of
+ * without, such as a server URL placeholder with no variable. Router
+ * conflicts also prevent serving requests, including those caused by path
+ * normalization rather than an OpenAPI violation. The rest of
  * the hygiene codes name things that are legal and merely dead, such as
  * an unused component. A rule that one OpenAPI version only recommends is
  * reported there under a separate code outside this set, as
  * `server-variable-default-not-in-enum-oas30` is.
  */
 export const HYGIENE_ERRORS: ReadonlySet<string> = new Set([
+  "route-conflict",
   "path-param-undeclared",
   "path-param-unused",
   "path-template-malformed",
@@ -70,7 +73,7 @@ export const HYGIENE_ERRORS: ReadonlySet<string> = new Set([
   "security-scheme-undeclared",
   "server-variable-undeclared",
   "server-variable-default-not-in-enum",
-] satisfies SpecHygieneIssue["code"][]);
+] satisfies (SpecHygieneIssue["code"] | "route-conflict")[]);
 
 /**
  * A regrading, keyed three ways.

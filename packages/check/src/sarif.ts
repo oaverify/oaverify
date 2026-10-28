@@ -37,7 +37,7 @@
  * **Related locations declare their meaning.** Each item carries
  * `properties["oaverify:kind"]`, such as `via` for a resolver hop,
  * `reason` for a rejection inside an example, or `contributor` for a
- * finite constraint supporting a composition finding. Contributor indices
+ * declaration supporting the finding. Contributor indices
  * refer to CheckFinding.contributors. Evidence locations require their own
  * source address and span, and a source address on the finding they support.
  *
@@ -285,7 +285,7 @@ function relatedLocationsOf(
     for (const [index, contributor] of (finding.contributors ?? []).entries()) {
       const source = contributor.source;
       if (source === undefined) continue;
-      const span = spanOf({ uri: source.uri, pointer: source.pointer, want: "value" });
+      const span = spanFor({ ...finding, target: contributor }, spanOf);
       if (span === undefined) continue;
       contributors.push({
         id: hops.length + reasons.length + contributors.length + 1,
@@ -293,7 +293,12 @@ function relatedLocationsOf(
           artifactLocation: artifactLocation(source.uri, base),
           ...regionOf(span),
         },
-        message: { text: `finite constraint contributing to this intersection: ${source.pointer}` },
+        message: {
+          text:
+            finding.code === "route-conflict"
+              ? `conflicting path: ${source.pointer}`
+              : `finite constraint contributing to this intersection: ${source.pointer}`,
+        },
         properties: { "oaverify:kind": "contributor", "oaverify:contributorIndex": index },
       });
     }

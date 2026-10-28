@@ -89,6 +89,7 @@ const KEY_CODES: ReadonlySet<string> = new Set([
   "unused-component",
   "unreachable-defs",
   "path-template-malformed",
+  "route-conflict",
   "unknown-keyword",
   "security-scheme-undeclared",
 ]);
@@ -150,8 +151,10 @@ export function spanRequestsFor(findings: readonly CheckFinding[]): SpanRequest[
     if (want !== "value") add(source.uri, source.pointer, "value");
     for (const hop of source.via) add(hop.uri, hop.pointer, "value");
     for (const contributor of finding.contributors ?? []) {
-      if (contributor.source !== undefined)
-        add(contributor.source.uri, contributor.source.pointer, "value");
+      const at = contributor.source;
+      if (at === undefined) continue;
+      add(at.uri, at.pointer, want);
+      if (want !== "value") add(at.uri, at.pointer, "value");
     }
     // One request per reason that has an address, at that address. One,
     // not a pair: there is no fallback to resolve against, per the

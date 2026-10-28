@@ -147,6 +147,7 @@ describe("every code on the key list can resolve a key", () => {
     "unused-component": "/components/schemas/Order",
     "unreachable-defs": "/components/schemas/Order/$defs/Dead",
     "path-template-malformed": "/paths/~1orders~1{id}",
+    "route-conflict": "/paths/~1orders~1{id}",
     "unknown-keyword": "/components/schemas/Order/nullable",
     "security-scheme-undeclared": "/paths/~1orders~1{id}/get/security/0/missing",
   };

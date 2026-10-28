@@ -119,3 +119,5 @@ export { firstContentSchema, firstContentMediaType } from "./operation-cache.js"
 export { effectiveParameters, type EffectiveParameter } from "./effective-parameters.js";
 
 export { resolvePathItem } from "./path-item.js";
+
+export { checkValidatorConstruction } from "./validator.js";

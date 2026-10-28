@@ -19,8 +19,9 @@ import {
   type ResolvedSpec,
   type SpecRegion,
 } from "@oaverify/internal-spec";
-import { createValidator } from "@oaverify/internal-validator";
 import {
+  checkValidatorConstruction,
+  escapePointer,
   listIgnoredHeaders,
   type IgnoredHeader,
   listUnservedParameterLocations,
@@ -142,9 +143,8 @@ export class CheckAbortedError extends Error {
    *
    * The abort says the document could not be graded, which is true and
    * is why the exit code does not change. It is not a reason to throw
-   * away located, actionable findings on the way out: a spec whose path
-   * templates collide aborts in the router, and the hygiene finding
-   * naming the offending template is exactly what explains why.
+   * away located, actionable findings on the way out. A document with
+   * an invalid OpenAPI version can still carry hygiene findings.
    *
    * Graded exactly like a returned finding: narrowed to the selection,
    * remapped by the caller's severity map, and given its `target.source`.
@@ -344,23 +344,32 @@ export function checkSpec(resolved: ResolvedSpec, options: CheckOptions = {}): C
   // Gating it on the schema class is what makes a selection like
   // `--findings hygiene` return an empty report with exit 0 on a
   // document nothing could grade (#674).
+  const routeConflicts = new Map<string, { finding: CheckFinding; methods: string[] }>();
   try {
-    // `unservedParameterLocations: "ignore"`: `createValidator` refuses
-    // a document declaring a parameter location it cannot serve (#836),
-    // and that refusal is about serving requests, not about whether the
-    // document can be graded. Aborting cost a legal 3.2 document its
-    // whole report, and cost a Swagger 2.0 leftover the conformance
-    // findings that name the offending `in`.
-    //
-    // The option rather than a filtered copy of the document, which is
-    // what this did first: rewriting `paths` to drop the offenders lost
-    // the elided parameter's own schema findings, mishandled
-    // `paths: null` and a `__proto__` path key, and could not shield a
-    // dangling `$ref` from the gate anyway. Nothing is rewritten now,
-    // so every pass sees the document the author wrote.
-    createValidator(document, {
-      schemaLint: "strict",
-      unservedParameterLocations: "ignore",
+    // Serving refusals become findings while the remaining construction
+    // checks still run. Every pass sees the original document, including
+    // the schemas and examples on conflicting routes.
+    checkValidatorConstruction(document, ({ firstPath, secondPath, method }) => {
+      if (!classes.has("hygiene")) return;
+      const key = JSON.stringify([firstPath, secondPath]);
+      let conflict = routeConflicts.get(key);
+      if (conflict === undefined) {
+        const pointer = `/paths/${escapePointer(secondPath)}`;
+        const finding: CheckFinding = {
+          class: "hygiene",
+          severity: defaultSeverityFor("hygiene", "route-conflict"),
+          code: "route-conflict",
+          location: pointer,
+          message: "",
+          target: { pointer, anchor: "node" },
+          contributors: [{ pointer: `/paths/${escapePointer(firstPath)}`, anchor: "node" }],
+        };
+        conflict = { finding, methods: [] };
+        routeConflicts.set(key, conflict);
+        findings.push(finding);
+      }
+      conflict.methods.push(method.toUpperCase());
+      conflict.finding.message = `Paths "${firstPath}" and "${secondPath}" both match ${conflict.methods.join(", ")} requests.`;
     });
   } catch (err) {
     gradeFindings(findings, selection, severityMap, regions);
@@ -593,14 +602,24 @@ function gradeFindings(
   // or one covered by something the resolver invented, keeps no
   // `source`, which is what absence means here.
   for (const finding of findings) {
+    const targetSource = (pointer: string) =>
+      sourceOf(
+        // A path name belongs to its enclosing map. A mount at the path
+        // itself describes a referenced Path Item value, not the name.
+        // Synthetic regions still suppress attribution after overlays.
+        finding.code === "route-conflict"
+          ? regions.filter((region) => region.kind !== "mounted" || region.at !== pointer)
+          : regions,
+        pointer,
+      );
     if (finding.contributors !== undefined) {
       finding.contributors = finding.contributors.map((target) => {
-        const source = sourceOf(regions, target.pointer);
+        const source = targetSource(target.pointer);
         return source === undefined ? target : { ...target, source };
       });
     }
     if (finding.target === undefined) continue;
-    const source = sourceOf(regions, finding.target.pointer);
+    const source = targetSource(finding.target.pointer);
     if (source !== undefined) finding.target = { ...finding.target, source };
     // A reason's position is resolved the same way, rather than derived
     // by appending its path to the address above. The two differ

@@ -66,6 +66,11 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
   "path-param-undeclared": { title: "a path template placeholder with no parameter declaring it" },
   "path-param-unused": { title: "a path parameter the path template does not name" },
   "path-template-malformed": { title: "a path template that does not parse" },
+  "route-conflict": {
+    title: "paths the router cannot distinguish for the same method",
+    explanation:
+      "Rename or merge the conflicting paths. This includes conflicts caused by the router's path normalization, such as ignoring trailing slashes. GET also handles HEAD when no explicit HEAD operation is declared.",
+  },
   "duplicate-parameter": { title: "a parameter list declaring one name and location twice" },
   "duplicate-operation-id": { title: "an operationId two operations share" },
   "security-scheme-undeclared": { title: "a security requirement naming no declared scheme" },

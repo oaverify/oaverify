@@ -507,6 +507,28 @@ export function routeSignature(pathPattern: string): string {
  * @public
  */
 export function createRouter(paths: Record<string, PathItem>): Router {
+  return buildRouter(paths);
+}
+
+/** A pair the router cannot distinguish for one HTTP method. */
+export interface RouteConflict {
+  firstPath: string;
+  secondPath: string;
+  method: HttpMethod;
+}
+
+/** Internal checker construction; the returned router must never serve traffic. */
+export function createRouterForCheck(
+  paths: Record<string, PathItem>,
+  onConflict: (conflict: RouteConflict) => void,
+): Router {
+  return buildRouter(paths, onConflict);
+}
+
+function buildRouter(
+  paths: Record<string, PathItem>,
+  onConflict?: (conflict: RouteConflict) => void,
+): Router {
   const routes: Route[] = [];
   // Per-(method, structure) ambiguity index. Two patterns that differ
   // only in parameter names are an ill-formed document only when they
@@ -522,6 +544,10 @@ export function createRouter(paths: Record<string, PathItem>): Router {
       const key = `${method}\t${signature}`;
       const existing = byMethodSignature.get(key);
       if (existing !== undefined) {
+        if (onConflict !== undefined) {
+          onConflict({ firstPath: existing, secondPath: pattern, method });
+          continue;
+        }
         const verb = method.toUpperCase();
         // The parameter-name clause explains why two textually different
         // templates collide, which is the common case and worth saying.

@@ -9,6 +9,7 @@ import { createJsonSpanBackend, createYamlSpanBackend, parseYamlString } from "@
 import type { CheckFinding } from "../src/finding.js";
 import { renderSarif } from "../src/sarif.js";
 import { checkSpec } from "../src/check.js";
+import { spanRequestsFor } from "../src/span-target.js";
 
 /**
  * SARIF `region`, which arrives from a caller's span lookup rather than
@@ -65,6 +66,65 @@ const render = (options: Parameters<typeof renderSarif>[1]): SarifLog =>
   JSON.parse(renderSarif([FINDING], options)) as SarifLog;
 
 const only = (log: SarifLog) => log.runs[0]?.results[0];
+
+it.each(["json", "yaml"] as const)(
+  "highlights both conflicting path keys in %s source",
+  async (syntax) => {
+    const yaml = `openapi: 3.1.0
+info: { title: Routes, version: '1' }
+paths:
+  /a:
+    $ref: items.json#/first
+  /a/:
+    $ref: items.json#/second
+`;
+    const document = parseYamlString(yaml);
+    const text = syntax === "yaml" ? yaml : JSON.stringify(document, null, 2);
+    const uri = `entry.${syntax}`;
+    const operation = { get: { responses: { "200": { description: "ok" } } } };
+    const resolved = await loadSpec({
+      entry: uri,
+      provenance: true,
+      reader: createMemoryReader(
+        new Map<string, unknown>([
+          [uri, document],
+          ["items.json", { first: operation, second: operation }],
+        ]),
+      ),
+    });
+    const findings = checkSpec(resolved).filter((f) => f.code === "route-conflict");
+    const resolver = createSourceSpanResolver({
+      texts: { textFor: (source) => (source === uri ? { text, syntax } : undefined) },
+      backends: [createJsonSpanBackend(), createYamlSpanBackend()],
+    });
+    const requests = spanRequestsFor(findings);
+    const spans = resolver.spansFor(requests);
+    const log = JSON.parse(
+      renderSarif(findings, {
+        classes: ["hygiene"],
+        spanOf: (request) =>
+          spans[
+            requests.findIndex(
+              (candidate) =>
+                candidate.uri === request.uri &&
+                candidate.pointer === request.pointer &&
+                candidate.want === request.want,
+            )
+          ],
+      }),
+    ) as SarifLog;
+    const result = only(log)!;
+    const locations = [...result.locations, ...result.relatedLocations!];
+    expect(locations).toHaveLength(2);
+    expect(
+      locations.map((location) => {
+        expect(location.physicalLocation.artifactLocation.uri).toBe(uri);
+        const region = location.physicalLocation.region!;
+        return text.slice(region.charOffset, region.charOffset + region.charLength);
+      }),
+    ).toEqual(syntax === "yaml" ? ["/a/", "/a"] : ['"/a/"', '"/a"']);
+  },
+);
 
 it.each(["json", "yaml"] as const)(
   "highlights each undeclared required entry in %s source",
