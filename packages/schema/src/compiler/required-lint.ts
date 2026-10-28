@@ -529,7 +529,7 @@ export function collectRequiredIssues(
             seenNames = new Set<string>();
             reported.set(node, seenNames);
           }
-          for (const name of required) {
+          for (const [index, name] of required.entries()) {
             if (typeof name !== "string" || available.has(name)) continue;
             if (seenNames.has(name)) continue;
             seenNames.add(name);
@@ -545,7 +545,7 @@ export function collectRequiredIssues(
               // correct for the definition's other users, and
               // `definition` would send a reader to fix something that
               // is not broken.
-              ...anchorAsScoped(positionFields(stepPosition(at, "required"))),
+              ...anchorAsScoped(positionFields(stepPosition(stepPosition(at, "required"), index))),
               message:
                 path.length === 0
                   ? `required: "${name}" at <root> is not declared in properties reachable here`

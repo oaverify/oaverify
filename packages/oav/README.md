@@ -157,8 +157,9 @@ exit code answers only "did this pass".
 
 ## The `check --format json` contract
 
-Verbatim output of `oaverify check ./entry.yaml --format json` on a
-two-file spec whose defect lives in the referenced file. A stable
+Excerpt from `oaverify check ./entry.yaml --format json` on a
+two-file spec whose referenced `Order` schema declares `required: [id, shipped]`
+but only defines `id` in `properties`. A stable
 interface: the fields below keep their names and meanings;
 additions arrive as new fields, and a removal or a change of meaning is
 a breaking change of this package.
@@ -173,11 +174,11 @@ a breaking change of this package.
       "location": "POST /orders request body (application/json) -> <root>",
       "message": "required: \"shipped\" at <root> is not declared in properties reachable here",
       "target": {
-        "pointer": "/components/schemas/Order/required",
+        "pointer": "/components/schemas/Order/required/1",
         "anchor": "scoped-definition",
         "source": {
           "uri": "order.yaml",
-          "pointer": "/components/schemas/Order/required",
+          "pointer": "/components/schemas/Order/required/1",
           "via": [
             {
               "uri": "./entry.yaml",
@@ -204,7 +205,7 @@ report no `target` at all rather than an address that goes nowhere.
 
 It addresses the **resolved** document, so it can name a position no
 author typed. That is what `target.source` is for. A component reached
-across documents keeps its own name (`/components/schemas/Cat/required`,
+across documents keeps its own name (`/components/schemas/Cat/required/1`,
 agreeing with `target.source.pointer`) rather than being copied under a
 derived one.
 

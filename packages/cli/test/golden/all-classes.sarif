@@ -430,15 +430,15 @@
             }
           ],
           "partialFingerprints": {
-            "oaverifyFindingV1": "silent-rewrite/required-not-in-properties shared.json/Pet/required"
+            "oaverifyFindingV1": "silent-rewrite/required-not-in-properties shared.json/Pet/required/1"
           },
           "properties": {
             "oaverify:class": "schema",
             "oaverify:severity": "warning",
             "oaverify:location": "GET /pets/{petId} 200 response body (application/json) -> <root>",
-            "oaverify:pointer": "/components/schemas/shared_Pet/required",
+            "oaverify:pointer": "/components/schemas/shared_Pet/required/1",
             "oaverify:anchor": "scoped-definition",
-            "oaverify:sourcePointer": "/Pet/required",
+            "oaverify:sourcePointer": "/Pet/required/1",
             "oaverify:occurrences": 2
           }
         },
