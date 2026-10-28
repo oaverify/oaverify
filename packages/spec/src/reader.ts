@@ -563,6 +563,7 @@ export function composeReaders(readers: DocumentReader[]): DocumentReader {
  * name being exported.
  */
 export interface SyncDocumentReader {
+  /** Return the parsed value directly. A thenable is a synchronous read failure. */
   read(uri: string): unknown;
   /** Returns true if this reader can handle the given URI. */
   canRead(uri: string): boolean;
