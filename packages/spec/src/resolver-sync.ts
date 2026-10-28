@@ -1,4 +1,5 @@
 import { collectHoistedSchemaCopies, type HoistedSchemaTarget } from "./schema-copies.js";
+import { isPromise } from "node:util/types";
 import {
   detectOpenAPIVersion,
   escapePointerSegment,
@@ -134,7 +135,7 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
     if (holes !== null && holes.has(uri)) return UNREADABLE;
     const referrer = referrers.get(uri) ?? null;
     try {
-      const doc = reader.read(uri);
+      const doc = readSynchronously(reader, uri);
       // A read that answers with nothing did not produce a document.
       // The reader layer refuses an empty YAML source already (#850),
       // but `JSON.parse("null")` succeeds, and a reader is free to
@@ -195,7 +196,7 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
   // `ResolveSpecOptions.onUnresolved`.
   let entryDoc: unknown;
   try {
-    entryDoc = reader.read(options.entry);
+    entryDoc = readSynchronously(reader, options.entry);
   } catch (err) {
     throw wrapReadError(err, options.entry, null);
   }
@@ -686,6 +687,23 @@ export function resolveSpecSyncTracked(options: ResolveSpecSyncOptions): Tracked
     },
     regions: trail.regions,
   };
+}
+
+function readSynchronously(reader: SyncDocumentReader, uri: string): unknown {
+  const doc = reader.read(uri);
+  if (
+    doc !== null &&
+    (typeof doc === "object" || typeof doc === "function") &&
+    typeof (doc as { then?: unknown }).then === "function"
+  ) {
+    // Observe already-started native promises without invoking a foreign
+    // thenable, whose then method may start lazy work.
+    if (isPromise(doc)) void Promise.prototype.then.call(doc, undefined, () => {});
+    throw new Error(
+      "reader returned a thenable; use resolveSpec or loadSpec with this reader, or provide a synchronous reader",
+    );
+  }
+  return doc;
 }
 
 /** A JSON object, as opposed to an array, a null, or a scalar. */
