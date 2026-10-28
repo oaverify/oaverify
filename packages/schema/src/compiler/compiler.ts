@@ -2288,9 +2288,13 @@ function compileValidator(
   // Mark this schema as on the compile stack while its body (and every
   // subschema reachable from it) is generated, so a `$ref` back to it
   // resolves as a recursion back-edge and gets the depth guard.
-  state.compiling.add(schema);
+  // The same schema can be on the stack in two modes at once (a flat
+  // function compiling its branches as predicates), so only the outermost
+  // entry removes it.
+  const outermost = !state.compiling.has(schema);
+  if (outermost) state.compiling.add(schema);
   const body = buildFunctionBody(schema, state, mode);
-  state.compiling.delete(schema);
+  if (outermost) state.compiling.delete(schema);
   // Predicate mode drops the `path` parameter: error expressions
   // (which are the only consumer of `path`) are never emitted.
   // Callers of these functions (composition keywords, ref, etc.)

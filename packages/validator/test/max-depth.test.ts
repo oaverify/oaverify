@@ -88,3 +88,30 @@ describe("createValidator maxDepth: request body", () => {
     expect(() => v.validateRequest(postTree(nestChild(100_000)))).toThrow(RangeError);
   });
 });
+
+describe("createValidator maxDepth: request body behind a union", () => {
+  function unionSpec(): OpenAPIDocument {
+    const spec = treeSpec();
+    spec.components!.schemas!.Node = {
+      anyOf: [
+        { type: "null" },
+        { type: "object", properties: { child: { $ref: "#/components/schemas/Node" } } },
+      ],
+    };
+    return spec;
+  }
+
+  it("rejects a body past the cap with a depth error", () => {
+    const err = createValidator(unionSpec(), { maxDepth: 8 }).validateRequest(
+      postTree(nestChild(20)),
+    );
+    expect(collectLeaves(err!).map((l) => l.code)).toContain("depth");
+  });
+
+  it("bounds a pathologically deep body instead of overflowing", () => {
+    const err = createValidator(unionSpec(), { maxDepth: 64 }).validateRequest(
+      postTree(nestChild(100_000)),
+    );
+    expect(err).not.toBeNull();
+  });
+});

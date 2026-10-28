@@ -179,3 +179,35 @@ describe("maxDepth: mutual recursion", () => {
     expect(leafCodes(failure(r).error)).toContain("depth");
   });
 });
+
+describe("maxDepth: recursion through a union", () => {
+  // `oneOf` decides with predicate-compiled branches, so the union schema
+  // is compiled in two modes at once; the back-edge must stay guarded in both.
+  const union = {
+    oneOf: [{ type: "null" }, { type: "object", properties: { next: { $ref: "#" } } }],
+  };
+  function nestNext(depth: number): unknown {
+    let node: unknown = null;
+    for (let i = 0; i < depth; i += 1) node = { next: node };
+    return node;
+  }
+
+  for (const output of ["predicate", "flat", "tree"] as const) {
+    it(`rejects nesting past the cap (${output})`, () => {
+      const v = compile(union, { maxDepth: 3, output });
+      const r = v.validate(nestNext(10));
+      expect(typeof r === "boolean" ? r : r.valid).toBe(false);
+    });
+
+    it(`bounds a pathologically deep payload instead of overflowing (${output})`, () => {
+      const v = compile(union, { maxDepth: 64, output });
+      const r = v.validate(nestNext(100_000));
+      expect(typeof r === "boolean" ? r : r.valid).toBe(false);
+    });
+  }
+
+  it("reports the depth leaf in error output", () => {
+    const r = compile(union, { maxDepth: 3 }).validate(nestNext(10));
+    expect(leafCodes(failure(r).error)).toContain("depth");
+  });
+});
