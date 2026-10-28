@@ -19,6 +19,7 @@ import {
 } from "@oaverify/internal-core";
 import { subschemaEntries } from "@oaverify/internal-core/subschema-positions";
 import { HTTP_METHODS } from "@oaverify/internal-core";
+import { EXTERNALS_FIELD } from "./resolver-shared.js";
 
 /**
  * A single spec-hygiene finding from {@link lintResolvedSpec}.
@@ -270,18 +271,39 @@ function findUnusedComponents(
  * Walk roots (operations, top-level + per-op `security`,
  * `discriminator.mapping`), collect every `$ref` target into
  * `components/*` and every `securitySchemes` name referenced. Iterates
- * to a fixed point so component-to-component refs propagate.
+ * to a fixed point through components and referenced stitched fragments.
  */
 function collectReachableComponents(document: OpenAPIDocument): Set<string> {
   // Direct refs collected from non-component roots.
   const fromRoots = new Set<string>();
-  // Map from a component key (e.g. "schemas/Pet") to refs it makes.
+  // Component keys (e.g. "schemas/Pet") and stitched JSON Pointers map
+  // to their outgoing references. Stitches do not introduce new roots.
   const componentEdges = new Map<string, Set<string>>();
 
   // Index: every $ref / security-scheme reference in the document, paired
   // with a "source" path so we can attribute it to a containing component
   // (for transitive-closure) or to a non-component root.
   collectAllRefs(document, fromRoots, componentEdges);
+
+  const pending = new Set(fromRoots);
+  for (const edges of componentEdges.values()) {
+    for (const target of edges) pending.add(target);
+  }
+  for (const pointer of pending) {
+    if (!pointer.startsWith(`/${EXTERNALS_FIELD}/`)) continue;
+    let target: unknown;
+    try {
+      target = resolveJsonPointer(document, pointer);
+    } catch {
+      // An unresolved stitch contributes no edges. Loading reports the
+      // unresolved reference; lint can still report unrelated findings.
+      continue;
+    }
+    const edges = new Set<string>();
+    walkAnyRefs(target, edges);
+    componentEdges.set(pointer, edges);
+    for (const edge of edges) pending.add(edge);
+  }
 
   // Closure: anything reached from roots, plus anything reached from
   // already-reached components.
@@ -427,9 +449,9 @@ function walkPathItem(pathItem: unknown, sink: Set<string>): void {
 
 /**
  * Recursive walk that captures every `$ref` whose target is
- * `#/components/<category>/<name>` and every `discriminator.mapping`
- * value pointing at the same shape. Adds to `sink` as
- * `<category>/<name>`.
+ * a component or stitched fragment, including `discriminator.mapping`
+ * values. Component keys use `<category>/<name>`; stitched targets use
+ * decoded document pointers so percent escapes are interpreted once.
  */
 function walkAnyRefs(value: unknown, sink: Set<string>): void {
   if (value === null || typeof value !== "object") return;
@@ -440,7 +462,7 @@ function walkAnyRefs(value: unknown, sink: Set<string>): void {
   const obj = value as Record<string, unknown>;
   const ref = obj.$ref;
   if (typeof ref === "string") {
-    const key = parseComponentRef(ref);
+    const key = parseReachabilityRef(ref);
     if (key) sink.add(key);
   }
   const discriminator = obj.discriminator;
@@ -449,7 +471,7 @@ function walkAnyRefs(value: unknown, sink: Set<string>): void {
     if (mapping && typeof mapping === "object") {
       for (const target of Object.values(mapping as Record<string, unknown>)) {
         if (typeof target === "string") {
-          const key = parseComponentRef(target);
+          const key = parseReachabilityRef(target);
           if (key) sink.add(key);
         }
       }
@@ -458,7 +480,12 @@ function walkAnyRefs(value: unknown, sink: Set<string>): void {
   for (const v of Object.values(obj)) walkAnyRefs(v, sink);
 }
 
-function parseComponentRef(ref: string): string | null {
+function parseReachabilityRef(ref: string): string | null {
+  // Stitch graph nodes are keyed by decoded document pointers.
+  if (ref.startsWith("#")) {
+    const pointer = pointerFromFragment(ref.slice(1));
+    if (pointer.startsWith(`/${EXTERNALS_FIELD}/`)) return pointer;
+  }
   // Match `#/components/<category>/<name>` exactly. Reject deeper
   // pointers (e.g. `#/components/schemas/Pet/properties/id`); those
   // still mark the component as reached, so accept the prefix too.
