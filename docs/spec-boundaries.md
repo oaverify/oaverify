@@ -321,7 +321,7 @@ JavaScript calculates `0.3 / 0.1` as `2.9999999999999996` instead of `3`.
 
 ### packages/spec
 
-**`findUndeclaredSecuritySchemes`** ([packages/spec/src/lint.ts:1210](../packages/spec/src/lint.ts#L1210))
+**`findUndeclaredSecuritySchemes`** ([packages/spec/src/lint.ts:1242](../packages/spec/src/lint.ts#L1242))
 
 Against OpenAPI 3.2.0 Security Requirement Object (<https://spec.openapis.org/oas/v3.2.0.html#security-requirement-object>).
 
@@ -709,7 +709,7 @@ to the original files (#561).
 
 ### packages/spec
 
-**`findDuplicateOperationIds`** ([packages/spec/src/lint.ts:1157](../packages/spec/src/lint.ts#L1157))
+**`findDuplicateOperationIds`** ([packages/spec/src/lint.ts:1189](../packages/spec/src/lint.ts#L1189))
 
 Against OpenAPI 3.2.0 Operation Object (<https://spec.openapis.org/oas/v3.2.0.html#operation-object>).
 
@@ -723,7 +723,7 @@ and are not reported. Two Operation Objects written separately with
 the same `operationId` are reported, even when their content is
 identical.
 
-**`findUndeclaredServerVariables`** ([packages/spec/src/lint.ts:1295](../packages/spec/src/lint.ts#L1295))
+**`findUndeclaredServerVariables`** ([packages/spec/src/lint.ts:1327](../packages/spec/src/lint.ts#L1327))
 
 Against OpenAPI 3.2.0 Server Object (<https://spec.openapis.org/oas/v3.2.0.html#server-object>).
 

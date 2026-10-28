@@ -330,23 +330,24 @@ function collectAllRefs(
   fromRoots: Set<string>,
   componentEdges: Map<string, Set<string>>,
 ): void {
+  const schemeKey = securitySchemeKeys(document);
   // Top-level security scheme references.
   for (const req of asSecurityList(document.security)) {
     for (const schemeName of Object.keys(req)) {
-      fromRoots.add(`securitySchemes/${schemeName}`);
+      fromRoots.add(schemeKey(schemeName));
     }
   }
 
   // Operations under paths.
   for (const pathItem of Object.values(document.paths ?? {})) {
     if (!pathItem) continue;
-    walkPathItem(pathItem, fromRoots);
+    walkPathItem(pathItem, fromRoots, schemeKey);
     walkAnyRefs(pathItem, fromRoots);
   }
   // Operations under webhooks (3.1+).
   for (const webhook of Object.values(document.webhooks ?? {})) {
     if (!webhook) continue;
-    walkPathItem(webhook, fromRoots);
+    walkPathItem(webhook, fromRoots, schemeKey);
     walkAnyRefs(webhook, fromRoots);
   }
   // Components: edges from each component to whatever it refs.
@@ -360,8 +361,8 @@ function collectAllRefs(
       const key = `${category}/${name}`;
       const edges = new Set<string>();
       walkAnyRefs(value, edges);
-      if (category === "pathItems") walkPathItem(value, edges);
-      if (category === "callbacks") walkCallback(value, edges);
+      if (category === "pathItems") walkPathItem(value, edges, schemeKey);
+      if (category === "callbacks") walkCallback(value, edges, schemeKey);
       if (edges.size > 0) componentEdges.set(key, edges);
     }
   }
@@ -402,16 +403,47 @@ function asSecurityList(security: unknown): readonly SecurityRequirementObject[]
   );
 }
 
+/** Maps a security requirement name to the reachability key it references. */
+type SchemeKey = (name: string) => string;
+
+/**
+ * Read security requirement names the way the document's version does.
+ *
+ * A name that is a component name references that component. In OpenAPI
+ * 3.2 any other name is a URI reference, so a fragment addressing a
+ * scheme, such as `#/components/securitySchemes/key`, references `key`.
+ * A fragment is read against this document even where resolution copied
+ * the requirement in from another file; that can leave a scheme
+ * unreported, never report a used one.
+ *
+ * @specCites OpenAPI 3.2.0 Security Requirement Object, https://spec.openapis.org/oas/v3.2.0.html#security-requirement-object
+ */
+function securitySchemeKeys(document: OpenAPIDocument): SchemeKey {
+  const declared = isObject(document.components?.securitySchemes)
+    ? document.components.securitySchemes
+    : {};
+  const byUri = detectOpenAPIVersion(document) === "3.2";
+  return (name) => {
+    if (byUri && !Object.hasOwn(declared, name)) {
+      const pointer = pointerFromRefFragment(name);
+      const m =
+        pointer === undefined ? null : /^\/components\/securitySchemes\/([^/]+)$/.exec(pointer);
+      if (m) return `securitySchemes/${decodePointerSegment(m[1]!)}`;
+    }
+    return `securitySchemes/${name}`;
+  };
+}
+
 // Unreadable containers contribute no edges; conformance reports their shape.
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function walkCallback(callback: unknown, sink: Set<string>): void {
+function walkCallback(callback: unknown, sink: Set<string>, schemeKey: SchemeKey): void {
   if (!isObject(callback)) return;
   for (const [expression, item] of Object.entries(callback)) {
     if (expression.startsWith("x-")) continue;
-    walkPathItem(item, sink);
+    walkPathItem(item, sink, schemeKey);
   }
 }
 
@@ -433,15 +465,15 @@ function* operationEntries(item: unknown): Generator<[string, OperationObject]> 
   }
 }
 
-function walkPathItem(pathItem: unknown, sink: Set<string>): void {
+function walkPathItem(pathItem: unknown, sink: Set<string>, schemeKey: SchemeKey): void {
   if (!isObject(pathItem)) return;
   for (const [, op] of operationEntries(pathItem)) {
     if (isObject(op.callbacks)) {
-      for (const callback of Object.values(op.callbacks)) walkCallback(callback, sink);
+      for (const callback of Object.values(op.callbacks)) walkCallback(callback, sink, schemeKey);
     }
     for (const req of asSecurityList(op.security)) {
       for (const schemeName of Object.keys(req)) {
-        sink.add(`securitySchemes/${schemeName}`);
+        sink.add(schemeKey(schemeName));
       }
     }
   }
