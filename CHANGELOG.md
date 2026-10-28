@@ -1,5 +1,54 @@
 # Changelog
 
+## [7.3.1](https://github.com/oaverify/oaverify/compare/core-v7.3.0...core-v7.3.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **check:** report a server variable default its enum does not list ([#1274](https://github.com/oaverify/oaverify/issues/1274)) ([ffda6f4](https://github.com/oaverify/oaverify/commit/ffda6f4afd29e953a680bd7720ad880df6d0dfb8)), closes [#1055](https://github.com/oaverify/oaverify/issues/1055)
+* **check:** report an example whose schema cannot compile when the schema pass is off ([#1282](https://github.com/oaverify/oaverify/issues/1282)) ([ec9a2bb](https://github.com/oaverify/oaverify/commit/ec9a2bb2d15a9af1df6c3e21e8816bba8d39c8ea)), closes [#1131](https://github.com/oaverify/oaverify/issues/1131)
+* **check:** report duplicate operationIds, undeclared security schemes and server variables ([#1273](https://github.com/oaverify/oaverify/issues/1273)) ([5b5ffd4](https://github.com/oaverify/oaverify/commit/5b5ffd4fe8807647ee9dc23454911a6b10111b4e)), closes [#809](https://github.com/oaverify/oaverify/issues/809)
+* **check:** report duplicate parameters within a parameter list ([#1272](https://github.com/oaverify/oaverify/issues/1272)) ([0de8e02](https://github.com/oaverify/oaverify/commit/0de8e023c7379568118667f1e565013cf8f2a249)), closes [#1054](https://github.com/oaverify/oaverify/issues/1054)
+* **cli:** follow reference chains to non-schema objects in compile-spec ([#1270](https://github.com/oaverify/oaverify/issues/1270)) ([a1578be](https://github.com/oaverify/oaverify/commit/a1578bec9e76ed130dbbf1b7b1ed423b7a1815ef)), closes [#1238](https://github.com/oaverify/oaverify/issues/1238)
+* **cli:** give the emitted response tree node { status } params ([#1269](https://github.com/oaverify/oaverify/issues/1269)) ([2e5aca0](https://github.com/oaverify/oaverify/commit/2e5aca03deffae687d39f394d293d5dd66705864)), closes [#1237](https://github.com/oaverify/oaverify/issues/1237)
+* **cli:** keep a brace-led .http body as text under a declared non-JSON type ([#1275](https://github.com/oaverify/oaverify/issues/1275)) ([4d655c9](https://github.com/oaverify/oaverify/commit/4d655c9588c6e2fe36f2d56a6b7a0c164119f486)), closes [#1190](https://github.com/oaverify/oaverify/issues/1190)
+* **cli:** keep own __proto__ keys in compile-spec's emitted tables ([#1271](https://github.com/oaverify/oaverify/issues/1271)) ([77f909e](https://github.com/oaverify/oaverify/commit/77f909e66fe81b68b2d4a2d1ae81825c4bbb548c)), closes [#1236](https://github.com/oaverify/oaverify/issues/1236)
+* **cli:** let compile-spec compile file uploads without --unknown-formats ([#1264](https://github.com/oaverify/oaverify/issues/1264)) ([7b6b89b](https://github.com/oaverify/oaverify/commit/7b6b89be332445d8c79c31ed6afe42b04b7a4377)), closes [#1239](https://github.com/oaverify/oaverify/issues/1239)
+* **cli:** validate a parameter declaring schema and content against content ([#1268](https://github.com/oaverify/oaverify/issues/1268)) ([aeb8cd0](https://github.com/oaverify/oaverify/commit/aeb8cd06c9b8b2300f2e9537fa014288079e377e)), closes [#1234](https://github.com/oaverify/oaverify/issues/1234)
+* **compile-spec:** honour response header style and explode ([#1260](https://github.com/oaverify/oaverify/issues/1260)) ([cf3d118](https://github.com/oaverify/oaverify/commit/cf3d118342b0bf531e5e42a6cb32f8fab1fac62c)), closes [#1147](https://github.com/oaverify/oaverify/issues/1147)
+* **compile-spec:** project body schemas by direction like createValidator ([#1263](https://github.com/oaverify/oaverify/issues/1263)) ([3fc84d1](https://github.com/oaverify/oaverify/commit/3fc84d13cbd068adbef1b7bad75fa32c5ff48071)), closes [#1145](https://github.com/oaverify/oaverify/issues/1145)
+* **core:** declare the content-parse params on the parameter error codes ([#1267](https://github.com/oaverify/oaverify/issues/1267)) ([0bc58e3](https://github.com/oaverify/oaverify/commit/0bc58e3798f1c2f63d7993665f69903b8512f7ba)), closes [#1235](https://github.com/oaverify/oaverify/issues/1235)
+* **core:** register the exclusive bound codes and complete inclusive bound params ([#1276](https://github.com/oaverify/oaverify/issues/1276)) ([640180e](https://github.com/oaverify/oaverify/commit/640180e77ae98fcd02912410fce699868aa19cde)), closes [#1199](https://github.com/oaverify/oaverify/issues/1199)
+* **core:** treat OpenAPI 3.2 query as an operation position ([#1296](https://github.com/oaverify/oaverify/issues/1296)) ([fd5af0c](https://github.com/oaverify/oaverify/commit/fd5af0c5450a7744c244bb83f5a21be252a187e6))
+* **metaschema:** word common conformance findings so they can be acted on ([#1285](https://github.com/oaverify/oaverify/issues/1285)) ([1fda86f](https://github.com/oaverify/oaverify/commit/1fda86f79845236657b9650a75492b721435b908)), closes [#1057](https://github.com/oaverify/oaverify/issues/1057)
+* preserve intermediate Path Item fields across reference chains ([#1294](https://github.com/oaverify/oaverify/issues/1294)) ([83b9d74](https://github.com/oaverify/oaverify/commit/83b9d7488aba65d0e81847ce243669315a14880a))
+* **schema:** keep own __proto__ keys in generated const and enum values ([#1278](https://github.com/oaverify/oaverify/issues/1278)) ([bf6a9e3](https://github.com/oaverify/oaverify/commit/bf6a9e33a2ca1d67244b01417da308579e1b8303)), closes [#1201](https://github.com/oaverify/oaverify/issues/1201)
+* **schema:** preserve compile-stack membership across output modes ([#1310](https://github.com/oaverify/oaverify/issues/1310)) ([751ee9c](https://github.com/oaverify/oaverify/commit/751ee9cda747300dcaf6d4939deaa0fc2d696aa6))
+* **schema:** retain recursive reference function names ([#1309](https://github.com/oaverify/oaverify/issues/1309)) ([0d64ff8](https://github.com/oaverify/oaverify/commit/0d64ff8b35d217d35fd23b6e69c9f661d10243f2))
+* **spec:** ignore response extensions in server-variable checks ([#1295](https://github.com/oaverify/oaverify/issues/1295)) ([c8e320a](https://github.com/oaverify/oaverify/commit/c8e320abf22a1436f570612c669b17958acdff24))
+* **spec:** preserve literal data in overlapping stitched fragments ([#1293](https://github.com/oaverify/oaverify/issues/1293)) ([8778673](https://github.com/oaverify/oaverify/commit/87786735d53a650db0463ac854d78f075476a8d3))
+* **spec:** stitch each referenced external fragment as its own object ([#1284](https://github.com/oaverify/oaverify/issues/1284)) ([19c82ee](https://github.com/oaverify/oaverify/commit/19c82eee962b98e4fd14e190c45a812f6ed33f88)), closes [#1101](https://github.com/oaverify/oaverify/issues/1101)
+* **stream:** bound the text held for scalar enum and const strings ([#1281](https://github.com/oaverify/oaverify/issues/1281)) ([acc9938](https://github.com/oaverify/oaverify/commit/acc99380196e2aab0aceca0accade327f78c56af)), closes [#1193](https://github.com/oaverify/oaverify/issues/1193)
+* **stream:** count buffering reached through $dynamicRef in the analyzer ([#1280](https://github.com/oaverify/oaverify/issues/1280)) ([5d708bd](https://github.com/oaverify/oaverify/commit/5d708bd78f108017cb03bbf7667cd7f3bfdda116)), closes [#1123](https://github.com/oaverify/oaverify/issues/1123)
+* **validator:** drop HTTP whitespace around simple header list members ([#1261](https://github.com/oaverify/oaverify/issues/1261)) ([9a3498b](https://github.com/oaverify/oaverify/commit/9a3498ba85b255b7ea8e4357eeaeff85cf5a78c3)), closes [#1198](https://github.com/oaverify/oaverify/issues/1198)
+* **validator:** follow non-schema references in the document schema walk ([#1277](https://github.com/oaverify/oaverify/issues/1277)) ([32c89a8](https://github.com/oaverify/oaverify/commit/32c89a897be4a48f3d4c31e28bc3507de07ddb69)), closes [#1242](https://github.com/oaverify/oaverify/issues/1242)
+* **validator:** ignore Accept, Content-Type and Authorization header parameters ([#1265](https://github.com/oaverify/oaverify/issues/1265)) ([f0db71e](https://github.com/oaverify/oaverify/commit/f0db71e0adc1e3a5d252824413238c3d7775ec0f)), closes [#1084](https://github.com/oaverify/oaverify/issues/1084)
+* **validator:** ignore response header definitions named Content-Type ([#1266](https://github.com/oaverify/oaverify/issues/1266)) ([2b62b51](https://github.com/oaverify/oaverify/commit/2b62b51119e2768ddbadc514dd857b6bd4244322)), closes [#1092](https://github.com/oaverify/oaverify/issues/1092)
+* **validator:** read a simple header list given as string[] as its comma-join ([#1262](https://github.com/oaverify/oaverify/issues/1262)) ([224a202](https://github.com/oaverify/oaverify/commit/224a2027b2428e6bc32663f5144ecde7f2b31d5b)), closes [#1240](https://github.com/oaverify/oaverify/issues/1240)
+* **validator:** treat an empty required response header as present ([#1259](https://github.com/oaverify/oaverify/issues/1259)) ([a0195cc](https://github.com/oaverify/oaverify/commit/a0195cc95b283d3c8606314a9b18921596cde038)), closes [#1191](https://github.com/oaverify/oaverify/issues/1191)
+* **validator:** uppercase the method in route, method and request params ([#1283](https://github.com/oaverify/oaverify/issues/1283)) ([7c8006e](https://github.com/oaverify/oaverify/commit/7c8006eec5d2a6b075fbe5973b0f982532bca142)), closes [#1241](https://github.com/oaverify/oaverify/issues/1241)
+* **validator:** validate content-based response headers ([#1257](https://github.com/oaverify/oaverify/issues/1257)) ([3eb7e5b](https://github.com/oaverify/oaverify/commit/3eb7e5bfd3165a99e2fb89dce3a5c93277f19f46)), closes [#1148](https://github.com/oaverify/oaverify/issues/1148)
+
+
+### Performance
+
+* **validator:** read Fetch query and form fields in one pass ([#1279](https://github.com/oaverify/oaverify/issues/1279)) ([b60cc2f](https://github.com/oaverify/oaverify/commit/b60cc2fba78d7a8fde260c867c2644ce2516523b)), closes [#1149](https://github.com/oaverify/oaverify/issues/1149)
+
+
+### Refactoring
+
+* **validator:** share effective parameter selection with the emitter ([#1297](https://github.com/oaverify/oaverify/issues/1297)) ([50eaf26](https://github.com/oaverify/oaverify/commit/50eaf262cfdd0b0a13eecfc23eeeedefab399068))
+
 ## [7.3.0](https://github.com/oaverify/oaverify/compare/core-v7.2.2...core-v7.3.0) (2026-10-14)
 
 
