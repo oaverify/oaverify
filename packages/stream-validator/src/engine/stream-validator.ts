@@ -804,16 +804,27 @@ export class StreamValidator extends Transform {
       return;
     }
     const base = this.totalBytes;
-    this.totalBytes += chunk.length;
+    const nextTotalBytes = base + chunk.length;
     // Refuse oversize input regardless of validity (policy lever).
-    if (this.maxTotalBytes !== undefined && this.totalBytes > this.maxTotalBytes) {
+    if (this.maxTotalBytes !== undefined && nextTotalBytes > this.maxTotalBytes) {
+      // Flush against the previous total: this chunk is not in the held buffer.
+      if (this.editsActive) this.flushHeldVerbatim();
+      if (this.destroyed) {
+        cb();
+        return;
+      }
       this.push(chunk);
-      const err = new MaxTotalBytesError(this.maxTotalBytes, this.totalBytes);
+      if (this.destroyed) {
+        cb();
+        return;
+      }
+      const err = new MaxTotalBytesError(this.maxTotalBytes, nextTotalBytes);
       this.finished = true;
       this.rejectResult(err);
       cb(err);
       return;
     }
+    this.totalBytes = nextTotalBytes;
 
     // With edit hooks, hold the chunk, tokenize (the spine collects edits),
     // then flush the bytes the spine has cleared, with edits spliced in.
