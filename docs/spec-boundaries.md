@@ -343,7 +343,7 @@ operation requiring a scheme named by URI fails its security check.
 
 ### packages/stream-validator
 
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:979](../packages/stream-validator/src/engine/stream-validator.ts#L979))
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:982](../packages/stream-validator/src/engine/stream-validator.ts#L982))
 
 Against RFC 8259 section 8.1 (<https://www.rfc-editor.org/rfc/rfc8259#section-8.1>).
 
@@ -737,7 +737,7 @@ the URL cannot be built.
 
 ### packages/stream-validator
 
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:979](../packages/stream-validator/src/engine/stream-validator.ts#L979))
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:982](../packages/stream-validator/src/engine/stream-validator.ts#L982))
 
 Against RFC 8259 section 4 (<https://www.rfc-editor.org/rfc/rfc8259#section-4>).
 
@@ -792,7 +792,7 @@ containing file (#1088).
 
 ### packages/stream-validator
 
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:979](../packages/stream-validator/src/engine/stream-validator.ts#L979))
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:982](../packages/stream-validator/src/engine/stream-validator.ts#L982))
 
 Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3.2>).
 
