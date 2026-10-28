@@ -272,6 +272,9 @@ export interface StreamValidatorOptions {
    * active validation, regardless of schema validity. Default off. After
    * detach seals validation, the raw-copied tail is not checked. This limits
    * parsed input size rather than heap or already allocated caller chunks.
+   * On refusal, completed edits are preserved, then held unresolved bytes
+   * and the overflowing chunk are echoed unchanged. The overflowing chunk
+   * is not parsed or edited. Output before the error can be invalid JSON.
    */
   maxTotalBytes?: number;
 
