@@ -184,7 +184,7 @@
   },
   "devDependencies": {
     "@types/node": "26.6.5",
-    "@vitest/coverage-v8": "5.0.3",
+    "@vitest/coverage-v8": "5.0.4",
     "commander": "15.0.0",
     "esbuild": "0.28.2",
     "oxfmt": "0.73.0",
@@ -192,8 +192,8 @@
     "oxlint-tsgolint": "^7.0.2001",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
-    "vite": "8.3.3",
-    "vitest": "5.0.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.4",
     "yaml": "2.9.1"
   },
   "engines": {
