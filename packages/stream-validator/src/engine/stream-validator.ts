@@ -912,6 +912,9 @@ export class StreamValidator extends Transform {
           cb(err as Error);
           return;
         }
+        // EOF can complete a number and seal validation before the remaining
+        // syntax checks. Detach still owes the consumer the retained tail.
+        if (this.policy === "detach" && this.editsActive) this.flushHeldVerbatim();
       }
     }
     if (this.destroyed) {

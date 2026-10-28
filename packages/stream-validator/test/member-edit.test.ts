@@ -612,6 +612,106 @@ describe("editMember drop under a detach seal", () => {
   });
 });
 
+describe("detach at EOF with retained edits", () => {
+  const schema: SchemaOrBoolean = {
+    type: "object",
+    properties: { a: { type: "string" }, b: { type: "string" } },
+  };
+  const keepAll = (v: StreamValidator) =>
+    v.editMember(
+      () => true,
+      () => null,
+    );
+
+  it.each<[string, (v: StreamValidator) => void, string]>([
+    ["no hooks", () => {}, '{"done":{"keep":0},'],
+    ["no-op member hook", keepAll, '{"done":{"keep":0},'],
+    ["completed rename", (v) => v.editMember(["done"], rename("ready")), '{"ready":{"keep":0},'],
+    ["completed drop", (v) => v.editMember(["done"], drop), "{"],
+    [
+      "completed scope edit",
+      (v) => {
+        keepAll(v);
+        v.editClose(["done"], (ctx) => ctx.field("added", true));
+      },
+      '{"done":{"keep":0,"added":true},',
+    ],
+  ])("preserves the tail after %s", async (_name, setup, prefix) => {
+    for (const maxErrors of [1, 2]) {
+      const tail = maxErrors === 1 ? '"a":1' : '"a":1,"b":2';
+      const input = '{"done":{"keep":0},' + tail;
+      for (const chunkSize of [0, 1, 3]) {
+        const r = await run(schema, input, setup, { policy: "detach", maxErrors }, chunkSize);
+        expect(r.err, `budget ${maxErrors}, chunk ${chunkSize}`).toBeUndefined();
+        expect(r.valid).toBe(false);
+        expect(r.output, `budget ${maxErrors}, chunk ${chunkSize}`).toBe(prefix + tail);
+      }
+    }
+  });
+
+  it.each([2, Number.POSITIVE_INFINITY])(
+    "rejects an unclosed container when budget %s has not been reached",
+    async (maxErrors) => {
+      for (const chunkSize of [0, 1, 3]) {
+        const r = await run(schema, '{"a":1', keepAll, { policy: "detach", maxErrors }, chunkSize);
+        expect(r.err?.name).toBe("JsonParseError");
+        expect(r.valid).toBeUndefined();
+      }
+    },
+  );
+
+  it.each(['{"a":1e', '{"a":"unfinished'])(
+    "rejects an unfinished token before any EOF budget seal: %s",
+    async (input) => {
+      for (const chunkSize of [0, 1, 3]) {
+        const r = await run(schema, input, keepAll, { policy: "detach", maxErrors: 1 }, chunkSize);
+        expect(r.err?.name).toBe("JsonParseError");
+        expect(r.valid).toBeUndefined();
+      }
+    },
+  );
+
+  it("keeps an unresolved drop subject to EOF syntax checks", async () => {
+    const r = await run(schema, '{"a":1', (v) => v.editMember(["a"], drop), {
+      policy: "detach",
+      maxErrors: 1,
+    });
+    expect(r.err?.name).toBe("JsonParseError");
+    expect(r.valid).toBeUndefined();
+  });
+
+  it("keeps terminate failures at EOF fatal", async () => {
+    const r = await run(schema, '{"a":1', keepAll, { policy: "terminate", maxErrors: 1 });
+    expect(r.err?.name).toBe("ValidationFailedError");
+    expect(r.valid).toBe(false);
+  });
+
+  it("honors consumer destruction while flushing the EOF tail", async () => {
+    const v = createStreamValidator(schema, { policy: "detach", maxErrors: 1 });
+    keepAll(v);
+    const abort = new Error("consumer aborted");
+    const verdicts: unknown[] = [];
+    const output: Buffer[] = [];
+    let atEof = false;
+    v.on("error", () => {});
+    v.on("verdict", (verdict) => verdicts.push(verdict));
+    v.on("data", (chunk: Buffer) => {
+      output.push(Buffer.from(chunk));
+      if (atEof) v.destroy(abort);
+    });
+    for (const byte of Buffer.from('{"a":1')) {
+      await new Promise<void>((resolve, reject) => {
+        v.write(Buffer.from([byte]), (err) => (err ? reject(err) : resolve()));
+      });
+    }
+    atEof = true;
+    v.end();
+    await expect(v.result).rejects.toBe(abort);
+    expect(verdicts).toEqual([]);
+    expect(Buffer.concat(output).toString()).toBe('{"');
+  });
+});
+
 describe("member-edit caps at the exact byte", () => {
   const chunkings = [0, 1, 2, 3];
   const keepAll = (v: StreamValidator) =>
