@@ -1520,6 +1520,13 @@ export interface CompileState {
    */
   readonly compiling: Set<SchemaOrBoolean>;
   /**
+   * Cached function names already returned to callers. Recursive calls
+   * can use a reserved name before pure-ref elision replaces it, so an
+   * elided name in this set still needs a forwarding function. Names are
+   * allocated by nextFn across all output modes.
+   */
+  readonly handedOut: Set<string>;
+  /**
    * `true` when predicate mode was requested. Compiled subfunctions
    * return `boolean` (no error tree); leaf-emitting keywords emit
    * `return false;` instead of pushing into an accumulator. Requested
@@ -1987,6 +1994,7 @@ export function compileSchemaInContext(
     depthGated: Number.isFinite(maxDepth),
     maxFormatLength,
     compiling: new Set(),
+    handedOut: new Set(),
     predicate,
     flat,
     refSuppressesSiblings: options.dialect.rules.refSuppressesSiblings,
@@ -2226,7 +2234,10 @@ function compileValidator(
 
   const cache = cacheFor(state, mode);
   const cached = cache.get(schema);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    state.handedOut.add(cached);
+    return cached;
+  }
 
   // Reserve a name up front so cyclic `$ref`s that point back to this
   // schema hit the cache below and emit a normal recursive call.
@@ -2262,6 +2273,13 @@ function compileValidator(
       const targetName = compileValidator(target, state, mode);
       if (targetName !== name) {
         cache.set(schema, targetName);
+        if (state.handedOut.has(name)) {
+          // Recursive callers already use this name; keep their target callable.
+          const params = signatureParams(state, mode);
+          state.functionBodies.push(
+            `function ${name}(${params}) {\n  return ${targetName}(${params});\n}`,
+          );
+        }
         return targetName;
       }
     }
