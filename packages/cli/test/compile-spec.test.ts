@@ -40,6 +40,51 @@ const CORE_ALIASES = Object.fromEntries(
 // installed and the default resolveDir is correct.
 const RESOLVE_DIR = resolvePath(fileURLToPath(new URL("../../oav", import.meta.url)));
 
+it("emits callable validators for a recursive union of references", async () => {
+  const document: OpenAPIDocument = {
+    openapi: "3.1.0",
+    info: { title: "recursive union", version: "1" },
+    paths: {
+      "/n": {
+        post: {
+          requestBody: {
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Node" } } },
+          },
+          responses: { "200": { description: "ok" } },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        Node: {
+          oneOf: [{ $ref: "#/components/schemas/Leaf" }, { $ref: "#/components/schemas/Pair" }],
+        },
+        Leaf: { type: "string" },
+        Pair: {
+          type: "object",
+          properties: {
+            l: { $ref: "#/components/schemas/Node" },
+            r: { $ref: "#/components/schemas/Node" },
+          },
+        },
+      },
+    },
+  };
+  const emitted = await buildAot(document);
+  for (const [body, valid] of [
+    [{ l: "a", r: "b" }, true],
+    [{ l: "a", r: 3 }, false],
+  ] as const) {
+    const result = emitted.validateRequest({
+      method: "POST",
+      path: "/n",
+      contentType: "application/json",
+      body,
+    });
+    expect(typeof result === "boolean" ? result : result.valid).toBe(valid);
+  }
+});
+
 const petstore: OpenAPIDocument = {
   openapi: "3.1.0",
   info: { title: "Pets", version: "1" },
