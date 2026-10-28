@@ -3,8 +3,8 @@
   "corpora": {
     "JSON-Schema-Test-Suite": {
       "url": "https://github.com/json-schema-org/JSON-Schema-Test-Suite.git",
-      "rev": "80c87e8fca8b207a7a7ae944b875f0fcf889f46a",
-      "note": "2026-09-15. Baselines: json-schema-results.json, format-results.json."
+      "rev": "89e83a74014617ffbe79a56d83d14d054cd11417",
+      "note": "2026-10-21. Baselines: json-schema-results.json, format-results.json."
     },
     "JSONTestSuite": {
       "url": "https://github.com/nst/JSONTestSuite.git",
@@ -13,8 +13,8 @@
     },
     "Overlay-Specification": {
       "url": "https://github.com/OAI/Overlay-Specification.git",
-      "rev": "7bbb28231817aebfb7116c3b191b0159e91dbaf9",
-      "note": "2026-09-10. Baseline: overlay-results.json."
+      "rev": "b6fd4c5cd666563625109583c92681312bfee0f4",
+      "note": "2026-10-20. Baseline: overlay-results.json."
     }
   }
 }
