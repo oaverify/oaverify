@@ -95,8 +95,9 @@ See `StreamValidatorOptions.maxKeyBytes`, `StreamValidatorOptions.maxNumberBytes
 
 Neither policy is a total memory budget. Completed-name tracking, captures,
 generated edits and stream queues have separate costs. `maxBufferedBytes`
-controls materialized regions; its current event-based checks do not protect
-unfinished key or number accumulators.
+controls materialized regions and is checked as bytes arrive, so inside an
+island it also bounds keys and numbers. Outside islands, and for a number
+delegated on its own, only `maxKeyBytes` and `maxNumberBytes` bound them.
 
 ## Stripping Whitespace
 

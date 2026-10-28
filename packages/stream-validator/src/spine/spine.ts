@@ -77,7 +77,7 @@ export class BudgetReached extends Error {
 export class BufferLimitError extends Error {
   /** The `maxBufferedBytes` value that was exceeded. */
   readonly limit: number;
-  /** Stream-absolute byte offset at which the cap was crossed. */
+  /** Stream-absolute offset of the first refused byte: the region's start plus `limit`. */
   readonly byteOffset: number;
   constructor(limit: number, byteOffset: number) {
     super(`buffered island exceeded maxBufferedBytes=${limit} (at byte ${byteOffset})`);
@@ -305,6 +305,20 @@ export interface SpineOptions {
    */
   setByteLimit?: (at: number, countsAll: boolean) => void;
   /**
+   * Set the tokenizer's span limit (`JsonTokenizer.setSpanLimit`), through
+   * which `maxBufferedBytes` is enforced at the first byte past an open
+   * island or held string, in this spine or any TEE branch under it. The
+   * tokenizer reports reaching it through `onSpanLimit`.
+   */
+  setSpanLimit?: (at: number) => void;
+  /**
+   * The span limits of the spine this one is a TEE branch of. Set by the
+   * enclosing spine; a root spine builds its own from `setSpanLimit`.
+   *
+   * @internal
+   */
+  spanLimits?: SpanLimits;
+  /**
    * Hold {@link BudgetReached} while a member edit is in flight (a member
    * prefix awaiting its decision, or a dropped member being discarded),
    * and throw it once none is. Set under the `detach` policy, where the
@@ -443,6 +457,54 @@ function typeMatches(declared: string | string[], actual: JsonType): boolean {
 const STREAM_COMPOSITION = ["allOf", "anyOf", "oneOf", "not", "if"];
 
 /**
+ * The open regions `maxBufferedBytes` bounds, shared by a root spine and
+ * its TEE branch sub-spines. Each spine holds at most one at a time (an
+ * island or a held string), so a closing region never displaces another
+ * spine's. The tokenizer enforces the earliest limit among them.
+ *
+ * @internal
+ */
+export class SpanLimits {
+  // Open owners and their limits, in parallel. Rarely more than a few: one
+  // per TEE branch with a region open at once.
+  private readonly owners: SpineValidator[] = [];
+  private readonly limits: number[] = [];
+  private applied = Number.POSITIVE_INFINITY;
+  private readonly apply: (at: number) => void;
+
+  constructor(apply: (at: number) => void) {
+    this.apply = apply;
+  }
+
+  /** Open `owner`'s region, which must have none open. */
+  set(owner: SpineValidator, at: number): void {
+    this.owners.push(owner);
+    this.limits.push(at);
+    if (at < this.applied) {
+      this.applied = at;
+      this.apply(at);
+    }
+  }
+
+  clear(owner: SpineValidator): void {
+    const i = this.owners.lastIndexOf(owner);
+    if (i === -1) return;
+    const at = this.limits[i] as number;
+    const last = this.owners.length - 1;
+    this.owners[i] = this.owners[last] as SpineValidator;
+    this.limits[i] = this.limits[last] as number;
+    this.owners.pop();
+    this.limits.pop();
+    if (at !== this.applied) return;
+    let earliest = Number.POSITIVE_INFINITY;
+    for (const other of this.limits) if (other < earliest) earliest = other;
+    if (earliest === this.applied) return;
+    this.applied = earliest;
+    this.apply(earliest);
+  }
+}
+
+/**
  * Validates a streaming JSON value against `root`, emitting violations
  * and a final verdict. Drive it by feeding tokenizer events; read the
  * verdict with {@link SpineValidator.verdict} after `end`.
@@ -509,6 +571,7 @@ export class SpineValidator implements JsonEventHandler {
   private readonly maxMemberPrefixBytes: number;
   private readonly maxMemberDropBytes: number;
   private readonly setByteLimit: SpineOptions["setByteLimit"];
+  private readonly spanLimits: SpanLimits | undefined;
   // Which cap the tokenizer's byte limit currently enforces, if any.
   private limitKind: "prefix" | "drop" | null = null;
   private readonly deferBudgetForEdits: boolean;
@@ -631,6 +694,11 @@ export class SpineValidator implements JsonEventHandler {
     this.maxMemberPrefixBytes = options.maxMemberPrefixBytes ?? Number.POSITIVE_INFINITY;
     this.maxMemberDropBytes = options.maxMemberDropBytes ?? Number.POSITIVE_INFINITY;
     this.setByteLimit = options.setByteLimit;
+    this.spanLimits =
+      options.spanLimits ??
+      (options.setSpanLimit !== undefined && options.maxBufferedBytes !== undefined
+        ? new SpanLimits(options.setSpanLimit)
+        : undefined);
     this.deferBudgetForEdits = options.deferBudgetForEdits ?? false;
   }
 
@@ -681,6 +749,41 @@ export class SpineValidator implements JsonEventHandler {
       );
     }
     throw memberPrefixError(this.maxMemberPrefixBytes, at);
+  }
+
+  /**
+   * The tokenizer reached the span limit (see `SpineOptions.setSpanLimit`),
+   * at `at`: the first byte past `maxBufferedBytes` in an open island or
+   * held string.
+   */
+  onSpanLimit(at: number): void {
+    throw new BufferLimitError(this.maxBufferedBytes as number, at);
+  }
+
+  // Bound the region opening at `start`: its byte `start + maxBufferedBytes`
+  // is refused while it is open. The event checks below are a fallback for
+  // a spine driven without a tokenizer.
+  private openSpan(start: number): void {
+    if (this.maxBufferedBytes !== undefined) {
+      this.spanLimits?.set(this, start + this.maxBufferedBytes);
+    }
+  }
+
+  private closeSpan(): void {
+    this.spanLimits?.clear(this);
+  }
+
+  // Release this spine's region and its TEE branches', when a TEE tears
+  // its branches down.
+  private releaseSpans(): void {
+    this.closeSpan();
+    if (this.tee !== null) for (const sub of this.tee.subs) sub.releaseSpans();
+  }
+
+  // The region opened at `start` has a byte past `maxBufferedBytes`.
+  private spanExceeded(start: number): never {
+    const cap = this.maxBufferedBytes as number;
+    throw new BufferLimitError(cap, start + cap);
   }
 
   // The tokenizer's byte limit: one at a time, since no member prefix is
@@ -1152,6 +1255,7 @@ export class SpineValidator implements JsonEventHandler {
       byteStart: this.curOffset,
       uniqueCap,
     };
+    this.openSpan(this.curOffset);
   }
 
   // Forward an event into the open island, enforcing the buffer caps, and
@@ -1166,8 +1270,9 @@ export class SpineValidator implements JsonEventHandler {
     // buffered span, so add it (the cap check keeps the pre-close convention).
     const span = this.curOffset - island.byteStart;
     this.notePeakBuffered(island.builder.complete ? span + 1 : span);
-    if (this.maxBufferedBytes !== undefined && span > this.maxBufferedBytes) {
-      throw new BufferLimitError(this.maxBufferedBytes, this.curOffset);
+    // The event's first byte is at `curOffset`, so `span + 1` bytes are in.
+    if (this.maxBufferedBytes !== undefined && span >= this.maxBufferedBytes) {
+      this.spanExceeded(island.byteStart);
     }
     // The island's root array grows one entry per top-level element; refuse
     // a `uniqueItems` array past its element cap before the rest buffers.
@@ -1184,6 +1289,7 @@ export class SpineValidator implements JsonEventHandler {
     const island = this.island as NonNullable<typeof this.island>;
     const delegate = this.delegate as IslandDelegate;
     this.island = null;
+    this.closeSpan();
     for (const v of delegate(island.schemas, island.builder.value, island.path, island.byteStart)) {
       this.record(v);
     }
@@ -1204,6 +1310,7 @@ export class SpineValidator implements JsonEventHandler {
     };
     if (this.delegate !== undefined) opts.delegate = this.delegate;
     if (this.maxBufferedBytes !== undefined) opts.maxBufferedBytes = this.maxBufferedBytes;
+    if (this.spanLimits !== undefined) opts.spanLimits = this.spanLimits;
     if (this.maxUniqueItems !== undefined) opts.maxUniqueItems = this.maxUniqueItems;
     if (this.maxDepth !== undefined) opts.maxDepth = this.maxDepth;
     if (this.regexCompiler !== undefined) opts.regexCompiler = this.regexCompiler;
@@ -1273,7 +1380,10 @@ export class SpineValidator implements JsonEventHandler {
     // under nested tees. Each sub-spine ran its own buffering (islands,
     // scalars, nested tees), so this rolls those up recursively.
     let branchSum = 0;
-    for (const sub of t.subs) branchSum += sub.peakBuffered();
+    for (const sub of t.subs) {
+      branchSum += sub.peakBuffered();
+      sub.releaseSpans();
+    }
     this.notePeakBuffered(branchSum);
     this.tee = null;
     if (!combineTee(o)) this.fail("composition");
@@ -1749,6 +1859,11 @@ export class SpineValidator implements JsonEventHandler {
       eqHeld: 0,
       heldEnd: offset,
     };
+    // A string held only for equality is checked on its held prefix
+    // instead (see onStringChunk): an escape that overshoots the longest
+    // candidate is released, not held, but the limit could fall inside it.
+    // Its longest candidate bounds that prefix.
+    if (this.str.needText && eqLimit === undefined) this.openSpan(offset);
   }
 
   onStringChunk(chunk: string, offset: number, codePoints: number, end: number): void {
@@ -1793,8 +1908,9 @@ export class SpineValidator implements JsonEventHandler {
       // the cap before the text is dropped.
       const held = this.str.text.length === 0 ? 0 : this.str.heldEnd - this.str.offset;
       if (this.maxBufferedBytes !== undefined && held > this.maxBufferedBytes) {
-        throw new BufferLimitError(this.maxBufferedBytes, offset);
+        this.spanExceeded(this.str.offset);
       }
+      this.closeSpan();
       this.str.eqMissed = true;
       this.str.needText = false;
       this.str.eqHeld = held;
@@ -1807,8 +1923,8 @@ export class SpineValidator implements JsonEventHandler {
         this.str.heldEnd = end;
         // A forced-buffer scalar (pattern / enum / const) accumulates; cap
         // its source-byte span so it can't grow unbounded on hostile input.
-        if (this.maxBufferedBytes !== undefined && span > this.maxBufferedBytes) {
-          throw new BufferLimitError(this.maxBufferedBytes, offset);
+        if (this.maxBufferedBytes !== undefined && end - this.str.offset > this.maxBufferedBytes) {
+          this.spanExceeded(this.str.offset);
         }
         // The same text serves capture; drop delivery (not the run) past
         // the capture cap.
@@ -1857,6 +1973,7 @@ export class SpineValidator implements JsonEventHandler {
     }
     const s = this.str as NonNullable<typeof this.str>;
     this.str = null;
+    this.closeSpan();
     // A forced-buffer scalar still holding its text held all of it
     // (`s.text`); its source span is the buffered-byte cost, known in full
     // only now. One that outgrew its equality bound held only `eqHeld`.
@@ -1871,7 +1988,7 @@ export class SpineValidator implements JsonEventHandler {
       this.maxBufferedBytes !== undefined &&
       endOffset - s.offset > this.maxBufferedBytes
     ) {
-      throw new BufferLimitError(this.maxBufferedBytes, endOffset);
+      this.spanExceeded(s.offset);
     }
     // Capture cap on the full span (a single-chunk string skipped the
     // per-chunk check above).

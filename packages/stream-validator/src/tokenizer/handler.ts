@@ -51,6 +51,11 @@ export interface JsonEventHandler {
    * offset `at`, before that byte was parsed. Expected to throw.
    */
   onByteLimit?(at: number): void;
+  /**
+   * Input reached the span limit set by `JsonTokenizer.setSpanLimit()`, at
+   * offset `at`, before that byte was parsed. Expected to throw.
+   */
+  onSpanLimit?(at: number): void;
   /** A value string is beginning; the opening quote is at `offset`. */
   onStringStart(offset: number): void;
   /**
