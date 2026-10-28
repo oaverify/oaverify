@@ -318,6 +318,37 @@ describe("schema lint: machine-readable position (#517)", () => {
     expect(issues.every((i) => i.pointer === undefined)).toBe(true);
   });
 
+  it.each([undefined, "/components/schemas/Container"])(
+    "addresses each undeclared required entry with pointer base %s",
+    (pointer) => {
+      const issues = lintAt(
+        {
+          properties: {
+            "a/b~c": {
+              properties: { id: { type: "string" } },
+              required: ["id", "missing/name", "later"],
+            },
+          },
+        },
+        pointer,
+      ).filter((i) => i.code === "silent-rewrite/required-not-in-properties");
+      expect(issues).toHaveLength(2);
+      expect(issues.map((i) => i.schemaPath)).toEqual([
+        ["properties", "a/b~c", "required", 1],
+        ["properties", "a/b~c", "required", 2],
+      ]);
+      expect(issues.map((i) => i.pointer)).toEqual(
+        pointer === undefined
+          ? [undefined, undefined]
+          : [
+              `${pointer}/properties/a~1b~0c/required/1`,
+              `${pointer}/properties/a~1b~0c/required/2`,
+            ],
+      );
+      expect(issues.map((i) => i.path)).toEqual(["properties.a/b~c", "properties.a/b~c"]);
+    },
+  );
+
   it("addresses the duplicate branch, not the node holding the composition", () => {
     // The only rule that sets its own position; the stamping pass skips
     // it deliberately, so a wrong index here goes unnoticed.
@@ -356,7 +387,7 @@ describe("schema lint: machine-readable position (#517)", () => {
   it("re-roots the pointer at the ref target while path keeps naming the use site", () => {
     // The two addressing rules, both right, now both machine-readable.
     // `required` is checked at the instance position it applies to, so
-    // `path` stays at the use site; the offending array is written in
+    // `path` stays at the use site; the offending entry is written in
     // the component, so `pointer` names that.
     const doc = {
       components: {
@@ -373,7 +404,7 @@ describe("schema lint: machine-readable position (#517)", () => {
     }).stats.schemaLintIssues.filter((i) => i.code === "silent-rewrite/required-not-in-properties");
 
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.pointer).toBe("/components/schemas/Target/required");
+    expect(issues[0]?.pointer).toBe("/components/schemas/Target/required/0");
     // Not re-rooted, because that is not where the finding applies.
     expect(issues[0]?.path).toBe("");
     // No segment list spans a ref hop.
@@ -415,7 +446,7 @@ describe("the two frames `path` renders in (#594)", () => {
     // name in, so only `b` is reachable-and-wrong.
     expect(issue?.path).toBe("properties.b.allOf[0]");
     // The text to look at is shared, and correct for `a`.
-    expect(issue?.pointer).toBe("/$defs/Inner/required");
+    expect(issue?.pointer).toBe("/$defs/Inner/required/0");
     // Which says the finding is route-scoped, without saying which route.
     expect(issue?.anchor).toBe("scoped-definition");
   });

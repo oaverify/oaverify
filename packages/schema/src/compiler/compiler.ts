@@ -939,7 +939,8 @@ export interface SchemaLintIssue {
    * the offending child for the two whose finding sits below it:
    * `silent-rewrite/redundant-composition-branches` addresses the
    * duplicate branch, and `silent-rewrite/required-not-in-properties`
-   * addresses the `required` array. A consumer mapping this to a source
+   * addresses the undeclared `required` entry (`required/<index>`).
+   * A consumer mapping this to a source
    * range gets the narrowest node that is wrong, which is not always
    * the node `keyword` names.
    *
@@ -951,8 +952,8 @@ export interface SchemaLintIssue {
    */
   pointer?: string;
   /**
-   * Segments from the compiled schema root down to the subschema
-   * holding the key, never pre-joined.
+   * Segments from the compiled schema root to the node this finding
+   * addresses, with the same granularity as `pointer`, never pre-joined.
    *
    * Absent once a `$ref` has been crossed, since no segment list spans
    * a ref hop. `pointer` covers exactly that case for a caller who

@@ -349,11 +349,11 @@ describe("resolveCommand", () => {
       // component the entry document does not contain, and nothing
       // named order.json at all.
       expect(issue?.target).toEqual({
-        pointer: "/components/schemas/Order/required",
+        pointer: "/components/schemas/Order/required/1",
         anchor: "scoped-definition",
         source: {
           uri: "order.json",
-          pointer: "/components/schemas/Order/required",
+          pointer: "/components/schemas/Order/required/1",
           via: [
             {
               uri: "entry.json",
@@ -479,7 +479,7 @@ describe("resolveCommand", () => {
       });
       const issue = findings.find((f) => f.code === "silent-rewrite/required-not-in-properties");
       expect(issue?.target).toMatchObject({
-        pointer: "/components/schemas/T/required",
+        pointer: "/components/schemas/T/required/0",
         anchor: "scoped-definition",
       });
     });

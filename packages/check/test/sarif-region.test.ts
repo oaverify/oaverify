@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { createSourceSpanResolver, type SourceSpan } from "@oaverify/internal-spec";
-import { createJsonSpanBackend } from "@oaverify/syntax";
+import {
+  createMemoryReader,
+  createSourceSpanResolver,
+  loadSpec,
+  type SourceSpan,
+} from "@oaverify/internal-spec";
+import { createJsonSpanBackend, createYamlSpanBackend, parseYamlString } from "@oaverify/syntax";
 import type { CheckFinding } from "../src/finding.js";
 import { renderSarif } from "../src/sarif.js";
+import { checkSpec } from "../src/check.js";
 
 /**
  * SARIF `region`, which arrives from a caller's span lookup rather than
@@ -59,6 +65,61 @@ const render = (options: Parameters<typeof renderSarif>[1]): SarifLog =>
   JSON.parse(renderSarif([FINDING], options)) as SarifLog;
 
 const only = (log: SarifLog) => log.runs[0]?.results[0];
+
+it.each(["json", "yaml"] as const)(
+  "highlights each undeclared required entry in %s source",
+  async (syntax) => {
+    const yaml = `openapi: 3.1.0
+info: { title: Required, version: '1' }
+paths: {}
+components:
+  schemas:
+    Summary:
+      type: object
+      required:
+        - id
+        - signedDate
+        - isActionNeeded
+      properties:
+        id: { type: string }
+`;
+    const document = parseYamlString(yaml);
+    const text = syntax === "yaml" ? yaml : JSON.stringify(document, null, 2);
+    const uri = `entry.${syntax}`;
+    const resolved = await loadSpec({
+      entry: uri,
+      provenance: true,
+      reader: createMemoryReader(new Map([[uri, document]])),
+    });
+    const findings = checkSpec(resolved).filter(
+      (f) => f.code === "silent-rewrite/required-not-in-properties",
+    );
+    const pointers = [
+      "/components/schemas/Summary/required/1",
+      "/components/schemas/Summary/required/2",
+    ];
+    expect(findings.map((f) => f.target?.pointer)).toEqual(pointers);
+    expect(findings.map((f) => f.target?.source?.pointer)).toEqual(pointers);
+    const resolver = createSourceSpanResolver({
+      texts: { textFor: (source) => (source === uri ? { text, syntax } : undefined) },
+      backends: [createJsonSpanBackend(), createYamlSpanBackend()],
+    });
+    const log = JSON.parse(
+      renderSarif(findings, {
+        classes: ["schema"],
+        spanOf: (request) => resolver.spansFor([request])[0],
+      }),
+    ) as SarifLog;
+    const highlighted = log.runs[0]!.results.map((result) => {
+      const region = result.locations[0]?.physicalLocation.region;
+      expect(region).toBeDefined();
+      return text.slice(region!.charOffset, region!.charOffset + region!.charLength);
+    });
+    expect(highlighted).toEqual(
+      syntax === "yaml" ? ["signedDate", "isActionNeeded"] : ['"signedDate"', '"isActionNeeded"'],
+    );
+  },
+);
 
 describe("renderSarif emits a region only when a caller supplies one", () => {
   it("emits no region key at all with no lookup wired", () => {
