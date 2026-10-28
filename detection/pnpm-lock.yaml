@@ -9,8 +9,8 @@ importers:
   .:
     devDependencies:
       '@redocly/cli':
-        specifier: ^2.60.0
-        version: 2.60.0
+        specifier: ^2.64.0
+        version: 2.64.0
       '@stoplight/spectral-cli':
         specifier: ^6.17.0
         version: 6.17.0
@@ -218,8 +218,8 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@redocly/cli@2.60.0':
-    resolution: {integrity: sha512-/xzlR+FGbo2pblWlgIZ92nrLwHgnpE6Ri8kCQm+LaizgijdwMYetly/pv4vdeZ4Hv8S6Zdw/+2fRBlhucbC9qw==}
+  '@redocly/cli@2.64.0':
+    resolution: {integrity: sha512-8VADrYioOlHCPSeww4s+DuHENqx1i/4sBVr0cxF/vxgoVuA9kmRcftzGZJXEJoqcp2EQK5ZLwvA0eyNEQP1AYQ==}
     engines: {node: '>=22.12.0 || >=20.19.0 <21.0.0', npm: '>=10'}
     hasBin: true
 
@@ -1253,7 +1253,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.3
 
-  '@redocly/cli@2.60.0': {}
+  '@redocly/cli@2.64.0': {}
 
   '@rollup/plugin-commonjs@22.0.2(rollup@2.80.0)':
     dependencies:
