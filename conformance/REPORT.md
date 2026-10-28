@@ -40,8 +40,8 @@ Run against three upstream / hand-curated test corpora:
 
 | Source                                | Cases | Pass | Mismatch | Error | % pass |
 | ------------------------------------- | ----- | ---- | -------- | ----- | ------ |
-| JSON Schema Test Suite (required)     | 1301  | 1296 | 1        | 4     | 99.6%  |
-| JSON Schema Test Suite (+ optional)   | 1463  | 1455 | 4        | 4     | 99.5%  |
+| JSON Schema Test Suite (required)     | 1302  | 1297 | 1        | 4     | 99.6%  |
+| JSON Schema Test Suite (+ optional)   | 1464  | 1456 | 4        | 4     | 99.5%  |
 | OpenAPI Overlay 1.0 (envelope)        | 32    | 32   | 0        | 0     | 100%   |
 | OpenAPI `petstore` via `oaverify` CLI | 32    | 32   | 0        | 0     | 100%   |
 
@@ -94,7 +94,7 @@ which was a silent pass rather than a wrong rejection.
 
 ## Optional-suite breakdown
 
-Running with `--optional` widens to 1463 cases. The extra 162 cases
+Running with `--optional` widens to 1464 cases. The extra 162 cases
 live under `tests/draft2020-12/optional/`. The 8 non-passing optional
 cases (4 mismatch + 4 error):
 
@@ -126,8 +126,8 @@ comparative format number exists for anyone, which is why this one is
 measured locally.
 
 `format-suite` compiles with the OpenAPI 3.1 dialect, which promotes
-`format` to an assertion. The subtree is 860 cases across 21 formats, of
-which 454 expect a rejection, and scores **800/860** on a corpus reaching
+`format` to an assertion. The subtree is 896 cases across 21 formats, of
+which 483 expect a rejection, and scores **836/896** on a corpus reaching
 18 of the 38 `builtInFormats` keys. The other three suite files are
 `ecmascript-regex`, `regex` and `unknown`; the first two exercise the
 compiler-provided `regex` format, and `unknown` exercises unregistered

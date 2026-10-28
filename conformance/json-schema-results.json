@@ -337,8 +337,8 @@
   {
     "file": "patternProperties.json",
     "groups": 6,
-    "cases": 25,
-    "pass": 25,
+    "cases": 26,
+    "pass": 26,
     "fail": 0,
     "error": 0,
     "mismatches": []
