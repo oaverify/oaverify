@@ -1023,7 +1023,7 @@ describe("lintResolvedSpec: server-variable-undeclared", () => {
           variables: { version: { default: "v1" } },
         },
       ],
-    } as unknown as Partial<OpenAPIDocument>);
+    });
     expect(lintResolvedSpec(spec)).toEqual([
       {
         code: "server-variable-undeclared",
@@ -1205,7 +1205,7 @@ describe("lintResolvedSpec: server-variable-default-not-in-enum", () => {
           L: { server: { url: "https://{a}", variables: { a: { default: "X", enum: ["x"] } } } },
         },
       },
-    } as unknown as Partial<OpenAPIDocument>);
+    });
     expect(outside(spec).map((i) => i.pointer)).toEqual([
       "/components/links/L/server/variables/a/default",
     ]);

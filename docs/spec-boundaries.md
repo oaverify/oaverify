@@ -81,7 +81,7 @@ rejects them. OpenAPI 3.0 requires a Schema Object at these positions.
 This preserves the compiler's boolean semantics across dialects; accepting
 the schema for compilation does not establish document conformance.
 
-**`method`** ([packages/core/src/types.ts:582](../packages/core/src/types.ts#L582))
+**`method`** ([packages/core/src/types.ts:605](../packages/core/src/types.ts#L605))
 
 Against RFC 9110 section 9.1 (<https://www.rfc-editor.org/rfc/rfc9110#section-9.1>).
 
@@ -506,7 +506,7 @@ Changes the value handed on, which can affect subsequent validation.
 
 ### packages/core
 
-**`cookies`** ([packages/core/src/types.ts:611](../packages/core/src/types.ts#L611))
+**`cookies`** ([packages/core/src/types.ts:634](../packages/core/src/types.ts#L634))
 
 Against OpenAPI 3.2 style values (<https://spec.openapis.org/oas/v3.2.0#style-values>).
 
@@ -578,7 +578,7 @@ The spec grants latitude, and this picked one option.
 
 ### packages/core
 
-**`allowEmptyValue`** ([packages/core/src/types.ts:475](../packages/core/src/types.ts#L475))
+**`allowEmptyValue`** ([packages/core/src/types.ts:498](../packages/core/src/types.ts#L498))
 
 Against OpenAPI 3.1.1 Parameter Object (<https://spec.openapis.org/oas/v3.1.1#parameter-object>).
 

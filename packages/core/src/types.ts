@@ -243,6 +243,29 @@ export interface InfoObject {
 export interface ServerObject {
   url: string;
   description?: string;
+  /** OpenAPI 3.2: a unique reference name for the server. */
+  name?: string;
+  /** Substitution values for the placeholders in braces in `url`, keyed by placeholder name. */
+  variables?: Record<string, ServerVariableObject>;
+}
+
+/**
+ * OpenAPI Server Variable Object: one placeholder of a
+ * {@link ServerObject.url}.
+ *
+ * @public
+ */
+export interface ServerVariableObject {
+  /**
+   * The values the placeholder may take. When present it must not be
+   * empty and must list `default` (OpenAPI 3.1 and 3.2; 3.0 recommends
+   * both). `check` reports a `default` the list leaves out.
+   */
+  enum?: string[];
+  /** The value used when none is supplied. */
+  default: string;
+  /** A description of the variable. CommonMark syntax may be used. */
+  description?: string;
 }
 
 /**
