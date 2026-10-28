@@ -369,6 +369,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   // surface.
   const includeFilter = options.only;
   const opsEmitted: EmittedOp[] = [];
+  const opsServed: OperationObject[] = [];
   const pathMethods = new Map<string, Set<string>>();
   const includedPaths = new Set<string>();
 
@@ -404,6 +405,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
       allDeclared.add(upperMethod);
 
       if (!matchesFilter(includeFilter, upperMethod, pathPattern)) continue;
+      opsServed.push(op);
       opsEmitted.push(
         buildEmittedOp({
           pathPattern,
@@ -450,7 +452,12 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
   const usesHeaderHelper = opsEmitted.some((op) => op.usesHeaderHelper);
   const usesHeaderFastHelper = opsEmitted.some((op) => op.usesHeaderFastHelper);
 
-  const securityWarning = uninspectableSecurityWarning(document, securityMode, resolveRef);
+  const securityWarning = uninspectableSecurityWarning(
+    document,
+    opsServed,
+    securityMode,
+    resolveRef,
+  );
   if (securityWarning !== undefined) warnings.push(securityWarning);
 
   return [
@@ -979,31 +986,27 @@ function hydrateValidatorRefs(json: string): string {
  * Both the mode and every scheme are known here, so the artifact can
  * say so rather than leaving it to be discovered. Requirements are what
  * is inspected, not `components.securitySchemes`: a scheme nobody
- * requires says nothing about what the gate will do.
+ * requires says nothing about what the gate will do. They are read from
+ * `served`, the operations the module routes, with the same precedence
+ * the gate applies (`operation.security ?? document.security`).
  *
  * `"strict"` needs no warning. It rejects an uninspectable scheme
  * instead of passing it, which is the whole of its difference.
  */
 function uninspectableSecurityWarning(
   document: OpenAPIDocument,
+  served: readonly OperationObject[],
   mode: "off" | "shape" | "strict",
   resolveRef: <T>(v: T | ReferenceObject | undefined) => T | undefined,
 ): string | undefined {
   if (mode !== "shape") return undefined;
   const required = new Set<string>();
-  const collect = (reqs: unknown): void => {
-    if (!Array.isArray(reqs)) return;
+  for (const operation of served) {
+    const reqs: unknown = operation.security ?? document.security;
+    if (!Array.isArray(reqs)) continue;
     for (const r of reqs) {
       if (r === null || typeof r !== "object") continue;
       for (const name of Object.keys(r as Record<string, unknown>)) required.add(name);
-    }
-  };
-  collect(document.security);
-  for (const item of Object.values(document.paths ?? {})) {
-    if (item === null || typeof item !== "object") continue;
-    for (const [key, op] of Object.entries(item as Record<string, unknown>)) {
-      if (key === "parameters" || op === null || typeof op !== "object") continue;
-      collect((op as { security?: unknown }).security);
     }
   }
   if (required.size === 0) return undefined;
@@ -1011,13 +1014,16 @@ function uninspectableSecurityWarning(
   const schemes = document.components?.securitySchemes ?? {};
   const opaque: string[] = [];
   for (const name of [...required].sort()) {
+    // An undeclared name fails every request, the opposite of passing it.
+    if (!Object.hasOwn(schemes, name)) continue;
     const raw = (schemes as Record<string, unknown>)[name];
     const scheme = resolveRef<SecuritySchemeObject>(raw as SecuritySchemeObject | undefined);
-    const type = scheme?.type;
-    const http = (scheme as { scheme?: string } | undefined)?.scheme?.toLowerCase();
+    if (scheme === undefined) continue;
+    const type = scheme.type;
+    const http = (scheme as { scheme?: string }).scheme?.toLowerCase();
     const inspectable =
       type === "apiKey" || (type === "http" && (http === "bearer" || http === "basic"));
-    if (!inspectable) opaque.push(`${name} (${type ?? "undeclared"})`);
+    if (!inspectable) opaque.push(`${name} (${String(type)})`);
   }
   if (opaque.length !== required.size) return undefined;
   return (
