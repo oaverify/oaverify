@@ -502,6 +502,16 @@ is reported as a finding with the code `malformed-schema`, and `check`
 carries on with the rest of the document, so one bad `items` does not
 hide every other finding in the file.
 
+The hygiene error `route-conflict` reports paths the router cannot distinguish
+for a shared HTTP method, including normalization conflicts such as `/pets`
+and `/pets/`. It targets each later path item and lists the first conflicting
+path for that method in `CheckFinding.contributors`; colliding methods for the
+pair share one finding. Three equivalent GET paths produce two findings, each
+citing the first path.
+The other checks still run, so these documents now exit 1 at the default gate
+instead of aborting with exit 2. Selection and severity overrides apply as usual.
+Runtime validator construction still rejects the conflict.
+
 The hygiene warning `unsupported-openapi-version` locates an unknown 3.x
 minor at `/openapi` and discloses skipped conformance and the OpenAPI 3.1
 schema fallback. It follows ordinary selection and regrading (see
@@ -573,11 +583,11 @@ Every finding carries both, and neither implies the other.
 
 **Severity** says what it means for you, and is what `--fail-on` gates on:
 
-| Severity  | Meaning                                                 |
-| --------- | ------------------------------------------------------- |
-| `fatal`   | Act before shipping anything else.                      |
-| `error`   | Legal to parse, but violates the OpenAPI specification. |
-| `warning` | Legal, and probably not what the author meant.          |
+| Severity  | Meaning                                                            |
+| --------- | ------------------------------------------------------------------ |
+| `fatal`   | Act before shipping anything else.                                 |
+| `error`   | Violates OpenAPI or prevents this validator from routing requests. |
+| `warning` | Legal, and probably not what the author meant.                     |
 
 `fatal` is a rank. Exit code 4 and the ban on remapping attach to the
 `malformed` class, not to this row, so `--severity` may promote a finding

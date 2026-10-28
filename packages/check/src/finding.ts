@@ -50,7 +50,7 @@ export interface CheckFinding {
    * - `"fatal"`: act before shipping anything else. The `malformed`
    *   class owns this today, because a document that cannot be compiled
    *   is the one thing that stops everything.
-   * - `"error"`: legal to parse, but violates the OpenAPI specification.
+   * - `"error"`: violates OpenAPI or prevents this validator from routing requests.
    * - `"warning"`: legal, and probably not what the author meant.
    *
    * A regrading moves this rank and nothing else. The CLI's exit code 4
@@ -124,11 +124,12 @@ export interface CheckFinding {
    */
   occurrences?: number;
   /**
-   * Enum and const declarations supporting a composed finite-value finding.
-   * Each target addresses the keyword value in the resolved document and
-   * follows FindingTarget's source-attribution contract. Present only when
-   * every collected declaration has a document address; otherwise absent
-   * as a unit. Other findings leave this absent.
+   * Declarations supporting the finding, following FindingTarget's source
+   * attribution contract. Composed finite-value findings address each enum
+   * or const keyword; the array is absent if any declaration lacks a
+   * document address. A route-conflict finding addresses the first path
+   * for the conflicting method here and the later path item in target.
+   * Other findings leave this absent.
    *
    * When occurrences exceeds one, these describe the first occurrence,
    * just as target does; they do not union evidence from repeated uses.

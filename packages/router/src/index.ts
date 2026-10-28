@@ -1,5 +1,7 @@
 export {
   createRouter,
+  createRouterForCheck,
+  type RouteConflict,
   parseTemplate,
   routeSignature,
   type MethodNotAllowed,

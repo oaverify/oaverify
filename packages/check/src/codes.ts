@@ -174,15 +174,11 @@ const CHECK_SCHEMA_CODES = ["format-not-validated", "unsupported-schema-dialect"
  * `SpecHygieneIssue`, on the same footing as `format-not-validated`
  * above.
  *
- * `unserved-parameter-location` is a fact about this validator, not
- * about the document: the location may be perfectly legal (3.2's
- * `querystring`) and still be one `createValidator` refuses to build
- * for. `@oaverify/internal-spec` has no business knowing that, so the
- * code is emitted here from the rule the validator publishes.
- * `ignored-header` is emitted the same way, from the set of declarations
- * the validator drops.
+ * These depend on validator or checker policy. The document linter in
+ * `@oaverify/internal-spec` is independent of those consumers.
  */
 const CHECK_HYGIENE_CODES = [
+  "route-conflict",
   "unserved-parameter-location",
   "unsupported-openapi-version",
   "ignored-header",

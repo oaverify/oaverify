@@ -23,6 +23,7 @@ describe("what oaverify grades by default", () => {
     expect(defaultSeverityFor("hygiene", "path-param-undeclared")).toBe("error");
     expect(defaultSeverityFor("hygiene", "path-param-unused")).toBe("error");
     expect(defaultSeverityFor("hygiene", "path-template-malformed")).toBe("error");
+    expect(defaultSeverityFor("hygiene", "route-conflict")).toBe("error");
     expect(defaultSeverityFor("hygiene", "duplicate-parameter")).toBe("error");
     expect(defaultSeverityFor("hygiene", "duplicate-operation-id")).toBe("error");
     expect(defaultSeverityFor("hygiene", "security-scheme-undeclared")).toBe("error");

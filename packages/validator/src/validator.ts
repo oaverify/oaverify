@@ -17,6 +17,8 @@ import {
 import { builtInFormats } from "@oaverify/internal-formats";
 import {
   createRouter,
+  createRouterForCheck,
+  type RouteConflict,
   type RouteInfo,
   type RouteMatch,
   type Router,
@@ -1299,6 +1301,30 @@ export function createValidator(
   spec: OpenAPIDocument,
   options: ValidatorOptions = {},
 ): Validator | TreeValidator | PredicateValidator | ValuesValidator | TreeValuesValidator {
+  return buildValidator(spec, options, createRouter);
+}
+
+/**
+ * Complete the gradeability gate without exposing a serving validator.
+ * Route conflicts and unserved parameter locations are serving refusals
+ * that check reports as findings. Construction uses the original document
+ * so schemas and examples on those declarations remain available to check.
+ * Version detection and reference resolution still run and can throw.
+ */
+export function checkValidatorConstruction(
+  spec: OpenAPIDocument,
+  onConflict: (conflict: RouteConflict) => void,
+): void {
+  buildValidator(spec, { schemaLint: "strict", unservedParameterLocations: "ignore" }, (paths) =>
+    createRouterForCheck(paths, onConflict),
+  );
+}
+
+function buildValidator(
+  spec: OpenAPIDocument,
+  options: ValidatorOptions,
+  makeRouter: typeof createRouter,
+): Validator | TreeValidator | PredicateValidator | ValuesValidator | TreeValuesValidator {
   if (options.returnValues === true && options.output === "predicate") {
     // Error early rather than accept an option that cannot be honoured:
     // predicate mode returns a bare boolean, so there is nowhere to put
@@ -1350,7 +1376,7 @@ export function createValidator(
   const maxTotalBytes = options.maxTotalBytes;
   const returnValues = options.returnValues === true;
   const paths = spec.paths ?? {};
-  const router: Router = createRouter(paths);
+  const router: Router = makeRouter(paths);
   assertFormatTypesMatch(options.formats);
   const formats = { ...builtInFormats, ...options.formats };
 
