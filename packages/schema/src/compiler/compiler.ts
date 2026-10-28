@@ -2255,7 +2255,8 @@ function compileValidator(
   // placeholder name we just reserved, so we fall through and emit a
   // real wrapper function.
   if (isPureRefSchema(schema, state)) {
-    const target = resolvePureRefSchema(schema as SchemaObject, state);
+    const resolved = resolvePureRefSchema(schema as SchemaObject, state);
+    const target = resolved === null ? null : depthRefTarget(resolved, state);
     // A recursive (back-edge) pure-ref under depth-gating must keep its
     // wrapper: eliding it would route the recursive call through the
     // caller (properties / items / composition), bypassing the `$ref`
@@ -2346,6 +2347,31 @@ function resolvePureRefSchema(schema: SchemaObject, state: CompileState): Schema
   if (typeof ref !== "string") return null;
   const currentBaseUri = state.graph.schemaBaseUri.get(schema) ?? state.graph.baseUri;
   return state.refResolver.resolve(ref, currentBaseUri);
+}
+
+/**
+ * Use the same target for a depth-guarded call and its back-edge test.
+ * Transparent aliases can be elided before entering the compile stack;
+ * following them here keeps the guard on the call to the active body.
+ * Resource transitions retain their wrappers and dynamic scope entries.
+ */
+function depthRefTarget(schema: SchemaOrBoolean, state: CompileState): SchemaOrBoolean {
+  if (!state.depthGated) return schema;
+  const seen = new Set<SchemaOrBoolean>();
+  let target = schema;
+  while (isPureRefSchema(target, state)) {
+    if (seen.has(target)) return schema;
+    seen.add(target);
+    const next = resolvePureRefSchema(target as SchemaObject, state);
+    if (
+      next === null ||
+      (state.dynamicScope && baseUriOf(next, state) !== baseUriOf(target, state))
+    ) {
+      break;
+    }
+    target = next;
+  }
+  return target;
 }
 
 /**
@@ -2637,7 +2663,7 @@ function compileSchemaKeywords(
   const subCompiler = (subSchema: SchemaOrBoolean, subMode: CompileMode = mode): string =>
     compileValidator(subSchema, state, subMode, entersResource(subSchema));
   const resolveRefToFunction = (ref: string): string => {
-    const target = state.refResolver.resolve(ref, currentBaseUri);
+    const target = depthRefTarget(state.refResolver.resolve(ref, currentBaseUri), state);
     return compileValidator(target, state, mode, entersResource(target));
   };
   const resolveDynamicRef = (ref: string): DynamicRefTarget | null =>
@@ -2647,7 +2673,7 @@ function compileSchemaKeywords(
   // not trigger compilation, so the result is independent of whether
   // `resolveRefToFunction` has run for this ref yet.
   const isRecursiveRef = (ref: string): boolean =>
-    state.compiling.has(state.refResolver.resolve(ref, currentBaseUri));
+    state.compiling.has(depthRefTarget(state.refResolver.resolve(ref, currentBaseUri), state));
 
   const runOrder = orderKeywordsForSchema(schema, state);
   // OAS 3.0: when `$ref` is present, every sibling keyword is ignored.

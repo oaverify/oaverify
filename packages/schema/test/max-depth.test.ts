@@ -211,3 +211,138 @@ describe("maxDepth: recursion through a union", () => {
     expect(leafCodes(failure(r).error)).toContain("depth");
   });
 });
+
+describe("maxDepth: recursive reference aliases", () => {
+  const schema = {
+    $ref: "#/$defs/Node",
+    $defs: {
+      Node: { $ref: "#/$defs/Inner" },
+      Inner: {
+        oneOf: [
+          { type: "null" },
+          { type: "object", properties: { child: { $ref: "#/$defs/Node" } } },
+        ],
+      },
+    },
+  };
+
+  for (const output of ["predicate", "flat", "tree"] as const) {
+    it(`counts each recursive descent once (${output})`, () => {
+      const v = compile(schema, { maxDepth: 3, output });
+      for (const depth of [0, 1, 2, 3, 4, 10]) {
+        const r = v.validate(nestChild(depth));
+        expect(typeof r === "boolean" ? r : r.valid, `depth ${depth}`).toBe(depth <= 3);
+      }
+    });
+
+    it(`preserves the cap through a longer alias chain and anyOf (${output})`, () => {
+      const v = compile(
+        {
+          ...schema,
+          $defs: {
+            Node: { $ref: "#/$defs/Alias", title: "Node" },
+            Alias: { $ref: "#/$defs/Inner" },
+            Inner: { anyOf: schema.$defs.Inner.oneOf },
+          },
+        },
+        { maxDepth: 3, output },
+      );
+      for (const depth of [3, 4, 100_000, 3]) {
+        const r = v.validate(nestChild(depth));
+        expect(typeof r === "boolean" ? r : r.valid, `depth ${depth}`).toBe(depth <= 3);
+      }
+    });
+
+    it(`retains validation siblings on a reference (${output})`, () => {
+      const v = compile(
+        {
+          ...schema,
+          $defs: {
+            ...schema.$defs,
+            Node: { $ref: "#/$defs/Inner", required: ["child"] },
+          },
+        },
+        { maxDepth: 3, output },
+      );
+      for (const [value, valid] of [
+        [null, true],
+        [{ child: null }, true],
+        [{}, false],
+        [{ child: {} }, false],
+      ] as const) {
+        const r = v.validate(value);
+        expect(typeof r === "boolean" ? r : r.valid).toBe(valid);
+      }
+    });
+
+    it(`bounds deep inputs and resets between calls (${output})`, () => {
+      const v = compile(schema, { maxDepth: 3, output });
+      for (const depth of [100_000, 3]) {
+        const r = v.validate(nestChild(depth));
+        expect(typeof r === "boolean" ? r : r.valid).toBe(depth <= 3);
+      }
+    });
+  }
+
+  it("reports a depth leaf at the cap", () => {
+    const r = compile(schema, { maxDepth: 3 }).validate(nestChild(10));
+    expect(leafCodes(failure(r).error)).toContain("depth");
+  });
+
+  it("unwinds between sibling branches", () => {
+    const v = compile(
+      {
+        ...schema,
+        $defs: {
+          ...schema.$defs,
+          Inner: {
+            type: "object",
+            properties: {
+              left: { $ref: "#/$defs/Node" },
+              right: { $ref: "#/$defs/Node" },
+            },
+          },
+        },
+      },
+      { maxDepth: 3 },
+    );
+    const balanced = (depth: number): unknown =>
+      depth === 0 ? {} : { left: balanced(depth - 1), right: balanced(depth - 1) };
+    expect(v.validate(balanced(3)).valid).toBe(true);
+    expect(v.validate(balanced(4)).valid).toBe(false);
+  });
+
+  for (const output of ["predicate", "flat", "tree"] as const) {
+    it(`retains intermediate resource scope through aliases (${output})`, () => {
+      const v = compile(
+        {
+          $id: "https://example.test/root",
+          $ref: "#/$defs/Node",
+          $defs: {
+            Node: { $ref: "https://example.test/middle" },
+            Middle: {
+              $id: "https://example.test/middle",
+              $ref: "https://example.test/inner",
+              $defs: { meta: { $dynamicAnchor: "meta", type: "string" } },
+            },
+            Inner: {
+              $id: "https://example.test/inner",
+              type: "object",
+              properties: { tag: { $dynamicRef: "#meta" } },
+              $defs: { meta: { $dynamicAnchor: "meta", type: "number" } },
+            },
+          },
+        },
+        { maxDepth: 3, output },
+      );
+      for (const [tag, valid] of [
+        ["text", true],
+        [42, false],
+        ["text", true],
+      ] as const) {
+        const r = v.validate({ tag });
+        expect(typeof r === "boolean" ? r : r.valid).toBe(valid);
+      }
+    });
+  }
+});

@@ -1,6 +1,7 @@
 import { collectLeaves, httpStatusFor, type OpenAPIDocument } from "@oaverify/internal-core";
 import { describe, expect, it } from "vitest";
 import { createValidator } from "./fixtures.js";
+import { createValidator as createValidatorRaw } from "../src/index.js";
 
 // A spec whose request body is a self-recursive `Node` (tree shape).
 function treeSpec(): OpenAPIDocument {
@@ -114,4 +115,33 @@ describe("createValidator maxDepth: request body behind a union", () => {
     );
     expect(err).not.toBeNull();
   });
+});
+
+describe("createValidator maxDepth: aliased recursive body", () => {
+  for (const openapi of ["3.0.3", "3.1.0", "3.2.0"]) {
+    it(`preserves cap boundaries with default output under ${openapi}`, () => {
+      const spec = treeSpec();
+      spec.openapi = openapi;
+      spec.components!.schemas = {
+        Node: { $ref: "#/components/schemas/Inner" },
+        Inner: {
+          anyOf: [
+            { type: "string" },
+            { type: "object", properties: { child: { $ref: "#/components/schemas/Node" } } },
+          ],
+        },
+      };
+      // Use the public flat output; the fixture forces tree mode and an unlimited budget.
+      for (const maxErrors of [1, Number.POSITIVE_INFINITY]) {
+        const v = createValidatorRaw(spec, { maxDepth: 3, maxErrors });
+        for (const depth of [0, 3, 4, 100_000, 3]) {
+          const r = v.validateRequest(postTree(nestChild(depth)));
+          expect(r.valid, `depth ${depth}`).toBe(depth <= 3);
+          if (!r.valid && maxErrors === Number.POSITIVE_INFINITY) {
+            expect(r.errors.some((e) => e.code === "depth" && e.params.limit === 3)).toBe(true);
+          }
+        }
+      }
+    });
+  }
 });
