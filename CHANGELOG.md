@@ -1,5 +1,26 @@
 # Changelog
 
+## [7.3.2](https://github.com/oaverify/oaverify/compare/core-v7.3.1...core-v7.3.2) (2026-10-29)
+
+
+### Bug Fixes
+
+* **check:** report route conflicts without aborting grading ([#1317](https://github.com/oaverify/oaverify/issues/1317)) ([68304b4](https://github.com/oaverify/oaverify/commit/68304b4e337d52e18d232314a2f2b8f633bce196))
+* **cli:** read security alternatives for the shape warning ([#1334](https://github.com/oaverify/oaverify/issues/1334)) ([5a566fb](https://github.com/oaverify/oaverify/commit/5a566fb2ad00277909f4b40aaa2b6c2938105669))
+* **cli:** read served operations for the shape security warning ([#1326](https://github.com/oaverify/oaverify/issues/1326)) ([2e32855](https://github.com/oaverify/oaverify/commit/2e32855a47908d1200c1fc31a4888b8e105d1eb0))
+* **core:** declare Server Object variables and name ([#1328](https://github.com/oaverify/oaverify/issues/1328)) ([66f6a82](https://github.com/oaverify/oaverify/commit/66f6a8244922da5e2e8ab001d1d4e4cee66dd536))
+* **schema:** guard recursive descent through reference aliases ([#1311](https://github.com/oaverify/oaverify/issues/1311)) ([2c28780](https://github.com/oaverify/oaverify/commit/2c28780f2fb92998ed03db270a9d53956909a80f))
+* **schema:** locate required-property findings at array entries ([#1312](https://github.com/oaverify/oaverify/issues/1312)) ([86d0f32](https://github.com/oaverify/oaverify/commit/86d0f32bc71e1c433ec7da89b26062c0628d8b7a)), closes [#1287](https://github.com/oaverify/oaverify/issues/1287)
+* **spec:** count 3.2 URI-named security schemes as used ([#1327](https://github.com/oaverify/oaverify/issues/1327)) ([d4fdcb5](https://github.com/oaverify/oaverify/commit/d4fdcb528f8b24785972545a30d00c3db7064ead))
+* **spec:** decode percent-encoded $ref fragments for hygiene reachability ([#1333](https://github.com/oaverify/oaverify/issues/1333)) ([5e2e02c](https://github.com/oaverify/oaverify/commit/5e2e02cb53792fcd13e5f3fb5c507e5983c98edf))
+* **spec:** follow stitched references for component reachability ([#1319](https://github.com/oaverify/oaverify/issues/1319)) ([6415600](https://github.com/oaverify/oaverify/commit/6415600b095c82bcbb06f1862fd5b6f901229812))
+* **spec:** reject thenables from synchronous readers ([#1318](https://github.com/oaverify/oaverify/issues/1318)) ([1cf0ab0](https://github.com/oaverify/oaverify/commit/1cf0ab095fa47bebeba3ae39c64a24b368d48d5a))
+* **stream:** enforce maxBufferedBytes as island bytes arrive ([#1325](https://github.com/oaverify/oaverify/issues/1325)) ([dfa9188](https://github.com/oaverify/oaverify/commit/dfa9188109cf64bfc0623ca82027b9e32d8ed83c))
+* **stream:** make analyzer byte figures upper bounds ([#1332](https://github.com/oaverify/oaverify/issues/1332)) ([e87efe0](https://github.com/oaverify/oaverify/commit/e87efe0b298623481ae8146ed6caba0b8c2d7015))
+* **stream:** preserve edited output order on total-byte refusal ([#1315](https://github.com/oaverify/oaverify/issues/1315)) ([9070962](https://github.com/oaverify/oaverify/commit/90709629b91e3e1e5ae9d74d3ad5c7f51ae22ab0))
+* **stream:** preserve retained edit bytes when detach seals at EOF ([#1313](https://github.com/oaverify/oaverify/issues/1313)) ([91e35bf](https://github.com/oaverify/oaverify/commit/91e35bf0c5a4678cefa728d1a936aea4df296b0e))
+* **stream:** report a malformed number before a drop limit refuses its delimiter ([#1335](https://github.com/oaverify/oaverify/issues/1335)) ([24601ea](https://github.com/oaverify/oaverify/commit/24601ea4a425170f6780a68df5aff69c8a8cf64d))
+
 ## [7.3.1](https://github.com/oaverify/oaverify/compare/core-v7.3.0...core-v7.3.1) (2026-10-28)
 
 

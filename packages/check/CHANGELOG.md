@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.3.2](https://github.com/oaverify/oaverify/compare/check-v7.3.1...check-v7.3.2) (2026-10-29)
+
+
+### Bug Fixes
+
+* **check:** report route conflicts without aborting grading ([#1317](https://github.com/oaverify/oaverify/issues/1317)) ([68304b4](https://github.com/oaverify/oaverify/commit/68304b4e337d52e18d232314a2f2b8f633bce196))
+* **schema:** locate required-property findings at array entries ([#1312](https://github.com/oaverify/oaverify/issues/1312)) ([86d0f32](https://github.com/oaverify/oaverify/commit/86d0f32bc71e1c433ec7da89b26062c0628d8b7a)), closes [#1287](https://github.com/oaverify/oaverify/issues/1287)
+
 ## [7.3.1](https://github.com/oaverify/oaverify/compare/check-v7.3.0...check-v7.3.1) (2026-10-28)
 
 

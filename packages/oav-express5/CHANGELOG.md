@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.3.2](https://github.com/oaverify/oaverify/compare/express5-v7.3.1...express5-v7.3.2) (2026-10-29)
+
+
+### Chore
+
+* **express5:** Synchronize oaverify versions
+
 ## [7.3.1](https://github.com/oaverify/oaverify/compare/express5-v7.3.0...express5-v7.3.1) (2026-10-28)
 
 
