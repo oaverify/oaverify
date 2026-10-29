@@ -95,6 +95,7 @@ export type {
   SecurityRequirementObject,
   SecuritySchemeObject,
   ServerObject,
+  ServerVariableObject,
   TagObject,
 } from "./types.js";
 // The subschema-position tables are deliberately absent from this
