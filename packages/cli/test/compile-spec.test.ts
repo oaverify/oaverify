@@ -2373,6 +2373,70 @@ describe("the emitted validator's security mode (#895)", () => {
     expect((await buildAot(doc)).warnings).toEqual([]);
   });
 
+  it("reads requirements from the operations the module serves (#1243)", async () => {
+    const op = (scheme: string) => ({
+      security: [{ [scheme]: [] }],
+      responses: { "200": { description: "ok" } },
+    });
+    const docOf = (paths: unknown, pathItems: unknown, security?: unknown): OpenAPIDocument =>
+      ({
+        openapi: "3.1.1",
+        info: { title: "t", version: "1" },
+        ...(security === undefined ? {} : { security }),
+        components: {
+          securitySchemes: {
+            o: {
+              type: "oauth2",
+              flows: { implicit: { authorizationUrl: "https://x/a", scopes: {} } },
+            },
+            k: { type: "apiKey", in: "header", name: "K" },
+          },
+          pathItems,
+        },
+        paths,
+      }) as OpenAPIDocument;
+    const warned = async (doc: OpenAPIDocument, only?: Array<{ method: string; path: string }>) =>
+      (await buildAot(doc, { validateSecurity: "shape", ...(only ? { only } : {}) })).warnings.join(
+        "\n",
+      );
+
+    // Every served requirement is uninspectable, reached through one hop or a chain.
+    const oneHop = docOf({ "/a": { $ref: "#/components/pathItems/P" } }, { P: { get: op("o") } });
+    expect(await warned(oneHop)).toContain("requires (o (oauth2))");
+    const chain = docOf(
+      { "/a": { $ref: "#/components/pathItems/Q" } },
+      { Q: { $ref: "#/components/pathItems/P" }, P: { get: op("o") } },
+    );
+    expect(await warned(chain)).toContain("requires (o (oauth2))");
+
+    // The referenced operation's apiKey is inspected, so the gate does not accept everything.
+    const mixed = docOf(
+      { "/b": { get: op("o") }, "/a": { $ref: "#/components/pathItems/P" } },
+      { P: { get: op("k") } },
+    );
+    expect(await warned(mixed)).toBe("");
+    // An operation `--only` leaves out is not served, so its apiKey inspects nothing.
+    expect(await warned(mixed, [{ method: "GET", path: "/b" }])).toContain("requires (o (oauth2))");
+
+    // Document-level security counts only where a served operation inherits it.
+    const overridden = docOf({ "/b": { get: op("o") } }, {}, [{ k: [] }]);
+    expect(await warned(overridden)).toContain("requires (o (oauth2))");
+    const inherited = docOf(
+      { "/b": { get: op("o") }, "/c": { get: { responses: { "200": { description: "ok" } } } } },
+      {},
+      [{ k: [] }],
+    );
+    expect(await warned(inherited)).toBe("");
+
+    // An undeclared scheme fails every request, so it does not make the gate accept everything.
+    const undeclared = docOf({ "/b": { get: op("missing") } }, {}, [{ k: [] }]);
+    expect(await warned(undeclared)).toBe("");
+    const aot = await buildAot(undeclared, { validateSecurity: "shape" });
+    expect(
+      flatErrors(aot.validateRequest({ method: "GET", path: "/b" })).map((e) => e.code),
+    ).toEqual(["security"]);
+  });
+
   it("emits no security machinery at all when off", async () => {
     // The default has to cost nothing, not merely behave correctly: a
     // module that never checks should not carry the document's
