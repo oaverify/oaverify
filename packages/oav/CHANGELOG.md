@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.3.2](https://github.com/oaverify/oaverify/compare/oaverify-v7.3.1...oaverify-v7.3.2) (2026-10-29)
+
+
+### Bug Fixes
+
+* **schema:** locate required-property findings at array entries ([#1312](https://github.com/oaverify/oaverify/issues/1312)) ([86d0f32](https://github.com/oaverify/oaverify/commit/86d0f32bc71e1c433ec7da89b26062c0628d8b7a)), closes [#1287](https://github.com/oaverify/oaverify/issues/1287)
+
 ## [7.3.1](https://github.com/oaverify/oaverify/compare/oaverify-v7.3.0...oaverify-v7.3.1) (2026-10-28)
 
 

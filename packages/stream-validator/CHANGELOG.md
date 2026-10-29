@@ -1,5 +1,16 @@
 # Changelog
 
+## [7.3.2](https://github.com/oaverify/oaverify/compare/stream-v7.3.1...stream-v7.3.2) (2026-10-29)
+
+
+### Bug Fixes
+
+* **stream:** enforce maxBufferedBytes as island bytes arrive ([#1325](https://github.com/oaverify/oaverify/issues/1325)) ([dfa9188](https://github.com/oaverify/oaverify/commit/dfa9188109cf64bfc0623ca82027b9e32d8ed83c))
+* **stream:** make analyzer byte figures upper bounds ([#1332](https://github.com/oaverify/oaverify/issues/1332)) ([e87efe0](https://github.com/oaverify/oaverify/commit/e87efe0b298623481ae8146ed6caba0b8c2d7015))
+* **stream:** preserve edited output order on total-byte refusal ([#1315](https://github.com/oaverify/oaverify/issues/1315)) ([9070962](https://github.com/oaverify/oaverify/commit/90709629b91e3e1e5ae9d74d3ad5c7f51ae22ab0))
+* **stream:** preserve retained edit bytes when detach seals at EOF ([#1313](https://github.com/oaverify/oaverify/issues/1313)) ([91e35bf](https://github.com/oaverify/oaverify/commit/91e35bf0c5a4678cefa728d1a936aea4df296b0e))
+* **stream:** report a malformed number before a drop limit refuses its delimiter ([#1335](https://github.com/oaverify/oaverify/issues/1335)) ([24601ea](https://github.com/oaverify/oaverify/commit/24601ea4a425170f6780a68df5aff69c8a8cf64d))
+
 ## [7.3.1](https://github.com/oaverify/oaverify/compare/stream-v7.3.0...stream-v7.3.1) (2026-10-28)
 
 
