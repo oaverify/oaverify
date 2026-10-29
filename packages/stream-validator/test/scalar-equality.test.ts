@@ -283,14 +283,14 @@ describe("analyzer reports the scalar equality bound (#1193)", () => {
   it("sizes string enum and const candidates", () => {
     expect(analyzeStreamability({ enum: ["a", "bb"] })).toEqual({
       classification: "buffer",
-      peakBytes: 2 * 4 + 2,
-      effectivePeakBytes: 2 * 4 + 2,
-      positions: [{ path: "", classification: "buffer", keyword: "enum", maxBytes: 10 }],
+      peakBytes: 2 * 6 + 2,
+      effectivePeakBytes: 2 * 6 + 2,
+      positions: [{ path: "", classification: "buffer", keyword: "enum", maxBytes: 14 }],
     });
-    expect(analyzeStreamability({ const: "abc" }).peakBytes).toBe(3 * 4 + 2);
+    expect(analyzeStreamability({ const: "abc" }).peakBytes).toBe(3 * 6 + 2);
     expect(
       analyzeStreamability({ type: "object", properties: { k: { enum: ["a"] } } }).positions,
-    ).toEqual([{ path: "k", classification: "buffer", keyword: "enum", maxBytes: 6 }]);
+    ).toEqual([{ path: "k", classification: "buffer", keyword: "enum", maxBytes: 8 }]);
   });
 
   it("reports nothing when no candidate is a string", () => {

@@ -31,7 +31,7 @@ interface RenderOptions {
   verbose?: boolean;
   /**
    * Per-buffer cap used to analyze this budget. Verbose output marks bounded
-   * estimates above this cap. Omit when the budget was analyzed without a cap.
+   * positions above this cap. Omit when the budget was analyzed without a cap.
    */
   maxBufferedBytes?: number;
 }
@@ -71,13 +71,18 @@ function renderBody(body: BodyBudget, pad: number, options: RenderOptions): stri
   for (const p of buffers) {
     const at = p.path === "" ? "(root)" : p.path;
     if (p.maxBytes === "unbounded") {
-      lines.push(`         - ${at}  ${p.keyword}  unbounded (needs ${p.unboundedBy})`);
+      // The cap is what such a position needs, so with one set say so.
+      const need =
+        maxBufferedBytes !== undefined && p.unboundedBy === "maxBufferedBytes"
+          ? `held to cap ${formatExactBytes(maxBufferedBytes)}`
+          : `needs ${p.unboundedBy}`;
+      lines.push(`         - ${at}  ${p.keyword}  unbounded (${need})`);
     } else {
       const cap =
         maxBufferedBytes !== undefined && p.maxBytes > maxBufferedBytes
           ? `; exceeds cap ${formatExactBytes(maxBufferedBytes)}`
           : "";
-      lines.push(`         - ${at}  ${p.keyword}  estimate ${formatExactBytes(p.maxBytes)}${cap}`);
+      lines.push(`         - ${at}  ${p.keyword}  at most ${formatExactBytes(p.maxBytes)}${cap}`);
     }
   }
   return lines;
@@ -119,10 +124,10 @@ export function hasUnbounded(budget: SpecBudget): boolean {
 /**
  * Render a {@link SpecBudget} as a per-operation text table. With
  * `verbose`, each buffering position is listed under its body with its path
- * and buffering keyword. Bounded positions show estimated wire bytes;
+ * and buffering keyword. Bounded positions show their wire-byte bound;
  * unbounded positions name the missing bound. Otherwise bodies show only
  * island counts. The report always ends with a warning that the input limits
- * the estimates assume are off by default. See {@link StreamabilityReport}
+ * the bounds assume are off by default. See {@link StreamabilityReport}
  * for the budget contract.
  *
  * @public
@@ -135,7 +140,7 @@ export function renderStreamBudget(
   const title = doc.info?.title ?? "(untitled)";
   const lines: string[] = [
     `${title}  (openapi ${doc.openapi})`,
-    "Peaks count buffered body regions, assuming keys, numbers and nesting of ordinary size.",
+    "Peaks bound buffered body regions; key and number tokens are not counted.",
     "",
   ];
 
@@ -160,9 +165,6 @@ export function renderStreamBudget(
       `(${c.unbounded} unbounded)` +
       (c.errors > 0 ? `, ${c.errors} not-streamable` : ""),
   );
-  if (c.buffer > 0) {
-    lines.push("Buffered estimates undercount JSON escaping, whitespace and number spellings.");
-  }
   lines.push(
     "",
     "warning: input limits are off by default. A schema-valid body with a huge key or",

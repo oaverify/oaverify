@@ -68,12 +68,12 @@ describe("streamCheckCommand", () => {
     expect(stdout.value).toContain("summary: 2 bodies in 1 operation.");
   });
 
-  // The estimates say nothing about a huge key or number, deep nesting or
+  // The bounds say nothing about a huge key or number, deep nesting or
   // an endless body, and the limits that refuse those are off by default.
   // A streamable-only spec reports peak 0 everywhere, which is where the
   // warning matters most, so it prints whatever the classification.
   it.each([
-    ["a buffering body", SPEC, true],
+    ["a buffering body", SPEC],
     [
       "only streamable bodies",
       {
@@ -86,14 +86,13 @@ describe("streamCheckCommand", () => {
           },
         },
       },
-      false,
     ],
-  ])("states the assumption and warns about input limits with %s", async (_, spec, buffers) => {
+  ])("states the assumption and warns about input limits with %s", async (_, spec) => {
     const { io: cmdIo, stdout } = memoryIo([["spec.json", spec]]);
     await streamCheckCommand({ ...base, format: "text", options: textOpts }, cmdIo);
     const lines = stdout.value.split("\n");
     expect(lines[1]).toBe(
-      "Peaks count buffered body regions, assuming keys, numbers and nesting of ordinary size.",
+      "Peaks bound buffered body regions; key and number tokens are not counted.",
     );
     expect(
       stdout.value.endsWith(
@@ -102,7 +101,7 @@ describe("streamCheckCommand", () => {
           "maxKeyBytes, maxNumberBytes, maxDepth and maxTotalBytes on the stream validator.\n",
       ),
     ).toBe(true);
-    expect(stdout.value.includes("Buffered estimates undercount")).toBe(buffers);
+    expect(stdout.value).not.toContain("undercount");
   });
 
   it("keeps the warning out of --format json", async () => {
@@ -120,12 +119,12 @@ describe("streamCheckCommand", () => {
 
   it.each([
     [undefined, ""],
-    [4093, "4.0 KB (4093 B)"],
-    [4094, "4.0 KB (4094 B)"],
+    [12277, "12.0 KB (12277 B)"],
+    [12278, "12.0 KB (12278 B)"],
     [65536, "64.0 KB (65536 B)"],
-    [131070, "128.0 KB (131070 B)"],
-    [131071, "128.0 KB (131071 B)"],
-  ] as const)("lists bounded estimates and compares them with cap %s", async (cap, capText) => {
+    [393205, "384.0 KB (393205 B)"],
+    [393206, "384.0 KB (393206 B)"],
+  ] as const)("lists bounded positions and compares them with cap %s", async (cap, capText) => {
     const spec = structuredClone(SPEC);
     Object.assign(spec.paths["/pets"].post.requestBody.content["application/json"].schema, {
       properties: {
@@ -150,11 +149,34 @@ describe("streamCheckCommand", () => {
     const overCap = (size: number) =>
       cap !== undefined && size > cap ? `; exceeds cap ${capText}` : "";
     expect(stdout.value.split("\n").filter((line) => line.startsWith("         - "))).toEqual([
-      `         - message_id  pattern  estimate 4.0 KB (4094 B)${overCap(4094)}`,
-      `         - entity_version  format  estimate 128.0 KB (131070 B)${overCap(131070)}`,
-      `         - callback_url  format  estimate 128.0 KB (131070 B)${overCap(131070)}`,
+      `         - message_id  pattern  at most 12.0 KB (12278 B)${overCap(12278)}`,
+      `         - entity_version  format  at most 384.0 KB (393206 B)${overCap(393206)}`,
+      `         - callback_url  format  at most 384.0 KB (393206 B)${overCap(393206)}`,
       "         - code  pattern  unbounded (needs maxLength)",
     ]);
+  });
+
+  it("says a container held only by the cap is held to the given cap", async () => {
+    const spec = structuredClone(SPEC);
+    Object.assign(spec.paths["/pets"].post.requestBody.content["application/json"], {
+      schema: { type: "array", uniqueItems: true, maxItems: 2, items: { type: "boolean" } },
+    });
+    const run = async (maxBufferedBytes?: number) => {
+      const { io: cmdIo, stdout } = memoryIo([["spec.json", spec]]);
+      await streamCheckCommand(
+        {
+          ...base,
+          format: "text",
+          verbose: true,
+          ...(maxBufferedBytes === undefined ? {} : { maxBufferedBytes }),
+          options: textOpts,
+        },
+        cmdIo,
+      );
+      return stdout.value;
+    };
+    expect(await run()).toContain("(root)  uniqueItems  unbounded (needs maxBufferedBytes)");
+    expect(await run(64)).toContain("(root)  uniqueItems  unbounded (held to cap 64 B)");
   });
 
   it.each([false, true])("renders a bounded root with verbose %s", async (verbose) => {
@@ -175,10 +197,10 @@ describe("streamCheckCommand", () => {
       cmdIo,
     );
     expect(res.exitCode).toBe(0);
-    expect(stdout.value).toContain("peak 42 B  (capped to 40 B)  (0 unbounded, 1 bounded)");
+    expect(stdout.value).toContain("peak 122 B  (capped to 40 B)  (0 unbounded, 1 bounded)");
     expect(stdout.value.includes("         - ")).toBe(verbose);
     if (verbose) {
-      expect(stdout.value).toContain("(root)  pattern  estimate 42 B; exceeds cap 40 B");
+      expect(stdout.value).toContain("(root)  pattern  at most 122 B; exceeds cap 40 B");
     }
   });
 
@@ -197,9 +219,9 @@ describe("streamCheckCommand", () => {
       { ...base, format: "text", verbose: true, maxBufferedBytes: 300, options: textOpts },
       cmdIo,
     );
-    expect(stdout.value).toContain("peak 804 B  (capped to 600 B)");
-    expect(stdout.value).toContain("allOf.0  pattern  estimate 402 B; exceeds cap 300 B");
-    expect(stdout.value).toContain("allOf.1  pattern  estimate 402 B; exceeds cap 300 B");
+    expect(stdout.value).toContain("peak 2.3 KB  (capped to 600 B)");
+    expect(stdout.value).toContain("allOf.0  pattern  at most 1.2 KB (1202 B); exceeds cap 300 B");
+    expect(stdout.value).toContain("allOf.1  pattern  at most 1.2 KB (1202 B); exceeds cap 300 B");
   });
 
   it("emits the SpecBudget as JSON under --format json", async () => {
@@ -264,7 +286,7 @@ describe("streamCheckCommand", () => {
     );
     expect(res.exitCode).toBe(0);
     expect(JSON.parse(stdout.value).operations[0].bodies[0].report.positions).toEqual([
-      { path: "k", classification: "buffer", keyword: "enum", maxBytes: 3 * 4 + 2 },
+      { path: "k", classification: "buffer", keyword: "enum", maxBytes: 3 * 6 + 2 },
     ]);
   });
 

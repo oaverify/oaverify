@@ -10,11 +10,12 @@
  * The spec here has three body shapes on purpose:
  *   - `POST /events`: an array of bounded objects; streams, nothing
  *     buffers.
- *   - `POST /batches` `checksums`: `uniqueItems` forces a buffer island,
- *     but `maxItems` + `maxLength` bound it, so the peak is a number.
- *   - `POST /batches` `tags`: `uniqueItems` with no bounds, so the peak
- *     is `"unbounded"` and the report names the missing keyword. This is
- *     the punch list a deployer tightens.
+ *   - `POST /batches` `checksums`: `uniqueItems` forces a buffer island.
+ *     `maxItems` + `maxLength` bound its structure, but whitespace between
+ *     items is unlimited, so the report names `maxBufferedBytes`.
+ *   - `POST /batches` `tags`: `uniqueItems` with no bounds, so the report
+ *     names the missing keyword. This is the punch list a deployer
+ *     tightens.
  *
  * The CLI prints the same budget as a table:
  *   pnpm oaverify stream-check examples/specs/ingest.yaml --verbose

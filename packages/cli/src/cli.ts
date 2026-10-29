@@ -337,7 +337,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option("--fail-on-unbounded", "exit non-zero if any body has an unbounded peak buffer", false)
     .option(
       "--verbose",
-      "list each buffering position with its path and byte estimate or missing bound",
+      "list each buffering position with its path and byte bound or missing bound",
       false,
     )
     .option("-o, --output <file>", "write output to a file instead of stdout")

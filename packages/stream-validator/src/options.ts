@@ -302,7 +302,7 @@ export interface StreamValidatorOptions {
    * Active during deferred detach while an edit is unresolved. After
    * detach seals validation, the unparsed tail is copied without this check.
    * Does not bound total memory or the number of retained names. Analyzer
-   * materialization estimates do not include this token policy.
+   * materialization bounds do not include this token policy.
    */
   maxKeyBytes?: number;
 
@@ -323,7 +323,7 @@ export interface StreamValidatorOptions {
    * including numbers inside dropped values and buffered subtrees. Both
    * `maxErrors` and `policy` are independent of this fatal resource limit.
    * Generated editor output is outside it. This does not bound total memory
-   * and does not change analyzer materialization estimates.
+   * and does not change analyzer materialization bounds.
    */
   maxNumberBytes?: number;
 

@@ -69,9 +69,11 @@ describe("peakBufferedBytes: a BUFFER island reports its span", () => {
     const peak = await streamPeak(schema, json);
     // Exact for a single island: the full wire span, both brackets included.
     expect(peak).toBe(Buffer.byteLength(json));
-    // Runtime peak is the actual input's span, never above the static
-    // worst-case the analyzer predicts for the schema.
-    expect(peak).toBeLessThanOrEqual(Number(analyzeStreamability(schema).peakBytes));
+    // Runtime peak is the actual input's span, never above the bound the
+    // analyzer predicts for the schema under the same cap.
+    expect(peak).toBeLessThanOrEqual(
+      Number(analyzeStreamability(schema, { maxBufferedBytes: 64 }).effectivePeakBytes),
+    );
   });
 
   it("a forced-buffer scalar (pattern) reports the string's span", async () => {
