@@ -13,18 +13,26 @@
  *     across siblings is a **max**, not a sum.
  *   - **A TEE fans events to one sub-spine per branch concurrently**, so
  *     within a TEE the peak is the **sum** over branches.
- *   - **A BUFFER island materializes its whole subtree**, bounded by that
- *     subtree's structural bounds (`maxLength` / `maxItems` / `const` /
- *     `enum`, and a closed object's properties); **unbounded** if any
- *     required bound is missing. An open object (`additionalProperties` not
- *     `false`) is unbounded regardless of `maxProperties`, which the byte
- *     model does not yet read.
+ *   - **A BUFFER island materializes its whole subtree.** A string island
+ *     is bounded by `maxLength` or its `enum` / `const` candidates; an
+ *     object or array island only by `maxBufferedBytes`, since whitespace
+ *     inside it is unlimited.
+ *   - **A cycle through a TEE repeats its branch peaks** at every level,
+ *     so a buffering subtree reached again under a deeper TEE is
+ *     **unbounded**.
  *
- * Sizes estimate materialized **UTF-8 source spans**. They currently
- * undercount escaping, whitespace and alternative number spellings and
- * are not conservative upper bounds. Token accumulators, completed-name
- * sets, captures, edit retention and queues are outside this model.
- * A finite estimate does not establish bounded validation memory.
+ * Sizes are upper bounds on the materialized **UTF-8 source span** of an
+ * accepted input. JSON allows any amount of whitespace inside a container
+ * and any length of number spelling (`1.000...0e0`), so a materialized
+ * container has no finite span of its own; only `maxBufferedBytes` bounds
+ * it. A number materialized on its own is held as a token, which
+ * `maxNumberBytes` bounds, and contributes nothing here. A branch of
+ * `anyOf`, `oneOf`, `not` or a conditional can fail while the engine still
+ * buffers for it, so its own keywords do not bound its size; only a string
+ * `enum` / `const` candidate, which the engine enforces itself, still does.
+ * Token accumulators, completed-name sets, captures, edit retention and
+ * queues are outside this model. A finite bound does not establish bounded
+ * validation memory.
  *
  * An unstreamable schema (a REJECT keyword such as `unevaluatedProperties`,
  * an unknown keyword, or an unresolvable `$ref`) throws
@@ -51,24 +59,29 @@ import { tokenByteLimit } from "../tokenizer/limits.js";
 // --- Byte model (UTF-8 wire bytes; explicit, documented assumptions) ---
 
 /**
- * Upper-bound bytes per `maxLength` unit for a string. UTF-8 encodes a
- * BMP code unit in at most 3 bytes; the extra headroom covers light JSON
- * escaping. Heavy escaping (`\uXXXX` on control characters) can exceed it,
- * so a string size is an estimate, not a hard ceiling.
+ * Most source bytes one code point (the unit of `maxLength`) can take in a
+ * JSON string: a supplementary character written as an escaped surrogate
+ * pair, `\uD83D\uDE00`.
  */
-const BYTES_PER_CHAR = 4;
+const BYTES_PER_CODE_POINT = 12;
+/**
+ * Most source bytes one UTF-16 code unit (the unit of a string `enum` /
+ * `const` candidate's length) can take: an escape, `\u0061`.
+ */
+const BYTES_PER_CODE_UNIT = 6;
 /** The two `"` delimiters around a JSON string. */
 const QUOTE_BYTES = 2;
-/** Widest JSON number modeled (sign, digits, exponent). */
-const NUMBER_BYTES = 24;
-/** `"false"`, the longer of the two booleans. */
+/** `false`, the longer of the two booleans. */
 const BOOL_BYTES = 5;
-/** `"null"`. */
+/** `null`. */
 const NULL_BYTES = 4;
-/** One structural byte token: a comma, colon, or bracket. */
-const PUNCT_BYTES = 1;
+/**
+ * The cap a materialized container needs: whitespace inside it is
+ * unlimited, so `maxBufferedBytes` is the only bound on its span.
+ */
+const CONTAINER_BOUND = "maxBufferedBytes";
 
-/** An estimated materialized wire-byte size, or `"unbounded"`. */
+/** An upper bound on a materialized wire-byte size, or `"unbounded"`. */
 export type ByteSize = number | "unbounded";
 
 /**
@@ -95,30 +108,35 @@ export interface BufferPosition {
   classification: "buffer" | "tee";
   /** The keyword forcing it (`contains`, `uniqueItems`, `oneOf`, `format`, ...). */
   keyword: string;
-  /** Estimated materialized wire bytes; known undercounts apply, or `"unbounded"`. */
+  /** Upper bound on materialized wire bytes, or `"unbounded"`. */
   maxBytes: ByteSize;
-  /** When `maxBytes` is `"unbounded"`, the missing bound (`maxItems`, `maxLength`, ...). */
+  /**
+   * When `maxBytes` is `"unbounded"`, the first missing bound: a schema
+   * keyword (`maxItems`, `maxLength`, ...), or `maxBufferedBytes` where
+   * only the cap can bound the span (a container, whose whitespace is
+   * unlimited, or a branch an accepted input may fail).
+   */
   unboundedBy?: string;
 }
 
 /**
- * Materialization classification, estimated peaks and their positions.
+ * Materialization classification, peak bounds and their positions.
  * See {@link analyzeStreamability}. Excludes tokenizer/name storage, captures,
- * edit retention and queues. Estimates currently undercount escaping,
- * whitespace and number spellings; a finite value is not a memory guarantee.
+ * edit retention and queues; a finite value is not a memory guarantee. A
+ * stream with edit hooks adds the input it retains for them to
+ * `StreamVerdict.peakBufferedBytes`, which can then exceed these bounds.
  *
  * @public
  */
 export interface StreamabilityReport {
   /** Overall verdict for the whole schema. */
   classification: StreamClass;
-  /** Schema-intrinsic materialization estimate in wire bytes, or `"unbounded"`. */
+  /** Schema-intrinsic materialization bound in wire bytes, or `"unbounded"`. */
   peakBytes: ByteSize;
   /**
-   * Materialization estimate after applying `maxBufferedBytes` per region.
-   * Carries the same undercounts as `peakBytes`. The cap does not apply to
-   * a number delegated on its own, which `maxNumberBytes` bounds instead.
-   * `maxKeyBytes` and `maxNumberBytes` do not change this estimate.
+   * Materialization bound after applying `maxBufferedBytes` per region:
+   * each region contributes the smaller of its intrinsic bound and the cap.
+   * `maxKeyBytes` and `maxNumberBytes` do not change this bound.
    */
   effectivePeakBytes: ByteSize;
   /** Every buffering / teeing position, in walk order. Empty iff `streamable`. */
@@ -143,9 +161,18 @@ function maxSize(a: ByteSize, b: ByteSize): ByteSize {
   return a === "unbounded" || b === "unbounded" ? "unbounded" : Math.max(a, b);
 }
 
-/** Wire bytes of a concrete JSON value (for `const` / `enum` candidates). */
-function literalBytes(value: unknown): number {
-  return Buffer.byteLength(JSON.stringify(value) ?? "null", "utf8");
+/**
+ * Most wire bytes an input equal to a `const` / `enum` candidate can take.
+ * Equality is by value, so any spelling of the value matches: a string can
+ * escape every code unit, and a container has no longest spelling. A
+ * number is a token (see {@link sizeOfType}).
+ */
+function literalSize(value: unknown): Sized {
+  if (typeof value === "string") return { size: value.length * BYTES_PER_CODE_UNIT + QUOTE_BYTES };
+  if (typeof value === "boolean") return { size: value ? 4 : BOOL_BYTES };
+  if (value === null) return { size: NULL_BYTES };
+  if (typeof value === "number") return { size: 0 };
+  return UNBOUNDED(CONTAINER_BOUND);
 }
 
 // --- Contribution tree: the shape of the peak computation, kept separate
@@ -153,7 +180,15 @@ function literalBytes(value: unknown): number {
 
 type Contribution =
   | { kind: "zero" }
-  | { kind: "island"; path: string; keyword: string; intrinsic: ByteSize; unboundedBy?: string }
+  | {
+      kind: "island";
+      path: string;
+      keyword: string;
+      intrinsic: ByteSize;
+      unboundedBy?: string;
+      // A cycle through a TEE, whose sum over levels no per-region cap bounds.
+      uncapped?: true;
+    }
   | { kind: "max"; parts: Contribution[] }
   // Sum child contributions without reporting a position of its own.
   | { kind: "parallel"; parts: Contribution[] }
@@ -165,7 +200,7 @@ function rollup(c: Contribution, capIsland: (s: ByteSize) => ByteSize): ByteSize
     case "zero":
       return 0;
     case "island":
-      return capIsland(c.intrinsic);
+      return c.uncapped === true ? "unbounded" : capIsland(c.intrinsic);
     case "max":
       return c.parts.reduce<ByteSize>((acc, p) => maxSize(acc, rollup(p, capIsland)), 0);
     case "parallel":
@@ -228,24 +263,21 @@ function sizeOfType(
   switch (type) {
     case "string": {
       if (typeof node.maxLength !== "number") return UNBOUNDED("maxLength");
-      return { size: node.maxLength * BYTES_PER_CHAR + QUOTE_BYTES };
+      return { size: node.maxLength * BYTES_PER_CODE_POINT + QUOTE_BYTES };
     }
+    // The spine checks a number materialized on its own from its token,
+    // which `maxNumberBytes` bounds; inside a container, the container's
+    // span is unbounded already.
     case "integer":
     case "number":
-      return { size: NUMBER_BYTES };
+      return { size: 0 };
     case "boolean":
       return { size: BOOL_BYTES };
     case "null":
       return { size: NULL_BYTES };
     case "array": {
       if (typeof node.maxItems !== "number") return UNBOUNDED("maxItems");
-      const item = arrayItemSchema(node);
-      const itemSize = materialize(item, root, seen);
-      if (itemSize.size === "unbounded") return itemSize;
-      // brackets + maxItems items + one comma per item. The exact count
-      // is maxItems-1 commas, so this over-counts by one byte.
-      const size = 2 * PUNCT_BYTES + node.maxItems * (itemSize.size + PUNCT_BYTES);
-      return { size };
+      return containerSize(materialize(arrayItemSchema(node), root, seen));
     }
     case "object":
       return sizeOfObject(node, root, seen);
@@ -277,15 +309,18 @@ function sizeOfObject(node: SchemaObject, root: SchemaObject, seen: Set<SchemaOb
   // extra members; without a propertyNames/maxProperties bound on count and
   // key size, its size is unbounded.
   if (!additionalClosed) return UNBOUNDED("additionalProperties");
-  let total: ByteSize = 2 * PUNCT_BYTES; // braces
-  if (properties === undefined) return { size: total };
-  for (const [key, sub] of Object.entries(properties)) {
+  for (const sub of Object.values(properties ?? {})) {
     const valueSize = materialize(sub as SchemaOrBoolean, root, seen);
-    if (valueSize.size === "unbounded") return valueSize;
-    const keyBytes = Buffer.byteLength(key, "utf8") + QUOTE_BYTES + PUNCT_BYTES; // "key":
-    total = addSize(total, keyBytes + valueSize.size + PUNCT_BYTES); // member + comma
+    if (valueSize.size === "unbounded") return containerSize(valueSize);
   }
-  return { size: total };
+  return UNBOUNDED(CONTAINER_BOUND);
+}
+
+// A structurally bounded container still has unlimited whitespace, so its
+// span is unbounded. Report a missing schema bound inside it first, as the
+// more specific fix.
+function containerSize(member: Sized): Sized {
+  return member.size === "unbounded" ? member : UNBOUNDED(CONTAINER_BOUND);
 }
 
 /** Max wire bytes of a value matching `node`, or unbounded with the missing keyword. */
@@ -295,9 +330,9 @@ function materialize(node: SchemaOrBoolean, root: SchemaObject, seen: Set<Schema
   if (seen.has(node)) return UNBOUNDED("$ref"); // recursive: unbounded depth
   const next = new Set(seen).add(node);
 
-  if (node.const !== undefined) return { size: literalBytes(node.const) };
+  if (node.const !== undefined) return literalSize(node.const);
   if (Array.isArray(node.enum)) {
-    return { size: node.enum.reduce<number>((m, v) => Math.max(m, literalBytes(v)), 0) };
+    return node.enum.reduce<Sized>((m, v) => maxSized(m, literalSize(v)), { size: 0 });
   }
 
   const types = typeList(node);
@@ -318,8 +353,7 @@ function materialize(node: SchemaOrBoolean, root: SchemaObject, seen: Set<Schema
 
   // Composition tightens (allOf) or widens (anyOf/oneOf) the bound.
   for (const branch of compositionArray(node, "allOf")) {
-    const s = materialize(branch, root, next);
-    if (s.size !== "unbounded") result = minSized(result, s);
+    result = minSized(result, materialize(branch, root, next));
   }
   const widen = [...compositionArray(node, "anyOf"), ...compositionArray(node, "oneOf")];
   if (widen.length > 0) {
@@ -330,7 +364,13 @@ function materialize(node: SchemaOrBoolean, root: SchemaObject, seen: Set<Schema
   return result;
 }
 
+// Both apply to the same value, so the smaller wins. Between two unbounded
+// sizes, one that only the cap can bound means the other's missing schema
+// keyword is supplied elsewhere, so the cap is what remains to report.
 function minSized(a: Sized, b: Sized): Sized {
+  if (a.size === "unbounded" && b.size === "unbounded") {
+    return b.unboundedBy === CONTAINER_BOUND ? b : a;
+  }
   if (a.size === "unbounded") return b;
   if (b.size === "unbounded") return a;
   return a.size <= b.size ? a : b;
@@ -417,6 +457,9 @@ function teeKeyword(node: SchemaObject): string {
 interface Child {
   node: SchemaOrBoolean;
   rel: string;
+  // A member schema that can apply to the same key as others: a
+  // `properties` entry or a `patternProperties` entry.
+  named?: boolean;
 }
 
 // Composition branches of a TEE node, which run as concurrent sub-spines.
@@ -441,16 +484,18 @@ function teeBranches(node: SchemaObject): Child[] {
 }
 
 // Per-member / per-item children of a STREAM node, which buffer one at a
-// time (peak across them is a max).
+// time (peak across them is a max), except that one key can match a
+// `properties` entry and any number of `patternProperties` entries at once.
 function streamMembers(node: SchemaObject): Child[] {
   const out: Child[] = [];
   if (isObjectSchema(node.properties)) {
-    for (const [k, s] of Object.entries(node.properties)) out.push({ node: s, rel: k });
+    for (const [k, s] of Object.entries(node.properties))
+      out.push({ node: s, rel: k, named: true });
   }
   const patternProps = (node as Record<string, unknown>).patternProperties;
   if (isObjectSchema(patternProps)) {
     for (const [k, s] of Object.entries(patternProps)) {
-      out.push({ node: s as SchemaOrBoolean, rel: `(${k})` });
+      out.push({ node: s as SchemaOrBoolean, rel: `(${k})`, named: true });
     }
   }
   if (node.additionalProperties !== undefined && typeof node.additionalProperties !== "boolean") {
@@ -479,26 +524,43 @@ function effectiveMaxLength(node: SchemaObject): number | undefined {
   return m;
 }
 
+// An island whose own bounds an accepted input need not satisfy.
+const UNBOUNDED_ISLAND = { intrinsic: "unbounded", unboundedBy: CONTAINER_BOUND } as const;
+
 // A forced-buffer scalar island for a string the spine holds: for `pattern`
 // the whole string (to test the regex), bounded by the effective
-// `maxLength`; for scalar `enum` / `const` without a `pattern`, at most the
+// `maxLength` when `binding`; for scalar `enum` / `const` without a `pattern`, at most the
 // longest string candidate, past which the spine stops holding it. Null
 // when neither applies, including an `enum` with no string candidate.
 function forcedScalarIsland(
   node: SchemaObject,
   path: string,
   max: number | undefined,
+  binding: boolean,
 ): Contribution | null {
   if (node.pattern === undefined) {
     if (!("enum" in node) && !("const" in node)) return null;
     const longest = longestStringCandidate([node]);
     if (longest < 0) return null;
     const keyword = "enum" in node ? "enum" : "const";
-    return { kind: "island", path, keyword, intrinsic: longest * BYTES_PER_CHAR + QUOTE_BYTES };
+    return {
+      kind: "island",
+      path,
+      keyword,
+      intrinsic: longest * BYTES_PER_CODE_UNIT + QUOTE_BYTES,
+    };
+  }
+  if (!binding) {
+    return { kind: "island", path, keyword: "pattern", ...UNBOUNDED_ISLAND };
   }
   return max === undefined
     ? { kind: "island", path, keyword: "pattern", intrinsic: "unbounded", unboundedBy: "maxLength" }
-    : { kind: "island", path, keyword: "pattern", intrinsic: max * BYTES_PER_CHAR + QUOTE_BYTES };
+    : {
+        kind: "island",
+        path,
+        keyword: "pattern",
+        intrinsic: max * BYTES_PER_CODE_POINT + QUOTE_BYTES,
+      };
 }
 
 /**
@@ -530,13 +592,49 @@ function refSchemas(node: SchemaObject, root: SchemaObject): SchemaObject[] {
   return out;
 }
 
+// Whether any schema reachable from `node` buffers: a BUFFER node or a
+// string the spine holds for `pattern`, `enum` or `const`.
+function buffersAnywhere(
+  node: SchemaObject,
+  root: SchemaObject,
+  cls: Classification,
+  formatAsserts: boolean,
+): boolean {
+  const visited = new Set<SchemaObject>();
+  const visit = (n: SchemaOrBoolean): boolean => {
+    if (!isObjectSchema(n)) return false;
+    for (const s of refSchemas(n, root)) {
+      if (visited.has(s)) continue;
+      visited.add(s);
+      if (nodeKind(s, cls, formatAsserts) === "buffer") return true;
+      if (forcedScalarIsland(s, "", undefined, true) !== null) return true;
+      for (const c of [...streamMembers(s), ...teeBranches(s)]) if (visit(c.node)) return true;
+    }
+    return false;
+  };
+  return visit(node);
+}
+
+// `binding` is whether an accepted input must satisfy `node`. A branch of
+// `anyOf`, `oneOf`, `not` or a conditional can fail while the spine still
+// buffers for it, so its own `maxLength`, `type` or `maxItems` bounds
+// nothing; only a limit the spine enforces itself (the longest string
+// `enum` / `const` candidate) still holds there.
+//
+// `seen` maps each schema on the current walk path to the number of TEEs
+// above it when first entered; `tees` is that number here. Meeting a
+// schema again under no further TEE holds nothing the first visit did not
+// count. Under a further TEE, each level's sub-spine keeps its own peak and
+// the TEE sums them, so a buffering schema there grows with depth.
 function walk(
   node: SchemaOrBoolean,
   path: string,
   root: SchemaObject,
   cls: Classification,
-  seen: Set<SchemaObject>,
+  seen: Map<SchemaObject, number>,
   formatAsserts: boolean,
+  binding: boolean,
+  tees: number,
 ): Contribution {
   if (!isObjectSchema(node)) return { kind: "zero" };
   const applicable = refSchemas(node, root);
@@ -551,6 +649,14 @@ function walk(
   if (buffering !== undefined) {
     if (seen.has(node)) {
       return { kind: "island", path, keyword: "$ref", intrinsic: "unbounded", unboundedBy: "$ref" };
+    }
+    if (!binding) {
+      return {
+        kind: "island",
+        path,
+        keyword: bufferKeyword(buffering, formatAsserts),
+        ...UNBOUNDED_ISLAND,
+      };
     }
     // A type and a string bound can live on different hops of the chain.
     // Other structural intersections retain conservative allOf sizing.
@@ -573,21 +679,52 @@ function walk(
     };
   }
 
-  if (seen.has(node)) return { kind: "zero" };
-  const next = new Set([...seen, ...applicable]);
+  const repeat = (s: SchemaObject): Contribution => {
+    const first = seen.get(s) as number;
+    if (tees <= first || !buffersAnywhere(s, root, cls, formatAsserts)) return { kind: "zero" };
+    return {
+      kind: "island",
+      path,
+      keyword: "$ref",
+      intrinsic: "unbounded",
+      unboundedBy: "$ref",
+      uncapped: true,
+    };
+  };
+  if (seen.has(node)) return repeat(node);
+  const next = new Map(seen);
+  for (const s of applicable) if (!next.has(s)) next.set(s, tees);
   const tee = applicable.find((s) => nodeKind(s, cls, formatAsserts) === "tee");
+  // Every child of a TEE node runs in a sub-spine beside the others.
+  const below = tee === undefined ? tees : tees + 1;
   const parts: Contribution[] = [];
   for (const s of applicable) {
-    if (seen.has(s)) continue;
+    if (seen.has(s)) {
+      parts.push(repeat(s));
+      continue;
+    }
     const own: Contribution[] = [];
-    const scalar = forcedScalarIsland(s, path, maxLength);
+    const scalar = forcedScalarIsland(s, path, maxLength, binding);
     if (scalar !== null) own.push(scalar);
+    const properties: Contribution[] = [];
+    const patterns: Contribution[] = [];
     for (const m of streamMembers(s)) {
-      own.push(walk(m.node, joinPath(path, m.rel), root, cls, next, formatAsserts));
+      const at = joinPath(path, m.rel);
+      const c = walk(m.node, at, root, cls, next, formatAsserts, binding, below);
+      if (m.named !== true) own.push(c);
+      else if (m.rel.startsWith("(")) patterns.push(c);
+      else properties.push(c);
+    }
+    // A key matches at most one property name but any number of patterns,
+    // and the spine runs every matching member schema's obligations.
+    if (properties.length > 0 || patterns.length > 0) {
+      own.push({ kind: "parallel", parts: [{ kind: "max", parts: properties }, ...patterns] });
     }
     parts.push({ kind: "max", parts: own });
     for (const b of teeBranches(s)) {
-      parts.push(walk(b.node, joinPath(path, b.rel), root, cls, next, formatAsserts));
+      const required = binding && b.rel.startsWith("allOf.");
+      const at = joinPath(path, b.rel);
+      parts.push(walk(b.node, at, root, cls, next, formatAsserts, required, below));
     }
   }
   // Ref obligations can overlap at a member that tees. Summing their
@@ -613,7 +750,7 @@ function walk(
  * unbounded warnings, below). An unstreamable schema throws
  * {@link ClassifierError}, the same error `createStreamValidator` raises.
  * Token policies (`maxKeyBytes` / `maxNumberBytes`) are validated using the
- * runtime's option rules and leave materialization estimates unchanged.
+ * runtime's option rules and leave materialization bounds unchanged.
  *
  * Static `$ref` and `$dynamicRef` targets and their siblings all contribute;
  * `$dynamicRef` resolves statically, as the stream engine resolves it. Bounds split
@@ -624,10 +761,11 @@ function walk(
  * sequential object members can receive a higher budget even when forward
  * validation shares storage. It applies to schemas beyond operation bodies.
  *
- * Wire-byte estimates have known escaping, whitespace and number-spelling
- * undercounts (see the module overview). An `"unbounded"` position is the headline
- * output: a buffering position with no structural bound, which falls back
- * to `maxBufferedBytes` at runtime. Reporting these is the default; pass
+ * Wire-byte figures are upper bounds over every accepted spelling, so any
+ * materialized container is `"unbounded"` (see the module overview). An
+ * `"unbounded"` position is the headline output: a buffering position with
+ * no bound of its own, which falls back to `maxBufferedBytes` at runtime.
+ * Reporting these is the default; pass
  * `enforceBounds: true` to instead throw {@link ClassifierError} on the
  * classifier's unbounded-string and unbounded-uniqueItems warnings, the
  * design-time equivalent of refusing to construct an unsafe validator
@@ -664,7 +802,7 @@ export function analyzeStreamability(
   }
 
   const formatAsserts = dialect.vocabularies.some((v) => v.uri === FORMAT_ASSERTION_VOCAB);
-  const tree = walk(normalized, "", normalized, cls, new Set(), formatAsserts);
+  const tree = walk(normalized, "", normalized, cls, new Map(), formatAsserts, true, 0);
 
   const positions: BufferPosition[] = [];
   collectPositions(tree, positions);

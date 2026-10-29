@@ -357,11 +357,10 @@ Capabilities oaverify has that Ajv (alone or with
   value; there is no streaming path.
 - **Design-time buffer budgets.** `analyzeSpec(document)` reports, per
   operation, which request and response bodies can stream, which must
-  buffer, and estimates materialized source spans (in wire bytes, or
-  `"unbounded"` where a required structural bound is missing), without reading
-  a byte of traffic. It uses the streaming classifier; estimates have known
-  undercounts for escaping, whitespace and number spellings and exclude
-  other retained memory. The CLI surfaces it as
+  buffer, and bounds materialized source spans (in wire bytes, or
+  `"unbounded"` where no schema bound limits them), without reading a byte
+  of traffic. It uses the streaming classifier; the bounds cover escaping,
+  whitespace and number spellings and exclude other retained memory. The CLI surfaces it as
   `oaverify stream-check <spec>`, with `--fail-on-unbounded` as a CI gate.
   An Ajv + middleware stack can validate the parsed body, but a buffer
   budget needs the resolved (and overlaid) operation schema and the

@@ -10,10 +10,12 @@ import {
 import { ClassifierError } from "../src/classifier/index.js";
 
 // Byte model (mirrors analyze.ts, kept here so the expectations are
-// self-documenting): string = maxLength*4 + 2 quotes; number = 24;
-// array = 2 brackets + n*(item + comma); object = 2 braces + sum of members.
-const str = (maxLength: number): number => maxLength * 4 + 2;
-const uniqueArray = (n: number, item: number): number => 2 + n * (item + 1);
+// self-documenting): a string is at most 12 bytes per code point (an
+// escaped surrogate pair) plus 2 quotes. A materialized container or
+// number has no finite span: whitespace and number spellings are unlimited.
+const str = (maxLength: number): number => maxLength * 12 + 2;
+// A finite island: a string the spine holds whole to test its pattern.
+const patterned = (maxLength: number) => ({ type: "string", maxLength, pattern: "^a*$" });
 
 function analyze(schema: SchemaOrBoolean, options = {}) {
   return analyzeStreamability(schema, options);
@@ -32,7 +34,7 @@ describe("analyzeStreamability", () => {
     expect(r.positions).toEqual([]);
   });
 
-  it("sizes a bounded uniqueItems array as a buffer island", () => {
+  it("reports a structurally bounded uniqueItems array as needing the buffer cap", () => {
     const r = analyze({
       type: "array",
       uniqueItems: true,
@@ -40,9 +42,16 @@ describe("analyzeStreamability", () => {
       items: { type: "string", maxLength: 5 },
     } as SchemaObject);
     expect(r.classification).toBe("buffer");
-    expect(r.peakBytes).toBe(uniqueArray(3, str(5))); // 2 + 3*(22+1) = 71
+    // Whitespace between items is unlimited, so only the cap bounds the span.
+    expect(r.peakBytes).toBe("unbounded");
     expect(r.positions).toEqual([
-      { path: "", classification: "buffer", keyword: "uniqueItems", maxBytes: 71 },
+      {
+        path: "",
+        classification: "buffer",
+        keyword: "uniqueItems",
+        maxBytes: "unbounded",
+        unboundedBy: "maxBufferedBytes",
+      },
     ]);
   });
 
@@ -61,19 +70,39 @@ describe("analyzeStreamability", () => {
     });
   });
 
-  it("sizes a complex const as a buffer island from its serialized form", () => {
-    const value = { a: 1, b: "two" };
-    const r = analyze({ const: value } as SchemaObject);
+  it("reports a complex const as needing the buffer cap", () => {
+    // Equality is by value, so `{ "a" : 1.0 }` matches as well as `{"a":1}`.
+    const r = analyze({ const: { a: 1, b: "two" } } as SchemaObject);
     expect(r.classification).toBe("buffer");
-    expect(r.peakBytes).toBe(Buffer.byteLength(JSON.stringify(value), "utf8"));
-    expect(r.positions[0]).toMatchObject({ keyword: "const", classification: "buffer" });
+    expect(r.peakBytes).toBe("unbounded");
+    expect(r.positions[0]).toMatchObject({
+      keyword: "const",
+      classification: "buffer",
+      unboundedBy: "maxBufferedBytes",
+    });
+  });
+
+  it("adds nothing for a number checked on its own, which is held as a token", () => {
+    const r = analyze({ type: "integer", format: "int32" } as SchemaObject, {
+      openApiVersion: "3.1",
+    });
+    expect(r.classification).toBe("buffer");
+    expect(r.positions).toEqual([
+      { path: "", classification: "buffer", keyword: "format", maxBytes: 0 },
+    ]);
+    // A number-or-string region is bounded by its string.
+    const union = analyze(
+      { type: ["integer", "string"], format: "int32", maxLength: 5 } as SchemaObject,
+      { openApiVersion: "3.1" },
+    );
+    expect(union.peakBytes).toBe(str(5));
   });
 
   it("treats pattern as a forced-buffer scalar bounded by maxLength", () => {
     const bounded = analyze({ type: "string", pattern: "^x", maxLength: 10 } as SchemaObject);
     expect(bounded.classification).toBe("buffer");
     expect(bounded.peakBytes).toBe(str(10));
-    expect(bounded.positions[0]).toMatchObject({ keyword: "pattern", maxBytes: 42 });
+    expect(bounded.positions[0]).toMatchObject({ keyword: "pattern", maxBytes: str(10) });
 
     const unbounded = analyze({ type: "string", pattern: "^x" } as SchemaObject);
     expect(unbounded.peakBytes).toBe("unbounded");
@@ -88,39 +117,57 @@ describe("analyzeStreamability", () => {
     const oas = analyze(schema, { openApiVersion: "3.1" });
     expect(oas.classification).toBe("buffer");
     expect(oas.peakBytes).toBe(str(30));
-    expect(oas.positions[0]).toMatchObject({ keyword: "format", maxBytes: 122 });
+    expect(oas.positions[0]).toMatchObject({ keyword: "format", maxBytes: str(30) });
   });
 
   it("takes a max (not a sum) across sequential buffering siblings", () => {
-    const island = {
-      type: "array",
-      uniqueItems: true,
-      maxItems: 2,
-      items: { type: "string", maxLength: 3 },
-    };
     const r = analyze({
       type: "object",
       additionalProperties: false,
-      properties: { a: island, b: island },
+      properties: { a: patterned(3), b: patterned(2) },
     } as unknown as SchemaObject);
-    // One island at a time: peak is the single island's size, not 2x.
-    expect(r.peakBytes).toBe(uniqueArray(2, str(3))); // 2 + 2*(14+1) = 32
+    // One island at a time: peak is the larger island's size, not the sum.
+    expect(r.peakBytes).toBe(str(3));
     expect(r.positions).toHaveLength(2);
   });
 
   it("takes a sum across concurrent tee branches", () => {
-    const island = {
-      type: "array",
-      uniqueItems: true,
-      maxItems: 2,
-      items: { type: "string", maxLength: 3 },
-    };
-    const r = analyze({ oneOf: [island, { type: "integer" }] } as unknown as SchemaObject);
+    const r = analyze(
+      { allOf: [patterned(3), { type: "string", maxLength: 2, format: "date" }] } as SchemaObject,
+      { openApiVersion: "3.1" },
+    );
     expect(r.classification).toBe("buffer"); // a branch buffers
     // The tee fans events to concurrent sub-spines: branch islands sum.
-    expect(r.peakBytes).toBe(uniqueArray(2, str(3))); // 32 + 0
+    expect(r.peakBytes).toBe(str(3) + str(2));
     const tee = r.positions.find((p) => p.classification === "tee");
-    expect(tee).toMatchObject({ keyword: "oneOf", maxBytes: 32 });
+    expect(tee).toMatchObject({ keyword: "allOf", maxBytes: str(3) + str(2) });
+  });
+
+  it("does not bound a branch an accepted input may fail by that branch's own keywords", () => {
+    // A long string passes through `{}` while the first branch, failing
+    // maxLength, still holds the whole string for its pattern.
+    const r = analyze({ anyOf: [patterned(1), {}] } as SchemaObject, { maxBufferedBytes: 100 });
+    expect(r.peakBytes).toBe("unbounded");
+    expect(r.positions).toContainEqual({
+      path: "anyOf.0",
+      classification: "buffer",
+      keyword: "pattern",
+      maxBytes: "unbounded",
+      unboundedBy: "maxBufferedBytes",
+    });
+    expect(r.effectivePeakBytes).toBe(100);
+    // The spine itself stops holding a string past its longest candidate.
+    expect(analyze({ not: { enum: ["ab"] } } as SchemaObject).peakBytes).toBe(2 * 6 + 2);
+  });
+
+  it("sums a properties entry with the patternProperties matching the same key", () => {
+    const r = analyze({
+      type: "object",
+      properties: { x: patterned(1) },
+      patternProperties: { "^x": patterned(2), x$: patterned(3) },
+      additionalProperties: patterned(4),
+    } as unknown as SchemaObject);
+    expect(r.peakBytes).toBe(str(1) + str(2) + str(3));
   });
 
   it("reports a scalar tee with zero buffer", () => {
@@ -135,17 +182,12 @@ describe("analyzeStreamability", () => {
   });
 
   it("clamps effectivePeakBytes by maxBufferedBytes; peakBytes stays intrinsic", () => {
-    const bounded = analyze(
-      {
-        type: "array",
-        uniqueItems: true,
-        maxItems: 3,
-        items: { type: "string", maxLength: 5 },
-      } as SchemaObject,
-      { maxBufferedBytes: 50 },
-    );
-    expect(bounded.peakBytes).toBe(71);
-    expect(bounded.effectivePeakBytes).toBe(50); // min(71, 50)
+    const bounded = analyze(patterned(5) as SchemaObject, { maxBufferedBytes: 50 });
+    expect(bounded.peakBytes).toBe(str(5));
+    expect(bounded.effectivePeakBytes).toBe(50); // min(62, 50)
+    expect(
+      analyze(patterned(5) as SchemaObject, { maxBufferedBytes: 100 }).effectivePeakBytes,
+    ).toBe(str(5));
 
     const unbounded = analyze(
       { type: "array", uniqueItems: true, items: { type: "string" } } as SchemaObject,
@@ -213,30 +255,22 @@ describe("analyzeStreamability", () => {
       pattern: "^a",
       allOf: [{ maxLength: 100 }],
     } as unknown as SchemaObject);
-    expect(r.peakBytes).toBe(str(100)); // 100*4 + 2 = 402, not 0
+    expect(r.peakBytes).toBe(str(100)); // not 0
     expect(r.positions).toContainEqual(
       expect.objectContaining({ keyword: "pattern", maxBytes: str(100) }),
     );
   });
 
   it("sums a tee node's own member island with its branch islands (concurrent sub-spines)", () => {
-    const island = (max: number) => ({
-      type: "array",
-      uniqueItems: true,
-      maxItems: 2,
-      items: { type: "string", maxLength: max },
-    });
     // The object has a buffering property AND a oneOf with a buffering branch.
     // Both run as concurrent sub-spines, so the peak is their sum, not a max.
     const r = analyze({
       type: "object",
       additionalProperties: false,
-      properties: { a: island(3) },
-      oneOf: [island(4), { type: "integer" }],
+      properties: { a: patterned(3) },
+      allOf: [{ type: "object", properties: { a: patterned(4) } }],
     } as unknown as SchemaObject);
-    const ownIsland = uniqueArray(2, str(3)); // property a: 2 + 2*(14+1) = 32
-    const branchIsland = uniqueArray(2, str(4)); // oneOf branch: 2 + 2*(18+1) = 40
-    expect(r.peakBytes).toBe(ownIsland + branchIsland); // summed, not max
+    expect(r.peakBytes).toBe(str(3) + str(4)); // summed, not max
   });
 
   it("throws on an unbounded schema under enforceBounds (parity with construction)", () => {
@@ -288,7 +322,7 @@ describe("analyzeStreamability: peakBytes is a sound upper bound on real bufferi
     }
   }
 
-  it("a uniqueItems island validates at the predicted cap, fails below the real span", async () => {
+  it("a uniqueItems island validates at the effective cap, fails below the real span", async () => {
     const schema = {
       type: "array",
       uniqueItems: true,
@@ -296,7 +330,8 @@ describe("analyzeStreamability: peakBytes is a sound upper bound on real bufferi
       items: { type: "string", maxLength: 5 },
     } as SchemaObject;
     const value = ["abcde", "fghij", "klmno"]; // valid: 3 unique, each length 5
-    const peak = analyze(schema).peakBytes as number; // 71 (loose upper bound)
+    const peak = analyze(schema, { maxBufferedBytes: 64 }).effectivePeakBytes as number;
+    expect(peak).toBe(64);
 
     // At the predicted upper bound: no buffer-limit error (real span <= peak).
     expect(await runWithCap(schema, value, peak)).toBeUndefined();
@@ -308,7 +343,7 @@ describe("analyzeStreamability: peakBytes is a sound upper bound on real bufferi
   it("a pattern scalar validates at the predicted cap, fails below the real span", async () => {
     const schema = { type: "string", pattern: "^a+$", maxLength: 10 } as SchemaObject;
     const value = "aaaa"; // 6 raw bytes including quotes
-    const peak = analyze(schema).peakBytes as number; // 42
+    const peak = analyze(schema).peakBytes as number;
 
     expect(await runWithCap(schema, value, peak)).toBeUndefined();
     expect((await runWithCap(schema, value, 5))?.message).toMatch(/maxBufferedBytes/);
@@ -323,7 +358,7 @@ describe("analyzeStreamability: peakBytes is a sound upper bound on real bufferi
       pattern: "^a+$",
       allOf: [{ maxLength: 100 }],
     } as unknown as SchemaObject;
-    const peak = analyze(schema).peakBytes as number; // 402, not 0
+    const peak = analyze(schema).peakBytes as number; // not 0
     expect(peak).toBeGreaterThan(0);
 
     const value = "aaaa"; // valid: matches pattern, length 4 <= 100
@@ -432,7 +467,7 @@ describe("analyzeStreamability follows $dynamicRef as the engine does (#1123)", 
     },
   );
 
-  it("sizes a uniqueItems island reached through $dynamicRef", async () => {
+  it("bounds a uniqueItems island reached through $dynamicRef by the cap", async () => {
     const schema = {
       $dynamicRef: "#U",
       $defs: {
@@ -445,8 +480,9 @@ describe("analyzeStreamability follows $dynamicRef as the engine does (#1123)", 
         },
       },
     } as SchemaObject;
-    const peak = analyze(schema).peakBytes;
-    expect(peak).toBe(uniqueArray(3, str(5)));
+    expect(analyze(schema).positions[0]).toMatchObject({ unboundedBy: "maxBufferedBytes" });
+    const peak = analyze(schema, { maxBufferedBytes: 64 }).effectivePeakBytes;
+    expect(peak).toBe(64);
     expect(await runtimePeak(schema, ["abcde", "fghij", "klmno"])).toBeLessThanOrEqual(
       peak as number,
     );

@@ -140,7 +140,7 @@ rules, see the
 
 `analyzeStreamability(schema, options)` is the design-time companion to the
 runtime engine: it classifies a resolved schema and reports where it
-materializes subtrees and estimates their source spans, without reading a byte.
+materializes subtrees and bounds their source spans, without reading a byte.
 Its classifications and numbers do not cover all retained memory.
 
 ```ts
@@ -148,8 +148,8 @@ import { analyzeStreamability } from "@oaverify/stream";
 
 const report = analyzeStreamability(bodySchema, { openApiVersion: "3.1" });
 report.classification; // "streamable" | "tee" | "buffer"
-report.peakBytes; // materialization estimate in wire bytes, or "unbounded"
-report.effectivePeakBytes; // estimate after applying the per-region cap
+report.peakBytes; // materialization bound in wire bytes, or "unbounded"
+report.effectivePeakBytes; // bound after applying the per-region cap
 
 // The punch list: positions with no structural bound fall back to the cap.
 for (const p of report.positions.filter((p) => p.maxBytes === "unbounded")) {
@@ -158,13 +158,18 @@ for (const p of report.positions.filter((p) => p.maxBytes === "unbounded")) {
 ```
 
 The model takes the maximum over sequential materialized values and sums
-concurrent TEE branch peaks. It estimates a BUFFER island from its subtree's
-structural keywords (`maxLength` / `maxItems` / `const` / `enum`, and a closed
-object's properties), returning `"unbounded"` when a required bound is missing.
-An open object is `"unbounded"` regardless of `maxProperties`, which the byte
-model does not yet use. Estimates currently undercount JSON escaping,
-whitespace and number spellings, so finite numbers are not conservative
-bounds. `maxKeyBytes` and `maxNumberBytes` do not change these estimates.
+concurrent TEE branch peaks. Every figure is an upper bound over any spelling
+of an accepted input. A string is bounded by `maxLength` (at most 12 bytes per
+code point, an escaped surrogate pair, plus quotes) or by its longest `enum` /
+`const` candidate (6 bytes per UTF-16 unit). JSON allows unlimited whitespace
+inside a container, so a materialized container is `"unbounded"`: the position
+names a missing schema keyword (`maxItems`, `additionalProperties`, ...) when
+there is one, otherwise `maxBufferedBytes`. A number checked on its own is held
+as a token, which `maxNumberBytes` bounds, and adds nothing to these figures.
+A branch of `anyOf`, `oneOf`, `not` or a conditional can fail while the
+engine still buffers for it, so its own keywords do not bound it.
+`effectivePeakBytes` applies `maxBufferedBytes` to each region. `maxKeyBytes`
+and `maxNumberBytes` do not change either figure.
 An unstreamable schema throws the same `ClassifierError` as the runtime.
 
 `verdict.peakBufferedBytes` measures materialized source spans plus edit-hook
@@ -180,8 +185,8 @@ OpenAPI document: one budget per operation, for the request body and each
 response body. A body whose schema cannot be classified is reported with
 an `error` field rather than throwing, so a sweep surveys the whole spec.
 The `oaverify` CLI surfaces it as `oaverify stream-check <spec>` (a per-operation
-table; `--verbose` lists each buffering position with its byte estimate or
-missing bound and marks bounded estimates above `--max-buffered-bytes`,
+table; `--verbose` lists each buffering position with its byte bound or
+missing bound and marks bounded positions above `--max-buffered-bytes`,
 `--format json` emits the `SpecBudget`, `--fail-on-unbounded` exits non-zero
 for CI):
 

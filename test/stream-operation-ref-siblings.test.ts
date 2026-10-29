@@ -99,7 +99,7 @@ describe.each(["3.0.3", "3.1.0", "3.2.0"])("body ref siblings in %s", (openapi) 
     expect(bodies.map((b) => b.role)).toEqual(["request", "response"]);
     for (const body of bodies) {
       expect(body.error).toBeUndefined();
-      expect(body.report!.peakBytes).toBe(modern ? 36 : 0);
+      expect(body.report!.peakBytes).toBe(modern ? 100 : 0);
       if (modern) expect(body.report!.positions.map((p) => p.path)).toEqual(["", "x"]);
     }
   });
@@ -115,7 +115,7 @@ it.each(["3.1", "3.0"] as const)(
     );
     expect(await valid(doc, "bbbb", { openApiVersion })).toBe(openApiVersion === "3.0");
     expect(analyzeSpec(doc, { openApiVersion }).operations[0]!.bodies[0]!.report!.peakBytes).toBe(
-      openApiVersion === "3.0" ? 0 : 14,
+      openApiVersion === "3.0" ? 0 : 38,
     );
   },
 );
@@ -126,7 +126,7 @@ it("retains a bound at a use site when the target buffers", () => {
     { $ref: ref("Text"), maxLength: 3 },
     { Text: { type: "string", pattern: "^a" } },
   );
-  expect(analyzeSpec(doc).operations[0]!.bodies[0]!.report!.peakBytes).toBe(14);
+  expect(analyzeSpec(doc).operations[0]!.bodies[0]!.report!.peakBytes).toBe(38);
 });
 
 it("sizes a buffered sibling using the referenced type", () => {
@@ -137,7 +137,7 @@ it("sizes a buffered sibling using the referenced type", () => {
   );
   expect(analyzeSpec(doc).operations[0]!.bodies[0]!.report).toMatchObject({
     classification: "buffer",
-    peakBytes: 122,
+    peakBytes: 362,
   });
 });
 
@@ -153,7 +153,7 @@ it("counts concurrent ref and sibling composition obligations", async () => {
   expect(await valid(doc, "ab")).toBe(true);
   expect(await valid(doc, "aa")).toBe(false);
   const report = analyzeSpec(doc, { maxBufferedBytes: 10 }).operations[0]!.bodies[0]!.report!;
-  expect(report).toMatchObject({ classification: "buffer", peakBytes: 28, effectivePeakBytes: 20 });
+  expect(report).toMatchObject({ classification: "buffer", peakBytes: 76, effectivePeakBytes: 20 });
 });
 
 it("keeps recursive ref analysis finite and records sibling member islands", async () => {
@@ -173,7 +173,7 @@ it("keeps recursive ref analysis finite and records sibling member islands", asy
   );
   expect(await valid(doc, { value: "a", child: { value: "a" } })).toBe(true);
   expect(await valid(doc, { child: { value: "b" } })).toBe(false);
-  expect(analyzeSpec(doc).operations[0]!.bodies[0]!.report!.peakBytes).toBe(14);
+  expect(analyzeSpec(doc).operations[0]!.bodies[0]!.report!.peakBytes).toBe(38);
 });
 
 it.each([true, false])("retains analyzer siblings of boolean target %s", (target) => {
@@ -184,7 +184,7 @@ it.each([true, false])("retains analyzer siblings of boolean target %s", (target
   );
   expect(analyzeSpec(doc).operations[0]!.bodies[0]!.report).toMatchObject({
     classification: "buffer",
-    peakBytes: 14,
+    peakBytes: 38,
   });
 });
 
@@ -227,7 +227,7 @@ it("budgets overlapping member obligations that tee concurrently", async () => {
   const result = await stream.result;
   expect(result.valid).toBe(true);
   const report = analyzeSpec(doc).operations[0]!.bodies[0]!.report!;
-  expect(report.peakBytes).toBe(28);
+  expect(report.peakBytes).toBe(76);
   expect(report.peakBytes).toBeGreaterThanOrEqual(result.peakBufferedBytes);
 });
 
@@ -260,6 +260,6 @@ it.each(["3.0.3", "3.1.0", "3.2.0"])(
     expect(await valid(doc, "a")).toBe(openapi === "3.0.3");
     expect(await valid(doc, "abcd")).toBe(openapi === "3.0.3");
     const report = analyzeSpec(doc).operations[0]!.bodies[0]!.report!;
-    expect(report.peakBytes).toBe(openapi === "3.0.3" ? 42 : 14);
+    expect(report.peakBytes).toBe(openapi === "3.0.3" ? 122 : 38);
   },
 );

@@ -344,8 +344,8 @@ export interface StreamVerdict {
    * island contributes its measured span; sequential islands take the max,
    * and a TEE sums its branch peaks. The engine adds the peak input span
    * retained across writes for pending edits. These peaks can occur at
-   * different times. The analyzer's `peakBytes` predicts materialization
-   * spans with known undercounts; this metric measures spans from input.
+   * different times. The analyzer's `peakBytes` bounds materialization
+   * spans over every accepted input; this metric measures spans from input.
    *
    * Zero means these measured categories contributed zero. Token accumulators,
    * completed-name sets, captures and stream queues are excluded. This is
