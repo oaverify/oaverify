@@ -296,8 +296,10 @@ more than a row:
   an authenticated one. It also ignores scopes entirely. `shape`
   silently satisfies schemes it cannot inspect (`oauth2`,
   `openIdConnect`, `mutualTLS`, HTTP schemes other than bearer and
-  basic); when a document requires nothing else, the emitted module
-  records a `warnings` entry saying the gate accepts every request.
+  basic). Requirement alternatives are read separately, so when every
+  served operation that requires security accepts an alternative made
+  only of such schemes, the emitted module records a `warnings` entry
+  saying the gate accepts every request.
   `strict` refuses those schemes instead.
 
   For real enforcement, compose rather than configure. `getOperation`
