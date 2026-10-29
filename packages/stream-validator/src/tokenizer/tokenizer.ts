@@ -250,7 +250,9 @@ export class JsonTokenizer {
    * {@link JsonEventHandler.onByteLimit} is called, and the handler is
    * expected to throw. Bytes before it are parsed first, including string
    * text up to it, which is decoded as at a chunk end so a character split
-   * by the limit is held rather than flushed. With `countsAll` false, only
+   * by the limit is held rather than flushed. A number whose delimiter is
+   * the byte at the limit is checked for syntax, so a malformed one throws
+   * `JsonParseError`, but is not reported. With `countsAll` false, only
    * whitespace and the colon between an object key and its value count, so
    * a key, a value's first byte or a closing brace at the limit passes;
    * with it true every byte counts. `Infinity` clears the limit.
@@ -294,14 +296,15 @@ export class JsonTokenizer {
     const n = chunk.length;
     while (i < n && !this.disposed) {
       const state = this.state;
-      if (this.baseOffset + i >= this.byteLimit && this.limitCounts(state, chunk[i] as number)) {
-        this.handler.onByteLimit!(this.byteLimit);
-      }
-      if (this.baseOffset + i >= this.spanLimit) {
+      const atByteLimit =
+        this.baseOffset + i >= this.byteLimit && this.limitCounts(state, chunk[i] as number);
+      const atSpanLimit = this.baseOffset + i >= this.spanLimit;
+      if (atByteLimit || atSpanLimit) {
         // A malformed number is a syntax error before its delimiter, so it
         // wins over refusing the delimiter.
         if (state === ST_IN_NUMBER && !isNumberByte(chunk[i] as number)) this.checkNumber();
-        this.handler.onSpanLimit!(this.spanLimit);
+        if (atByteLimit) this.handler.onByteLimit!(this.byteLimit);
+        if (atSpanLimit) this.handler.onSpanLimit!(this.spanLimit);
       }
       if (
         this.stringIsKey &&
