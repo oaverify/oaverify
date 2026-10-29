@@ -192,6 +192,91 @@ describe("lintResolvedSpec: unused-component", () => {
   });
 });
 
+describe("lintResolvedSpec: percent-encoded $ref targets (#1192)", () => {
+  // Each $ref is a URI fragment: percent escapes decode once, then the
+  // JSON Pointer is read with its own ~0 / ~1 escapes.
+  function bodyRef(ref: string): OpenAPIDocument["paths"] {
+    return {
+      "/a": {
+        get: {
+          responses: {
+            "200": {
+              description: "ok",
+              content: { "application/json": { schema: { $ref: ref } } },
+            },
+          },
+        },
+      },
+    };
+  }
+  const findings = (spec: OpenAPIDocument, code: string) =>
+    lintResolvedSpec(spec)
+      .filter((i) => i.code === code)
+      .map((i) => i.pointer);
+
+  it.each([
+    ["#/components/schemas/Pet", "Pet"],
+    ["#/components/schemas/%50et", "Pet"],
+    ["#/components/schemas/Pet/properties/id", "Pet"],
+    ["#/components/schemas/%50et/properties/id", "Pet"],
+    ["#/components/schemas/a~1b", "a/b"],
+    ["#/components/schemas/a~0b", "a~b"],
+    ["#/components/schemas/a%7E1b", "a/b"],
+    ["#/components/schemas/my%20name", "my name"],
+    ["#/components/schemas/p%2525", "p%25"],
+  ])("%s reaches components.schemas[%j]", (ref, name) => {
+    const spec = minimalSpec({
+      paths: bodyRef(ref),
+      components: { schemas: { [name]: { type: "object" } } },
+    });
+    expect(findings(spec, "unused-component")).toEqual([]);
+  });
+
+  it("decodes a percent escape once, so %2525 does not name a component called %", () => {
+    const spec = minimalSpec({
+      paths: bodyRef("#/components/schemas/p%2525"),
+      components: { schemas: { "p%": { type: "object" }, "p%25": { type: "object" } } },
+    });
+    expect(findings(spec, "unused-component")).toEqual(["/components/schemas/p%"]);
+  });
+
+  it("follows an encoded reference through a component to the component it references", () => {
+    const spec = minimalSpec({
+      paths: bodyRef("#/components/schemas/%50et"),
+      components: {
+        schemas: {
+          Pet: { properties: { owner: { $ref: "#/components/schemas/%4Fwner" } } },
+          Owner: { type: "object" },
+        },
+      },
+    });
+    expect(findings(spec, "unused-component")).toEqual([]);
+  });
+
+  it.each([
+    ["#/components/schemas/Pet/$defs/my%20name", "my name"],
+    ["#/components/schemas/Pet/$defs/my%20name/type", "my name"],
+    ["#/components/schemas/Pet/%24defs/my%20name", "my name"],
+    ["#/components/schemas/Pet/$defs/a~1b", "a/b"],
+    ["#/components/schemas/Pet/$defs/a%7E0b", "a~b"],
+    ["#/components/schemas/Pet/$defs/p%2525", "p%25"],
+  ])("%s reaches $defs[%j]", (ref, name) => {
+    const spec = minimalSpec({
+      paths: bodyRef("#/components/schemas/Pet"),
+      components: {
+        schemas: {
+          Pet: {
+            type: "object",
+            $defs: { [name]: { type: "string" }, "p%": { type: "string" } },
+            properties: { n: { $ref: ref } },
+          },
+        },
+      },
+    });
+    expect(findings(spec, "unreachable-defs")).toEqual(["/components/schemas/Pet/$defs/p%"]);
+  });
+});
+
 describe("lintResolvedSpec: unused-tag", () => {
   it("flags a top-level tag that no operation uses", () => {
     const spec = minimalSpec({
