@@ -972,23 +972,28 @@ function hydrateValidatorRefs(json: string): string {
 // ----- security schemes -----
 
 /**
- * Warn when a security mode is on and nothing it can inspect is
- * required.
+ * Warn when a security mode is on and the gate it emits accepts every
+ * request.
  *
  * `"shape"` silently satisfies schemes the validator cannot look at
  * (`oauth2`, `openIdConnect`, `mutualTLS`, HTTP schemes other than
  * bearer and basic), which is the documented behaviour and is what
- * keeps it from producing spurious 401s. On a document whose every
- * requirement names such a scheme, the consequence is that the gate
- * passes every request, including one carrying no credential at all.
- * That reads as a check and is not one.
+ * keeps it from producing spurious 401s. Requirements are alternatives
+ * and the gate passes a request when any one holds, so an alternative
+ * made only of such schemes is satisfied by every request, including
+ * one carrying no credential, whatever the other alternatives demand.
+ * When every served operation that requires anything has one, the
+ * gate passes every request. That reads as a check and is not one.
  *
  * Both the mode and every scheme are known here, so the artifact can
- * say so rather than leaving it to be discovered. Requirements are what
- * is inspected, not `components.securitySchemes`: a scheme nobody
- * requires says nothing about what the gate will do. They are read from
- * `served`, the operations the module routes, with the same precedence
- * the gate applies (`operation.security ?? document.security`).
+ * say so rather than leaving it to be discovered. Requirements are
+ * read from `served`, the operations the module routes, with the
+ * precedence and the per-alternative reading of `checkSecurity`
+ * (`operation.security ?? document.security`). An operation requiring
+ * nothing (no requirement, `security: []`, or an empty alternative)
+ * passes every request in any mode, so it neither prompts the warning
+ * nor prevents it. An undeclared scheme or an unreadable requirement
+ * fails, so it never makes an alternative pass.
  *
  * `"strict"` needs no warning. It rejects an uninspectable scheme
  * instead of passing it, which is the whole of its difference.
@@ -1000,37 +1005,53 @@ function uninspectableSecurityWarning(
   resolveRef: <T>(v: T | ReferenceObject | undefined) => T | undefined,
 ): string | undefined {
   if (mode !== "shape") return undefined;
-  const required = new Set<string>();
+  const schemes = (document.components?.securitySchemes ?? {}) as Record<string, unknown>;
+  // The label of a declared scheme that shape passes unchecked, or
+  // undefined for one it checks or fails.
+  const opaqueLabel = (name: string): string | undefined => {
+    if (!Object.hasOwn(schemes, name)) return undefined;
+    const scheme = resolveRef<SecuritySchemeObject>(schemes[name] as SecuritySchemeObject);
+    if (scheme === undefined) return undefined;
+    const type = scheme.type;
+    if (type === "apiKey") return undefined;
+    if (type === "http") {
+      // `scheme` is read only for the type that uses it.
+      const http: unknown = (scheme as { scheme?: unknown }).scheme;
+      if (typeof http !== "string") return undefined;
+      const lower = http.toLowerCase();
+      if (lower === "bearer" || lower === "basic") return undefined;
+    }
+    return `${name} (${String(type)})`;
+  };
+
+  const opaque = new Set<string>();
+  let secured = false;
   for (const operation of served) {
     const reqs: unknown = operation.security ?? document.security;
-    if (!Array.isArray(reqs)) continue;
-    for (const r of reqs) {
-      if (r === null || typeof r !== "object") continue;
-      for (const name of Object.keys(r as Record<string, unknown>)) required.add(name);
+    if (reqs == null || (Array.isArray(reqs) && reqs.length === 0)) continue;
+    if (!Array.isArray(reqs)) return undefined;
+    const alternatives = reqs.filter(
+      (r): r is Record<string, unknown> => r !== null && typeof r === "object" && !Array.isArray(r),
+    );
+    if (alternatives.some((r) => Object.keys(r).length === 0)) continue;
+    let passing: string[] | undefined;
+    for (const r of alternatives) {
+      const labels = Object.keys(r).map(opaqueLabel);
+      if (labels.every((l) => l !== undefined)) {
+        passing = labels as string[];
+        break;
+      }
     }
+    if (passing === undefined) return undefined;
+    secured = true;
+    for (const label of passing) opaque.add(label);
   }
-  if (required.size === 0) return undefined;
-
-  const schemes = document.components?.securitySchemes ?? {};
-  const opaque: string[] = [];
-  for (const name of [...required].sort()) {
-    // An undeclared name fails every request, the opposite of passing it.
-    if (!Object.hasOwn(schemes, name)) continue;
-    const raw = (schemes as Record<string, unknown>)[name];
-    const scheme = resolveRef<SecuritySchemeObject>(raw as SecuritySchemeObject | undefined);
-    if (scheme === undefined) continue;
-    const type = scheme.type;
-    const http = (scheme as { scheme?: string }).scheme?.toLowerCase();
-    const inspectable =
-      type === "apiKey" || (type === "http" && (http === "bearer" || http === "basic"));
-    if (!inspectable) opaque.push(`${name} (${String(type)})`);
-  }
-  if (opaque.length !== required.size) return undefined;
+  if (!secured) return undefined;
   return (
-    `validateSecurity "shape" cannot inspect any scheme this document requires ` +
-    `(${opaque.join(", ")}), so the emitted gate accepts every request, including one ` +
-    `carrying no credential. Use "strict" to refuse them instead, or verify credentials ` +
-    `outside the validator.`
+    `validateSecurity "shape" cannot inspect ${[...opaque].sort().join(", ")}, and every ` +
+    `operation that requires security accepts an alternative made only of such schemes, so ` +
+    `the emitted gate accepts every request, including one carrying no credential. Use ` +
+    `"strict" to refuse them instead, or verify credentials outside the validator.`
   );
 }
 
