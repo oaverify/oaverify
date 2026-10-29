@@ -812,6 +812,22 @@ describe("member-edit caps at the exact byte", () => {
     );
   });
 
+  it("reports a malformed number before refusing its delimiter", async () => {
+    // `01` starts at 6; its delimiter is at 8.
+    for (const delimiter of [",", " ", "]"]) {
+      const input = `{"d":[01${delimiter}2],"k":1}`;
+      for (const cap of [7, 8]) {
+        expect(
+          await outcome(input, dropD, { maxMemberDropBytes: cap }),
+          `${input} cap ${cap}`,
+        ).toEqual(every("JsonParseError@6"));
+      }
+    }
+    expect(await outcome('{"d":[10,2],"k":1}', dropD, { maxMemberDropBytes: 7 })).toEqual(
+      every("MemberEditError@8"),
+    );
+  });
+
   it("lets a syntax error win at the byte a prefix does not count", async () => {
     // comma at 6, spaces at 7 and 8, `x` at 9.
     expect(await outcome('{"a":1,  x}', keepAll, { maxMemberPrefixBytes: 3 })).toEqual(
