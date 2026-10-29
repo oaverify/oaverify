@@ -513,15 +513,14 @@ function walkAnyRefs(value: unknown, sink: Set<string>): void {
 }
 
 function parseReachabilityRef(ref: string): string | null {
+  // The fragment decodes once, so `%50et` names `Pet` and `%2525` names `%25`.
+  const pointer = pointerFromRefFragment(ref);
+  if (pointer === undefined) return null;
   // Stitch graph nodes are keyed by decoded document pointers.
-  if (ref.startsWith("#")) {
-    const pointer = pointerFromFragment(ref.slice(1));
-    if (pointer.startsWith(`/${EXTERNALS_FIELD}/`)) return pointer;
-  }
-  // Match `#/components/<category>/<name>` exactly. Reject deeper
-  // pointers (e.g. `#/components/schemas/Pet/properties/id`); those
-  // still mark the component as reached, so accept the prefix too.
-  const m = /^#\/components\/([^/]+)\/([^/]+)/.exec(ref);
+  if (pointer.startsWith(`/${EXTERNALS_FIELD}/`)) return pointer;
+  // A pointer below a component (`/components/schemas/Pet/properties/id`)
+  // reaches that component too, so only the first two segments count.
+  const m = /^\/components\/([^/]+)\/([^/]+)/.exec(pointer);
   if (!m) return null;
   const category = decodePointerSegment(m[1]!);
   const name = decodePointerSegment(m[2]!);
@@ -585,11 +584,10 @@ function findUnreachableDefs(
   // "reached", which avoids false positives when a $defs entry is genuinely
   // shared across schemas via absolute pointers.
   const allRefs = new Set<string>();
-  collectEveryRefValue(document, allRefs);
+  collectEveryRefPointer(document, allRefs);
   const reachedTargets = new Set<string>();
   if (hoistedSchemaCopies.length > 0) {
-    for (const ref of allRefs) {
-      let pointer = pointerFromFragment(ref.slice(1));
+    for (let pointer of allRefs) {
       while (pointer.startsWith("/")) {
         reachedTargets.add(pointer);
         pointer = pointer.slice(0, pointer.lastIndexOf("/"));
@@ -601,7 +599,7 @@ function findUnreachableDefs(
     if (!reachedTargets.has(target)) continue;
     // Source identity applies to the copied node. Descendants may have
     // been replaced by a sibling override during non-schema inlining.
-    for (const copy of copies) copyRefs.add(`#${copy}`);
+    for (const copy of copies) copyRefs.add(copy);
   }
 
   const issues: SpecHygieneIssue[] = [];
@@ -621,18 +619,20 @@ function findUnreachableDefs(
   return issues;
 }
 
-function collectEveryRefValue(value: unknown, sink: Set<string>): void {
+/** Collect the decoded JSON Pointer of every same-document `$ref`. */
+function collectEveryRefPointer(value: unknown, sink: Set<string>): void {
   if (value === null || typeof value !== "object") return;
   if (Array.isArray(value)) {
-    for (const item of value) collectEveryRefValue(item, sink);
+    for (const item of value) collectEveryRefPointer(item, sink);
     return;
   }
   const obj = value as Record<string, unknown>;
   const ref = obj.$ref;
-  if (typeof ref === "string" && ref.startsWith("#")) {
-    sink.add(ref);
+  if (typeof ref === "string") {
+    const pointer = pointerFromRefFragment(ref);
+    if (pointer !== undefined) sink.add(pointer);
   }
-  for (const v of Object.values(obj)) collectEveryRefValue(v, sink);
+  for (const v of Object.values(obj)) collectEveryRefPointer(v, sink);
 }
 
 type SchemaResource = { value: unknown; pointer: string };
@@ -798,15 +798,13 @@ function walkForDefs(
   }
 }
 
-function refsHit(allRefs: Set<string>, targetPointer: string): boolean {
-  // `targetPointer` is like `/components/schemas/Pet/$defs/Inner`.
-  // A ref hits if some `#`-prefixed value matches `#<targetPointer>` or
-  // extends it (`#<targetPointer>/...`).
-  const exact = `#${targetPointer}`;
-  if (allRefs.has(exact)) return true;
-  const prefix = `${exact}/`;
-  for (const ref of allRefs) {
-    if (ref.startsWith(prefix)) return true;
+function refsHit(refPointers: Set<string>, targetPointer: string): boolean {
+  // `targetPointer` is like `/components/schemas/Pet/$defs/Inner`. A
+  // reference hits it by naming it or a position below it.
+  if (refPointers.has(targetPointer)) return true;
+  const prefix = `${targetPointer}/`;
+  for (const pointer of refPointers) {
+    if (pointer.startsWith(prefix)) return true;
   }
   return false;
 }
