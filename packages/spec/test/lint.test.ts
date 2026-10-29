@@ -114,6 +114,53 @@ describe("lintResolvedSpec: unused-component", () => {
     expect(lintResolvedSpec(spec)).toEqual([]);
   });
 
+  it("in 3.2, treats a fragment requirement name as a reference to the scheme it addresses (#1245)", () => {
+    const responses = { "200": { description: "ok" } };
+    const unused = (spec: OpenAPIDocument) =>
+      lintResolvedSpec(spec)
+        .filter((i) => i.code === "unused-component")
+        .map((i) => i.pointer);
+    const spec = minimalSpec({
+      openapi: "3.2.0",
+      security: [{ "#/components/securitySchemes/k": [] }],
+      paths: {
+        "/a": { get: { security: [{ "#/components/securitySchemes/my%20key": [] }], responses } },
+      },
+      webhooks: {
+        hook: { post: { security: [{ "#/components/securitySchemes/a~1b": [] }], responses } },
+      },
+      components: {
+        securitySchemes: {
+          k: { type: "http", scheme: "bearer" },
+          "my key": { type: "http", scheme: "bearer" },
+          "a/b": { type: "http", scheme: "bearer" },
+          // A fragment that addresses a position inside a scheme names no scheme.
+          deep: { type: "http", scheme: "bearer" },
+          "#/components/securitySchemes/literal": { type: "http", scheme: "basic" },
+          literal: { type: "http", scheme: "basic" },
+        },
+      },
+    } as Partial<OpenAPIDocument>);
+    spec.security!.push(
+      { "#/components/securitySchemes/deep/scheme": [] },
+      // A component name wins over the URI reading.
+      { "#/components/securitySchemes/literal": [] },
+    );
+    expect(unused(spec)).toEqual([
+      "/components/securitySchemes/deep",
+      "/components/securitySchemes/literal",
+    ]);
+
+    // Before 3.2 a requirement key is only ever a component name.
+    expect(unused({ ...spec, openapi: "3.1.0" })).toEqual([
+      "/components/securitySchemes/k",
+      "/components/securitySchemes/my key",
+      "/components/securitySchemes/a~1b",
+      "/components/securitySchemes/deep",
+      "/components/securitySchemes/literal",
+    ]);
+  });
+
   it("treats a discriminator.mapping target as reached", () => {
     const spec = minimalSpec({
       paths: {
