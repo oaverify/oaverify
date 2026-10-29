@@ -111,9 +111,10 @@ value (object/array `enum` / `const`, `dependentSchemas`, `discriminator`,
 `contains`, `uniqueItems`, a composition with a non-forward branch, or
 `format` under an OpenAPI dialect) is a **BUFFER island**: the subtree is
 materialized and delegated to `@oaverify/core/schema`'s in-memory validator.
-`maxBufferedBytes` is checked on parser events; it can be exceeded while an
-unfinished token is arriving. Use the input token policies below to limit
-keys and number spellings. Only a REJECT keyword
+`maxBufferedBytes` is checked as bytes arrive, so a region is refused at the
+first byte past the cap, including inside a long string, number or run of
+whitespace. A number delegated on its own is not covered. Use the input
+token policies below to limit keys and number spellings. Only a REJECT keyword
 (`unevaluatedProperties` / `unevaluatedItems`), an unknown keyword, or an
 unresolvable `$ref` fails fast at construction.
 

@@ -116,8 +116,8 @@ export interface StreamabilityReport {
   peakBytes: ByteSize;
   /**
    * Materialization estimate after applying `maxBufferedBytes` per region.
-   * Carries the same undercounts as `peakBytes`. The cap is currently checked
-   * on parser events and does not bound unfinished token accumulation.
+   * Carries the same undercounts as `peakBytes`. The cap does not apply to
+   * a number delegated on its own, which `maxNumberBytes` bounds instead.
    * `maxKeyBytes` and `maxNumberBytes` do not change this estimate.
    */
   effectivePeakBytes: ByteSize;

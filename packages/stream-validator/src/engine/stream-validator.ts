@@ -497,6 +497,7 @@ export class StreamValidator extends Transform {
       emitDelete: (start, end) => this.pendingEdits.push({ start, end, bytes: null }),
       maxMemberPrefixBytes: this.maxMemberPrefixBytes,
       setByteLimit: (at, countsAll) => this.tokenizer.setByteLimit(at, countsAll),
+      setSpanLimit: (at) => this.tokenizer.setSpanLimit(at),
       ...(options.maxMemberDropBytes === undefined
         ? {}
         : { maxMemberDropBytes: options.maxMemberDropBytes }),

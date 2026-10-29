@@ -220,6 +220,8 @@ export class JsonTokenizer {
   // none is set.
   private byteLimit = Number.POSITIVE_INFINITY;
   private limitCountsAll = false;
+  // The byte at which a span limit refuses input (see setSpanLimit).
+  private spanLimit = Number.POSITIVE_INFINITY;
   private numBuf = "";
   private litExpected = "";
   private litValue: boolean | null = null;
@@ -258,6 +260,18 @@ export class JsonTokenizer {
     this.limitCountsAll = countsAll;
   }
 
+  /**
+   * Refuse input at the byte at offset `at`, whatever that byte is: before
+   * it is parsed, {@link JsonEventHandler.onSpanLimit} is called, and the
+   * handler is expected to throw. Independent of {@link setByteLimit},
+   * which is checked first when both fall on one byte; key and number
+   * limits are checked after both. Bytes before it are parsed as for
+   * {@link setByteLimit}. `Infinity` clears the limit.
+   */
+  setSpanLimit(at: number): void {
+    this.spanLimit = at;
+  }
+
   // Does the byte `b`, about to be parsed in `state`, count toward the
   // active limit?
   private limitCounts(state: number, b: number): boolean {
@@ -282,6 +296,12 @@ export class JsonTokenizer {
       const state = this.state;
       if (this.baseOffset + i >= this.byteLimit && this.limitCounts(state, chunk[i] as number)) {
         this.handler.onByteLimit!(this.byteLimit);
+      }
+      if (this.baseOffset + i >= this.spanLimit) {
+        // A malformed number is a syntax error before its delimiter, so it
+        // wins over refusing the delimiter.
+        if (state === ST_IN_NUMBER && !isNumberByte(chunk[i] as number)) this.checkNumber();
+        this.handler.onSpanLimit!(this.spanLimit);
       }
       if (
         this.stringIsKey &&
@@ -707,8 +727,9 @@ export class JsonTokenizer {
   // that counts every byte, so the byte at the limit is reached in the main
   // loop.
   private scanEnd(chunk: Uint8Array): number {
-    if (!this.limitCountsAll || this.byteLimit === Number.POSITIVE_INFINITY) return chunk.length;
-    return Math.max(0, Math.min(chunk.length, this.byteLimit - this.baseOffset));
+    const limit = this.limitCountsAll ? Math.min(this.byteLimit, this.spanLimit) : this.spanLimit;
+    if (limit === Number.POSITIVE_INFINITY) return chunk.length;
+    return Math.max(0, Math.min(chunk.length, limit - this.baseOffset));
   }
 
   private stepLiteral(chunk: Uint8Array, i: number): number {
@@ -755,11 +776,15 @@ export class JsonTokenizer {
     return j; // chunk exhausted mid-number, or stopped at the delimiter
   }
 
+  private checkNumber(): void {
+    if (!NUMBER_RE.test(this.numBuf)) {
+      throw new JsonParseError(`invalid number literal '${this.numBuf}'`, this.tokenStart);
+    }
+  }
+
   private finishNumber(end: number): void {
     const raw = this.numBuf;
-    if (!NUMBER_RE.test(raw)) {
-      throw new JsonParseError(`invalid number literal '${raw}'`, this.tokenStart);
-    }
+    this.checkNumber();
     this.handler.onNumber(Number(raw), raw, this.tokenStart, end);
     this.numBuf = "";
     this.afterValue();

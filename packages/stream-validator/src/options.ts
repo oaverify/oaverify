@@ -242,9 +242,15 @@ export interface StreamValidatorOptions {
    * Cap on a materialized region (a forced-buffer scalar or a BUFFER island),
    * in **UTF-8 source bytes**. Default off. Does not cap tokenizer key or
    * number storage; use `maxKeyBytes` and `maxNumberBytes` for those.
-   * Currently checked on parser events, so an unfinished token can exceed
-   * this allowance before the next event refuses it. This is not a bound on
-   * memory consumed before refusal or on total heap.
+   * Checked as bytes arrive: a region starting at byte `I` may span this
+   * many bytes, and byte `I + maxBufferedBytes` is refused before it is
+   * parsed, whether it is whitespace or part of a string or number. A
+   * string held only to compare against `enum` / `const` candidates is
+   * instead checked on the prefix it holds, which the longest candidate
+   * bounds. A number, boolean or null delegated on its own is not covered;
+   * `maxNumberBytes` bounds a number's spelling. When limits refuse the same byte, a member-edit cap is reported
+   * first, then this one, then `maxKeyBytes` / `maxNumberBytes`. This is
+   * not a bound on total heap.
    */
   maxBufferedBytes?: number;
 
