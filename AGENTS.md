@@ -177,6 +177,7 @@ pnpm lint:type-aware              # oxlint --type-aware (NOT part of `pnpm lint`
 pnpm check:deps                   # assert the @oaverify/internal-* dependency graph (see below)
 pnpm check:walkers                # assert no walker hand-rolls the subschema-position loops
 pnpm check:http-methods           # assert only core spells out the HTTP method list
+pnpm check:operation-walkers      # assert no unlisted module under packages/ names the HTTP method list
 pnpm check:detection-table        # assert docs/comparison.md against detection/results/matrix.md
 pnpm check:conformance-report     # assert conformance/REPORT.md against the committed baselines
 pnpm check:spec-boundaries        # assert the @specCites / @specBoundary TSDoc contract, and that every format validator cites its spec
@@ -309,7 +310,16 @@ in the meantime.
 
 - **`@oaverify/internal-core`**: owns the public structural contracts
   (`HttpRequest`, `HttpResponse`, the error tree, formatters). Changing
-  or adding an error code starts here.
+  or adding an error code starts here. It also owns the operation model
+  (`packages/core/src/operation-model.ts`, behind
+  `@oaverify/core/core/internals`), which says where a document's Path
+  Items and operations are. A walker that needs a Path Item's operations
+  asks it rather than looping over the method names. Some modules still
+  loop: the engines read a `paths` entry themselves, because each
+  decides what is served and a change there changes verdicts, and a few
+  walkers have not moved. `scripts/check-operation-walkers.mjs` lists
+  every non-test module under `packages/` that names the method list, with what
+  each does with it and what it misses, and fails on a new one.
 - **`@oaverify/internal-schema`**: the JSON Schema 2020-12 compiler; walks a
   schema, dispatches each keyword via `KeywordDefinition.compile(ctx)`,
   and `eval`s the generated source through `new Function(deps, src)`.
