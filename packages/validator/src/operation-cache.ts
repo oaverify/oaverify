@@ -13,6 +13,7 @@ import {
   resolveJsonPointer,
 } from "@oaverify/internal-core";
 import { HTTP_METHODS } from "@oaverify/internal-core";
+import { REF_CHAIN_MAX_HOPS } from "@oaverify/internal-core/operation-model";
 import {
   isHeaderObjectPrototypePropertyName,
   isObjectPrototypePropertyName,
@@ -327,11 +328,12 @@ export function operationPointer(pathMatch: RouteMatch): string | undefined {
 /**
  * How far a `$ref` chain is followed before it is called a cycle. Shared
  * with {@link resolveOperationRef} so the address and the object it
- * addresses can never come from different numbers of hops.
+ * addresses can never come from different numbers of hops, and with the
+ * operation model, which owns the number.
  *
  * @internal
  */
-export const REF_CHAIN_MAX_HOPS = 32;
+export { REF_CHAIN_MAX_HOPS };
 
 /**
  * Where a spec object that may have been reached through `$ref` sits,
