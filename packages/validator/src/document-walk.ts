@@ -42,7 +42,7 @@ import {
   resolveJsonPointer,
   type OpenAPIDocument,
 } from "@oaverify/internal-core";
-import { operationsOn } from "@oaverify/internal-core/operation-model";
+import { operationsOn } from "@oaverify/internal-core/internals";
 import type { ResolvedGraph } from "@oaverify/internal-schema";
 import { refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
 import { subschemaEntries } from "@oaverify/internal-core/subschema-positions";

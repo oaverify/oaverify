@@ -21,7 +21,7 @@ import {
   followReference,
   operationsOn,
   type OperationModel,
-} from "@oaverify/internal-core/operation-model";
+} from "@oaverify/internal-core/internals";
 
 /**
  * A single spec-hygiene finding from {@link lintResolvedSpec}.

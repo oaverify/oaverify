@@ -5,7 +5,7 @@ import {
   type OperationObject,
   type PathItem,
 } from "@oaverify/internal-core";
-import { isPathTemplate } from "@oaverify/internal-core/operation-model";
+import { isPathTemplate } from "@oaverify/internal-core/internals";
 
 /**
  * Decode a single path token, tolerating malformed percent-encoding.

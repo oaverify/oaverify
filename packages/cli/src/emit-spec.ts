@@ -63,7 +63,7 @@ import {
   type RefResolver,
 } from "@oaverify/internal-schema";
 import { HTTP_METHODS, classifyUnknownVersion, setSpecKey } from "@oaverify/internal-core";
-import { isPathTemplate } from "@oaverify/internal-core/operation-model";
+import { isPathTemplate } from "@oaverify/internal-core/internals";
 import {
   isHeaderObjectPrototypePropertyName,
   isObjectPrototypePropertyName,

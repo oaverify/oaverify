@@ -166,17 +166,18 @@ flags.
 
 ## Internal subpaths (not covered by semver)
 
-`@oaverify/core` exposes lower-level primitives behind three
-`/internals` paths (`./schema/internals`, `./spec/internals`,
-`./validator/internals`); no other published package has one. They exist for advanced plugins, tooling, and
+`@oaverify/core` exposes lower-level primitives behind four
+`/internals` paths (`./core/internals`, `./schema/internals`,
+`./spec/internals`, `./validator/internals`); no other published package has one. They exist for advanced plugins, tooling, and
 tests, and sit deliberately outside the semver contract: compare
 against the public barrel before reaching for them.
 
-| Import                               | Surface                                                                                           |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `@oaverify/core/schema/internals`    | Codegen mechanics, runtime helpers, and resolve internals below the keyword-author API            |
-| `@oaverify/core/spec/internals`      | Synchronous resolver primitives (`resolveSpecSync`, `createFileReaderSync`, `composeReadersSync`) |
-| `@oaverify/core/validator/internals` | Parameter deserialization primitives, object assembly, and the shared document traversal          |
+| Import                               | Surface                                                                                             |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `@oaverify/core/core/internals`      | The operation model: where a document's Path Items and operations are, and which each engine serves |
+| `@oaverify/core/schema/internals`    | Codegen mechanics, runtime helpers, and resolve internals below the keyword-author API              |
+| `@oaverify/core/spec/internals`      | Synchronous resolver primitives (`resolveSpecSync`, `createFileReaderSync`, `composeReadersSync`)   |
+| `@oaverify/core/validator/internals` | Parameter deserialization primitives, object assembly, and the shared document traversal            |
 
 ## The emitted-output runtime (semver-covered)
 

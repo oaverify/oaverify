@@ -11,9 +11,9 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
-    "./operation-model": {
-      "types": "./src/operation-model.ts",
-      "import": "./src/operation-model.ts"
+    "./internals": {
+      "types": "./src/internals.ts",
+      "import": "./src/internals.ts"
     },
     "./prototype-properties": {
       "types": "./src/prototype-properties.ts",

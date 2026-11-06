@@ -126,6 +126,16 @@
         "default": "./dist/core.cjs"
       }
     },
+    "./core/internals": {
+      "import": {
+        "types": "./dist/core-internals.d.ts",
+        "default": "./dist/core-internals.js"
+      },
+      "require": {
+        "types": "./dist/core-internals.d.cts",
+        "default": "./dist/core-internals.cjs"
+      }
+    },
     "./validator/internals": {
       "import": {
         "types": "./dist/validator-internals.d.ts",
