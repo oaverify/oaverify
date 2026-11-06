@@ -22,6 +22,7 @@
  */
 
 import type { HttpMethod, OpenAPIDocument, RequestBodyObject } from "@oaverify/internal-core";
+import { isPathTemplate } from "@oaverify/internal-core/internals";
 import { createStreamValidator, type StreamValidator } from "./engine/index.js";
 import {
   carryComponents,
@@ -74,7 +75,9 @@ export interface OperationLocator {
  * survived resolution throws. Throws (before any byte) when the path,
  * method, request body, media type, or body schema is absent. Pairs with
  * `@oaverify/internal-validator`'s `getOperation`: same `{ method, path }` locator,
- * exact-key lookup, no routing.
+ * exact-key lookup, no routing. Like `getOperation`, it reads the
+ * `paths` entry as written: an operation the entry reaches only through
+ * a Path Item `$ref` is absent here, although `analyzeSpec` lists it.
  *
  * @public
  */
@@ -87,7 +90,8 @@ export function streamValidatorForOperation(
   if (!HTTP_METHOD_SET.has(method)) {
     throw new Error(`streamValidatorForOperation: unknown HTTP method "${locator.method}"`);
   }
-  const pathItem = doc.paths?.[locator.path];
+  // An `x-` key of the Paths Object is an extension, never a path.
+  const pathItem = isPathTemplate(locator.path) ? doc.paths?.[locator.path] : undefined;
   if (pathItem === undefined) {
     throw new Error(`streamValidatorForOperation: no path "${locator.path}" in the document`);
   }

@@ -20,7 +20,8 @@ import type {
   RequestBodyObject,
   ResponseObject,
 } from "@oaverify/internal-core";
-import { HTTP_METHODS } from "@oaverify/internal-core";
+import { escapePointerSegment, HTTP_METHODS } from "@oaverify/internal-core";
+import { effectivePathItem, isPathTemplate } from "@oaverify/internal-core/internals";
 import { carryComponents, resolveLocalRef, versionFromDoc } from "../openapi/body-schema.js";
 import type { StreamValidatorOptions } from "../options.js";
 import { analyzeStreamability, type StreamabilityReport } from "./analyze.js";
@@ -163,6 +164,14 @@ function bodiesForOperation(
  * and classifier error paths can name generated `allOf` branches in the
  * extracted schema.
  *
+ * An operation is every fixed method field of a `paths` entry, the ones
+ * the entry's Path Item reference contributes included; a field written
+ * beside the reference takes precedence over the referenced one. The
+ * emitted validator serves those referenced operations. The runtime
+ * validator does not route them yet (#1059), and
+ * `streamValidatorForOperation` reads a `paths` entry as written, so it
+ * throws for an operation listed here only through a reference.
+ *
  * Operations with no body schema are omitted. A body whose schema cannot be
  * classified is reported with `error` set rather than throwing, so a sweep
  * over real specs surveys the whole document.
@@ -178,10 +187,18 @@ export function analyzeSpec(
     openApiVersion === undefined ? options : { ...options, openApiVersion };
 
   const operations: OperationBudget[] = [];
-  for (const [path, pathItem] of Object.entries(doc.paths ?? {})) {
-    if (!isRecord(pathItem)) continue;
+  const paths: unknown = doc.paths;
+  if (!isRecord(paths)) return { operations };
+  for (const [path, entry] of Object.entries(paths)) {
+    if (!isPathTemplate(path) || !isRecord(entry)) continue;
+    const viaRef =
+      typeof entry["$ref"] === "string"
+        ? effectivePathItem(doc, entry, `/paths/${escapePointerSegment(path)}`).effective
+        : undefined;
     for (const method of HTTP_METHODS) {
-      const op = pathItem[method];
+      // A method field readable on the entry decides for that method,
+      // whatever it holds; the reference chain supplies the others.
+      const op: unknown = method in entry ? entry[method] : viaRef?.[method];
       if (!isRecord(op)) continue;
       const where = `${method.toUpperCase()} "${path}"`;
       const bodies = bodiesForOperation(doc, op as OperationObject, where, merged);

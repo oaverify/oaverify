@@ -122,15 +122,8 @@ export interface ServedBy {
   readonly emitted: ServedVerdict;
 }
 
-/** A Path Item entry, with the fields its reference chain contributes. */
-export interface ModelPathItem {
-  readonly container: PathItemContainer;
-  /** Path template, webhook name, `components.pathItems` key, or callback expression. */
-  readonly key: string;
-  /** Pointer of the entry node. */
-  readonly pointer: string;
-  /** The entry node, which may carry a `$ref`. */
-  readonly node: Obj;
+/** A Path Item together with what its `$ref` chain contributes. */
+export interface EffectivePathItem {
   /** The `$ref` chain from the entry; one hop when the entry has no `$ref`. */
   readonly chain: FollowedReference;
   /**
@@ -140,6 +133,17 @@ export interface ModelPathItem {
   readonly effective: PathItem;
   /** Field name to the pointer of the Path Item that declares it. */
   readonly origins: ReadonlyMap<string, string>;
+}
+
+/** A Path Item entry, with the fields its reference chain contributes. */
+export interface ModelPathItem extends EffectivePathItem {
+  readonly container: PathItemContainer;
+  /** Path template, webhook name, `components.pathItems` key, or callback expression. */
+  readonly key: string;
+  /** Pointer of the entry node. */
+  readonly pointer: string;
+  /** The entry node, which may carry a `$ref`. */
+  readonly node: Obj;
   readonly operations: readonly ModelOperation[];
   /**
    * Whether each engine answers HEAD with the GET operation here. The
@@ -317,6 +321,43 @@ export function followReference(
 }
 
 /**
+ * The effective Path Item at one position: `node` with the fields its
+ * `$ref` chain contributes. A chain that does not complete contributes
+ * the fields of the hops it reached.
+ *
+ * This reads one entry and nothing beneath it, so a caller that needs
+ * the entries of one container need not build the whole model.
+ *
+ * @specCites OpenAPI 3.1.0 Path Item Object, https://spec.openapis.org/oas/v3.1.0.html#path-item-object
+ * @specBoundary resolves https://spec.openapis.org/oas/v3.1.0.html#path-item-object
+ * OpenAPI leaves behavior undefined when a field appears both beside a
+ * Path Item `$ref` and in its target. The effective Path Item keeps the
+ * nearest declaration of that field; fields found only in a target are
+ * inherited. Arrays such as `parameters` are replaced as a whole.
+ * `analyzeSpec` lists operations from this view, and the path-parameter
+ * checks compare a path template against it.
+ */
+export function effectivePathItem(
+  document: OpenAPIDocument,
+  node: unknown,
+  pointer: string,
+): EffectivePathItem {
+  const chain = followReference(document, node, pointer);
+  // `$ref` itself is not a field.
+  const merged: Obj = {};
+  const origins = new Map<string, string>();
+  for (const hop of chain.hops) {
+    if (!isObj(hop.node)) continue;
+    for (const [field, value] of Object.entries(hop.node)) {
+      if (field === "$ref" || Object.hasOwn(merged, field)) continue;
+      setSpecKey(merged, field, value);
+      origins.set(field, hop.pointer);
+    }
+  }
+  return { chain, effective: merged as PathItem, origins };
+}
+
+/**
  * Build the model for a resolved document.
  *
  * One pass over the document in the order it is written produces both
@@ -370,24 +411,16 @@ export function buildOperationModel(document: OpenAPIDocument): OperationModel {
     node: Obj,
     callbackPointer?: string,
   ): void => {
-    const chain = follow(node, pointer);
+    const { chain, effective, origins } = effectivePathItem(document, node, pointer);
+    if (chain.status !== "complete") {
+      diagnostics.push({ status: chain.status, pointer, ref: chain.stoppedAt });
+    }
+    const merged = effective as Obj;
     const emitted: ServedVerdict = !emitBuilds
       ? notServed("emit-fails")
       : chain.status === "complete" && chain.target === null
         ? notServed("null-target")
         : { served: true };
-
-    // Nearest declaration wins along the chain; `$ref` itself is not a field.
-    const merged: Obj = {};
-    const origins = new Map<string, string>();
-    for (const hop of chain.hops) {
-      if (!isObj(hop.node)) continue;
-      for (const [field, value] of Object.entries(hop.node)) {
-        if (field === "$ref" || Object.hasOwn(merged, field)) continue;
-        setSpecKey(merged, field, value);
-        origins.set(field, hop.pointer);
-      }
-    }
 
     const routed = container === "paths";
     const ops: ModelOperation[] = [];
@@ -397,7 +430,7 @@ export function buildOperationModel(document: OpenAPIDocument): OperationModel {
       pointer,
       node,
       chain,
-      effective: merged as PathItem,
+      effective,
       origins,
       operations: ops,
       impliedHead: {

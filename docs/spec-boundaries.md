@@ -37,10 +37,10 @@ conforming implementation choice.
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 5 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 9 |
-| [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 5 |
+| [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 6 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 4 |
 
-64 documented entries across 32 files.
+65 documented entries across 33 files.
 
 ## under-asserts
 
@@ -692,6 +692,19 @@ required in a response.
 ## resolves
 
 The spec is silent or self-contradictory, and this picked a reading.
+
+### packages/core
+
+**`effectivePathItem`** ([packages/core/src/operation-model.ts:323](../packages/core/src/operation-model.ts#L323))
+
+Against OpenAPI 3.1.0 Path Item Object (<https://spec.openapis.org/oas/v3.1.0.html#path-item-object>).
+
+OpenAPI leaves behavior undefined when a field appears both beside a
+Path Item `$ref` and in its target. The effective Path Item keeps the
+nearest declaration of that field; fields found only in a target are
+inherited. Arrays such as `parameters` are replaced as a whole.
+`analyzeSpec` lists operations from this view, and the path-parameter
+checks compare a path template against it.
 
 ### packages/schema
 

@@ -563,8 +563,8 @@ jobs:
           import { createStreamValidator } from "@oaverify/stream";
           // Exercise the cross-package boundary: the engine delegates BUFFER
           // islands and dialect handling to the published core, so this proves
-          // the rewritten `@oaverify/core/{core,schema,schema/internals}`
-          // imports load. A leaked `@oaverify/internal-*` import would fail resolution here.
+          // the rewritten `@oaverify/core/*` imports load. A leaked
+          // `@oaverify/internal-*` import would fail resolution here.
           const validator = createStreamValidator({
             type: "object",
             required: ["a"],
