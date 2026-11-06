@@ -53,6 +53,49 @@ describe("unused-tag reads the operation model", () => {
     expect(unusedTags(document)).toEqual([]);
   });
 
+  it("counts a tag used in a callback that a Path Item reference reaches first", () => {
+    const document = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      tags: [{ name: "t1" }],
+      paths: {
+        "/a": { $ref: "#/x/C/{$u}", post: { responses: ok } },
+        "/b": { post: { responses: ok, callbacks: { c: { $ref: "#/x/C" } } } },
+      },
+      x: { C: { "{$u}": { post: { tags: ["t1"], responses: ok } } } },
+    } as unknown as OpenAPIDocument;
+    expect(unusedTags(document)).toEqual([]);
+  });
+
+  it("counts a tag used in a callback of an operation that a nearer declaration shadows", () => {
+    const document = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      tags: [{ name: "t1" }],
+      paths: { "/a": { $ref: "#/x/A", post: { responses: ok } } },
+      x: {
+        A: {
+          post: {
+            responses: ok,
+            callbacks: { c: { "{$u}": { post: { tags: ["t1"], responses: ok } } } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    expect(unusedTags(document)).toEqual([]);
+  });
+
+  it("counts a tag used by an operation that a nearer declaration shadows", () => {
+    const document = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1" },
+      tags: [{ name: "far" }, { name: "near" }],
+      paths: { "/a": { $ref: "#/x/A", post: { tags: ["near"], responses: ok } } },
+      x: { A: { post: { tags: ["far"], responses: ok } } },
+    } as unknown as OpenAPIDocument;
+    expect(unusedTags(document)).toEqual([]);
+  });
+
   it("still reports a tag nothing names", () => {
     const document = {
       openapi: "3.0.3",
