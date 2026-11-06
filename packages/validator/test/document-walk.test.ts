@@ -123,3 +123,106 @@ it("visits schemas beside every Path Item reference, even in a cycle (#1290)", (
     "/x-items/Final/post/parameters/0/schema",
   ]);
 });
+
+describe("walkDocumentSchemas is positional", () => {
+  const body = (type: string) => ({
+    content: { "application/json": { schema: { type } } },
+  });
+  const at = (prefix: string): string => `${prefix}/requestBody/content/application~1json/schema`;
+
+  it("visits every operation a Path Item writes, whatever the document's version defines", () => {
+    const doc = {
+      ...base,
+      openapi: "3.0.3",
+      paths: {
+        "/p": {
+          query: { requestBody: body("string") },
+          get: { requestBody: body("boolean") },
+          put: "not an operation",
+          additionalOperations: { PURGE: { requestBody: body("integer") }, BAD: null },
+        },
+      },
+    };
+    expect(roots(doc)).toEqual([
+      at("/paths/~1p/get"),
+      at("/paths/~1p/query"),
+      at("/paths/~1p/additionalOperations/PURGE"),
+    ]);
+  });
+
+  it("visits an operation's callbacks before the next operation", () => {
+    const doc = {
+      ...base,
+      paths: {
+        "/p": {
+          get: {
+            requestBody: body("string"),
+            callbacks: { done: { "{$url}": { post: { requestBody: body("integer") } } } },
+          },
+          post: { requestBody: body("boolean") },
+        },
+      },
+    };
+    expect(roots(doc)).toEqual([
+      at("/paths/~1p/get"),
+      at("/paths/~1p/get/callbacks/done/{$url}/post"),
+      at("/paths/~1p/post"),
+    ]);
+  });
+
+  it("visits a Path Item object at every position it is written at, callbacks included", () => {
+    const item = { post: { requestBody: body("string") } };
+    const withCallback = { post: { callbacks: { c: { "{$a}": item, "{$b}": item } } } };
+    const doc = { ...base, paths: { "/a": withCallback, "/b": withCallback } };
+    const under = (path: string, expression: string): string =>
+      at(`/paths/~1${path}/post/callbacks/c/${expression}/post`);
+    expect(roots(doc)).toEqual([
+      under("a", "{$a}"),
+      under("a", "{$b}"),
+      under("b", "{$a}"),
+      under("b", "{$b}"),
+    ]);
+  });
+
+  it("expands a Callback Object reached only through a reference at every position", () => {
+    const shared = { post: { requestBody: body("string") } };
+    const doc = {
+      ...base,
+      paths: {
+        "/direct": shared,
+        "/p": { post: { callbacks: { done: { $ref: "#/x-cb" } } } },
+      },
+      "x-cb": { "{$a}": shared, "{$b}": shared },
+    };
+    expect(roots(doc)).toEqual([
+      at("/paths/~1direct/post"),
+      at("/x-cb/{$a}/post"),
+      at("/x-cb/{$b}/post"),
+    ]);
+  });
+
+  it("reads Path Items written beside a callback reference", () => {
+    const doc = {
+      ...base,
+      paths: {
+        "/p": {
+          post: {
+            callbacks: {
+              c: {
+                $ref: "#/components/callbacks/Done",
+                "{$inline}": { post: { requestBody: body("null") } },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        callbacks: { Done: { "{$url}": { post: { requestBody: body("string") } } } },
+      },
+    };
+    expect(roots(doc)).toEqual([
+      at("/paths/~1p/post/callbacks/c/{$inline}/post"),
+      at("/components/callbacks/Done/{$url}/post"),
+    ]);
+  });
+});
