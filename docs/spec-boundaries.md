@@ -280,7 +280,7 @@ enclosing quote; the other quote character appears literally.
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:459](../packages/router/src/matcher.ts#L459))
+**`createRouter`** ([packages/router/src/matcher.ts:460](../packages/router/src/matcher.ts#L460))
 
 Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
 
@@ -443,7 +443,7 @@ are rejected.
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:459](../packages/router/src/matcher.ts#L459))
+**`createRouter`** ([packages/router/src/matcher.ts:460](../packages/router/src/matcher.ts#L460))
 
 Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
 
@@ -654,7 +654,7 @@ lists individual errors in the `issues` field.
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:459](../packages/router/src/matcher.ts#L459))
+**`createRouter`** ([packages/router/src/matcher.ts:460](../packages/router/src/matcher.ts#L460))
 
 Against OpenAPI 3.1 Paths Object (<https://spec.openapis.org/oas/v3.1.0#paths-object>).
 
@@ -767,7 +767,7 @@ The cited spec requires it and this does not implement it yet.
 
 ### packages/router
 
-**`createRouter`** ([packages/router/src/matcher.ts:459](../packages/router/src/matcher.ts#L459))
+**`createRouter`** ([packages/router/src/matcher.ts:460](../packages/router/src/matcher.ts#L460))
 
 Against OpenAPI 3.2.0 (<https://spec.openapis.org/oas/v3.2.0#path-item-object>).
 
@@ -806,7 +806,7 @@ ignored instead of rejected (#919).
 
 ### packages/validator
 
-**`UNIMPLEMENTED_LOCATIONS`** ([packages/validator/src/parameter-locations.ts:86](../packages/validator/src/parameter-locations.ts#L86))
+**`UNIMPLEMENTED_LOCATIONS`** ([packages/validator/src/parameter-locations.ts:87](../packages/validator/src/parameter-locations.ts#L87))
 
 Against OpenAPI 3.2 Parameter Object (<https://spec.openapis.org/oas/v3.2.0#parameter-object>).
 

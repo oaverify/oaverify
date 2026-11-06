@@ -18,6 +18,7 @@ import {
   resolveJsonPointer,
   type OpenAPIDocument,
 } from "@oaverify/internal-core";
+import { isPathTemplate } from "@oaverify/internal-core/operation-model";
 import { escapePointer, METHODS } from "./document-walk.js";
 import { isIgnoredHeaderParameter, isIgnoredResponseHeader } from "./headers.js";
 import { REF_CHAIN_MAX_HOPS } from "./operation-cache.js";
@@ -246,7 +247,7 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
     if (!isObj(entries)) continue;
     for (const [name, item] of Object.entries(entries)) {
       // `webhooks` is a map of names, where any key is a webhook.
-      if (container === "paths" && isExtension(name)) continue;
+      if (container === "paths" && !isPathTemplate(name)) continue;
       walkPathItem(
         item,
         `/${container}/${escapePointer(name)}`,

@@ -72,6 +72,7 @@ import {
   type ParameterObject,
   type ReferenceObject,
 } from "@oaverify/internal-core";
+import { isPathTemplate } from "@oaverify/internal-core/operation-model";
 import { escapePointer, METHODS } from "./document-walk.js";
 import { resolveOperationRef } from "./operation-cache.js";
 
@@ -319,6 +320,7 @@ export function listUnservedParameterLocations(
   // with it and no cache, and 1.95ms as written.
   const clearedRefs = new Set<string>();
   for (const [pathPattern, item] of Object.entries(paths)) {
+    if (!isPathTemplate(pathPattern)) continue;
     if (item === null || typeof item !== "object") continue;
     const base = `/paths/${escapePointer(pathPattern)}`;
     // The runtime gate keeps the entry's own methods, including `$ref` siblings.

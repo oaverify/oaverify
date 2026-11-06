@@ -63,6 +63,7 @@ import {
   type RefResolver,
 } from "@oaverify/internal-schema";
 import { HTTP_METHODS, classifyUnknownVersion, setSpecKey } from "@oaverify/internal-core";
+import { isPathTemplate } from "@oaverify/internal-core/operation-model";
 import {
   isHeaderObjectPrototypePropertyName,
   isObjectPrototypePropertyName,
@@ -375,6 +376,7 @@ export function emitSpec(document: OpenAPIDocument, options: EmitSpecOptions = {
 
   // First pass: identify which paths have ≥ 1 included op.
   for (const [pathPattern, pathItemRaw] of Object.entries(document.paths ?? {})) {
+    if (!isPathTemplate(pathPattern)) continue;
     const pathItem = resolvePathItem(document, pathItemRaw)?.item;
     if (pathItem == null) continue;
     for (const method of HTTP_METHODS) {

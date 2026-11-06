@@ -5,6 +5,7 @@ import {
   type OperationObject,
   type PathItem,
 } from "@oaverify/internal-core";
+import { isPathTemplate } from "@oaverify/internal-core/operation-model";
 
 /**
  * Decode a single path token, tolerating malformed percent-encoding.
@@ -538,6 +539,8 @@ function buildRouter(
   // specs (GitHub, Jira, Gmail, several AWS APIs) declare such pairs.
   const byMethodSignature = new Map<string, string>();
   for (const [pattern, item] of Object.entries(paths)) {
+    // An `x-` key is a specification extension: no request path names it.
+    if (!isPathTemplate(pattern)) continue;
     const segments = parseTemplate(pattern);
     const signature = segments.map(segmentSignature).join("/");
     for (const method of methodsDeclaredOn(item)) {
