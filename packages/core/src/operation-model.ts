@@ -167,6 +167,22 @@ export interface ModelOperation {
   readonly servedBy: ServedBy;
 }
 
+/** An operation as written on one Path Item object, before any reference is followed. */
+export interface DeclaredOperation {
+  /** Method token as written (`get`, or an `additionalOperations` key). */
+  readonly method: string;
+  readonly methodKind: "fixed" | "additional";
+  /** Pointer of the Operation Object relative to its Path Item, without a leading slash. */
+  readonly suffix: string;
+  readonly node: OperationObject;
+}
+
+/** A Path Item object as written, with the pointer it was first reached at. */
+export interface DeclaredPathItem {
+  readonly pointer: string;
+  readonly node: Obj;
+}
+
 /** A chain the model could not follow to its end. */
 export interface ModelDiagnostic {
   readonly status: Exclude<ChainStatus, "complete">;
@@ -180,15 +196,70 @@ export interface OperationModel {
   readonly version: OpenAPIVersion;
   readonly document: OpenAPIDocument;
   /**
-   * Every Path Item entry. An entry under `paths`, `webhooks` or
-   * `components.pathItems` is a position of its own, so a Path Item two
-   * of them reference is listed at each. A callback Path Item is listed
-   * once, however many operations reach its Callback Object.
+   * Every Path Item entry, with what its reference chain contributes. An
+   * entry under `paths`, `webhooks` or `components.pathItems` is a
+   * position of its own, so a Path Item two of them reference is listed
+   * at each. A rule about what a path serves reads this.
    */
   readonly pathItems: readonly ModelPathItem[];
   /** The operations of every entry in {@link OperationModel.pathItems}, in the same order. */
   readonly operations: readonly ModelOperation[];
+  /**
+   * Every Path Item object the document declares, once each by identity,
+   * as written: the entries, the targets their references reach, and the
+   * Path Items in the callbacks of every operation written on any of
+   * them, whether or not a nearer declaration shadows that operation. A
+   * rule about what a document declares reads this, with
+   * {@link operationsOn} for each object's own operations.
+   *
+   * The order is the order of writing: each container in turn, a Path
+   * Item's inline callbacks straight after it, and reference targets
+   * after the containers in the order the references were met. A
+   * definition the resolver inlined at several use sites is a separate
+   * object at each, so it is listed at each.
+   */
+  readonly declared: readonly DeclaredPathItem[];
   readonly diagnostics: readonly ModelDiagnostic[];
+}
+
+/**
+ * The operations one Path Item object declares itself: each fixed method
+ * field holding an object, then each `additionalOperations` entry holding
+ * one. Fields behind the object's own `$ref` are not read; the model's
+ * `effective` item is the view that includes them.
+ */
+export function operationsOn(pathItem: unknown): DeclaredOperation[] {
+  if (!isObj(pathItem)) return [];
+  const found: DeclaredOperation[] = [];
+  for (const method of HTTP_METHODS) {
+    const node = pathItem[method];
+    if (isObj(node)) {
+      found.push({ method, methodKind: "fixed", suffix: method, node: node as OperationObject });
+    }
+  }
+  if (isObj(pathItem["additionalOperations"])) {
+    for (const [method, node] of Object.entries(pathItem["additionalOperations"])) {
+      if (!isObj(node)) continue;
+      found.push({
+        method,
+        methodKind: "additional",
+        suffix: `additionalOperations/${escapePointerSegment(method)}`,
+        node: node as OperationObject,
+      });
+    }
+  }
+  return found;
+}
+
+/** One step of a local reference: the node a `$ref` string names, or why there is none. */
+function resolveHop(document: OpenAPIDocument, ref: string): RefHop | "external" | "unresolved" {
+  if (!ref.startsWith("#")) return "external";
+  const pointer = pointerFromFragment(ref.slice(1));
+  try {
+    return { pointer, node: resolveJsonPointer(document, pointer) };
+  } catch {
+    return "unresolved";
+  }
 }
 
 /**
@@ -225,35 +296,33 @@ export function followReference(
       };
     }
     const ref = current["$ref"];
-    if (!ref.startsWith("#")) return stopped("external", ref);
+    const hop = resolveHop(document, ref);
+    if (hop === "external") return stopped("external", ref);
     if (hops.length >= REF_CHAIN_MAX_HOPS) return stopped("truncated", ref);
-    const next = pointerFromFragment(ref.slice(1));
+    if (hop === "unresolved") return stopped("unresolved", ref);
     seen.add(current);
-    let target: unknown;
-    try {
-      target = resolveJsonPointer(document, next);
-    } catch {
-      return stopped("unresolved", ref);
-    }
-    hops.push({ pointer: next, node: target });
-    if (seen.has(target)) return stopped("cycle", ref);
-    current = target;
+    hops.push(hop);
+    if (seen.has(hop.node)) return stopped("cycle", ref);
+    current = hop.node;
   }
 }
 
 /**
  * Build the model for a resolved document.
  *
- * Containers are visited in order: `paths`, `webhooks`,
- * `components.pathItems`, then `components.callbacks`. The callbacks an
- * entry's operations declare follow that entry, breadth first.
+ * One pass over the document in the order it is written produces both
+ * views. Containers are visited in order: `paths`, `webhooks`,
+ * `components.pathItems`, then `components.callbacks`. Reference targets
+ * wait in a queue and are visited after the containers, one hop at a
+ * time, so a chain of any length costs no stack and a cycle ends at the
+ * first object met twice.
  */
 export function buildOperationModel(document: OpenAPIDocument): OperationModel {
   const version = detectOpenAPIVersion(document) ?? "3.1";
   const pathItems: ModelPathItem[] = [];
   const operations: ModelOperation[] = [];
+  const declared: DeclaredPathItem[] = [];
   const diagnostics: ModelDiagnostic[] = [];
-
   const doc = document as unknown as Obj;
 
   // `emitSpec` resolves the reference chain of every value under `paths`,
@@ -274,29 +343,23 @@ export function buildOperationModel(document: OpenAPIDocument): OperationModel {
     return chain;
   };
 
-  // Callbacks wait in a queue instead of being entered as their operation
-  // is, so a long run of callbacks referencing callbacks costs no stack.
-  // Each use site and each callback Path Item is taken once, by pointer:
-  // a Callback Object many operations reference is modelled one time, and
-  // a callback that leads back to itself ends there.
-  const pendingCallbacks: { node: unknown; pointer: string }[] = [];
-  const callbackUses = new Set<string>();
-  const callbackItems = new Set<string>();
+  // Path Item and Callback objects already taken, by identity, and the
+  // reference targets still to visit.
+  const seen = new Set<unknown>();
+  const pending: { kind: "item" | "callback"; pointer: string; node: unknown }[] = [];
+  // Callback Path Items that have an entry. Kept apart from `seen`: a
+  // reference can reach one as a target before its Callback Object is
+  // entered, and it is still owed its entry then.
+  const callbackEntries = new Set<unknown>();
 
-  const queueCallback = (node: unknown, pointer: string): void => {
-    if (callbackUses.has(pointer)) return;
-    callbackUses.add(pointer);
-    pendingCallbacks.push({ node, pointer });
-  };
-
-  const modelPathItem = (
+  /** One entry: its chain, its effective fields and the operations those give it. */
+  const modelEntry = (
     container: PathItemContainer,
     key: string,
     pointer: string,
-    node: unknown,
+    node: Obj,
     callbackPointer?: string,
   ): void => {
-    if (!isObj(node)) return;
     const chain = follow(node, pointer);
     const emitted: ServedVerdict = !emitBuilds
       ? notServed("emit-fails")
@@ -335,62 +398,84 @@ export function buildOperationModel(document: OpenAPIDocument): OperationModel {
     };
     pathItems.push(item);
 
-    const pushOperation = (
-      method: string,
-      methodKind: "fixed" | "additional",
-      opNode: unknown,
-    ): void => {
-      if (!isObj(opNode)) return;
+    for (const { method, methodKind, suffix, node: opNode } of operationsOn(merged)) {
       const declaredIn = origins.get(methodKind === "fixed" ? method : "additionalOperations")!;
       const op: ModelOperation = {
         pathItem: item,
         method,
         methodKind,
-        pointer:
-          methodKind === "fixed"
-            ? `${declaredIn}/${method}`
-            : `${declaredIn}/additionalOperations/${escapePointerSegment(method)}`,
+        pointer: `${declaredIn}/${suffix}`,
         declaredIn,
-        node: opNode as OperationObject,
+        node: opNode,
         servedBy: servedVerdicts(container, methodKind, declaredIn === pointer, emitted),
       };
       ops.push(op);
       operations.push(op);
-    };
+    }
+  };
 
-    for (const method of HTTP_METHODS) pushOperation(method, "fixed", merged[method]);
-    if (isObj(merged["additionalOperations"])) {
-      for (const [method, opNode] of Object.entries(merged["additionalOperations"])) {
-        pushOperation(method, "additional", opNode);
+  /**
+   * One Path Item object as written: listed, its reference queued, and
+   * the callbacks of the operations written on it entered. Those
+   * operations include any a nearer declaration shadows, since a
+   * shadowed operation's callback is still written in the document.
+   */
+  const declare = (node: Obj, pointer: string): void => {
+    if (seen.has(node)) return;
+    seen.add(node);
+    declared.push({ pointer, node });
+    if (typeof node["$ref"] === "string") {
+      const hop = resolveHop(document, node["$ref"]);
+      // The document is not a Path Item, whatever `$ref: "#"` says.
+      if (typeof hop !== "string" && hop.node !== document) {
+        pending.push({ kind: "item", ...hop });
       }
     }
-
-    for (const op of ops) {
-      if (!isObj(op.node.callbacks)) continue;
-      for (const [name, callback] of Object.entries(op.node.callbacks)) {
-        queueCallback(callback, `${op.pointer}/callbacks/${escapePointerSegment(name)}`);
+    for (const { suffix, node: operation } of operationsOn(node)) {
+      if (!isObj(operation.callbacks)) continue;
+      for (const [name, callback] of Object.entries(operation.callbacks)) {
+        enterCallback(callback, `${pointer}/${suffix}/callbacks/${escapePointerSegment(name)}`);
       }
     }
   };
 
-  const modelCallback = (node: unknown, pointer: string): void => {
-    const chain = follow(node, pointer);
-    if (chain.status !== "complete" || !isObj(chain.target)) return;
-    const callbackPointer = chain.pointer!;
-    for (const [expression, item] of Object.entries(chain.target)) {
+  const enterPathItem = (
+    container: PathItemContainer,
+    key: string,
+    pointer: string,
+    node: unknown,
+    callbackPointer?: string,
+  ): void => {
+    if (!isObj(node)) return;
+    // A named entry is a position, modelled wherever its object has been
+    // met before. A callback's Path Item is modelled once.
+    if (container === "callback") {
+      if (callbackEntries.has(node)) return;
+      callbackEntries.add(node);
+    }
+    modelEntry(container, key, pointer, node, callbackPointer);
+    declare(node, pointer);
+  };
+
+  const enterCallback = (node: unknown, pointer: string): void => {
+    if (!isObj(node) || seen.has(node)) return;
+    seen.add(node);
+    if (typeof node["$ref"] === "string") {
+      const chain = follow(node, pointer);
+      if (chain.status === "complete") {
+        pending.push({ kind: "callback", pointer: chain.pointer!, node: chain.target });
+      }
+      return;
+    }
+    for (const [expression, item] of Object.entries(node)) {
       if (expression.startsWith("x-")) continue;
-      const itemPointer = `${callbackPointer}/${escapePointerSegment(expression)}`;
-      if (callbackItems.has(itemPointer)) continue;
-      callbackItems.add(itemPointer);
-      modelPathItem("callback", expression, itemPointer, item, callbackPointer);
-    }
-  };
-
-  let nextCallback = 0;
-  const drainCallbacks = (): void => {
-    for (; nextCallback < pendingCallbacks.length; nextCallback++) {
-      const { node, pointer } = pendingCallbacks[nextCallback]!;
-      modelCallback(node, pointer);
+      enterPathItem(
+        "callback",
+        expression,
+        `${pointer}/${escapePointerSegment(expression)}`,
+        item,
+        pointer,
+      );
     }
   };
 
@@ -406,18 +491,22 @@ export function buildOperationModel(document: OpenAPIDocument): OperationModel {
       // `webhooks` and `components.pathItems` map names, where any key is
       // an entry; under `paths` an `x-` key is a specification extension.
       if (container === "paths" && key.startsWith("x-")) continue;
-      modelPathItem(container, key, `${at}/${escapePointerSegment(key)}`, item);
-      drainCallbacks();
+      enterPathItem(container, key, `${at}/${escapePointerSegment(key)}`, item);
     }
   }
   if (isObj(components["callbacks"])) {
     for (const [name, callback] of Object.entries(components["callbacks"])) {
-      queueCallback(callback, `/components/callbacks/${escapePointerSegment(name)}`);
-      drainCallbacks();
+      enterCallback(callback, `/components/callbacks/${escapePointerSegment(name)}`);
     }
   }
+  // The queue grows while it is read: a target can hold further references.
+  for (let next = 0; next < pending.length; next++) {
+    const { kind, pointer, node } = pending[next]!;
+    if (kind === "callback") enterCallback(node, pointer);
+    else if (isObj(node)) declare(node, pointer);
+  }
 
-  return { version, document, pathItems, operations, diagnostics };
+  return { version, document, pathItems, operations, declared, diagnostics };
 }
 
 /**
