@@ -326,16 +326,6 @@ export function operationPointer(pathMatch: RouteMatch): string | undefined {
 }
 
 /**
- * How far a `$ref` chain is followed before it is called a cycle. Shared
- * with {@link resolveOperationRef} so the address and the object it
- * addresses can never come from different numbers of hops, and with the
- * operation model, which owns the number.
- *
- * @internal
- */
-export { REF_CHAIN_MAX_HOPS };
-
-/**
  * Where a spec object that may have been reached through `$ref` sits,
  * and what that address means for a reader.
  *
