@@ -20,6 +20,7 @@ import {
 import { subschemaEntries } from "@oaverify/internal-core/subschema-positions";
 import { HTTP_METHODS } from "@oaverify/internal-core";
 import { EXTERNALS_FIELD } from "./resolver-shared.js";
+import { buildOperationModel, type OperationModel } from "@oaverify/internal-core/operation-model";
 
 /**
  * A single spec-hygiene finding from {@link lintResolvedSpec}.
@@ -207,8 +208,9 @@ export function lintResolvedSpec(
   options: LintOptions = {},
 ): SpecHygieneIssue[] {
   const issues: SpecHygieneIssue[] = [];
+  const model = buildOperationModel(document);
   issues.push(...findUnusedComponents(document, options.inlinedComponents ?? []));
-  issues.push(...findUnusedTags(document));
+  issues.push(...findUnusedTags(model));
   issues.push(...findUnreachableDefs(document, options.hoistedSchemaCopies ?? []));
   issues.push(...findPathParamMismatches(document));
   issues.push(...findMalformedPathTemplates(document));
@@ -538,23 +540,23 @@ function isNamedTag(tag: unknown): tag is TagObject {
   );
 }
 
-function findUnusedTags(document: OpenAPIDocument): SpecHygieneIssue[] {
+/**
+ * A declared tag is unused when no operation in the model names it. The
+ * specification's rule is "no operation references it", and an operation
+ * reached through a reference, or under a component nothing references,
+ * is still an operation.
+ */
+function findUnusedTags(model: OperationModel): SpecHygieneIssue[] {
   // Unreadable lists and entries (`tags:\n  -` is `[null]`) contribute
   // nothing; conformance reports their shape.
-  const declared: readonly unknown[] = Array.isArray(document.tags) ? document.tags : [];
+  const declared: readonly unknown[] = Array.isArray(model.document.tags)
+    ? model.document.tags
+    : [];
   if (declared.length === 0) return [];
   const used = new Set<string>();
-  const collect = (op: OperationObject | undefined): void => {
-    if (!op || !Array.isArray(op.tags)) return;
-    for (const tag of op.tags) used.add(tag);
-  };
-  for (const pathItem of Object.values(document.paths ?? {})) {
-    if (!pathItem) continue;
-    for (const [, op] of operationEntries(pathItem)) collect(op);
-  }
-  for (const webhook of Object.values(document.webhooks ?? {})) {
-    if (!webhook || isReference(webhook)) continue;
-    for (const [, op] of operationEntries(webhook)) collect(op);
+  for (const op of model.operations) {
+    if (!Array.isArray(op.node.tags)) continue;
+    for (const tag of op.node.tags) used.add(tag);
   }
 
   const issues: SpecHygieneIssue[] = [];
