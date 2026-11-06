@@ -202,7 +202,7 @@ describe("analyzeSpec and x- keys under paths (#1342)", () => {
   });
 });
 
-describe("analyzeSpec reads operations from the operation model", () => {
+describe("analyzeSpec and Path Item references", () => {
   const body = (type: string) => ({
     content: { "application/json": { schema: { type } } },
   });

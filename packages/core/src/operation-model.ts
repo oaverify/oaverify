@@ -334,8 +334,6 @@ export function followReference(
  * Path Item `$ref` and in its target. The effective Path Item keeps the
  * nearest declaration of that field; fields found only in a target are
  * inherited. Arrays such as `parameters` are replaced as a whole.
- * `analyzeSpec` lists operations from this view, and the path-parameter
- * checks compare a path template against it.
  */
 export function effectivePathItem(
   document: OpenAPIDocument,
