@@ -215,9 +215,10 @@ export function lintResolvedSpec(
 ): SpecHygieneIssue[] {
   const issues: SpecHygieneIssue[] = [];
   const model = buildOperationModel(document);
-  issues.push(...findUnusedComponents(document, options.inlinedComponents ?? []));
+  const positions = collectSchemaPositions(document);
+  issues.push(...findUnusedComponents(document, positions, options.inlinedComponents ?? []));
   issues.push(...findUnusedTags(model));
-  issues.push(...findUnreachableDefs(document, options.hoistedSchemaCopies ?? []));
+  issues.push(...findUnreachableDefs(document, positions, options.hoistedSchemaCopies ?? []));
   issues.push(...findPathParamMismatches(model));
   issues.push(...findMalformedPathTemplates(model));
   issues.push(...findDuplicateParameters(model));
@@ -235,6 +236,7 @@ export function lintResolvedSpec(
 
 function findUnusedComponents(
   document: OpenAPIDocument,
+  positions: SchemaPositions,
   inlinedComponents: readonly string[],
 ): SpecHygieneIssue[] {
   const components = document.components;
@@ -251,7 +253,7 @@ function findUnusedComponents(
   }
   if (declared.size === 0) return [];
 
-  const reached = collectReachableComponents(document);
+  const reached = collectReachableComponents(document, positions);
 
   const issues: SpecHygieneIssue[] = [];
   for (const category of COMPONENT_CATEGORIES) {
@@ -282,7 +284,7 @@ function findUnusedComponents(
  * `components/*` and every `securitySchemes` name referenced. Iterates
  * to a fixed point through components and referenced stitched fragments.
  */
-function collectReachableComponents(document: OpenAPIDocument): Set<string> {
+function collectReachableComponents(document: OpenAPIDocument, scope: RefScope): Set<string> {
   // Direct refs collected from non-component roots.
   const fromRoots = new Set<string>();
   // Component keys (e.g. "schemas/Pet") and stitched JSON Pointers map
@@ -292,7 +294,7 @@ function collectReachableComponents(document: OpenAPIDocument): Set<string> {
   // Index: every $ref / security-scheme reference in the document, paired
   // with a "source" path so we can attribute it to a containing component
   // (for transitive-closure) or to a non-component root.
-  collectAllRefs(document, fromRoots, componentEdges);
+  collectAllRefs(document, scope, fromRoots, componentEdges);
 
   const pending = new Set(fromRoots);
   for (const edges of componentEdges.values()) {
@@ -309,7 +311,7 @@ function collectReachableComponents(document: OpenAPIDocument): Set<string> {
       continue;
     }
     const edges = new Set<string>();
-    walkAnyRefs(target, edges);
+    walkAnyRefs(target, pointer, scope, edges);
     componentEdges.set(pointer, edges);
     for (const edge of edges) pending.add(edge);
   }
@@ -336,6 +338,7 @@ function collectReachableComponents(document: OpenAPIDocument): Set<string> {
 
 function collectAllRefs(
   document: OpenAPIDocument,
+  scope: RefScope,
   fromRoots: Set<string>,
   componentEdges: Map<string, Set<string>>,
 ): void {
@@ -348,16 +351,16 @@ function collectAllRefs(
   }
 
   // Operations under paths.
-  for (const pathItem of Object.values(document.paths ?? {})) {
+  for (const [path, pathItem] of Object.entries(document.paths ?? {})) {
     if (!pathItem) continue;
     walkPathItem(pathItem, fromRoots, schemeKey);
-    walkAnyRefs(pathItem, fromRoots);
+    walkAnyRefs(pathItem, `/paths/${escapePointerSegment(path)}`, scope, fromRoots);
   }
   // Operations under webhooks (3.1+).
-  for (const webhook of Object.values(document.webhooks ?? {})) {
+  for (const [name, webhook] of Object.entries(document.webhooks ?? {})) {
     if (!webhook) continue;
     walkPathItem(webhook, fromRoots, schemeKey);
-    walkAnyRefs(webhook, fromRoots);
+    walkAnyRefs(webhook, `/webhooks/${escapePointerSegment(name)}`, scope, fromRoots);
   }
   // Components: edges from each component to whatever it refs.
   const components = document.components;
@@ -369,7 +372,8 @@ function collectAllRefs(
     for (const [name, value] of Object.entries(bucket)) {
       const key = `${category}/${name}`;
       const edges = new Set<string>();
-      walkAnyRefs(value, edges);
+      const at = `/components/${category}/${escapePointerSegment(name)}`;
+      walkAnyRefs(value, at, scope, edges);
       if (category === "pathItems") walkPathItem(value, edges, schemeKey);
       if (category === "callbacks") walkCallback(value, edges, schemeKey);
       if (edges.size > 0) componentEdges.set(key, edges);
@@ -470,21 +474,45 @@ function walkPathItem(pathItem: unknown, sink: Set<string>, schemeKey: SchemeKey
 }
 
 /**
+ * The document pointer a same-document `$ref` written at `from` names. In a
+ * schema position the fragment is read against the nearest enclosing schema
+ * resource, or the document when there is none; anywhere else (an OpenAPI
+ * Reference Object, data) against the document. Both sets come from
+ * {@link collectSchemaPositions}, so an `$id` in data or under OAS 3.0 has no
+ * effect.
+ */
+function refTargetPointer(ref: string, from: string, scope: RefScope): string | undefined {
+  const fragment = pointerFromRefFragment(ref);
+  if (fragment === undefined) return undefined;
+  if (!scope.schemas.has(from)) return fragment;
+  const { resources } = scope;
+  let ancestor = from;
+  while (ancestor !== "") {
+    if (resources.has(ancestor)) return ancestor + fragment;
+    ancestor = ancestor.slice(0, ancestor.lastIndexOf("/"));
+  }
+  return fragment;
+}
+
+/**
  * Recursive walk that captures every `$ref` whose target is
  * a component or stitched fragment, including `discriminator.mapping`
  * values. Component keys use `<category>/<name>`; stitched targets use
  * decoded document pointers so percent escapes are interpreted once.
+ *
+ * A mapping value keeps the document reading: the compiler matches it
+ * against branch `$ref` spellings rather than resolving it.
  */
-function walkAnyRefs(value: unknown, sink: Set<string>): void {
+function walkAnyRefs(value: unknown, pointer: string, scope: RefScope, sink: Set<string>): void {
   if (value === null || typeof value !== "object") return;
   if (Array.isArray(value)) {
-    for (const item of value) walkAnyRefs(item, sink);
+    value.forEach((item, index) => walkAnyRefs(item, `${pointer}/${index}`, scope, sink));
     return;
   }
   const obj = value as Record<string, unknown>;
   const ref = obj.$ref;
   if (typeof ref === "string") {
-    const key = parseReachabilityRef(ref);
+    const key = reachabilityKey(refTargetPointer(ref, pointer, scope));
     if (key) sink.add(key);
   }
   const discriminator = obj.discriminator;
@@ -493,18 +521,19 @@ function walkAnyRefs(value: unknown, sink: Set<string>): void {
     if (mapping && typeof mapping === "object") {
       for (const target of Object.values(mapping as Record<string, unknown>)) {
         if (typeof target === "string") {
-          const key = parseReachabilityRef(target);
+          const key = reachabilityKey(pointerFromRefFragment(target));
           if (key) sink.add(key);
         }
       }
     }
   }
-  for (const v of Object.values(obj)) walkAnyRefs(v, sink);
+  for (const [key, v] of Object.entries(obj)) {
+    walkAnyRefs(v, `${pointer}/${escapePointerSegment(key)}`, scope, sink);
+  }
 }
 
-function parseReachabilityRef(ref: string): string | null {
-  // The fragment decodes once, so `%50et` names `Pet` and `%2525` names `%25`.
-  const pointer = pointerFromRefFragment(ref);
+function reachabilityKey(pointer: string | undefined): string | null {
+  // The fragment decoded once, so `%50et` names `Pet` and `%2525` names `%25`.
   if (pointer === undefined) return null;
   // Stitch graph nodes are keyed by decoded document pointers.
   if (pointer.startsWith(`/${EXTERNALS_FIELD}/`)) return pointer;
@@ -569,6 +598,7 @@ function findUnusedTags(model: OperationModel): SpecHygieneIssue[] {
 
 function findUnreachableDefs(
   document: OpenAPIDocument,
+  positions: SchemaPositions,
   hoistedSchemaCopies: readonly HoistedSchemaCopies[],
 ): SpecHygieneIssue[] {
   // Find every $defs container with its location, then for each entry
@@ -577,7 +607,7 @@ function findUnreachableDefs(
   // "reached", which avoids false positives when a $defs entry is genuinely
   // shared across schemas via absolute pointers.
   const allRefs = new Set<string>();
-  collectEveryRefPointer(document, allRefs);
+  collectEveryRefPointer(document, "", positions, allRefs);
   const reachedTargets = new Set<string>();
   if (hoistedSchemaCopies.length > 0) {
     for (let pointer of allRefs) {
@@ -596,7 +626,7 @@ function findUnreachableDefs(
   }
 
   const issues: SpecHygieneIssue[] = [];
-  walkForDefs(document, "", collectSchemaPointers(document), (defsPointer, name) => {
+  walkForDefs(document, "", positions.schemas, (defsPointer, name) => {
     // Older oaverify releases stored stitched externals under $defs with
     // __ext__/ keys. Those generated keys stay exempt; authored definitions
     // inside reached stitched schemas remain eligible.
@@ -613,49 +643,96 @@ function findUnreachableDefs(
 }
 
 /** Collect the decoded JSON Pointer of every same-document `$ref`. */
-function collectEveryRefPointer(value: unknown, sink: Set<string>): void {
+function collectEveryRefPointer(
+  value: unknown,
+  pointer: string,
+  scope: RefScope,
+  sink: Set<string>,
+): void {
   if (value === null || typeof value !== "object") return;
   if (Array.isArray(value)) {
-    for (const item of value) collectEveryRefPointer(item, sink);
+    value.forEach((item, index) =>
+      collectEveryRefPointer(item, `${pointer}/${index}`, scope, sink),
+    );
     return;
   }
   const obj = value as Record<string, unknown>;
   const ref = obj.$ref;
   if (typeof ref === "string") {
-    const pointer = pointerFromRefFragment(ref);
-    if (pointer !== undefined) sink.add(pointer);
+    const target = refTargetPointer(ref, pointer, scope);
+    if (target !== undefined) sink.add(target);
   }
-  for (const v of Object.values(obj)) collectEveryRefPointer(v, sink);
+  for (const [key, v] of Object.entries(obj)) {
+    collectEveryRefPointer(v, `${pointer}/${escapePointerSegment(key)}`, scope, sink);
+  }
 }
 
 type SchemaResource = { value: unknown; pointer: string };
+
+/**
+ * Pointers of the resources that give a fragment a new scope. An `$id` of
+ * `""` with no non-empty `$id` above it leaves the base empty, which the
+ * compiler reads as the document; under one, it names a resource of its own.
+ */
+function scopingResources(resources: ReadonlyMap<string, SchemaResource>): Set<string> {
+  const idAt = (pointer: string): unknown =>
+    (resources.get(pointer)?.value as { $id?: unknown } | undefined)?.$id;
+  const out = new Set<string>();
+  for (const pointer of resources.keys()) {
+    if (idAt(pointer) !== "") {
+      out.add(pointer);
+      continue;
+    }
+    for (let up = parentPointer(pointer); up !== undefined; up = parentPointer(up)) {
+      if (resources.has(up) && idAt(up) !== "") {
+        out.add(pointer);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/** The pointer one level up, or `undefined` above the document root. */
+function parentPointer(pointer: string): string | undefined {
+  return pointer === "" ? undefined : pointer.slice(0, pointer.lastIndexOf("/"));
+}
+
+/** Physical pointers of the schema positions, and of those starting a scoping resource. */
+type SchemaPositions = { schemas: ReadonlySet<string>; resources: ReadonlySet<string> };
+
+/** What a `$ref` resolves against: `resources` applies only at a schema position. */
+type RefScope = SchemaPositions;
 
 /**
  * Discover positions again when references reveal an enclosing resource.
  * A target visited before that resource can otherwise resolve its own
  * fragment against the document and turn unrelated data into a schema.
  */
-function collectSchemaPointers(document: OpenAPIDocument): Set<string> {
+function collectSchemaPositions(document: OpenAPIDocument): SchemaPositions {
   let resources = new Map<string, SchemaResource>();
-  const rounds = new Map<string, Set<string>>();
+  const rounds = new Map<string, { schemas: Set<string>; resources: Set<string> }>();
   while (true) {
     const key = JSON.stringify([...resources.keys()].sort());
     const previous = rounds.get(key);
     if (previous !== undefined) {
       // Mutually dependent resource discoveries have no stable scope.
       // Only positions present throughout that cycle justify a finding.
-      const common = new Set(previous);
+      const schemas = new Set(previous.schemas);
+      const common = new Set(previous.resources);
       let inCycle = false;
-      for (const [round, schemas] of rounds) {
+      for (const [round, seen] of rounds) {
         if (round === key) inCycle = true;
-        if (inCycle)
-          for (const pointer of common) if (!schemas.has(pointer)) common.delete(pointer);
+        if (!inCycle) continue;
+        for (const pointer of schemas) if (!seen.schemas.has(pointer)) schemas.delete(pointer);
+        for (const pointer of common) if (!seen.resources.has(pointer)) common.delete(pointer);
       }
-      return common;
+      return { schemas, resources: common };
     }
     const result = discoverSchemaPointers(document, resources);
-    if (result.stable) return result.schemas;
-    rounds.set(key, result.schemas);
+    const found = scopingResources(result.resources);
+    if (result.stable) return { schemas: result.schemas, resources: found };
+    rounds.set(key, { schemas: result.schemas, resources: found });
     resources = result.resources;
   }
 }

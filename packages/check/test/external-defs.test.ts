@@ -128,3 +128,129 @@ describe("external $defs reachability", () => {
     }
   }
 });
+
+describe("a hoisted external referenced under $id", () => {
+  // The resolver hoists `ext.json` to components.schemas.ext and writes the use
+  // site as `#/components/schemas/ext`. Read against the enclosing $id, as the
+  // compiler reads it, that fragment does not reach the component, so the lint
+  // reports it unused beside the fatal finding the document already carries.
+  it("reports unused-component beside malformed-schema", async () => {
+    const sources = new Map<string, unknown>([
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "T", version: "1" },
+          paths: {
+            "/a": {
+              post: {
+                requestBody: {
+                  content: {
+                    "application/json": { schema: { $ref: "#/components/schemas/Outer" } },
+                  },
+                },
+                responses: { "200": { description: "OK" } },
+              },
+            },
+          },
+          components: {
+            schemas: {
+              Outer: { $id: "https://example.com/outer", properties: { x: { $ref: "ext.json" } } },
+            },
+          },
+        },
+      ],
+      ["ext.json", { type: "string" }],
+    ]);
+    const resolved = await loadSpec({ entry: "entry.json", reader: createMemoryReader(sources) });
+    const findings = checkSpec(resolved).map((f) => [f.code, f.severity, f.target?.pointer]);
+    expect(findings).toContainEqual([
+      "malformed-schema",
+      "fatal",
+      expect.stringMatching(/^\/components\/schemas\/Outer/),
+    ]);
+    expect(findings).toContainEqual(["unused-component", "warning", "/components/schemas/ext"]);
+  });
+});
+
+describe("an external file with a root $id", () => {
+  // The resolver rewrites the file's own `#/$defs/Tag` to the hoisted copy's
+  // document pointer, which read against the file's $id reaches neither the
+  // copy nor the original definition. The document is already fatal.
+  it("reports the hoisted copy and the original definition beside malformed-schema", async () => {
+    const sources = new Map<string, unknown>([
+      [
+        "entry.json",
+        {
+          openapi: "3.1.0",
+          info: { title: "T", version: "1" },
+          paths: {
+            "/a": {
+              post: {
+                requestBody: { content: { "application/json": { schema: { $ref: "pet.json" } } } },
+                responses: { "200": { description: "OK" } },
+              },
+            },
+          },
+        },
+      ],
+      [
+        "pet.json",
+        {
+          $id: "https://example.com/pet",
+          $defs: { Tag: {} },
+          properties: { t: { $ref: "#/$defs/Tag" } },
+        },
+      ],
+    ]);
+    const resolved = await loadSpec({ entry: "entry.json", reader: createMemoryReader(sources) });
+    const findings = checkSpec(resolved).map((f) => [f.code, f.target?.pointer]);
+    expect(findings.map(([code]) => code)).toContain("malformed-schema");
+    expect(findings).toContainEqual(["unused-component", "/components/schemas/pet__defs_Tag"]);
+    expect(findings).toContainEqual(["unreachable-defs", "/components/schemas/pet/$defs/Tag"]);
+  });
+});
+
+describe("an empty $id", () => {
+  const checkCodes = async (schemas: Record<string, unknown>) => {
+    const entry = {
+      openapi: "3.1.0",
+      info: { title: "T", version: "1" },
+      paths: {
+        "/a": {
+          post: {
+            requestBody: {
+              content: { "application/json": { schema: { $ref: "#/components/schemas/Outer" } } },
+            },
+            responses: { "200": { description: "OK" } },
+          },
+        },
+      },
+      components: { schemas },
+    };
+    const reader = createMemoryReader(new Map([["entry.json", entry]]));
+    return checkSpec(await loadSpec({ entry: "entry.json", reader })).map((f) => f.code);
+  };
+
+  // With no non-empty $id above it, the compiler reads the fragment against the document.
+  it("reads a top-level one against the document", async () => {
+    const codes = await checkCodes({
+      Outer: { $id: "", $ref: "#/components/schemas/T" },
+      T: { type: "string" },
+    });
+    expect(codes).not.toContain("malformed-schema");
+    expect(codes).not.toContain("unused-component");
+  });
+
+  // Under a non-empty $id, the compiler reads the fragment against the nested schema.
+  it("reads a nested one against its own schema", async () => {
+    const codes = await checkCodes({
+      Outer: {
+        $id: "https://example.com/outer",
+        properties: { x: { $id: "", $defs: { Inner: { type: "string" } }, $ref: "#/$defs/Inner" } },
+      },
+    });
+    expect(codes).not.toContain("malformed-schema");
+    expect(codes).not.toContain("unreachable-defs");
+  });
+});
