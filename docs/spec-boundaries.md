@@ -38,9 +38,9 @@ conforming implementation choice.
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 5 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 9 |
 | [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 6 |
-| [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 4 |
+| [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 5 |
 
-65 documented entries across 33 files.
+66 documented entries across 33 files.
 
 ## under-asserts
 
@@ -343,7 +343,7 @@ operation requiring a scheme named by URI fails its security check.
 
 ### packages/stream-validator
 
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:994](../packages/stream-validator/src/engine/stream-validator.ts#L994))
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:998](../packages/stream-validator/src/engine/stream-validator.ts#L998))
 
 Against RFC 8259 section 8.1 (<https://www.rfc-editor.org/rfc/rfc8259#section-8.1>).
 
@@ -748,7 +748,7 @@ the URL cannot be built.
 
 ### packages/stream-validator
 
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:994](../packages/stream-validator/src/engine/stream-validator.ts#L994))
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:998](../packages/stream-validator/src/engine/stream-validator.ts#L998))
 
 Against RFC 8259 section 4 (<https://www.rfc-editor.org/rfc/rfc8259#section-4>).
 
@@ -803,7 +803,7 @@ containing file (#1088).
 
 ### packages/stream-validator
 
-**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:994](../packages/stream-validator/src/engine/stream-validator.ts#L994))
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:998](../packages/stream-validator/src/engine/stream-validator.ts#L998))
 
 Against JSON Schema 2020-12 (<https://json-schema.org/draft/2020-12/json-schema-core.html#section-8.2.3.2>).
 
@@ -815,6 +815,17 @@ target to depend on the schema being applied, also ignores that context
 (#1090). Separately, some malformed schema keyword values are silently
 ignored instead of rejected, and an OAS 3.0 numeric `exclusiveMaximum`,
 which `@oaverify/core` rejects, is enforced as a numeric bound (#919).
+
+**`createStreamValidator`** ([packages/stream-validator/src/engine/stream-validator.ts:998](../packages/stream-validator/src/engine/stream-validator.ts#L998))
+
+Against OpenAPI 3.0.3 Reference Object (<https://spec.openapis.org/oas/v3.0.3.html#reference-object>).
+
+OpenAPI 3.0 says properties beside a `$ref` "SHALL be ignored". Under a 3.0
+dialect or `openApiVersion: "3.0"`, a `$ref` whose target sits outside
+subschema positions and `components.schemas` (`#/x-lib/S`) still has that
+target's own siblings applied, so `required` there can reject a body
+`@oaverify/core` accepts. Such a node can also be data, and rewriting it
+would change that data (#998).
 
 ### packages/validator
 

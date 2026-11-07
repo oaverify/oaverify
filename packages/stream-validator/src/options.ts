@@ -74,7 +74,10 @@ export interface StreamValidatorOptions {
    * `@oaverify/internal-schema`'s `CompileOptions.dialect` / `@oaverify/internal-validator`'s
    * `ValidatorOptions.dialect`. Defaults to `jsonSchemaDialect` (or the
    * OpenAPI dialect when `openApiVersion` is set); set it only to
-   * override that choice.
+   * override that choice. A dialect that suppresses `$ref` siblings
+   * (`oas30Dialect`) discards them here as it does in the compiler; it does
+   * not fold `nullable` or boolean exclusive bounds, which only
+   * `openApiVersion: "3.0"` does.
    */
   dialect?: Dialect;
 

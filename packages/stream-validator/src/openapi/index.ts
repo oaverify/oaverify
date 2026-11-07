@@ -1,1 +1,1 @@
-export { normalizeOas30 } from "./normalize.js";
+export { normalizeOas30, schemaForEngine } from "./normalize.js";
