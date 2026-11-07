@@ -357,36 +357,24 @@ export function validateParameter(
 }
 
 /**
- * Content-type gate for the request body. Returns a single leaf when
- * the client's `Content-Type` doesn't match the operation's declared
- * media types; otherwise `null`. Runs before {@link validateBody} (and
- * before parameter validation) so a content-type mismatch short-circuits
- * with an unambiguous single-leaf tree instead of being paired with
- * unrelated parameter diagnostics.
+ * Content-type gate for the request body. Returns the declared media type
+ * that matched (`application/*` for a request of `application/json`), or a
+ * single leaf when the client's `Content-Type` doesn't match the operation's
+ * declared media types. Runs before {@link validateBody} (and before parameter
+ * validation) so a content-type mismatch short-circuits with an unambiguous
+ * single-leaf tree instead of being paired with unrelated parameter
+ * diagnostics.
  *
  * Fires whenever the client declared a `Content-Type` that doesn't
  * match, including the body-absent case, where the wrong header is
- * the more actionable signal than the downstream "body required" leaf.
+ * the more actionable signal than the downstream "body required" leaf,
+ * and when a body arrives with no `Content-Type` at all.
  * Returns `null` (deliberately not a content-type error) when:
  * - the operation declares no `requestBody`,
  * - the operation's `requestBody.content` map declares no media type
  *   this validator can match against,
  * - the request has no body AND no `Content-Type` (body-missing is a
  *   separate concern, handled by {@link validateBody}).
- *
- * @internal
- */
-export function checkBodyContentType(
-  req: HttpRequest,
-  cache: OperationCache,
-): ValidationError | null {
-  const match = matchRequestBodyMediaType(req, cache);
-  return typeof match === "string" ? null : match;
-}
-
-/**
- * Return the matched request-body media type, a content-type error, or
- * `null` when no body media-type gate applies.
  *
  * @internal
  */
@@ -427,8 +415,8 @@ export function matchRequestBodyMediaType(
  * per-media-type validators. Returns a leaf error for required-missing;
  * delegates shape validation to the compiled schema and returns its
  * error subtree (or `null` on success). Content-type matching is the
- * caller's responsibility via {@link checkBodyContentType}; when
- * reached here, a matching media-type validator is assumed to exist.
+ * caller's responsibility via {@link matchRequestBodyMediaType}. A matched
+ * media type with no schema has no validator, and its body is accepted.
  *
  * @internal
  */
