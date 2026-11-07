@@ -34,8 +34,9 @@ import {
  */
 export interface SpecHygieneIssue {
   /**
-   * - `"unused-component"`: a `components.{schemas,parameters,requestBodies,responses,headers,securitySchemes}`
-   *   entry that no operation reaches.
+   * - `"unused-component"`: a `components.{schemas,parameters,...}` entry
+   *   (the categories in `COMPONENT_CATEGORIES`) that nothing in the
+   *   document reaches.
    * - `"unused-tag"`: a `tags[]` entry whose name doesn't appear in any
    *   operation's `tags` array.
    * - `"unreachable-defs"`: a `$defs/<name>` entry inside a schema that no
@@ -132,14 +133,10 @@ const COMPONENT_CATEGORIES = [
   "responses",
   "headers",
   "securitySchemes",
+  "pathItems",
 ] as const satisfies readonly (keyof ComponentsObject)[];
 
-const REFERENCE_CONTAINERS = [
-  ...COMPONENT_CATEGORIES,
-  "pathItems",
-  "callbacks",
-  "mediaTypes",
-] as const;
+const REFERENCE_CONTAINERS = [...COMPONENT_CATEGORIES, "callbacks", "mediaTypes"] as const;
 
 const PATH_TEMPLATE_RE = /\{([^{}]+)\}/g;
 // Splitting form: the capture group keeps the placeholders in the output
