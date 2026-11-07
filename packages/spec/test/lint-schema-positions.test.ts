@@ -294,3 +294,194 @@ it("treats x-prefixed media type names as content entries", () => {
       .map((i) => i.pointer),
   ).toEqual(["/paths/~1x/post/requestBody/content/x-private~1json/schema/$defs/Dead"]);
 });
+
+describe("reachability reads a fragment against the enclosing $id", () => {
+  const body = {
+    "/a": {
+      post: {
+        requestBody: {
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Outer" } } },
+        },
+        responses: { "200": { description: "ok" } },
+      },
+    },
+  };
+  const codes = (spec: OpenAPIDocument, code: string): string[] =>
+    lintResolvedSpec(spec)
+      .filter((i) => i.code === code)
+      .map((i) => i.pointer);
+  const outerSpec = (openapi = "3.1.0") =>
+    minimalSpec({
+      openapi,
+      paths: body,
+      components: {
+        schemas: {
+          Outer: {
+            $id: "https://example.com/outer",
+            $defs: { Inner: { type: "string" } },
+            properties: {
+              x: { $ref: "#/components/schemas/Unused" },
+              y: { $ref: "#/$defs/Inner" },
+            },
+          },
+          Unused: { type: "integer" },
+        },
+      },
+    });
+
+  it("counts a definition the fragment reaches inside the resource", () => {
+    expect(codes(outerSpec(), "unreachable-defs")).toEqual([]);
+  });
+
+  it("does not count a document pointer written inside the resource", () => {
+    expect(codes(outerSpec(), "unused-component")).toEqual(["/components/schemas/Unused"]);
+  });
+
+  it("keeps the document reading under OAS 3.0, which ignores $id", () => {
+    const spec = outerSpec("3.0.3");
+    expect(codes(spec, "unused-component")).toEqual([]);
+    expect(codes(spec, "unreachable-defs")).toEqual(["/components/schemas/Outer/$defs/Inner"]);
+  });
+
+  it("uses the nearest of two nested resources", () => {
+    const spec = minimalSpec({
+      paths: body,
+      components: {
+        schemas: {
+          Outer: {
+            $id: "https://example.com/outer",
+            $defs: { Dead: {}, Live: {} },
+            properties: {
+              a: { $ref: "#/$defs/Live" },
+              nested: {
+                $id: "https://example.com/nested",
+                $defs: { Dead: {}, Near: {} },
+                $ref: "#/$defs/Near",
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(codes(spec, "unreachable-defs")).toEqual([
+      "/components/schemas/Outer/$defs/Dead",
+      "/components/schemas/Outer/properties/nested/$defs/Dead",
+    ]);
+  });
+
+  it("does not take scope from an $id in data", () => {
+    const spec = minimalSpec({
+      paths: body,
+      components: {
+        schemas: {
+          Outer: {
+            example: { $id: "https://example.com/data", value: { $ref: "#/components/schemas/T" } },
+          },
+          T: { type: "string" },
+        },
+      },
+    });
+    expect(codes(spec, "unused-component")).toEqual([]);
+  });
+
+  it("finds a referenced schema's resource when the fragment sits in a target", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/a": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": { schema: { $ref: "#/components/schemas/Outer/$defs/Entry" } },
+              },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          Outer: {
+            $id: "https://example.com/outer",
+            $defs: { Entry: { $ref: "#/$defs/Inner" }, Inner: {} },
+          },
+        },
+      },
+    });
+    expect(codes(spec, "unreachable-defs")).toEqual([]);
+  });
+  const schemasSpec = (schemas: Record<string, unknown>) =>
+    minimalSpec({ paths: body, components: { schemas } });
+
+  it("reads a fragment under a top-level empty $id against the document", () => {
+    const spec = schemasSpec({
+      Outer: { $id: "", $ref: "#/components/schemas/T" },
+      T: { type: "string" },
+    });
+    expect(codes(spec, "unused-component")).toEqual([]);
+  });
+
+  it('reads a fragment under a top-level $id "#" against that schema', () => {
+    const spec = schemasSpec({
+      Outer: { $id: "#", $ref: "#/components/schemas/T" },
+      T: { type: "string" },
+    });
+    expect(codes(spec, "unused-component")).toEqual(["/components/schemas/T"]);
+  });
+
+  it.each(["", "#"])("reads a fragment under a nested $id %j against that schema", (id) => {
+    const spec = schemasSpec({
+      Outer: {
+        $id: "https://example.com/outer",
+        properties: { x: { $id: id, $defs: { Inner: { type: "string" } }, $ref: "#/$defs/Inner" } },
+      },
+    });
+    expect(codes(spec, "unreachable-defs")).toEqual([]);
+  });
+
+  it("reads a $ref in data under $id against the document", () => {
+    const spec = schemasSpec({
+      Outer: { $id: "urn:example:root", example: { $ref: "#/components/schemas/T" } },
+      T: { type: "string" },
+    });
+    expect(codes(spec, "unused-component")).toEqual([]);
+  });
+
+  it("reads a Reference Object under a schema extension against the document", () => {
+    const spec = minimalSpec({
+      paths: {
+        "/a": {
+          post: {
+            requestBody: {
+              content: { "application/json": { schema: { $ref: "#/components/schemas/Outer" } } },
+            },
+            responses: { "200": { $ref: "#/components/schemas/Outer/x-response" } },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          Outer: { $id: "urn:example:root", "x-response": { $ref: "#/components/responses/R" } },
+        },
+        responses: { R: { description: "OK" } },
+      },
+    });
+    expect(codes(spec, "unused-component")).toEqual([]);
+  });
+  // Any $ref in the document counts toward reachability, whether or not an
+  // operation reaches it. A resource whose own fragments point inside it
+  // therefore reaches itself, as a document pointer from inside it would.
+  it("counts a resource's own fragments toward its definitions", () => {
+    const spec = schemasSpec({
+      Outer: {
+        $defs: {
+          Dead: {
+            $id: "https://example.com/dead",
+            $defs: { S: { type: "string" } },
+            properties: { a: { $ref: "#/$defs/S" } },
+          },
+        },
+      },
+    });
+    expect(codes(spec, "unreachable-defs")).toEqual([]);
+  });
+});

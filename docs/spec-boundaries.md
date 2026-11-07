@@ -321,7 +321,7 @@ JavaScript calculates `0.3 / 0.1` as `2.9999999999999996` instead of `3`.
 
 ### packages/spec
 
-**`findUndeclaredSecuritySchemes`** ([packages/spec/src/lint.ts:1242](../packages/spec/src/lint.ts#L1242))
+**`findUndeclaredSecuritySchemes`** ([packages/spec/src/lint.ts:1319](../packages/spec/src/lint.ts#L1319))
 
 Against OpenAPI 3.2.0 Security Requirement Object (<https://spec.openapis.org/oas/v3.2.0.html#security-requirement-object>).
 
@@ -720,7 +720,7 @@ to the original files (#561).
 
 ### packages/spec
 
-**`findQuerystringConflicts`** ([packages/spec/src/lint.ts:1071](../packages/spec/src/lint.ts#L1071))
+**`findQuerystringConflicts`** ([packages/spec/src/lint.ts:1148](../packages/spec/src/lint.ts#L1148))
 
 Against OpenAPI 3.2.0 Parameter Locations (<https://spec.openapis.org/oas/v3.2.0.html#parameter-locations>).
 
@@ -729,7 +729,7 @@ OpenAPI spans the Path Item when it forbids mixing `querystring` with
 that the same way, so a Path Item `querystring` named `a` and an operation
 `querystring` named `b` conflict, because both would apply to one request.
 
-**`findDuplicateOperationIds`** ([packages/spec/src/lint.ts:1189](../packages/spec/src/lint.ts#L1189))
+**`findDuplicateOperationIds`** ([packages/spec/src/lint.ts:1266](../packages/spec/src/lint.ts#L1266))
 
 Against OpenAPI 3.2.0 Operation Object (<https://spec.openapis.org/oas/v3.2.0.html#operation-object>).
 
@@ -743,7 +743,7 @@ and are not reported. Two Operation Objects written separately with
 the same `operationId` are reported, even when their content is
 identical.
 
-**`findUndeclaredServerVariables`** ([packages/spec/src/lint.ts:1328](../packages/spec/src/lint.ts#L1328))
+**`findUndeclaredServerVariables`** ([packages/spec/src/lint.ts:1405](../packages/spec/src/lint.ts#L1405))
 
 Against OpenAPI 3.2.0 Server Object (<https://spec.openapis.org/oas/v3.2.0.html#server-object>).
 
