@@ -77,19 +77,14 @@ const EXEMPT = new Map([
   ],
   [
     "packages/validator/src/document-walk.ts",
-    "exports the list under the name `parameter-locations.ts` and " +
-      "`ignored-headers.ts` import; its own walk calls `operationsOn`",
+    "exports the list under the name `parameter-locations.ts` imports; its " +
+      "own walk calls `operationsOn`",
   ],
   [
     "packages/validator/src/parameter-locations.ts",
     "engine: lists parameter locations the validator cannot serve, for " +
       "the startup gate over what the runtime router routes and for the " +
       "report over what the emitter would serve",
-  ],
-  [
-    "packages/validator/src/ignored-headers.ts",
-    "not moved: lists ignored header declarations under the fixed method " +
-      "fields only, so one under an `additionalOperations` entry is not listed",
   ],
   [
     "packages/spec/src/overlay.ts",
