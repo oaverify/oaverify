@@ -13,15 +13,10 @@
  * @packageDocumentation
  */
 
-import {
-  pointerFromRefFragment,
-  resolveJsonPointer,
-  type OpenAPIDocument,
-} from "@oaverify/internal-core";
-import { isPathTemplate } from "@oaverify/internal-core/internals";
+import type { OpenAPIDocument } from "@oaverify/internal-core";
+import { followReference, isPathTemplate } from "@oaverify/internal-core/internals";
 import { escapePointer, METHODS } from "./document-walk.js";
 import { isIgnoredHeaderParameter, isIgnoredResponseHeader } from "./headers.js";
-import { REF_CHAIN_MAX_HOPS } from "./operation-cache.js";
 
 /**
  * One ignored header declaration, located: a header parameter
@@ -89,26 +84,14 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
     raw: unknown,
     oneHop = false,
   ): { target?: unknown; definitionPointer?: string } => {
-    let current = raw;
-    let definitionPointer: string | undefined;
-    for (let hops = 0; hops <= REF_CHAIN_MAX_HOPS; hops++) {
-      const ref = isObj(current) ? current["$ref"] : undefined;
-      if (typeof ref !== "string") {
-        return definitionPointer === undefined
-          ? { target: current }
-          : { target: current, definitionPointer };
-      }
-      const pointer = ref.startsWith("#") ? pointerFromRefFragment(ref) : undefined;
-      if (pointer === undefined || hops === REF_CHAIN_MAX_HOPS) return {};
-      try {
-        current = resolveJsonPointer(document, pointer);
-      } catch {
-        return {};
-      }
-      definitionPointer = pointer;
-      if (oneHop) return { target: current, definitionPointer };
-    }
-    return {};
+    if (!isObj(raw) || typeof raw["$ref"] !== "string") return { target: raw };
+    const chain = followReference(document, raw, "");
+    const first = chain.hops[1];
+    if (first === undefined) return {};
+    if (oneHop) return { target: first.node, definitionPointer: first.pointer };
+    return chain.status === "complete"
+      ? { target: chain.target, definitionPointer: chain.pointer! }
+      : {};
   };
 
   const collectParameters = (

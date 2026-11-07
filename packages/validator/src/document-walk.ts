@@ -35,14 +35,8 @@
  * @packageDocumentation
  */
 
-import {
-  HTTP_METHODS,
-  escapePointerSegment,
-  pointerFromRefFragment,
-  resolveJsonPointer,
-  type OpenAPIDocument,
-} from "@oaverify/internal-core";
-import { operationsOn } from "@oaverify/internal-core/internals";
+import { HTTP_METHODS, escapePointerSegment, type OpenAPIDocument } from "@oaverify/internal-core";
+import { followReference, operationsOn } from "@oaverify/internal-core/internals";
 import type { ResolvedGraph } from "@oaverify/internal-schema";
 import { refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
 import { subschemaEntries } from "@oaverify/internal-core/subschema-positions";
@@ -327,33 +321,26 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
 
 /**
  * The value a local `$ref` chain ends at, with the pointer of its last
- * hop. `undefined` when `value` is not a reference, or when a hop is not
- * a local pointer, does not resolve, or the chain runs past 32 hops:
- * conformance and the resolver report those, and the walk skips them.
- * With `oneHop`, the caller visits intermediate Path Item siblings too.
+ * hop. `undefined` when `value` is not a reference or the chain does not
+ * complete: conformance and the resolver report those, and the walk
+ * skips them. What counts as a local reference is the operation model's
+ * rule, which is the request path's, and so is how long a chain may be.
+ * With `oneHop` only the first reference is followed: the caller visits
+ * intermediate Path Item siblings too, and bounds the chain itself.
  */
 function followLocal(
   value: Record<string, unknown>,
   document: OpenAPIDocument,
   oneHop = false,
 ): { target: unknown; pointer: string } | undefined {
-  let current: unknown = value;
-  let pointer: string | undefined;
-  for (let hops = 0; hops <= 32; hops++) {
-    if (!isObj(current) || typeof current["$ref"] !== "string") {
-      return pointer === undefined ? undefined : { target: current, pointer };
-    }
-    const next = hops === 32 ? undefined : pointerFromRefFragment(current["$ref"]);
-    if (next === undefined) return undefined;
-    try {
-      current = resolveJsonPointer(document, next);
-    } catch {
-      return undefined;
-    }
-    pointer = next;
-    if (oneHop) return { target: current, pointer };
-  }
-  return undefined;
+  if (typeof value["$ref"] !== "string") return undefined;
+  const chain = followReference(document, value, "");
+  const first = chain.hops[1];
+  if (first === undefined) return undefined;
+  if (oneHop) return { target: first.node, pointer: first.pointer };
+  return chain.status === "complete"
+    ? { target: chain.target, pointer: chain.pointer! }
+    : undefined;
 }
 
 /**
