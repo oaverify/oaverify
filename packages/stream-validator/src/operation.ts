@@ -51,7 +51,10 @@ export interface OperationLocator {
  * the OpenAPI version off `doc.openapi` (override with
  * `options.openApiVersion`) and carries `doc.components` so internal
  * `$ref`s resolve. Schema siblings at the use site and along a reference
- * chain apply in 3.1 and 3.2; 3.0 discards them.
+ * chain apply in 3.1 and 3.2; 3.0 discards them. A version that is not
+ * exactly 3.0, 3.1 or 3.2 (`3.10.0`, `3.01.0`, a missing field) validates as
+ * raw JSON Schema, where `format` does not assert. `createValidator` falls
+ * back to 3.1 for an unknown minor instead.
  *
  * Top-level reference chains pointing outside `components` are inlined as
  * conjunctions. A classifier error can name a generated path such as
