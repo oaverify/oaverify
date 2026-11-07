@@ -11,6 +11,10 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
+    "./operation-model": {
+      "types": "./src/operation-model.ts",
+      "import": "./src/operation-model.ts"
+    },
     "./prototype-properties": {
       "types": "./src/prototype-properties.ts",
       "import": "./src/prototype-properties.ts"

@@ -58,6 +58,7 @@ function workspaceTarget(specifier: string): string {
 // package's bundle boundary; the source targets come from the root builder.
 const bundledWorkspace = Object.fromEntries(
   [
+    "@oaverify/internal-core/operation-model",
     "@oaverify/internal-core/prototype-properties",
     "@oaverify/internal-core/ref-siblings",
     "@oaverify/internal-core/subschema-positions",
