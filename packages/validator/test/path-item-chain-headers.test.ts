@@ -80,3 +80,65 @@ it("reports an independent callback into a later hop for both reaching operation
     "POST /p",
   ]);
 });
+
+it("reports a declaration under an additionalOperations entry like a fixed method's (#1353)", () => {
+  const doc = {
+    openapi: "3.2.0",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/p": {
+        parameters: [{ name: "Accept", in: "header" }],
+        additionalOperations: {
+          Purge: {
+            parameters: [{ name: "Content-Type", in: "header" }],
+            responses: { "200": { description: "ok", headers: { "Content-Type": {} } } },
+            callbacks: {
+              cb: {
+                "{$request.query.url}": {
+                  post: { parameters: [{ name: "Authorization", in: "header" }], responses: {} },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/viaRef": { $ref: "#/components/pathItems/P" },
+    },
+    webhooks: {
+      hook: {
+        additionalOperations: { Notify: { parameters: [{ name: "Accept", in: "header" }] } },
+      },
+    },
+    components: {
+      pathItems: {
+        P: { additionalOperations: { "a/b": { parameters: [{ name: "Accept", in: "header" }] } } },
+      },
+    },
+  } as unknown as OpenAPIDocument;
+  expect(
+    listIgnoredHeaders(doc).map(({ pointer, where, definitionPointer }) => [
+      pointer,
+      where,
+      definitionPointer,
+    ]),
+  ).toEqual([
+    ["/paths/~1p/parameters/0", "path item /p", undefined],
+    ["/paths/~1p/additionalOperations/Purge/parameters/0", "Purge /p", undefined],
+    [
+      "/paths/~1p/additionalOperations/Purge/responses/200/headers/Content-Type",
+      "Purge /p",
+      undefined,
+    ],
+    [
+      "/paths/~1p/additionalOperations/Purge/callbacks/cb/{$request.query.url}/post/parameters/0",
+      "POST callback cb {$request.query.url} of Purge /p",
+      undefined,
+    ],
+    [
+      "/components/pathItems/P/additionalOperations/a~1b/parameters/0",
+      "a/b /viaRef",
+      "/components/pathItems/P/additionalOperations/a~1b/parameters/0",
+    ],
+    ["/webhooks/hook/additionalOperations/Notify/parameters/0", "Notify webhook hook", undefined],
+  ]);
+});

@@ -556,14 +556,14 @@ cannot reject a request or a response or require the header, and a
 parameter's value is not handed to the handler. A response's media type
 is still checked against its `content` map. It is graded `warning`,
 since the document is legal and only the declaration is inert. It
-covers the operations under `paths`, `webhooks` and callbacks, since
-the declaration is inert in each; OpenAPI 3.2 `additionalOperations`
-are not walked, as nothing in oaverify routes them. A declaration
-reached from several operations is reported once for each, and a Path
-Item's own parameter once for the Path Item. A `$ref`'d parameter is
-located at its use site; a declaration inside a shared Response or Path
-Item is located in that shared definition, and the message says which
-operation and status reached it.
+covers the operations under `paths`, `webhooks` and callbacks, OpenAPI
+3.2 `additionalOperations` entries included, since the declaration is
+inert in each. A declaration reached from several operations is
+reported once for each, and a Path Item's own parameter once for the
+Path Item. A `$ref`'d parameter is located at its use site; a
+declaration inside a shared Response or Path Item is located in that
+shared definition, and the message says which operation and status
+reached it.
 
 ### Class and severity are different questions
 

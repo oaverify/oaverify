@@ -14,8 +14,8 @@
  */
 
 import type { OpenAPIDocument } from "@oaverify/internal-core";
-import { followReference, isPathTemplate } from "@oaverify/internal-core/internals";
-import { escapePointer, METHODS } from "./document-walk.js";
+import { followReference, isPathTemplate, operationsOn } from "@oaverify/internal-core/internals";
+import { escapePointer } from "./document-walk.js";
 import { isIgnoredHeaderParameter, isIgnoredResponseHeader } from "./headers.js";
 
 /**
@@ -66,6 +66,8 @@ const isExtension = (key: string): boolean => key.startsWith("x-");
 /**
  * Every header declaration OpenAPI says to ignore, in document order:
  * `paths`, then `webhooks`, with each operation's callbacks after it.
+ * A Path Item's operations are the ones `operationsOn` lists, so an
+ * `additionalOperations` entry is walked like a fixed method field.
  * A declaration reached from several operations is listed once for each,
  * and a Path Item's own parameter once for that Path Item. This lists
  * declarations, including fields shadowed during standalone compilation.
@@ -171,7 +173,7 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
       at = definitionPointer ?? at;
       viaRef = true;
     }
-    const hasOperations = chain.some(({ item }) => METHODS.some((method) => isObj(item[method])));
+    const hasOperations = chain.some(({ item }) => operationsOn(item).length > 0);
     const traversed = new Set(ancestors);
     for (const entry of chain) {
       traversed.add(entry.item);
@@ -189,22 +191,23 @@ export function listIgnoredHeaders(document: OpenAPIDocument): IgnoredHeader[] {
   ): void => {
     // Earlier hops are in `ancestors`. A callback may still reach a
     // later hop independently, with its own operation label.
-    const operations = METHODS.filter((method) => isObj(item[method]));
     if (hasOperations) {
       collectParameters(item["parameters"], at, `path item ${label}`, viaRef);
     }
-    for (const method of operations) {
-      const operation = item[method] as Obj;
-      const where = `${method.toUpperCase()} ${label}`;
-      collectParameters(operation["parameters"], `${at}/${method}`, where, viaRef);
-      collectResponseHeaders(operation["responses"], `${at}/${method}`, where, viaRef);
+    for (const { method, methodKind, suffix, node } of operationsOn(item)) {
+      const operation = node as Obj;
+      // A fixed field is lowercase and names an uppercase method; an
+      // additionalOperations key is the method as the request sends it.
+      const where = `${methodKind === "fixed" ? method.toUpperCase() : method} ${label}`;
+      collectParameters(operation["parameters"], `${at}/${suffix}`, where, viaRef);
+      collectResponseHeaders(operation["responses"], `${at}/${suffix}`, where, viaRef);
       const callbacks = operation["callbacks"];
       if (!isObj(callbacks)) continue;
       for (const [name, rawCallback] of Object.entries(callbacks)) {
         const callback = follow(rawCallback);
         if (!isObj(callback.target)) continue;
         const callbackAt =
-          callback.definitionPointer ?? `${at}/${method}/callbacks/${escapePointer(name)}`;
+          callback.definitionPointer ?? `${at}/${suffix}/callbacks/${escapePointer(name)}`;
         for (const [expression, entry] of Object.entries(callback.target)) {
           if (isExtension(expression)) continue;
           // Naming the reaching operation keeps findings on a shared
