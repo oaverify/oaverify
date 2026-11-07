@@ -10,10 +10,12 @@
  * gains a container the others silently miss, so the structure lives
  * here once and callers supply hooks.
  *
- * That is also the blast radius of an omission here, and it is wider
- * than it looks: `query` was missing from METHODS below, and all four
- * went quiet on an OAS 3.2 QUERY operation rather than one of them
- * reporting differently.
+ * Which fields of a Path Item hold operations comes from the operation
+ * model in `core`, so this walk and the lint rules cannot disagree about
+ * it. An omission there is wider than it looks: `query` was once missing
+ * from this walk's own method list, and all four consumers went quiet
+ * on an OAS 3.2 QUERY operation rather than one of them reporting
+ * differently.
  *
  * Positions inside a schema come from `core`'s subschema constants, so
  * this cannot drift from what the compiler treats as a subschema either.
@@ -34,53 +36,24 @@
  */
 
 import {
+  HTTP_METHODS,
   escapePointerSegment,
   pointerFromRefFragment,
   resolveJsonPointer,
-  type HttpMethod,
   type OpenAPIDocument,
 } from "@oaverify/internal-core";
+import { operationsOn } from "@oaverify/internal-core/operation-model";
 import type { ResolvedGraph } from "@oaverify/internal-schema";
 import { refSiblingIsDiscarded } from "@oaverify/internal-schema/internals";
 import { subschemaEntries } from "@oaverify/internal-core/subschema-positions";
 
 /**
- * The fixed method fields that hold an Operation Object under a Path
- * Item.
- *
- * Written as a `Record<HttpMethod, true>` and read back with
- * `Object.keys`, so the compiler requires every member of the union.
- * An array, however it is typed, cannot: `satisfies` rejects a name that
- * is not a method, and nothing rejects a method the list forgets. The
- * omission is the failure that happened. `query` went missing here while
- * the router, the spec linter, the stream analyzer and the CLI emitter
- * all carried it, and nothing failed anywhere: all four consumers of
- * this walk simply reported nothing for a QUERY operation.
- *
- * OAS 3.2 also puts Operation Objects in `additionalOperations`,
- * which the document walk visits independently of runtime method support.
- */
-const METHOD_FIELDS: Record<HttpMethod, true> = {
-  get: true,
-  put: true,
-  post: true,
-  delete: true,
-  options: true,
-  head: true,
-  patch: true,
-  trace: true,
-  query: true,
-};
-
-/**
- * {@link METHOD_FIELDS} as a list. Exported so a second walk over
- * Operation Objects reuses this one instead of writing its own copy:
- * the `query` omission described above is what an independent copy
- * costs.
+ * The fixed method fields of a Path Item, for the walks in this package
+ * that still read them directly.
  *
  * @internal
  */
-export const METHODS = Object.keys(METHOD_FIELDS) as readonly HttpMethod[];
+export const METHODS = HTTP_METHODS;
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -284,14 +257,8 @@ export function walkDocumentSchemas(document: OpenAPIDocument, hooks: DocumentWa
     if (!isObj(item)) return;
     enter(item, walkPathItem, true);
     walkParameterList(item["parameters"], `${pointer}/parameters`);
-    for (const method of METHODS) {
-      if (item[method] !== undefined) walkOperation(item[method], `${pointer}/${method}`);
-    }
-    const additional = item["additionalOperations"];
-    if (isObj(additional)) {
-      for (const [method, operation] of Object.entries(additional)) {
-        walkOperation(operation, `${pointer}/additionalOperations/${escapePointer(method)}`);
-      }
+    for (const { suffix, node: operation } of operationsOn(item)) {
+      walkOperation(operation, `${pointer}/${suffix}`);
     }
   };
 
