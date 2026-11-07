@@ -512,6 +512,21 @@ The other checks still run, so these documents now exit 1 at the default gate
 instead of aborting with exit 2. Selection and severity overrides apply as usual.
 Runtime validator construction still rejects the conflict.
 
+The hygiene error `querystring-conflict` reports what OpenAPI 3.2 forbids of
+`in: querystring`: it "MUST NOT appear more than once, and MUST NOT appear in
+the same operation (or in the operation's path-item) as any `in: "query"`
+parameters". An operation overriding a path-level parameter by name and
+location replaces it, so that pair does not conflict, and one name and
+location twice is `duplicate-parameter` instead. It targets each later entry
+and names the earlier one. 3.0 and 3.1 have no such location; conformance
+reports it there.
+
+Conformance also reports a conflict among literal entries in one list, since
+the 3.2 meta-schema forbids it, so such a list carries both findings and
+regrading `querystring-conflict` alone leaves the conformance error failing the
+gate. A conflict conformance cannot see, through `$ref` entries or across the
+Path Item and operation lists, carries only this one.
+
 The hygiene warning `unsupported-openapi-version` locates an unknown 3.x
 minor at `/openapi` and discloses skipped conformance and the OpenAPI 3.1
 schema fallback. It follows ordinary selection and regrading (see

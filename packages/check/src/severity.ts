@@ -69,6 +69,7 @@ export const HYGIENE_ERRORS: ReadonlySet<string> = new Set([
   "path-param-unused",
   "path-template-malformed",
   "duplicate-parameter",
+  "querystring-conflict",
   "duplicate-operation-id",
   "security-scheme-undeclared",
   "server-variable-undeclared",

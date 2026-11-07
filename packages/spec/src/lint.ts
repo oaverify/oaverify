@@ -18,6 +18,7 @@ import { subschemaEntries } from "@oaverify/internal-core/subschema-positions";
 import { EXTERNALS_FIELD } from "./resolver-shared.js";
 import {
   buildOperationModel,
+  effectivePathItem,
   followReference,
   operationsOn,
   type OperationModel,
@@ -55,6 +56,9 @@ export interface SpecHygieneIssue {
    * - `"duplicate-parameter"`: a `parameters` list declaring the same
    *   `name` and `in` twice, which OpenAPI forbids. An operation-level
    *   parameter overriding a path-level one is legal and not reported.
+   * - `"querystring-conflict"`: in OpenAPI 3.2, a second `querystring`
+   *   parameter, or a `querystring` parameter beside `query` parameters,
+   *   in one operation or its Path Item.
    * - `"duplicate-operation-id"`: two Operation Objects carrying the same
    *   `operationId`, which OpenAPI requires to be unique. One definition
    *   reached from several places is one operation and is not reported.
@@ -78,6 +82,7 @@ export interface SpecHygieneIssue {
     | "path-param-unused"
     | "path-template-malformed"
     | "duplicate-parameter"
+    | "querystring-conflict"
     | "duplicate-operation-id"
     | "security-scheme-undeclared"
     | "server-variable-undeclared"
@@ -183,6 +188,9 @@ const PLACEHOLDER_RE = /^\{[^{}]+\}$/;
  * - **duplicate-parameter**: a Path Item or Operation `parameters` list
  *   repeating a `name` and `in` pair, in every Path Item the document
  *   defines (callbacks, webhooks and `components.pathItems` included).
+ * - **querystring-conflict**: an OpenAPI 3.2 `querystring` parameter
+ *   repeated under another name, or combined with `query` parameters, across
+ *   an operation's own list and its Path Item's.
  * - **duplicate-operation-id**: two operation definitions sharing an
  *   `operationId`, across the Path Items `duplicate-parameter` reads.
  * - **security-scheme-undeclared**: a document- or operation-level
@@ -213,6 +221,7 @@ export function lintResolvedSpec(
   issues.push(...findPathParamMismatches(model));
   issues.push(...findMalformedPathTemplates(model));
   issues.push(...findDuplicateParameters(model));
+  issues.push(...findQuerystringConflicts(model));
   issues.push(...findDuplicateOperationIds(model, options.regions));
   issues.push(...findUndeclaredSecuritySchemes(model, options.regions));
   issues.push(...findUndeclaredServerVariables(model));
@@ -1051,6 +1060,107 @@ function duplicatesIn(
       pointer: `${listPointer}/${index}`,
       message: `${location} parameter "${name}" is declared again at index ${index} of a list that declares it at index ${earlier}; a parameter list must not repeat a name and location`,
     });
+  }
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// querystring-conflict
+// ---------------------------------------------------------------------------
+
+/**
+ * OpenAPI 3.2 says `querystring` "MUST NOT appear more than once, and MUST
+ * NOT appear in the same operation (or in the operation's path-item) as any
+ * `in: "query"` parameters". Each operation is read over its effective list:
+ * an entry it overrides by name and location no longer applies to it. A
+ * conflict entirely within a Path Item's list is reported once, on that list.
+ *
+ * @specCites OpenAPI 3.2.0 Parameter Locations, https://spec.openapis.org/oas/v3.2.0.html#parameter-locations
+ * @specBoundary resolves https://spec.openapis.org/oas/v3.2.0.html#parameter-locations
+ * OpenAPI spans the Path Item when it forbids mixing `querystring` with
+ * `query`, and does not say what "more than once" spans. This check reads
+ * that the same way, so a Path Item `querystring` named `a` and an operation
+ * `querystring` named `b` conflict, because both would apply to one request.
+ */
+function findQuerystringConflicts(model: OperationModel): SpecHygieneIssue[] {
+  const { document } = model;
+  if (detectOpenAPIVersion(document) !== "3.2") return [];
+  // A Path Item behind a reference is read through every entry reaching it.
+  const issues = new Map<string, SpecHygieneIssue>();
+  const report = (found: readonly SpecHygieneIssue[]): void => {
+    for (const issue of found) issues.set(`${issue.pointer}\0${issue.message}`, issue);
+  };
+  for (const { pointer, node } of model.declared) {
+    const { effective, origins } = effectivePathItem(document, node, pointer);
+    const shared = queryParameters(
+      effective.parameters,
+      `${origins.get("parameters") ?? pointer}/parameters`,
+      document,
+    );
+    report(querystringConflicts([], shared));
+    for (const { suffix, method, methodKind, node: op } of operationsOn(effective)) {
+      const origin = origins.get(methodKind === "fixed" ? method : "additionalOperations");
+      const own = queryParameters(
+        op.parameters,
+        `${origin ?? pointer}/${suffix}/parameters`,
+        document,
+      );
+      const inherited = shared.filter(
+        (p) => !own.some((o) => o.name === p.name && o.location === p.location),
+      );
+      report(querystringConflicts(inherited, own));
+    }
+  }
+  return [...issues.values()];
+}
+
+interface QueryParameter {
+  name: string;
+  location: "query" | "querystring";
+  pointer: string;
+}
+
+function queryParameters(
+  parameters: unknown,
+  listPointer: string,
+  document: OpenAPIDocument,
+): QueryParameter[] {
+  // An unreadable list or entry declares nothing; conformance reports its shape.
+  if (!Array.isArray(parameters)) return [];
+  const out: QueryParameter[] = [];
+  for (const [index, entry] of (parameters as unknown[]).entries()) {
+    const param = followLocal(entry, document)?.target;
+    if (!isObject(param)) continue;
+    const { name, in: location } = param;
+    if (typeof name !== "string") continue;
+    if (location !== "query" && location !== "querystring") continue;
+    out.push({ name, location, pointer: `${listPointer}/${index}` });
+  }
+  return out;
+}
+
+function querystringConflicts(
+  inherited: readonly QueryParameter[],
+  list: readonly QueryParameter[],
+): SpecHygieneIssue[] {
+  const issues: SpecHygieneIssue[] = [];
+  const earlier = [...inherited];
+  for (const param of list) {
+    // One name and location twice is `duplicate-parameter`'s finding.
+    const other = earlier.find((e) =>
+      e.location === param.location ? e.location === "querystring" && e.name !== param.name : true,
+    );
+    if (other !== undefined) {
+      issues.push({
+        code: "querystring-conflict",
+        pointer: param.pointer,
+        message:
+          param.location === other.location
+            ? `querystring parameter "${param.name}" conflicts with querystring parameter "${other.name}" at ${other.pointer}; querystring must not appear more than once`
+            : `${param.location} parameter "${param.name}" conflicts with ${other.location} parameter "${other.name}" at ${other.pointer}; querystring must not be combined with query parameters`,
+      });
+    }
+    earlier.push(param);
   }
   return issues;
 }
