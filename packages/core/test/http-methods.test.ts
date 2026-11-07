@@ -5,8 +5,8 @@
  * method added to the union and missed at one site simply disappeared
  * from whatever that site did.
  *
- * The derivation makes the type half impossible. `check-http-methods`
- * guards the other half, a new local copy. These pin the contents.
+ * The derivation makes that impossible for the type. A local copy under
+ * another name is unguarded. These pin the contents.
  */
 import { describe, expect, it } from "vitest";
 import { HTTP_METHODS, type HttpMethod } from "../src/index.js";
