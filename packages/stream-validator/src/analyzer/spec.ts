@@ -156,7 +156,8 @@ function bodiesForOperation(
 /**
  * Roll up a streamability budget for every operation in a resolved OpenAPI
  * document. The OpenAPI version is read off `doc.openapi` (override with
- * `options.openApiVersion`) and applied to every body; other options
+ * `options.openApiVersion`) and applied to every body. A version that is not
+ * exactly 3.0, 3.1 or 3.2 is analyzed as raw JSON Schema. Other options
  * (`maxBufferedBytes`, `dialect`, ...) thread through to
  * {@link analyzeStreamability}. Schema ref siblings contribute to each
  * body budget in 3.1 and 3.2; 3.0 discards them. Top-level reference chains

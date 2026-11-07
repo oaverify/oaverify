@@ -12,7 +12,7 @@
  */
 
 import type { OpenAPIDocument, SchemaObject, SchemaOrBoolean } from "@oaverify/internal-core";
-import { HTTP_METHODS } from "@oaverify/internal-core";
+import { detectOpenAPIVersion, HTTP_METHODS } from "@oaverify/internal-core";
 import type { StreamValidatorOptions } from "../options.js";
 import { resolveRef } from "../ref-resolve.js";
 
@@ -21,14 +21,12 @@ export const HTTP_METHOD_SET: ReadonlySet<string> = new Set(HTTP_METHODS);
 
 /**
  * Map an OpenAPI version string (`"3.0.3"`) to the engine's normalization
- * selector. Unknown prefixes return undefined (treated as raw JSON Schema,
- * or overridden via `options.openApiVersion`).
+ * selector, with the same exact-minor rule as core's `detectOpenAPIVersion`.
+ * An unknown version (`"3.10.0"`, `"3.01.0"`) returns undefined: raw JSON
+ * Schema, unless `options.openApiVersion` overrides it.
  */
 export function versionFromDoc(openapi: string): StreamValidatorOptions["openApiVersion"] {
-  if (openapi.startsWith("3.0")) return "3.0";
-  if (openapi.startsWith("3.1")) return "3.1";
-  if (openapi.startsWith("3.2")) return "3.2";
-  return undefined;
+  return detectOpenAPIVersion({ openapi });
 }
 
 function isObjectSchema(s: unknown): s is SchemaObject {
