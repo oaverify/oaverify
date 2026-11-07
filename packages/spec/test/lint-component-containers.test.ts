@@ -60,6 +60,28 @@ describe("component container reachability (#1049)", () => {
       "/components/responses/R",
       "/components/securitySchemes/auth",
       "/components/securitySchemes/callbackAuth",
+      "/components/pathItems/P",
+    ]);
+  });
+
+  it("reports an unreferenced components.pathItems entry (#1354)", () => {
+    const doc: OpenAPIDocument = {
+      openapi: "3.1.0",
+      info: { title: "T", version: "1" },
+      paths: { "/a": { $ref: "#/components/pathItems/Used" } } as OpenAPIDocument["paths"],
+      components: {
+        pathItems: {
+          Used: { get: { responses: { "200": { description: "ok" } } } },
+          Orphan: { get: { responses: { "200": { description: "ok" } } } },
+        },
+      },
+    };
+    expect(lintResolvedSpec(doc)).toEqual([
+      {
+        code: "unused-component",
+        pointer: "/components/pathItems/Orphan",
+        message: "components.pathItems.Orphan is declared but no operation reaches it",
+      },
     ]);
   });
 
@@ -77,8 +99,11 @@ describe("component container reachability (#1049)", () => {
     item.get!.callbacks = { C: doc.components!.callbacks!.C! };
     doc.components!.schemas!.S = { examples: [{ get: { security: [{ unused: [] }] } }] };
     doc.components!.securitySchemes!.unused = { type: "http", scheme: "bearer" };
+    // The Path Item is placed under paths as the same object, which is
+    // no reference, so its component entry is unreached.
     expect(lintResolvedSpec(doc).map((issue) => issue.pointer)).toEqual([
       "/components/securitySchemes/unused",
+      "/components/pathItems/P",
     ]);
   });
 });
