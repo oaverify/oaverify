@@ -21,7 +21,12 @@
  */
 
 import { setSpecKey, type SchemaObject, type SchemaOrBoolean } from "@oaverify/internal-core";
-import { subschemaFamilyOf, transformSubschemaValue } from "@oaverify/internal-schema/internals";
+import type { Dialect } from "@oaverify/internal-schema";
+import {
+  refSiblingIsDiscarded,
+  subschemaFamilyOf,
+  transformSubschemaValue,
+} from "@oaverify/internal-schema/internals";
 
 function isObjectSchema(s: unknown): s is SchemaObject {
   return typeof s === "object" && s !== null && !Array.isArray(s);
@@ -31,15 +36,19 @@ function isObjectSchema(s: unknown): s is SchemaObject {
 // container. A body schema's internal `$ref` resolves against this container
 // (`#/components/schemas/Name`), so its targets need the same 3.0 -> 2020-12
 // rewrite as the inline body; without this, `nullable` / boolean `exclusive*`
-// inside a referenced component survive un-normalized. Only `schemas` holds
-// JSON Schemas a schema `$ref` can name; the other component sub-objects
-// (responses, parameters, ...) are never schema-ref targets and pass through.
-function normalizeComponents(components: Record<string, unknown>): Record<string, unknown> {
+// inside a referenced component survive un-normalized. The other component
+// sub-objects (responses, parameters, ...) pass through: a pointer can name a
+// schema inside one, but they are not schema containers, so that schema keeps
+// what it was written with.
+function mapComponentSchemas(
+  components: Record<string, unknown>,
+  rewrite: (schema: SchemaOrBoolean) => SchemaOrBoolean,
+): Record<string, unknown> {
   const schemas = components.schemas;
   if (!isObjectSchema(schemas)) return components;
   const out: Record<string, unknown> = {};
   for (const [name, sub] of Object.entries(schemas)) {
-    setSpecKey(out, name, normalizeOas30(sub as SchemaOrBoolean));
+    setSpecKey(out, name, rewrite(sub as SchemaOrBoolean));
   }
   return { ...components, schemas: out };
 }
@@ -74,7 +83,7 @@ export function normalizeOas30(schema: SchemaOrBoolean): SchemaOrBoolean {
   for (const [key, val] of Object.entries(schema)) {
     if (key === "nullable") continue; // folded into `type` below
     if (key === "components" && isObjectSchema(val))
-      setSpecKey(out, key, normalizeComponents(val as Record<string, unknown>));
+      setSpecKey(out, key, mapComponentSchemas(val as Record<string, unknown>, normalizeOas30));
     else {
       const family = subschemaFamilyOf(key);
       setSpecKey(
@@ -96,4 +105,56 @@ export function normalizeOas30(schema: SchemaOrBoolean): SchemaOrBoolean {
   foldExclusive(out, "maximum");
   foldExclusive(out, "minimum");
   return out as SchemaObject;
+}
+
+/**
+ * Drop the keywords the compiler discards beside a `$ref`, as
+ * `refSiblingIsDiscarded` decides. The one exception is a root `components`,
+ * which is where the operation helpers carry reference targets.
+ *
+ * Reaches the same nodes {@link normalizeOas30} does: subschema positions and
+ * `components.schemas`. A reference target elsewhere (`#/x-lib/S`) keeps its
+ * siblings, because a node there can also be data, such as an `enum` member, and
+ * rewriting it would change that data. Each source object is rewritten once,
+ * so a hand-built cycle or shared node keeps its shape.
+ */
+function discardRefSiblings(schema: SchemaOrBoolean): SchemaOrBoolean {
+  const rewritten = new Map<object, SchemaObject>();
+  const rewrite = (node: SchemaOrBoolean): SchemaOrBoolean => {
+    if (!isObjectSchema(node)) return node;
+    const done = rewritten.get(node);
+    if (done !== undefined) return done;
+    const out: Record<string, unknown> = {};
+    rewritten.set(node, out as SchemaObject);
+    for (const [key, val] of Object.entries(node)) {
+      if (node === schema && key === "components" && isObjectSchema(val)) {
+        setSpecKey(out, key, mapComponentSchemas(val as Record<string, unknown>, rewrite));
+        continue;
+      }
+      if (refSiblingIsDiscarded(node as Record<string, unknown>, key, true)) continue;
+      const family = subschemaFamilyOf(key);
+      setSpecKey(
+        out,
+        key,
+        family === undefined ? val : transformSubschemaValue(family, val, rewrite),
+      );
+    }
+    return out as SchemaObject;
+  };
+  return rewrite(schema);
+}
+
+/**
+ * The schema the classifier and spine see for a configuration. `openApiVersion:
+ * "3.0"` normalizes to 2020-12. Otherwise a dialect that suppresses `$ref`
+ * siblings loses them here, because the classifier and the spine both read
+ * every keyword on a node and neither consults the dialect for this.
+ */
+export function schemaForEngine(
+  schema: SchemaOrBoolean,
+  openApiVersion: string | undefined,
+  dialect: Dialect,
+): SchemaOrBoolean {
+  if (openApiVersion === "3.0") return normalizeOas30(schema);
+  return dialect.rules.refSuppressesSiblings ? discardRefSiblings(schema) : schema;
 }

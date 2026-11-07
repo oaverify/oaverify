@@ -48,7 +48,7 @@ import {
 } from "@oaverify/internal-schema";
 import { builtInFormats } from "@oaverify/internal-formats";
 import { assertFormatsRegistered, buildKeywordMap } from "@oaverify/internal-schema/internals";
-import { normalizeOas30 } from "../openapi/index.js";
+import { schemaForEngine } from "../openapi/index.js";
 import { classify } from "../classifier/index.js";
 import {
   BudgetReached,
@@ -206,7 +206,12 @@ function buildDelegate(
   const compile = (schema: SchemaObject): CompiledValidator => {
     let v = cache.get(schema);
     if (v === undefined) {
-      const doc: Record<string, unknown> = { ...schema };
+      // Where a `$ref` discards its siblings, containers carried beside it would
+      // be discarded too and the reference could not reach them.
+      const doc: Record<string, unknown> =
+        dialect.rules.refSuppressesSiblings && "$ref" in schema
+          ? { allOf: [schema] }
+          : { ...schema };
       if (rootObj !== undefined) {
         for (const c of REF_CONTAINERS) {
           const rootC = rootObj[c];
@@ -401,14 +406,13 @@ export class StreamValidator extends Transform {
         ? valueEvents.maxCaptureBytes
         : DEFAULT_MAX_CAPTURE_BYTES;
 
-    // OpenAPI 3.0 -> 2020-12 normalization (nullable / boolean exclusive*
-    // / $ref sibling suppression) before any classification. 3.1 / 3.2
-    // are 2020-12-native. Both select the OpenAPI dialect (format
-    // asserts); raw JSON Schema uses jsonSchemaDialect.
-    const root = options.openApiVersion === "3.0" ? normalizeOas30(schema) : schema;
+    // Any OpenAPI version selects the OpenAPI dialect (format asserts); raw
+    // JSON Schema uses jsonSchemaDialect. The schema rewrite runs before any
+    // classification.
     const dialect =
       options.dialect ??
       (options.openApiVersion !== undefined ? openapi31Dialect : jsonSchemaDialect);
+    const root = schemaForEngine(schema, options.openApiVersion, dialect);
 
     // Compile-time fast-fail (invariant 2): classify before any byte. A
     // REJECT keyword (`unevaluated*`), an unknown keyword, or an
@@ -1012,6 +1016,14 @@ export class StreamValidator extends Transform {
  * (#1090). Separately, some malformed schema keyword values are silently
  * ignored instead of rejected, and an OAS 3.0 numeric `exclusiveMaximum`,
  * which `@oaverify/core` rejects, is enforced as a numeric bound (#919).
+ * @specCites OpenAPI 3.0.3 Reference Object, https://spec.openapis.org/oas/v3.0.3.html#reference-object
+ * @specBoundary defers https://spec.openapis.org/oas/v3.0.3.html#reference-object
+ * OpenAPI 3.0 says properties beside a `$ref` "SHALL be ignored". Under a 3.0
+ * dialect or `openApiVersion: "3.0"`, a `$ref` whose target sits outside
+ * subschema positions and `components.schemas` (`#/x-lib/S`) still has that
+ * target's own siblings applied, so `required` there can reject a body
+ * `@oaverify/core` accepts. Such a node can also be data, and rewriting it
+ * would change that data (#998).
  * @specBoundary under-asserts https://www.rfc-editor.org/rfc/rfc8259#section-8.1
  * RFC 8259 requires UTF-8 for JSON exchanged outside a closed ecosystem.
  * `utf8: "replace"` allows malformed sequences in strings and keys,

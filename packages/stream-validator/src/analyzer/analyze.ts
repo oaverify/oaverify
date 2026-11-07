@@ -50,7 +50,7 @@ import {
   openapi31Dialect,
 } from "@oaverify/internal-schema";
 import { classify, type Classification } from "../classifier/index.js";
-import { normalizeOas30 } from "../openapi/index.js";
+import { schemaForEngine } from "../openapi/index.js";
 import type { StreamValidatorOptions } from "../options.js";
 import { resolveRef as resolveRefLocal } from "../ref-resolve.js";
 import { longestStringCandidate } from "../scalar-equality.js";
@@ -752,8 +752,9 @@ function walk(
  * Token policies (`maxKeyBytes` / `maxNumberBytes`) are validated using the
  * runtime's option rules and leave materialization bounds unchanged.
  *
- * Static `$ref` and `$dynamicRef` targets and their siblings all contribute;
- * `$dynamicRef` resolves statically, as the stream engine resolves it. Bounds split
+ * Static `$ref` and `$dynamicRef` targets and their siblings all contribute,
+ * except siblings the active dialect discards (OAS 3.0); `$dynamicRef`
+ * resolves statically, as the stream engine resolves it. Bounds split
  * across a reference chain can remain conservatively unbounded when their
  * structural intersection is not modeled. Separate ref obligations are
  * summed conservatively because overlapping members can tee concurrently.
@@ -780,13 +781,13 @@ export function analyzeStreamability(
 ): StreamabilityReport {
   tokenByteLimit("maxKeyBytes", options.maxKeyBytes);
   tokenByteLimit("maxNumberBytes", options.maxNumberBytes);
-  const normalized = options.openApiVersion === "3.0" ? normalizeOas30(schema) : schema;
   // Resolve the dialect exactly as the engine does, so the classifier reads
   // the same keyword set and `formatAsserts` matches the spine's runtime
   // `format`-buffering decision.
   const dialect: Dialect =
     options.dialect ??
     (options.openApiVersion !== undefined ? openapi31Dialect : jsonSchemaDialect);
+  const normalized = schemaForEngine(schema, options.openApiVersion, dialect);
   const cls = classify(normalized, {
     dialect,
     ...(options.keywords === undefined ? {} : { customKeywords: Object.keys(options.keywords) }),
