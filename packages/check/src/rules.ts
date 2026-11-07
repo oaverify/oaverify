@@ -72,6 +72,9 @@ export const CHECK_RULES: Record<CheckCode, CheckRule> = {
       "Rename or merge the conflicting paths. This includes conflicts caused by the router's path normalization, such as ignoring trailing slashes. GET also handles HEAD when no explicit HEAD operation is declared.",
   },
   "duplicate-parameter": { title: "a parameter list declaring one name and location twice" },
+  "querystring-conflict": {
+    title: "a querystring parameter repeated or combined with query parameters",
+  },
   "duplicate-operation-id": { title: "an operationId two operations share" },
   "security-scheme-undeclared": { title: "a security requirement naming no declared scheme" },
   "server-variable-undeclared": { title: "a server URL placeholder with no declared variable" },

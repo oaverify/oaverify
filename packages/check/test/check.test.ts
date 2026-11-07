@@ -1175,6 +1175,57 @@ describe("a numeric OAS 3.0 exclusive bound beside a $ref", () => {
   });
 });
 
+describe("querystring-conflict", () => {
+  // The conflict the 3.2 meta-schema cannot see, because it reads a list as
+  // written: this one is what the code adds to the default gate.
+  it("is the only error for a conflict across the Path Item and operation", async () => {
+    const qs = (name: string) => ({
+      name,
+      in: "querystring",
+      content: { "application/x-www-form-urlencoded": { schema: { type: "object" } } },
+    });
+    const spec = {
+      openapi: "3.2.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/a": {
+          parameters: [qs("a")],
+          get: { parameters: [qs("b")], responses: { "200": { description: "ok" } } },
+        },
+      },
+    };
+    const findings = checkSpec(await resolve([["entry.json", spec]]));
+    expect(findings.filter((f) => f.severity === "error").map((f) => f.code)).toEqual([
+      "querystring-conflict",
+    ]);
+  });
+
+  it("fails the default gate on a 3.2 document", async () => {
+    const qs = (name: string) => ({
+      name,
+      in: "querystring",
+      content: { "application/x-www-form-urlencoded": { schema: { type: "object" } } },
+    });
+    const spec = {
+      openapi: "3.2.0",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/a": {
+          get: {
+            parameters: [qs("a"), qs("b")],
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const findings = checkSpec(await resolve([["entry.json", spec]]));
+    const hit = findings.filter((f) => f.code === "querystring-conflict");
+    expect(hit.map((f) => [f.class, f.severity, f.target?.pointer])).toEqual([
+      ["hygiene", "error", "/paths/~1a/get/parameters/1"],
+    ]);
+  });
+});
+
 describe("conformance reports the OAS 3.0 meta-schema's exclusive bound (#1199)", () => {
   // The 3.0 meta-schema, converted to 2020-12, declares
   // `multipleOf: { exclusiveMinimum: 0 }`, so a zero divisor fails with

@@ -191,6 +191,9 @@ authoring mistakes the structural validation can't catch:
 - `duplicate-parameter`: a Path Item or Operation `parameters` list
   declaring the same `name` and `in` twice. An operation-level parameter
   overriding a path-level one is legal and not reported.
+- `querystring-conflict`: in OpenAPI 3.2, a second `querystring` parameter,
+  or a `querystring` parameter beside `query` parameters, in one operation or
+  its Path Item.
 - `duplicate-operation-id`: two operation definitions sharing an
   `operationId`. One definition reached from several paths or callbacks
   is not a duplicate.

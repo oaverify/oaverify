@@ -37,10 +37,10 @@ conforming implementation choice.
 | [`narrows`](#narrows) | rejects what the cited spec allows | 11 |
 | [`transforms`](#transforms) | changes the value handed on, which can affect subsequent validation | 5 |
 | [`chooses`](#chooses) | the spec grants latitude, and this picked one option | 9 |
-| [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 6 |
+| [`resolves`](#resolves) | the spec is silent or self-contradictory, and this picked a reading | 7 |
 | [`defers`](#defers) | the cited spec requires it and this does not implement it yet | 5 |
 
-66 documented entries across 33 files.
+67 documented entries across 33 files.
 
 ## under-asserts
 
@@ -321,7 +321,7 @@ JavaScript calculates `0.3 / 0.1` as `2.9999999999999996` instead of `3`.
 
 ### packages/spec
 
-**`findUndeclaredSecuritySchemes`** ([packages/spec/src/lint.ts:1132](../packages/spec/src/lint.ts#L1132))
+**`findUndeclaredSecuritySchemes`** ([packages/spec/src/lint.ts:1242](../packages/spec/src/lint.ts#L1242))
 
 Against OpenAPI 3.2.0 Security Requirement Object (<https://spec.openapis.org/oas/v3.2.0.html#security-requirement-object>).
 
@@ -720,7 +720,16 @@ to the original files (#561).
 
 ### packages/spec
 
-**`findDuplicateOperationIds`** ([packages/spec/src/lint.ts:1079](../packages/spec/src/lint.ts#L1079))
+**`findQuerystringConflicts`** ([packages/spec/src/lint.ts:1071](../packages/spec/src/lint.ts#L1071))
+
+Against OpenAPI 3.2.0 Parameter Locations (<https://spec.openapis.org/oas/v3.2.0.html#parameter-locations>).
+
+OpenAPI spans the Path Item when it forbids mixing `querystring` with
+`query`, and does not say what "more than once" spans. This check reads
+that the same way, so a Path Item `querystring` named `a` and an operation
+`querystring` named `b` conflict, because both would apply to one request.
+
+**`findDuplicateOperationIds`** ([packages/spec/src/lint.ts:1189](../packages/spec/src/lint.ts#L1189))
 
 Against OpenAPI 3.2.0 Operation Object (<https://spec.openapis.org/oas/v3.2.0.html#operation-object>).
 
@@ -734,7 +743,7 @@ and are not reported. Two Operation Objects written separately with
 the same `operationId` are reported, even when their content is
 identical.
 
-**`findUndeclaredServerVariables`** ([packages/spec/src/lint.ts:1218](../packages/spec/src/lint.ts#L1218))
+**`findUndeclaredServerVariables`** ([packages/spec/src/lint.ts:1328](../packages/spec/src/lint.ts#L1328))
 
 Against OpenAPI 3.2.0 Server Object (<https://spec.openapis.org/oas/v3.2.0.html#server-object>).
 
