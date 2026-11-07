@@ -4,6 +4,7 @@ import {
   REF_CHAIN_MAX_HOPS,
   buildOperationModel,
   followReference,
+  operationsOn,
 } from "../src/operation-model.js";
 
 const ok = { "200": { description: "ok" } };
@@ -331,8 +332,8 @@ describe("buildOperationModel: callbacks", () => {
     );
     expect(model.pathItems.map((p) => [p.container, p.pointer])).toEqual([
       ["paths", "/paths/~1p"],
-      ["callback", "/components/pathItems/Self/post/callbacks/again/{$url}"],
       ["components.pathItems", "/components/pathItems/Self"],
+      ["callback", "/components/pathItems/Self/post/callbacks/again/{$url}"],
     ]);
     expect(new Set(model.operations.map((op) => op.pointer))).toEqual(
       new Set(["/components/pathItems/Self/post"]),
@@ -378,5 +379,190 @@ describe("buildOperationModel: implied HEAD", () => {
       ["/withHead", { runtime: false, emitted: false }],
       ["/headBehindRef", { runtime: true, emitted: false }],
     ]);
+  });
+});
+
+describe("declared views", () => {
+  it("lists the operations one Path Item object writes itself", () => {
+    const declared = operationsOn({
+      $ref: "#/x-items/Elsewhere",
+      get: { responses: ok },
+      put: null,
+      post: "nope",
+      additionalOperations: { PURGE: { responses: ok }, "LOCK/X": { responses: ok }, BAD: 1 },
+    });
+    expect(declared.map((op) => [op.method, op.methodKind, op.suffix])).toEqual([
+      ["get", "fixed", "get"],
+      ["PURGE", "additional", "additionalOperations/PURGE"],
+      ["LOCK/X", "additional", "additionalOperations/LOCK~1X"],
+    ]);
+    expect(operationsOn(null)).toEqual([]);
+    expect(operationsOn([])).toEqual([]);
+  });
+
+  const pointers = (extra: Record<string, unknown>): string[] =>
+    buildOperationModel(doc("3.1.0", extra)).declared.map((item) => item.pointer);
+
+  it("lists every Path Item object once: the entries, then targets in the order references were met", () => {
+    expect(
+      pointers({
+        paths: {
+          "/a": { $ref: "#/x-items/A" },
+          "/b": { $ref: "#/x-items/B" },
+          "/c": { $ref: "#/components/pathItems/Shared" },
+          "/d": { $ref: "#/components/pathItems/Shared" },
+        },
+        components: { pathItems: { Shared: { get: { responses: ok } } } },
+        "x-items": { A: { $ref: "#/x-items/C" }, B: { get: { responses: ok } }, C: {} },
+      }),
+    ).toEqual([
+      "/paths/~1a",
+      "/paths/~1b",
+      "/paths/~1c",
+      "/paths/~1d",
+      "/components/pathItems/Shared",
+      "/x-items/A",
+      "/x-items/B",
+      "/x-items/C",
+    ]);
+  });
+
+  it("enters inline callbacks depth first, straight after the Path Item that writes them", () => {
+    expect(
+      pointers({
+        paths: {
+          "/a": {
+            post: {
+              responses: ok,
+              callbacks: {
+                first: {
+                  "{$a}": {
+                    post: {
+                      responses: ok,
+                      callbacks: { nested: { "{$n}": { post: { responses: ok } } } },
+                    },
+                  },
+                },
+                second: { "{$b}": { post: { responses: ok } } },
+              },
+            },
+          },
+          "/b": { get: { responses: ok } },
+        },
+      }),
+    ).toEqual([
+      "/paths/~1a",
+      "/paths/~1a/post/callbacks/first/{$a}",
+      "/paths/~1a/post/callbacks/first/{$a}/post/callbacks/nested/{$n}",
+      "/paths/~1a/post/callbacks/second/{$b}",
+      "/paths/~1b",
+    ]);
+  });
+
+  it("lists a referenced Callback Object where the document writes it, or after the containers", () => {
+    const model = buildOperationModel(
+      doc("3.1.0", {
+        paths: {
+          "/a": {
+            post: {
+              responses: ok,
+              callbacks: {
+                viaRef: { $ref: "#/components/callbacks/C" },
+                loose: { $ref: "#/x-callbacks/L" },
+              },
+            },
+          },
+          "/b": { get: { responses: ok } },
+        },
+        components: { callbacks: { C: { "{$url}": { post: { responses: ok } } } } },
+        "x-callbacks": { L: { "{$url}": { put: { responses: ok } } } },
+      }),
+    );
+    const expected = [
+      "/paths/~1a",
+      "/paths/~1b",
+      "/components/callbacks/C/{$url}",
+      "/x-callbacks/L/{$url}",
+    ];
+    expect(model.declared.map((item) => item.pointer)).toEqual(expected);
+    expect(model.pathItems.map((item) => item.pointer)).toEqual(expected);
+  });
+
+  it("reaches the callbacks of an operation a nearer declaration shadows", () => {
+    const model = buildOperationModel(
+      doc("3.1.0", {
+        paths: { "/a": { $ref: "#/x-items/P", get: { responses: ok, operationId: "near" } } },
+        "x-items": {
+          P: {
+            get: {
+              responses: ok,
+              operationId: "shadowed",
+              callbacks: { c: { "{$url}": { post: { responses: ok } } } },
+            },
+          },
+        },
+      }),
+    );
+    expect(model.operations.map((op) => op.node.operationId)).toEqual(["near", undefined]);
+    expect(model.declared.map((item) => item.pointer)).toEqual([
+      "/paths/~1a",
+      "/x-items/P",
+      "/x-items/P/get/callbacks/c/{$url}",
+    ]);
+  });
+
+  it("gives a callback Path Item its entry when a reference reached it first", () => {
+    const model = buildOperationModel(
+      doc("3.1.0", {
+        paths: {
+          "/a": { $ref: "#/x/C/{$u}", post: { responses: ok } },
+          "/b": { post: { responses: ok, callbacks: { c: { $ref: "#/x/C" } } } },
+        },
+        x: { C: { "{$u}": { post: { responses: ok, operationId: "cb" } } } },
+      }),
+    );
+    expect(model.pathItems.map((item) => [item.container, item.pointer])).toEqual([
+      ["paths", "/paths/~1a"],
+      ["paths", "/paths/~1b"],
+      ["callback", "/x/C/{$u}"],
+    ]);
+    expect(model.operations.map((op) => op.node.operationId)).toContain("cb");
+    expect(model.declared.map((item) => item.pointer)).toEqual([
+      "/paths/~1a",
+      "/paths/~1b",
+      "/x/C/{$u}",
+    ]);
+  });
+
+  it("lists every object on a chain longer than an entry may follow", () => {
+    const items: Record<string, unknown> = {};
+    for (let i = 0; i < 40; i++) items[`P${i}`] = { $ref: `#/x-items/P${i + 1}` };
+    items["P40"] = { get: { responses: ok } };
+    const model = buildOperationModel(
+      doc("3.1.0", { paths: { "/a": { $ref: "#/x-items/P0" } }, "x-items": items }),
+    );
+    expect(model.pathItems[0]!.chain.status).toBe("truncated");
+    expect(model.declared).toHaveLength(42);
+    expect(model.declared.at(-1)!.pointer).toBe("/x-items/P40");
+  });
+
+  it("ends a reference cycle at the first object met twice", () => {
+    expect(
+      pointers({
+        paths: { "/a": { $ref: "#/x-items/A" } },
+        "x-items": { A: { $ref: "#/x-items/B" }, B: { $ref: "#/x-items/A" } },
+      }),
+    ).toEqual(["/paths/~1a", "/x-items/A", "/x-items/B"]);
+  });
+
+  it("does not take the document for a Path Item", () => {
+    expect(pointers({ paths: { "/a": { $ref: "#" } } })).toEqual(["/paths/~1a"]);
+  });
+
+  it("lists an object written at two positions once, and models both positions", () => {
+    const shared = { get: { responses: ok } };
+    const model = buildOperationModel(doc("3.1.0", { paths: { "/a": shared, "/b": shared } }));
+    expect(model.pathItems.map((item) => item.pointer)).toEqual(["/paths/~1a", "/paths/~1b"]);
+    expect(model.declared.map((item) => item.pointer)).toEqual(["/paths/~1a"]);
   });
 });

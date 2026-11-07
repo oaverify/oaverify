@@ -11,16 +11,17 @@ import {
   resolveJsonPointer,
   type ComponentsObject,
   type OpenAPIDocument,
-  type OperationObject,
-  type ParameterObject,
-  type ReferenceObject,
   type SecurityRequirementObject,
   type TagObject,
 } from "@oaverify/internal-core";
 import { subschemaEntries } from "@oaverify/internal-core/subschema-positions";
-import { HTTP_METHODS } from "@oaverify/internal-core";
 import { EXTERNALS_FIELD } from "./resolver-shared.js";
-import { buildOperationModel, type OperationModel } from "@oaverify/internal-core/operation-model";
+import {
+  buildOperationModel,
+  followReference,
+  operationsOn,
+  type OperationModel,
+} from "@oaverify/internal-core/operation-model";
 
 /**
  * A single spec-hygiene finding from {@link lintResolvedSpec}.
@@ -212,13 +213,13 @@ export function lintResolvedSpec(
   issues.push(...findUnusedComponents(document, options.inlinedComponents ?? []));
   issues.push(...findUnusedTags(model));
   issues.push(...findUnreachableDefs(document, options.hoistedSchemaCopies ?? []));
-  issues.push(...findPathParamMismatches(document));
-  issues.push(...findMalformedPathTemplates(document));
-  issues.push(...findDuplicateParameters(document));
-  issues.push(...findDuplicateOperationIds(document, options.regions));
-  issues.push(...findUndeclaredSecuritySchemes(document, options.regions));
-  issues.push(...findUndeclaredServerVariables(document));
-  issues.push(...findServerVariableDefaultsOutsideEnum(document));
+  issues.push(...findPathParamMismatches(model));
+  issues.push(...findMalformedPathTemplates(model));
+  issues.push(...findDuplicateParameters(model));
+  issues.push(...findDuplicateOperationIds(model, options.regions));
+  issues.push(...findUndeclaredSecuritySchemes(model, options.regions));
+  issues.push(...findUndeclaredServerVariables(model));
+  issues.push(...findServerVariableDefaultsOutsideEnum(model));
   return issues;
 }
 
@@ -449,27 +450,8 @@ function walkCallback(callback: unknown, sink: Set<string>, schemeKey: SchemeKey
   }
 }
 
-/** Operation Objects and their pointer suffixes, including OAS 3.2 method tokens. */
-function* operationEntries(item: unknown): Generator<[string, OperationObject]> {
-  if (!isObject(item)) return;
-  for (const method of HTTP_METHODS) {
-    if (isObject(item[method])) yield [method, item[method] as OperationObject];
-  }
-  if (isObject(item.additionalOperations)) {
-    for (const [method, operation] of Object.entries(item.additionalOperations)) {
-      if (isObject(operation)) {
-        yield [
-          `additionalOperations/${escapePointerSegment(method)}`,
-          operation as OperationObject,
-        ];
-      }
-    }
-  }
-}
-
 function walkPathItem(pathItem: unknown, sink: Set<string>, schemeKey: SchemeKey): void {
-  if (!isObject(pathItem)) return;
-  for (const [, op] of operationEntries(pathItem)) {
+  for (const { node: op } of operationsOn(pathItem)) {
     if (isObject(op.callbacks)) {
       for (const callback of Object.values(op.callbacks)) walkCallback(callback, sink, schemeKey);
     }
@@ -541,10 +523,11 @@ function isNamedTag(tag: unknown): tag is TagObject {
 }
 
 /**
- * A declared tag is unused when no operation in the model names it. The
- * specification's rule is "no operation references it", and an operation
- * reached through a reference, or under a component nothing references,
- * is still an operation.
+ * A declared tag is unused when no operation the document declares
+ * names it. The specification's rule is "no operation references it",
+ * and an operation reached through a reference, under a component
+ * nothing references, or shadowed by a nearer declaration of the same
+ * method is still an operation the document writes.
  */
 function findUnusedTags(model: OperationModel): SpecHygieneIssue[] {
   // Unreadable lists and entries (`tags:\n  -` is `[null]`) contribute
@@ -554,9 +537,11 @@ function findUnusedTags(model: OperationModel): SpecHygieneIssue[] {
     : [];
   if (declared.length === 0) return [];
   const used = new Set<string>();
-  for (const op of model.operations) {
-    if (!Array.isArray(op.node.tags)) continue;
-    for (const tag of op.node.tags) used.add(tag);
+  for (const { node: item } of model.declared) {
+    for (const { node: op } of operationsOn(item)) {
+      if (!Array.isArray(op.tags)) continue;
+      for (const tag of op.tags) used.add(tag);
+    }
   }
 
   const issues: SpecHygieneIssue[] = [];
@@ -815,20 +800,31 @@ function refsHit(refPointers: Set<string>, targetPointer: string): boolean {
 // path-param-undeclared / path-param-unused
 // ---------------------------------------------------------------------------
 
-function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] {
+/**
+ * Judged per `paths` entry, against the effective Path Item: the fields
+ * written on the entry and those its `$ref` chain contributes, nearest
+ * declaration winning. A Path Item two templates reference is judged
+ * once for each, since a name one template uses may be absent from the
+ * other; the message names the template.
+ */
+function findPathParamMismatches(model: OperationModel): SpecHygieneIssue[] {
+  const { document } = model;
   const issues: SpecHygieneIssue[] = [];
-  for (const [pathTemplate, pathItem] of Object.entries(document.paths ?? {})) {
-    if (!pathItem) continue;
+  for (const item of model.pathItems) {
+    if (item.container !== "paths") continue;
+    const pathTemplate = item.key;
     const inTemplate = extractPathTemplateNames(pathTemplate);
-    const pathItemPointer = `/paths/${escapePointerSegment(pathTemplate)}`;
-    const itemLevelDeclared = collectPathParams(pathItem.parameters ?? [], document);
+    const itemParameters: unknown = item.effective.parameters;
+    const itemParametersPointer = `${item.origins.get("parameters") ?? item.pointer}/parameters`;
+    const itemLevelDeclared = collectPathParams(itemParameters ?? [], document);
     // A `parameters` that is not a list is unreadable rather than empty,
     // so what it declares is unknown. Claiming a template name is
     // undeclared would be a false statement about a document whose
     // author did write it, one missing `- ` away. The conformance pass
     // reports `must be array` at the pointer, and this rule stays quiet
-    // for that operation (#837).
-    const itemListUnreadable = !isParameterList(pathItem.parameters);
+    // for that operation (#837). A reference chain that does not
+    // complete hides declarations the same way.
+    const itemListUnreadable = !isParameterList(itemParameters) || item.chain.status !== "complete";
 
     // Each declaration is judged where it is written, so an item-level
     // one is reported once. Reporting it inside the method loop below
@@ -840,13 +836,12 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
       if (inTemplate.has(name)) continue;
       issues.push({
         code: "path-param-unused",
-        pointer: `${pathItemPointer}/parameters`,
+        pointer: itemParametersPointer,
         message: `path parameter "${name}" is declared on the path item but does not appear in the path template "${pathTemplate}"`,
       });
     }
 
-    for (const [suffix, op] of operationEntries(pathItem)) {
-      const opPointer = `${pathItemPointer}/${suffix}`;
+    for (const { pointer: opPointer, node: op } of item.operations) {
       const opLevelDeclared = collectPathParams(op.parameters ?? [], document);
       // Only the undeclared rule is blinded by an unreadable list, since
       // it asks what the document declares in total. `path-param-unused`
@@ -897,14 +892,15 @@ function findPathParamMismatches(document: OpenAPIDocument): SpecHygieneIssue[] 
  * route unreachable except by a client repeating the same broken
  * escape. Reporting it here is what gives that a location and a remedy.
  */
-function findMalformedPathTemplates(document: OpenAPIDocument): SpecHygieneIssue[] {
+function findMalformedPathTemplates(model: OperationModel): SpecHygieneIssue[] {
   const issues: SpecHygieneIssue[] = [];
-  for (const pathTemplate of Object.keys(document.paths ?? {})) {
+  for (const { container, key: pathTemplate, pointer } of model.pathItems) {
+    if (container !== "paths") continue;
     const bad = firstUndecodableSegment(pathTemplate);
     if (bad === undefined) continue;
     issues.push({
       code: "path-template-malformed",
-      pointer: `/paths/${escapePointerSegment(pathTemplate)}`,
+      pointer,
       message: `path template "${pathTemplate}" has a segment "${bad}" whose percent-encoding does not decode; percent-encode a literal "%" as "%25"`,
     });
   }
@@ -997,27 +993,16 @@ function collectPathParams(parameters: unknown, document: OpenAPIDocument): Set<
   // parameters lets the run reach the conformance pass, which reports
   // `must be array` at the offending pointer (#837).
   if (!Array.isArray(parameters)) return names;
-  for (const entry of parameters as readonly (ParameterObject | ReferenceObject)[]) {
-    const param = isReference(entry) ? resolveParamRef(entry, document) : entry;
-    if (!param) continue;
-    if (param.in === "path") names.add(param.name);
+  for (const entry of parameters as unknown[]) {
+    const followed = followLocal(entry, document);
+    const param = followed?.target;
+    if (!isObject(param)) continue;
+    // A reference target is taken as a parameter only when it has the two
+    // fields that make it one; anything else is some other object.
+    if (followed?.pointer !== undefined && !("in" in param && "name" in param)) continue;
+    if (param.in === "path") names.add(param.name as string);
   }
   return names;
-}
-
-function resolveParamRef(ref: ReferenceObject, document: OpenAPIDocument): ParameterObject | null {
-  // A `$ref` carries a URI fragment, so it is percent-decoded into a
-  // pointer before evaluation; `resolveJsonPointer` does none itself.
-  const pointer = pointerFromFragment(ref.$ref.startsWith("#") ? ref.$ref.slice(1) : ref.$ref);
-  try {
-    const target = resolveJsonPointer(document, pointer);
-    if (target && typeof target === "object" && "in" in target && "name" in target) {
-      return target as unknown as ParameterObject;
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1032,11 +1017,12 @@ function resolveParamRef(ref: ReferenceObject, document: OpenAPIDocument): Param
  * way. The repeat is reported at its own index, so a list repeating one
  * pair three times gives two findings.
  */
-function findDuplicateParameters(document: OpenAPIDocument): SpecHygieneIssue[] {
+function findDuplicateParameters(model: OperationModel): SpecHygieneIssue[] {
+  const { document } = model;
   const issues: SpecHygieneIssue[] = [];
-  for (const [pointer, item] of definedPathItems(document)) {
+  for (const { pointer, node: item } of model.declared) {
     issues.push(...duplicatesIn(item.parameters, `${pointer}/parameters`, document));
-    for (const [suffix, op] of operationEntries(item)) {
+    for (const { suffix, node: op } of operationsOn(item)) {
       issues.push(...duplicatesIn(op.parameters, `${pointer}/${suffix}/parameters`, document));
     }
   }
@@ -1073,113 +1059,20 @@ function duplicatesIn(
 }
 
 /**
- * Every Path Item the document defines, with the pointer where it is
- * written: `paths`, `webhooks`, `components.pathItems`,
- * `components.callbacks`, the callbacks of every operation reached on
- * the way, and the target of every local Path Item or Callback `$ref`
- * among them, wherever it is written. Each object is yielded once, at
- * the pointer it is first reached by; a `$ref` target outside the named
- * containers is reached last, at its own pointer. Keys written beside a
- * `$ref` are yielded with the referring object.
- *
- * A definition that resolution inlined from another file is a separate
- * object at each use site, so it is yielded once per copy and a defect
- * in it is reported at each. `duplicate-operation-id` alone reads the
- * resolution regions to treat the copies as one.
- */
-function* definedPathItems(
-  document: OpenAPIDocument,
-): Generator<[string, Record<string, unknown>]> {
-  const doc = document as unknown as Record<string, unknown>;
-  const components = isObject(doc.components) ? doc.components : {};
-  const seen = new Set<object>();
-  const pending: ["item" | "callback", string, unknown][] = [];
-  const follow = (ref: object, kind: "item" | "callback"): void => {
-    const resolved = followLocal(ref, document, kind === "item");
-    if (resolved?.pointer !== undefined) pending.push([kind, resolved.pointer, resolved.target]);
-  };
-
-  function* pathItem(item: unknown, pointer: string): Generator<[string, Record<string, unknown>]> {
-    if (!isObject(item) || seen.has(item)) return;
-    seen.add(item);
-    yield [pointer, item];
-    if (isReference(item)) follow(item, "item");
-    for (const [suffix, op] of operationEntries(item)) {
-      if (!isObject(op.callbacks)) continue;
-      for (const [name, cb] of Object.entries(op.callbacks)) {
-        yield* callback(cb, `${pointer}/${suffix}/callbacks/${escapePointerSegment(name)}`);
-      }
-    }
-  }
-
-  function* callback(
-    value: unknown,
-    pointer: string,
-  ): Generator<[string, Record<string, unknown>]> {
-    if (!isObject(value) || seen.has(value)) return;
-    seen.add(value);
-    if (isReference(value)) {
-      follow(value, "callback");
-      return;
-    }
-    for (const [expression, item] of Object.entries(value)) {
-      if (expression.startsWith("x-")) continue;
-      yield* pathItem(item, `${pointer}/${escapePointerSegment(expression)}`);
-    }
-  }
-
-  for (const [container, at] of [
-    [doc.paths, "/paths"],
-    [doc.webhooks, "/webhooks"],
-    [components.pathItems, "/components/pathItems"],
-  ] as const) {
-    if (!isObject(container)) continue;
-    for (const [name, item] of Object.entries(container)) {
-      // `webhooks` and `components.pathItems` are maps of names, where
-      // any key is an entry; under `paths` an `x-` key is an extension.
-      if (at === "/paths" && name.startsWith("x-")) continue;
-      yield* pathItem(item, `${at}/${escapePointerSegment(name)}`);
-    }
-  }
-  if (isObject(components.callbacks)) {
-    for (const [name, cb] of Object.entries(components.callbacks)) {
-      yield* callback(cb, `/components/callbacks/${escapePointerSegment(name)}`);
-    }
-  }
-  for (let next = pending.shift(); next !== undefined; next = pending.shift()) {
-    const [kind, pointer, target] = next;
-    yield* kind === "item" ? pathItem(target, pointer) : callback(target, pointer);
-  }
-}
-
-/**
  * The value a local `$ref` chain ends at, with the pointer of its last
  * hop, or the value itself when it is not a reference. `undefined` when
- * a hop is not a local pointer, does not resolve, or the chain runs past
- * 32 hops. Conformance and the resolver report those. With `oneHop`,
- * return the next target so a Path Item walk can read its sibling fields.
+ * the chain does not complete; conformance and the resolver report
+ * those.
  */
 function followLocal(
   value: unknown,
   document: OpenAPIDocument,
-  oneHop = false,
 ): { target: unknown; pointer?: string } | undefined {
-  let current = value;
-  let pointer: string | undefined;
-  for (let hops = 0; hops <= 32; hops++) {
-    if (!isReference(current))
-      return pointer === undefined ? { target: current } : { target: current, pointer };
-    const next = pointerFromRefFragment(current.$ref);
-    if (next === undefined || hops === 32) return undefined;
-    try {
-      current = resolveJsonPointer(document, next);
-    } catch {
-      return undefined;
-    }
-    pointer = next;
-    if (oneHop) return { target: current, pointer };
-  }
-  return undefined;
+  const chain = followReference(document, value, "");
+  if (chain.status !== "complete") return undefined;
+  return chain.hops.length === 1
+    ? { target: chain.target }
+    : { target: chain.target, pointer: chain.pointer! };
 }
 
 // ---------------------------------------------------------------------------
@@ -1207,13 +1100,13 @@ function followLocal(
  * identical.
  */
 function findDuplicateOperationIds(
-  document: OpenAPIDocument,
+  model: OperationModel,
   regions: readonly SpecRegion[] | undefined,
 ): SpecHygieneIssue[] {
   const issues: SpecHygieneIssue[] = [];
   const firstById = new Map<string, { pointer: string; source: string }>();
-  for (const [itemPointer, item] of definedPathItems(document)) {
-    for (const [suffix, op] of operationEntries(item)) {
+  for (const { pointer: itemPointer, node: item } of model.declared) {
+    for (const { suffix, node: op } of operationsOn(item)) {
       const id: unknown = op.operationId;
       if (typeof id !== "string") continue;
       const pointer = `${itemPointer}/${suffix}/operationId`;
@@ -1262,9 +1155,10 @@ function findDuplicateOperationIds(
  * operation requiring a scheme named by URI fails its security check.
  */
 function findUndeclaredSecuritySchemes(
-  document: OpenAPIDocument,
+  model: OperationModel,
   regions: readonly SpecRegion[] | undefined,
 ): SpecHygieneIssue[] {
+  const { document } = model;
   const issues: SpecHygieneIssue[] = [];
   const entryUri = regions === undefined ? undefined : sourceOf(regions, "")?.uri;
   const declared = isObject(document.components?.securitySchemes)
@@ -1296,8 +1190,8 @@ function findUndeclaredSecuritySchemes(
     }
   };
   check(document.security, "");
-  for (const [itemPointer, item] of definedPathItems(document)) {
-    for (const [suffix, op] of operationEntries(item)) {
+  for (const { pointer: itemPointer, node: item } of model.declared) {
+    for (const { suffix, node: op } of operationsOn(item)) {
       check(op.security, `${itemPointer}/${suffix}`);
     }
   }
@@ -1340,9 +1234,9 @@ function namesNothingHere(name: string, document: OpenAPIDocument): boolean {
  * check reads that as one: an undeclared placeholder has no value, so
  * the URL cannot be built.
  */
-function findUndeclaredServerVariables(document: OpenAPIDocument): SpecHygieneIssue[] {
+function findUndeclaredServerVariables(model: OperationModel): SpecHygieneIssue[] {
   const issues: SpecHygieneIssue[] = [];
-  for (const [pointer, server] of definedServers(document)) {
+  for (const [pointer, server] of definedServers(model)) {
     const { url, variables } = server;
     if (typeof url !== "string") continue;
     if (variables !== undefined && !isObject(variables)) continue;
@@ -1373,13 +1267,13 @@ function findUndeclaredServerVariables(document: OpenAPIDocument): SpecHygieneIs
  * says the default SHOULD be listed and later versions say MUST, so 3.0
  * documents get the `-oas30` code, which `check` grades as a warning.
  */
-function findServerVariableDefaultsOutsideEnum(document: OpenAPIDocument): SpecHygieneIssue[] {
+function findServerVariableDefaultsOutsideEnum(model: OperationModel): SpecHygieneIssue[] {
   const code =
-    detectOpenAPIVersion(document) === "3.0"
+    model.version === "3.0"
       ? "server-variable-default-not-in-enum-oas30"
       : "server-variable-default-not-in-enum";
   const issues: SpecHygieneIssue[] = [];
-  for (const [pointer, server] of definedServers(document)) {
+  for (const [pointer, server] of definedServers(model)) {
     if (!isObject(server.variables)) continue;
     for (const [name, variable] of Object.entries(server.variables)) {
       if (!isObject(variable)) continue;
@@ -1402,9 +1296,10 @@ function findServerVariableDefaultsOutsideEnum(document: OpenAPIDocument): SpecH
  * `servers`, and the `server` of each Link Object, whether written under
  * a response or in `components.links`. A local `$ref` to a Response or
  * Link is followed, and the definition is read once, at its own pointer.
- * Inlined copies are read once each, as in {@link definedPathItems}.
+ * Inlined copies are read once each, as in the model's declared view.
  */
-function* definedServers(document: OpenAPIDocument): Generator<[string, Record<string, unknown>]> {
+function* definedServers(model: OperationModel): Generator<[string, Record<string, unknown>]> {
+  const { document } = model;
   const seen = new Set<object>();
   // The definition a possibly-referenced Response or Link stands for,
   // once per object.
@@ -1439,9 +1334,9 @@ function* definedServers(document: OpenAPIDocument): Generator<[string, Record<s
   }
 
   yield* serverList(document.servers, "/servers");
-  for (const [itemPointer, item] of definedPathItems(document)) {
+  for (const { pointer: itemPointer, node: item } of model.declared) {
     yield* serverList(item.servers, `${itemPointer}/servers`);
-    for (const [suffix, op] of operationEntries(item)) {
+    for (const { suffix, node: op } of operationsOn(item)) {
       const opPointer = `${itemPointer}/${suffix}`;
       yield* serverList(op.servers, `${opPointer}/servers`);
       if (!isObject(op.responses)) continue;
@@ -1482,14 +1377,6 @@ function* serverList(
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
-
-function isReference(value: unknown): value is ReferenceObject {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    typeof (value as { $ref?: unknown }).$ref === "string"
-  );
-}
 
 function decodePointerSegment(segment: string): string {
   return segment.replace(/~1/g, "/").replace(/~0/g, "~");
