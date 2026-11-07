@@ -30,7 +30,7 @@ import {
   followReference,
   type ModelOperation,
   type OperationModel,
-} from "@oaverify/internal-core/operation-model";
+} from "@oaverify/internal-core/internals";
 import { createValidator } from "@oaverify/internal-validator";
 import { analyzeSpec } from "@oaverify/stream";
 import { emitSpec } from "../src/emit-spec.js";

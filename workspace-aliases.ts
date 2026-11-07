@@ -27,8 +27,8 @@ export function workspaceAliases(rootDir: string): Record<string, string> {
   // before the base `@oaverify/internal-<pkg>` alias.
   const subpathEntries: Array<[string, string]> = [
     [
-      "@oaverify/internal-core/operation-model",
-      resolve(rootDir, "packages", "core", "src", "operation-model.ts"),
+      "@oaverify/internal-core/internals",
+      resolve(rootDir, "packages", "core", "src", "internals.ts"),
     ],
     [
       "@oaverify/internal-core/prototype-properties",
@@ -78,6 +78,7 @@ export function workspaceAliases(rootDir: string): Record<string, string> {
     // validators import these by their real names, so tests that write a
     // generated module to a tmpdir and import it need them resolvable to
     // source. Longest-first, as above.
+    ["@oaverify/core/core/internals", resolve(rootDir, "packages", "core", "src", "internals.ts")],
     [
       "@oaverify/core/schema/internals",
       resolve(rootDir, "packages", "schema", "src", "internals.ts"),

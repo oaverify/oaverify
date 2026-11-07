@@ -72,7 +72,7 @@ import {
   type ParameterObject,
   type ReferenceObject,
 } from "@oaverify/internal-core";
-import { isPathTemplate } from "@oaverify/internal-core/operation-model";
+import { isPathTemplate } from "@oaverify/internal-core/internals";
 import { escapePointer, METHODS } from "./document-walk.js";
 import { resolveOperationRef } from "./operation-cache.js";
 

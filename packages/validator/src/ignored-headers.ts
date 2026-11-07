@@ -18,7 +18,7 @@ import {
   resolveJsonPointer,
   type OpenAPIDocument,
 } from "@oaverify/internal-core";
-import { isPathTemplate } from "@oaverify/internal-core/operation-model";
+import { isPathTemplate } from "@oaverify/internal-core/internals";
 import { escapePointer, METHODS } from "./document-walk.js";
 import { isIgnoredHeaderParameter, isIgnoredResponseHeader } from "./headers.js";
 import { REF_CHAIN_MAX_HOPS } from "./operation-cache.js";

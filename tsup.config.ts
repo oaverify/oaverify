@@ -25,6 +25,7 @@ export default defineConfig({
     "overlay-spec": "src/overlay-spec.ts",
     formats: "src/formats.ts",
     core: "src/core.ts",
+    "core-internals": "src/core-internals.ts",
     "validator-internals": "src/validator-internals.ts",
     "codegen-runtime": "src/codegen-runtime.ts",
   },

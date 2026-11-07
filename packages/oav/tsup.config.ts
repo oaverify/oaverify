@@ -38,6 +38,7 @@ const workspace = workspaceAliases(repoRoot);
 // run time from the consumer's install of `@oaverify/core`).
 const oavCoreRewrite: Record<string, string> = {
   "@oaverify/internal-core": "@oaverify/core/core",
+  "@oaverify/internal-core/internals": "@oaverify/core/core/internals",
   "@oaverify/internal-schema": "@oaverify/core/schema",
   "@oaverify/internal-schema/internals": "@oaverify/core/schema/internals",
   "@oaverify/internal-spec": "@oaverify/core/spec",
@@ -58,7 +59,6 @@ function workspaceTarget(specifier: string): string {
 // package's bundle boundary; the source targets come from the root builder.
 const bundledWorkspace = Object.fromEntries(
   [
-    "@oaverify/internal-core/operation-model",
     "@oaverify/internal-core/prototype-properties",
     "@oaverify/internal-core/ref-siblings",
     "@oaverify/internal-core/subschema-positions",

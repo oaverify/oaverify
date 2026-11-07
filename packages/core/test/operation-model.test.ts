@@ -3,6 +3,7 @@ import type { OpenAPIDocument } from "../src/index.js";
 import {
   REF_CHAIN_MAX_HOPS,
   buildOperationModel,
+  effectivePathItem,
   followReference,
   isPathTemplate,
   operationsOn,
@@ -278,6 +279,50 @@ describe("buildOperationModel: Path Item reference chains", () => {
     const chain = followReference(doc("3.1.0", {}), { $ref: "#" }, "/entry");
     expect(chain.status).toBe("complete");
     expect(chain.pointer).toBe("");
+  });
+});
+
+describe("effectivePathItem", () => {
+  const document = {
+    openapi: "3.1.0",
+    info: { title: "t", version: "1" },
+    paths: {
+      "/p": { $ref: "#/components/pathItems/Mid", get: { operationId: "near" } },
+      "/broken": { $ref: "#/nope", post: { operationId: "kept" } },
+    },
+    components: {
+      pathItems: {
+        Mid: { $ref: "#/components/pathItems/Far", get: { operationId: "shadowed" }, put: {} },
+        Far: { post: {}, parameters: [{ name: "q", in: "query" }] },
+      },
+    },
+  } as unknown as OpenAPIDocument;
+
+  it("merges the chain, nearest declaration winning, and says where each field is written", () => {
+    const item = effectivePathItem(document, document.paths!["/p"], "/paths/~1p");
+    expect(item.chain.status).toBe("complete");
+    expect(Object.keys(item.effective)).toEqual(["get", "put", "post", "parameters"]);
+    expect(item.effective.get).toEqual({ operationId: "near" });
+    expect(Object.fromEntries(item.origins)).toEqual({
+      get: "/paths/~1p",
+      put: "/components/pathItems/Mid",
+      post: "/components/pathItems/Far",
+      parameters: "/components/pathItems/Far",
+    });
+  });
+
+  it("keeps the fields of the hops reached when the chain does not complete", () => {
+    const item = effectivePathItem(document, document.paths!["/broken"], "/paths/~1broken");
+    expect(item.chain.status).toBe("unresolved");
+    expect(item.effective).toEqual({ post: { operationId: "kept" } });
+  });
+
+  it("gives the model's entry for the same position", () => {
+    const entry = buildOperationModel(document).pathItems.find((item) => item.key === "/p")!;
+    const alone = effectivePathItem(document, entry.node, entry.pointer);
+    expect(alone.effective).toEqual(entry.effective);
+    expect([...alone.origins]).toEqual([...entry.origins]);
+    expect(alone.chain).toEqual(entry.chain);
   });
 });
 

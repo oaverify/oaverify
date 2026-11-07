@@ -13,7 +13,7 @@ import {
   resolveJsonPointer,
 } from "@oaverify/internal-core";
 import { HTTP_METHODS } from "@oaverify/internal-core";
-import { REF_CHAIN_MAX_HOPS } from "@oaverify/internal-core/operation-model";
+import { REF_CHAIN_MAX_HOPS } from "@oaverify/internal-core/internals";
 import {
   isHeaderObjectPrototypePropertyName,
   isObjectPrototypePropertyName,

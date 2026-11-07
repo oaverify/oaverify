@@ -214,6 +214,23 @@ describe("streamValidatorForOperation", () => {
     expect(verdict.valid).toBe(true);
   });
 
+  it("does not read an x- key of the Paths Object as a path (#1342)", () => {
+    const doc = {
+      openapi: "3.1.0",
+      info: { title: "t", version: "1.0.0" },
+      paths: {
+        "x-vendor": {
+          post: {
+            requestBody: { content: { "application/json": { schema: { type: "object" } } } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    expect(() => streamValidatorForOperation(doc, { method: "post", path: "x-vendor" })).toThrow(
+      /no path "x-vendor"/,
+    );
+  });
+
   it("throws a clear error for a missing path / method / body / media type", () => {
     expect(() =>
       streamValidatorForOperation(petstore(), { method: "post", path: "/nope" }),
