@@ -377,3 +377,40 @@ it("collects failures in deeply nested roots and their references", () => {
     }),
   );
 });
+
+describe.each(["3.1.0", "3.0.3"])("a dead then beside a required list in %s", (openapi) => {
+  it.each(
+    ["then", "else"].flatMap((branch) =>
+      [
+        `{ "$ref": "#/properties/a" }`,
+        `{ "$ref": "#/$defs/none" }`,
+        `{ "properties": { "aa": {} } }`,
+      ].map((body) => [branch, body] as const),
+    ),
+  )("reports required-not-in-properties with %s %s and no if", (branch, body) => {
+    // JSON so the dead branch is a plain key: the repo lints object literals that spell `then`.
+    const schema = JSON.parse(`{
+      "type": "object",
+      "properties": { "a": { "type": "string" } },
+      "required": ["aa"],
+      "${branch}": ${body}
+    }`) as unknown;
+    const doc = {
+      openapi,
+      info: { title: "T", version: "1" },
+      paths: {
+        "/a": {
+          post: {
+            requestBody: { content: { "application/json": { schema } } },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    } as unknown as OpenAPIDocument;
+    expect(
+      check(doc)
+        .filter((f) => f.code === "silent-rewrite/required-not-in-properties")
+        .map((f) => f.target?.pointer),
+    ).toEqual(["/paths/~1a/post/requestBody/content/application~1json/schema/required/0"]);
+  });
+});

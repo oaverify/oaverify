@@ -184,7 +184,7 @@ function runSchemaLint(
      * so a rule that omits it gets the root resource's answer, which is
      * a different schema wherever a nested `$id` is in play.
      */
-    resolveRef?: (ref: string, from?: object) => unknown;
+    resolveRef: (ref: string, from?: object) => unknown;
     pointer?: string;
     anchor?: "node" | "definition";
     pointerOf?: (schema: object) => string | undefined;
@@ -225,19 +225,15 @@ function runSchemaLint(
     return id;
   };
   // The rule follows `$ref` through the compiler's own resolver and no
-  // other route, so there is nothing to index per compile. A caller who
-  // supplied none leaves the rule unable to enumerate past a `$ref`,
-  // which it treats as "do not flag" rather than "declares nothing".
-  const resolveForLint = rules.resolveRef;
-  const closedCtx: ClosedCompositionContext | undefined =
-    resolveForLint === undefined
-      ? undefined
-      : {
-          resolve: (ref, from) => resolveForLint(ref, from),
-          refSuppressesSiblings: rules.refSuppressesSiblings,
-          known: (keyword) => known.has(keyword),
-          dynamicTargets: rules.dynamicTargets,
-        };
+  // other route, so there is nothing to index per compile. A reference that
+  // resolver refuses leaves the rule unable to enumerate past it, which it
+  // treats as "do not flag" rather than "declares nothing".
+  const closedCtx: ClosedCompositionContext = {
+    resolve: (ref, from) => rules.resolveRef(ref, from),
+    refSuppressesSiblings: rules.refSuppressesSiblings,
+    known: (keyword) => known.has(keyword),
+    dynamicTargets: rules.dynamicTargets,
+  };
   // Ancestor-aware, so it walks the graph itself rather than per-node:
   // the question is what property names are reachable at an instance
   // position, which a per-node visitor cannot see.
@@ -440,28 +436,26 @@ function runSchemaLint(
         }
       }
 
-      if (closedCtx !== undefined) {
-        // Positioned at the branch, not at this node, so it sets its own
-        // position and is skipped by `stamp()` the way
-        // redundant-composition-branches is.
-        for (const found of collectClosedBranchIssues(obj, path, closedCtx)) {
-          let branchAt = at;
-          for (const segment of found.segments) branchAt = stepPosition(branchAt, segment);
-          const key = positionKey(found.node, found.issue.path, branchAt, closedNodeId);
-          const addressed = branchAt.pointer !== undefined || branchAt.schemaPath !== undefined;
-          const evidenceKey = addressed ? key : `${key}|${found.evidence}`;
-          if (closedBranchEvidence.has(evidenceKey)) continue;
-          closedBranchEvidence.add(evidenceKey);
-          // The per-node check is suppressed by position alone: its
-          // answer at a position a branch answer covers is the weaker
-          // one whatever it names.
-          closedBranchesReported.add(key);
-          issues.push({ ...found.issue, ...positionFields(branchAt) });
-        }
-        if (!closedBranchesReported.has(positionKey(obj, path, at, closedNodeId))) {
-          const closedIssue = collectClosedCompositionIssue(obj, path, closedCtx);
-          if (closedIssue !== undefined) issues.push(closedIssue);
-        }
+      // Positioned at the branch, not at this node, so it sets its own
+      // position and is skipped by `stamp()` the way
+      // redundant-composition-branches is.
+      for (const found of collectClosedBranchIssues(obj, path, closedCtx)) {
+        let branchAt = at;
+        for (const segment of found.segments) branchAt = stepPosition(branchAt, segment);
+        const key = positionKey(found.node, found.issue.path, branchAt, closedNodeId);
+        const addressed = branchAt.pointer !== undefined || branchAt.schemaPath !== undefined;
+        const evidenceKey = addressed ? key : `${key}|${found.evidence}`;
+        if (closedBranchEvidence.has(evidenceKey)) continue;
+        closedBranchEvidence.add(evidenceKey);
+        // The per-node check is suppressed by position alone: its
+        // answer at a position a branch answer covers is the weaker
+        // one whatever it names.
+        closedBranchesReported.add(key);
+        issues.push({ ...found.issue, ...positionFields(branchAt) });
+      }
+      if (!closedBranchesReported.has(positionKey(obj, path, at, closedNodeId))) {
+        const closedIssue = collectClosedCompositionIssue(obj, path, closedCtx);
+        if (closedIssue !== undefined) issues.push(closedIssue);
       }
 
       for (const key of COMPOSITION_BRANCH_KEYS) {
@@ -495,13 +489,13 @@ function runSchemaLint(
       stamp();
     },
     {
-      resolveRef: (ref) => rules.resolveRef?.(ref) as SchemaOrBoolean | undefined,
+      resolveRef: (ref) => rules.resolveRef(ref) as SchemaOrBoolean | undefined,
       pointer: rules.pointer,
       anchor: rules.anchor,
       refSuppressesSiblings: rules.refSuppressesSiblings,
     },
     {
-      resolveRef: (ref, from) => rules.resolveRef?.(ref, from) as SchemaOrBoolean | undefined,
+      resolveRef: (ref, from) => rules.resolveRef(ref, from) as SchemaOrBoolean | undefined,
       pointerOf: rules.pointerOf,
       dynamicTargets: rules.dynamicTargets,
     },

@@ -32,6 +32,17 @@ const IN_PLACE = [
 const IN_PLACE_SET = new Set<string>(IN_PLACE);
 
 /**
+ * Whether the in-place applicator `kw` on `node` can apply to the instance.
+ * `then` and `else` apply only beside an `if`, so with none they constrain
+ * nothing and declare no name for the instance.
+ */
+function appliesInPlace(node: Obj, kw: string, refSuppressesSiblings: boolean): boolean {
+  if (refSiblingIsDiscarded(node, kw, refSuppressesSiblings)) return false;
+  if (kw !== "then" && kw !== "else") return true;
+  return node["if"] !== undefined;
+}
+
+/**
  * Promote a shared-text anchor to `scoped-definition`, leaving `node`
  * alone: text reached without a `$ref` is not shared, so there is
  * nothing to warn a reader about.
@@ -56,7 +67,9 @@ type Obj = Record<string, unknown>;
  * cannot. Supplied by the compiler so the walk can see through refs it
  * has no document to resolve against: in the HTTP pipeline each
  * operation's body schema is compiled on its own, with `components`
- * reachable only through the resolver.
+ * reachable only through the resolver. There is no other route: for a ref it
+ * refuses, the walk cannot enumerate past that `$ref` and reports nothing that
+ * depends on it.
  */
 export type RequiredLintResolver = (ref: string, from?: object) => unknown;
 
@@ -64,7 +77,7 @@ type DynamicTargets = (ref: string, from: object) => readonly unknown[];
 
 /** Resolution policy and physical positions for the required-property analysis. */
 interface RequiredLintOptions {
-  resolve?: RequiredLintResolver;
+  resolve: RequiredLintResolver;
   pointer?: string;
   anchor?: "node" | "definition";
   refSuppressesSiblings?: boolean;
@@ -73,10 +86,8 @@ interface RequiredLintOptions {
 }
 
 interface WalkContext {
-  root: Obj;
-  resolve?: RequiredLintResolver;
+  resolve: RequiredLintResolver;
   refSuppressesSiblings: boolean;
-  ignoredRefSiblingKeys?: WeakMap<Obj, ReadonlySet<string>>;
   dynamicTargets?: DynamicTargets;
 }
 
@@ -117,84 +128,35 @@ type Step = { k: "prop"; n: string } | { k: "items" } | { k: "addl" } | { k: "an
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /**
- * Resolve one `$ref`, preferring the compiler's resolver (which knows
- * about external schemas and the document the operation came from) and
- * falling back to a plain in-document pointer walk.
+ * Resolve one `$ref` through the compiler's resolver, which is the one
+ * authority on what it names. A ref it refuses or throws on is the caller's
+ * "cannot enumerate" case.
  */
-function pointerEntersDiscardedSibling(
-  root: Obj,
-  ref: string,
-  ignoredRefSiblingKeys: WeakMap<Obj, ReadonlySet<string>> | undefined,
-): boolean {
-  if (ignoredRefSiblingKeys === undefined || !ref.startsWith("#/")) return false;
-  let target: unknown = root;
-  for (const raw of ref.slice(2).split("/")) {
-    const key = raw.replace(/~1/g, "/").replace(/~0/g, "~");
-    if (!isObj(target)) return false;
-    if (ignoredRefSiblingKeys.get(target)?.has(key) === true) return true;
-    target = target[key];
-  }
-  return false;
-}
-
-function collectIgnoredRefSiblingKeys(
-  root: Obj,
-  refSuppressesSiblings: boolean,
-): WeakMap<Obj, ReadonlySet<string>> | undefined {
-  if (!refSuppressesSiblings) return undefined;
-  const ignoredRefSiblingKeys = new WeakMap<Obj, ReadonlySet<string>>();
-  const seen = new WeakSet<object>();
-
-  const go = (node: unknown): void => {
-    if (!isObj(node) || seen.has(node)) return;
-    seen.add(node);
-    const ignored = Object.keys(node).filter((key) => refSiblingIsDiscarded(node, key, true));
-    if (ignored.length > 0) ignoredRefSiblingKeys.set(node, new Set(ignored));
-
-    forEachSubschema(node, (value, key) => {
-      if (refSiblingIsDiscarded(node, key, true)) return;
-      go(value);
-    });
-  };
-
-  go(root);
-  return ignoredRefSiblingKeys;
-}
-
 function resolveRef(ref: string, context: WalkContext, from?: object): unknown {
-  const { root, resolve, ignoredRefSiblingKeys } = context;
-  if (resolve !== undefined) {
-    try {
-      const viaResolver = resolve(ref, from);
-      if (viaResolver !== undefined) return viaResolver;
-    } catch {
-      // An unresolvable ref is the caller's "cannot enumerate" case,
-      // not an error to raise from a lint pass.
-    }
+  try {
+    return context.resolve(ref, from);
+  } catch {
+    // Not an error to raise from a lint pass.
+    return undefined;
   }
-  if (!ref.startsWith("#/")) return undefined;
-  if (pointerEntersDiscardedSibling(root, ref, ignoredRefSiblingKeys)) return undefined;
-  let target: unknown = root;
-  for (const raw of ref.slice(2).split("/")) {
-    const key = raw.replace(/~1/g, "/").replace(/~0/g, "~");
-    if (!isObj(target) || !(key in target)) return undefined;
-    target = target[key];
-  }
-  return target;
 }
 
 /**
  * Every schema constraining the same instance as one of `seeds`: the
- * seeds themselves, their in-place applicator branches, and their
- * `$ref` targets, transitively.
+ * seeds themselves, their in-place applicator branches that can apply,
+ * and their `$ref` targets, transitively.
  *
  * `unresolved` reports that a `$ref` could not be followed, which the
  * caller treats as "cannot enumerate" rather than "contributes
  * nothing". Guessing the other way would invent findings.
+ *
+ * `dead` is for a subtree that can never apply (see `Instance.dead`): it
+ * counts every `then` and `else`, with or without an `if`.
  */
 function closure(
   seeds: readonly unknown[],
   context: WalkContext,
+  dead = false,
 ): { schemas: Obj[]; unresolved: boolean } {
   const { refSuppressesSiblings } = context;
   const schemas: Obj[] = [];
@@ -216,7 +178,13 @@ function closure(
     }
 
     for (const kw of IN_PLACE) {
-      if (refSiblingIsDiscarded(node, kw, refSuppressesSiblings)) continue;
+      if (
+        dead
+          ? refSiblingIsDiscarded(node, kw, refSuppressesSiblings)
+          : !appliesInPlace(node, kw, refSuppressesSiblings)
+      ) {
+        continue;
+      }
       const v = node[kw];
       if (v === undefined) continue;
       if (Array.isArray(v)) {
@@ -268,6 +236,12 @@ interface Instance {
   readonly schemas: readonly Obj[];
   /** The reachable names cannot be enumerated here; suppress flagging. */
   readonly unknown: boolean;
+  /**
+   * Inside a `then` or `else` that cannot apply. Nothing there constrains a
+   * live instance, so its closures count every `then` and `else` as if each
+   * one applied.
+   */
+  readonly dead?: boolean;
 }
 
 const UNKNOWN_INSTANCE: Instance = { schemas: [], unknown: true };
@@ -339,8 +313,21 @@ function stepInstance(cur: Instance, step: Step, context: WalkContext): Instance
     }
   }
 
-  const cl = closure(next, context);
-  return cl.unresolved ? UNKNOWN_INSTANCE : { schemas: cl.schemas, unknown: false };
+  const cl = closure(next, context, cur.dead);
+  return cl.unresolved ? UNKNOWN_INSTANCE : { schemas: cl.schemas, unknown: false, dead: cur.dead };
+}
+
+/**
+ * The instance as a `then` or `else` that cannot apply reads it: the live
+ * schemas plus every branch reachable from them, dead ones included. The
+ * branch is left out of the live closure, so names it declares satisfy no
+ * `required` outside it, while a `required` inside it still sees them.
+ */
+function deadBranchInstance(cur: Instance, branch: unknown, context: WalkContext): Instance {
+  if (cur.unknown) return UNKNOWN_INSTANCE;
+  if (cur.dead) return cur;
+  const cl = closure([...cur.schemas, branch], context, true);
+  return cl.unresolved ? UNKNOWN_INSTANCE : { schemas: cl.schemas, unknown: false, dead: true };
 }
 
 /** The child instance a descent through `key` lands on, if any. */
@@ -403,7 +390,7 @@ function stepFor(key: string, name?: string): Step | undefined {
  */
 export function collectRequiredIssues(
   root: unknown,
-  options: RequiredLintOptions = {},
+  options: RequiredLintOptions,
 ): SchemaLintIssue[] {
   const {
     resolve,
@@ -421,11 +408,9 @@ export function collectRequiredIssues(
   // which names have been reported for a given schema object.
   const reported = new Map<Obj, Set<string>>();
   const context: WalkContext = {
-    root,
     resolve,
     refSuppressesSiblings,
     dynamicTargets,
-    ignoredRefSiblingKeys: collectIgnoredRefSiblingKeys(root, refSuppressesSiblings),
   };
 
   // Identity keys for the visited set below. Per call rather than
@@ -444,7 +429,7 @@ export function collectRequiredIssues(
   const keyOf = (node: Obj, cur: Instance): string =>
     cur.unknown
       ? `${idOf(node)}|?`
-      : `${idOf(node)}|${cur.schemas
+      : `${idOf(node)}|${cur.dead === true ? "d" : ""}${cur.schemas
           .map(idOf)
           .sort((a, b) => a - b)
           .join(",")}`;
@@ -571,7 +556,11 @@ export function collectRequiredIssues(
       walk(
         v,
         childPath,
-        step === undefined ? cur : stepInstance(cur, step, context),
+        step !== undefined
+          ? stepInstance(cur, step, context)
+          : appliesInPlace(node, key, refSuppressesSiblings)
+            ? cur
+            : deadBranchInstance(cur, v, context),
         underNot || key === "not",
         childAt,
       );
