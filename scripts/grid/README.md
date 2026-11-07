@@ -199,8 +199,8 @@ That is worth stating precisely, because most of it does not:
   (`exclusiveMaximum: 10` in 3.1, `maximum: 10` plus `exclusiveMaximum: true`
   in 3.0) and the two report different codes for the same request:
   `exclusiveMaximum` against `maximum`. 3.0 also gets `exclMaxNumeric`, the
-  3.1 spelling in a 3.0 document, where the keyword is currently **ignored**
-  and `?p=1000` is accepted against a bound of 10.
+  3.1 spelling in a 3.0 document, which is a malformed schema: every such cell
+  records the construction error rather than a verdict.
 - Without those, 3.0 and 3.1 agreed on every one of the 8,568 comparable
   cells, which is the state this section exists to stop anyone assuming.
 

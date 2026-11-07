@@ -21,7 +21,7 @@
  * @packageDocumentation
  */
 
-import { checkNumber, NAMES, numberLiteral, quoteString } from "../codegen/index.js";
+import { checkBoolean, checkNumber, NAMES, numberLiteral, quoteString } from "../codegen/index.js";
 import {
   buildTypeMismatchCondition,
   OAS30_TYPE_NAMES,
@@ -171,6 +171,21 @@ export const oas30MinimumKeyword: KeywordDefinition = {
 };
 
 /**
+ * OAS 3.0 exclusive modifiers must be booleans. The numeric form is the
+ * later dialects' spelling, and the 3.0 keywords do not enforce it as a
+ * bound, so accepting it would drop the constraint silently.
+ */
+function checkExclusiveModifier(
+  value: unknown,
+  modifier: "exclusiveMaximum" | "exclusiveMinimum",
+  bound: "maximum" | "minimum",
+): string | undefined {
+  const reason = checkBoolean(value);
+  if (reason === undefined || typeof value !== "number") return reason;
+  return `${reason}. In OpenAPI 3.0 it modifies "${bound}": write "${bound}" with "${modifier}: true".`;
+}
+
+/**
  * OAS 3.0's `exclusiveMaximum` is a metadata boolean consumed by
  * {@link oas30MaximumKeyword}. No validation code on its own.
  *
@@ -180,8 +195,10 @@ export const oas30ExclusiveMaximumKeyword: KeywordDefinition = {
   keyword: "exclusiveMaximum",
   vocabulary: OAS30_VOCAB,
   annotation: true,
-  compile(): void {
-    // intentionally empty
+  validateKeywordValue: (value) => checkExclusiveModifier(value, "exclusiveMaximum", "maximum"),
+  compile(ctx: KeywordCompileContext): void {
+    const reason = checkExclusiveModifier(ctx.schema, "exclusiveMaximum", "maximum");
+    if (reason !== undefined) throw new Error(`keyword "exclusiveMaximum" ${reason}`);
   },
 };
 
@@ -195,7 +212,9 @@ export const oas30ExclusiveMinimumKeyword: KeywordDefinition = {
   keyword: "exclusiveMinimum",
   vocabulary: OAS30_VOCAB,
   annotation: true,
-  compile(): void {
-    // intentionally empty
+  validateKeywordValue: (value) => checkExclusiveModifier(value, "exclusiveMinimum", "minimum"),
+  compile(ctx: KeywordCompileContext): void {
+    const reason = checkExclusiveModifier(ctx.schema, "exclusiveMinimum", "minimum");
+    if (reason !== undefined) throw new Error(`keyword "exclusiveMinimum" ${reason}`);
   },
 };

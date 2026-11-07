@@ -598,3 +598,77 @@ describe("detectedVersion", () => {
     expect(createValidator(spec).detectedVersion).toBe("3.1");
   });
 });
+
+describe("3.0 numeric exclusive bounds", () => {
+  function specWith(
+    schema: Record<string, unknown>,
+    bound: Record<string, unknown> = { type: "number", exclusiveMaximum: 5 },
+  ): OpenAPIDocument {
+    return {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/a": {
+          post: {
+            requestBody: { content: { "application/json": { schema } } },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+      components: { schemas: { Bound: bound } },
+    } as unknown as OpenAPIDocument;
+  }
+
+  it.each(["off", "strict"] as const)("are rejected at precompile with schemaLint %s", (lint) => {
+    const validator = createValidator(specWith({ $ref: "#/components/schemas/Bound" }), {
+      schemaLint: lint,
+    });
+    expect(() => validator.precompile()).toThrow(/keyword "exclusiveMaximum" requires a boolean/);
+  });
+
+  it("reject exclusiveMinimum too", () => {
+    const validator = createValidator(
+      specWith({ $ref: "#/components/schemas/Bound" }, { exclusiveMinimum: 5 }),
+    );
+    expect(() => validator.precompile()).toThrow(/keyword "exclusiveMinimum" requires a boolean/);
+  });
+
+  it("are not judged beside a $ref that discards them", () => {
+    const validator = createValidator(
+      specWith(
+        { properties: { a: { $ref: "#/components/schemas/Bound", exclusiveMaximum: 5 } } },
+        { type: "number" },
+      ),
+    );
+    expect(() => validator.precompile()).not.toThrow();
+  });
+
+  describe("behind $dynamicRef, which OAS 3.0 does not define", () => {
+    const nested = { type: "object", properties: { x: { type: "number", exclusiveMaximum: 5 } } };
+
+    // Compiling the keyword itself is what rejects here.
+    it("are rejected when the target is the bound's own schema", () => {
+      const validator = createValidator(
+        specWith({ $dynamicRef: "#/components/schemas/Bound" }, { exclusiveMaximum: 5 }),
+      );
+      expect(() => validator.precompile()).toThrow(/requires a boolean/);
+    });
+
+    // Known gap, pinned so that closing it is visible: the runtime's
+    // well-formedness pass follows only $ref, and an inlined child skips the
+    // annotation keyword's compile. `$ref` to the same target is rejected.
+    it("are not seen in a child of the target", () => {
+      const viaDynamic = createValidator(
+        specWith({ $dynamicRef: "#/components/schemas/Bound" }, nested),
+      );
+      expect(() => viaDynamic.precompile()).not.toThrow();
+      const viaRef = createValidator(specWith({ $ref: "#/components/schemas/Bound" }, nested));
+      expect(() => viaRef.precompile()).toThrow(/requires a boolean/);
+    });
+  });
+
+  it("are not judged in a component no served operation reaches", () => {
+    const validator = createValidator(specWith({ type: "string" }));
+    expect(() => validator.precompile()).not.toThrow();
+  });
+});
