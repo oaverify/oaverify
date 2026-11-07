@@ -176,7 +176,6 @@ pnpm lint                         # the non-type-aware gate: oxlint, oxfmt --che
 pnpm lint:type-aware              # oxlint --type-aware (NOT part of `pnpm lint`; CI runs it)
 pnpm check:deps                   # assert the @oaverify/internal-* dependency graph (see below)
 pnpm check:walkers                # assert no walker hand-rolls the subschema-position loops
-pnpm check:http-methods           # assert only core spells out the HTTP method list
 pnpm check:operation-walkers      # assert no unlisted module under packages/ names the HTTP method list
 pnpm check:detection-table        # assert docs/comparison.md against detection/results/matrix.md
 pnpm check:conformance-report     # assert conformance/REPORT.md against the committed baselines

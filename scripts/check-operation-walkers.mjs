@@ -19,8 +19,8 @@
 // This script cannot tell a method loop from another use of the list,
 // so it bans the list's names outside the files below and lets each
 // exemption say what the list is used for there. A file that spells out
-// every method by hand is `check-http-methods`' to catch. Why a script
-// rather than a lint rule: the reasons are the part worth keeping.
+// every method by hand without naming the list is outside this check. Why a
+// script rather than a lint rule: the reasons are the part worth keeping.
 
 import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
