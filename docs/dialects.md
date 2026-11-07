@@ -30,6 +30,14 @@ The 3.0 dialect changes keyword behavior in four places.
    modify the sibling `maximum` / `minimum` rather than standing alone
    as numeric bounds. `oas30MaximumKeyword` / `oas30MinimumKeyword`
    read the boolean and emit `>=` vs `>` (or `<=` vs `<`) accordingly.
+   `compileSchema` rejects any other value, numeric bounds included, and
+   so does the HTTP validator when it compiles the schema (at `precompile()`
+   or the operation's first request). `createStreamValidator` applies no
+   keyword value guards (#919): with `openApiVersion: "3.0"` it enforces a
+   numeric value as a 2020-12 bound and ignores other non-booleans. Passing
+   `oas30Dialect` as well makes a buffered island fail, because it compiles
+   the normalized numeric form under the 3.0 dialect, as `nullable` already
+   does through its normalized `type` array.
 3. **`$ref` siblings are ignored.** The dialect's
    `rules.refSuppressesSiblings` flag makes the keyword dispatcher skip
    every non-`$ref` keyword in a schema that declares `$ref`.

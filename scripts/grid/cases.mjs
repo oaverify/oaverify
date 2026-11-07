@@ -121,9 +121,9 @@ const SCHEMAS_30 = [
   ["objNull", { type: "object", properties: { n: { type: "integer" } }, nullable: true }],
   // The 3.0 spelling of the 3.1 `exclMax` above. Both mean "below 10".
   ["exclMax", { type: "integer", maximum: 10, exclusiveMaximum: true }],
-  // The 3.1 spelling, in a 3.0 document, where it is currently ignored: a
+  // The 3.1 spelling, in a 3.0 document, where it is rejected as malformed: a
   // numeric `exclusiveMaximum` is not a 3.0 keyword. Recorded so that
-  // starting to honour it, or starting to reject it, is visible here.
+  // starting to accept it is visible here.
   ["exclMaxNumeric", { type: "integer", exclusiveMaximum: 10 }],
   ["untyped", {}],
 ];

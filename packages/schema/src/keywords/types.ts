@@ -671,7 +671,7 @@ export interface KeywordDefinition {
    * with inlineable keywords without disqualifying the schema. Used by
    * the subschema inliner to decide which keys to skip when counting
    * "real" validation keywords. A keyword defining `annotation: true`
-   * should also have an empty `compile`.
+   * must emit nothing from `compile`, which may still guard its value.
    */
   annotation?: boolean;
   /**

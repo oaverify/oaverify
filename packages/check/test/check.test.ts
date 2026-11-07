@@ -1109,6 +1109,72 @@ describe("unserved-parameter-location, a percent-encoded definition key", () => 
   });
 });
 
+describe("a numeric OAS 3.0 exclusive bound", () => {
+  it("is reported as malformed alongside the conformance finding", async () => {
+    const spec = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {},
+      components: { schemas: { A: { type: "number", exclusiveMaximum: 5 } } },
+    };
+    const findings = checkSpec(await resolve([["entry.json", spec]]));
+    expect(
+      findings
+        .filter((f) => f.class !== "hygiene")
+        .map((f) => [f.class, f.code, f.severity, f.target?.pointer]),
+    ).toEqual([
+      ["conformance", "type", "error", "/components/schemas/A/exclusiveMaximum"],
+      ["malformed", "malformed-schema", "fatal", "/components/schemas/A/exclusiveMaximum"],
+    ]);
+  });
+});
+
+describe("a numeric OAS 3.0 exclusive bound in an external file", () => {
+  it("is reported at the hoisted component", async () => {
+    const entry = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {
+        "/a": {
+          post: {
+            requestBody: {
+              content: { "application/json": { schema: { $ref: "ext.json" } } },
+            },
+            responses: { "200": { description: "ok" } },
+          },
+        },
+      },
+    };
+    const findings = checkSpec(
+      await resolve([
+        ["entry.json", entry],
+        ["ext.json", { type: "number", exclusiveMinimum: 5 }],
+      ]),
+    );
+    const malformed = findings.filter((f) => f.code === "malformed-schema");
+    expect(malformed).toHaveLength(1);
+    expect(malformed[0]?.target?.pointer).toMatch(/^\/components\/schemas\/.*\/exclusiveMinimum$/);
+  });
+});
+
+describe("a numeric OAS 3.0 exclusive bound beside a $ref", () => {
+  it("is not reported as malformed", async () => {
+    const spec = {
+      openapi: "3.0.3",
+      info: { title: "t", version: "1" },
+      paths: {},
+      components: {
+        schemas: {
+          A: { $ref: "#/components/schemas/B", exclusiveMaximum: 5 },
+          B: { type: "number" },
+        },
+      },
+    };
+    const findings = checkSpec(await resolve([["entry.json", spec]]));
+    expect(findings.map((f) => f.code)).not.toContain("malformed-schema");
+  });
+});
+
 describe("conformance reports the OAS 3.0 meta-schema's exclusive bound (#1199)", () => {
   // The 3.0 meta-schema, converted to 2020-12, declares
   // `multipleOf: { exclusiveMinimum: 0 }`, so a zero divisor fails with

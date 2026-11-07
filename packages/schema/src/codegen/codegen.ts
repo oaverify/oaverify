@@ -333,10 +333,14 @@ export function checkPositiveNumber(value: unknown): string | undefined {
  * @public
  */
 export function booleanLiteral(value: unknown, keyword: string): string {
-  if (typeof value !== "boolean") {
-    throw new Error(`keyword "${keyword}" requires a boolean; got ${describeValue(value)}`);
-  }
-  return value ? "true" : "false";
+  const reason = checkBoolean(value);
+  if (reason !== undefined) throw new Error(`keyword "${keyword}" ${reason}`);
+  return value === true ? "true" : "false";
+}
+
+/** Schema-side value contract shared with the well-formedness pass. */
+export function checkBoolean(value: unknown): string | undefined {
+  return typeof value === "boolean" ? undefined : `requires a boolean; got ${describeValue(value)}`;
 }
 
 /**

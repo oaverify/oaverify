@@ -1,5 +1,6 @@
 export {
   booleanLiteral,
+  checkBoolean,
   checkStringArray,
   checkNumber,
   checkNonNegativeInteger,

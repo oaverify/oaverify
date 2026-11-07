@@ -813,7 +813,8 @@ references such as `#Pet` can select the wrong target when multiple
 schemas define that name. `$dynamicRef`, which allows a reference's
 target to depend on the schema being applied, also ignores that context
 (#1090). Separately, some malformed schema keyword values are silently
-ignored instead of rejected (#919).
+ignored instead of rejected, and an OAS 3.0 numeric `exclusiveMaximum`,
+which `@oaverify/core` rejects, is enforced as a numeric bound (#919).
 
 ### packages/validator
 

@@ -160,3 +160,15 @@ describe("island delegation resolves refs into definitions", () => {
     });
   }
 });
+
+describe("OAS 3.0 numeric exclusive bounds", () => {
+  // compileSchema rejects these under oas30Dialect. The stream engine applies
+  // no keyword value guards (#919), so it loads them and enforces the 2020-12
+  // reading.
+  it("loads and enforces the 2020-12 numeric reading", async () => {
+    const schema = { type: "number", exclusiveMaximum: 5 } as SchemaObject;
+    expect(() => compileSchema(schema, { dialect: oas30Dialect })).toThrow(/requires a boolean/);
+    expect((await verdictOf(schema, 4, { openApiVersion: "3.0" })).valid).toBe(true);
+    expect((await verdictOf(schema, 5, { openApiVersion: "3.0" })).valid).toBe(false);
+  });
+});

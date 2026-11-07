@@ -267,24 +267,18 @@ describe("codegen injection: backtick-template fields cannot smuggle ${...}", ()
 });
 
 describe("codegen injection: boolean OAS 3.0 exclusive flag must be a boolean", () => {
-  // The codegen now hardcodes `"true"` / `"false"` strings based on a
-  // === true comparison. Any non-true value collapses to false, so an
-  // adversarial expression-as-string in `exclusiveMaximum` is treated
-  // as "not exclusive" rather than executed.
-  it("exclusiveMaximum: <expression string> behaves as non-exclusive (no execution)", () => {
-    const v = compileSchema(
-      {
-        type: "number",
-        maximum: 5,
-        exclusiveMaximum: EXPR_BOOLEAN as never,
-      } as never,
-      { dialect: oas30Dialect },
-    );
-    // Compile succeeded without executing the expression.
+  it("exclusiveMaximum: <expression string> is rejected without execution", () => {
+    expect(() =>
+      compileSchema(
+        {
+          type: "number",
+          maximum: 5,
+          exclusiveMaximum: EXPR_BOOLEAN as never,
+        } as never,
+        { dialect: oas30Dialect },
+      ),
+    ).toThrow(/keyword "exclusiveMaximum" requires a boolean/);
     expectNoCanary();
-    // Behaves as non-exclusive (boundary is allowed).
-    expect(v.validate(5).valid).toBe(true);
-    expect(v.validate(6).valid).toBe(false);
   });
 });
 
