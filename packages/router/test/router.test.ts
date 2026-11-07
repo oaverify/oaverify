@@ -835,3 +835,15 @@ describe("raw path captures", () => {
     expect(Object.getPrototypeOf(result.rawPathParams)).toBe(Object.prototype);
   });
 });
+
+describe("x- keys in the paths map (#1342)", () => {
+  it("are not routes", () => {
+    const router = createRouter({
+      "/real": { get: op("real") },
+      "x-vendor": { get: op("vendor") },
+    } as Record<string, PathItem>);
+    expect(router.match("get", "/real")?.kind).toBe("match");
+    expect(router.match("get", "/x-vendor")).toBeUndefined();
+    expect(router.match("get", "x-vendor")).toBeUndefined();
+  });
+});

@@ -223,6 +223,15 @@ export interface OperationModel {
 }
 
 /**
+ * Whether a key of the Paths Object is a path template. A key beginning
+ * with `x-` is a specification extension: what it holds is not a Path
+ * Item, and it declares no route.
+ */
+export function isPathTemplate(key: string): boolean {
+  return !key.startsWith("x-");
+}
+
+/**
  * The operations one Path Item object declares itself: each fixed method
  * field holding an object, then each `additionalOperations` entry holding
  * one. Fields behind the object's own `$ref` are not read; the model's
@@ -325,14 +334,15 @@ export function buildOperationModel(document: OpenAPIDocument): OperationModel {
   const diagnostics: ModelDiagnostic[] = [];
   const doc = document as unknown as Obj;
 
-  // `emitSpec` resolves the reference chain of every value under `paths`,
-  // an `x-` key's included (#1342), before it emits anything.
+  // `emitSpec` resolves the reference chain of every path template's
+  // value before it emits anything.
   const emitBuilds =
     !isObj(doc["paths"]) ||
     Object.entries(doc["paths"]).every(
       ([key, item]) =>
+        !isPathTemplate(key) ||
         followReference(document, item, `/paths/${escapePointerSegment(key)}`).status ===
-        "complete",
+          "complete",
     );
 
   const follow = (node: unknown, pointer: string): FollowedReference => {
@@ -489,8 +499,8 @@ export function buildOperationModel(document: OpenAPIDocument): OperationModel {
     if (!isObj(entries)) continue;
     for (const [key, item] of Object.entries(entries)) {
       // `webhooks` and `components.pathItems` map names, where any key is
-      // an entry; under `paths` an `x-` key is a specification extension.
-      if (container === "paths" && key.startsWith("x-")) continue;
+      // an entry.
+      if (container === "paths" && !isPathTemplate(key)) continue;
       enterPathItem(container, key, `${at}/${escapePointerSegment(key)}`, item);
     }
   }

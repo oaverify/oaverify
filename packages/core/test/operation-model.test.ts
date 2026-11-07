@@ -4,6 +4,7 @@ import {
   REF_CHAIN_MAX_HOPS,
   buildOperationModel,
   followReference,
+  isPathTemplate,
   operationsOn,
 } from "../src/operation-model.js";
 
@@ -115,6 +116,19 @@ describe("buildOperationModel: containers", () => {
     );
     expect(model.pathItems.map((item) => item.pointer)).toEqual(["/paths/~1p"]);
     expect(model.operations).toEqual([]);
+  });
+});
+
+describe("isPathTemplate", () => {
+  it("is false for an x- specification extension and true for any other key", () => {
+    expect(["/pets", "/x-pets", "x-vendor", "x-", "pets", ""].map(isPathTemplate)).toEqual([
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+    ]);
   });
 });
 
@@ -236,14 +250,14 @@ describe("buildOperationModel: Path Item reference chains", () => {
     expect(model.pathItems[0]!.impliedHead).toEqual({ runtime: true, emitted: false });
   });
 
-  it("counts an extension key's broken reference against the emitter, as the emitter does", () => {
+  it("does not count an extension key's broken reference against the emitter", () => {
     const model = buildOperationModel(
       doc("3.1.0", {
         paths: { "/ok": { get: { responses: ok } }, "x-bad": { $ref: "#/nope" } },
       }),
     );
     expect(model.pathItems.map((item) => item.pointer)).toEqual(["/paths/~1ok"]);
-    expect(model.operations[0]!.servedBy.emitted).toEqual({ served: false, reason: "emit-fails" });
+    expect(model.operations[0]!.servedBy.emitted).toEqual({ served: true });
     expect(model.diagnostics).toEqual([]);
   });
 
