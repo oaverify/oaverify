@@ -206,7 +206,7 @@ function isSchemaObject(value: unknown): value is Record<string, unknown> {
  *
  * A walker that classifies a key it already holds, rather than
  * iterating positions, reaches for {@link subschemaFamilyOf} instead;
- * `packages/spec`'s two resolvers are that shape.
+ * `packages/spec`'s resolver is that shape.
  *
  * The mixed-map rule lives here rather than at each call site: an array
  * value under `dependencies` names required properties and is not a
