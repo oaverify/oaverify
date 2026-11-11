@@ -67,7 +67,7 @@
     "@oaverify/internal-spec": "workspace:*",
     "tsup": "9.0.0",
     "typescript": "5.9.3",
-    "vitest": "5.0.4"
+    "vitest": "5.1.0"
   },
   "peerDependencies": {
     "esbuild": "^0.28.0"
