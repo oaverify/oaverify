@@ -1,5 +1,14 @@
 # Changelog
 
+## [7.3.2](https://github.com/oaverify/oaverify/compare/oaverify-v7.3.1...oaverify-v7.3.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* **schema:** locate required-property findings at array entries ([#1312](https://github.com/oaverify/oaverify/issues/1312)) ([86d0f32](https://github.com/oaverify/oaverify/commit/86d0f32bc71e1c433ec7da89b26062c0628d8b7a)), closes [#1287](https://github.com/oaverify/oaverify/issues/1287)
+* **spec:** count tags used behind references and in callbacks as used ([#1346](https://github.com/oaverify/oaverify/issues/1346)) ([c4eed6e](https://github.com/oaverify/oaverify/commit/c4eed6ec16ea0f8c800dcfad9c7f381b1e8929b2))
+* **stream:** list operations behind a Path Item reference in analyzeSpec ([#1350](https://github.com/oaverify/oaverify/issues/1350)) ([b7b2e63](https://github.com/oaverify/oaverify/commit/b7b2e6316bc60d47f3a03f20c6ca3aa72b026336))
+
 ## [7.3.1](https://github.com/oaverify/oaverify/compare/oaverify-v7.3.0...oaverify-v7.3.1) (2026-10-28)
 
 

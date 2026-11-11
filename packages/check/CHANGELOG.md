@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.3.2](https://github.com/oaverify/oaverify/compare/check-v7.3.1...check-v7.3.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* **check:** report a repeated or query-mixed querystring parameter ([#1363](https://github.com/oaverify/oaverify/issues/1363)) ([c1cf7ea](https://github.com/oaverify/oaverify/commit/c1cf7ea3c750181591c42bb752b24bf9c9d1928f))
+* **check:** report route conflicts without aborting grading ([#1317](https://github.com/oaverify/oaverify/issues/1317)) ([68304b4](https://github.com/oaverify/oaverify/commit/68304b4e337d52e18d232314a2f2b8f633bce196))
+* **schema:** locate required-property findings at array entries ([#1312](https://github.com/oaverify/oaverify/issues/1312)) ([86d0f32](https://github.com/oaverify/oaverify/commit/86d0f32bc71e1c433ec7da89b26062c0628d8b7a)), closes [#1287](https://github.com/oaverify/oaverify/issues/1287)
+* **schema:** read required-lint references through the resolver only ([#1366](https://github.com/oaverify/oaverify/issues/1366)) ([ea48cd9](https://github.com/oaverify/oaverify/commit/ea48cd9831befa1639ab8f927815371cf578cae9))
+* **schema:** reject non-boolean OAS 3.0 exclusive bound modifiers ([#1360](https://github.com/oaverify/oaverify/issues/1360)) ([0367b60](https://github.com/oaverify/oaverify/commit/0367b6067170fafa7fc3d96c170293abab6f4922))
+* **spec:** read a hygiene # fragment against the enclosing $id ([#1367](https://github.com/oaverify/oaverify/issues/1367)) ([e13741f](https://github.com/oaverify/oaverify/commit/e13741fa72121b384096d45b818e52cbf7e420d3))
+
 ## [7.3.1](https://github.com/oaverify/oaverify/compare/check-v7.3.0...check-v7.3.1) (2026-10-28)
 
 

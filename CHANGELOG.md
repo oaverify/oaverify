@@ -1,5 +1,46 @@
 # Changelog
 
+## [7.3.2](https://github.com/oaverify/oaverify/compare/core-v7.3.1...core-v7.3.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* **check:** report a repeated or query-mixed querystring parameter ([#1363](https://github.com/oaverify/oaverify/issues/1363)) ([c1cf7ea](https://github.com/oaverify/oaverify/commit/c1cf7ea3c750181591c42bb752b24bf9c9d1928f))
+* **check:** report route conflicts without aborting grading ([#1317](https://github.com/oaverify/oaverify/issues/1317)) ([68304b4](https://github.com/oaverify/oaverify/commit/68304b4e337d52e18d232314a2f2b8f633bce196))
+* **cli:** read security alternatives for the shape warning ([#1334](https://github.com/oaverify/oaverify/issues/1334)) ([5a566fb](https://github.com/oaverify/oaverify/commit/5a566fb2ad00277909f4b40aaa2b6c2938105669))
+* **cli:** read served operations for the shape security warning ([#1326](https://github.com/oaverify/oaverify/issues/1326)) ([2e32855](https://github.com/oaverify/oaverify/commit/2e32855a47908d1200c1fc31a4888b8e105d1eb0))
+* **core:** declare Server Object variables and name ([#1328](https://github.com/oaverify/oaverify/issues/1328)) ([66f6a82](https://github.com/oaverify/oaverify/commit/66f6a8244922da5e2e8ab001d1d4e4cee66dd536))
+* **router:** do not route an x- key under paths ([#1349](https://github.com/oaverify/oaverify/issues/1349)) ([4cd94e2](https://github.com/oaverify/oaverify/commit/4cd94e2ed05f4e79dbf6743aa25cdb39edbb6d72))
+* **schema:** guard recursive descent through reference aliases ([#1311](https://github.com/oaverify/oaverify/issues/1311)) ([2c28780](https://github.com/oaverify/oaverify/commit/2c28780f2fb92998ed03db270a9d53956909a80f))
+* **schema:** locate required-property findings at array entries ([#1312](https://github.com/oaverify/oaverify/issues/1312)) ([86d0f32](https://github.com/oaverify/oaverify/commit/86d0f32bc71e1c433ec7da89b26062c0628d8b7a)), closes [#1287](https://github.com/oaverify/oaverify/issues/1287)
+* **schema:** read required-lint references through the resolver only ([#1366](https://github.com/oaverify/oaverify/issues/1366)) ([ea48cd9](https://github.com/oaverify/oaverify/commit/ea48cd9831befa1639ab8f927815371cf578cae9))
+* **schema:** reject non-boolean OAS 3.0 exclusive bound modifiers ([#1360](https://github.com/oaverify/oaverify/issues/1360)) ([0367b60](https://github.com/oaverify/oaverify/commit/0367b6067170fafa7fc3d96c170293abab6f4922))
+* **spec:** check path parameters behind a Path Item reference ([#1347](https://github.com/oaverify/oaverify/issues/1347)) ([1cc6e80](https://github.com/oaverify/oaverify/commit/1cc6e807976c77db6885daaf10561dbbf2b63671))
+* **spec:** count 3.2 URI-named security schemes as used ([#1327](https://github.com/oaverify/oaverify/issues/1327)) ([d4fdcb5](https://github.com/oaverify/oaverify/commit/d4fdcb528f8b24785972545a30d00c3db7064ead))
+* **spec:** count tags used behind references and in callbacks as used ([#1346](https://github.com/oaverify/oaverify/issues/1346)) ([c4eed6e](https://github.com/oaverify/oaverify/commit/c4eed6ec16ea0f8c800dcfad9c7f381b1e8929b2))
+* **spec:** decode percent-encoded $ref fragments for hygiene reachability ([#1333](https://github.com/oaverify/oaverify/issues/1333)) ([5e2e02c](https://github.com/oaverify/oaverify/commit/5e2e02cb53792fcd13e5f3fb5c507e5983c98edf))
+* **spec:** follow stitched references for component reachability ([#1319](https://github.com/oaverify/oaverify/issues/1319)) ([6415600](https://github.com/oaverify/oaverify/commit/6415600b095c82bcbb06f1862fd5b6f901229812))
+* **spec:** read a hygiene # fragment against the enclosing $id ([#1367](https://github.com/oaverify/oaverify/issues/1367)) ([e13741f](https://github.com/oaverify/oaverify/commit/e13741fa72121b384096d45b818e52cbf7e420d3))
+* **spec:** reject thenables from synchronous readers ([#1318](https://github.com/oaverify/oaverify/issues/1318)) ([1cf0ab0](https://github.com/oaverify/oaverify/commit/1cf0ab095fa47bebeba3ae39c64a24b368d48d5a))
+* **spec:** report an unreferenced components.pathItems entry as unused ([#1358](https://github.com/oaverify/oaverify/issues/1358)) ([84276fc](https://github.com/oaverify/oaverify/commit/84276fc0e79b330a33856b13ad9808c200abd10e))
+* **spec:** run resolveSpec and resolveSpecSync from one walk ([#1370](https://github.com/oaverify/oaverify/issues/1370)) ([ace88f1](https://github.com/oaverify/oaverify/commit/ace88f15793a4be07ac67686dd1a307a7e6ce3d6))
+* **stream:** detect the OpenAPI minor exactly in versionFromDoc ([#1362](https://github.com/oaverify/oaverify/issues/1362)) ([2adcd7e](https://github.com/oaverify/oaverify/commit/2adcd7e145c136674c716b04a9f77f4c0328e984))
+* **stream:** enforce maxBufferedBytes as island bytes arrive ([#1325](https://github.com/oaverify/oaverify/issues/1325)) ([dfa9188](https://github.com/oaverify/oaverify/commit/dfa9188109cf64bfc0623ca82027b9e32d8ed83c))
+* **stream:** honor OAS 3.0 $ref sibling suppression under a 3.0 dialect ([#1361](https://github.com/oaverify/oaverify/issues/1361)) ([58afa28](https://github.com/oaverify/oaverify/commit/58afa28ad3589e6bb4815c5732dfd2b5f1a79933))
+* **stream:** list operations behind a Path Item reference in analyzeSpec ([#1350](https://github.com/oaverify/oaverify/issues/1350)) ([b7b2e63](https://github.com/oaverify/oaverify/commit/b7b2e6316bc60d47f3a03f20c6ca3aa72b026336))
+* **stream:** make analyzer byte figures upper bounds ([#1332](https://github.com/oaverify/oaverify/issues/1332)) ([e87efe0](https://github.com/oaverify/oaverify/commit/e87efe0b298623481ae8146ed6caba0b8c2d7015))
+* **stream:** preserve edited output order on total-byte refusal ([#1315](https://github.com/oaverify/oaverify/issues/1315)) ([9070962](https://github.com/oaverify/oaverify/commit/90709629b91e3e1e5ae9d74d3ad5c7f51ae22ab0))
+* **stream:** preserve retained edit bytes when detach seals at EOF ([#1313](https://github.com/oaverify/oaverify/issues/1313)) ([91e35bf](https://github.com/oaverify/oaverify/commit/91e35bf0c5a4678cefa728d1a936aea4df296b0e))
+* **stream:** report a malformed number before a drop limit refuses its delimiter ([#1335](https://github.com/oaverify/oaverify/issues/1335)) ([24601ea](https://github.com/oaverify/oaverify/commit/24601ea4a425170f6780a68df5aff69c8a8cf64d))
+* **validator:** follow references in the document walk as the request path does ([#1351](https://github.com/oaverify/oaverify/issues/1351)) ([41d4bfd](https://github.com/oaverify/oaverify/commit/41d4bfdeeff892d783111d91bda9667dbfd1ded5))
+* **validator:** list ignored headers under additionalOperations ([#1357](https://github.com/oaverify/oaverify/issues/1357)) ([dbfc7e3](https://github.com/oaverify/oaverify/commit/dbfc7e3bb3ee74078ef035a0f69d3c91890cc204))
+
+
+### Refactoring
+
+* **validator:** read a Path Item's operations through the model ([#1348](https://github.com/oaverify/oaverify/issues/1348)) ([35fe9a2](https://github.com/oaverify/oaverify/commit/35fe9a2940fdb510c8c48df41e75c20deff26778))
+* **validator:** remove the unused checkBodyContentType wrapper ([#1364](https://github.com/oaverify/oaverify/issues/1364)) ([16e8d5e](https://github.com/oaverify/oaverify/commit/16e8d5e412eede787bd8d3f1dced4fea41ec80f0))
+
 ## [7.3.1](https://github.com/oaverify/oaverify/compare/core-v7.3.0...core-v7.3.1) (2026-10-28)
 
 
