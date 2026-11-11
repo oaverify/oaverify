@@ -1,12 +1,7 @@
 /**
- * Pure (no-I/O) helpers shared by the async {@link resolveSpec} and the
- * synchronous `resolveSpecSync` resolvers. The two resolvers keep
- * separate walk skeletons because one interleaves `await reader.read`
- * and the other a synchronous `reader.read` (JS function coloring), but
- * every sub-step that never touches the reader lives here so the URI
- * math and `$ref`-rewriting logic exists in exactly one place. A change
- * to stitch-pointer construction or relative-URI resolution lands for
- * both paths at once; the sync/async parity suite guards the rest.
+ * Helpers for the resolution walk in `./resolver.ts`: URI math,
+ * `$ref` rewriting, naming, stitching and the records the walk keeps.
+ * None of them reads a document.
  *
  * @packageDocumentation
  */
@@ -564,14 +559,11 @@ export interface MountState {
  * These are loading costs; compiled request validation is unaffected.
  *
  * The resolved-document path is a single reused array pushed and popped
- * as the walk descends. Both walks are depth-first and strictly
- * sequential (the async one awaits each child in turn and never runs
- * two branches concurrently), so a stack is enough, and a pointer string
+ * as the walk descends. The walk is depth-first and strictly
+ * sequential (it requests one read at a time and never runs two
+ * branches concurrently), so a stack is enough, and a pointer string
  * is built only where a region is recorded: once per external
  * reference, not once per node.
- *
- * Shared by both resolvers rather than mirrored, so the recording rules
- * exist in one place and only the call sites are hand-mirrored.
  */
 export class ResolutionTrail {
   /** Regions recorded so far, in the order the walk found them. */
