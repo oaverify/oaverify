@@ -338,6 +338,28 @@ describe("hostname: labels, marks, and where the length cap is measured", () => 
     expect(validateHostname(name254)).toBe(false);
     expect(validateHostname(`${name254}.`)).toBe(false);
   });
+
+  it("caps an internationalized name at 506 UTF-16 units, without the root dot", () => {
+    // U+20000 is a letter outside the BMP: one code point, two units, so
+    // a 31-letter label is 62 units. 507 units hold at least 254 code
+    // points, and no encoding of 254 code points fits in 253 characters.
+    const label = "\u{20000}".repeat(31);
+    const at506 = `${Array.from({ length: 8 }, () => label).join(".")}.ab`;
+    expect(at506).toHaveLength(506);
+    expect(validateIdnHostname(at506)).toBe(true);
+    expect(validateIdnHostname(`${at506}.`)).toBe(true);
+    const at507 = `${at506}f`;
+    expect(at507).toHaveLength(507);
+    expect(validateIdnHostname(at507)).toBe(false);
+    expect(validateIdnHostname(`${at507}.`)).toBe(false);
+  });
+
+  it("refuses an over-long internationalized name whose labels are all valid", () => {
+    // Every label passes on its own, so only the whole-name cap refuses it.
+    expect(validateIdnHostname("a.".repeat(253))).toBe(true);
+    expect(validateIdnHostname("a.".repeat(254))).toBe(false);
+    expect(validateIdnHostname("a.".repeat(2_000_000))).toBe(false);
+  });
 });
 
 describe("email / idn-email: the pair rule", () => {
@@ -388,8 +410,8 @@ describe("email / idn-email: the pair rule", () => {
     expect(validateIdnEmail(`u@${at253}`)).toBe(true);
     expect(validateEmail(`u@${at254}`)).toBe(false);
     expect(validateIdnEmail(`u@${at254}`)).toBe(false);
-    // `idn-hostname` itself still has no cap, deliberately: its limit is
-    // on the encoded form it does not compute (#669). The cap is the
+    // `idn-hostname` itself does not apply this cap: the limit is on the
+    // encoded form it does not compute (#669). The 253 cap is the
     // mailbox's, which is why it lives in the mailbox path.
     expect(validateIdnHostname(at254)).toBe(true);
   });

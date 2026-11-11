@@ -131,17 +131,18 @@ A local date-time with seconds set to `60`, such as
 reserves `60` for leap seconds, but this format has no time-zone offset
 to check their position against UTC.
 
-**`validateIdnHostname`** ([packages/formats/src/hostname.ts:52](../packages/formats/src/hostname.ts#L52))
+**`validateIdnHostname`** ([packages/formats/src/hostname.ts:61](../packages/formats/src/hostname.ts#L61))
 
 Against RFC 5890 section 2.3.2.1 (<https://datatracker.ietf.org/doc/html/rfc5890#section-2.3.2.1>).
 
 An internationalized hostname can exceed DNS's total length limit and
-still pass validation. That limit applies to the ASCII encoding of the
-name, including any Punycode-encoded Unicode labels. This validator
-checks each dot-separated part but does not encode and measure the whole
-name (#669).
+still pass validation. That limit is 253 characters of the ASCII
+encoding of the name, including any Punycode-encoded Unicode labels.
+This validator does not encode the name, so it refuses only a name over
+506 UTF-16 units, which is too long whatever it encodes to. A name of
+five 63-letter ASCII labels is 319 characters and passes (#669).
 
-**`validateIdnHostname`** ([packages/formats/src/hostname.ts:52](../packages/formats/src/hostname.ts#L52))
+**`validateIdnHostname`** ([packages/formats/src/hostname.ts:61](../packages/formats/src/hostname.ts#L61))
 
 Against RFC 5891 section 4.2 (<https://datatracker.ietf.org/doc/html/rfc5891#section-4.2>).
 
