@@ -39,6 +39,11 @@ const IRREGULAR_GRANDFATHERED = new Set([
   "sgn-ch-de",
 ]);
 
+/** The longest entry of {@link IRREGULAR_GRANDFATHERED}, in UTF-16 units. */
+const MAX_GRANDFATHERED_LENGTH = Math.max(
+  ...Array.from(IRREGULAR_GRANDFATHERED, (tag) => tag.length),
+);
+
 /** `language = 2*3ALPHA / 4ALPHA / 5*8ALPHA`, so 2 to 8 letters. */
 function isLanguageSubtag(subtag: string): boolean {
   return subtag.length >= 2 && subtag.length <= 8 && ALPHA_RE.test(subtag);
@@ -128,7 +133,16 @@ function isExtensionBody(subtag: string | undefined): boolean {
  * @public
  */
 export function validateLanguage(value: string): boolean {
-  if (IRREGULAR_GRANDFATHERED.has(value.toLowerCase())) return true;
+  // Lowercasing copies the value, so it is skipped for one too long to
+  // be in the table. The length test is exact: a character that
+  // lowercases to an ASCII letter or hyphen occupies one UTF-16 unit, as
+  // its lowercase form does.
+  if (
+    value.length <= MAX_GRANDFATHERED_LENGTH &&
+    IRREGULAR_GRANDFATHERED.has(value.toLowerCase())
+  ) {
+    return true;
+  }
 
   const subtags = value.split("-");
   // Every subtag is 1-8 alphanumerics before position is considered,

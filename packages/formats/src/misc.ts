@@ -63,5 +63,8 @@ export function validateRegex(value: string): boolean {
  * @public
  */
 export function validateChar(value: string): boolean {
+  // A code point is at most two UTF-16 units, so a longer value is
+  // refused without building an array the size of the input.
+  if (value.length > 2) return false;
   return Array.from(value).length === 1;
 }

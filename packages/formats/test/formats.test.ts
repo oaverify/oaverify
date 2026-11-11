@@ -411,6 +411,23 @@ describe("ipv4 / ipv6", () => {
     expect(validateIpv4("1.1.1")).toBe(false);
   });
 
+  it("decides an over-long ipv4 on its length", () => {
+    // 15 characters is the longest address there is.
+    expect(validateIpv4("255.255.255.255")).toBe(true);
+    expect(validateIpv4("100.100.100.100")).toBe(true);
+    // Each of these is 16 characters, and the octet check refuses it too.
+    expect(validateIpv4("255.255.255.2555")).toBe(false);
+    expect(validateIpv4("0255.255.255.255")).toBe(false);
+    expect(validateIpv4("255.255.255.255.")).toBe(false);
+    expect(validateIpv4("100.100.100.10.1")).toBe(false);
+    expect(validateIpv4("1.".repeat(2_000_000))).toBe(false);
+    // The embedded form and the CIDR form both reach the same guard.
+    expect(validateIpv6("::ffff:255.255.255.255")).toBe(true);
+    expect(validateIpv6("::255.255.255.2555")).toBe(false);
+    expect(validateIpv4Cidr("255.255.255.255/32")).toBe(true);
+    expect(validateIpv4Cidr("255.255.255.2555/32")).toBe(false);
+  });
+
   it("accepts well-formed ipv6", () => {
     expect(validateIpv6("2001:db8::1")).toBe(true);
     expect(validateIpv6("::1")).toBe(true);
@@ -958,6 +975,20 @@ describe("char", () => {
     expect(validateChar("ab")).toBe(false);
   });
 
+  it("decides at two UTF-16 units, the most one code point occupies", () => {
+    // Two units: one code point only as a surrogate pair.
+    expect(validateChar("\u{10FFFF}")).toBe(true);
+    expect(validateChar("\uD83C\uD83C")).toBe(false);
+    expect(validateChar("\uDF89\uD83C")).toBe(false);
+    expect(validateChar("a\uD83C")).toBe(false);
+    // Three units: never one code point.
+    expect(validateChar("abc")).toBe(false);
+    expect(validateChar("🎉a")).toBe(false);
+    expect(validateChar("a🎉")).toBe(false);
+    expect(validateChar("\uD83C\uD83C\uDF89")).toBe(false);
+    expect(validateChar("a".repeat(10_000_000))).toBe(false);
+  });
+
   it("rejects a combining sequence, which is two code points", () => {
     // The grapheme-cluster reading would accept this; the registry
     // does not ask for it, and code points are predictable.
@@ -1405,6 +1436,22 @@ describe("language", () => {
     ]) {
       expect(validateLanguage(tag), tag).toBe(true);
     }
+  });
+
+  it("matches the irregular table at its longest entry and not past it", () => {
+    // "i-enochian" is the longest entry, at 10 characters. It is in the
+    // table only: "i" is too short to be a language subtag.
+    expect(validateLanguage("i-enochian")).toBe(true);
+    expect(validateLanguage("I-ENOCHIAN")).toBe(true);
+    expect(validateLanguage("i-enochia")).toBe(false);
+    expect(validateLanguage("i-enochians")).toBe(false);
+    expect(validateLanguage("i-enochian-")).toBe(false);
+    expect(validateLanguage("i-enochian-x-a")).toBe(false);
+    // A longer value still reaches the parser.
+    expect(validateLanguage("en-GB-oed-x-a")).toBe(false);
+    expect(validateLanguage("sgn-BE-FR-x-a")).toBe(false);
+    expect(validateLanguage("hy-Latn-IT-arevela")).toBe(true);
+    expect(validateLanguage("A".repeat(4_000_000))).toBe(false);
   });
 
   it("does not check a subtag against the IANA registry", () => {
