@@ -265,10 +265,9 @@ export interface ResolvedSpec {
  * separate locations when their source pointers overlap, preserving
  * literal content inside an ancestor.
  *
- * The synchronous mirror is `resolveSpecSync` (reachable via
- * `@oaverify/core/spec/internals`); both share the pure URI / ref-rewriting helpers
- * in `./resolver-shared.ts` and are pinned to identical behavior by the
- * parity suite. Keep any change to the walk here mirrored there.
+ * The synchronous form is `resolveSpecSync` (reachable via
+ * `@oaverify/core/spec/internals`). Both run {@link resolveSpecSteps},
+ * so a change to the walk reaches both.
  *
  * @param options - Reader + entry URI.
  * @returns Resolved document + the list of files loaded.
@@ -315,6 +314,46 @@ export async function resolveSpec(options: ResolveSpecOptions): Promise<Resolved
  */
 export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<TrackedResolution> {
   const { reader } = options;
+  const steps = resolveSpecSteps(options);
+  let step = steps.next();
+  while (!step.done) {
+    let doc: unknown;
+    try {
+      doc = await reader.read(step.value);
+    } catch (err) {
+      step = steps.throw(err);
+      continue;
+    }
+    step = steps.next(doc);
+  }
+  return step.value;
+}
+
+/**
+ * A resolution that performs no I/O. It yields the URI of each document
+ * it needs, and the caller answers with the parsed document through
+ * `next(doc)` or with the read failure through `throw(err)`. It returns
+ * the finished resolution.
+ *
+ * @internal
+ */
+export type Steps<T> = Generator<string, T, unknown>;
+
+/**
+ * The resolution behind {@link resolveSpec} and `resolveSpecSync`,
+ * written once as {@link Steps}. Each entry point is a loop that
+ * answers the reads with its own reader, awaiting or not.
+ *
+ * Reads are requested one at a time and in walk order. A failure
+ * thrown in is handled where the read was requested, so `onUnresolved`
+ * and the error wording are decided here and are the same for every
+ * caller.
+ *
+ * @internal
+ */
+export function* resolveSpecSteps(
+  options: Omit<ResolveSpecOptions, "reader">,
+): Steps<TrackedResolution> {
   const baseDir = options.baseUri ?? baseDirOf(options.entry);
   const entryUri = entryIdentity(options.entry);
   const sources = new Set<string>([options.entry]);
@@ -340,14 +379,14 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
   // Null unless the caller asked to record; every read below then
   // throws exactly as it always did.
   const holes = options.onUnresolved === "record" ? new HoleLog() : null;
-  const readDoc = async (uri: string, via: readonly SourceHop[]): Promise<unknown> => {
+  const readDoc = function* (uri: string, via: readonly SourceHop[]): Steps<unknown> {
     // A target already known to be missing is not read again. One
     // missing file costs one failed read however many references name
     // it, which is what keeps a document mid-rename cheap to re-check.
     if (holes !== null && holes.has(uri)) return UNREADABLE;
     const referrer = referrers.get(uri) ?? null;
     try {
-      const doc = await reader.read(uri);
+      const doc = yield uri;
       // A read that answers with nothing did not produce a document.
       // The reader layer refuses an empty YAML source already (#850),
       // but `JSON.parse("null")` succeeds, and a reader is free to
@@ -408,7 +447,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
   // does not cover the entry. See `ResolveSpecOptions.onUnresolved`.
   let entryDoc: unknown;
   try {
-    entryDoc = await reader.read(options.entry);
+    entryDoc = yield options.entry;
   } catch (err) {
     throw wrapReadError(err, options.entry, null);
   }
@@ -556,19 +595,27 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
     inSchema: kind === "schema",
   });
 
-  const walk = async (
+  // A scalar is returned as it is from every position, so the walk does
+  // not start a generator for one. Most nodes of a document are scalars.
+  const isLeaf = (value: unknown): boolean => value === null || typeof value !== "object";
+
+  const walk = function* (
     value: unknown,
     currentBase: string,
     stitchingUri: string | null,
     externalSourceUri: string | null,
     pos: Pos,
-  ): Promise<unknown> => {
+  ): Steps<unknown> {
     if (value === null || typeof value !== "object") return value;
     if (Array.isArray(value)) {
       const out: unknown[] = [];
       for (const item of value) {
+        if (isLeaf(item)) {
+          out.push(item);
+          continue;
+        }
         trail.push(String(out.length));
-        out.push(await walk(item, currentBase, stitchingUri, externalSourceUri, pos));
+        out.push(yield* walk(item, currentBase, stitchingUri, externalSourceUri, pos));
         trail.pop();
       }
       return out;
@@ -619,10 +666,21 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
         // OpenAPI 3.1 allows siblings alongside `$ref`; they survive.
         for (const key of Object.keys(obj)) {
           if (key === "$ref") continue;
+          const child = obj[key];
           setSpecKey(
             out,
             key,
-            await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, SCHEMA_POS),
+            isLeaf(child)
+              ? child
+              : yield* walkChild(
+                  obj,
+                  key,
+                  child,
+                  currentBase,
+                  stitchingUri,
+                  externalSourceUri,
+                  SCHEMA_POS,
+                ),
           );
         }
         return out;
@@ -652,7 +710,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
       sources.add(targetUri);
       let targetDoc = docs.get(targetUri);
       if (targetDoc === undefined) {
-        targetDoc = await readDoc(targetUri, trail.chain());
+        targetDoc = yield* readDoc(targetUri, trail.chain());
         if (targetDoc === UNREADABLE) {
           // Nothing to inline, so the reference survives into the
           // resolved document and the walk carries on past it. Siblings
@@ -673,10 +731,21 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
           };
           for (const key of Object.keys(obj)) {
             if (key === "$ref") continue;
+            const child = obj[key];
             setSpecKey(
               unfollowed,
               key,
-              await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
+              isLeaf(child)
+                ? child
+                : yield* walkChild(
+                    obj,
+                    key,
+                    child,
+                    currentBase,
+                    stitchingUri,
+                    externalSourceUri,
+                    pos,
+                  ),
             );
           }
           return unfollowed;
@@ -691,10 +760,21 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
         };
         for (const key of Object.keys(obj)) {
           if (key === "$ref") continue;
+          const child = obj[key];
           setSpecKey(
             unfollowed,
             key,
-            await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
+            isLeaf(child)
+              ? child
+              : yield* walkChild(
+                  obj,
+                  key,
+                  child,
+                  currentBase,
+                  stitchingUri,
+                  externalSourceUri,
+                  pos,
+                ),
           );
         }
         return unfollowed;
@@ -702,17 +782,20 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
       // The target's content replaces the reference in place, so it is
       // mounted at the position the walk is standing on.
       const mounted = trail.enter(targetUri, pointerFromFragment(fragment), trail.chain());
-      const inlined = await walk(resolved, baseDirOf(targetUri), stitchingUri, targetUri, pos);
+      const inlined = yield* walk(resolved, baseDirOf(targetUri), stitchingUri, targetUri, pos);
       trail.leave(mounted);
       visiting.delete(cycleKey(targetUri, fragment));
       const siblings: Mutable = {};
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
         if (isPlainObject(inlined)) trail.shadow(key, mounted);
+        const child = obj[key];
         setSpecKey(
           siblings,
           key,
-          await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
+          isLeaf(child)
+            ? child
+            : yield* walkChild(obj, key, child, currentBase, stitchingUri, externalSourceUri, pos),
         );
       }
       if (Object.keys(siblings).length === 0) return inlined;
@@ -735,10 +818,13 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
       const siblings: Mutable = queueStitch(externalSourceUri, ref.slice(1), pos.kind);
       for (const key of Object.keys(obj)) {
         if (key === "$ref") continue;
+        const child = obj[key];
         setSpecKey(
           siblings,
           key,
-          await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
+          isLeaf(child)
+            ? child
+            : yield* walkChild(obj, key, child, currentBase, stitchingUri, externalSourceUri, pos),
         );
       }
       return siblings;
@@ -746,10 +832,13 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
 
     const out: Mutable = {};
     for (const key of Object.keys(obj)) {
+      const child = obj[key];
       setSpecKey(
         out,
         key,
-        await walkChild(obj, key, currentBase, stitchingUri, externalSourceUri, pos),
+        isLeaf(child)
+          ? child
+          : yield* walkChild(obj, key, child, currentBase, stitchingUri, externalSourceUri, pos),
       );
     }
     return out;
@@ -767,16 +856,19 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
    * specification does not define drops to `unknown` for the same
    * reason. That is what keeps a `$ref` in a tag description, or under a
    * vendor extension, from reaching the reader.
+   *
+   * A scalar `value` must come back unchanged from every position: the
+   * callers return one themselves without calling this (see `isLeaf`).
    */
-  const walkChild = async (
+  const walkChild = function* (
     parent: Mutable,
     key: string,
+    value: unknown,
     currentBase: string,
     stitchingUri: string | null,
     externalSourceUri: string | null,
     parentPos: Pos,
-  ): Promise<unknown> => {
-    const value = parent[key];
+  ): Steps<unknown> {
     // Pushed here and popped before every return below, so the trail's
     // path always names the node being walked. An imbalance would
     // produce addresses that resolve to the wrong node.
@@ -834,23 +926,27 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
         mixedMap && Array.isArray(sub) ? UNKNOWN_POS : childPos;
       const out: Mutable = {};
       for (const [name, sub] of Object.entries(value as Mutable)) {
+        if (isLeaf(sub)) {
+          setSpecKey(out, name, sub);
+          continue;
+        }
         trail.push(name);
         setSpecKey(
           out,
           name,
-          await walk(sub, currentBase, stitchingUri, externalSourceUri, entryPos(sub)),
+          yield* walk(sub, currentBase, stitchingUri, externalSourceUri, entryPos(sub)),
         );
         trail.pop();
       }
       trail.pop();
       return out;
     }
-    const walked = await walk(value, currentBase, stitchingUri, externalSourceUri, childPos);
+    const walked = yield* walk(value, currentBase, stitchingUri, externalSourceUri, childPos);
     trail.pop();
     return walked;
   };
 
-  const resolved = (await walk(entryDoc, baseDir, null, null, DOCUMENT_POS)) as OpenAPIDocument;
+  const resolved = (yield* walk(entryDoc, baseDir, null, null, DOCUMENT_POS)) as OpenAPIDocument;
 
   // Hoist every claimed schema target. Nested targets discovered while
   // walking one are appended to the queue, so this drains transitively;
@@ -861,7 +957,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
   // in the loop, so the `hasOwn` guard above still collapses a repeat
   // instead of walking it a second time.
   const missingHoists = new Set<string>();
-  const drainHoists = async (): Promise<void> => {
+  const drainHoists = function* (): Steps<void> {
     while (hoistQueue.size > 0) {
       const key = hoistQueue.values().next().value as string;
       hoistQueue.delete(key);
@@ -873,7 +969,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
       setSpecKey(hoisted, name, true);
       let targetDoc = docs.get(target.uri);
       if (targetDoc === undefined) {
-        targetDoc = await readDoc(target.uri, hoistVia.get(key) ?? []);
+        targetDoc = yield* readDoc(target.uri, hoistVia.get(key) ?? []);
         if (targetDoc === UNREADABLE) {
           // The use site was rewritten to `#/components/schemas/<name>`
           // before the target was read, so leaving the slot empty leaves
@@ -909,7 +1005,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
       setSpecKey(
         hoisted,
         name,
-        await walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS),
+        yield* walk(content, baseDirOf(target.uri), null, target.uri, SCHEMA_POS),
       );
       trail.leave(mounted, true);
       hoistedTargets.push({
@@ -922,7 +1018,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
 
   // Walk each reserved fragment as the object its reference expects.
   // Overlapping source fragments have independent mounts.
-  const drainStitches = async (): Promise<void> => {
+  const drainStitches = function* (): Steps<void> {
     while (stitchQueue.size > 0) {
       const [key, target] = stitchQueue.entries().next().value as [string, StitchTarget];
       stitchQueue.delete(key);
@@ -931,7 +1027,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
       sources.add(uri);
       let targetDoc = docs.get(uri);
       if (targetDoc === undefined) {
-        targetDoc = await readDoc(uri, stitchVia.get(uri) ?? []);
+        targetDoc = yield* readDoc(uri, stitchVia.get(uri) ?? []);
         // Same shape as an unread hoist: the references into this
         // document were rewritten before it was read, so leaving it out
         // leaves them dangling where they were written.
@@ -953,7 +1049,7 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
         pointerFromFragment(fragment),
         stitchVia.get(uri) ?? [],
       );
-      const inlined = await walk(content, baseDirOf(uri), uri, uri, posOf(kind, true));
+      const inlined = yield* walk(content, baseDirOf(uri), uri, uri, posOf(kind, true));
       trail.leave(mounted, true);
       visiting.clear();
       for (const v of savedVisiting) visiting.add(v);
@@ -964,8 +1060,8 @@ export async function resolveSpecTracked(options: ResolveSpecOptions): Promise<T
   // Stitched content can claim schemas to hoist, so the two drain until
   // neither finds more work.
   do {
-    await drainHoists();
-    await drainStitches();
+    yield* drainHoists();
+    yield* drainStitches();
   } while (hoistQueue.size > 0 || stitchQueue.size > 0);
 
   for (const name of missingHoists) {
