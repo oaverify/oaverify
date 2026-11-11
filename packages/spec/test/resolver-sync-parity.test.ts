@@ -5,14 +5,11 @@ import { resolveSpecSync } from "../src/resolver-sync.js";
 import { loadSpec, loadSpecSync } from "../src/load.js";
 import type { SpecOverlay } from "../src/overlay.js";
 
-// Parity suite: resolveSpecSync is a hand-mirrored copy of resolveSpec's
-// read-interleaving walk (the async path is the production-critical edge
-// surface and isn't rewritten to serve the sync loader). These tests are
-// what make two copies safe: for every fixture they assert the sync and
-// async paths (a) produce identical output + source list, (b) read
-// documents in the identical order, and (c) throw equivalently with the
-// identical read order up to the throw. A change to one walk that isn't
-// mirrored in the other breaks this suite.
+// Parity suite: resolveSpec and resolveSpecSync answer the reads of one
+// walk, the first awaiting and the second not. For every fixture these
+// tests assert the two (a) produce identical output + source list,
+// (b) read documents in the identical order, and (c) throw equivalently
+// with the identical read order up to the throw.
 
 interface Recorders {
   asyncReader: DocumentReader;
@@ -304,7 +301,7 @@ const fixtures: { name: string; entry: string; sources: Map<string, unknown> }[]
   },
   {
     // Positions OpenAPI does not type as `X | Reference` hold author
-    // data. Both walks must decline all of these identically, and the
+    // data. Both entry points must decline all of these identically, and the
     // read order proves it: only the entry document is ever read.
     name: "refs at illegal positions are left alone",
     entry: "main.json",
@@ -340,7 +337,7 @@ const fixtures: { name: string; entry: string; sources: Map<string, unknown> }[]
   },
   {
     // Both halves of #612: the entry naming itself, and another
-    // document naming it back. Neither hoists, and the sync walk has to
+    // document naming it back. Neither hoists, and `resolveSpecSync` has to
     // reach the same conclusion from the same entry string.
     name: "references whose target is the entry document",
     entry: "main.json",
@@ -486,6 +483,49 @@ describe("resolveSpecSync ⇔ resolveSpec parity", () => {
     expect(syncErr).toBeInstanceOf(Error);
     expect((syncErr as Error).message).toBe((asyncErr as Error).message);
     expect(r.syncReads).toEqual(r.asyncReads);
+  });
+});
+
+describe("property reads", () => {
+  // A reader may answer with objects whose properties are computed, and
+  // a second read of one can answer differently from the first.
+  const counting = (): { doc: unknown; reads: () => number } => {
+    let reads = 0;
+    const data = {
+      get value(): number {
+        return ++reads;
+      },
+      get nested(): { n: number } {
+        return { n: ++reads };
+      },
+    };
+    return {
+      doc: {
+        openapi: "3.1.0",
+        info: { title: "X", version: "1" },
+        paths: {},
+        "x-data": data,
+      },
+      reads: () => reads,
+    };
+  };
+
+  it("reads each property of a document once", async () => {
+    const a = counting();
+    const asyncResult = await resolveSpec({
+      reader: { canRead: () => true, read: async () => a.doc },
+      entry: "main.json",
+    });
+    expect(asyncResult.document).toMatchObject({ "x-data": { value: 1, nested: { n: 2 } } });
+    expect(a.reads()).toBe(2);
+
+    const s = counting();
+    const syncResult = resolveSpecSync({
+      reader: { canRead: () => true, read: () => s.doc },
+      entry: "main.json",
+    });
+    expect(syncResult.document).toMatchObject({ "x-data": { value: 1, nested: { n: 2 } } });
+    expect(s.reads()).toBe(2);
   });
 });
 

@@ -10,8 +10,7 @@ import { sourceOf, type SpecRegion } from "../src/provenance.js";
  * `provenance.test.ts`; these tests pin what the walk emits, which is
  * the half that can silently drift as the resolver changes.
  *
- * Every case runs through both resolvers, because the sync mirror is
- * hand-written and the parity suite only compares documents.
+ * Every case runs through both `resolveSpec` and `resolveSpecSync`.
  */
 
 /** Async + sync readers over the same fixture, cloning per read. */
@@ -352,6 +351,50 @@ describe("non-schema inlining and the sibling merge", () => {
       uri: "r.json",
       pointer: "/shared/ok/description",
       via: [{ uri: "entry.json", pointer: "/paths/~1a/get/responses/200" }],
+    });
+  });
+});
+
+describe("references inside an array", () => {
+  it("address an inlined item by its index", async () => {
+    const regions = await regionsOf(
+      {
+        "entry.json": {
+          ...openapi,
+          paths: {
+            "/a": {
+              get: { parameters: [{ name: "first", in: "query" }, { $ref: "./p.json" }], ...ok },
+            },
+          },
+        },
+        "p.json": { name: "second", in: "query" },
+      },
+      "entry.json",
+    );
+    expect(sourceOf(regions, "/paths/~1a/get/parameters/1/name")).toEqual({
+      uri: "p.json",
+      pointer: "/name",
+      via: [{ uri: "entry.json", pointer: "/paths/~1a/get/parameters/1" }],
+    });
+    expect(sourceOf(regions, "/paths/~1a/get/parameters/0/name")?.uri).toBe("entry.json");
+  });
+
+  it("count a scalar item when numbering the ones after it", async () => {
+    const regions = await regionsOf(
+      {
+        "entry.json": {
+          ...openapi,
+          paths: {},
+          components: { schemas: { A: { oneOf: [true, { $ref: "./s.json" }] } } },
+        },
+        "s.json": { type: "string" },
+      },
+      "entry.json",
+    );
+    expect(sourceOf(regions, "/components/schemas/s/type")).toEqual({
+      uri: "s.json",
+      pointer: "/type",
+      via: [{ uri: "entry.json", pointer: "/components/schemas/A/oneOf/1" }],
     });
   });
 });
