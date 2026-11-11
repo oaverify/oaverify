@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import type { Plugin } from "esbuild";
 import { defineConfig } from "tsup";
+import { workspaceAliases } from "../../workspace-aliases.js";
 
 /**
  * Build config for `@oaverify/check`, the composed document check.
@@ -21,22 +22,26 @@ import { defineConfig } from "tsup";
  * claim.
  */
 const repoRoot = resolve(__dirname, "..", "..");
+const workspace = workspaceAliases(repoRoot);
+
+function workspaceTarget(specifier: string): string {
+  const target = workspace[specifier];
+  if (target === undefined) throw new Error(`workspace alias missing for ${specifier}`);
+  return target;
+}
 
 // Bundled rather than rewritten to a `@oaverify/core` subpath, because
 // it is not one. It carries ~100KB of vendored OpenAPI meta-schemas and
 // `metaschemaFor` reaches all three, so anything importing it pays in
 // full; only the conformance pass needs them, so they belong in this
 // tarball rather than in the library every framework adapter depends on.
-const bundledWorkspace: Record<string, string> = {
-  "@oaverify/internal-metaschema": resolve(repoRoot, "packages", "metaschema", "src", "index.ts"),
-  "@oaverify/internal-metaschema/conformance": resolve(
-    repoRoot,
-    "packages",
-    "metaschema",
-    "src",
-    "conformance.ts",
+// The keys are this package's bundle boundary; the source targets come
+// from the root builder.
+const bundledWorkspace = Object.fromEntries(
+  ["@oaverify/internal-metaschema", "@oaverify/internal-metaschema/conformance"].map(
+    (specifier) => [specifier, workspaceTarget(specifier)],
   ),
-};
+);
 
 const oavCoreRewrite: Record<string, string> = {
   "@oaverify/internal-core": "@oaverify/core/core",
