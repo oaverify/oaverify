@@ -1,14 +1,14 @@
 # Migrating to v7
 
-Nine breaking changes, and most callers meet one: `@oaverify/yaml` is
-renamed to `@oaverify/syntax`, which is a specifier swap with no
-imported name changing. The rest are scoped. Two apply only to the
-Fetch adapter (bodies are capped at 1 MiB, and a rejected body now
-reports its direction), three only to the CLI (cross-origin remote
-`$ref`s are refused by default, `--format flat` is gone, and three
-repeatable flags take one value each), one only to `style: matrix`
-parameters, one removes three field aliases deprecated in v6, and one
-moves four `@internal` symbols off `@oaverify/core`'s main entry.
+Most callers meet one breaking change: `@oaverify/yaml` is renamed to
+`@oaverify/syntax`, which is a specifier swap with no imported name
+changing. The rest are scoped. The Fetch adapter caps bodies at 1 MiB,
+and a rejected body now reports its direction. The CLI refuses
+cross-origin remote `$ref`s by default, drops `--format flat`, and takes
+one value per occurrence of three repeatable flags. A `style: matrix`
+parameter needs a group naming it. Three field aliases deprecated in v6
+are removed, and four `@internal` symbols move off `@oaverify/core`'s
+main entry.
 
 If you use the library with Express or Fastify and read no `check`
 findings, the breaking changes above are the rename and nothing else.
