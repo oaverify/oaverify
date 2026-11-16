@@ -1,0 +1,25 @@
+name: do-not-merge
+
+# A pull request labelled `do-not-merge` fails this check, and the check
+# is required on main, so the label blocks the merge button rather than
+# asking people to notice it. Removing the label reruns the check and
+# clears the block.
+#
+# It runs on every pull request and has no path filter: a required check
+# that never reports leaves a pull request unmergeable.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions: {}
+
+jobs:
+  do-not-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: fail while the do-not-merge label is present
+        if: contains(github.event.pull_request.labels.*.name, 'do-not-merge')
+        run: |
+          echo "::error::This pull request is labelled do-not-merge. Remove the label to allow the merge."
+          exit 1
