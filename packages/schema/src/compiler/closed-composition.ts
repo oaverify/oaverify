@@ -131,13 +131,14 @@ function declaresPatterns(node: Obj, ctx: ClosedCompositionContext): boolean {
  * The names the close on this node already permits, which is a
  * different question and takes a different answer.
  *
- * `additionalProperties` reads its siblings raw (`properties.ts:122`,
- * `Object.keys(ctx.parentSchema.properties ?? {})`), with no check that
- * the dialect registers them. So a `properties` the dialect does not
- * implement still covers its names against the close, and subtracting
- * only registered ones would report a name the emitted validator
- * accepts. Coverage describes the generated code, so it reads what the
- * generated code reads.
+ * `additionalProperties` reads its siblings raw:
+ * `additionalPropertiesKeyword` exempts every key of the parent
+ * schema's `properties` and every pattern of its `patternProperties`,
+ * with no check that the dialect registers them. So a `properties` the
+ * dialect does not implement still covers its names against the close,
+ * and subtracting only registered ones would report a name the emitted
+ * validator accepts. Coverage describes the generated code, so it reads
+ * what the generated code reads.
  */
 function coveredNames(node: Obj, ctx: ClosedCompositionContext): string[] {
   if (refSiblingIsDiscarded(node, "properties", ctx.refSuppressesSiblings)) return [];
