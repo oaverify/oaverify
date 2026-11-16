@@ -428,11 +428,12 @@ describe("unsatisfiable/composed-properties", () => {
   /**
    * A dialect need not register every keyword the rule reasons about,
    * and `additionalProperties` does not treat its two coverage siblings
-   * the way it treats everything else: it reads them raw
-   * (`properties.ts:122`), registered or not. So "does this declare a
-   * name" and "does this cover a name against the close" are different
-   * questions with different answers, and answering them the same way
-   * is wrong in both directions.
+   * the way it treats everything else: `additionalPropertiesKeyword`
+   * reads them raw from the parent schema and exempts the names they
+   * cover, registered or not. So "does this declare a name" and "does
+   * this cover a name against the close" are different questions with
+   * different answers, and answering them the same way is wrong in both
+   * directions.
    */
   /**
    * `$id` starts a schema resource, and a fragment `$ref` inside one
