@@ -9,12 +9,20 @@ const IPV4_OCTET_RE = /^(?:0|[1-9]\d{0,2})$/;
 const PREFIX_LEN_RE = /^(?:0|[1-9]\d{0,2})$/;
 
 /**
+ * The longest value {@link IPV4_OCTET_RE} lets through: four parts of at
+ * most three digits, and three dots (`255.255.255.255`).
+ */
+const MAX_IPV4_LENGTH = 15;
+
+/**
  * RFC 2673 `ipv4` (e.g. `"192.168.1.1"`).
  *
  * @specCites RFC 2673 section 3.2, https://datatracker.ietf.org/doc/html/rfc2673#section-3.2
  * @public
  */
 export function validateIpv4(value: string): boolean {
+  // Decided before the split, whose array grows with the input.
+  if (value.length > MAX_IPV4_LENGTH) return false;
   const parts = value.split(".");
   if (parts.length !== 4) return false;
   for (const p of parts) {

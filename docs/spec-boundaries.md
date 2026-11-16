@@ -182,7 +182,7 @@ different, 64-bit approximation. Requiring exact float32 representation
 would reject such values. Applications that need a range limit can set
 `minimum` and `maximum`.
 
-**`validateLanguage`** ([packages/formats/src/language.ts:93](../packages/formats/src/language.ts#L93))
+**`validateLanguage`** ([packages/formats/src/language.ts:98](../packages/formats/src/language.ts#L98))
 
 Against RFC 5646 section 2.2.9 (<https://datatracker.ietf.org/doc/html/rfc5646#section-2.2.9>).
 
