@@ -93,6 +93,38 @@ const audit = (node, path) => {
 };
 audit(doc, "");
 
+// A nested draft-04 `id` changes the base URI that `$ref` values beneath
+// it resolve against. 2020-12 ignores `id`, so keeping one would
+// silently retarget those references, and renaming it to `$id` needs a
+// resolution design this transform does not have. Refuse it.
+//
+// `id` is only a keyword where a schema is expected. A property named
+// `id` (`properties: { id: ... }`) or an `id` inside `enum`, `default`
+// or `example` is data, so this walk follows the draft-04 keywords that
+// hold subschemas instead of visiting every object.
+const SCHEMA_VALUED = ["additionalProperties", "additionalItems", "items", "not"];
+const SCHEMA_ARRAY_VALUED = ["allOf", "anyOf", "oneOf", "items"];
+const SCHEMA_MAP_VALUED = ["properties", "patternProperties", "definitions", "dependencies"];
+const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+// Locations are JSON Pointers (RFC 6901), so `~` and `/` in a key are
+// escaped: `/patternProperties/^\~1` names the key `^\/`.
+const pointerSegment = (key) => key.replaceAll("~", "~0").replaceAll("/", "~1");
+const auditIds = (schema, path) => {
+  if (!isObject(schema)) return;
+  if (path !== "" && "id" in schema) unsupported.push(`nested id at ${path}`);
+  for (const k of SCHEMA_VALUED) auditIds(schema[k], `${path}/${k}`);
+  for (const k of SCHEMA_ARRAY_VALUED) {
+    if (Array.isArray(schema[k])) schema[k].forEach((s, i) => auditIds(s, `${path}/${k}/${i}`));
+  }
+  for (const k of SCHEMA_MAP_VALUED) {
+    if (!isObject(schema[k])) continue;
+    for (const [name, s] of Object.entries(schema[k])) {
+      auditIds(s, `${path}/${k}/${pointerSegment(name)}`);
+    }
+  }
+};
+auditIds(doc, "");
+
 if (unsupported.length > 0) {
   console.error("draft-04 constructs this transform does not handle:");
   for (const u of unsupported) console.error(`  ${u}`);

@@ -91,7 +91,7 @@ reading, which is how #742 got three review passes deep.
 ## Coverage
 
 2 OpenAPI versions x 4 locations x their legal styles _and unset_ x `explode`
-unset/false/true x the version's schema shapes, against 28 query / 17 path / 8
+unset/false/true x the version's schema shapes, against 29 query / 17 path / 8
 header / 7 cookie wire inputs, plus 24 two-parameter documents with their own
 probes. 1,272 declarations, 23,424 cases, well under a second per side once
 both are built.
@@ -133,7 +133,7 @@ misread:
   the library resolves the default before it deserializes anything. Writing
   `style: form` out and omitting `style` are therefore separate cells even
   though they should agree.
-- **They agree today.** All 1,740 unset-style-and-explode cells produce a
+- **They agree today.** All 1,952 unset-style-and-explode cells produce a
   byte-identical result to the corresponding written-out default. That is the
   expected answer and not a wasted dimension: default resolution had no cell
   at all before, so a regression in it could not have been seen here. The
@@ -192,7 +192,7 @@ all.
 That is worth stating precisely, because most of it does not:
 
 - **`nullable` is inert here.** No wire input can produce a JSON `null`, so
-  `strNull` behaves exactly as `str` under 3.0 in all 714 comparable cells,
+  `strNull` behaves exactly as `str` under 3.0 in all 729 comparable cells,
   and likewise for `intNull` and `arrNull`. The cells are future-change
   detectors, not a test of `nullable`.
 - **`exclMax` is what makes the fork visible.** It is spelled per version
@@ -201,7 +201,7 @@ That is worth stating precisely, because most of it does not:
   `exclusiveMaximum` against `maximum`. 3.0 also gets `exclMaxNumeric`, the
   3.1 spelling in a 3.0 document, which is a malformed schema: every such cell
   records the construction error rather than a verdict.
-- Without those, 3.0 and 3.1 agreed on every one of the 8,568 comparable
+- Without those, 3.0 and 3.1 agreed on every one of the 8,748 comparable
   cells, which is the state this section exists to stop anyone assuming.
 
 Nullability in 3.0 is a flag rather than a union member, so it has no order to
