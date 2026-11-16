@@ -372,6 +372,12 @@ export interface PathItem {
   trace?: OperationObject;
   /** 3.2+: HTTP QUERY method. */
   query?: OperationObject;
+  /**
+   * Servers for every operation on this path. Replaces the document-level
+   * {@link OpenAPIDocument.servers}; an operation's own
+   * {@link OperationObject.servers} replaces this in turn.
+   */
+  servers?: ServerObject[];
   parameters?: (ParameterObject | ReferenceObject)[];
 }
 
