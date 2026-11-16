@@ -244,7 +244,7 @@ reaching for `pnpm pack` directly.
 ## Differential checking
 
 ```bash
-pnpm grid-check           # ~5,100 parameter requests, this tree vs main
+pnpm grid-check           # the parameter grid, this tree vs main
 pnpm grid-check <rev>     # vs any revision
 ```
 
@@ -268,11 +268,10 @@ three review passes; the differential is what found it.
 
 It is not a conformance corpus, and a clean run means "nothing changed"
 rather than "this is correct": two revisions wrong the same way is a
-clean run. It also carries known holes that a large case count disguises,
-the largest being that `style` and `explode` are always declared here and
-are left unset on ~92% of real published parameters, which is a different
-code path. `scripts/grid/README.md` lists the rest. Read them before
-treating a green `grid-check` as coverage.
+clean run. A large case count also disguises what the grid leaves out.
+The "Coverage" section of `scripts/grid/README.md` owns the current
+dimensions and the known gaps; read it before treating a green
+`grid-check` as coverage.
 
 ## Coverage
 
