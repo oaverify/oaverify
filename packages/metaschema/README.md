@@ -147,6 +147,16 @@ Re-fetches each pinned URL and compares it to the vendored copy (for
 A dated URL is supposed to be immutable, so a mismatch means either that
 assumption is wrong or a vendored file was hand-edited.
 
+The versions it checks are the documents in `src/vendor/`. Each needs a
+dated entry in `METASCHEMA_REVISIONS`, and each entry needs a document;
+otherwise the script exits 2 before fetching anything.
+
+The script reads the `METASCHEMA_REVISIONS` declaration as text, so it
+must appear exactly once in `src/index.ts`, one entry per line. A second
+copy, even inside a comment, also exits 2. A test compares the pins the
+script reads with the exported value, so a declaration it would misread
+fails `pnpm test`.
+
 It does **not** detect a newer revision being published, and it says so
 when it passes. There is no index to enumerate: `latest` 404s, directory
 listings 404, and the upstream repository does not carry the dated
