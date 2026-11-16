@@ -124,8 +124,8 @@ byte.
 The whole draft-04 surface is three things: `id`, the `$schema` URI, and
 one `multipleOf` node using draft-04's boolean `exclusiveMinimum`
 modifier. The transform refuses anything else draft-04-shaped
-(array-form `items`, `dependencies`, `additionalItems`, `divisibleBy`)
-rather than emitting a schema nobody read.
+(array-form `items`, `dependencies`, `additionalItems`, `divisibleBy`, an
+`id` on a nested schema) rather than emitting a schema nobody read.
 
 **The trap.** The 3.0 document both _is_ a schema and _describes_
 OpenAPI's own Schema Object, which has its own boolean
@@ -146,6 +146,16 @@ Re-fetches each pinned URL and compares it to the vendored copy (for
 3.0, to the checked-in upstream input rather than the converted output).
 A dated URL is supposed to be immutable, so a mismatch means either that
 assumption is wrong or a vendored file was hand-edited.
+
+The versions it checks are the documents in `src/vendor/`. Each needs a
+dated entry in `METASCHEMA_REVISIONS`, and each entry needs a document;
+otherwise the script exits 2 before fetching anything.
+
+The script reads the `METASCHEMA_REVISIONS` declaration as text, so it
+must appear exactly once in `src/index.ts`, one entry per line. A second
+copy, even inside a comment, also exits 2. A test compares the pins the
+script reads with the exported value, so a declaration it would misread
+fails `pnpm test`.
 
 It does **not** detect a newer revision being published, and it says so
 when it passes. There is no index to enumerate: `latest` 404s, directory
