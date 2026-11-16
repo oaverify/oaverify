@@ -124,8 +124,8 @@ byte.
 The whole draft-04 surface is three things: `id`, the `$schema` URI, and
 one `multipleOf` node using draft-04's boolean `exclusiveMinimum`
 modifier. The transform refuses anything else draft-04-shaped
-(array-form `items`, `dependencies`, `additionalItems`, `divisibleBy`)
-rather than emitting a schema nobody read.
+(array-form `items`, `dependencies`, `additionalItems`, `divisibleBy`, an
+`id` on a nested schema) rather than emitting a schema nobody read.
 
 **The trap.** The 3.0 document both _is_ a schema and _describes_
 OpenAPI's own Schema Object, which has its own boolean

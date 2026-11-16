@@ -126,6 +126,60 @@ describe("convert-oas30: refusing what it does not understand", () => {
       /unpaired boolean exclusiveMinimum/,
     );
   });
+
+  it("refuses an identifier on a nested schema, naming where it is", () => {
+    // A draft-04 `id` below the root rebases the `$ref`s under it;
+    // 2020-12 ignores the keyword, so passing it through would change
+    // what `child.json` points at.
+    const upstream = JSON.parse(readFileSync(UPSTREAM, "utf8")) as {
+      definitions: Record<string, unknown>;
+    };
+    upstream.definitions["Triage"] = {
+      id: "nested/",
+      properties: { p: { $ref: "child.json" } },
+    };
+    expect(convertExpectingFailure(upstream)).toMatch(/nested id at \/definitions\/Triage\n/);
+  });
+
+  it.each([
+    ["items", { items: { id: "a/" } }, "/items"],
+    ["allOf", { allOf: [{}, { id: "a/" }] }, "/allOf/1"],
+    ["patternProperties", { patternProperties: { "^x-": { id: "a/" } } }, "/patternProperties/^x-"],
+    ["not", { properties: { a: { not: { id: "a/" } } } }, "/properties/a/not"],
+    ["additionalProperties", { additionalProperties: { id: "a/" } }, "/additionalProperties"],
+    ["anyOf", { anyOf: [{ id: "a/" }] }, "/anyOf/0"],
+    ["oneOf", { oneOf: [{}, {}, { id: "a/" }] }, "/oneOf/2"],
+  ])("refuses an identifier on a schema under %s", (_keyword, doc, location) => {
+    expect(convertExpectingFailure(doc)).toContain(`nested id at ${location}\n`);
+  });
+
+  it("reports the location as a JSON Pointer, escaping / and ~ in a key", () => {
+    // The upstream document has a real `^\/` pattern key, so an
+    // unescaped location would read as one segment too many.
+    const stderr = convertExpectingFailure({
+      patternProperties: { "^\\/": { id: "a/" } },
+      definitions: { "a~b": { id: "a/" } },
+    });
+    expect(stderr).toContain("nested id at /patternProperties/^\\~1\n");
+    expect(stderr).toContain("nested id at /definitions/a~0b\n");
+  });
+
+  it("accepts data that happens to be named id", () => {
+    // None of these is a schema carrying the keyword: one is a property
+    // called `id`, the rest are instance values.
+    const doc = {
+      properties: {
+        id: { type: "string" },
+        tag: {
+          enum: [{ id: "a" }],
+          default: { id: "a" },
+          example: { id: "a" },
+        },
+      },
+      required: ["id"],
+    };
+    expect(convert(doc)).toEqual(doc);
+  });
 });
 
 describe("convert-oas30: reproducibility", () => {
