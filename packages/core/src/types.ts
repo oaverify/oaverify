@@ -21,6 +21,13 @@ export type JsonValue =
 /**
  * A JSON Schema reference object (`{ "$ref": "..." }`).
  *
+ * Declares no `x-` index signature: OpenAPI 3.1 and 3.2 say a Reference
+ * Object cannot be extended and that any added property is ignored. An
+ * object literal typed as a union with an extensible type, such as
+ * `ResponseObject | ReferenceObject`, still compiles with `$ref` and an
+ * `x-` field together, because TypeScript checks a literal's extra
+ * properties against every member of the union.
+ *
  * @public
  */
 export interface ReferenceObject {
@@ -139,11 +146,15 @@ export type SchemaOrBoolean = SchemaObject | boolean;
 /**
  * OpenAPI 3.1 discriminator object.
  *
+ * OpenAPI 3.1 and 3.2 let it carry `x-` fields; 3.0 does not, and this
+ * type does not encode the difference.
+ *
  * @public
  */
 export interface DiscriminatorObject {
   propertyName: string;
   mapping?: Record<string, string>;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -152,6 +163,22 @@ export interface DiscriminatorObject {
  * `jsonSchemaDialect`) are optional; the `openapi` string discriminates
  * at validator-construction time via
  * `detectOpenAPIVersion`.
+ *
+ * @remarks
+ * Specification Extensions: this type, and each interface here for an
+ * object OpenAPI lets carry them, declares an `x-${string}` index
+ * signature, so an `x-` field holding a JSON value is accepted on it
+ * (`{ url: "https://example.com", "x-internal": true }` is a
+ * {@link ServerObject}). Three map-shaped objects do not accept one: a
+ * key directly under `paths`, under an operation's `responses`, or in a
+ * {@link CallbackObject} is typed as an entry of the map, so an `x-` key
+ * there has to hold a Path Item, a Response or a reference.
+ *
+ * The signature is also a requirement on a
+ * value typed elsewhere. An object literal or a type alias needs nothing,
+ * but an `interface` or class of your own is assignable to one of these
+ * types only if it declares the same signature, and an `x-` property it
+ * does declare must hold a {@link JsonValue}.
  *
  * @public
  */
@@ -187,6 +214,9 @@ export interface OpenAPIDocument {
  * if **any** one of them is satisfied (OR semantics). Within a single
  * requirement, **all** listed schemes must be satisfied (AND).
  *
+ * Every key is a scheme name, `x-` names included: OpenAPI does not let
+ * this object carry Specification Extensions.
+ *
  * @public
  */
 export type SecurityRequirementObject = Record<string, string[]>;
@@ -221,6 +251,7 @@ export interface SecuritySchemeObject {
   flows?: unknown;
   /** `openIdConnect` schemes: discovery URL. Not validated at the shape level. */
   openIdConnectUrl?: string;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -233,6 +264,7 @@ export interface InfoObject {
   version: string;
   description?: string;
   summary?: string;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -247,6 +279,7 @@ export interface ServerObject {
   name?: string;
   /** Substitution values for the placeholders in braces in `url`, keyed by placeholder name. */
   variables?: Record<string, ServerVariableObject>;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -266,6 +299,7 @@ export interface ServerVariableObject {
   default: string;
   /** A description of the variable. CommonMark syntax may be used. */
   description?: string;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -276,6 +310,7 @@ export interface ServerVariableObject {
 export interface TagObject {
   name: string;
   description?: string;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -286,6 +321,7 @@ export interface TagObject {
 export interface ExternalDocumentationObject {
   url: string;
   description?: string;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -301,6 +337,7 @@ export interface ExampleObject {
   description?: string;
   value?: JsonValue;
   externalValue?: string;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -317,6 +354,7 @@ export interface LinkObject {
   requestBody?: JsonValue;
   description?: string;
   server?: ServerObject;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -324,6 +362,10 @@ export interface LinkObject {
  * {@link PathItem} that should be invoked when the expression evaluates.
  * The expression dialect is documented in the OAS spec; oaverify does not
  * evaluate it.
+ *
+ * OpenAPI lets a Callback Object carry `x-` fields, and this type does not
+ * accept them: every key is typed as an expression, so an `x-` entry has
+ * to be a Path Item or a reference.
  *
  * @public
  */
@@ -350,6 +392,7 @@ export interface ComponentsObject {
    */
   pathItems?: Record<string, PathItem | ReferenceObject>;
   examples?: Record<string, ExampleObject | ReferenceObject>;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -379,6 +422,7 @@ export interface PathItem {
    */
   servers?: ServerObject[];
   parameters?: (ParameterObject | ReferenceObject)[];
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -443,6 +487,7 @@ export interface OperationObject {
   /** Additional external documentation. */
   externalDocs?: ExternalDocumentationObject;
   deprecated?: boolean;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -526,6 +571,7 @@ export interface ParameterObject {
   content?: Record<string, MediaTypeObject>;
   example?: JsonValue;
   examples?: Record<string, JsonValue>;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -537,6 +583,7 @@ export interface RequestBodyObject {
   description?: string;
   content: Record<string, MediaTypeObject>;
   required?: boolean;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -548,6 +595,7 @@ export interface ResponseObject {
   description?: string;
   headers?: Record<string, HeaderObject | ReferenceObject>;
   content?: Record<string, MediaTypeObject>;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -566,6 +614,7 @@ export interface MediaTypeObject {
   schema?: SchemaOrBoolean;
   example?: JsonValue;
   examples?: Record<string, JsonValue>;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
@@ -598,6 +647,7 @@ export interface HeaderObject {
    * first value.
    */
   content?: Record<string, MediaTypeObject>;
+  [extension: `x-${string}`]: JsonValue | undefined;
 }
 
 /**
